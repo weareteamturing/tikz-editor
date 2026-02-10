@@ -1,4 +1,4 @@
-import type { Span } from "../ir/types.js";
+import type { Span } from "../ast/types.js";
 
 export type Severity = "error" | "warning";
 

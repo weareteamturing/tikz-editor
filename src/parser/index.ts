@@ -1,10 +1,10 @@
 import type { Tree } from "@lezer/common";
 
-import { parser } from "../grammar/tikz-parser.js";
 import type { Diagnostic } from "../diagnostics/types.js";
-import { FeatureFlags } from "../features.js";
-import { fromCst } from "../ir/from-cst.js";
-import type { TikzFigure } from "../ir/types.js";
+import { FeatureFlags } from "../ast/features.js";
+import { fromCst } from "../transform/cst-to-ast.js";
+import type { TikzFigure } from "../ast/types.js";
+import { parseSyntax } from "../syntax/parse.js";
 
 export type ParseTikzOptions = {
   recover?: boolean;
@@ -20,7 +20,7 @@ export type ParseTikzResult = {
 
 export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikzResult {
   const recover = opts.recover ?? true;
-  const tree = parser.parse(input);
+  const tree = parseSyntax(input);
 
   const mapped = fromCst(tree, input);
 
@@ -41,4 +41,4 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
 }
 
 export type { Diagnostic } from "../diagnostics/types.js";
-export type * from "../ir/types.js";
+export type * from "../ast/types.js";

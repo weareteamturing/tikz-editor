@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "generate:grammar": "lezer-generator src/grammar/tikz.grammar -o src/grammar/tikz-parser.ts",
+    "generate:grammar": "lezer-generator src/syntax/grammar/tikz.grammar -o src/syntax/grammar/tikz-parser.ts",
     "build": "npm run generate:grammar && tsc -p tsconfig.json",
     "test": "npm run generate:grammar && vitest run",
     "test:watch": "npm run generate:grammar && vitest",
