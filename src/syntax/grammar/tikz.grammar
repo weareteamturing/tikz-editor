@@ -3,7 +3,7 @@
 @skip { space }
 
 TikzEnvironment {
-  BeginTikz BodyItem* EndTikz
+  BeginTikz OptionList? BodyItem* EndTikz
 }
 
 BodyItem {
@@ -13,8 +13,35 @@ BodyItem {
 }
 
 Statement {
+  ScopeStatement |
+  ForeachStatement |
   PathStatement |
   UnknownStatement
+}
+
+ScopeStatement {
+  BeginScope OptionList? BodyItem* EndScope
+}
+
+ForeachStatement {
+  ForeachCmd ForeachPrefix+ ForeachBody
+}
+
+ForeachBody {
+  Group |
+  PathStatement
+}
+
+ForeachPrefix {
+  Comment |
+  OptionList |
+  Coordinate |
+  PathKeyword |
+  InKw |
+  CommandName |
+  IdentifierLike |
+  Number |
+  OptionPunct
 }
 
 PathStatement {
@@ -26,13 +53,21 @@ PathCommand {
   PathCmd |
   FillDrawCmd |
   FillCmd |
+  PatternCmd |
   ClipCmd |
   ShadeCmd |
+  ShadeDrawCmd |
+  UseAsBoundingBoxCmd |
   NodeCmd |
   CoordinateCmd
 }
 
 PathItem {
+  ToOperation |
+  SvgOperation |
+  LetOperation |
+  CoordinateOperation |
+  Comment |
   RelativeCoordinate |
   Coordinate |
   NodeItem |
@@ -52,12 +87,21 @@ PathOperator {
 }
 
 NodeItem {
-  NodeKw OptionList? NodePlacement? Group
+  NodeKw NodeQualifier* Group
+}
+
+NodeQualifier {
+  OptionList |
+  NodePlacement |
+  NodeName
 }
 
 NodePlacement {
-  AtKw CoordinateLike |
-  CoordinateLike
+  AtKw CoordinateLike
+}
+
+NodeName {
+  Coordinate
 }
 
 CoordinateLike {
@@ -76,9 +120,9 @@ RelativePrefix {
 
 PathKeyword {
   AtKw |
+  BendKw |
   CycleKw |
   CircleKw |
-  ToKw |
   EdgeKw |
   ControlsKw |
   AndKw |
@@ -92,11 +136,58 @@ PathKeyword {
   CosKw
 }
 
+ToOperation {
+  ToKw OptionList? NodeItem* ToTarget
+}
+
+ToTarget {
+  CoordinateLike |
+  CycleKw
+}
+
+SvgOperation {
+  SvgKw OptionList? SvgPayload
+}
+
+SvgPayload {
+  Group |
+  QuotedSvg
+}
+
+LetOperation {
+  LetKw LetPart* InKw
+}
+
+LetPart {
+  Comment |
+  RelativeCoordinate |
+  Coordinate |
+  OptionList |
+  Group |
+  PathKeyword |
+  KnownCommand |
+  CommandName |
+  IdentifierLike |
+  Number |
+  LetPunct |
+  StraySymbol
+}
+
+LetPunct {
+  "," |
+  "="
+}
+
+CoordinateOperation {
+  CoordinateKw OptionList? Coordinate
+}
+
 UnknownStatement {
   CommandName UnknownPart* ";"
 }
 
 UnknownPart {
+  Comment |
   RelativeCoordinate |
   Coordinate |
   OptionList |
@@ -105,8 +196,9 @@ UnknownPart {
 }
 
 UnknownPathItem {
+  KnownCommand |
   CommandName |
-  Identifier |
+  IdentifierLike |
   Number |
   StraySymbol
 }
@@ -118,9 +210,17 @@ OptionList {
 OptionPart {
   Group |
   Coordinate |
+  GroupPathOperator |
   PathKeyword |
+  KnownCommand |
   CommandName |
-  Identifier |
+  NodeKw |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
+  IdentifierLike |
   Number |
   OptionPunct
 }
@@ -132,7 +232,13 @@ OptionPunct {
   "/" |
   "." |
   "-" |
-  "+"
+  "+" |
+  "|" |
+  "!" |
+  "?" |
+  ">" |
+  "<" |
+  "'"
 }
 
 Group {
@@ -140,13 +246,29 @@ Group {
 }
 
 GroupPart {
+  NodeItem |
   Group |
   Coordinate |
+  OptionList |
+  GroupPathOperator |
   PathKeyword |
+  KnownCommand |
   CommandName |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
   Number |
-  Identifier |
+  IdentifierLike |
   GroupPunct
+}
+
+GroupPathOperator {
+  "--" |
+  "-|" |
+  "|-" |
+  ".."
 }
 
 GroupPunct {
@@ -181,9 +303,15 @@ CoordPart {
   OptionList |
   Group |
   PathKeyword |
+  KnownCommand |
   CommandName |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
   Number |
-  Identifier |
+  IdentifierLike |
   "," |
   "." |
   ":" |
@@ -198,6 +326,24 @@ CoordPart {
   "&" |
   "^" |
   "_"
+}
+
+IdentifierLike {
+  Identifier
+}
+
+KnownCommand {
+  DrawCmd |
+  PathCmd |
+  FillDrawCmd |
+  FillCmd |
+  PatternCmd |
+  ClipCmd |
+  ShadeCmd |
+  ShadeDrawCmd |
+  UseAsBoundingBoxCmd |
+  NodeCmd |
+  CoordinateCmd
 }
 
 StraySymbol {
@@ -217,11 +363,15 @@ StraySymbol {
 
 StrayToken {
   Number |
-  Identifier |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
+  IdentifierLike |
   PathKeyword |
   "{" |
   "}" |
-  "[" |
   "]" |
   "(" |
   ")" |
@@ -242,16 +392,27 @@ StrayToken {
     EndTikz,
     FillDrawCmd,
     FillCmd,
+    PatternCmd,
     DrawCmd,
     PathCmd,
     ClipCmd,
+    ShadeDrawCmd,
     ShadeCmd,
+    UseAsBoundingBoxCmd,
+    BeginScope,
+    EndScope,
+    ForeachCmd,
     NodeCmd,
     CoordinateCmd,
     AtKw,
+    BendKw,
     CycleKw,
     CircleKw,
     ToKw,
+    SvgKw,
+    LetKw,
+    InKw,
+    CoordinateKw,
     EdgeKw,
     ControlsKw,
     AndKw,
@@ -282,15 +443,26 @@ StrayToken {
   PathCmd { "\\path" }
   FillDrawCmd { "\\filldraw" }
   FillCmd { "\\fill" }
+  PatternCmd { "\\pattern" }
   ClipCmd { "\\clip" }
   ShadeCmd { "\\shade" }
+  ShadeDrawCmd { "\\shadedraw" }
+  UseAsBoundingBoxCmd { "\\useasboundingbox" }
+  BeginScope { "\\begin{scope}" }
+  EndScope { "\\end{scope}" }
+  ForeachCmd { "\\foreach" }
   NodeCmd { "\\node" }
   CoordinateCmd { "\\coordinate" }
 
   AtKw { "at" }
+  BendKw { "bend" }
   CycleKw { "cycle" }
   CircleKw { "circle" }
   ToKw { "to" }
+  SvgKw { "svg" }
+  LetKw { "let" }
+  InKw { "in" }
+  CoordinateKw { "coordinate" }
   EdgeKw { "edge" }
   ControlsKw { "controls" }
   AndKw { "and" }
@@ -310,4 +482,6 @@ StrayToken {
   Number { $[0-9]+ ("." $[0-9]+)? }
 
   Identifier { $[A-Za-z] $[-A-Za-z0-9_:@]* }
+
+  QuotedSvg { "\"" !["\n\r]* "\"" }
 }

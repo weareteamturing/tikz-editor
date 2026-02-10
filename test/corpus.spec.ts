@@ -33,8 +33,13 @@ describe("pgf-docs corpus regression", () => {
     let totalPathItems = 0;
     let coordinateItems = 0;
     let nodeItems = 0;
+    let commentItems = 0;
     let optionItems = 0;
     let keywordItems = 0;
+    let toOperationItems = 0;
+    let svgOperationItems = 0;
+    let letOperationItems = 0;
+    let coordinateOperationItems = 0;
     let unknownPathItems = 0;
 
     for (const snippet of tikzPictureSnippets) {
@@ -70,10 +75,20 @@ describe("pgf-docs corpus regression", () => {
               } else if (item.kind === "Node") {
                 hasNodeItem = true;
                 nodeItems += 1;
+              } else if (item.kind === "PathComment") {
+                commentItems += 1;
               } else if (item.kind === "PathOption") {
                 optionItems += 1;
               } else if (item.kind === "PathKeyword") {
                 keywordItems += 1;
+              } else if (item.kind === "ToOperation") {
+                toOperationItems += 1;
+              } else if (item.kind === "SvgOperation") {
+                svgOperationItems += 1;
+              } else if (item.kind === "LetOperation") {
+                letOperationItems += 1;
+              } else if (item.kind === "CoordinateOperation") {
+                coordinateOperationItems += 1;
               } else {
                 unknownPathItems += 1;
               }
@@ -156,13 +171,24 @@ describe("pgf-docs corpus regression", () => {
           totalPathItems,
           coordinateItems,
           nodeItems,
+          commentItems,
           optionItems,
           keywordItems,
+          toOperationItems,
+          svgOperationItems,
+          letOperationItems,
+          coordinateOperationItems,
           unknownPathItems,
           coordinateItemRate: totalPathItems === 0 ? 0 : Number((coordinateItems / totalPathItems).toFixed(4)),
           nodeItemRate: totalPathItems === 0 ? 0 : Number((nodeItems / totalPathItems).toFixed(4)),
+          commentItemRate: totalPathItems === 0 ? 0 : Number((commentItems / totalPathItems).toFixed(4)),
           optionItemRate: totalPathItems === 0 ? 0 : Number((optionItems / totalPathItems).toFixed(4)),
           keywordItemRate: totalPathItems === 0 ? 0 : Number((keywordItems / totalPathItems).toFixed(4)),
+          toOperationItemRate: totalPathItems === 0 ? 0 : Number((toOperationItems / totalPathItems).toFixed(4)),
+          svgOperationItemRate: totalPathItems === 0 ? 0 : Number((svgOperationItems / totalPathItems).toFixed(4)),
+          letOperationItemRate: totalPathItems === 0 ? 0 : Number((letOperationItems / totalPathItems).toFixed(4)),
+          coordinateOperationItemRate:
+            totalPathItems === 0 ? 0 : Number((coordinateOperationItems / totalPathItems).toFixed(4)),
           unknownPathItemRate: totalPathItems === 0 ? 0 : Number((unknownPathItems / totalPathItems).toFixed(4))
         }
       },

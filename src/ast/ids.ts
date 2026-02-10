@@ -18,8 +18,28 @@ export function pathOptionItemId(statementIndex: number, itemIndex: number): str
   return `path-option:${statementIndex}:${itemIndex}`;
 }
 
+export function pathCommentItemId(statementIndex: number, itemIndex: number): string {
+  return `path-comment:${statementIndex}:${itemIndex}`;
+}
+
 export function pathKeywordItemId(statementIndex: number, itemIndex: number): string {
   return `path-keyword:${statementIndex}:${itemIndex}`;
+}
+
+export function toOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `to-operation:${statementIndex}:${itemIndex}`;
+}
+
+export function svgOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `svg-operation:${statementIndex}:${itemIndex}`;
+}
+
+export function letOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `let-operation:${statementIndex}:${itemIndex}`;
+}
+
+export function coordinateOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `coordinate-operation:${statementIndex}:${itemIndex}`;
 }
 
 export function unknownPathItemId(statementIndex: number, itemIndex: number): string {

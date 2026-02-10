@@ -16,9 +16,30 @@ export type PathStatement = {
   items: PathItem[];
 };
 
-export type PathCommand = "path" | "draw" | "fill" | "filldraw" | "clip" | "shade" | "node" | "coordinate";
+export type PathCommand =
+  | "path"
+  | "draw"
+  | "fill"
+  | "filldraw"
+  | "pattern"
+  | "clip"
+  | "shade"
+  | "shadedraw"
+  | "useasboundingbox"
+  | "node"
+  | "coordinate";
 
-export type PathItem = CoordinateItem | NodeItem | PathOptionItem | PathKeywordItem | UnknownPathItem;
+export type PathItem =
+  | CoordinateItem
+  | NodeItem
+  | PathCommentItem
+  | PathOptionItem
+  | PathKeywordItem
+  | ToOperationItem
+  | SvgOperationItem
+  | LetOperationItem
+  | CoordinateOperationItem
+  | UnknownPathItem;
 
 export type CoordinateItem = {
   kind: "Coordinate";
@@ -49,11 +70,52 @@ export type PathOptionItem = {
   raw: string;
 };
 
+export type PathCommentItem = {
+  kind: "PathComment";
+  id: string;
+  span: Span;
+  raw: string;
+};
+
 export type PathKeywordItem = {
   kind: "PathKeyword";
   id: string;
   span: Span;
   keyword: string;
+};
+
+export type ToOperationItem = {
+  kind: "ToOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  raw: string;
+};
+
+export type SvgOperationItem = {
+  kind: "SvgOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  dataSpan?: Span;
+  dataRaw: string;
+};
+
+export type LetOperationItem = {
+  kind: "LetOperation";
+  id: string;
+  span: Span;
+  raw: string;
+};
+
+export type CoordinateOperationItem = {
+  kind: "CoordinateOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  nameSpan?: Span;
+  placementSpan?: Span;
+  raw: string;
 };
 
 export type UnknownStatement = {

@@ -213,4 +213,134 @@ describe("parseTikz", () => {
     expect(forms).toContain("explicit");
     expect(forms).toContain("calc");
   });
+
+  it("parses node names with options and text in path syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node(a) [draw] {A}  (1,1) node(b) [draw] {B};
+  \draw (a.north) |- (b.west);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const firstPath = result.figure.body[0];
+    expect(firstPath?.kind).toBe("Path");
+    if (!firstPath || firstPath.kind !== "Path") {
+      return;
+    }
+
+    const nodeTexts = firstPath.items
+      .filter((item) => item.kind === "Node")
+      .map((item) => (item.kind === "Node" ? item.text : ""));
+    expect(nodeTexts).toEqual(["A", "B"]);
+
+    const unknownPathTexts: string[] = [];
+    result.tree.iterate({
+      enter(node) {
+        if (node.name === "UnknownPathItem") {
+          unknownPathTexts.push(source.slice(node.from, node.to));
+        }
+      }
+    });
+
+    expect(unknownPathTexts).not.toContain("{A}");
+    expect(unknownPathTexts).not.toContain("{B}");
+  });
+
+  it("covers core path operations up to parabola/sine/cosine without unknown fallbacks", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -| (1,1) |- (0,1) -- cycle;
+  \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+  \draw (0,0) rectangle (1,1);
+  \draw (0,0) circle [radius=1cm];
+  \draw (0,0) ellipse [x radius=1cm, y radius=.5cm];
+  \draw (0,0) arc[start angle=0, end angle=90, radius=1cm];
+  \draw (0,0) grid [step=1] (2,2);
+  \draw (0,0) parabola bend (1,1) (2,0);
+  \draw (0,0) sin (1,1) cos (2,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const keywords = result.figure.body
+      .filter((statement) => statement.kind === "Path")
+      .flatMap((statement) =>
+        statement.kind === "Path"
+          ? statement.items
+              .filter((item) => item.kind === "PathKeyword")
+              .map((item) => (item.kind === "PathKeyword" ? item.keyword : ""))
+          : []
+      );
+
+    expect(keywords).toEqual(
+      expect.arrayContaining(["cycle", "controls", "and", "rectangle", "circle", "ellipse", "arc", "grid", "parabola", "bend", "sin", "cos"])
+    );
+
+    const unknown = result.figure.body
+      .filter((statement) => statement.kind === "Path")
+      .flatMap((statement) =>
+        statement.kind === "Path"
+          ? statement.items.filter((item) => item.kind === "UnknownPathItem").map((item) => (item.kind === "UnknownPathItem" ? item.raw.trim() : ""))
+          : []
+      );
+
+    expect(unknown).toHaveLength(0);
+  });
+
+  it("parses to, svg, let, and coordinate operations with typed IR items", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) to [edge label=x, edge label'=y] node [above] {t} (3,2);
+  \filldraw [fill=red!20] (0,1) svg[scale=2] {h 10 v 10 h -10} -- cycle;
+  \path let \p1 = (1,1), \p2 = (2,0) in (0,0) -- (\p2);
+  \path coordinate (p1) at (1,0) coordinate (p2) at (2,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const items = result.figure.body
+      .filter((statement) => statement.kind === "Path")
+      .flatMap((statement) => (statement.kind === "Path" ? statement.items : []));
+
+    expect(items.some((item) => item.kind === "ToOperation")).toBe(true);
+    expect(items.some((item) => item.kind === "SvgOperation")).toBe(true);
+    expect(items.some((item) => item.kind === "LetOperation")).toBe(true);
+    expect(items.filter((item) => item.kind === "CoordinateOperation").length).toBeGreaterThanOrEqual(2);
+
+    const svg = items.find((item) => item.kind === "SvgOperation");
+    expect(svg?.kind).toBe("SvgOperation");
+    if (svg?.kind === "SvgOperation") {
+      expect(svg.dataRaw).toBe("{h 10 v 10 h -10}");
+    }
+  });
+
+  it("recognizes action command aliases as path commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \pattern (0,0) circle (1ex);
+  \shadedraw (0,0) circle (1ex);
+  \useasboundingbox (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const commands = result.figure.body
+      .filter((statement) => statement.kind === "Path")
+      .map((statement) => (statement.kind === "Path" ? statement.command : "path"));
+
+    expect(commands).toEqual(expect.arrayContaining(["pattern", "shadedraw", "useasboundingbox"]));
+  });
+
+  it("parses scope and foreach constructs used in actions examples without hard errors", () => {
+    const source = String.raw`\begin{tikzpicture}[|-|, dash pattern=on 4pt off 2pt]
+  \begin{scope}[line width=1pt]
+    \draw[line cap=round] (0,1 ) -- +(1,0);
+    \draw[line cap=butt]  (0,.5) -- +(1,0);
+  \end{scope}
+  \foreach \lw in {0.5,1,1.5,2,2.5}
+    \draw[line width=\lw pt,double] (\lw,0) -- ++(4mm,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
 });

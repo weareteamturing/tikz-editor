@@ -1,10 +1,10 @@
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
-import { parser } from "tikz-editor/grammar/tikz-parser";
+import { parser } from "tikz-editor/syntax/grammar/tikz-parser";
 
 const tikzHighlighting = styleTags({
   Comment: t.lineComment,
-  "DrawCmd PathCmd FillDrawCmd FillCmd ClipCmd ShadeCmd NodeCmd CoordinateCmd":
+  "DrawCmd PathCmd FillDrawCmd FillCmd PatternCmd ClipCmd ShadeCmd ShadeDrawCmd UseAsBoundingBoxCmd NodeCmd CoordinateCmd":
     t.keyword,
   CommandName: t.processingInstruction,
   NodeKw: t.keyword,
