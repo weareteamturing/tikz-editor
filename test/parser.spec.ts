@@ -153,4 +153,64 @@ describe("parseTikz", () => {
     expect(unknownPathTexts).not.toContain("cycle");
     expect(unknownPathTexts).not.toContain("{Headd}");
   });
+
+  it("parses relative and incremental coordinates (+ and ++)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- ++(1,0) -- +(1,1) -- cycle;
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const coordinates = statement.items.filter((item) => item.kind === "Coordinate");
+    expect(coordinates.length).toBeGreaterThanOrEqual(3);
+    expect(coordinates.some((item) => item.kind === "Coordinate" && item.relativePrefix === "++")).toBe(true);
+    expect(coordinates.some((item) => item.kind === "Coordinate" && item.relativePrefix === "+")).toBe(true);
+  });
+
+  it("parses coordinate-local options like ([xshift=3pt] 1,1)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- ([xshift=3pt] 1,1) -- +([shift=(135:5pt)] 30:2cm);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const malformed = result.diagnostics.filter((diagnostic) => diagnostic.code === "malformed-coordinate");
+    expect(malformed).toHaveLength(0);
+
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const shifted = statement.items.find((item) => item.kind === "Coordinate" && item.x === "1" && item.y === "1");
+    expect(shifted?.kind).toBe("Coordinate");
+    if (shifted?.kind === "Coordinate") {
+      expect(shifted.optionsSpan).toBeDefined();
+    }
+  });
+
+  it("classifies explicit cs and calc coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (canvas cs:x=0cm,y=2mm) -- ($(1,1) + (2,0)$);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const forms = statement.items
+      .filter((item) => item.kind === "Coordinate")
+      .map((item) => (item.kind === "Coordinate" ? item.form : "unknown"));
+
+    expect(forms).toContain("explicit");
+    expect(forms).toContain("calc");
+  });
 });

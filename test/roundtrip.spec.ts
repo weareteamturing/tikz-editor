@@ -131,4 +131,30 @@ describe("roundtrip edits", () => {
       expect(unchangedNodeAfter.id).toBe(unchangedNodeBefore.id);
     }
   });
+
+  it("preserves coordinate-local options while editing coordinate values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- ([xshift=3pt] 1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+
+    const statement = parsed.figure.body.find((s) => s.kind === "Path");
+    if (!statement || statement.kind !== "Path") {
+      throw new Error("Expected a path statement in source.");
+    }
+
+    const target = statement.items.find((item) => item.kind === "Coordinate" && item.optionsSpan);
+    if (!target || target.kind !== "Coordinate") {
+      throw new Error("Expected coordinate with local options.");
+    }
+
+    const updated = applyEdit(parsed, {
+      kind: "updateCoordinate",
+      targetId: target.id,
+      x: "10",
+      y: "20"
+    });
+
+    expect(updated.source).toContain("([xshift=3pt] 10,20)");
+  });
 });

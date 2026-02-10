@@ -24,8 +24,11 @@ export type CoordinateItem = {
   kind: "Coordinate";
   id: string;
   span: Span;
+  optionsSpan?: Span;
+  relativePrefix?: RelativeCoordinatePrefix;
   x: string;
   y: string;
+  z?: string;
   raw: string;
   form: CoordinateForm;
 };
@@ -67,4 +70,6 @@ export type UnknownPathItem = {
   raw: string;
 };
 
-export type CoordinateForm = "cartesian" | "polar" | "named" | "calc" | "unknown";
+export type CoordinateForm = "cartesian" | "xyz" | "polar" | "named" | "calc" | "explicit" | "unknown";
+
+export type RelativeCoordinatePrefix = "+" | "++";

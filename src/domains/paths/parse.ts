@@ -2,7 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import { pathStatementId } from "../../ast/ids.js";
 import type { PathCommand, PathItem, PathStatement } from "../../ast/types.js";
-import { mapCoordinateItem } from "../coordinates/parse.js";
+import { mapCoordinateItem, mapRelativeCoordinateItem } from "../coordinates/parse.js";
 import { mapNodeItem, mapSyntheticNodeItem } from "../nodes/parse.js";
 import { mapPathOptionItem } from "../options/parse.js";
 import { maybeMapPathKeywordItem } from "./keywords.js";
@@ -75,6 +75,10 @@ function mapPathItem(
     return mapCoordinateItem(actual, source, statementIndex, itemIndex);
   }
 
+  if (actual.type.name === "RelativeCoordinate") {
+    return mapRelativeCoordinateItem(actual, source, statementIndex, itemIndex);
+  }
+
   if (actual.type.name === "NodeItem") {
     context.syntheticNodeEmitted = true;
     context.pendingNodeOptions = null;
@@ -126,6 +130,7 @@ function normalizePathCommand(commandText: string): PathCommand {
 function isDirectPathItemNode(name: string): boolean {
   return (
     name === "Coordinate" ||
+    name === "RelativeCoordinate" ||
     name === "NodeItem" ||
     name === "UnknownPathItem" ||
     name === "OptionList" ||

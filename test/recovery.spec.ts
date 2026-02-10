@@ -26,4 +26,12 @@ describe("recovery behavior", () => {
     expect(result.figure.body.length).toBeGreaterThan(0);
     expect(result.diagnostics.some((d) => d.code === "missing-option-close" || d.code === "parse-error")).toBe(true);
   });
+
+  it("keeps parseable state for partial relative coordinate options", () => {
+    const source = `\\begin{tikzpicture}\\draw (0,0) -- +([xshift=3pt] 1,\\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.figure.body.length).toBeGreaterThan(0);
+    expect(result.diagnostics.some((d) => d.code === "malformed-coordinate" || d.code === "parse-error")).toBe(true);
+  });
 });

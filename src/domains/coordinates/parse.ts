@@ -1,14 +1,16 @@
 import type { SyntaxNode } from "@lezer/common";
 
 import { coordinateItemId } from "../../ast/ids.js";
-import type { CoordinateItem } from "../../ast/types.js";
+import type { CoordinateItem, RelativeCoordinatePrefix } from "../../ast/types.js";
+import { findFirstChildByName } from "../../syntax/cursor.js";
 import type { ParsedCoordinate } from "./types.js";
 
 export function mapCoordinateItem(
   node: SyntaxNode,
   source: string,
   statementIndex: number,
-  itemIndex: number
+  itemIndex: number,
+  relativePrefix?: RelativeCoordinatePrefix
 ): CoordinateItem {
   const raw = source.slice(node.from, node.to);
   const parsed = parseCoordinate(raw);
@@ -17,14 +19,50 @@ export function mapCoordinateItem(
     kind: "Coordinate",
     id: coordinateItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
+    optionsSpan: parsed.optionsSpan
+      ? {
+          from: node.from + parsed.optionsSpan.from,
+          to: node.from + parsed.optionsSpan.to
+        }
+      : undefined,
+    relativePrefix,
     x: parsed.x,
     y: parsed.y,
+    z: parsed.z,
     raw,
     form: parsed.form
   };
 }
 
-export function parseCoordinate(raw: string): ParsedCoordinate {
+export function mapRelativeCoordinateItem(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): CoordinateItem {
+  const prefixNode = findFirstChildByName(node, "RelativePrefix");
+  const coordinateNode = findFirstChildByName(node, "Coordinate");
+
+  const prefixRaw = prefixNode ? source.slice(prefixNode.from, prefixNode.to) : "+";
+  const relativePrefix: RelativeCoordinatePrefix = prefixRaw === "++" ? "++" : "+";
+
+  if (!coordinateNode) {
+    return {
+      kind: "Coordinate",
+      id: coordinateItemId(statementIndex, itemIndex),
+      span: { from: node.from, to: node.to },
+      relativePrefix,
+      x: "",
+      y: "",
+      raw: source.slice(node.from, node.to),
+      form: "unknown"
+    };
+  }
+
+  return mapCoordinateItem(coordinateNode, source, statementIndex, itemIndex, relativePrefix);
+}
+
+export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?: { from: number; to: number } } {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("(")) {
     return { x: "", y: "", form: "unknown", isWellFormed: false };
@@ -40,23 +78,51 @@ export function parseCoordinate(raw: string): ParsedCoordinate {
     return { x: "", y: "", form: "unknown", isWellFormed: false };
   }
 
-  if (inner.includes("$")) {
-    return { x: inner, y: "", form: "calc", isWellFormed: true };
+  const extracted = extractLeadingCoordinateOptions(inner);
+  const core = extracted.remainder;
+
+  if (core.length === 0) {
+    return { x: "", y: "", form: "unknown", isWellFormed: false };
   }
 
-  const commaSplit = splitAtTopLevel(inner, ",");
-  if (commaSplit) {
-    const x = commaSplit.left.trim();
-    const y = commaSplit.right.trim();
+  const optionsSpan = extracted.optionsRaw
+    ? { from: 1 + extracted.optionsOffset, to: 1 + extracted.optionsOffset + extracted.optionsRaw.length }
+    : undefined;
+
+  if (isCalcCoordinate(core)) {
+    return { x: core, y: "", form: "calc", isWellFormed: true, optionsSpan };
+  }
+
+  if (/\bcs\s*:/i.test(core)) {
+    return { x: core, y: "", form: "explicit", isWellFormed: true, optionsSpan };
+  }
+
+  const commaParts = splitAllAtTopLevel(core, ",").map((part) => part.trim());
+  if (commaParts.length === 2) {
+    const [x, y] = commaParts;
     return {
       x,
       y,
       form: "cartesian",
-      isWellFormed: x.length > 0 && y.length > 0
+      isWellFormed: x.length > 0 && y.length > 0,
+      optionsSpan
     };
   }
 
-  const colonSplit = splitAtTopLevel(inner, ":");
+  if (commaParts.length >= 3) {
+    const [x, y, ...rest] = commaParts;
+    const z = rest.join(",").trim();
+    return {
+      x,
+      y,
+      z,
+      form: "xyz",
+      isWellFormed: x.length > 0 && y.length > 0 && z.length > 0,
+      optionsSpan
+    };
+  }
+
+  const colonSplit = splitAtTopLevel(core, ":");
   if (colonSplit) {
     const angle = colonSplit.left.trim();
     const radius = colonSplit.right.trim();
@@ -64,19 +130,100 @@ export function parseCoordinate(raw: string): ParsedCoordinate {
       x: angle,
       y: radius,
       form: "polar",
-      isWellFormed: angle.length > 0 && radius.length > 0
+      isWellFormed: angle.length > 0 && radius.length > 0,
+      optionsSpan
     };
   }
 
   return {
-    x: inner,
+    x: core,
     y: "",
     form: "named",
-    isWellFormed: true
+    isWellFormed: true,
+    optionsSpan
   };
 }
 
-export function splitAtTopLevel(input: string, separator: string): { left: string; right: string } | null {
+type ExtractedOptions = {
+  optionsRaw: string;
+  optionsOffset: number;
+  remainder: string;
+};
+
+function extractLeadingCoordinateOptions(inner: string): ExtractedOptions {
+  const offset = leadingWhitespace(inner);
+  let cursor = offset;
+
+  if (inner[cursor] !== "[") {
+    return {
+      optionsRaw: "",
+      optionsOffset: 0,
+      remainder: inner.trim()
+    };
+  }
+
+  const optionEnd = findMatchingBracket(inner, cursor);
+  if (optionEnd === -1) {
+    return {
+      optionsRaw: "",
+      optionsOffset: 0,
+      remainder: inner.trim()
+    };
+  }
+
+  const optionsRaw = inner.slice(cursor, optionEnd + 1);
+  cursor = optionEnd + 1;
+
+  while (cursor < inner.length && /\s/.test(inner[cursor])) {
+    cursor += 1;
+  }
+
+  return {
+    optionsRaw,
+    optionsOffset: offset,
+    remainder: inner.slice(cursor).trim()
+  };
+}
+
+function leadingWhitespace(input: string): number {
+  let i = 0;
+  while (i < input.length && /\s/.test(input[i])) {
+    i += 1;
+  }
+  return i;
+}
+
+function findMatchingBracket(input: string, from: number): number {
+  let depth = 0;
+  for (let i = from; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "[") {
+      depth += 1;
+    } else if (char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function isCalcCoordinate(core: string): boolean {
+  const trimmed = core.trim();
+  return trimmed.startsWith("$") && trimmed.endsWith("$") && trimmed.length >= 2;
+}
+
+export function splitAllAtTopLevel(input: string, separator: string): string[] {
+  const parts: string[] = [];
+  let cursor = 0;
+
   let parenDepth = 0;
   let braceDepth = 0;
   let bracketDepth = 0;
@@ -115,12 +262,23 @@ export function splitAtTopLevel(input: string, separator: string): { left: strin
     }
 
     if (char === separator && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
-      return {
-        left: input.slice(0, i),
-        right: input.slice(i + 1)
-      };
+      parts.push(input.slice(cursor, i));
+      cursor = i + 1;
     }
   }
 
-  return null;
+  parts.push(input.slice(cursor));
+  return parts;
+}
+
+export function splitAtTopLevel(input: string, separator: string): { left: string; right: string } | null {
+  const parts = splitAllAtTopLevel(input, separator);
+  if (parts.length < 2) {
+    return null;
+  }
+
+  return {
+    left: parts[0],
+    right: parts.slice(1).join(separator)
+  };
 }

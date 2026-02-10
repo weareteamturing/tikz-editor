@@ -33,6 +33,7 @@ PathCommand {
 }
 
 PathItem {
+  RelativeCoordinate |
   Coordinate |
   NodeItem |
   OptionList |
@@ -55,8 +56,22 @@ NodeItem {
 }
 
 NodePlacement {
-  AtKw Coordinate |
+  AtKw CoordinateLike |
+  CoordinateLike
+}
+
+CoordinateLike {
+  RelativeCoordinate |
   Coordinate
+}
+
+RelativeCoordinate {
+  RelativePrefix Coordinate
+}
+
+RelativePrefix {
+  "++" |
+  "+"
 }
 
 PathKeyword {
@@ -82,6 +97,7 @@ UnknownStatement {
 }
 
 UnknownPart {
+  RelativeCoordinate |
   Coordinate |
   OptionList |
   PathOperator |
@@ -161,6 +177,8 @@ Coordinate {
 }
 
 CoordPart {
+  Coordinate |
+  OptionList |
   Group |
   PathKeyword |
   CommandName |
@@ -173,7 +191,13 @@ CoordPart {
   "+" |
   "/" |
   "=" |
-  "$"
+  "$" |
+  "!" |
+  "*" |
+  "|" |
+  "&" |
+  "^" |
+  "_"
 }
 
 StraySymbol {
