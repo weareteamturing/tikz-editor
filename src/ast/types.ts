@@ -1,19 +1,40 @@
+import type { OptionListAst } from "../options/types.js";
+
 export type Span = { from: number; to: number };
 
 export type TikzFigure = {
   kind: "Figure";
   span: Span;
+  options?: OptionListAst;
   body: Statement[];
 };
 
-export type Statement = PathStatement | UnknownStatement;
+export type Statement = PathStatement | ScopeStatement | ForeachStatement | UnknownStatement;
 
 export type PathStatement = {
   kind: "Path";
   id: string;
   span: Span;
   command: PathCommand;
+  options?: OptionListAst;
   items: PathItem[];
+};
+
+export type ScopeStatement = {
+  kind: "Scope";
+  id: string;
+  span: Span;
+  options?: OptionListAst;
+  body: Statement[];
+};
+
+export type ForeachStatement = {
+  kind: "Foreach";
+  id: string;
+  span: Span;
+  options?: OptionListAst;
+  prefixRaw: string;
+  bodyRaw: string;
 };
 
 export type PathCommand =
@@ -46,6 +67,7 @@ export type CoordinateItem = {
   id: string;
   span: Span;
   optionsSpan?: Span;
+  options?: OptionListAst;
   relativePrefix?: RelativeCoordinatePrefix;
   x: string;
   y: string;
@@ -59,6 +81,7 @@ export type NodeItem = {
   id: string;
   span: Span;
   optionsSpan?: Span;
+  options?: OptionListAst;
   textSpan: Span;
   text: string;
 };
@@ -68,6 +91,7 @@ export type PathOptionItem = {
   id: string;
   span: Span;
   raw: string;
+  options: OptionListAst;
 };
 
 export type PathCommentItem = {
@@ -89,6 +113,7 @@ export type ToOperationItem = {
   id: string;
   span: Span;
   optionsSpan?: Span;
+  options?: OptionListAst;
   raw: string;
 };
 
@@ -97,6 +122,7 @@ export type SvgOperationItem = {
   id: string;
   span: Span;
   optionsSpan?: Span;
+  options?: OptionListAst;
   dataSpan?: Span;
   dataRaw: string;
 };
@@ -113,6 +139,7 @@ export type CoordinateOperationItem = {
   id: string;
   span: Span;
   optionsSpan?: Span;
+  options?: OptionListAst;
   nameSpan?: Span;
   placementSpan?: Span;
   raw: string;

@@ -29,6 +29,8 @@ describe("pgf-docs corpus regression", () => {
 
     let totalStatements = 0;
     let pathStatements = 0;
+    let scopeStatements = 0;
+    let foreachStatements = 0;
     let unknownStatements = 0;
     let totalPathItems = 0;
     let coordinateItems = 0;
@@ -58,10 +60,10 @@ describe("pgf-docs corpus regression", () => {
         let hasNodeItem = false;
         let hasCoordinateItem = false;
         let allUnknown = result.figure.body.length > 0;
+        const flattenedStatements = flattenStatements(result.figure.body);
+        totalStatements += flattenedStatements.length;
 
-        totalStatements += result.figure.body.length;
-
-        for (const statement of result.figure.body) {
+        for (const statement of flattenedStatements) {
           if (statement.kind === "Path") {
             hasPathStatement = true;
             allUnknown = false;
@@ -93,6 +95,10 @@ describe("pgf-docs corpus regression", () => {
                 unknownPathItems += 1;
               }
             }
+          } else if (statement.kind === "Scope") {
+            scopeStatements += 1;
+          } else if (statement.kind === "Foreach") {
+            foreachStatements += 1;
           } else {
             unknownStatements += 1;
           }
@@ -163,6 +169,8 @@ describe("pgf-docs corpus regression", () => {
         statementTotals: {
           totalStatements,
           pathStatements,
+          scopeStatements,
+          foreachStatements,
           unknownStatements,
           pathStatementRate: totalStatements === 0 ? 0 : Number((pathStatements / totalStatements).toFixed(4)),
           unknownStatementRate: totalStatements === 0 ? 0 : Number((unknownStatements / totalStatements).toFixed(4))
@@ -205,4 +213,17 @@ describe("pgf-docs corpus regression", () => {
 
 function increment(map: Map<string, number>, key: string): void {
   map.set(key, (map.get(key) ?? 0) + 1);
+}
+
+function flattenStatements(
+  statements: ReturnType<typeof parseTikz>["figure"]["body"]
+): ReturnType<typeof parseTikz>["figure"]["body"] {
+  const flattened: ReturnType<typeof parseTikz>["figure"]["body"] = [];
+  for (const statement of statements) {
+    flattened.push(statement);
+    if (statement.kind === "Scope") {
+      flattened.push(...flattenStatements(statement.body));
+    }
+  }
+  return flattened;
 }

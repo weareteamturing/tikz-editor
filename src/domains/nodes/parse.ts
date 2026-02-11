@@ -2,6 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import { nodeItemId } from "../../ast/ids.js";
 import type { NodeItem, Span } from "../../ast/types.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName } from "../../syntax/cursor.js";
 
 export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: number, itemIndex: number): NodeItem {
@@ -15,6 +16,7 @@ export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: nu
     id: nodeItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
     optionsSpan: optionsNode ? { from: optionsNode.from, to: optionsNode.to } : undefined,
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
     textSpan: mappedText.textSpan,
     text: mappedText.text
   };
@@ -37,6 +39,7 @@ export function mapSyntheticNodeItem(
       to: groupNode.to
     },
     optionsSpan: optionsNode ? { from: optionsNode.from, to: optionsNode.to } : undefined,
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
     textSpan: mappedText.textSpan,
     text: mappedText.text
   };

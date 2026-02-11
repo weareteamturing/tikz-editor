@@ -2,6 +2,14 @@ export function pathStatementId(statementIndex: number): string {
   return `path:${statementIndex}`;
 }
 
+export function scopeStatementId(statementIndex: number): string {
+  return `scope:${statementIndex}`;
+}
+
+export function foreachStatementId(statementIndex: number): string {
+  return `foreach:${statementIndex}`;
+}
+
 export function unknownStatementId(statementIndex: number): string {
   return `unknown-statement:${statementIndex}`;
 }

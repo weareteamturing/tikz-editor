@@ -40,13 +40,18 @@ export function applyEdit(parseResult: ParseTikzResult, edit: TikzEdit): ApplyEd
 
 function findPathItem(statements: Statement[], targetId: string): PathItem | null {
   for (const statement of statements) {
-    if (statement.kind !== "Path") {
-      continue;
+    if (statement.kind === "Path") {
+      for (const item of statement.items) {
+        if (item.id === targetId) {
+          return item;
+        }
+      }
     }
 
-    for (const item of statement.items) {
-      if (item.id === targetId) {
-        return item;
+    if (statement.kind === "Scope") {
+      const nested = findPathItem(statement.body, targetId);
+      if (nested) {
+        return nested;
       }
     }
   }

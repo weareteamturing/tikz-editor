@@ -9,6 +9,7 @@
     "generate:grammar": "lezer-generator src/syntax/grammar/tikz.grammar -o src/syntax/grammar/tikz-parser.ts",
     "build": "npm run generate:grammar && tsc -p tsconfig.json",
     "test": "npm run generate:grammar && vitest run",
+    "test:capabilities": "npm run generate:grammar && vitest run test/capabilities.spec.ts",
     "test:watch": "npm run generate:grammar && vitest",
     "test:corpus": "npm run generate:grammar && vitest run test/corpus.spec.ts",
     "parse:corpus": "npm run test:corpus",

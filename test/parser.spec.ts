@@ -342,5 +342,20 @@ describe("parseTikz", () => {
     const result = parseTikz(source);
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    expect(result.figure.options?.entries.length).toBeGreaterThan(0);
+
+    const scope = result.figure.body.find((statement) => statement.kind === "Scope");
+    expect(scope?.kind).toBe("Scope");
+    if (scope?.kind === "Scope") {
+      expect(scope.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "line width")).toBe(true);
+      expect(scope.body.some((statement) => statement.kind === "Path")).toBe(true);
+    }
+
+    const foreach = result.figure.body.find((statement) => statement.kind === "Foreach");
+    expect(foreach?.kind).toBe("Foreach");
+    if (foreach?.kind === "Foreach") {
+      expect(foreach.prefixRaw).toContain("\\lw");
+      expect(foreach.bodyRaw.length).toBeGreaterThan(0);
+    }
   });
 });

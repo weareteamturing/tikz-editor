@@ -1,10 +1,10 @@
-import type { SyntaxNode, Tree } from "@lezer/common";
+import type { Tree } from "@lezer/common";
 
 import type { Diagnostic } from "../diagnostics/types.js";
-import type { Statement, TikzFigure } from "../ast/types.js";
-import { mapPathStatement } from "../domains/paths/parse.js";
-import { mapUnknownStatement } from "./unknown.js";
-import { findFirstNodeByName, walk } from "../syntax/cursor.js";
+import type { TikzFigure } from "../ast/types.js";
+import { mapBodyStatements } from "../domains/statements/parse.js";
+import { parseOptionListRaw } from "../options/parse.js";
+import { findFirstChildByName, findFirstNodeByName } from "../syntax/cursor.js";
 import { collectParseErrorDiagnostics, collectStructuralDiagnostics } from "../diagnostics/collect.js";
 
 export type CstToAstResult = {
@@ -37,24 +37,9 @@ export function fromCst(tree: Tree, source: string): CstToAstResult {
     };
   }
 
-  const body: Statement[] = [];
-  const statementNodes: SyntaxNode[] = [];
-
-  walk(envNode, (node) => {
-    if (node.type.name === "PathStatement" || node.type.name === "UnknownStatement") {
-      statementNodes.push(node);
-    }
-  });
-
-  statementNodes.sort((a, b) => a.from - b.from);
-  statementNodes.forEach((statementNode, statementIndex) => {
-    if (statementNode.type.name === "PathStatement") {
-      body.push(mapPathStatement(statementNode, source, statementIndex));
-      return;
-    }
-
-    body.push(mapUnknownStatement(statementNode, source, statementIndex));
-  });
+  const state = { nextStatementIndex: 0 };
+  const body = mapBodyStatements(envNode, source, state);
+  const optionsNode = findFirstChildByName(envNode, "OptionList");
 
   collectStructuralDiagnostics(envNode, source, diagnostics);
 
@@ -62,6 +47,7 @@ export function fromCst(tree: Tree, source: string): CstToAstResult {
     figure: {
       kind: "Figure",
       span: { from: envNode.from, to: envNode.to },
+      options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
       body
     },
     diagnostics

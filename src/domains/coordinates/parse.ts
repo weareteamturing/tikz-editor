@@ -2,6 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import { coordinateItemId } from "../../ast/ids.js";
 import type { CoordinateItem, RelativeCoordinatePrefix } from "../../ast/types.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName } from "../../syntax/cursor.js";
 import type { ParsedCoordinate } from "./types.js";
 
@@ -25,6 +26,10 @@ export function mapCoordinateItem(
           to: node.from + parsed.optionsSpan.to
         }
       : undefined,
+    options:
+      parsed.optionsSpan && parsed.optionsRaw
+        ? parseOptionListRaw(parsed.optionsRaw, node.from + parsed.optionsSpan.from)
+        : undefined,
     relativePrefix,
     x: parsed.x,
     y: parsed.y,
@@ -62,7 +67,7 @@ export function mapRelativeCoordinateItem(
   return mapCoordinateItem(coordinateNode, source, statementIndex, itemIndex, relativePrefix);
 }
 
-export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?: { from: number; to: number } } {
+export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?: { from: number; to: number }; optionsRaw?: string } {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("(")) {
     return { x: "", y: "", form: "unknown", isWellFormed: false };
@@ -90,11 +95,11 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
     : undefined;
 
   if (isCalcCoordinate(core)) {
-    return { x: core, y: "", form: "calc", isWellFormed: true, optionsSpan };
+    return { x: core, y: "", form: "calc", isWellFormed: true, optionsSpan, optionsRaw: extracted.optionsRaw };
   }
 
   if (/\bcs\s*:/i.test(core)) {
-    return { x: core, y: "", form: "explicit", isWellFormed: true, optionsSpan };
+    return { x: core, y: "", form: "explicit", isWellFormed: true, optionsSpan, optionsRaw: extracted.optionsRaw };
   }
 
   const commaParts = splitAllAtTopLevel(core, ",").map((part) => part.trim());
@@ -105,7 +110,8 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
       y,
       form: "cartesian",
       isWellFormed: x.length > 0 && y.length > 0,
-      optionsSpan
+      optionsSpan,
+      optionsRaw: extracted.optionsRaw
     };
   }
 
@@ -118,7 +124,8 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
       z,
       form: "xyz",
       isWellFormed: x.length > 0 && y.length > 0 && z.length > 0,
-      optionsSpan
+      optionsSpan,
+      optionsRaw: extracted.optionsRaw
     };
   }
 
@@ -131,7 +138,8 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
       y: radius,
       form: "polar",
       isWellFormed: angle.length > 0 && radius.length > 0,
-      optionsSpan
+      optionsSpan,
+      optionsRaw: extracted.optionsRaw
     };
   }
 
@@ -140,7 +148,8 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
     y: "",
     form: "named",
     isWellFormed: true,
-    optionsSpan
+    optionsSpan,
+    optionsRaw: extracted.optionsRaw
   };
 }
 

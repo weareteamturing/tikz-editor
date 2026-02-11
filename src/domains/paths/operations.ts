@@ -13,6 +13,7 @@ import type {
   SvgOperationItem,
   ToOperationItem
 } from "../../ast/types.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName, firstNamedChild } from "../../syntax/cursor.js";
 
 export function mapToOperationItem(
@@ -28,6 +29,7 @@ export function mapToOperationItem(
     id: toOperationItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
     optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
     raw: source.slice(node.from, node.to)
   };
 }
@@ -46,6 +48,7 @@ export function mapSvgOperationItem(
     id: svgOperationItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
     optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
     dataSpan: toSpan(payloadNode),
     dataRaw: payloadNode ? source.slice(payloadNode.from, payloadNode.to) : ""
   };
@@ -79,6 +82,7 @@ export function mapCoordinateOperationItem(
     id: coordinateOperationItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
     optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
     nameSpan: toSpan(nameNode),
     placementSpan: undefined,
     raw: source.slice(node.from, node.to)

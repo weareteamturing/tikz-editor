@@ -64,6 +64,7 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
     id: pathStatementId(statementIndex),
     span: { from: node.from, to: node.to },
     command,
+    options: findStatementOptions(items),
     items
   };
 }
@@ -195,4 +196,12 @@ function unwrapPathItemNode(node: SyntaxNode): SyntaxNode {
     return firstNamedChild(node) ?? node;
   }
   return node;
+}
+
+function findStatementOptions(items: PathItem[]) {
+  const firstOption = items.find((item) => item.kind === "PathOption");
+  if (!firstOption || firstOption.kind !== "PathOption") {
+    return undefined;
+  }
+  return firstOption.options;
 }
