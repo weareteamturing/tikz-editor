@@ -208,6 +208,7 @@ OptionList {
 }
 
 OptionPart {
+  Comment |
   Group |
   Coordinate |
   GroupPathOperator |

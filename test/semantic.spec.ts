@@ -48,6 +48,70 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("starts a new subpath when a coordinate appears without an operator", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.map((command) => command.kind)).toEqual(["M", "L", "M", "L"]);
+    }
+  });
+
+  it("supports the ultra thick line width preset", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[ultra thick] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.lineWidth).toBeCloseTo(1.6);
+    }
+  });
+
+  it("supports the standard TikZ line width presets and explicit line width values", () => {
+    const presets: Array<{ key: string; width: number }> = [
+      { key: "ultra thin", width: 0.1 },
+      { key: "very thin", width: 0.2 },
+      { key: "thin", width: 0.4 },
+      { key: "semithick", width: 0.6 },
+      { key: "thick", width: 0.8 },
+      { key: "very thick", width: 1.2 },
+      { key: "ultra thick", width: 1.6 }
+    ];
+
+    for (const preset of presets) {
+      const source = String.raw`\begin{tikzpicture}
+  \draw[${preset.key}] (0,0) -- (1,0);
+\end{tikzpicture}`;
+      const parsed = parseTikz(source);
+      const result = evaluateTikzFigure(parsed.figure, source);
+      const path = result.scene.elements.find((element) => element.kind === "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.lineWidth).toBeCloseTo(preset.width);
+      }
+    }
+
+    const explicitSource = String.raw`\begin{tikzpicture}
+  \draw[line width=10pt] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const explicitParsed = parseTikz(explicitSource);
+    const explicitResult = evaluateTikzFigure(explicitParsed.figure, explicitSource);
+    const explicitPath = explicitResult.scene.elements.find((element) => element.kind === "Path");
+    expect(explicitPath?.kind).toBe("Path");
+    if (explicitPath?.kind === "Path") {
+      expect(explicitPath.style.lineWidth).toBeCloseTo(10);
+    }
+  });
+
   it("composes scope transforms", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}[xshift=1cm,yshift=2cm]
@@ -63,8 +127,8 @@ describe("semantic evaluator", () => {
       const move = path.commands.find((command) => command.kind === "M");
       expect(move?.kind).toBe("M");
       if (move?.kind === "M") {
-        expect(move.to.x).toBeCloseTo(28.3464, 3);
-        expect(move.to.y).toBeCloseTo(56.6929, 3);
+        expect(move.to.x).toBeCloseTo(28.4527, 3);
+        expect(move.to.y).toBeCloseTo(56.9055, 3);
       }
     }
   });
@@ -93,5 +157,338 @@ describe("semantic evaluator", () => {
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-keyword")).toBe(false);
     expect(result.scene.elements.some((element) => element.kind === "Ellipse")).toBe(true);
     expect(result.scene.elements.some((element) => element.kind === "Path")).toBe(true);
+  });
+
+  it("supports arc variants and grid step variants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (1,0) arc (0:90:1cm);
+  \draw (1,0) arc [start angle=0, delta angle=90, x radius=1cm, y radius=.5cm];
+  \draw (0,0) grid [xstep=1cm, ystep=.5cm] (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-arc-parameters")).toBe(false);
+
+    const arcPaths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(arcPaths.length).toBeGreaterThanOrEqual(3);
+
+    const arcCommands = arcPaths.flatMap((path) => (path.kind === "Path" ? path.commands : [])).filter((command) => command.kind === "A");
+    expect(arcCommands.length).toBeGreaterThanOrEqual(2);
+    for (const command of arcCommands) {
+      if (command.kind === "A") {
+        expect(command.rx).toBeGreaterThan(0);
+        expect(command.ry).toBeGreaterThan(0);
+      }
+    }
+
+    const gridElements = arcPaths.filter((path) => path.id.includes("scene-grid-"));
+    expect(gridElements.length).toBe(6);
+  });
+
+  it("keeps named coordinates transformed at registration scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1cm,yshift=1cm]
+    \path coordinate (p) at (1,2);
+  \end{scope}
+  \draw (p) -- ++(1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:p")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path" && !element.id.includes("scene-grid-"));
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(56.9055, 3);
+        expect(move.to.y).toBeCloseTo(85.3582, 3);
+      }
+    }
+  });
+
+  it("resolves dash/cap/join and opacity style options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[opacity=0.8, draw opacity=0.6, fill opacity=0.3, dashed, line cap=round, line join=bevel] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.opacity).toBeCloseTo(0.8);
+      expect(path.style.strokeOpacity).toBeCloseTo(0.6);
+      expect(path.style.fillOpacity).toBeCloseTo(0.3);
+      expect(path.style.lineCap).toBe("round");
+      expect(path.style.lineJoin).toBe("bevel");
+      expect(path.style.dashArray).toEqual([3, 3]);
+    }
+  });
+
+  it("registers node anchors used by |- and -| paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node(a) [draw] {A}  (1,1) node(b) [draw] {B};
+  \draw (a.north) |- (b.west);
+  \draw[color=red] (a.east) -| (2,1.5) -| (b.north);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    expect(result.scene.elements.some((element) => element.kind === "Text")).toBe(true);
+    expect(result.scene.elements.some((element) => element.kind === "Path" && element.style.stroke === "#ff0000")).toBe(true);
+  });
+
+  it("applies scope/statement precedence and fill command defaults", () => {
+    const source = String.raw`\begin{tikzpicture}[blue,line width=1pt]
+  \begin{scope}[red,line width=2pt]
+    \draw[green,line width=3pt] (0,0) -- (1,0);
+  \end{scope}
+  \draw (0,1) -- (1,1);
+  \fill (0,2) -- (1,2) -- (1,3) -- cycle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(3);
+
+    const drawInScope = paths[0];
+    expect(drawInScope?.kind).toBe("Path");
+    if (drawInScope?.kind === "Path") {
+      expect(drawInScope.style.stroke).toBe("green");
+      expect(drawInScope.style.lineWidth).toBeCloseTo(3);
+    }
+
+    const drawOutsideScope = paths[1];
+    expect(drawOutsideScope?.kind).toBe("Path");
+    if (drawOutsideScope?.kind === "Path") {
+      expect(drawOutsideScope.style.stroke).toBe("blue");
+      expect(drawOutsideScope.style.lineWidth).toBeCloseTo(1);
+    }
+
+    const fillPath = paths[2];
+    expect(fillPath?.kind).toBe("Path");
+    if (fillPath?.kind === "Path") {
+      expect(fillPath.style.fill).toBe("black");
+      expect(fillPath.style.stroke).toBeNull();
+    }
+  });
+
+  it("supports cubic Bezier curves with controls/and", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-operator")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.some((command) => command.kind === "C")).toBe(true);
+    }
+  });
+
+  it("falls back with diagnostics for unsupported curve pattern variants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-operator")).toBe(true);
+  });
+
+  it("keeps connector segments when circles are interleaved in a draw path", () => {
+    const source = String.raw`\begin{tikzpicture}[radius=2pt]
+  \draw (0,0) circle -- (1,1) circle -- ++(0,1) circle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+    expect(circles.length).toBe(3);
+    expect(paths.length).toBe(2);
+
+    const lineCounts = paths.map((path) => (path.kind === "Path" ? path.commands.filter((command) => command.kind === "L").length : 0));
+    expect(lineCounts).toEqual([1, 1]);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("supports node name scope prefixes/suffixes and aliases in coordinate lookups", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[name prefix=pre-,name suffix=-suf]
+    \node[name=a,alias=b,node contents=A] at (0,0);
+    \draw (a) -- (b.east);
+  \end{scope}
+  \draw (pre-a-suf) -- +(1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+  });
+
+  it("orders behind-path nodes before path geometry and front nodes after", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node[behind path,draw] {B} -- (1,0) node[draw] {F};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const mainPathIndex = result.scene.elements.findIndex(
+      (element) => element.kind === "Path" && element.id.startsWith("scene-path:")
+    );
+    const behindNodeIndex = result.scene.elements.findIndex((element) => element.kind === "Text" && element.text === "B");
+    const frontNodeIndex = result.scene.elements.findIndex((element) => element.kind === "Text" && element.text === "F");
+
+    expect(mainPathIndex).toBeGreaterThanOrEqual(0);
+    expect(behindNodeIndex).toBeLessThan(mainPathIndex);
+    expect(frontNodeIndex).toBeGreaterThan(mainPathIndex);
+  });
+
+  it("supports circle-shaped nodes with anchor placement and named anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node[circle,draw,minimum size=1cm,anchor=west,name=n] {A};
+  \draw (n.east) -- +(1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    expect(result.scene.elements.some((element) => element.kind === "Circle")).toBe(true);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.position.x).toBeGreaterThan(0);
+    }
+  });
+
+  it("supports pos and midway placement on line and orthogonal segments", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node[midway,name=m] {M};
+  \draw (0,0) -| (2,2) node[pos=0.5,name=c] {C};
+  \draw (m) -- (c);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const mText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "M");
+    const cText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    expect(mText?.kind).toBe("Text");
+    expect(cText?.kind).toBe("Text");
+    if (mText?.kind === "Text") {
+      expect(mText.position.x).toBeCloseTo(28.4527, 3);
+      expect(mText.position.y).toBeCloseTo(0, 3);
+    }
+    if (cText?.kind === "Text") {
+      expect(cText.position.x).toBeCloseTo(56.9055, 3);
+      expect(cText.position.y).toBeCloseTo(0, 3);
+    }
+  });
+
+  it("supports basic placement offsets like above=... and right=...", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,above=4pt,right=2pt,name=b,node contents=B] at (0,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text") {
+      expect(bText.position.x).toBeGreaterThan(aText.position.x);
+      expect(bText.position.y).toBeGreaterThan(aText.position.y);
+    }
+  });
+
+  it("applies every-node style keys for rectangle and circle nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every circle node/.style={double}
+]
+  \draw (0,0) node {A} -- (1,1) node[circle] {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every node/.style"))).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every circle node/.style"))).toBe(false);
+
+    const nodeBoxes = result.scene.elements.filter((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+    expect(nodeBoxes.length).toBe(1);
+    expect(circles.length).toBe(1);
+    const circle = circles[0];
+    expect(circle?.kind).toBe("Circle");
+    if (circle?.kind === "Circle") {
+      expect(circle.style.doubleStroke).toBe(true);
+    }
+  });
+
+  it("places trailing nodes at the end of +(...) segments", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- +(1,1) node[above] {N};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "N");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.position.x).toBeGreaterThan(20);
+      expect(text.position.y).toBeGreaterThan(20);
+    }
+  });
+
+  it("inherits anchor options from draw statements and scales node text for transform shape", () => {
+    const source = String.raw`\begin{tikzpicture}[scale=3,transform shape]
+  \draw[anchor=center] (0,0) node {C};
+  \draw[anchor=base]   (0,0) node {B};
+  \draw[anchor=mid]    (0,0) node {M};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:transform shape")).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const base = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const mid = result.scene.elements.find((element) => element.kind === "Text" && element.text === "M");
+    expect(center?.kind).toBe("Text");
+    expect(base?.kind).toBe("Text");
+    expect(mid?.kind).toBe("Text");
+    if (center?.kind === "Text" && base?.kind === "Text" && mid?.kind === "Text") {
+      expect(base.position.y).toBeGreaterThan(mid.position.y);
+      expect(mid.position.y).toBeGreaterThan(center.position.y);
+      expect(base.style.fontSize).toBeCloseTo(29.8879, 3);
+    }
+  });
+
+  it("supports node font option for italic text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[node font=\itshape] (1,0) -- +(1,1) node[above] {italic};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "italic");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.style.fontStyle).toBe("italic");
+    }
   });
 });

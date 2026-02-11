@@ -8,11 +8,12 @@ export function parseOptionListRaw(raw: string, absoluteFrom = 0): OptionListAst
   const innerFrom = openIndex >= 0 ? openIndex + 1 : 0;
   const innerTo = closeIndex >= 0 ? closeIndex : normalized.length;
   const inner = normalized.slice(innerFrom, innerTo);
+  const maskedInner = maskLineComments(inner);
 
-  const entries = splitTopLevel(inner, ",")
+  const entries = splitTopLevel(maskedInner, ",")
     .map((token) => token.trim())
     .filter((token) => token.length > 0)
-    .map((token) => classifyOptionToken(token, normalized, absoluteFrom));
+    .map((token) => classifyOptionToken(token, maskedInner, absoluteFrom + innerFrom));
 
   return {
     span: {
@@ -22,6 +23,35 @@ export function parseOptionListRaw(raw: string, absoluteFrom = 0): OptionListAst
     raw: normalized,
     entries
   };
+}
+
+function maskLineComments(input: string): string {
+  let masked = "";
+  let inComment = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+
+    if (inComment) {
+      if (char === "\n" || char === "\r") {
+        inComment = false;
+        masked += char;
+      } else {
+        masked += " ";
+      }
+      continue;
+    }
+
+    if (char === "%" && input[i - 1] !== "\\") {
+      inComment = true;
+      masked += " ";
+      continue;
+    }
+
+    masked += char;
+  }
+
+  return masked;
 }
 
 function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: number): OptionEntry {

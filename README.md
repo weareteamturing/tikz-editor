@@ -22,6 +22,24 @@ Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabili
 2. `npm run test:capabilities` runs capability matrix guards only.
 3. `npm run build` builds the parser package.
 4. `cd /Users/dominik/GitHub/tikz-editor/web && npm run build` builds the playground.
+5. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest. Use `--reference-mode pdf-png` (default), `--reference-mode dvisvgm-svg`, or `--reference-mode dvisvgm-svg-png`.
+6. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It also supports `--reference-mode pdf-png|dvisvgm-svg|dvisvgm-svg-png`.
+
+Comparison outputs are written under `artifacts/renderer-compare/<run>-<timestamp>/`:
+1. `ours.svg` and `ours.png`
+2. `latex-standalone.tex`, plus:
+3. `latex-standalone.pdf` + `latex-standalone.png` in `pdf-png` mode, or
+4. `latex-standalone.dvi` + `latex-standalone.svg` in `dvisvgm-svg` mode, or
+5. `latex-standalone.dvi` + `latex-standalone.svg` + `latex-standalone.png` in `dvisvgm-svg-png` mode
+6. `compare-report.json` with diagnostics and tool status
+
+Corpus comparison gallery outputs are written under `artifacts/renderer-compare-docs/<run>-<timestamp>/`:
+1. `index.html` side-by-side gallery
+2. `comparison-manifest.json` with per-snippet status
+3. one subdirectory per snippet with `compare-report.json` and renderer artifacts
 
 ## Corpus Source
 The repository includes `pgf-docs/`, a local corpus extracted from PGF/TikZ documentation used for parser and regression coverage in `/Users/dominik/GitHub/tikz-editor/test/corpus.spec.ts`.
+
+## Development Roadmap
+See `/Users/dominik/GitHub/tikz-editor/docs/roadmap.md`.

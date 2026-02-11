@@ -35,4 +35,134 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("<text");
     expect(emitted.svg).toContain("Hello");
   });
+
+  it("emits cubic Bezier path commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<path");
+    expect(emitted.svg).toContain(" C ");
+  });
+
+  it("emits grid and arc geometry as SVG paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid [step=1cm] (2,1);
+  \draw (0,0) arc [start angle=0, end angle=90, radius=1cm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg.match(/<path /g)?.length ?? 0).toBeGreaterThanOrEqual(3);
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "invalid-arc-parameters")).toBe(false);
+  });
+
+  it("emits true SVG arc commands for supported arc variants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (1,0) arc (0:90:1cm);
+  \draw (1,0) arc [start angle=0, delta angle=90, x radius=1cm, y radius=.5cm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "invalid-arc-parameters")).toBe(false);
+    expect(emitted.svg).toContain(" A ");
+  });
+
+  it("emits dash and stroke-join/cap/opacity style attributes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[opacity=0.8,draw opacity=0.6,fill opacity=0.3,dashed,line cap=round,line join=bevel] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('stroke-dasharray="3 3"');
+    expect(emitted.svg).toContain('stroke-linecap="round"');
+    expect(emitted.svg).toContain('stroke-linejoin="bevel"');
+    expect(emitted.svg).toContain('stroke-opacity="0.6"');
+    expect(emitted.svg).toContain('fill-opacity="0.3"');
+    expect(emitted.svg).toContain('opacity="0.8"');
+  });
+
+  it("does not emit empty move-only path elements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1cm, y radius=.5cm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<ellipse");
+    expect(emitted.svg).not.toContain('d="M ');
+    expect(emitted.diagnostics).toHaveLength(0);
+  });
+
+  it("emits text color/opacity/alignment and multiline tspans for node text options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[text=blue,text opacity=0.5,align=right,node contents={A\\B},draw] at (0,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<text");
+    expect(emitted.svg).toContain('fill="#0000ff"');
+    expect(emitted.svg).toContain('fill-opacity="0.5"');
+    expect(emitted.svg).toContain('text-anchor="end"');
+    expect(emitted.svg).toContain("<tspan");
+  });
+
+  it("emits circle primitives for circle-shaped nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,draw,minimum size=1cm] at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<circle");
+  });
+
+  it("wraps node text into multiple tspans when text width is set", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=1cm] at (0,0) {alpha beta gamma};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const tspanCount = emitted.svg.match(/<tspan /g)?.length ?? 0;
+    expect(tspanCount).toBeGreaterThan(1);
+  });
+
+  it("emits double-stroked circles as two layered SVG circles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,draw,double] at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const circleCount = emitted.svg.match(/<circle /g)?.length ?? 0;
+    expect(circleCount).toBe(2);
+    expect(emitted.svg).toContain('stroke="#ffffff"');
+  });
+
+  it("emits italic font style and scaled font size for transform-shaped nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[scale=3,transform shape]
+  \draw[node font=\itshape] (1,0) -- +(1,1) node[above] {italic};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('font-style="italic"');
+    expect(emitted.svg).toContain('font-size="29.8879"');
+  });
 });

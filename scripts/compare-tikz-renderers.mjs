@@ -1,0 +1,569 @@
+#!/usr/bin/env node
+
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename, extname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const PDF_RASTER_DPI = 600;
+const DEFAULT_REFERENCE_MODE = "pdf-png";
+const REFERENCE_MODES = new Set(["pdf-png", "dvisvgm-svg", "dvisvgm-svg-png"]);
+
+export class RendererComparisonError extends Error {
+  constructor(message, details) {
+    super(message);
+    this.name = "RendererComparisonError";
+    this.reportPath = details.reportPath;
+    this.runDir = details.runDir;
+    this.report = details.report;
+  }
+}
+
+export async function compareTikzRenderers(options = {}) {
+  const referenceMode = normalizeReferenceMode(options.referenceMode);
+  const useDvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
+  const rasterizeLatexSvg = referenceMode === "dvisvgm-svg-png";
+  const input = loadInput({
+    inputPath: options.inputPath ?? null,
+    code: options.code ?? null,
+    allowStdin: options.allowStdin === true
+  });
+  const runName = options.name ?? deriveRunName(options.inputPath ?? null, input.code);
+  const outRoot = resolve(options.outDir ?? join(repoRoot, "artifacts", "renderer-compare"));
+  const runDirName = options.includeTimestamp === false ? runName : `${runName}-${timestampSlug()}`;
+  const runDir = join(outRoot, runDirName);
+  const reportPath = join(runDir, "compare-report.json");
+  mkdirSync(runDir, { recursive: true });
+
+  const report = {
+    input: {
+      source: input.source,
+      bytes: Buffer.byteLength(input.code, "utf8"),
+      runName
+    },
+    tools: {
+      pdflatex: commandExists("pdflatex"),
+      lualatex: commandExists("lualatex"),
+      latex: commandExists("latex"),
+      dvisvgm: commandExists("dvisvgm"),
+      magick: commandExists("magick"),
+      rsvgConvert: commandExists("rsvg-convert"),
+      pdftoppm: commandExists("pdftoppm"),
+      sips: commandExists("sips")
+    },
+    reference: {
+      mode: referenceMode
+    },
+    outputs: {},
+    renderer: {
+      parseDiagnostics: [],
+      semanticDiagnostics: [],
+      svgDiagnostics: []
+    },
+    latex: {
+      mode: referenceMode,
+      compiled: false,
+      rasterized: false,
+      converted: false,
+      compiler: null,
+      converter: null
+    }
+  };
+
+  writeFileSync(join(runDir, "input.tikz"), input.code, "utf8");
+
+  const distEntry = join(repoRoot, "dist/index.js");
+  if (!existsSync(distEntry)) {
+    throwWithReport("Build output missing at dist/index.js. Run `npm run build` first.", reportPath, runDir, report);
+  }
+
+  const rendererModule = await import(pathToFileURL(distEntry).href);
+  if (typeof rendererModule.renderTikzToSvg !== "function") {
+    throwWithReport("renderTikzToSvg export not found in dist/index.js.", reportPath, runDir, report);
+  }
+
+  const rendered = rendererModule.renderTikzToSvg(input.code, { parse: { recover: true } });
+  report.renderer.parseDiagnostics = rendered.parse.diagnostics;
+  report.renderer.semanticDiagnostics = rendered.semantic.diagnostics;
+  report.renderer.svgDiagnostics = rendered.svg.diagnostics;
+
+  const oursSvgPath = join(runDir, "ours.svg");
+  const oursPngPath = join(runDir, "ours.png");
+  writeFileSync(oursSvgPath, rendered.svg.svg, "utf8");
+  report.outputs.oursSvg = oursSvgPath;
+
+  if (options.rasterizeOurs !== false) {
+    const oursRaster = rasterizeSvg(oursSvgPath, oursPngPath, report.tools);
+    if (!oursRaster.ok) {
+      throwWithReport(
+        `Failed to rasterize renderer SVG: ${oursRaster.error}`,
+        reportPath,
+        runDir,
+        { ...report, rendererRasterError: oursRaster.error }
+      );
+    }
+    report.outputs.oursPng = oursPngPath;
+  }
+
+  const wrappedTex = wrapTikzForStandalone(input.code, referenceMode);
+  const latexTexPath = join(runDir, "latex-standalone.tex");
+  const latexPdfPath = join(runDir, "latex-standalone.pdf");
+  const latexPngPath = join(runDir, "latex-standalone.png");
+  const latexDviPath = join(runDir, "latex-standalone.dvi");
+  const latexSvgPath = join(runDir, "latex-standalone.svg");
+  writeFileSync(latexTexPath, wrappedTex, "utf8");
+  report.outputs.latexTex = latexTexPath;
+
+  if (!useDvisvgmReference) {
+    const latexCompile = compileLatex(latexTexPath, runDir, report.tools);
+    report.latex.compiled = latexCompile.ok;
+    report.latex.compiler = latexCompile.compiler ?? null;
+    if (!latexCompile.ok) {
+      report.latex.error = latexCompile.error;
+      report.latex.log = latexCompile.logTail;
+    } else {
+      report.outputs.latexPdf = latexPdfPath;
+      const latexRaster = rasterizePdf(latexPdfPath, latexPngPath, report.tools);
+      report.latex.converter = latexRaster.tool ?? null;
+      report.latex.rasterized = latexRaster.ok;
+      if (!latexRaster.ok) {
+        report.latex.error = latexRaster.error;
+      } else {
+        report.outputs.latexPng = latexPngPath;
+      }
+    }
+  } else {
+    const dviCompile = compileLatexToDvi(latexTexPath, runDir, report.tools);
+    report.latex.compiled = dviCompile.ok;
+    report.latex.compiler = dviCompile.compiler ?? null;
+    if (!dviCompile.ok) {
+      report.latex.error = dviCompile.error;
+      report.latex.log = dviCompile.logTail;
+    } else {
+      report.outputs.latexDvi = latexDviPath;
+      const dviConvert = convertDviToSvg(latexDviPath, latexSvgPath, report.tools);
+      report.latex.converter = dviConvert.converter ?? null;
+      report.latex.converted = dviConvert.ok;
+      report.latex.rasterized = false;
+      if (!dviConvert.ok) {
+        report.latex.error = dviConvert.error;
+      } else {
+        report.outputs.latexSvg = latexSvgPath;
+        if (rasterizeLatexSvg) {
+          const latexRaster = rasterizeSvg(latexSvgPath, latexPngPath, report.tools);
+          report.latex.rasterized = latexRaster.ok;
+          if (!latexRaster.ok) {
+            report.latex.error = latexRaster.error;
+          } else {
+            report.outputs.latexPng = latexPngPath;
+          }
+        }
+      }
+    }
+  }
+
+  writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  return {
+    runDir,
+    reportPath,
+    outputs: report.outputs,
+    latex: report.latex,
+    report
+  };
+}
+
+async function runCli() {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    if (args.help) {
+      printUsage();
+      process.exit(0);
+    }
+    const result = await compareTikzRenderers({
+      inputPath: args.inputPath,
+      code: args.code,
+      outDir: args.outDir,
+      name: args.name,
+      allowStdin: true,
+      includeTimestamp: args.includeTimestamp,
+      rasterizeOurs: args.rasterizeOurs,
+      referenceMode: args.referenceMode
+    });
+    console.log(
+      JSON.stringify(
+        {
+          runDir: result.runDir,
+          reportPath: result.reportPath,
+          outputs: result.outputs,
+          latex: result.latex
+        },
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
+if (isMain(import.meta.url)) {
+  await runCli();
+}
+
+function parseArgs(argv) {
+  const parsed = {
+    inputPath: null,
+    code: null,
+    outDir: null,
+    name: null,
+    includeTimestamp: true,
+    rasterizeOurs: true,
+    referenceMode: DEFAULT_REFERENCE_MODE,
+    help: false
+  };
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--help" || arg === "-h") {
+      parsed.help = true;
+      continue;
+    }
+    if (arg === "--input") {
+      parsed.inputPath = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--code") {
+      parsed.code = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--out-dir") {
+      parsed.outDir = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--name") {
+      parsed.name = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--no-timestamp") {
+      parsed.includeTimestamp = false;
+      continue;
+    }
+    if (arg === "--skip-ours-raster") {
+      parsed.rasterizeOurs = false;
+      continue;
+    }
+    if (arg === "--reference-mode") {
+      parsed.referenceMode = normalizeReferenceMode(argv[i + 1] ?? "");
+      i += 1;
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  return parsed;
+}
+
+function printUsage() {
+  console.log(`Usage:
+  node scripts/compare-tikz-renderers.mjs --input path/to/snippet.tex [--out-dir dir] [--name run]
+  node scripts/compare-tikz-renderers.mjs --code "\\\\draw (0,0)--(1,1);" [--out-dir dir] [--name run]
+  cat snippet.tex | node scripts/compare-tikz-renderers.mjs [--out-dir dir] [--name run]
+  node scripts/compare-tikz-renderers.mjs --code "\\\\draw (0,0)--(1,1);" --no-timestamp
+  node scripts/compare-tikz-renderers.mjs --code "\\\\draw (0,0)--(1,1);" --skip-ours-raster
+  node scripts/compare-tikz-renderers.mjs --code "\\\\draw (0,0)--(1,1);" --reference-mode dvisvgm-svg
+  node scripts/compare-tikz-renderers.mjs --code "\\\\draw (0,0)--(1,1);" --reference-mode dvisvgm-svg-png
+
+Outputs:
+  input.tikz
+  ours.svg / ours.png
+  latex-standalone.tex / latex-standalone.pdf / latex-standalone.png (pdf-png mode)
+  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg (dvisvgm-svg mode)
+  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg / latex-standalone.png (dvisvgm-svg-png mode)
+  compare-report.json
+`);
+}
+
+function loadInput(parsedArgs) {
+  if (parsedArgs.inputPath) {
+    const path = resolve(parsedArgs.inputPath);
+    if (!existsSync(path)) {
+      throw new Error(`Input file not found: ${path}`);
+    }
+    return { code: readFileSync(path, "utf8"), source: `file:${path}` };
+  }
+
+  if (parsedArgs.code != null) {
+    return { code: parsedArgs.code, source: "inline-arg" };
+  }
+
+  if (parsedArgs.allowStdin && !process.stdin.isTTY) {
+    return { code: readFileSync(0, "utf8"), source: "stdin" };
+  }
+
+  throw new Error("No input provided. Use --input, --code, or stdin.");
+}
+
+function deriveRunName(inputPath, code) {
+  if (inputPath) {
+    return sanitizeName(basename(inputPath, extname(inputPath)));
+  }
+  const hash = Math.abs(hashCode(code)).toString(16);
+  return `tikz-${hash}`;
+}
+
+function wrapTikzForStandalone(code, referenceMode) {
+  const trimmed = code.trim();
+  if (/\\documentclass/.test(trimmed)) {
+    return `${trimmed}\n`;
+  }
+
+  const hasTikzPicture = /\\begin\{tikzpicture\}/.test(trimmed);
+  const body = hasTikzPicture ? trimmed : `\\begin{tikzpicture}\n${trimmed}\n\\end{tikzpicture}`;
+  const useDvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
+  const standaloneClassOptions = useDvisvgmReference ? "dvisvgm,border=2pt" : "tikz,border=2pt";
+  return [
+    `\\documentclass[${standaloneClassOptions}]{standalone}`,
+    "\\usepackage{tikz}",
+    "\\begin{document}",
+    body,
+    "\\end{document}",
+    ""
+  ].join("\n");
+}
+
+function compileLatex(texPath, cwd, tools) {
+  if (!tools.pdflatex) {
+    return {
+      ok: false,
+      error: "pdflatex command not found.",
+      logTail: ""
+    };
+  }
+
+  const result = runCommand("pdflatex", ["-interaction=nonstopmode", "-halt-on-error", "-file-line-error", basename(texPath)], { cwd });
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `pdflatex failed with exit code ${result.status}.`,
+      logTail: tail((result.stdout ?? "") + "\n" + (result.stderr ?? ""), 120)
+    };
+  }
+
+  const pdfPath = texPath.replace(/\.tex$/i, ".pdf");
+  if (!existsSync(pdfPath)) {
+    return {
+      ok: false,
+      error: "pdflatex completed but PDF was not produced.",
+      logTail: tail(result.stdout ?? "", 120)
+    };
+  }
+
+  return {
+    ok: true,
+    compiler: "pdflatex",
+    pdfPath
+  };
+}
+
+function compileLatexToDvi(texPath, cwd, tools) {
+  const texFileName = basename(texPath);
+  let command = "";
+  let args = [];
+
+  if (tools.lualatex) {
+    command = "lualatex";
+    args = ["--output-format=dvi", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", texFileName];
+  } else if (tools.latex) {
+    command = "latex";
+    args = ["-interaction=nonstopmode", "-halt-on-error", "-file-line-error", texFileName];
+  } else {
+    return {
+      ok: false,
+      error: "Neither lualatex nor latex command was found.",
+      logTail: ""
+    };
+  }
+
+  const result = runCommand(command, args, { cwd });
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `${command} failed with exit code ${result.status}.`,
+      logTail: tail((result.stdout ?? "") + "\n" + (result.stderr ?? ""), 120)
+    };
+  }
+
+  const dviPath = texPath.replace(/\.tex$/i, ".dvi");
+  if (!existsSync(dviPath)) {
+    return {
+      ok: false,
+      error: `${command} completed but DVI was not produced.`,
+      logTail: tail(result.stdout ?? "", 120)
+    };
+  }
+
+  return {
+    ok: true,
+    compiler: command,
+    dviPath
+  };
+}
+
+function rasterizeSvg(svgPath, pngPath, tools) {
+  if (tools.magick) {
+    const magick = runCommand("magick", [svgPath, "-background", "white", "-alpha", "remove", pngPath]);
+    if (magick.ok && existsSync(pngPath)) {
+      return { ok: true };
+    }
+  }
+
+  if (tools.rsvgConvert) {
+    const rsvg = runCommand("rsvg-convert", ["-f", "png", "-o", pngPath, svgPath]);
+    if (rsvg.ok && existsSync(pngPath)) {
+      return { ok: true };
+    }
+  }
+
+  if (tools.sips) {
+    const sips = runCommand("sips", ["-s", "format", "png", svgPath, "--out", pngPath]);
+    if (sips.ok && existsSync(pngPath)) {
+      return { ok: true };
+    }
+  }
+
+  return {
+    ok: false,
+    error: "No SVG rasterizer succeeded. Tried magick, rsvg-convert, and sips."
+  };
+}
+
+function rasterizePdf(pdfPath, pngPath, tools) {
+  if (tools.magick) {
+    const magick = runCommand("magick", [
+      "-density",
+      String(PDF_RASTER_DPI),
+      pdfPath,
+      "-background",
+      "white",
+      "-alpha",
+      "remove",
+      pngPath
+    ]);
+    if (magick.ok && existsSync(pngPath)) {
+      return { ok: true, tool: "magick" };
+    }
+  }
+
+  if (tools.pdftoppm) {
+    const prefixPath = pngPath.replace(/\.png$/i, "");
+    const pdftoppm = runCommand("pdftoppm", ["-png", "-singlefile", "-r", String(PDF_RASTER_DPI), pdfPath, prefixPath]);
+    const producedPng = `${prefixPath}.png`;
+    if (pdftoppm.ok && existsSync(producedPng)) {
+      if (producedPng !== pngPath) {
+        renameSync(producedPng, pngPath);
+      }
+      return { ok: true, tool: "pdftoppm" };
+    }
+  }
+
+  return {
+    ok: false,
+    error: "No PDF rasterizer succeeded. Tried magick and pdftoppm."
+  };
+}
+
+function convertDviToSvg(dviPath, svgPath, tools) {
+  if (!tools.dvisvgm) {
+    return {
+      ok: false,
+      error: "dvisvgm command not found."
+    };
+  }
+
+  const result = runCommand("dvisvgm", ["--page=1", "--bbox=min", "--exact", "-o", svgPath, dviPath]);
+  if (!result.ok) {
+    return {
+      ok: false,
+      error: `dvisvgm failed with exit code ${result.status}. ${tail((result.stdout ?? "") + "\n" + (result.stderr ?? ""), 40)}`
+    };
+  }
+
+  if (!existsSync(svgPath)) {
+    return {
+      ok: false,
+      error: "dvisvgm completed but SVG was not produced."
+    };
+  }
+
+  return {
+    ok: true,
+    converter: "dvisvgm"
+  };
+}
+
+function runCommand(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd,
+    encoding: "utf8"
+  });
+  return {
+    ok: result.status === 0,
+    status: result.status,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? ""
+  };
+}
+
+function commandExists(command) {
+  const check = spawnSync("sh", ["-lc", `command -v ${command}`], { encoding: "utf8" });
+  return check.status === 0;
+}
+
+function sanitizeName(input) {
+  return input.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "tikz";
+}
+
+function timestampSlug() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function hashCode(input) {
+  let hash = 0;
+  for (let i = 0; i < input.length; i += 1) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+function tail(input, maxLines) {
+  const lines = input.split(/\r?\n/);
+  return lines.slice(Math.max(0, lines.length - maxLines)).join("\n");
+}
+
+function normalizeReferenceMode(value) {
+  const mode = value || DEFAULT_REFERENCE_MODE;
+  if (!REFERENCE_MODES.has(mode)) {
+    throw new Error(`Invalid --reference-mode value: ${value}. Expected one of: ${[...REFERENCE_MODES].join(", ")}.`);
+  }
+  return mode;
+}
+
+function throwWithReport(message, reportPath, runDir, report) {
+  report.error = message;
+  writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
+  throw new RendererComparisonError(message, { reportPath, runDir, report });
+}
+
+function isMain(metaUrl) {
+  if (!process.argv[1]) {
+    return false;
+  }
+  return pathToFileURL(resolve(process.argv[1])).href === metaUrl;
+}

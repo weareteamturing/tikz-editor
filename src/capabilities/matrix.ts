@@ -46,8 +46,8 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   path_operator_curves: {
     parser: "stable",
-    semantic: "none",
-    svg: "none",
+    semantic: "partial",
+    svg: "partial",
     edit: "none",
     fixtures: ["curve_operator"]
   },
@@ -130,15 +130,15 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   keyword_controls: {
     parser: "stable",
-    semantic: "none",
-    svg: "none",
+    semantic: "partial",
+    svg: "partial",
     edit: "none",
     fixtures: ["curve_operator"]
   },
   keyword_and: {
     parser: "stable",
-    semantic: "none",
-    svg: "none",
+    semantic: "partial",
+    svg: "partial",
     edit: "none",
     fixtures: ["curve_operator"]
   },

@@ -1,8 +1,18 @@
+import type { OptionListAst } from "../options/types.js";
 import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
+
+export type NodeLayerMode = "front" | "behind";
 
 export type SemanticContextFrame = {
   style: ResolvedStyle;
   transform: Matrix2D;
+  namePrefix: string;
+  nameSuffix: string;
+  nodeLayerMode: NodeLayerMode;
+  transformShape: boolean;
+  everyNodeStyles: OptionListAst[];
+  everyRectangleNodeStyles: OptionListAst[];
+  everyCircleNodeStyles: OptionListAst[];
 };
 
 export type SemanticContext = {
@@ -14,7 +24,19 @@ export type SemanticContext = {
 
 export function createSemanticContext(initialStyle: ResolvedStyle, initialTransform: Matrix2D): SemanticContext {
   return {
-    stack: [{ style: initialStyle, transform: initialTransform }],
+    stack: [
+      {
+        style: initialStyle,
+        transform: initialTransform,
+        namePrefix: "",
+        nameSuffix: "",
+        nodeLayerMode: "front",
+        transformShape: false,
+        everyNodeStyles: [],
+        everyRectangleNodeStyles: [],
+        everyCircleNodeStyles: []
+      }
+    ],
     namedCoordinates: new Map<string, Point>(),
     currentPoint: null,
     pathStartPoint: null
@@ -34,4 +56,3 @@ export function popFrame(context: SemanticContext): void {
     context.stack.pop();
   }
 }
-

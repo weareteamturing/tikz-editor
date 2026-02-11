@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { collectTikzSnippetsFromDocs } from "../src/corpus/extract.js";
+import type { TikzSnippet } from "../src/corpus/extract.js";
 import { parseTikz } from "../src/parser/index.js";
 
 describe("pgf-docs corpus regression", () => {
@@ -15,6 +16,15 @@ describe("pgf-docs corpus regression", () => {
     const snippets = collectTikzSnippetsFromDocs(docsRoot);
     const tikzPictureSnippets = snippets.filter((snippet) => snippet.kind === "tikzpicture");
     const tikzInlineSnippets = snippets.filter((snippet) => snippet.kind === "tikz-inline");
+    const parserInputs = snippets
+      .map((snippet) => {
+        const parserInput = toParserInput(snippet);
+        if (!parserInput) {
+          return null;
+        }
+        return { snippet, parserInput };
+      })
+      .filter((entry): entry is { snippet: TikzSnippet; parserInput: string } => entry !== null);
 
     const diagnosticCounts = new Map<string, number>();
     const recoveryByFile = new Map<string, number>();
@@ -44,9 +54,9 @@ describe("pgf-docs corpus regression", () => {
     let coordinateOperationItems = 0;
     let unknownPathItems = 0;
 
-    for (const snippet of tikzPictureSnippets) {
+    for (const { snippet, parserInput } of parserInputs) {
       try {
-        const result = parseTikz(snippet.source, { recover: true });
+        const result = parseTikz(parserInput, { recover: true });
         const hasParseError = result.diagnostics.some((diagnostic) => diagnostic.severity === "error");
 
         if (hasParseError) {
@@ -145,13 +155,15 @@ describe("pgf-docs corpus regression", () => {
         totalSnippets: snippets.length,
         tikzPictureSnippets: tikzPictureSnippets.length,
         tikzInlineSnippets: tikzInlineSnippets.length,
+        parserInputSnippets: parserInputs.length,
+        parserInputInlineSnippets: parserInputs.filter((entry) => entry.snippet.kind === "tikz-inline").length,
         incompleteSnippets: snippets.filter((snippet) => snippet.incomplete).length
       },
       parse: {
         parsedClean,
         parsedWithRecovery,
         failedHard: hardFailures.length,
-        recoverableRate: tikzPictureSnippets.length === 0 ? 0 : Number((parsedWithRecovery / tikzPictureSnippets.length).toFixed(4))
+        recoverableRate: parserInputs.length === 0 ? 0 : Number((parsedWithRecovery / parserInputs.length).toFixed(4))
       },
       semanticCoverage: {
         snippetsWithPathStatements,
@@ -159,13 +171,13 @@ describe("pgf-docs corpus regression", () => {
         snippetsWithCoordinateItems,
         snippetsAllUnknownStatements,
         snippetPathCoverageRate:
-          tikzPictureSnippets.length === 0 ? 0 : Number((snippetsWithPathStatements / tikzPictureSnippets.length).toFixed(4)),
+          parserInputs.length === 0 ? 0 : Number((snippetsWithPathStatements / parserInputs.length).toFixed(4)),
         snippetNodeCoverageRate:
-          tikzPictureSnippets.length === 0 ? 0 : Number((snippetsWithNodeItems / tikzPictureSnippets.length).toFixed(4)),
+          parserInputs.length === 0 ? 0 : Number((snippetsWithNodeItems / parserInputs.length).toFixed(4)),
         snippetCoordinateCoverageRate:
-          tikzPictureSnippets.length === 0 ? 0 : Number((snippetsWithCoordinateItems / tikzPictureSnippets.length).toFixed(4)),
+          parserInputs.length === 0 ? 0 : Number((snippetsWithCoordinateItems / parserInputs.length).toFixed(4)),
         allUnknownSnippetRate:
-          tikzPictureSnippets.length === 0 ? 0 : Number((snippetsAllUnknownStatements / tikzPictureSnippets.length).toFixed(4)),
+          parserInputs.length === 0 ? 0 : Number((snippetsAllUnknownStatements / parserInputs.length).toFixed(4)),
         statementTotals: {
           totalStatements,
           pathStatements,
@@ -205,7 +217,7 @@ describe("pgf-docs corpus regression", () => {
       sampleHardFailures: hardFailures.slice(0, 5)
     };
 
-    expect(tikzPictureSnippets.length).toBeGreaterThan(50);
+    expect(parserInputs.length).toBeGreaterThan(50);
     expect(hardFailures).toHaveLength(0);
     expect(snapshot).toMatchSnapshot();
   }, 120000);
@@ -226,4 +238,133 @@ function flattenStatements(
     }
   }
   return flattened;
+}
+
+function toParserInput(snippet: TikzSnippet): string | null {
+  if (snippet.kind === "tikzpicture") {
+    return snippet.source;
+  }
+
+  if (snippet.kind === "tikz-inline") {
+    if (snippet.incomplete) {
+      return null;
+    }
+    return normalizeInlineTikz(snippet.source);
+  }
+
+  return null;
+}
+
+function normalizeInlineTikz(source: string): string | null {
+  const trimmed = source.trim();
+  const tikzMatch = /^\\tikz\b/u.exec(trimmed);
+  if (!tikzMatch) {
+    return null;
+  }
+
+  let cursor = tikzMatch[0].length;
+  cursor = skipWhitespaceAndComments(trimmed, cursor);
+
+  let options = "";
+  if (trimmed[cursor] === "[") {
+    const parsedOptions = readBalancedSegment(trimmed, cursor, "[", "]");
+    if (!parsedOptions) {
+      return null;
+    }
+    options = trimmed.slice(cursor, parsedOptions.end);
+    cursor = skipWhitespaceAndComments(trimmed, parsedOptions.end);
+  }
+
+  let body = "";
+  if (trimmed[cursor] === "{") {
+    const parsedBody = readBalancedSegment(trimmed, cursor, "{", "}");
+    if (!parsedBody) {
+      return null;
+    }
+    body = trimmed.slice(cursor + 1, parsedBody.end - 1).trim();
+    cursor = skipWhitespaceAndComments(trimmed, parsedBody.end);
+    if (trimmed[cursor] === ";") {
+      cursor += 1;
+      cursor = skipWhitespaceAndComments(trimmed, cursor);
+    }
+    if (cursor !== trimmed.length) {
+      return null;
+    }
+  } else {
+    body = trimmed.slice(cursor).trim();
+  }
+
+  if (body.length === 0) {
+    return null;
+  }
+
+  const begin = options.length > 0 ? `\\begin{tikzpicture}${options}` : "\\begin{tikzpicture}";
+  return `${begin}\n${body}\n\\end{tikzpicture}`;
+}
+
+function skipWhitespaceAndComments(source: string, start: number): number {
+  let cursor = start;
+
+  while (cursor < source.length) {
+    const ch = source[cursor];
+    if (/\s/u.test(ch)) {
+      cursor += 1;
+      continue;
+    }
+    if (ch === "%" && source[cursor - 1] !== "\\") {
+      const newlineIndex = source.indexOf("\n", cursor + 1);
+      if (newlineIndex === -1) {
+        return source.length;
+      }
+      cursor = newlineIndex + 1;
+      continue;
+    }
+    break;
+  }
+
+  return cursor;
+}
+
+function readBalancedSegment(source: string, start: number, openChar: string, closeChar: string): { end: number } | null {
+  if (source[start] !== openChar) {
+    return null;
+  }
+
+  let depth = 0;
+  let inComment = false;
+
+  for (let i = start; i < source.length; i += 1) {
+    const ch = source[i];
+
+    if (inComment) {
+      if (ch === "\n") {
+        inComment = false;
+      }
+      continue;
+    }
+
+    if (ch === "%" && source[i - 1] !== "\\") {
+      inComment = true;
+      continue;
+    }
+
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (ch === openChar) {
+      depth += 1;
+      continue;
+    }
+
+    if (ch === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return { end: i + 1 };
+      }
+    }
+  }
+
+  return null;
 }

@@ -80,8 +80,14 @@ export type NodeItem = {
   kind: "Node";
   id: string;
   span: Span;
+  name?: string;
+  aliases?: string[];
   optionsSpan?: Span;
   options?: OptionListAst;
+  atSpan?: Span;
+  atRaw?: string;
+  atRelativePrefix?: RelativeCoordinatePrefix;
+  textSource: "group" | "option";
   textSpan: Span;
   text: string;
 };

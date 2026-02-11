@@ -2,9 +2,9 @@ import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 
 const UNIT_FACTORS: Record<string, number> = {
   pt: 1,
-  cm: 28.3464567,
-  mm: 2.83464567,
-  in: 72,
+  cm: 28.4527559055,
+  mm: 2.84527559055,
+  in: 72.27,
   ex: 4.3,
   em: 10
 };
@@ -15,7 +15,7 @@ export function parseLength(input: string, defaultUnit: "cm" | "pt"): number | n
     return null;
   }
 
-  const match = trimmed.match(/^([+-]?\d+(?:\.\d+)?)([A-Za-z]+)?$/);
+  const match = trimmed.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))([A-Za-z]+)?$/);
   if (!match) {
     return null;
   }
@@ -42,4 +42,3 @@ export function parseCoordinateLike(raw: string): { x: string; y: string } | nul
   }
   return { x: parts[0], y: parts[1] };
 }
-

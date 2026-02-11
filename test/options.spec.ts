@@ -25,5 +25,12 @@ describe("options parser", () => {
 
     expect(parsed.entries.some((entry) => entry.kind === "unknown")).toBe(true);
   });
-});
 
+  it("ignores line comments in option lists", () => {
+    const parsed = parseOptionListRaw(`[fill=yellow!80!black, % comment
+every path/.style={draw}]`);
+
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "fill")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "every path/.style")).toBe(true);
+  });
+});

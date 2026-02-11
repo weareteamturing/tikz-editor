@@ -13,6 +13,8 @@
     "test:watch": "npm run generate:grammar && vitest",
     "test:corpus": "npm run generate:grammar && vitest run test/corpus.spec.ts",
     "parse:corpus": "npm run test:corpus",
+    "compare:renderers": "node scripts/compare-tikz-renderers.mjs",
+    "compare:pgf-docs": "node scripts/compare-pgf-docs-renderings.mjs",
     "dev:web": "cd web && npm run dev"
   },
   "keywords": [

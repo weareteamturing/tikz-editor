@@ -16,9 +16,11 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   const frame = context.stack[context.stack.length - 1];
 
   if (item.form === "named") {
-    const named = context.namedCoordinates.get(item.x.trim());
+    const rawName = item.x.trim();
+    const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
+    const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
     if (!named) {
-      diagnostics.push(`unknown-named-coordinate:${item.x.trim()}`);
+      diagnostics.push(`unknown-named-coordinate:${rawName}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
     return {
@@ -85,6 +87,31 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     diagnostics,
     advancesCurrentPoint: true
   };
+}
+
+function scopedNameCandidates(name: string, prefix: string, suffix: string): string[] {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return [trimmed];
+  }
+
+  const scoped = applyNameScope(trimmed, prefix, suffix);
+  return scoped === trimmed ? [trimmed] : [scoped, trimmed];
+}
+
+function applyNameScope(name: string, prefix: string, suffix: string): string {
+  if (prefix.length === 0 && suffix.length === 0) {
+    return name;
+  }
+
+  const dot = name.indexOf(".");
+  if (dot === -1) {
+    return `${prefix}${name}${suffix}`;
+  }
+
+  const base = name.slice(0, dot);
+  const anchor = name.slice(dot);
+  return `${prefix}${base}${suffix}${anchor}`;
 }
 
 export function evaluateRawCoordinate(

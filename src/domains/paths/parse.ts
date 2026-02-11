@@ -18,7 +18,7 @@ import {
 type PathItemContext = {
   command: PathCommand;
   syntheticNodeEmitted: boolean;
-  pendingNodeOptions: SyntaxNode | null;
+  pendingNodeOptions: SyntaxNode[];
 };
 
 export function mapPathStatement(node: SyntaxNode, source: string, statementIndex: number): PathStatement {
@@ -29,7 +29,7 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
   const context: PathItemContext = {
     command,
     syntheticNodeEmitted: false,
-    pendingNodeOptions: null
+    pendingNodeOptions: []
   };
 
   const items: PathItem[] = [];
@@ -55,8 +55,20 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
     }
   });
 
-  if (context.pendingNodeOptions) {
-    items.push(mapPathOptionItem(context.pendingNodeOptions, source, statementIndex, itemIndex));
+  if (context.command === "node" && !context.syntheticNodeEmitted && context.pendingNodeOptions.length > 0) {
+    if (pendingNodeOptionsContainNodeContents(context.pendingNodeOptions, source)) {
+      items.push(mapSyntheticNodeItem(null, context.pendingNodeOptions, source, statementIndex, itemIndex));
+      itemIndex += 1;
+      context.syntheticNodeEmitted = true;
+      context.pendingNodeOptions = [];
+    }
+  }
+
+  if (context.pendingNodeOptions.length > 0) {
+    for (const optionNode of context.pendingNodeOptions) {
+      items.push(mapPathOptionItem(optionNode, source, statementIndex, itemIndex));
+      itemIndex += 1;
+    }
   }
 
   return {
@@ -104,13 +116,13 @@ function mapPathItem(
 
   if (actual.type.name === "NodeItem") {
     context.syntheticNodeEmitted = true;
-    context.pendingNodeOptions = null;
+    context.pendingNodeOptions = [];
     return mapNodeItem(actual, source, statementIndex, itemIndex);
   }
 
   if (actual.type.name === "OptionList") {
-    if (context.command === "node" && !context.syntheticNodeEmitted && !context.pendingNodeOptions) {
-      context.pendingNodeOptions = actual;
+    if (context.command === "node" && !context.syntheticNodeEmitted) {
+      context.pendingNodeOptions.push(actual);
       return null;
     }
 
@@ -124,7 +136,7 @@ function mapPathItem(
   if (actual.type.name === "Group" && context.command === "node" && !context.syntheticNodeEmitted) {
     const synthetic = mapSyntheticNodeItem(actual, context.pendingNodeOptions, source, statementIndex, itemIndex);
     context.syntheticNodeEmitted = true;
-    context.pendingNodeOptions = null;
+    context.pendingNodeOptions = [];
     return synthetic;
   }
 
@@ -199,9 +211,18 @@ function unwrapPathItemNode(node: SyntaxNode): SyntaxNode {
 }
 
 function findStatementOptions(items: PathItem[]) {
-  const firstOption = items.find((item) => item.kind === "PathOption");
-  if (!firstOption || firstOption.kind !== "PathOption") {
+  for (const item of items) {
+    if (item.kind === "PathComment") {
+      continue;
+    }
+    if (item.kind === "PathOption") {
+      return item.options;
+    }
     return undefined;
   }
-  return firstOption.options;
+  return undefined;
+}
+
+function pendingNodeOptionsContainNodeContents(optionNodes: SyntaxNode[], source: string): boolean {
+  return optionNodes.some((node) => /\bnode\s+contents\s*=/.test(source.slice(node.from, node.to).toLowerCase()));
 }

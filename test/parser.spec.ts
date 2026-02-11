@@ -47,6 +47,18 @@ describe("parseTikz", () => {
     expect(comments.some((comment) => comment.includes("trailing"))).toBe(true);
   });
 
+  it("accepts comments inside option lists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  [fill=yellow!80!black, % only sets the color
+   every path/.style={draw}]  % all paths are drawn
+  \fill (0,0) rectangle +(1,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-option-close")).toBe(false);
+  });
+
   it("maps unknown commands to UnknownStatement", () => {
     const source = loadFixture("unknown.tex");
     const result = parseTikz(source);
@@ -103,6 +115,50 @@ describe("parseTikz", () => {
     expect(statement.command).toBe("node");
     expect(statement.items.some((item) => item.kind === "Node")).toBe(true);
     expect(statement.items.some((item) => item.kind === "Coordinate")).toBe(true);
+  });
+
+  it("parses standalone node commands that use node contents without trailing braces", () => {
+    const source = String.raw`\begin{tikzpicture}
+      \node[name=title,alias=headline,node contents=Hello,at={(1,2)}];
+    \end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.text).toBe("Hello");
+      expect(node.textSource).toBe("option");
+      expect(node.name).toBe("title");
+      expect(node.aliases).toEqual(["headline"]);
+      expect(node.atRaw).toBe("(1,2)");
+    }
+  });
+
+  it("captures inline node placement coordinates in path syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+      \draw (0,0) node[draw] at (1,0) {A};
+    \end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.atRaw).toBe("(1,0)");
+      expect(node.text).toBe("A");
+      expect(node.textSource).toBe("group");
+    }
   });
 
   it("recognizes node text, 'at', and 'cycle' in a mixed drawing snippet", () => {
