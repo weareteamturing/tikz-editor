@@ -13,6 +13,27 @@ describe("parseTikz", () => {
     expect(result.figure.body[0]?.kind).toBe("Path");
   });
 
+  it("parses inline tikz commands into path statements", () => {
+    const source = String.raw`\tikz \draw (0,0) -- (1,1);`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    expect(result.figure.body).toHaveLength(1);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "Path") {
+      expect(result.figure.body[0].command).toBe("draw");
+    }
+  });
+
+  it("parses inline tikz options and braced bodies", () => {
+    const source = String.raw`\tikz[rotate=30]{\draw[step=1mm] (0,0) grid (2,2);};`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    expect(result.figure.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "rotate")).toBe(true);
+    expect(result.figure.body.some((statement) => statement.kind === "Path")).toBe(true);
+  });
+
   it("parses node text with nested braces", () => {
     const source = `\\begin{tikzpicture}\\draw (0,0) node {A {B} C};\\end{tikzpicture}`;
     const result = parseTikz(source);

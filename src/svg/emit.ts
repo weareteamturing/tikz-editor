@@ -223,7 +223,6 @@ function styleAttributes(
     attrs.push(`stroke-dasharray="${style.dashArray.map((entry) => fmt(entry)).join(" ")}"`);
   }
   attrs.push(`opacity="${fmt(style.opacity)}"`);
-  attrs.push(`vector-effect="non-scaling-stroke"`);
   return attrs;
 }
 

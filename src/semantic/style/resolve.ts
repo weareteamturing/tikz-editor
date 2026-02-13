@@ -326,6 +326,18 @@ function applyFlagEntry(
   if (NAMED_COLORS.has(key)) {
     return { style: { ...style, stroke: key, textColor: key }, transform, diagnostics: [] };
   }
+  if (key === "help lines") {
+    return {
+      style: {
+        ...style,
+        stroke: COLOR_HEX.gray,
+        textColor: COLOR_HEX.gray,
+        lineWidth: 0.2
+      },
+      transform,
+      diagnostics: []
+    };
+  }
 
   if (NON_STYLE_OPTION_FLAGS.has(key)) {
     return { style, transform, diagnostics: [] };

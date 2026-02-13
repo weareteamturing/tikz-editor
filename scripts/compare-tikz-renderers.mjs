@@ -106,7 +106,10 @@ export async function compareTikzRenderers(options = {}) {
     report.outputs.oursPng = oursPngPath;
   }
 
-  const wrappedTex = wrapTikzForStandalone(input.code, referenceMode);
+  const wrappedTex = wrapTikzForStandalone(input.code, referenceMode, {
+    preamble: options.latexPreamble ?? "",
+    pre: options.latexPrepend ?? ""
+  });
   const latexTexPath = join(runDir, "latex-standalone.tex");
   const latexPdfPath = join(runDir, "latex-standalone.pdf");
   const latexPngPath = join(runDir, "latex-standalone.png");
@@ -317,24 +320,40 @@ function deriveRunName(inputPath, code) {
   return `tikz-${hash}`;
 }
 
-function wrapTikzForStandalone(code, referenceMode) {
+function wrapTikzForStandalone(code, referenceMode, latexContext = {}) {
   const trimmed = code.trim();
   if (/\\documentclass/.test(trimmed)) {
     return `${trimmed}\n`;
   }
 
+  const preamble = normalizeLatexInjection(latexContext.preamble);
+  const pre = normalizeLatexInjection(latexContext.pre);
   const hasTikzPicture = /\\begin\{tikzpicture\}/.test(trimmed);
   const body = hasTikzPicture ? trimmed : `\\begin{tikzpicture}\n${trimmed}\n\\end{tikzpicture}`;
+  const bodyWithPre = pre.length > 0 ? `${pre}\n${body}` : body;
   const useDvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
   const standaloneClassOptions = useDvisvgmReference ? "dvisvgm,border=2pt" : "tikz,border=2pt";
-  return [
+
+  const lines = [
     `\\documentclass[${standaloneClassOptions}]{standalone}`,
     "\\usepackage{tikz}",
+    preamble,
     "\\begin{document}",
-    body,
+    bodyWithPre,
     "\\end{document}",
     ""
-  ].join("\n");
+  ].filter((line) => line.length > 0);
+
+  return lines.join("\n");
+}
+
+function normalizeLatexInjection(value) {
+  if (value == null) {
+    return "";
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : "";
 }
 
 function compileLatex(texPath, cwd, tools) {

@@ -3,6 +3,14 @@ import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
 
 export type NodeLayerMode = "front" | "behind";
 
+export type NamedNodeGeometry = {
+  shape: "rectangle" | "circle" | "coordinate";
+  center: Point;
+  anchorHalfWidth: number;
+  anchorHalfHeight: number;
+  anchorRadius: number;
+};
+
 export type SemanticContextFrame = {
   style: ResolvedStyle;
   transform: Matrix2D;
@@ -18,6 +26,7 @@ export type SemanticContextFrame = {
 export type SemanticContext = {
   stack: SemanticContextFrame[];
   namedCoordinates: Map<string, Point>;
+  namedNodeGeometries: Map<string, NamedNodeGeometry>;
   currentPoint: Point | null;
   pathStartPoint: Point | null;
 };
@@ -38,6 +47,7 @@ export function createSemanticContext(initialStyle: ResolvedStyle, initialTransf
       }
     ],
     namedCoordinates: new Map<string, Point>(),
+    namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
     currentPoint: null,
     pathStartPoint: null
   };

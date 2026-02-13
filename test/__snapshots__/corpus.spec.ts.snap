@@ -1,98 +1,131 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`pgf-docs corpus regression > extracts snippets and tracks parse quality metrics 1`] = `
+exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semantic+svg quality metrics 1`] = `
 {
   "extraction": {
     "filesScanned": 103,
     "incompleteSnippets": 736,
-    "parserInputInlineSnippets": 531,
-    "parserInputSnippets": 1638,
+    "parserInputInlineSnippets": 1080,
+    "parserInputSnippets": 2187,
     "tikzInlineSnippets": 1265,
     "tikzPictureSnippets": 1107,
     "totalSnippets": 2372,
   },
   "parse": {
     "failedHard": 0,
-    "parsedClean": 824,
-    "parsedWithRecovery": 814,
-    "recoverableRate": 0.4969,
+    "parsedClean": 893,
+    "parsedWithRecovery": 1294,
+    "recoverableRate": 0.5917,
   },
   "sampleHardFailures": [],
+  "semantic": {
+    "elementTotals": {
+      "circles": 376,
+      "ellipses": 27,
+      "paths": 3486,
+      "texts": 1456,
+      "total": 5345,
+    },
+    "semanticEmptySceneRate": 0.4463,
+    "semanticEmptySceneSnippets": 976,
+    "semanticErrorRate": 0.1952,
+    "semanticErrorSnippets": 427,
+    "semanticUnsupportedRate": 0.7467,
+    "semanticUnsupportedSnippets": 1633,
+    "semanticWarningRate": 0.7476,
+    "semanticWarningSnippets": 1635,
+  },
   "semanticCoverage": {
-    "allUnknownSnippetRate": 0.2082,
+    "allUnknownSnippetRate": 0.2689,
     "pathItemTotals": {
-      "commentItemRate": 0.0031,
+      "commentItemRate": 0.0028,
       "commentItems": 43,
-      "coordinateItemRate": 0.4046,
-      "coordinateItems": 5597,
-      "coordinateOperationItemRate": 0.0072,
-      "coordinateOperationItems": 99,
-      "keywordItemRate": 0.2403,
-      "keywordItems": 3324,
+      "coordinateItemRate": 0.4071,
+      "coordinateItems": 6164,
+      "coordinateOperationItemRate": 0.0073,
+      "coordinateOperationItems": 110,
+      "keywordItemRate": 0.2379,
+      "keywordItems": 3603,
       "letOperationItemRate": 0.0007,
-      "letOperationItems": 9,
-      "nodeItemRate": 0.1225,
-      "nodeItems": 1695,
-      "optionItemRate": 0.1436,
-      "optionItems": 1986,
+      "letOperationItems": 10,
+      "nodeItemRate": 0.1202,
+      "nodeItems": 1820,
+      "optionItemRate": 0.1477,
+      "optionItems": 2237,
       "svgOperationItemRate": 0.0001,
       "svgOperationItems": 2,
-      "toOperationItemRate": 0.0077,
-      "toOperationItems": 106,
-      "totalPathItems": 13832,
-      "unknownPathItemRate": 0.0702,
-      "unknownPathItems": 971,
+      "toOperationItemRate": 0.0072,
+      "toOperationItems": 109,
+      "totalPathItems": 15143,
+      "unknownPathItemRate": 0.069,
+      "unknownPathItems": 1045,
     },
-    "snippetCoordinateCoverageRate": 0.6142,
-    "snippetNodeCoverageRate": 0.3455,
-    "snippetPathCoverageRate": 0.7735,
-    "snippetsAllUnknownStatements": 341,
-    "snippetsWithCoordinateItems": 1006,
-    "snippetsWithNodeItems": 566,
-    "snippetsWithPathStatements": 1267,
+    "snippetCoordinateCoverageRate": 0.5386,
+    "snippetNodeCoverageRate": 0.2954,
+    "snippetPathCoverageRate": 0.7064,
+    "snippetsAllUnknownStatements": 588,
+    "snippetsWithCoordinateItems": 1178,
+    "snippetsWithNodeItems": 646,
+    "snippetsWithPathStatements": 1545,
     "statementTotals": {
-      "foreachStatements": 229,
-      "pathStatementRate": 0.6978,
-      "pathStatements": 3496,
-      "scopeStatements": 85,
-      "totalStatements": 5010,
-      "unknownStatementRate": 0.2395,
-      "unknownStatements": 1200,
+      "foreachStatements": 249,
+      "pathStatementRate": 0.6674,
+      "pathStatements": 3947,
+      "scopeStatements": 99,
+      "totalStatements": 5914,
+      "unknownStatementRate": 0.2738,
+      "unknownStatements": 1619,
     },
   },
   "topDiagnosticCodes": [
     {
       "code": "parse-error",
-      "count": 3453,
+      "count": 5910,
     },
     {
       "code": "missing-option-close",
-      "count": 304,
+      "count": 369,
     },
     {
       "code": "missing-group-close",
-      "count": 88,
+      "count": 102,
     },
     {
       "code": "malformed-coordinate",
-      "count": 41,
+      "count": 47,
     },
   ],
   "topRecoveryFiles": [
     {
-      "count": 135,
+      "count": 156,
       "filePath": "pgfmanual-en-tikz-graphs.tex",
     },
     {
-      "count": 73,
+      "count": 154,
       "filePath": "pgfmanual-en-dv-stylesheets.tex",
+    },
+    {
+      "count": 84,
+      "filePath": "pgfmanual-en-dv-axes.tex",
+    },
+    {
+      "count": 66,
+      "filePath": "pgfmanual-en-tikz-animations.tex",
+    },
+    {
+      "count": 53,
+      "filePath": "pgfmanual-en-tikz-shapes.tex",
     },
     {
       "count": 51,
       "filePath": "pgfmanual-en-library-shapes.tex",
     },
     {
-      "count": 34,
+      "count": 48,
+      "filePath": "pgfmanual-en-base-animations.tex",
+    },
+    {
+      "count": 36,
       "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
@@ -100,25 +133,152 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse quality
       "filePath": "pgfmanual-en-library-circuits.tex",
     },
     {
-      "count": 25,
-      "filePath": "pgfmanual-en-tikz-matrices.tex",
-    },
-    {
-      "count": 23,
-      "filePath": "pgfmanual-en-library-plot-handlers.tex",
-    },
-    {
-      "count": 23,
-      "filePath": "pgfmanual-en-tikz-shapes.tex",
-    },
-    {
-      "count": 23,
-      "filePath": "pgfmanual-en-tutorial-chains.tex",
-    },
-    {
-      "count": 20,
-      "filePath": "pgfmanual-en-base-points.tex",
+      "count": 26,
+      "filePath": "pgfmanual-en-tikz-plots.tex",
     },
   ],
+  "topSemanticDiagnosticCodes": [
+    {
+      "code": "unsupported-statement",
+      "count": 1619,
+    },
+    {
+      "code": "unsupported-path-keyword",
+      "count": 405,
+    },
+    {
+      "code": "unsupported-foreach",
+      "count": 249,
+    },
+    {
+      "code": "unsupported-option-key:decoration",
+      "count": 137,
+    },
+    {
+      "code": "unsupported-option-flag:decorate",
+      "count": 91,
+    },
+    {
+      "code": "invalid-coordinate-operation",
+      "count": 72,
+    },
+    {
+      "code": "unknown-named-coordinate:B",
+      "count": 70,
+    },
+    {
+      "code": "unsupported-option-flag:baseline",
+      "count": 70,
+    },
+    {
+      "code": "grid-without-start",
+      "count": 68,
+    },
+    {
+      "code": "unknown-named-coordinate:A",
+      "count": 68,
+    },
+    {
+      "code": "unsupported-option-key:arrows",
+      "count": 68,
+    },
+    {
+      "code": "unsupported-option-key:pattern",
+      "count": 64,
+    },
+  ],
+  "topSemanticUnsupportedCodes": [
+    {
+      "code": "unsupported-statement",
+      "count": 1619,
+    },
+    {
+      "code": "unsupported-path-keyword",
+      "count": 405,
+    },
+    {
+      "code": "unsupported-foreach",
+      "count": 249,
+    },
+    {
+      "code": "unsupported-option-key:decoration",
+      "count": 137,
+    },
+    {
+      "code": "unsupported-option-flag:decorate",
+      "count": 91,
+    },
+    {
+      "code": "unsupported-option-flag:baseline",
+      "count": 70,
+    },
+    {
+      "code": "unsupported-option-key:arrows",
+      "count": 68,
+    },
+    {
+      "code": "unsupported-option-key:pattern",
+      "count": 64,
+    },
+    {
+      "code": "unsupported-option-key:pattern color",
+      "count": 51,
+    },
+    {
+      "code": "unsupported-option-key:label",
+      "count": 44,
+    },
+    {
+      "code": "unsupported-coordinate-form:explicit",
+      "count": 40,
+    },
+    {
+      "code": "unsupported-option-key:>",
+      "count": 33,
+    },
+  ],
+  "topSemanticUnsupportedFiles": [
+    {
+      "count": 161,
+      "filePath": "pgfmanual-en-dv-stylesheets.tex",
+    },
+    {
+      "count": 156,
+      "filePath": "pgfmanual-en-tikz-graphs.tex",
+    },
+    {
+      "count": 83,
+      "filePath": "pgfmanual-en-dv-axes.tex",
+    },
+    {
+      "count": 81,
+      "filePath": "pgfmanual-en-library-decorations.tex",
+    },
+    {
+      "count": 76,
+      "filePath": "pgfmanual-en-library-circuits.tex",
+    },
+    {
+      "count": 68,
+      "filePath": "pgfmanual-en-tikz-arrows.tex",
+    },
+    {
+      "count": 62,
+      "filePath": "pgfmanual-en-library-shapes.tex",
+    },
+    {
+      "count": 48,
+      "filePath": "pgfmanual-en-base-animations.tex",
+    },
+    {
+      "count": 43,
+      "filePath": "pgfmanual-en-tikz-actions.tex",
+    },
+    {
+      "count": 38,
+      "filePath": "pgfmanual-en-base-transformations.tex",
+    },
+  ],
+  "topSvgDiagnosticCodes": [],
 }
 `;

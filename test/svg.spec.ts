@@ -74,6 +74,18 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain(" A ");
   });
 
+  it("includes arc extrema in bounds so the viewBox does not clip half-circle arcs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (1,0) arc (0:180:1cm);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain(" A ");
+    expect(emitted.viewBox.height).toBeGreaterThan(40);
+  });
+
   it("emits dash and stroke-join/cap/opacity style attributes", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[opacity=0.8,draw opacity=0.6,fill opacity=0.3,dashed,line cap=round,line join=bevel] (0,0) -- (1,0);
@@ -88,6 +100,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('stroke-opacity="0.6"');
     expect(emitted.svg).toContain('fill-opacity="0.3"');
     expect(emitted.svg).toContain('opacity="0.8"');
+    expect(emitted.svg).not.toContain("vector-effect=");
   });
 
   it("does not emit empty move-only path elements", () => {

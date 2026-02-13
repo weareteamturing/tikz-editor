@@ -41,6 +41,7 @@ async function runCli() {
 
     let snippets = distModule.extractTikzSnippetsFromSource(sourceCode, sourceRelativePath);
     snippets = recoverInlineTikzCodeExamples(snippets, sourceCode);
+    snippets = attachCodeExampleLatexContext(snippets, sourceCode);
     if (args.kind !== "all") {
       snippets = snippets.filter((snippet) => snippet.kind === args.kind);
     }
@@ -77,7 +78,9 @@ async function runCli() {
           name: snippetName,
           includeTimestamp: false,
           rasterizeOurs: rasterizeOursSvg,
-          referenceMode: args.referenceMode
+          referenceMode: args.referenceMode,
+          latexPreamble: snippet.latexPreamble ?? null,
+          latexPrepend: snippet.latexPrepend ?? null
         });
         okCount += 1;
         entries.push(
@@ -280,7 +283,7 @@ function createSnippetRunName(index, snippet) {
 }
 
 function recoverInlineTikzCodeExamples(snippets, sourceCode) {
-  const codeExampleSpans = extractEnvironmentSpans(sourceCode, "codeexample");
+  const codeExampleSpans = extractCodeExampleContexts(sourceCode);
   if (codeExampleSpans.length === 0) {
     return snippets;
   }
@@ -310,10 +313,46 @@ function recoverInlineTikzCodeExamples(snippets, sourceCode) {
   });
 }
 
-function extractEnvironmentSpans(source, envName) {
-  const beginToken = `\\begin{${envName}}`;
-  const endToken = `\\end{${envName}}`;
-  const spans = [];
+function attachCodeExampleLatexContext(snippets, sourceCode) {
+  const codeExampleContexts = extractCodeExampleContexts(sourceCode);
+  if (codeExampleContexts.length === 0) {
+    return snippets;
+  }
+
+  return snippets.map((snippet) => {
+    const context = findContainingSpan(snippet.span.from, codeExampleContexts);
+    if (!context) {
+      return snippet;
+    }
+
+    const latexPreamble = context.preamble.trim();
+    const prependParts = [];
+    const latexPre = context.pre.trim();
+    if (latexPre.length > 0) {
+      prependParts.push(latexPre);
+    }
+    const setupFromBody = extractTikzsetSetupBeforeSnippet(sourceCode, context.bodyStart, snippet.span.from);
+    if (setupFromBody.length > 0) {
+      prependParts.push(setupFromBody);
+    }
+    const latexPrepend = prependParts.join("\n");
+
+    if (latexPreamble.length === 0 && latexPrepend.length === 0) {
+      return snippet;
+    }
+
+    return {
+      ...snippet,
+      latexPreamble: latexPreamble.length > 0 ? latexPreamble : null,
+      latexPrepend: latexPrepend.length > 0 ? latexPrepend : null
+    };
+  });
+}
+
+function extractCodeExampleContexts(source) {
+  const beginToken = "\\begin{codeexample}";
+  const endToken = "\\end{codeexample}";
+  const contexts = [];
   let cursor = 0;
 
   while (cursor < source.length) {
@@ -322,17 +361,187 @@ function extractEnvironmentSpans(source, envName) {
       break;
     }
 
-    const endStart = source.indexOf(endToken, begin + beginToken.length);
+    let searchCursor = begin + beginToken.length;
+    searchCursor = skipWhitespaceAndComments(source, searchCursor);
+
+    let optionsRaw = "";
+    if (source[searchCursor] === "[") {
+      const options = findBalancedEnd(source, searchCursor, "[", "]");
+      if (!options) {
+        break;
+      }
+      optionsRaw = source.slice(searchCursor + 1, options.end - 1);
+      searchCursor = options.end;
+    }
+
+    const endStart = source.indexOf(endToken, searchCursor);
     if (endStart === -1) {
       break;
     }
 
+    const parsedOptions = parseCodeExampleOptions(optionsRaw);
     const end = endStart + endToken.length;
-    spans.push({ from: begin, to: end });
+    contexts.push({
+      from: begin,
+      to: end,
+      bodyStart: searchCursor,
+      pre: parsedOptions.pre ?? "",
+      preamble: parsedOptions.preamble ?? ""
+    });
     cursor = end;
   }
 
-  return spans;
+  return contexts;
+}
+
+function parseCodeExampleOptions(rawOptions) {
+  const parsed = {};
+  let cursor = 0;
+
+  while (cursor < rawOptions.length) {
+    cursor = skipOptionDelimiters(rawOptions, cursor);
+    if (cursor >= rawOptions.length) {
+      break;
+    }
+
+    const keyStart = cursor;
+    while (cursor < rawOptions.length && rawOptions[cursor] !== "=" && rawOptions[cursor] !== ",") {
+      cursor += 1;
+    }
+
+    const key = rawOptions.slice(keyStart, cursor).trim();
+    let value = "";
+
+    if (cursor < rawOptions.length && rawOptions[cursor] === "=") {
+      cursor += 1;
+      cursor = skipOptionWhitespace(rawOptions, cursor);
+      const parsedValue = readCodeExampleOptionValue(rawOptions, cursor);
+      value = parsedValue.value;
+      cursor = parsedValue.end;
+    }
+
+    if (key.length > 0) {
+      parsed[key] = value;
+    }
+
+    cursor = skipOptionWhitespace(rawOptions, cursor);
+    if (cursor < rawOptions.length && rawOptions[cursor] === ",") {
+      cursor += 1;
+    }
+  }
+
+  return parsed;
+}
+
+function readCodeExampleOptionValue(source, start) {
+  if (start >= source.length) {
+    return { value: "", end: start };
+  }
+
+  const ch = source[start];
+  if (ch === "{") {
+    const balanced = findBalancedEnd(source, start, "{", "}");
+    if (!balanced) {
+      return { value: source.slice(start + 1).trim(), end: source.length };
+    }
+    return {
+      value: source.slice(start + 1, balanced.end - 1).trim(),
+      end: balanced.end
+    };
+  }
+
+  if (ch === '"' || ch === "'") {
+    let cursor = start + 1;
+    while (cursor < source.length) {
+      if (source[cursor] === "\\") {
+        cursor += 2;
+        continue;
+      }
+      if (source[cursor] === ch) {
+        return {
+          value: source.slice(start + 1, cursor),
+          end: cursor + 1
+        };
+      }
+      cursor += 1;
+    }
+
+    return {
+      value: source.slice(start + 1),
+      end: source.length
+    };
+  }
+
+  let cursor = start;
+  while (cursor < source.length && source[cursor] !== ",") {
+    cursor += 1;
+  }
+
+  return {
+    value: source.slice(start, cursor).trim(),
+    end: cursor
+  };
+}
+
+function skipOptionDelimiters(source, cursor) {
+  let index = cursor;
+
+  while (index < source.length) {
+    const ch = source[index];
+    if (ch === "," || /\s/u.test(ch)) {
+      index += 1;
+      continue;
+    }
+    return index;
+  }
+
+  return index;
+}
+
+function skipOptionWhitespace(source, cursor) {
+  let index = cursor;
+
+  while (index < source.length && /\s/u.test(source[index])) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function extractTikzsetSetupBeforeSnippet(source, from, to) {
+  if (from >= to) {
+    return "";
+  }
+
+  const commands = [];
+  let cursor = from;
+
+  while (cursor < to) {
+    const hit = source.indexOf("\\tikzset", cursor);
+    if (hit === -1 || hit >= to) {
+      break;
+    }
+
+    let bodyCursor = hit + "\\tikzset".length;
+    bodyCursor = skipWhitespaceAndComments(source, bodyCursor);
+    if (bodyCursor >= to || source[bodyCursor] !== "{") {
+      cursor = hit + "\\tikzset".length;
+      continue;
+    }
+
+    const balanced = findBalancedEnd(source, bodyCursor, "{", "}");
+    if (!balanced || balanced.end > to) {
+      break;
+    }
+
+    const command = source.slice(hit, balanced.end).trim();
+    if (command.length > 0) {
+      commands.push(command);
+    }
+    cursor = balanced.end;
+  }
+
+  return commands.join("\n");
 }
 
 function expandInlineTikzSnippet(source, start) {
@@ -523,12 +732,16 @@ function lineForOffset(offset, lineStarts) {
 }
 
 function isInsideAnySpan(position, spans) {
+  return findContainingSpan(position, spans) !== null;
+}
+
+function findContainingSpan(position, spans) {
   for (const span of spans) {
     if (position >= span.from && position < span.to) {
-      return true;
+      return span;
     }
   }
-  return false;
+  return null;
 }
 
 function buildEntry(params) {

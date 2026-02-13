@@ -1,10 +1,12 @@
-import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
-import type { PathItem, PathOptionItem, PathStatement, ToOperationItem } from "../../ast/types.js";
+import { parseCoordinate, splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, PathStatement, ToOperationItem } from "../../ast/types.js";
+import type { FeatureId } from "../../capabilities/feature-ids.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { resolveContextDelta } from "../style/resolve.js";
+import { applyMatrixToVector } from "../transform.js";
 import type {
   Point,
   ResolvedStyle,
@@ -16,7 +18,7 @@ import type {
   SceneText
 } from "../types.js";
 
-type FeatureMarkFn = (featureId: string, status: "supported" | "unsupported") => void;
+type FeatureMarkFn = (featureId: FeatureId, status: "supported" | "unsupported") => void;
 type DiagnosticPushFn = (code: string, message: string, spanFrom: number, spanTo: number) => void;
 type ArcParameters = { startAngle: number; endAngle: number; rx: number; ry: number };
 type PlacementSegment =
@@ -26,6 +28,14 @@ type PlacementSegment =
   | { kind: "arc"; from: Point; to: Point; params: ArcParameters };
 
 const DEFAULT_GRID_STEP = parseLength("1cm", "cm") ?? 28.4527559055;
+const SIN_CONTROL_1_X = 0.326;
+const SIN_CONTROL_1_Y = 0.512;
+const SIN_CONTROL_2_X = 0.638;
+const SIN_CONTROL_2_Y = 1;
+const COS_CONTROL_1_X = 0.362;
+const COS_CONTROL_1_Y = 0;
+const COS_CONTROL_2_X = 0.674;
+const COS_CONTROL_2_Y = 0.488;
 
 export function evaluatePathStatement(
   statement: PathStatement,
@@ -50,7 +60,9 @@ export function evaluatePathStatement(
   let pendingArc: { from: Point } | null = null;
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
+  let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
+  let previousSegmentRoundedCorners: number | null = null;
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
@@ -115,9 +127,27 @@ export function evaluatePathStatement(
           activePath = path;
           context.currentPoint = appended.endpoint;
           lastPlacementSegment = appended.segment;
+          previousSegmentRoundedCorners = activeRoundedCorners;
           markFeature("keyword_arc", "supported");
           markFeature("svg_path", "supported");
           pendingArc = null;
+          continue;
+        }
+      }
+
+      const nextItem = statement.items[index + 1];
+      if (
+        statement.command === "node" &&
+        item.form === "named" &&
+        pendingNodeNameForNodeCommand == null &&
+        nextItem?.kind === "PathKeyword" &&
+        nextItem.keyword === "at" &&
+        statement.items[index + 2]?.kind === "Coordinate"
+      ) {
+        const rawName = item.x.trim();
+        if (rawName.length > 0) {
+          pendingNodeNameForNodeCommand = rawName;
+          markFeature("named_coordinates", "supported");
           continue;
         }
       }
@@ -158,44 +188,54 @@ export function evaluatePathStatement(
         continue;
       }
 
+      const pathTargetPoint = maybeResolveNamedCoordinateBorderPoint(item, evaluated.point, context.currentPoint, context);
+
       if (!activePath) {
         activePath = makePath(statement.id, item.id, style, statement.span);
         if (currentOperator && context.currentPoint) {
           activePath.commands.push({ kind: "M", to: context.currentPoint });
-          lastPlacementSegment = appendPathPoint(
+          const appended = appendPathPoint(
             activePath.commands,
             currentOperator,
             context.currentPoint,
-            evaluated.point,
+            pathTargetPoint,
+            previousSegmentRoundedCorners,
             activeRoundedCorners
           );
+          lastPlacementSegment = appended.segment;
+          previousSegmentRoundedCorners = appended.nextRoundedCorners;
           context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
         } else {
-          activePath.commands.push({ kind: "M", to: evaluated.point });
-          context.pathStartPoint = evaluated.point;
+          activePath.commands.push({ kind: "M", to: pathTargetPoint });
+          context.pathStartPoint = pathTargetPoint;
           lastPlacementSegment = null;
+          previousSegmentRoundedCorners = null;
         }
         markFeature("svg_path", "supported");
       } else if (!currentOperator) {
-        activePath.commands.push({ kind: "M", to: evaluated.point });
-        context.pathStartPoint = evaluated.point;
+        activePath.commands.push({ kind: "M", to: pathTargetPoint });
+        context.pathStartPoint = pathTargetPoint;
         lastPlacementSegment = null;
+        previousSegmentRoundedCorners = null;
       } else {
-        lastPlacementSegment = appendPathPoint(
+        const appended = appendPathPoint(
           activePath.commands,
           currentOperator,
           context.currentPoint,
-          evaluated.point,
+          pathTargetPoint,
+          previousSegmentRoundedCorners,
           activeRoundedCorners
         );
+        lastPlacementSegment = appended.segment;
+        previousSegmentRoundedCorners = appended.nextRoundedCorners;
       }
 
       const shouldAdvancePoint = item.relativePrefix ? item.relativePrefix === "++" : true;
       if (shouldAdvancePoint) {
-        context.currentPoint = evaluated.point;
+        context.currentPoint = pathTargetPoint;
       }
       if (!context.currentPoint) {
-        context.currentPoint = evaluated.point;
+        context.currentPoint = pathTargetPoint;
       }
       currentOperator = null;
       continue;
@@ -280,6 +320,7 @@ export function evaluatePathStatement(
             to: parsedCurve.endPoint
           };
         }
+        previousSegmentRoundedCorners = activeRoundedCorners;
         markFeature("path_operator_curves", "supported");
         markFeature("keyword_controls", "supported");
         if (parsedCurve.usedAnd) {
@@ -290,6 +331,19 @@ export function evaluatePathStatement(
         if (parsedCurve.endAdvancesCurrentPoint) {
           context.currentPoint = parsedCurve.endPoint;
         }
+        if (parsedCurve.endClosesPath) {
+          activePath.commands.push({ kind: "Z" });
+          if (hasDrawablePathSegments(activePath)) {
+            geometryElements.push(activePath);
+          }
+          activePath = null;
+          previousSegmentRoundedCorners = null;
+          if (context.pathStartPoint) {
+            context.currentPoint = context.pathStartPoint;
+          }
+          lastPlacementSegment = null;
+          markFeature("path_cycle", "supported");
+        }
         currentOperator = null;
         index = parsedCurve.consumedIndex;
         continue;
@@ -297,25 +351,35 @@ export function evaluatePathStatement(
 
       if (item.keyword === "cycle") {
         if (activePath) {
-          if ((currentOperator === "-|" || currentOperator === "|-") && context.currentPoint && context.pathStartPoint) {
-            const bendPoint =
-              currentOperator === "-|"
-                ? { x: context.pathStartPoint.x, y: context.currentPoint.y }
-                : { x: context.currentPoint.x, y: context.pathStartPoint.y };
-            appendSingleLine(activePath.commands, context.currentPoint, bendPoint, activeRoundedCorners);
-            context.currentPoint = bendPoint;
+          if (context.currentPoint && context.pathStartPoint) {
+            const closingFrom = context.currentPoint;
+            const pathStart = context.pathStartPoint;
+            const operator: "--" | "-|" | "|-" = currentOperator ?? "--";
+            const appended = appendPathPoint(
+              activePath.commands,
+              operator,
+              closingFrom,
+              pathStart,
+              previousSegmentRoundedCorners,
+              activeRoundedCorners
+            );
+            previousSegmentRoundedCorners = appended.nextRoundedCorners;
+            context.currentPoint = pathStart;
+            roundClosedPathStartCorner(activePath.commands, closingFrom, pathStart, activeRoundedCorners);
           }
           activePath.commands.push({ kind: "Z" });
           if (hasDrawablePathSegments(activePath)) {
             geometryElements.push(activePath);
           }
           activePath = null;
+          previousSegmentRoundedCorners = null;
           markFeature("path_cycle", "supported");
         }
         if (context.pathStartPoint) {
           context.currentPoint = context.pathStartPoint;
         }
         lastPlacementSegment = null;
+        currentOperator = null;
         continue;
       }
 
@@ -325,6 +389,7 @@ export function evaluatePathStatement(
           continue;
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
         pendingRectangleFrom = context.currentPoint;
         lastPlacementSegment = null;
         markFeature("shape_rectangle", "supported");
@@ -337,6 +402,7 @@ export function evaluatePathStatement(
           continue;
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
         pendingCircleCenter = context.currentPoint;
         pendingCircleRadius = null;
         pendingCircleRadii = null;
@@ -352,6 +418,7 @@ export function evaluatePathStatement(
           continue;
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
         pendingEllipseCenter = context.currentPoint;
         pendingEllipseRadii = null;
         lastPlacementSegment = null;
@@ -364,7 +431,6 @@ export function evaluatePathStatement(
           pushDiagnostic("arc-without-start", "Arc keyword requires a current point.", item.span.from, item.span.to);
           continue;
         }
-        activePath = flushDrawableActivePath(geometryElements, activePath);
         pendingArc = { from: context.currentPoint };
         lastPlacementSegment = null;
         markFeature("keyword_arc", "supported");
@@ -377,6 +443,7 @@ export function evaluatePathStatement(
           continue;
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
         pendingGrid = {
           from: context.currentPoint,
           stepX: DEFAULT_GRID_STEP,
@@ -394,7 +461,6 @@ export function evaluatePathStatement(
 
         const parsed = parseParabolaFromItems(statement.items, index, context);
         if (!parsed) {
-          markFeature("keyword_parabola", "unsupported");
           pushDiagnostic("invalid-parabola", "Parabola requires a target coordinate or `cycle`.", item.span.from, item.span.to);
           continue;
         }
@@ -409,6 +475,7 @@ export function evaluatePathStatement(
         for (const command of parsed.commands) {
           activePath.commands.push(command);
         }
+        previousSegmentRoundedCorners = activeRoundedCorners;
         const lastCommand = parsed.commands[parsed.commands.length - 1];
         if (lastCommand?.kind === "C") {
           const previousCommand = parsed.commands.length > 1 ? parsed.commands[parsed.commands.length - 2] : null;
@@ -424,15 +491,80 @@ export function evaluatePathStatement(
           }
         }
         context.currentPoint = parsed.endPoint;
-        markFeature("keyword_parabola", "supported");
         markFeature("svg_path", "supported");
         index = parsed.consumedIndex;
         currentOperator = null;
         continue;
       }
 
+      if (item.keyword === "sin" || item.keyword === "cos") {
+        if (!context.currentPoint) {
+          pushDiagnostic(`${item.keyword}-without-start`, `\`${item.keyword}\` requires a current point.`, item.span.from, item.span.to);
+          continue;
+        }
+
+        const targetItem = statement.items[index + 1];
+        if (!targetItem || targetItem.kind !== "Coordinate") {
+          pushDiagnostic(`invalid-${item.keyword}-target`, `\`${item.keyword}\` requires a following coordinate target.`, item.span.from, item.span.to);
+          continue;
+        }
+
+        const evaluatedTarget = evaluateCoordinate(targetItem, context);
+        for (const code of evaluatedTarget.diagnostics) {
+          pushDiagnostic(code, `${item.keyword} target issue: ${code}`, targetItem.span.from, targetItem.span.to);
+        }
+        if (!evaluatedTarget.point) {
+          index += 1;
+          continue;
+        }
+
+        let path: ScenePath | null = activePath;
+        if (!path) {
+          path = makePath(statement.id, item.id, style, statement.span);
+          path.commands.push({ kind: "M", to: context.currentPoint });
+          context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
+          markFeature("svg_path", "supported");
+        }
+
+        const from = context.currentPoint;
+        const to = maybeResolveNamedCoordinateBorderPoint(targetItem, evaluatedTarget.point, from, context);
+        const segment = appendSinCosSegment(path.commands, from, to, item.keyword);
+        activePath = path;
+        lastPlacementSegment = segment;
+        previousSegmentRoundedCorners = activeRoundedCorners;
+        markFeature("path_operator_curves", "supported");
+        markFeature("svg_path", "supported");
+
+        if (evaluatedTarget.advancesCurrentPoint) {
+          context.currentPoint = to;
+        } else if (!context.currentPoint) {
+          context.currentPoint = to;
+        }
+
+        currentOperator = null;
+        index += 1;
+        continue;
+      }
+
       if (item.keyword === "controls" || item.keyword === "and") {
-        markFeature(`keyword_${item.keyword}`, "unsupported");
+        if (item.keyword === "controls") {
+          markFeature("keyword_controls", "unsupported");
+        } else {
+          markFeature("keyword_and", "unsupported");
+        }
+        pushDiagnostic(
+          "unsupported-path-keyword",
+          `Path keyword \`${item.keyword}\` is parsed but not semantically implemented yet.`,
+          item.span.from,
+          item.span.to
+        );
+      }
+
+      if (
+        item.keyword === "plot" ||
+        item.keyword === "edge" ||
+        item.keyword === "bend"
+      ) {
         pushDiagnostic(
           "unsupported-path-keyword",
           `Path keyword \`${item.keyword}\` is parsed but not semantically implemented yet.`,
@@ -475,6 +607,7 @@ export function evaluatePathStatement(
           activePath = path;
           context.currentPoint = appended.endpoint;
           lastPlacementSegment = appended.segment;
+          previousSegmentRoundedCorners = activeRoundedCorners;
           markFeature("keyword_arc", "supported");
           markFeature("svg_path", "supported");
           pendingArc = null;
@@ -482,7 +615,7 @@ export function evaluatePathStatement(
       }
 
       if (pendingGrid) {
-        const parsed = extractGridSteps(item, pushDiagnostic);
+        const parsed = extractGridSteps(item, pushDiagnostic, context);
         if (parsed) {
           if (parsed.stepX != null && parsed.stepX >= 0) {
             pendingGrid.stepX = parsed.stepX;
@@ -501,59 +634,25 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "Node") {
-      const frame = context.stack[context.stack.length - 1];
-      const effectiveNodeOptions = resolveEffectiveNodeOptions({
-        statementOptions: statement.options,
-        nodeOptions: item.options,
-        everyNodeStyles: frame.everyNodeStyles,
-        everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
-        everyCircleNodeStyles: frame.everyCircleNodeStyles
-      });
-      const transformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
-      const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
-      const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale);
-      const nodeShape = resolveNodeShape(effectiveNodeOptions);
-      const anchor = resolveNodeAnchor(effectiveNodeOptions);
-      const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, lastPlacementSegment);
-      const offset = resolveNodePlacementOffset(effectiveNodeOptions);
-      const center = placeNodeCenter({ x: target.x + offset.x, y: target.y + offset.y }, nodeShape, nodeLayout, anchor);
-      const scopedNames = collectScopedNodeNames(item.name, item.aliases, context);
-
-      for (const name of scopedNames) {
-        registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout);
-      }
-
-      const nodeElements: SceneElement[] = [];
-      if (shouldDrawNodeBox(effectiveNodeOptions)) {
-        if (nodeShape === "circle") {
-          nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeStyle, item.span));
-          markFeature("shape_circle", "supported");
-          markFeature("svg_circle", "supported");
-        } else if (nodeShape === "rectangle") {
-          nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeStyle, item.span));
-          markFeature("shape_rectangle", "supported");
-          markFeature("svg_path", "supported");
-        }
-      }
-
-      const normalizedText = nodeLayout.textLines.join("\n");
-      if (normalizedText.length > 0) {
-        nodeElements.push(makeTextElement(statement.id, item.id, center, nodeStyle, item.span, normalizedText));
-        markFeature("svg_text", "supported");
-      }
-
-      const layer = resolveNodeLayer(effectiveNodeOptions, context);
-      if (layer === "behind") {
-        behindNodeElements.push(...nodeElements);
-      } else {
-        frontNodeElements.push(...nodeElements);
-      }
+      const resolvedNode = evaluateNodeItem(
+        item,
+        statement,
+        context,
+        style,
+        markFeature,
+        pushDiagnostic,
+        lastPlacementSegment,
+        pendingNodeNameForNodeCommand ?? undefined
+      );
+      pendingNodeNameForNodeCommand = null;
+      behindNodeElements.push(...resolvedNode.behindElements);
+      frontNodeElements.push(...resolvedNode.frontElements);
       continue;
     }
 
     if (item.kind === "CoordinateOperation") {
-      const parsed = parseCoordinateOperation(item.raw);
-      if (!parsed) {
+      const parsedName = item.name?.trim() || parseCoordinateOperation(item.raw)?.name;
+      if (!parsedName) {
         pushDiagnostic("invalid-coordinate-operation", "Could not parse coordinate operation.", item.span.from, item.span.to);
         continue;
       }
@@ -561,9 +660,9 @@ export function evaluatePathStatement(
       const nextItem = statement.items[index + 1];
       const nextCoordinate = statement.items[index + 2];
       if (nextItem?.kind === "PathKeyword" && nextItem.keyword === "at" && nextCoordinate?.kind === "Coordinate") {
-        pendingNamedCoordinate = { name: parsed.name };
+        pendingNamedCoordinate = { name: parsedName };
       } else if (context.currentPoint) {
-        context.namedCoordinates.set(applyNameScope(parsed.name, context), context.currentPoint);
+        context.namedCoordinates.set(applyNameScope(parsedName, context), context.currentPoint);
       } else {
         pushDiagnostic(
           "invalid-coordinate-operation",
@@ -577,10 +676,24 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "ToOperation") {
-      const handled = applyToOperation(item, context, statement, style, activePath, markFeature, pushDiagnostic);
+      const handled = applyToOperation(
+        item,
+        context,
+        statement,
+        style,
+        activePath,
+        previousSegmentRoundedCorners,
+        markFeature,
+        pushDiagnostic
+      );
       activePath = handled.activePath;
       if (handled.segment) {
         lastPlacementSegment = handled.segment;
+      }
+      behindNodeElements.push(...handled.behindNodeElements);
+      frontNodeElements.push(...handled.frontNodeElements);
+      if (handled.previousSegmentRoundedCorners !== undefined) {
+        previousSegmentRoundedCorners = handled.previousSegmentRoundedCorners;
       }
       continue;
     }
@@ -653,37 +766,47 @@ function appendPathPoint(
   operator: "--" | "-|" | "|-" | null,
   current: Point | null,
   next: Point,
-  roundedCorners: number | null
-): PlacementSegment | null {
+  previousSegmentRoundedCorners: number | null,
+  currentSegmentRoundedCorners: number | null
+): { segment: PlacementSegment | null; nextRoundedCorners: number | null } {
   if (!current) {
     commands.push({ kind: "L", to: next });
-    return null;
+    return { segment: null, nextRoundedCorners: currentSegmentRoundedCorners };
   }
 
   if (!operator || operator === "--") {
-    appendSingleLine(commands, current, next, roundedCorners);
-    return { kind: "line", from: current, to: next };
+    appendSingleLine(commands, current, next, previousSegmentRoundedCorners);
+    return {
+      segment: { kind: "line", from: current, to: next },
+      nextRoundedCorners: currentSegmentRoundedCorners
+    };
   }
 
   if (operator === "-|") {
     const bend = { x: next.x, y: current.y };
-    appendSingleLine(commands, current, bend, roundedCorners);
-    appendSingleLine(commands, bend, next, roundedCorners);
-    return { kind: "hv", operator, from: current, bend, to: next };
+    appendSingleLine(commands, current, bend, previousSegmentRoundedCorners);
+    appendSingleLine(commands, bend, next, currentSegmentRoundedCorners);
+    return {
+      segment: { kind: "hv", operator, from: current, bend, to: next },
+      nextRoundedCorners: currentSegmentRoundedCorners
+    };
   }
 
   if (operator === "|-") {
     const bend = { x: current.x, y: next.y };
-    appendSingleLine(commands, current, bend, roundedCorners);
-    appendSingleLine(commands, bend, next, roundedCorners);
-    return { kind: "hv", operator, from: current, bend, to: next };
+    appendSingleLine(commands, current, bend, previousSegmentRoundedCorners);
+    appendSingleLine(commands, bend, next, currentSegmentRoundedCorners);
+    return {
+      segment: { kind: "hv", operator, from: current, bend, to: next },
+      nextRoundedCorners: currentSegmentRoundedCorners
+    };
   }
 
-  return null;
+  return { segment: null, nextRoundedCorners: currentSegmentRoundedCorners };
 }
 
-function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, roundedCorners: number | null): void {
-  if (!roundedCorners || roundedCorners <= 0) {
+function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, cornerRoundedCorners: number | null): void {
+  if (!cornerRoundedCorners || cornerRoundedCorners <= 0) {
     commands.push({ kind: "L", to });
     return;
   }
@@ -694,7 +817,7 @@ function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, 
     return;
   }
 
-  const rounded = computeRoundedCorner(previous, from, to, roundedCorners);
+  const rounded = computeRoundedCorner(previous, from, to, cornerRoundedCorners);
   if (!rounded) {
     commands.push({ kind: "L", to });
     return;
@@ -708,6 +831,50 @@ function appendSingleLine(commands: ScenePathCommand[], from: Point, to: Point, 
   }
   commands.push({ kind: "C", c1: rounded.c1, c2: rounded.c2, to: rounded.exit });
   commands.push({ kind: "L", to });
+}
+
+function roundClosedPathStartCorner(
+  commands: ScenePathCommand[],
+  closingFrom: Point,
+  start: Point,
+  cornerRoundedCorners: number | null
+): void {
+  if (!cornerRoundedCorners || cornerRoundedCorners <= 0) {
+    return;
+  }
+
+  const move = commands[0];
+  if (!move || move.kind !== "M") {
+    return;
+  }
+
+  const firstSegmentIndex = commands.findIndex(
+    (command, index) => index > 0 && (command.kind === "L" || command.kind === "C" || command.kind === "A")
+  );
+  if (firstSegmentIndex === -1) {
+    return;
+  }
+
+  const firstSegment = commands[firstSegmentIndex];
+  if (firstSegment.kind !== "L" && firstSegment.kind !== "C" && firstSegment.kind !== "A") {
+    return;
+  }
+  const rounded = computeRoundedCorner(closingFrom, start, firstSegment.to, cornerRoundedCorners);
+  if (!rounded) {
+    return;
+  }
+
+  move.to = rounded.exit;
+
+  for (let index = commands.length - 1; index >= 0; index -= 1) {
+    const command = commands[index];
+    if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
+      command.to = rounded.entry;
+      break;
+    }
+  }
+
+  commands.push({ kind: "C", c1: rounded.c1, c2: rounded.c2, to: rounded.exit });
 }
 
 function extractPreviousCorner(commands: ScenePathCommand[]): Point | null {
@@ -727,7 +894,7 @@ function extractPreviousCorner(commands: ScenePathCommand[]): Point | null {
   return null;
 }
 
-function computeRoundedCorner(prev: Point, corner: Point, next: Point, requestedRadius: number): {
+function computeRoundedCorner(prev: Point, corner: Point, next: Point, requestedDistance: number): {
   entry: Point;
   exit: Point;
   c1: Point;
@@ -739,27 +906,30 @@ function computeRoundedCorner(prev: Point, corner: Point, next: Point, requested
     return null;
   }
 
-  const dot = clamp(incoming.x * outgoing.x + incoming.y * outgoing.y, -1, 1);
-  const turn = Math.acos(dot);
-  if (!Number.isFinite(turn) || turn <= 1e-3 || Math.abs(Math.PI - turn) <= 1e-3) {
+  if (!Number.isFinite(requestedDistance) || requestedDistance <= 0) {
     return null;
   }
 
   const incomingLength = distance(prev, corner);
   const outgoingLength = distance(corner, next);
-  const tangentDistance = requestedRadius / Math.tan(turn / 2);
-  if (!Number.isFinite(tangentDistance) || tangentDistance <= 0) {
+  if (!Number.isFinite(incomingLength) || !Number.isFinite(outgoingLength) || incomingLength <= 1e-9 || outgoingLength <= 1e-9) {
     return null;
   }
 
-  const d = Math.min(tangentDistance, incomingLength / 2, outgoingLength / 2);
-  const actualRadius = d * Math.tan(turn / 2);
-  const k = (4 / 3) * Math.tan(turn / 4) * actualRadius;
+  const inDistance = Math.min(requestedDistance, incomingLength);
+  const outDistance = Math.min(requestedDistance, outgoingLength);
+  if (inDistance <= 1e-9 || outDistance <= 1e-9) {
+    return null;
+  }
 
-  const entry = { x: corner.x - incoming.x * d, y: corner.y - incoming.y * d };
-  const exit = { x: corner.x + outgoing.x * d, y: corner.y + outgoing.y * d };
-  const c1 = { x: entry.x + incoming.x * k, y: entry.y + incoming.y * k };
-  const c2 = { x: exit.x - outgoing.x * k, y: exit.y - outgoing.y * k };
+  // PGF rounds corners by stepping fixed in/out distances along segments, then
+  // inserting a quarter-circle cubic approximation with kappa = 0.5522847.
+  const kappa = 0.5522847;
+
+  const entry = { x: corner.x - incoming.x * inDistance, y: corner.y - incoming.y * inDistance };
+  const exit = { x: corner.x + outgoing.x * outDistance, y: corner.y + outgoing.y * outDistance };
+  const c1 = { x: entry.x + incoming.x * inDistance * kappa, y: entry.y + incoming.y * inDistance * kappa };
+  const c2 = { x: exit.x - outgoing.x * outDistance * kappa, y: exit.y - outgoing.y * outDistance * kappa };
 
   return { entry, exit, c1, c2 };
 }
@@ -879,6 +1049,115 @@ function makeTextElement(
     style: { ...style },
     position,
     text
+  };
+}
+
+function evaluateNodeItem(
+  item: NodeItem,
+  statement: PathStatement,
+  context: SemanticContext,
+  style: ResolvedStyle,
+  markFeature: FeatureMarkFn,
+  pushDiagnostic: DiagnosticPushFn,
+  segment: PlacementSegment | null,
+  forcedName?: string,
+  defaultPositionFraction?: number
+): {
+  behindElements: SceneElement[];
+  frontElements: SceneElement[];
+} {
+  const frame = context.stack[context.stack.length - 1];
+  const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
+  const effectiveNodeOptions = resolveEffectiveNodeOptions({
+    statementOptions: statement.options,
+    nodeOptions,
+    everyNodeStyles: frame.everyNodeStyles,
+    everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+    everyCircleNodeStyles: frame.everyCircleNodeStyles
+  });
+  const transformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
+  const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
+  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale);
+  const nodeShape = resolveNodeShape(effectiveNodeOptions);
+  const anchor = resolveNodeAnchor(effectiveNodeOptions);
+  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, segment);
+  const offset = resolveNodePlacementOffset(effectiveNodeOptions);
+  const center = placeNodeCenter({ x: target.x + offset.x, y: target.y + offset.y }, nodeShape, nodeLayout, anchor);
+  const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
+
+  for (const name of scopedNames) {
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout);
+  }
+
+  const nodeElements: SceneElement[] = [];
+  if (shouldDrawNodeBox(effectiveNodeOptions)) {
+    if (nodeShape === "circle") {
+      nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeStyle, item.span));
+      markFeature("shape_circle", "supported");
+      markFeature("svg_circle", "supported");
+    } else if (nodeShape === "rectangle") {
+      nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeStyle, item.span));
+      markFeature("shape_rectangle", "supported");
+      markFeature("svg_path", "supported");
+    }
+  }
+
+  const normalizedText = nodeLayout.textLines.join("\n");
+  if (normalizedText.length > 0) {
+    nodeElements.push(makeTextElement(statement.id, item.id, center, nodeStyle, item.span, normalizedText));
+    markFeature("svg_text", "supported");
+  }
+
+  const layer = resolveNodeLayer(effectiveNodeOptions, context);
+  if (layer === "behind") {
+    return { behindElements: nodeElements, frontElements: [] };
+  }
+  return { behindElements: [], frontElements: nodeElements };
+}
+
+function withDefaultNodePosition(options: OptionListAst | undefined, defaultPos: number | undefined): OptionListAst | undefined {
+  if (defaultPos == null) {
+    return options;
+  }
+
+  const hasExplicitPosition =
+    options?.entries.some(
+      (entry) =>
+        (entry.kind === "kv" && entry.key === "pos") ||
+        (entry.kind === "flag" &&
+          (entry.key === "midway" ||
+            entry.key === "near start" ||
+            entry.key === "near end" ||
+            entry.key === "very near start" ||
+            entry.key === "very near end" ||
+            entry.key === "at start" ||
+            entry.key === "at end"))
+    ) ?? false;
+
+  if (hasExplicitPosition) {
+    return options;
+  }
+
+  const syntheticEntry = {
+    kind: "kv" as const,
+    key: "pos",
+    valueRaw: String(defaultPos),
+    span: options?.span ?? { from: 0, to: 0 },
+    raw: `pos=${defaultPos}`
+  };
+
+  if (!options) {
+    return {
+      span: { from: 0, to: 0 },
+      raw: `[pos=${defaultPos}]`,
+      entries: [syntheticEntry]
+    };
+  }
+
+  return {
+    span: options.span,
+    raw: `${options.raw}, pos=${defaultPos}`,
+    entries: [...options.entries, syntheticEntry]
   };
 }
 
@@ -1543,6 +1822,14 @@ function registerNamedNodeAnchors(
   shape: NodeShape,
   layout: NodeLayout
 ): void {
+  context.namedNodeGeometries.set(name, {
+    shape,
+    center,
+    anchorHalfWidth: layout.anchorHalfWidth,
+    anchorHalfHeight: layout.anchorHalfHeight,
+    anchorRadius: layout.anchorRadius
+  });
+
   const offsets: Record<string, Point> = {
     center: nodeAnchorOffset(shape, layout, "center"),
     base: nodeAnchorOffset(shape, layout, "base"),
@@ -1737,14 +2024,23 @@ function applyToOperation(
   statement: PathStatement,
   style: ResolvedStyle,
   activePath: ScenePath | null,
+  previousSegmentRoundedCorners: number | null,
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn
-): { activePath: ScenePath | null; segment: PlacementSegment | null } {
-  const target = parseToTarget(item.raw);
+): {
+  activePath: ScenePath | null;
+  segment: PlacementSegment | null;
+  behindNodeElements: SceneElement[];
+  frontNodeElements: SceneElement[];
+  previousSegmentRoundedCorners?: number | null;
+} {
+  const behindNodeElements: SceneElement[] = [];
+  const frontNodeElements: SceneElement[] = [];
+  const target = item.target ?? parseToTarget(item.raw);
   if (!target) {
     markFeature("to_operation", "unsupported");
     pushDiagnostic("unsupported-to-operation", "`to` operation target is not yet supported.", item.span.from, item.span.to);
-    return { activePath, segment: null };
+    return { activePath, segment: null, behindNodeElements, frontNodeElements };
   }
 
   markFeature("to_operation", "supported");
@@ -1753,20 +2049,41 @@ function applyToOperation(
 
   if (target.kind === "cycle") {
     if (activePath) {
+      if (context.currentPoint && context.pathStartPoint) {
+        const closingFrom = context.currentPoint;
+        const pathStart = context.pathStartPoint;
+        appendPathPoint(
+          activePath.commands,
+          "--",
+          closingFrom,
+          pathStart,
+          previousSegmentRoundedCorners,
+          style.roundedCorners
+        );
+        context.currentPoint = pathStart;
+        roundClosedPathStartCorner(activePath.commands, closingFrom, pathStart, style.roundedCorners);
+      }
       activePath.commands.push({ kind: "Z" });
       context.currentPoint = context.pathStartPoint;
     }
-    return { activePath, segment: null };
+    return {
+      activePath,
+      segment: null,
+      behindNodeElements,
+      frontNodeElements,
+      previousSegmentRoundedCorners: null
+    };
   }
 
-  const evaluated = evaluateRawCoordinate(target.rawCoordinate, context, target.relativePrefix);
+  const evaluated = evaluateRawCoordinate(target.raw, context, target.relativePrefix);
   if (!evaluated.point) {
     markFeature("to_operation", "unsupported");
     for (const code of evaluated.diagnostics) {
       pushDiagnostic(code, `to-operation target issue: ${code}`, item.span.from, item.span.to);
     }
-    return { activePath, segment: null };
+    return { activePath, segment: null, behindNodeElements, frontNodeElements };
   }
+  const resolvedTargetPoint = maybeResolveNamedCoordinateBorderPointFromRaw(target.raw, evaluated.point, context.currentPoint, context);
 
   let path = activePath;
   if (!path) {
@@ -1775,21 +2092,59 @@ function applyToOperation(
       path.commands.push({ kind: "M", to: context.currentPoint });
     } else {
       path = makePath(statement.id, item.id, style, item.span);
-      path.commands.push({ kind: "M", to: evaluated.point });
-      context.pathStartPoint = evaluated.point;
-      context.currentPoint = evaluated.point;
+      path.commands.push({ kind: "M", to: resolvedTargetPoint });
+      context.pathStartPoint = resolvedTargetPoint;
+      context.currentPoint = resolvedTargetPoint;
       markFeature("svg_path", "supported");
-      return { activePath: path, segment: null };
+      return {
+        activePath: path,
+        segment: null,
+        behindNodeElements,
+        frontNodeElements,
+        previousSegmentRoundedCorners: null
+      };
     }
   }
 
-  const segment = appendPathPoint(path.commands, "--", context.currentPoint, evaluated.point, style.roundedCorners);
-  context.currentPoint = evaluated.point;
+  const start = context.currentPoint;
+  let segment: PlacementSegment | null = null;
+  let nextRoundedCorners = previousSegmentRoundedCorners;
+  const curved = extractToCurveOptions(item.options);
+  if (start && curved) {
+    segment = appendToCurve(path.commands, start, resolvedTargetPoint, curved);
+    nextRoundedCorners = style.roundedCorners;
+    markFeature("path_operator_curves", "supported");
+  } else {
+    const appended = appendPathPoint(
+      path.commands,
+      "--",
+      context.currentPoint,
+      resolvedTargetPoint,
+      previousSegmentRoundedCorners,
+      style.roundedCorners
+    );
+    segment = appended.segment;
+    nextRoundedCorners = appended.nextRoundedCorners;
+  }
+  context.currentPoint = resolvedTargetPoint;
+
+  for (const node of item.nodes ?? []) {
+    const resolvedNode = evaluateNodeItem(node, statement, context, style, markFeature, pushDiagnostic, segment, undefined, 0.5);
+    behindNodeElements.push(...resolvedNode.behindElements);
+    frontNodeElements.push(...resolvedNode.frontElements);
+  }
+
   markFeature("svg_path", "supported");
-  return { activePath: path, segment };
+  return {
+    activePath: path,
+    segment,
+    behindNodeElements,
+    frontNodeElements,
+    previousSegmentRoundedCorners: nextRoundedCorners
+  };
 }
 
-function parseToTarget(raw: string): { kind: "cycle" } | { kind: "coordinate"; rawCoordinate: string; relativePrefix?: "+" | "++" } | null {
+function parseToTarget(raw: string): { kind: "cycle" } | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } | null {
   if (/\bcycle\b/i.test(raw)) {
     return { kind: "cycle" };
   }
@@ -1802,9 +2157,266 @@ function parseToTarget(raw: string): { kind: "cycle" } | { kind: "coordinate"; r
   const prefix = match[2] === "++" ? "++" : match[2] === "+" ? "+" : undefined;
   return {
     kind: "coordinate",
-    rawCoordinate: match[3],
+    raw: match[3],
     relativePrefix: prefix
   };
+}
+
+function extractToCurveOptions(
+  options: ToOperationItem["options"]
+): {
+  out: number;
+  in: number;
+  outLooseness: number;
+  inLooseness: number;
+} | null {
+  if (!options) {
+    return null;
+  }
+
+  let out: number | null = null;
+  let inAngle: number | null = null;
+  let looseness: number | null = null;
+  let outLooseness: number | null = null;
+  let inLooseness: number | null = null;
+
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    if (entry.key === "out") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed)) {
+        out = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "in") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed)) {
+        inAngle = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "looseness") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        looseness = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "out looseness") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        outLooseness = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "in looseness") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        inLooseness = parsed;
+      }
+    }
+  }
+
+  if (out == null || inAngle == null) {
+    return null;
+  }
+
+  const shared = looseness ?? 1;
+  return {
+    out,
+    in: inAngle,
+    outLooseness: outLooseness ?? shared,
+    inLooseness: inLooseness ?? shared
+  };
+}
+
+function appendToCurve(
+  commands: ScenePathCommand[],
+  from: Point,
+  to: Point,
+  options: { out: number; in: number; outLooseness: number; inLooseness: number }
+): PlacementSegment {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const baseDistance = Math.hypot(dx, dy) * 0.3915;
+
+  const outDistance = baseDistance * options.outLooseness;
+  const inDistance = baseDistance * options.inLooseness;
+
+  const outRadians = toRadians(options.out);
+  const inRadians = toRadians(options.in);
+  const c1 = {
+    x: from.x + outDistance * Math.cos(outRadians),
+    y: from.y + outDistance * Math.sin(outRadians)
+  };
+  const c2 = {
+    x: to.x + inDistance * Math.cos(inRadians),
+    y: to.y + inDistance * Math.sin(inRadians)
+  };
+
+  commands.push({
+    kind: "C",
+    c1,
+    c2,
+    to
+  });
+
+  return {
+    kind: "cubic",
+    from,
+    c1,
+    c2,
+    to
+  };
+}
+
+function appendSinCosSegment(commands: ScenePathCommand[], from: Point, to: Point, mode: "sin" | "cos"): PlacementSegment {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+
+  const c1 =
+    mode === "sin"
+      ? {
+          x: from.x + SIN_CONTROL_1_X * dx,
+          y: from.y + SIN_CONTROL_1_Y * dy
+        }
+      : {
+          x: from.x + COS_CONTROL_1_X * dx,
+          y: from.y + COS_CONTROL_1_Y * dy
+        };
+  const c2 =
+    mode === "sin"
+      ? {
+          x: from.x + SIN_CONTROL_2_X * dx,
+          y: from.y + SIN_CONTROL_2_Y * dy
+        }
+      : {
+          x: from.x + COS_CONTROL_2_X * dx,
+          y: from.y + COS_CONTROL_2_Y * dy
+        };
+
+  commands.push({ kind: "C", c1, c2, to });
+  return { kind: "cubic", from, c1, c2, to };
+}
+
+function maybeResolveNamedCoordinateBorderPoint(
+  coordinate: Pick<CoordinateItem, "form" | "x">,
+  fallbackPoint: Point,
+  fromPoint: Point | null,
+  context: SemanticContext
+): Point {
+  if (coordinate.form !== "named") {
+    return fallbackPoint;
+  }
+  return maybeResolveNamedNodeBorderPoint(coordinate.x, fallbackPoint, fromPoint, context);
+}
+
+function maybeResolveNamedCoordinateBorderPointFromRaw(
+  rawCoordinate: string,
+  fallbackPoint: Point,
+  fromPoint: Point | null,
+  context: SemanticContext
+): Point {
+  const parsed = parseCoordinate(rawCoordinate);
+  if (parsed.form !== "named") {
+    return fallbackPoint;
+  }
+  return maybeResolveNamedNodeBorderPoint(parsed.x, fallbackPoint, fromPoint, context);
+}
+
+function maybeResolveNamedNodeBorderPoint(
+  rawName: string,
+  fallbackPoint: Point,
+  fromPoint: Point | null,
+  context: SemanticContext
+): Point {
+  if (!fromPoint) {
+    return fallbackPoint;
+  }
+
+  const trimmed = rawName.trim();
+  if (trimmed.length === 0 || trimmed.includes(".")) {
+    return fallbackPoint;
+  }
+
+  const geometry = resolveNamedNodeGeometry(trimmed, context);
+  if (!geometry || geometry.shape === "coordinate") {
+    return fallbackPoint;
+  }
+
+  const borderPoint = intersectNodeBorder(geometry, fromPoint);
+  return borderPoint ?? fallbackPoint;
+}
+
+function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): {
+  shape: "rectangle" | "circle" | "coordinate";
+  center: Point;
+  anchorHalfWidth: number;
+  anchorHalfHeight: number;
+  anchorRadius: number;
+} | null {
+  const scoped = applyNameScope(rawName, context);
+  const candidates = scoped === rawName ? [rawName] : [scoped, rawName];
+  for (const candidate of candidates) {
+    const geometry = context.namedNodeGeometries.get(candidate);
+    if (geometry) {
+      return geometry;
+    }
+  }
+  return null;
+}
+
+function intersectNodeBorder(
+  geometry: {
+    shape: "rectangle" | "circle" | "coordinate";
+    center: Point;
+    anchorHalfWidth: number;
+    anchorHalfHeight: number;
+    anchorRadius: number;
+  },
+  fromPoint: Point
+): Point | null {
+  const dx = fromPoint.x - geometry.center.x;
+  const dy = fromPoint.y - geometry.center.y;
+  const len = Math.hypot(dx, dy);
+  if (!Number.isFinite(len) || len <= 1e-9) {
+    return null;
+  }
+
+  if (geometry.shape === "circle") {
+    const radius = geometry.anchorRadius;
+    if (!Number.isFinite(radius) || radius <= 1e-9) {
+      return null;
+    }
+    const scale = radius / len;
+    return {
+      x: geometry.center.x + dx * scale,
+      y: geometry.center.y + dy * scale
+    };
+  }
+
+  if (geometry.shape === "rectangle") {
+    const hw = geometry.anchorHalfWidth;
+    const hh = geometry.anchorHalfHeight;
+    if (!Number.isFinite(hw) || !Number.isFinite(hh) || hw <= 1e-9 || hh <= 1e-9) {
+      return null;
+    }
+    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return {
+      x: geometry.center.x + dx * scale,
+      y: geometry.center.y + dy * scale
+    };
+  }
+
+  return null;
 }
 
 function extractEllipseRadii(item: PathOptionItem, pushDiagnostic: DiagnosticPushFn): { rx: number; ry: number } | null {
@@ -1886,9 +2498,8 @@ function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPu
   let startAngle: number | null = null;
   let endAngle: number | null = null;
   let deltaAngle: number | null = null;
-  let radius: number | null = style.radius;
-  let rx: number | null = style.xRadius;
-  let ry: number | null = style.yRadius;
+  let rx: number | null = style.xRadius ?? style.radius;
+  let ry: number | null = style.yRadius ?? style.radius;
 
   for (const entry of item.options.entries) {
     if (entry.kind !== "kv") {
@@ -1910,11 +2521,21 @@ function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPu
         deltaAngle = parsed;
       }
     } else if (entry.key === "radius") {
-      radius = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(entry.valueRaw, "cm");
+      if (parsed != null) {
+        rx = parsed;
+        ry = parsed;
+      }
     } else if (entry.key === "x radius") {
-      rx = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(entry.valueRaw, "cm");
+      if (parsed != null) {
+        rx = parsed;
+      }
     } else if (entry.key === "y radius") {
-      ry = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(entry.valueRaw, "cm");
+      if (parsed != null) {
+        ry = parsed;
+      }
     }
   }
 
@@ -1927,15 +2548,6 @@ function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPu
   if (resolvedEndAngle == null) {
     pushDiagnostic("invalid-arc-parameters", "Arc requires an end angle or delta angle.", item.span.from, item.span.to);
     return null;
-  }
-
-  if (radius != null) {
-    return {
-      startAngle,
-      endAngle: resolvedEndAngle,
-      rx: radius,
-      ry: radius
-    };
   }
 
   if (rx != null && ry != null) {
@@ -1953,7 +2565,8 @@ function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPu
 
 function extractGridSteps(
   item: PathOptionItem,
-  pushDiagnostic: DiagnosticPushFn
+  pushDiagnostic: DiagnosticPushFn,
+  context: SemanticContext
 ): { stepX?: number; stepY?: number } | null {
   let stepX: number | undefined;
   let stepY: number | undefined;
@@ -1972,8 +2585,8 @@ function extractGridSteps(
           pushDiagnostic("invalid-grid-step", "Grid `step` coordinate must provide positive lengths.", entry.span.from, entry.span.to);
           continue;
         }
-        stepX = parsedX;
-        stepY = parsedY;
+        stepX = resolveGridAxisStep(parsedX, "x", hasExplicitLengthUnit(pair.x), context);
+        stepY = resolveGridAxisStep(parsedY, "y", hasExplicitLengthUnit(pair.y), context);
         continue;
       }
 
@@ -1989,8 +2602,9 @@ function extractGridSteps(
         pushDiagnostic("invalid-grid-step", "Grid `step` must be a positive length.", entry.span.from, entry.span.to);
         continue;
       }
-      stepX = scalar;
-      stepY = scalar;
+      const hasUnit = hasExplicitLengthUnit(entry.valueRaw);
+      stepX = resolveGridAxisStep(scalar, "x", hasUnit, context);
+      stepY = resolveGridAxisStep(scalar, "y", hasUnit, context);
       continue;
     }
 
@@ -2000,7 +2614,7 @@ function extractGridSteps(
         pushDiagnostic("invalid-grid-step", "Grid `xstep` must be a positive length.", entry.span.from, entry.span.to);
         continue;
       }
-      stepX = parsed;
+      stepX = resolveGridAxisStep(parsed, "x", hasExplicitLengthUnit(entry.valueRaw), context);
       continue;
     }
 
@@ -2010,7 +2624,7 @@ function extractGridSteps(
         pushDiagnostic("invalid-grid-step", "Grid `ystep` must be a positive length.", entry.span.from, entry.span.to);
         continue;
       }
-      stepY = parsed;
+      stepY = resolveGridAxisStep(parsed, "y", hasExplicitLengthUnit(entry.valueRaw), context);
     }
   }
 
@@ -2043,6 +2657,34 @@ function parsePolarStep(raw: string): { x: number; y: number } | null {
     x: radius * Math.cos(radians),
     y: radius * Math.sin(radians)
   };
+}
+
+function resolveGridAxisStep(
+  step: number,
+  axis: "x" | "y",
+  hasExplicitUnit: boolean,
+  context: SemanticContext
+): number {
+  if (hasExplicitUnit) {
+    return Math.abs(step);
+  }
+
+  const frame = context.stack[context.stack.length - 1];
+  const delta =
+    axis === "x"
+      ? applyMatrixToVector(frame.transform, { x: step, y: 0 })
+      : applyMatrixToVector(frame.transform, { x: 0, y: step });
+  const magnitude = Math.hypot(delta.x, delta.y);
+  if (!Number.isFinite(magnitude) || magnitude <= 1e-9) {
+    return Math.abs(step);
+  }
+  return Math.abs(magnitude);
+}
+
+function hasExplicitLengthUnit(raw: string): boolean {
+  const compact = normalizeOptionValue(raw).replace(/\s+/g, "");
+  const match = compact.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))([A-Za-z]+)?$/);
+  return Boolean(match && match[2]);
 }
 
 function extractRoundedCorners(options: PathOptionItem["options"], current: number | null): number | null | undefined {
@@ -2257,6 +2899,7 @@ function parseBezierFromItems(
   control2: Point;
   endPoint: Point | null;
   endAdvancesCurrentPoint: boolean;
+  endClosesPath: boolean;
   usedAnd: boolean;
 } | null {
   let cursor = startIndex + 1;
@@ -2302,7 +2945,23 @@ function parseBezierFromItems(
   cursor += 1;
 
   const targetItem = items[cursor];
-  if (!targetItem || targetItem.kind !== "Coordinate") {
+  if (!targetItem) {
+    return null;
+  }
+
+  if (targetItem.kind === "PathKeyword" && targetItem.keyword === "cycle") {
+    return {
+      consumedIndex: cursor,
+      control1: control1Eval.point,
+      control2,
+      endPoint: context.pathStartPoint,
+      endAdvancesCurrentPoint: true,
+      endClosesPath: true,
+      usedAnd
+    };
+  }
+
+  if (targetItem.kind !== "Coordinate") {
     return null;
   }
   const targetEval = evaluateCoordinate(targetItem, context);
@@ -2313,6 +2972,7 @@ function parseBezierFromItems(
     control2,
     endPoint: targetEval.point,
     endAdvancesCurrentPoint: targetEval.advancesCurrentPoint,
+    endClosesPath: false,
     usedAnd
   };
 }
@@ -2328,17 +2988,17 @@ function parseParabolaFromItems(
   }
 
   let cursor = startIndex + 1;
-  let mode: "bend-at-start" | "bend-at-end" = "bend-at-start";
-  let explicitBend: Point | null = null;
+  let parabolaOptions: PathOptionItem["options"] | undefined;
 
   const maybeOption = items[cursor];
   if (maybeOption?.kind === "PathOption") {
-    const optionMode = parseParabolaOptionMode(maybeOption.options);
-    if (optionMode) {
-      mode = optionMode;
-    }
+    parabolaOptions = maybeOption.options;
     cursor += 1;
   }
+
+  const parsedOptions = parseParabolaOptions(parabolaOptions);
+  let bendSpec = parsedOptions.bend;
+  let bendPos = parsedOptions.bendPos;
 
   const maybeBendKeyword = items[cursor];
   if (maybeBendKeyword?.kind === "PathKeyword" && maybeBendKeyword.keyword === "bend") {
@@ -2346,11 +3006,11 @@ function parseParabolaFromItems(
     if (!bendCoordinate || bendCoordinate.kind !== "Coordinate") {
       return null;
     }
-    const bendEval = evaluateCoordinate(bendCoordinate, context);
-    if (!bendEval.point) {
-      return null;
-    }
-    explicitBend = bendEval.point;
+    bendSpec = {
+      kind: "coordinate",
+      raw: bendCoordinate.raw,
+      relativePrefix: bendCoordinate.relativePrefix
+    };
     cursor += 2;
   }
 
@@ -2367,58 +3027,177 @@ function parseParabolaFromItems(
     return null;
   }
 
-  if (explicitBend) {
-    const left = buildParabolaSegment(start, explicitBend, "bend-at-start");
-    const right = buildParabolaSegment(explicitBend, endPoint, "bend-at-end");
-    return {
-      consumedIndex: cursor,
-      commands: [left, right],
-      endPoint
-    };
+  if (!Number.isFinite(bendPos)) {
+    bendPos = 0;
   }
+  bendPos = clamp(bendPos, 0, 1);
+  const savedPoint = interpolate(start, endPoint, bendPos);
+
+  let bendPoint: Point | null = null;
+  if (bendSpec.kind === "saved") {
+    bendPoint = savedPoint;
+  } else if (bendSpec.kind === "height") {
+    bendPoint = { x: savedPoint.x, y: savedPoint.y + bendSpec.height };
+  } else {
+    bendPoint = evaluateParabolaBendCoordinate(bendSpec.raw, context, savedPoint, bendSpec.relativePrefix);
+  }
+
+  if (!bendPoint) {
+    return null;
+  }
+
+  const toBend = {
+    x: bendPoint.x - start.x,
+    y: bendPoint.y - start.y
+  };
+  const toEnd = {
+    x: endPoint.x - bendPoint.x,
+    y: endPoint.y - bendPoint.y
+  };
 
   return {
     consumedIndex: cursor,
-    commands: [buildParabolaSegment(start, endPoint, mode)],
+    commands: buildParabolaCommands(start, toBend, toEnd),
     endPoint
   };
 }
 
-function parseParabolaOptionMode(options: PathOptionItem["options"]): "bend-at-start" | "bend-at-end" | null {
+function parseParabolaOptions(options: PathOptionItem["options"] | undefined): {
+  bendPos: number;
+  bend:
+    | { kind: "saved" }
+    | { kind: "height"; height: number }
+    | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" };
+} {
+  let bendPos = 0;
+  let bend:
+    | { kind: "saved" }
+    | { kind: "height"; height: number }
+    | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } = { kind: "saved" };
+
+  if (!options) {
+    return { bendPos, bend };
+  }
+
   for (const entry of options.entries) {
-    if (entry.kind !== "flag") {
+    if (entry.kind === "flag") {
+      if (entry.key === "bend at end") {
+        bendPos = 1;
+        bend = { kind: "coordinate", raw: "(0,0)", relativePrefix: "+" };
+      } else if (entry.key === "bend at start") {
+        bendPos = 0;
+        bend = { kind: "coordinate", raw: "(0,0)", relativePrefix: "+" };
+      }
       continue;
     }
-    if (entry.key === "bend at end") {
-      return "bend-at-end";
+
+    if (entry.kind !== "kv") {
+      continue;
     }
-    if (entry.key === "bend at start") {
-      return "bend-at-start";
+    if (entry.key === "bend pos") {
+      const parsed = Number(normalizeOptionValue(entry.valueRaw));
+      if (Number.isFinite(parsed)) {
+        bendPos = parsed;
+      }
+      continue;
+    }
+    if (entry.key === "parabola height") {
+      const parsed = parseLength(entry.valueRaw, "cm");
+      if (parsed != null) {
+        bendPos = 0.5;
+        bend = { kind: "height", height: parsed };
+      }
+      continue;
+    }
+    if (entry.key === "bend") {
+      const parsed = parseBendCoordinateValue(entry.valueRaw);
+      if (parsed) {
+        bend = { kind: "coordinate", raw: parsed.raw, relativePrefix: parsed.relativePrefix };
+      }
     }
   }
-  return null;
+
+  return { bendPos, bend };
 }
 
-function buildParabolaSegment(start: Point, end: Point, mode: "bend-at-start" | "bend-at-end"): ScenePathCommand {
-  const control =
-    mode === "bend-at-start"
-      ? { x: (start.x + end.x) / 2, y: start.y }
-      : { x: (start.x + end.x) / 2, y: end.y };
+function parseBendCoordinateValue(raw: string): { raw: string; relativePrefix?: "+" | "++" } | null {
+  const normalized = normalizeOptionValue(raw);
+  if (normalized.length === 0) {
+    return null;
+  }
 
-  return quadraticToCubic(start, control, end);
+  let relativePrefix: "+" | "++" | undefined;
+  let coordinateRaw = normalized;
+  if (coordinateRaw.startsWith("++")) {
+    relativePrefix = "++";
+    coordinateRaw = coordinateRaw.slice(2).trim();
+  } else if (coordinateRaw.startsWith("+")) {
+    relativePrefix = "+";
+    coordinateRaw = coordinateRaw.slice(1).trim();
+  }
+
+  if (!coordinateRaw.startsWith("(") || !coordinateRaw.endsWith(")")) {
+    return null;
+  }
+
+  return { raw: coordinateRaw, relativePrefix };
 }
 
-function quadraticToCubic(start: Point, control: Point, end: Point): ScenePathCommand {
-  return {
-    kind: "C",
-    c1: {
-      x: start.x + (2 / 3) * (control.x - start.x),
-      y: start.y + (2 / 3) * (control.y - start.y)
-    },
-    c2: {
-      x: end.x + (2 / 3) * (control.x - end.x),
-      y: end.y + (2 / 3) * (control.y - end.y)
-    },
-    to: end
-  };
+function evaluateParabolaBendCoordinate(
+  raw: string,
+  context: SemanticContext,
+  savedPoint: Point,
+  relativePrefix?: "+" | "++"
+): Point | null {
+  if (!relativePrefix) {
+    return evaluateRawCoordinate(raw, context).point;
+  }
+
+  const originalCurrent = context.currentPoint;
+  context.currentPoint = savedPoint;
+  const evaluated = evaluateRawCoordinate(raw, context, relativePrefix);
+  context.currentPoint = originalCurrent;
+  return evaluated.point;
+}
+
+function buildParabolaCommands(start: Point, toBend: Point, toEnd: Point): ScenePathCommand[] {
+  const commands: ScenePathCommand[] = [];
+
+  const hasBendSegment = Math.abs(toBend.x) > 1e-9 || Math.abs(toBend.y) > 1e-9;
+  const bend = { x: start.x + toBend.x, y: start.y + toBend.y };
+  if (hasBendSegment) {
+    commands.push({
+      kind: "C",
+      c1: {
+        x: start.x + 0.1125 * toBend.x,
+        y: start.y + 0.225 * toBend.y
+      },
+      c2: {
+        x: start.x + 0.5 * toBend.x,
+        y: start.y + toBend.y
+      },
+      to: bend
+    });
+  }
+
+  const hasEndSegment = Math.abs(toEnd.x) > 1e-9 || Math.abs(toEnd.y) > 1e-9;
+  if (hasEndSegment) {
+    commands.push({
+      kind: "C",
+      c1: {
+        x: bend.x + 0.5 * toEnd.x,
+        y: bend.y
+      },
+      c2: {
+        x: bend.x + 0.8875 * toEnd.x,
+        y: bend.y + 0.775 * toEnd.y
+      },
+      to: {
+        x: bend.x + toEnd.x,
+        y: bend.y + toEnd.y
+      }
+    });
+  }
+
+  return commands;
 }

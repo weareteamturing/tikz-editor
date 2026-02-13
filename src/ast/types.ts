@@ -120,6 +120,8 @@ export type ToOperationItem = {
   span: Span;
   optionsSpan?: Span;
   options?: OptionListAst;
+  nodes?: NodeItem[];
+  target?: ToOperationTarget;
   raw: string;
 };
 
@@ -146,10 +148,23 @@ export type CoordinateOperationItem = {
   span: Span;
   optionsSpan?: Span;
   options?: OptionListAst;
+  name?: string;
   nameSpan?: Span;
   placementSpan?: Span;
   raw: string;
 };
+
+export type ToOperationTarget =
+  | {
+      kind: "coordinate";
+      raw: string;
+      relativePrefix?: RelativeCoordinatePrefix;
+      span?: Span;
+    }
+  | {
+      kind: "cycle";
+      span?: Span;
+    };
 
 export type UnknownStatement = {
   kind: "UnknownStatement";

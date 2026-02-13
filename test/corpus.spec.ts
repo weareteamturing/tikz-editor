@@ -6,13 +6,15 @@ import { describe, expect, it } from "vitest";
 import { collectTikzSnippetsFromDocs } from "../src/corpus/extract.js";
 import type { TikzSnippet } from "../src/corpus/extract.js";
 import { parseTikz } from "../src/parser/index.js";
+import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import { emitSvg } from "../src/svg/emit.js";
 
 describe("pgf-docs corpus regression", () => {
   const docsRoot = join(process.cwd(), "pgf-docs");
 
   const testCase = existsSync(docsRoot) ? it : it.skip;
 
-  testCase("extracts snippets and tracks parse quality metrics", () => {
+  testCase("extracts snippets and tracks parse+semantic+svg quality metrics", () => {
     const snippets = collectTikzSnippetsFromDocs(docsRoot);
     const tikzPictureSnippets = snippets.filter((snippet) => snippet.kind === "tikzpicture");
     const tikzInlineSnippets = snippets.filter((snippet) => snippet.kind === "tikz-inline");
@@ -28,6 +30,10 @@ describe("pgf-docs corpus regression", () => {
 
     const diagnosticCounts = new Map<string, number>();
     const recoveryByFile = new Map<string, number>();
+    const semanticDiagnosticCounts = new Map<string, number>();
+    const unsupportedSemanticDiagnosticCounts = new Map<string, number>();
+    const semanticUnsupportedByFile = new Map<string, number>();
+    const svgDiagnosticCounts = new Map<string, number>();
     const hardFailures: Array<{ filePath: string; startLine: number; message: string }> = [];
 
     let parsedClean = 0;
@@ -53,6 +59,15 @@ describe("pgf-docs corpus regression", () => {
     let letOperationItems = 0;
     let coordinateOperationItems = 0;
     let unknownPathItems = 0;
+    let semanticErrorSnippets = 0;
+    let semanticWarningSnippets = 0;
+    let semanticUnsupportedSnippets = 0;
+    let semanticEmptySceneSnippets = 0;
+    let semanticTotalElements = 0;
+    let semanticPathElements = 0;
+    let semanticCircleElements = 0;
+    let semanticEllipseElements = 0;
+    let semanticTextElements = 0;
 
     for (const { snippet, parserInput } of parserInputs) {
       try {
@@ -130,6 +145,52 @@ describe("pgf-docs corpus regression", () => {
         for (const diagnostic of result.diagnostics) {
           increment(diagnosticCounts, diagnostic.code ?? diagnostic.message);
         }
+
+        const semantic = evaluateTikzFigure(result.figure, parserInput);
+        const svg = emitSvg(semantic.scene);
+        const semanticHasError = semantic.diagnostics.some((diagnostic) => diagnostic.severity === "error");
+        const semanticHasWarning = semantic.diagnostics.some((diagnostic) => diagnostic.severity === "warning");
+        const semanticHasUnsupported = semantic.diagnostics.some((diagnostic) =>
+          (diagnostic.code ?? "").startsWith("unsupported")
+        );
+
+        if (semanticHasError) {
+          semanticErrorSnippets += 1;
+        }
+        if (semanticHasWarning) {
+          semanticWarningSnippets += 1;
+        }
+        if (semanticHasUnsupported) {
+          semanticUnsupportedSnippets += 1;
+          increment(semanticUnsupportedByFile, snippet.filePath);
+        }
+        if (semantic.scene.elements.length === 0) {
+          semanticEmptySceneSnippets += 1;
+        }
+
+        semanticTotalElements += semantic.scene.elements.length;
+        for (const element of semantic.scene.elements) {
+          if (element.kind === "Path") {
+            semanticPathElements += 1;
+          } else if (element.kind === "Circle") {
+            semanticCircleElements += 1;
+          } else if (element.kind === "Ellipse") {
+            semanticEllipseElements += 1;
+          } else if (element.kind === "Text") {
+            semanticTextElements += 1;
+          }
+        }
+
+        for (const diagnostic of semantic.diagnostics) {
+          const code = diagnostic.code ?? diagnostic.message;
+          increment(semanticDiagnosticCounts, code);
+          if (code.startsWith("unsupported")) {
+            increment(unsupportedSemanticDiagnosticCounts, code);
+          }
+        }
+        for (const diagnostic of svg.diagnostics) {
+          increment(svgDiagnosticCounts, diagnostic.code);
+        }
       } catch (error) {
         hardFailures.push({
           filePath: snippet.filePath,
@@ -148,6 +209,22 @@ describe("pgf-docs corpus regression", () => {
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 10)
       .map(([filePath, count]) => ({ filePath, count }));
+    const topSemanticDiagnosticCodes = [...semanticDiagnosticCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 12)
+      .map(([code, count]) => ({ code, count }));
+    const topSemanticUnsupportedCodes = [...unsupportedSemanticDiagnosticCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 12)
+      .map(([code, count]) => ({ code, count }));
+    const topSemanticUnsupportedFiles = [...semanticUnsupportedByFile.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10)
+      .map(([filePath, count]) => ({ filePath, count }));
+    const topSvgDiagnosticCodes = [...svgDiagnosticCounts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 10)
+      .map(([code, count]) => ({ code, count }));
 
     const snapshot = {
       extraction: {
@@ -164,6 +241,27 @@ describe("pgf-docs corpus regression", () => {
         parsedWithRecovery,
         failedHard: hardFailures.length,
         recoverableRate: parserInputs.length === 0 ? 0 : Number((parsedWithRecovery / parserInputs.length).toFixed(4))
+      },
+      semantic: {
+        semanticErrorSnippets,
+        semanticWarningSnippets,
+        semanticUnsupportedSnippets,
+        semanticEmptySceneSnippets,
+        semanticErrorRate:
+          parserInputs.length === 0 ? 0 : Number((semanticErrorSnippets / parserInputs.length).toFixed(4)),
+        semanticWarningRate:
+          parserInputs.length === 0 ? 0 : Number((semanticWarningSnippets / parserInputs.length).toFixed(4)),
+        semanticUnsupportedRate:
+          parserInputs.length === 0 ? 0 : Number((semanticUnsupportedSnippets / parserInputs.length).toFixed(4)),
+        semanticEmptySceneRate:
+          parserInputs.length === 0 ? 0 : Number((semanticEmptySceneSnippets / parserInputs.length).toFixed(4)),
+        elementTotals: {
+          total: semanticTotalElements,
+          paths: semanticPathElements,
+          circles: semanticCircleElements,
+          ellipses: semanticEllipseElements,
+          texts: semanticTextElements
+        }
       },
       semanticCoverage: {
         snippetsWithPathStatements,
@@ -213,6 +311,10 @@ describe("pgf-docs corpus regression", () => {
         }
       },
       topDiagnosticCodes,
+      topSemanticDiagnosticCodes,
+      topSemanticUnsupportedCodes,
+      topSemanticUnsupportedFiles,
+      topSvgDiagnosticCodes,
       topRecoveryFiles,
       sampleHardFailures: hardFailures.slice(0, 5)
     };
@@ -246,10 +348,7 @@ function toParserInput(snippet: TikzSnippet): string | null {
   }
 
   if (snippet.kind === "tikz-inline") {
-    if (snippet.incomplete) {
-      return null;
-    }
-    return normalizeInlineTikz(snippet.source);
+    return normalizeInlineTikz(snippet.source) ?? normalizeInlineTikzBestEffort(snippet.source);
   }
 
   return null;
@@ -289,6 +388,45 @@ function normalizeInlineTikz(source: string): string | null {
     }
     if (cursor !== trimmed.length) {
       return null;
+    }
+  } else {
+    body = trimmed.slice(cursor).trim();
+  }
+
+  if (body.length === 0) {
+    return null;
+  }
+
+  const begin = options.length > 0 ? `\\begin{tikzpicture}${options}` : "\\begin{tikzpicture}";
+  return `${begin}\n${body}\n\\end{tikzpicture}`;
+}
+
+function normalizeInlineTikzBestEffort(source: string): string | null {
+  const trimmed = source.trim();
+  const tikzMatch = /^\\tikz\b/u.exec(trimmed);
+  if (!tikzMatch) {
+    return null;
+  }
+
+  let cursor = tikzMatch[0].length;
+  cursor = skipWhitespaceAndComments(trimmed, cursor);
+
+  let options = "";
+  if (trimmed[cursor] === "[") {
+    const parsedOptions = readBalancedSegment(trimmed, cursor, "[", "]");
+    if (parsedOptions) {
+      options = trimmed.slice(cursor, parsedOptions.end);
+      cursor = skipWhitespaceAndComments(trimmed, parsedOptions.end);
+    }
+  }
+
+  let body = "";
+  if (trimmed[cursor] === "{") {
+    const parsedBody = readBalancedSegment(trimmed, cursor, "{", "}");
+    if (parsedBody) {
+      body = trimmed.slice(cursor + 1, parsedBody.end - 1).trim();
+    } else {
+      body = trimmed.slice(cursor + 1).trim();
     }
   } else {
     body = trimmed.slice(cursor).trim();

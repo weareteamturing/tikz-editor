@@ -1,9 +1,13 @@
-@top TikzFile { TikzEnvironment }
+@top TikzFile { TikzEnvironment | TikzInline }
 
 @skip { space }
 
 TikzEnvironment {
   BeginTikz OptionList? BodyItem* EndTikz
+}
+
+TikzInline {
+  InlineTikzCmd OptionList? BodyItem*
 }
 
 BodyItem {
@@ -390,6 +394,7 @@ StrayToken {
 @tokens {
   @precedence {
     BeginTikz,
+    InlineTikzCmd,
     EndTikz,
     FillDrawCmd,
     FillCmd,
@@ -438,6 +443,7 @@ StrayToken {
   Comment { "%" ![\n\r]* }
 
   BeginTikz { "\\begin{tikzpicture}" }
+  InlineTikzCmd { "\\tikz" }
   EndTikz { "\\end{tikzpicture}" }
 
   DrawCmd { "\\draw" }

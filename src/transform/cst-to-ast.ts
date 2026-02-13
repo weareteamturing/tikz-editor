@@ -18,11 +18,12 @@ export function fromCst(tree: Tree, source: string): CstToAstResult {
   const diagnostics: Diagnostic[] = [];
   collectParseErrorDiagnostics(tree.topNode, diagnostics);
 
-  const envNode = findFirstNodeByName(tree.topNode, "TikzEnvironment");
-  if (!envNode) {
+  const figureNode =
+    findFirstNodeByName(tree.topNode, "TikzEnvironment") ?? findFirstNodeByName(tree.topNode, "TikzInline");
+  if (!figureNode) {
     diagnostics.push({
       severity: "warning",
-      message: "No tikzpicture environment found.",
+      message: "No TikZ figure command found.",
       span: { from: 0, to: source.length },
       code: "missing-tikzpicture"
     });
@@ -38,15 +39,15 @@ export function fromCst(tree: Tree, source: string): CstToAstResult {
   }
 
   const state = { nextStatementIndex: 0 };
-  const body = mapBodyStatements(envNode, source, state);
-  const optionsNode = findFirstChildByName(envNode, "OptionList");
+  const body = mapBodyStatements(figureNode, source, state);
+  const optionsNode = findFirstChildByName(figureNode, "OptionList");
 
-  collectStructuralDiagnostics(envNode, source, diagnostics);
+  collectStructuralDiagnostics(figureNode, source, diagnostics);
 
   return {
     figure: {
       kind: "Figure",
-      span: { from: envNode.from, to: envNode.to },
+      span: { from: figureNode.from, to: figureNode.to },
       options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
       body
     },

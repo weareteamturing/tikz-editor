@@ -48,6 +48,75 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("emits explicit diagnostics for currently unsupported path keywords", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) plot (1,1);
+  \draw (0,0) edge (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const unsupportedKeywordDiagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === "unsupported-path-keyword");
+    expect(unsupportedKeywordDiagnostics.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("supports sin/cos path keywords as cubic segments", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) sin (1,1) cos (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-keyword")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const commandKinds = path.commands.map((command) => command.kind);
+      expect(commandKinds).toEqual(["M", "C", "C"]);
+      const end = path.commands[path.commands.length - 1];
+      expect(end?.kind).toBe("C");
+      if (end?.kind === "C") {
+        expect(end.to.x).toBeCloseTo(56.9055, 3);
+        expect(end.to.y).toBeCloseTo(0, 3);
+      }
+    }
+  });
+
+  it("evaluates explicit and calc coordinate forms when possible", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (canvas cs:x=1cm,y=2cm) -- ($(1,1) + (2,0)$);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:explicit")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:calc")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.some((command) => command.kind === "L")).toBe(true);
+    }
+  });
+
+  it("projects xyz coordinates onto 2d output and warns when z contributes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0,1) -- (1,1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:xyz")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-z-component")).toBe(true);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.some((command) => command.kind === "L")).toBe(true);
+    }
+  });
+
   it("starts a new subpath when a coordinate appears without an operator", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (2,0) (0,1) -- (2,1);
@@ -59,6 +128,27 @@ describe("semantic evaluator", () => {
     expect(path?.kind).toBe("Path");
     if (path?.kind === "Path") {
       expect(path.commands.map((command) => command.kind)).toEqual(["M", "L", "M", "L"]);
+    }
+  });
+
+  it("does not carry operators across cycle into the next subpath", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,1) -- (1,0) -- cycle (2,0) -- (3,1) -- (3,0) -- cycle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    const second = paths[1];
+    expect(second?.kind).toBe("Path");
+    if (second?.kind === "Path") {
+      const move = second.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(56.9055, 3);
+        expect(move.to.y).toBeCloseTo(0, 3);
+      }
     }
   });
 
@@ -184,6 +274,64 @@ describe("semantic evaluator", () => {
 
     const gridElements = arcPaths.filter((path) => path.id.includes("scene-grid-"));
     expect(gridElements.length).toBe(6);
+  });
+
+  it("lets explicit x/y arc radii override inherited radius", () => {
+    const source = String.raw`\begin{tikzpicture}[radius=1cm]
+  \draw (8,0) arc [start angle=0, end angle=270, x radius=1cm, y radius=5mm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const arc = path.commands.find((command) => command.kind === "A");
+      expect(arc?.kind).toBe("A");
+      if (arc?.kind === "A") {
+        expect(arc.rx).toBeCloseTo(28.4528, 3);
+        expect(arc.ry).toBeCloseTo(14.2264, 3);
+      }
+    }
+  });
+
+  it("interprets unitless grid steps in axis units under transformed x vectors", () => {
+    const source = String.raw`\begin{tikzpicture}[x=.5cm]
+  \draw (0,0) grid [step=1] (3,2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const vertical = paths.filter((path) => path.id.includes("scene-grid-x:"));
+    const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
+    expect(vertical.length).toBe(4);
+    expect(horizontal.length).toBe(3);
+  });
+
+  it("applies rounded corners across cycle closure", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) [rounded corners=10pt] -- (1,1) -- (2,1)
+                     [sharp corners] -- (2,0)
+               [rounded corners=5pt] -- cycle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const cubicCount = path.commands.filter((command) => command.kind === "C").length;
+      expect(cubicCount).toBeGreaterThanOrEqual(3);
+      expect(path.commands.some((command) => command.kind === "Z")).toBe(true);
+      const move = path.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeGreaterThan(0);
+      }
+    }
   });
 
   it("keeps named coordinates transformed at registration scope", () => {
@@ -394,6 +542,44 @@ describe("semantic evaluator", () => {
     if (cText?.kind === "Text") {
       expect(cText.position.x).toBeCloseTo(56.9055, 3);
       expect(cText.position.y).toBeCloseTo(0, 3);
+    }
+  });
+
+  it("targets unnamed node coordinates at the node border for line and to operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (2,2) {a};
+  \draw[red] (10pt,10pt) to (a);
+  \draw[blue] (3,2) -- (a);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "a");
+    expect(text?.kind).toBe("Text");
+
+    const redPath = result.scene.elements.find(
+      (element) => element.kind === "Path" && (element.style.stroke === "red" || element.style.stroke === "#ff0000")
+    );
+    const bluePath = result.scene.elements.find(
+      (element) => element.kind === "Path" && (element.style.stroke === "blue" || element.style.stroke === "#0000ff")
+    );
+    expect(redPath?.kind).toBe("Path");
+    expect(bluePath?.kind).toBe("Path");
+
+    if (text?.kind === "Text" && redPath?.kind === "Path" && bluePath?.kind === "Path") {
+      const redEnd = redPath.commands[redPath.commands.length - 1];
+      expect(redEnd?.kind).toBe("L");
+      if (redEnd?.kind === "L") {
+        expect(redEnd.to.x).toBeLessThan(text.position.x);
+        expect(redEnd.to.y).toBeLessThan(text.position.y);
+      }
+
+      const blueEnd = bluePath.commands[bluePath.commands.length - 1];
+      expect(blueEnd?.kind).toBe("L");
+      if (blueEnd?.kind === "L") {
+        expect(blueEnd.to.x).toBeGreaterThan(text.position.x);
+        expect(blueEnd.to.x).toBeLessThan(85.3583);
+      }
     }
   });
 

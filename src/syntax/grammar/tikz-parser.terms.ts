@@ -85,4 +85,6 @@ export const
   UnknownStatement = 83,
   UnknownPart = 84,
   StrayToken = 85,
-  EndTikz = 86
+  EndTikz = 86,
+  TikzInline = 87,
+  InlineTikzCmd = 88

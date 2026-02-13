@@ -1,12 +1,21 @@
 import type { TikzFigure, Statement } from "../ast/types.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
+import type { FeatureId } from "../capabilities/feature-ids.js";
 import type { OptionListAst } from "../options/types.js";
 import { createSemanticContext, currentFrame, popFrame, pushFrame } from "./context.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
 import { defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
 import { identityMatrix } from "./transform.js";
-import type { Bounds, EvaluateOptions, FeatureUsage, FeatureUsageState, SceneElement, SceneFigure } from "./types.js";
+import type {
+  Bounds,
+  EvaluateOptions,
+  FeatureUsage,
+  FeatureUsageState,
+  SceneElement,
+  SceneFigure,
+  ScenePathCommand
+} from "./types.js";
 
 export type EvaluateTikzResult = {
   scene: SceneFigure;
@@ -180,17 +189,7 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
 
   for (const element of elements) {
     if (element.kind === "Path") {
-      for (const command of element.commands) {
-        if (command.kind === "M" || command.kind === "L") {
-          points.push(command.to);
-        } else if (command.kind === "C") {
-          points.push(command.c1);
-          points.push(command.c2);
-          points.push(command.to);
-        } else if (command.kind === "A") {
-          points.push(command.to);
-        }
-      }
+      points.push(...pathBoundsPoints(element.commands));
       continue;
     }
 
@@ -226,6 +225,202 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
   return { minX, minY, maxX, maxY };
 }
 
+function pathBoundsPoints(commands: ScenePathCommand[]): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [];
+  let current: { x: number; y: number } | null = null;
+  let subpathStart: { x: number; y: number } | null = null;
+
+  for (const command of commands) {
+    if (command.kind === "M") {
+      current = command.to;
+      subpathStart = command.to;
+      points.push(command.to);
+      continue;
+    }
+
+    if (command.kind === "L") {
+      current = command.to;
+      points.push(command.to);
+      continue;
+    }
+
+    if (command.kind === "C") {
+      points.push(command.c1, command.c2, command.to);
+      current = command.to;
+      continue;
+    }
+
+    if (command.kind === "A") {
+      points.push(command.to);
+      if (current) {
+        points.push(...arcExtremaPoints(current, command));
+      }
+      current = command.to;
+      continue;
+    }
+
+    if (command.kind === "Z" && subpathStart) {
+      points.push(subpathStart);
+      current = subpathStart;
+    }
+  }
+
+  return points;
+}
+
+function arcExtremaPoints(
+  from: { x: number; y: number },
+  arc: { rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: { x: number; y: number } }
+): Array<{ x: number; y: number }> {
+  const solution = solveArcCenter(from, arc);
+  if (!solution) {
+    return [];
+  }
+
+  const { center, rx, ry, phi, theta1, deltaTheta } = solution;
+  const theta2 = theta1 + deltaTheta;
+  const candidates = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+  const points: Array<{ x: number; y: number }> = [];
+
+  for (const candidate of candidates) {
+    if (!angleOnArc(candidate, theta1, theta2, arc.sweep)) {
+      continue;
+    }
+    points.push(pointOnEllipse(center, rx, ry, phi, candidate));
+  }
+
+  return points;
+}
+
+function solveArcCenter(
+  from: { x: number; y: number },
+  arc: { rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: { x: number; y: number } }
+): {
+  center: { x: number; y: number };
+  rx: number;
+  ry: number;
+  phi: number;
+  theta1: number;
+  deltaTheta: number;
+} | null {
+  let rx = Math.abs(arc.rx);
+  let ry = Math.abs(arc.ry);
+  if (rx <= 1e-9 || ry <= 1e-9) {
+    return null;
+  }
+
+  const phi = (arc.xAxisRotation * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  const dx2 = (from.x - arc.to.x) / 2;
+  const dy2 = (from.y - arc.to.y) / 2;
+  const x1p = cosPhi * dx2 + sinPhi * dy2;
+  const y1p = -sinPhi * dx2 + cosPhi * dy2;
+
+  const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda);
+    rx *= scale;
+    ry *= scale;
+  }
+
+  const rx2 = rx * rx;
+  const ry2 = ry * ry;
+  const x1p2 = x1p * x1p;
+  const y1p2 = y1p * y1p;
+  const denominator = rx2 * y1p2 + ry2 * x1p2;
+  if (denominator <= 1e-12) {
+    return null;
+  }
+
+  const sign = arc.largeArc === arc.sweep ? -1 : 1;
+  const factorBase = Math.max(0, (rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2) / denominator);
+  const factor = sign * Math.sqrt(factorBase);
+  const cxp = factor * ((rx * y1p) / ry);
+  const cyp = factor * (-(ry * x1p) / rx);
+
+  const cx = cosPhi * cxp - sinPhi * cyp + (from.x + arc.to.x) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (from.y + arc.to.y) / 2;
+
+  const startUnit = { x: (x1p - cxp) / rx, y: (y1p - cyp) / ry };
+  const endUnit = { x: (-x1p - cxp) / rx, y: (-y1p - cyp) / ry };
+  const theta1 = angleFromUnit(startUnit);
+  let deltaTheta = angleBetweenUnits(startUnit, endUnit);
+
+  if (!arc.sweep && deltaTheta > 0) {
+    deltaTheta -= 2 * Math.PI;
+  } else if (arc.sweep && deltaTheta < 0) {
+    deltaTheta += 2 * Math.PI;
+  }
+
+  return {
+    center: { x: cx, y: cy },
+    rx,
+    ry,
+    phi,
+    theta1,
+    deltaTheta
+  };
+}
+
+function pointOnEllipse(
+  center: { x: number; y: number },
+  rx: number,
+  ry: number,
+  phi: number,
+  theta: number
+): { x: number; y: number } {
+  const cosTheta = Math.cos(theta);
+  const sinTheta = Math.sin(theta);
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+  return {
+    x: center.x + rx * cosTheta * cosPhi - ry * sinTheta * sinPhi,
+    y: center.y + rx * cosTheta * sinPhi + ry * sinTheta * cosPhi
+  };
+}
+
+function angleFromUnit(unit: { x: number; y: number }): number {
+  return Math.atan2(unit.y, unit.x);
+}
+
+function angleBetweenUnits(from: { x: number; y: number }, to: { x: number; y: number }): number {
+  const cross = from.x * to.y - from.y * to.x;
+  const dot = from.x * to.x + from.y * to.y;
+  return Math.atan2(cross, dot);
+}
+
+function normalizeAngle(angle: number): number {
+  const twoPi = 2 * Math.PI;
+  let normalized = angle % twoPi;
+  if (normalized < 0) {
+    normalized += twoPi;
+  }
+  return normalized;
+}
+
+function angleOnArc(angle: number, start: number, end: number, sweep: boolean): boolean {
+  const epsilon = 1e-9;
+  const a = normalizeAngle(angle);
+  const s = normalizeAngle(start);
+  let e = normalizeAngle(end);
+
+  if (sweep) {
+    if (e < s) {
+      e += 2 * Math.PI;
+    }
+    const aa = a < s ? a + 2 * Math.PI : a;
+    return aa >= s - epsilon && aa <= e + epsilon;
+  }
+
+  if (e > s) {
+    e -= 2 * Math.PI;
+  }
+  const aa = a > s ? a - 2 * Math.PI : a;
+  return aa <= s + epsilon && aa >= e - epsilon;
+}
+
 function initializeFeatureUsage(): FeatureUsage {
   const usage: FeatureUsage = {};
   for (const featureId of FEATURE_IDS) {
@@ -234,7 +429,7 @@ function initializeFeatureUsage(): FeatureUsage {
   return usage;
 }
 
-function markFeature(featureUsage: FeatureUsage, featureId: string, status: "supported" | "unsupported"): void {
+function markFeature(featureUsage: FeatureUsage, featureId: FeatureId, status: "supported" | "unsupported"): void {
   if (!(featureId in featureUsage)) {
     return;
   }
