@@ -1318,6 +1318,83 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies custom styles defined via \\tikzset, \\tikzstyle, and \\pgfkeys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{
+    base/.style={draw=red},
+    base/.append style={ultra thick}
+  }
+  \tikzstyle{legacy}=[dashed]
+  \pgfkeys{/tikz/.cd, helper/.style={line width=2pt}}
+  \draw[base,legacy,helper] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:base")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:legacy")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:helper")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.stroke).toBe("#ff0000");
+      expect(path.style.lineWidth).toBeCloseTo(2, 6);
+      expect(path.style.dashArray).toEqual([3, 3]);
+    }
+  });
+
+  it("resolves custom style overwrite order left-to-right", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{
+    style1/.style={draw=red,fill=blue},
+    style2/.style={draw=green}
+  }
+  \draw[style1,style2] (0,0) rectangle (1,1);
+  \draw[style2,style1] (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+    const first = paths[0];
+    const second = paths[1];
+    expect(first?.kind).toBe("Path");
+    expect(second?.kind).toBe("Path");
+    if (first?.kind === "Path" && second?.kind === "Path") {
+      expect(first.style.fill).toBe("#0000ff");
+      expect(first.style.stroke).toBe("#008000");
+      expect(second.style.fill).toBe("#0000ff");
+      expect(second.style.stroke).toBe("#ff0000");
+    }
+  });
+
+  it("applies \\tikzset every-node style keys to subsequent nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{
+    every node/.style={draw},
+    every circle node/.style={double}
+  }
+  \draw (0,0) node {A} -- (1,1) node[circle] {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every node/.style"))).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every circle node/.style"))).toBe(false);
+
+    const nodeBoxes = result.scene.elements.filter((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+    expect(nodeBoxes.length).toBe(1);
+    expect(circles.length).toBe(1);
+    const circle = circles[0];
+    expect(circle?.kind).toBe("Circle");
+    if (circle?.kind === "Circle") {
+      expect(circle.style.doubleStroke).toBe(true);
+    }
+  });
+
   it("applies every-node style keys for rectangle and circle nodes", () => {
     const source = String.raw`\begin{tikzpicture}[
   every node/.style={draw},

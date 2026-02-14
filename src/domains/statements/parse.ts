@@ -37,6 +37,14 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }
 
+  if (node.type.name === "StyleDefinitionStatement") {
+    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
+  if (node.type.name === "TikzSetStatement" || node.type.name === "TikzStyleStatement" || node.type.name === "PgfkeysStatement") {
+    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
   if (node.type.name === "FontSizeStatement") {
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }

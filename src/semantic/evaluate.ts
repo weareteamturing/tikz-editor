@@ -7,11 +7,14 @@ import type {
   ForeachOriginFrame as ExpansionForeachOriginFrame,
   ForeachStatementAttribution
 } from "../foreach/types.js";
+import { parseOptionListRaw } from "../options/parse.js";
 import type { OptionListAst } from "../options/types.js";
 import { createSemanticContext, currentFrame, popFrame, pushFrame, type NodeDistanceSpec } from "./context.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
 import { parseNodeDistance } from "./path/node-positioning.js";
 import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
+import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
+import { readBalancedBlock } from "./style/option-utils.js";
 import { identityMatrix } from "./transform.js";
 import type {
   Bounds,
@@ -47,11 +50,13 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
   if (figure.options) {
     markFeature(featureUsage, "options_structured", "supported");
     const parent = currentFrame(context);
-    const rootDelta = resolveContextDelta(parent.style, parent.transform, [figure.options]);
-    const rootMeta = resolveFrameMeta(parent, [figure.options]);
+    const rootCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
+    const rootDelta = resolveContextDelta(parent.style, parent.transform, [figure.options], rootCustomStyles);
+    const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists);
     pushFrame(context, {
       style: rootDelta.style,
       transform: rootDelta.transform,
+      customStyles: rootCustomStyles,
       namePrefix: rootMeta.namePrefix,
       nameSuffix: rootMeta.nameSuffix,
       nodeLayerMode: rootMeta.nodeLayerMode,
@@ -115,8 +120,9 @@ function evaluateStatement(
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
     }
-    const resolved = resolveContextDelta(baseStyle, parent.transform, optionLists);
-    const frameMeta = resolveFrameMeta(parent, optionLists);
+    const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
+    const resolved = resolveContextDelta(baseStyle, parent.transform, optionLists, scopedCustomStyles);
+    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
 
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
       markFeature(featureUsage, "path_shading", "supported");
@@ -140,6 +146,7 @@ function evaluateStatement(
     pushFrame(context, {
       style: resolved.style,
       transform: resolved.transform,
+      customStyles: scopedCustomStyles,
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
@@ -182,11 +189,13 @@ function evaluateStatement(
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
     }
-    const resolved = resolveContextDelta(parent.style, parent.transform, optionLists);
-    const frameMeta = resolveFrameMeta(parent, optionLists);
+    const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
+    const resolved = resolveContextDelta(parent.style, parent.transform, optionLists, scopedCustomStyles);
+    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
     pushFrame(context, {
       style: resolved.style,
       transform: resolved.transform,
+      customStyles: scopedCustomStyles,
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
@@ -215,7 +224,7 @@ function evaluateStatement(
     return [];
   }
 
-  if (applyStandaloneCommandStatement(statement.raw, context)) {
+  if (applyStandaloneCommandStatement(statement.raw, context, diagnostics, statement.span)) {
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -243,36 +252,267 @@ const STANDALONE_FONT_SIZE_FACTORS: Record<string, number> = {
   "\\Huge": 2.488
 };
 
-function applyStandaloneCommandStatement(raw: string, context: ReturnType<typeof createSemanticContext>): boolean {
-  const command = parseStandaloneCommand(raw);
-  if (!command) {
-    return false;
+function applyStandaloneCommandStatement(
+  raw: string,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[],
+  span: { from: number; to: number }
+): boolean {
+  const command = parseStandaloneCommandName(raw);
+  if (command) {
+    const fontFactor = STANDALONE_FONT_SIZE_FACTORS[command];
+    if (fontFactor != null) {
+      const frame = currentFrame(context);
+      frame.style = {
+        ...frame.style,
+        fontSize: DEFAULT_TEXT_FONT_SIZE * fontFactor
+      };
+      return true;
+    }
   }
 
-  const fontFactor = STANDALONE_FONT_SIZE_FACTORS[command];
-  if (fontFactor == null) {
-    return false;
+  const tikzSetOptions = parseTikzSetOptionLists(raw);
+  if (tikzSetOptions) {
+    applyOptionListsToCurrentFrame(tikzSetOptions, context, diagnostics, span, "\\tikzset");
+    return true;
   }
 
-  const frame = currentFrame(context);
-  frame.style = {
-    ...frame.style,
-    fontSize: DEFAULT_TEXT_FONT_SIZE * fontFactor
-  };
-  return true;
+  const pgfkeysOptions = parsePgfkeysOptionLists(raw);
+  if (pgfkeysOptions) {
+    applyOptionListsToCurrentFrame(pgfkeysOptions, context, diagnostics, span, "\\pgfkeys");
+    return true;
+  }
+
+  const legacyStyle = parseLegacyTikzStyleDefinition(raw);
+  if (legacyStyle) {
+    const frame = currentFrame(context);
+    applyCustomStyleDefinition(frame.customStyles, legacyStyle.styleName, legacyStyle.kind, legacyStyle.optionList);
+    return true;
+  }
+
+  return false;
 }
 
-function parseStandaloneCommand(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
+function applyOptionListsToCurrentFrame(
+  optionLists: OptionListAst[],
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[],
+  span: { from: number; to: number },
+  sourceLabel: string
+): void {
+  const frame = currentFrame(context);
+  const resolved = resolveContextDelta(frame.style, frame.transform, optionLists, frame.customStyles);
+  frame.style = resolved.style;
+  frame.transform = resolved.transform;
+
+  const frameMeta = resolveFrameMeta(frame, resolved.expandedOptionLists);
+  frame.namePrefix = frameMeta.namePrefix;
+  frame.nameSuffix = frameMeta.nameSuffix;
+  frame.nodeLayerMode = frameMeta.nodeLayerMode;
+  frame.onGrid = frameMeta.onGrid;
+  frame.nodeDistance = frameMeta.nodeDistance;
+  frame.transformShape = frameMeta.transformShape;
+  frame.everyNodeStyles = frameMeta.everyNodeStyles;
+  frame.everyRectangleNodeStyles = frameMeta.everyRectangleNodeStyles;
+  frame.everyCircleNodeStyles = frameMeta.everyCircleNodeStyles;
+
+  for (const code of resolved.diagnostics) {
+    diagnostics.push({
+      severity: "warning",
+      code,
+      message: `${sourceLabel} option issue: ${code}`,
+      span
+    });
+  }
+}
+
+function parseStandaloneCommandName(raw: string): string | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  if (!/^\\[A-Za-z@]+$/.test(stripped)) {
+    return null;
+  }
+  return stripped;
+}
+
+function parseTikzSetOptionLists(raw: string): OptionListAst[] | null {
+  const content = parseBracedCommandContent(raw, "\\tikzset");
+  if (content == null) {
+    return null;
+  }
+  return [parseOptionListRaw(content)];
+}
+
+function parsePgfkeysOptionLists(raw: string): OptionListAst[] | null {
+  const content = parseBracedCommandContent(raw, "\\pgfkeys");
+  if (content == null) {
+    return null;
+  }
+  return [normalizePgfkeysOptionList(parseOptionListRaw(content))];
+}
+
+function parseLegacyTikzStyleDefinition(raw: string): {
+  styleName: string;
+  kind: "style" | "append";
+  optionList: OptionListAst;
+} | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  if (!stripped.startsWith("\\tikzstyle")) {
     return null;
   }
 
-  const maybeSemicolon = trimmed.endsWith(";") ? trimmed.slice(0, -1).trim() : trimmed;
-  if (!/^\\[A-Za-z@]+$/.test(maybeSemicolon)) {
+  let cursor = "\\tikzstyle".length;
+  cursor = skipWhitespace(stripped, cursor);
+  if (cursor >= stripped.length) {
     return null;
   }
-  return maybeSemicolon;
+
+  let styleName = "";
+  if (stripped[cursor] === "{") {
+    const block = readBalancedBlock(stripped, cursor, "{", "}");
+    if (!block) {
+      return null;
+    }
+    styleName = block.content.trim();
+    cursor = block.nextIndex;
+  } else {
+    const start = cursor;
+    while (cursor < stripped.length) {
+      const char = stripped[cursor] ?? "";
+      if (char === "=" || char === "+" || /\s/.test(char)) {
+        break;
+      }
+      cursor += 1;
+    }
+    styleName = stripped.slice(start, cursor).trim();
+  }
+  if (styleName.length === 0) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, cursor);
+  let kind: "style" | "append" = "style";
+  if (stripped[cursor] === "+") {
+    kind = "append";
+    cursor += 1;
+    cursor = skipWhitespace(stripped, cursor);
+  }
+  if (stripped[cursor] !== "=") {
+    return null;
+  }
+  cursor += 1;
+  cursor = skipWhitespace(stripped, cursor);
+  if (cursor >= stripped.length) {
+    return null;
+  }
+
+  let styleValueRaw = "";
+  if (stripped[cursor] === "[") {
+    const block = readBalancedBlock(stripped, cursor, "[", "]");
+    if (!block) {
+      return null;
+    }
+    styleValueRaw = block.content;
+    cursor = block.nextIndex;
+  } else if (stripped[cursor] === "{") {
+    const block = readBalancedBlock(stripped, cursor, "{", "}");
+    if (!block) {
+      return null;
+    }
+    styleValueRaw = block.content;
+    cursor = block.nextIndex;
+  } else {
+    styleValueRaw = stripped.slice(cursor).trim();
+    cursor = stripped.length;
+  }
+
+  cursor = skipWhitespace(stripped, cursor);
+  if (cursor !== stripped.length) {
+    return null;
+  }
+
+  const optionList = parseStyleValueAsOptionList(styleValueRaw);
+  if (!optionList) {
+    return null;
+  }
+
+  return {
+    styleName,
+    kind,
+    optionList
+  };
+}
+
+function parseBracedCommandContent(raw: string, commandName: string): string | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  if (!stripped.startsWith(commandName)) {
+    return null;
+  }
+
+  let cursor = commandName.length;
+  cursor = skipWhitespace(stripped, cursor);
+  const block = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!block) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, block.nextIndex);
+  if (cursor !== stripped.length) {
+    return null;
+  }
+  return block.content;
+}
+
+function normalizePgfkeysOptionList(list: OptionListAst): OptionListAst {
+  let inTikzDirectory = false;
+  const entries: OptionListAst["entries"] = [];
+  for (const entry of list.entries) {
+    if (entry.kind === "unknown") {
+      const normalizedRaw = entry.raw.trim().toLowerCase();
+      if (normalizedRaw === "/tikz/.cd" || normalizedRaw === ".cd") {
+        inTikzDirectory = normalizedRaw === "/tikz/.cd" || inTikzDirectory;
+      }
+      continue;
+    }
+
+    if (entry.key === "/tikz/.cd" || entry.key === ".cd") {
+      inTikzDirectory = entry.key === "/tikz/.cd" || inTikzDirectory;
+      continue;
+    }
+
+    let normalizedKey: string | null = null;
+    if (entry.key.startsWith("/tikz/")) {
+      normalizedKey = entry.key.slice("/tikz/".length);
+    } else if (inTikzDirectory && !entry.key.startsWith("/")) {
+      normalizedKey = entry.key;
+    }
+
+    if (!normalizedKey || normalizedKey.length === 0) {
+      continue;
+    }
+
+    if (entry.kind === "flag") {
+      entries.push({ ...entry, key: normalizedKey });
+      continue;
+    }
+    entries.push({ ...entry, key: normalizedKey });
+  }
+
+  return {
+    ...list,
+    entries
+  };
+}
+
+function stripOptionalTrailingSemicolon(raw: string): string {
+  return raw.endsWith(";") ? raw.slice(0, -1).trim() : raw;
+}
+
+function skipWhitespace(input: string, start: number): number {
+  let cursor = start;
+  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+  return cursor;
 }
 
 function computeBounds(elements: SceneElement[]): Bounds | undefined {

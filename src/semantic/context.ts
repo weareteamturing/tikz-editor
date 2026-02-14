@@ -1,6 +1,7 @@
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
+import type { CustomStyleRegistry } from "./style/custom-styles.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -35,6 +36,7 @@ export type NamedNodeGeometry = {
 export type SemanticContextFrame = {
   style: ResolvedStyle;
   transform: Matrix2D;
+  customStyles: CustomStyleRegistry;
   namePrefix: string;
   nameSuffix: string;
   nodeLayerMode: NodeLayerMode;
@@ -66,6 +68,7 @@ export function createSemanticContext(
       {
         style: initialStyle,
         transform: initialTransform,
+        customStyles: new Map(),
         namePrefix: "",
         nameSuffix: "",
         nodeLayerMode: "front",

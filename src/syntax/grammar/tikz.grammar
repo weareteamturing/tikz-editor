@@ -21,7 +21,14 @@ Statement {
   ForeachStatement |
   PathStatement |
   FontSizeStatement |
+  StyleDefinitionStatement |
   UnknownStatement
+}
+
+StyleDefinitionStatement {
+  TikzSetStatement |
+  TikzStyleStatement |
+  PgfkeysStatement
 }
 
 ScopeStatement {
@@ -211,6 +218,18 @@ FontSizeStatement {
   FontSizeCmd
 }
 
+TikzSetStatement {
+  TikzSetCmd StylePayload
+}
+
+TikzStyleStatement {
+  TikzStyleCmd (Group | IdentifierLike) ("+"? "=") (OptionList | StylePayload)
+}
+
+PgfkeysStatement {
+  PgfkeysCmd StylePayload
+}
+
 UnknownPart {
   Comment |
   RelativeCoordinate |
@@ -272,6 +291,10 @@ Group {
   "{" GroupPart* "}"
 }
 
+StylePayload {
+  "{" StylePayloadPart* "}"
+}
+
 GroupPart {
   NodeItem |
   Group |
@@ -291,6 +314,26 @@ GroupPart {
   Number |
   IdentifierLike |
   GroupPunct
+}
+
+StylePayloadPart {
+  Comment |
+  StylePayload |
+  Coordinate |
+  OptionList |
+  PathKeyword |
+  EscapedAmpersandCmd |
+  KnownCommand |
+  CommandName |
+  NodeKw |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
+  Number |
+  IdentifierLike |
+  OptionPunct
 }
 
 GroupPathOperator {
@@ -419,6 +462,8 @@ StrayToken {
 @tokens {
   @precedence {
     BeginTikz,
+    TikzSetCmd,
+    TikzStyleCmd,
     InlineTikzCmd,
     EndTikz,
     FillDrawCmd,
@@ -437,6 +482,7 @@ StrayToken {
     MatrixCmd,
     NodeCmd,
     CoordinateCmd,
+    PgfkeysCmd,
     MatrixRowSepCmd,
     EscapedAmpersandCmd,
     AtKw,
@@ -492,6 +538,9 @@ StrayToken {
   ForeachKw { "foreach" }
   NodeCmd { "\\node" }
   CoordinateCmd { "\\coordinate" }
+  TikzSetCmd { "\\tikzset" }
+  TikzStyleCmd { "\\tikzstyle" }
+  PgfkeysCmd { "\\pgfkeys" }
   MatrixRowSepCmd { "\\\\" }
   EscapedAmpersandCmd { "\\&" }
 

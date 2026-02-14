@@ -75,7 +75,6 @@ describe("parseTikz", () => {
   \fill (0,0) rectangle +(1,1);
 \end{tikzpicture}`;
     const result = parseTikz(source);
-
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-option-close")).toBe(false);
   });
@@ -99,6 +98,33 @@ describe("parseTikz", () => {
     expect(result.figure.body.length).toBe(2);
     expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
     expect(result.figure.body[1]?.kind).toBe("Path");
+  });
+
+  it("parses standalone style-definition commands without requiring semicolons", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{highlight/.style={draw=red}}
+  \tikzstyle{legacy}=[thick]
+  \pgfkeys{/tikz/.cd, helper/.style={dashed}}
+  \draw[highlight,legacy,helper] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.length).toBe(4);
+    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[1]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[2]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[3]?.kind).toBe("Path");
+
+    if (result.figure.body[0]?.kind === "UnknownStatement") {
+      expect(result.figure.body[0].raw).toContain("\\tikzset");
+    }
+    if (result.figure.body[1]?.kind === "UnknownStatement") {
+      expect(result.figure.body[1].raw).toContain("\\tikzstyle");
+    }
+    if (result.figure.body[2]?.kind === "UnknownStatement") {
+      expect(result.figure.body[2].raw).toContain("\\pgfkeys");
+    }
   });
 
   it("returns diagnostics while still producing IR for incomplete input", () => {
