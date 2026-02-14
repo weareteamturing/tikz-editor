@@ -1141,6 +1141,58 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("restarts named-node line segments without inheriting prior border directions", () => {
+    const source = String.raw`\begin{tikzpicture}[scale=0.9, transform shape]
+  \node[draw, circle](1) at (0,0) {1};
+  \node[draw, circle](2) at (1,0) {2};
+  \node[draw, circle](3) at (2,1) {3};
+  \node[draw, circle](4) at (2,0) {4};
+  \node[draw, circle](5) at (2,-1) {5};
+  \node[draw, circle](6) at (3,0) {6};
+  \node[draw, circle](7) at (4,0) {7};
+  \draw[-, >=latex,thick] (1)--(2) (2)--(3) (2)--(4) (2)--(5) (3)--(6) (4)--(6) (5)--(6) (6)--(7);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+
+    if (path?.kind === "Path") {
+      expect(path.commands.map((command) => command.kind)).toEqual([
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L",
+        "M",
+        "L"
+      ]);
+
+      const lastMove = path.commands[path.commands.length - 2];
+      const previousLine = path.commands[path.commands.length - 3];
+      const lastLine = path.commands[path.commands.length - 1];
+      expect(lastMove?.kind).toBe("M");
+      expect(previousLine?.kind).toBe("L");
+      expect(lastLine?.kind).toBe("L");
+      if (lastMove?.kind === "M" && previousLine?.kind === "L" && lastLine?.kind === "L") {
+        expect(lastMove.to.y).toBeCloseTo(0, 3);
+        expect(lastLine.to.y).toBeCloseTo(0, 3);
+        expect(Math.abs(lastMove.to.y - previousLine.to.y)).toBeGreaterThan(1);
+        expect(lastLine.to.x).toBeGreaterThan(lastMove.to.x);
+      }
+    }
+  });
+
   it("supports basic placement offsets like above=... and right=...", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,name=a,node contents=A] at (0,0);

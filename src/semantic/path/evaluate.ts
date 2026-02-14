@@ -1,4 +1,4 @@
-import type { PathStatement } from "../../ast/types.js";
+import type { CoordinateItem, PathStatement } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
@@ -58,6 +58,23 @@ export function evaluatePathStatement(
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
+  let currentPointLogical: Point | null = context.currentPoint;
+  let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
+  const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
+  const setCurrentPoint = (
+    point: Point | null,
+    logicalPoint: Point | null = point,
+    coordinate: Pick<CoordinateItem, "form" | "x"> | null = null
+  ): void => {
+    context.currentPoint = point;
+    if (!point) {
+      currentPointLogical = null;
+      currentPointCoordinate = null;
+      return;
+    }
+    currentPointLogical = logicalPoint ?? point;
+    currentPointCoordinate = coordinate;
+  };
   const hasFilledShadowLayer = style.shadowLayers.some(
     (layer) =>
       layer.style.shadeEnabled ||
@@ -150,7 +167,7 @@ export function evaluatePathStatement(
           }
           const appended = appendArcCommand(path.commands, pendingArc.from, shorthand);
           activePath = path;
-          context.currentPoint = appended.endpoint;
+          setCurrentPoint(appended.endpoint);
           lastPlacementSegment = appended.segment;
           previousSegmentRoundedCorners = activeRoundedCorners;
           markFeature("keyword_arc", "supported");
@@ -193,7 +210,10 @@ export function evaluatePathStatement(
         geometryElements.push(
           ...makeGridElements(statement.id, item.id, pendingGrid.from, evaluated.point, pendingGrid.stepX, pendingGrid.stepY, style, item.span)
         );
-        context.currentPoint = evaluated.point;
+        setCurrentPoint(evaluated.point, evaluated.point, {
+          form: item.form,
+          x: item.x
+        });
         pendingGrid = null;
         continue;
       }
@@ -208,30 +228,47 @@ export function evaluatePathStatement(
         }
         markFeature("svg_path", "supported");
         pendingRectangleFrom = null;
-        context.currentPoint = evaluated.point;
+        setCurrentPoint(evaluated.point, evaluated.point, {
+          form: item.form,
+          x: item.x
+        });
         if (!context.pathStartPoint) {
           context.pathStartPoint = evaluated.point;
         }
         continue;
       }
 
-      const pathTargetPoint = maybeResolveNamedCoordinateBorderPoint(item, evaluated.point, context.currentPoint, context);
+      const coordinateRef: Pick<CoordinateItem, "form" | "x"> = {
+        form: item.form,
+        x: item.x
+      };
+      const sourceLogicalPoint = currentPointLogical ?? context.currentPoint;
+      const hasOperatorSegment = currentOperator != null && context.currentPoint != null && sourceLogicalPoint != null;
+      const pathSourcePoint = hasOperatorSegment
+        ? currentPointCoordinate
+          ? maybeResolveNamedCoordinateBorderPoint(currentPointCoordinate, sourceLogicalPoint, evaluated.point, context)
+          : sourceLogicalPoint
+        : null;
+      const pathTargetPoint = hasOperatorSegment
+        ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.point, sourceLogicalPoint, context)
+        : evaluated.point;
+      const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.point;
 
       if (!activePath) {
         activePath = makePath(statement.id, item.id, style, statement.span);
-        if (currentOperator && context.currentPoint) {
-          activePath.commands.push({ kind: "M", to: context.currentPoint });
+        if (hasOperatorSegment && pathSourcePoint) {
+          activePath.commands.push({ kind: "M", to: pathSourcePoint });
           const appended = appendPathPoint(
             activePath.commands,
             currentOperator,
-            context.currentPoint,
+            pathSourcePoint,
             pathTargetPoint,
             previousSegmentRoundedCorners,
             activeRoundedCorners
           );
           lastPlacementSegment = appended.segment;
           previousSegmentRoundedCorners = appended.nextRoundedCorners;
-          context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
+          context.pathStartPoint = pathSourcePoint;
         } else {
           activePath.commands.push({ kind: "M", to: pathTargetPoint });
           context.pathStartPoint = pathTargetPoint;
@@ -244,25 +281,44 @@ export function evaluatePathStatement(
         context.pathStartPoint = pathTargetPoint;
         lastPlacementSegment = null;
         previousSegmentRoundedCorners = null;
-      } else {
+      } else if (hasOperatorSegment && pathSourcePoint) {
+        const lastCommand = activePath.commands[activePath.commands.length - 1];
+        if (lastCommand?.kind === "M") {
+          lastCommand.to = pathSourcePoint;
+          context.pathStartPoint = pathSourcePoint;
+        } else {
+          const lastPoint =
+            lastCommand?.kind === "L" || lastCommand?.kind === "C"
+              ? lastCommand.to
+              : null;
+          if (!lastPoint || !pointsClose(lastPoint, pathSourcePoint)) {
+            activePath.commands.push({ kind: "M", to: pathSourcePoint });
+            context.pathStartPoint = pathSourcePoint;
+          }
+        }
         const appended = appendPathPoint(
           activePath.commands,
           currentOperator,
-          context.currentPoint,
+          pathSourcePoint,
           pathTargetPoint,
           previousSegmentRoundedCorners,
           activeRoundedCorners
         );
         lastPlacementSegment = appended.segment;
         previousSegmentRoundedCorners = appended.nextRoundedCorners;
+      } else {
+        activePath.commands.push({ kind: "M", to: pathTargetPoint });
+        context.pathStartPoint = pathTargetPoint;
+        lastPlacementSegment = null;
+        previousSegmentRoundedCorners = null;
       }
 
       const shouldAdvancePoint = item.relativePrefix ? item.relativePrefix === "++" : true;
       if (shouldAdvancePoint) {
-        context.currentPoint = pathTargetPoint;
+        setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
       }
       if (!context.currentPoint) {
-        context.currentPoint = pathTargetPoint;
+        setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
       }
       currentOperator = null;
       continue;
@@ -368,7 +424,7 @@ export function evaluatePathStatement(
         markFeature("svg_path", "supported");
 
         if (parsedCurve.endAdvancesCurrentPoint) {
-          context.currentPoint = parsedCurve.endPoint;
+          setCurrentPoint(parsedCurve.endPoint);
         }
         if (parsedCurve.endClosesPath) {
           activePath.commands.push({ kind: "Z" });
@@ -378,7 +434,7 @@ export function evaluatePathStatement(
           activePath = null;
           previousSegmentRoundedCorners = null;
           if (context.pathStartPoint) {
-            context.currentPoint = context.pathStartPoint;
+            setCurrentPoint(context.pathStartPoint);
           }
           lastPlacementSegment = null;
           markFeature("path_cycle", "supported");
@@ -403,7 +459,7 @@ export function evaluatePathStatement(
               activeRoundedCorners
             );
             previousSegmentRoundedCorners = appended.nextRoundedCorners;
-            context.currentPoint = pathStart;
+            setCurrentPoint(pathStart);
             roundClosedPathStartCorner(activePath.commands, closingFrom, pathStart, activeRoundedCorners);
           }
           activePath.commands.push({ kind: "Z" });
@@ -415,7 +471,7 @@ export function evaluatePathStatement(
           markFeature("path_cycle", "supported");
         }
         if (context.pathStartPoint) {
-          context.currentPoint = context.pathStartPoint;
+          setCurrentPoint(context.pathStartPoint);
         }
         lastPlacementSegment = null;
         currentOperator = null;
@@ -535,7 +591,7 @@ export function evaluatePathStatement(
             };
           }
         }
-        context.currentPoint = parsed.endPoint;
+        setCurrentPoint(parsed.endPoint);
         markFeature("svg_path", "supported");
         index = parsed.consumedIndex;
         currentOperator = null;
@@ -581,9 +637,15 @@ export function evaluatePathStatement(
         markFeature("svg_path", "supported");
 
         if (evaluatedTarget.advancesCurrentPoint) {
-          context.currentPoint = to;
+          setCurrentPoint(to, evaluatedTarget.point, {
+            form: targetItem.form,
+            x: targetItem.x
+          });
         } else if (!context.currentPoint) {
-          context.currentPoint = to;
+          setCurrentPoint(to, evaluatedTarget.point, {
+            form: targetItem.form,
+            x: targetItem.x
+          });
         }
 
         currentOperator = null;
@@ -650,7 +712,7 @@ export function evaluatePathStatement(
           }
           const appended = appendArcCommand(path.commands, pendingArc.from, arcParams);
           activePath = path;
-          context.currentPoint = appended.endpoint;
+          setCurrentPoint(appended.endpoint);
           lastPlacementSegment = appended.segment;
           previousSegmentRoundedCorners = activeRoundedCorners;
           markFeature("keyword_arc", "supported");
@@ -700,7 +762,7 @@ export function evaluatePathStatement(
           if (activePath) {
             activePath.commands.push({ kind: "M", to: trailingCoordinate.point });
           }
-          context.currentPoint = trailingCoordinate.point;
+          setCurrentPoint(trailingCoordinate.point);
           context.pathStartPoint = trailingCoordinate.point;
           lastPlacementSegment = null;
           previousSegmentRoundedCorners = null;
@@ -758,6 +820,7 @@ export function evaluatePathStatement(
       if (handled.previousSegmentRoundedCorners !== undefined) {
         previousSegmentRoundedCorners = handled.previousSegmentRoundedCorners;
       }
+      setCurrentPoint(context.currentPoint);
       continue;
     }
 
