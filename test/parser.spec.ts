@@ -380,6 +380,26 @@ describe("parseTikz", () => {
     }
   });
 
+  it("accepts escaped dollar and percent symbols in node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {\$1};
+  \node at (0,1) {100\%};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const pathStatements = result.figure.body.filter((statement) => statement.kind === "Path");
+    expect(pathStatements).toHaveLength(2);
+
+    const nodeTexts = pathStatements
+      .flatMap((statement) => (statement.kind === "Path" ? statement.items : []))
+      .filter((item) => item.kind === "Node")
+      .map((item) => (item.kind === "Node" ? item.text : ""));
+
+    expect(nodeTexts).toContain(String.raw`\$1`);
+    expect(nodeTexts).toContain(String.raw`100\%`);
+  });
+
   it("captures inline node placement coordinates in path syntax", () => {
     const source = String.raw`\begin{tikzpicture}
       \draw (0,0) node[draw] at (1,0) {A};

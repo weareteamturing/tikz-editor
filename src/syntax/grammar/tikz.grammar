@@ -280,6 +280,8 @@ MacroCommandDefaultArgPart {
   GroupPathOperator |
   MatrixRowSepCmd |
   EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
   PathKeyword |
   KnownCommand |
   CommandName |
@@ -321,6 +323,8 @@ OptionPart {
   GroupPathOperator |
   PathKeyword |
   EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
   KnownCommand |
   CommandName |
   NodeKw |
@@ -366,6 +370,8 @@ GroupPart {
   GroupPathOperator |
   MatrixRowSepCmd |
   EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
   PathKeyword |
   KnownCommand |
   CommandName |
@@ -386,6 +392,8 @@ StylePayloadPart {
   OptionList |
   PathKeyword |
   EscapedAmpersandCmd |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
   KnownCommand |
   CommandName |
   NodeKw |
@@ -434,11 +442,13 @@ Coordinate {
   "(" CoordPart* ")"
 }
 
-CoordPart {
+  CoordPart {
   Coordinate |
   OptionList |
   Group |
   PathKeyword |
+  EscapedPercentCmd |
+  EscapedDollarCmd |
   KnownCommand |
   CommandName |
   ToKw |
@@ -554,6 +564,8 @@ StrayToken {
     PgfkeysCmd,
     MatrixRowSepCmd,
     EscapedAmpersandCmd,
+    EscapedPercentCmd,
+    EscapedDollarCmd,
     AtKw,
     BendKw,
     CycleKw,
@@ -616,6 +628,8 @@ StrayToken {
   PgfkeysCmd { "\\pgfkeys" }
   MatrixRowSepCmd { "\\\\" }
   EscapedAmpersandCmd { "\\&" }
+  EscapedPercentCmd { "\\%" }
+  EscapedDollarCmd { "\\$" }
 
   AtKw { "at" }
   BendKw { "bend" }
