@@ -96,14 +96,14 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
     cursor = named.nextIndex;
     const optionBlock = readOptionalBracketOptions(input, cursor);
     cursor = optionBlock.nextIndex;
-    const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name)), optionBlock.optionsRaw);
+    const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name), style.lineWidth), optionBlock.optionsRaw);
     tips.push(tip);
   }
 
   return tips.length > 0 ? { tips } : null;
 }
 
-function expandArrowSymbol(symbol: ">" | "<" | "|", side: "start" | "end", style: ResolvedStyle): ArrowTip[] {
+function expandArrowSymbol(symbol: ">" | "<" | "|", _side: "start" | "end", style: ResolvedStyle): ArrowTip[] {
   if (symbol === "|") {
     return [makeDefaultArrowTip("bar")];
   }
@@ -112,13 +112,13 @@ function expandArrowSymbol(symbol: ">" | "<" | "|", side: "start" | "end", style
     if (style.arrowShorthandStart.tips.length > 0) {
       return style.arrowShorthandStart.tips.map(cloneArrowTip);
     }
-    return [makeDefaultArrowTip(side === "start" ? "to" : "cm-rightarrow")];
+    return [makeDefaultArrowTip("cm-rightarrow", style.lineWidth)];
   }
 
   if (style.arrowShorthandEnd.tips.length > 0) {
     return style.arrowShorthandEnd.tips.map(cloneArrowTip);
   }
-  return [makeDefaultArrowTip("to")];
+  return [makeDefaultArrowTip("cm-rightarrow", style.lineWidth)];
 }
 
 function resolveArrowTipKind(rawName: string): ArrowTipKind {
@@ -146,17 +146,40 @@ function resolveArrowTipKind(rawName: string): ArrowTipKind {
   if (normalized.includes("implies")) {
     return "implies";
   }
-  if (normalized.includes("rightarrow") || normalized === ">" || normalized === "<" || normalized.includes("to")) {
+  if (normalized.includes("rightarrow") || normalized === ">" || normalized === "<") {
+    return "cm-rightarrow";
+  }
+  if (normalized === "to") {
     return "to";
+  }
+  if (normalized.includes("to")) {
+    return "cm-rightarrow";
   }
   return "to";
 }
 
-export function makeDefaultArrowMarker(kind: ArrowTipKind): ArrowMarker {
-  return { tips: [makeDefaultArrowTip(kind)] };
+export function makeDefaultArrowMarker(kind: ArrowTipKind, lineWidth = 0.4): ArrowMarker {
+  return { tips: [makeDefaultArrowTip(kind, lineWidth)] };
 }
 
-function makeDefaultArrowTip(kind: ArrowTipKind): ArrowTip {
+function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
+  const baseLineWidth = normalizeArrowLineWidth(lineWidth);
+
+  if (kind === "cm-rightarrow") {
+    // Based on pgflibraryarrows.meta.code.tex (Computer Modern Rightarrow defaults + setup code).
+    const nominalLength = 1.6 + 2.2 * baseLineWidth;
+    const nominalWidth = nominalLength * 2.096774;
+    return {
+      kind,
+      open: true,
+      round: true,
+      color: null,
+      fill: "none",
+      length: Math.max(1, nominalLength - baseLineWidth),
+      width: Math.max(1, nominalWidth - baseLineWidth),
+      lineWidth: baseLineWidth
+    };
+  }
   if (kind === "bar") {
     return {
       kind,
@@ -205,6 +228,41 @@ function makeDefaultArrowTip(kind: ArrowTipKind): ArrowTip {
       lineWidth: null
     };
   }
+
+  if (kind === "stealth") {
+    // Based on pgflibraryarrows.meta.code.tex (Stealth defaults + setup code, no harpoon, no roundjoin).
+    const nominalLength = 3 + 4.5 * baseLineWidth;
+    const nominalWidth = 0.75 * nominalLength;
+    const nominalInset = 0.325 * nominalLength;
+    const effectiveLineWidth = Math.min(baseLineWidth, 0.25 * Math.max(0, nominalLength - nominalInset));
+
+    const frontSlope = nominalLength / Math.max(1e-6, nominalWidth);
+    const frontMiter = 0.5 * Math.sqrt(1 + 4 * frontSlope * frontSlope) * effectiveLineWidth;
+
+    const halfWidth = 0.5 * nominalWidth;
+    const angleTop = Math.atan2(nominalLength, Math.max(1e-6, halfWidth));
+    const angleInset = Math.atan2(nominalInset, Math.max(1e-6, halfWidth));
+    const halfDelta = 0.5 * (angleTop - angleInset);
+    const backMiterLength = 0.5 * (1 / Math.max(1e-6, Math.tan(halfDelta))) * effectiveLineWidth;
+    const bisector = angleInset + halfDelta;
+    const backMiterX = Math.sin(bisector) * backMiterLength;
+    const topMiterY = Math.cos(bisector) * backMiterLength;
+
+    const innerLength = nominalLength - frontMiter - backMiterX;
+    const innerHalfWidth = halfWidth - topMiterY;
+
+    return {
+      kind,
+      open: false,
+      round: false,
+      color: null,
+      fill: null,
+      length: Math.max(1, innerLength),
+      width: Math.max(1, 2 * innerHalfWidth),
+      lineWidth: null
+    };
+  }
+
   return {
     kind,
     open: false,
@@ -215,6 +273,10 @@ function makeDefaultArrowTip(kind: ArrowTipKind): ArrowTip {
     width: DEFAULT_ARROW_WIDTH,
     lineWidth: null
   };
+}
+
+function normalizeArrowLineWidth(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 0.4;
 }
 
 export function cloneArrowMarker(marker: ArrowMarker): ArrowMarker {

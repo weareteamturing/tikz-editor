@@ -14,7 +14,7 @@ import {
 import { cloneArrowMarker, makeDefaultArrowMarker } from "./arrows.js";
 
 export function defaultStyle(): ResolvedStyle {
-  const defaultTip = makeDefaultArrowMarker("to");
+  const defaultTip = makeDefaultArrowMarker("cm-rightarrow");
   return {
     stroke: "black",
     fill: null,

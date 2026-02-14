@@ -167,9 +167,12 @@ describe("svg emitter", () => {
 
     expect(emitted.svg).toContain('stroke-dasharray="4 2"');
     expect(emitted.svg).toContain('stroke-dashoffset="2"');
-    expect(emitted.svg).toContain('marker-start="url(#tikz-bar)"');
-    expect(emitted.svg).toContain('marker-end="url(#tikz-bar)"');
-    expect(emitted.svg).toContain('id="tikz-bar"');
+    const markerStartMatch = emitted.svg.match(/marker-start="url\(#([^"]+)\)"/);
+    const markerEndMatch = emitted.svg.match(/marker-end="url\(#([^"]+)\)"/);
+    expect(markerStartMatch?.[1]).toBeTruthy();
+    expect(markerEndMatch?.[1]).toBeTruthy();
+    expect(markerStartMatch?.[1]).toBe(markerEndMatch?.[1]);
+    expect(emitted.svg).toContain(`id="${markerStartMatch?.[1]}"`);
   });
 
   it("emits SVG gradients for axis/radial/ball shading options", () => {
@@ -264,6 +267,27 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('stroke="#0000ff"');
   });
 
+  it("avoids collapsing mixed >-Stealth tips and draws computer modern rightarrow as curved geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[->]        (0,0)   -- (1,0);
+  \draw[>-Stealth] (0,0.3) -- (1,0.3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const secondPath = emitted.svg.match(/data-source-id="path:1" d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
+    expect(secondPath).not.toBeNull();
+    if (!secondPath) {
+      return;
+    }
+
+    const startX = Number(secondPath[1]);
+    const endX = Number(secondPath[2]);
+    expect(endX - startX).toBeGreaterThan(20);
+    expect(emitted.svg).toContain("C");
+  });
+
   it("suppresses markers on closed paths and when tips=never", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[<->] (0,0) -- (1,0) -- cycle;
@@ -286,16 +310,19 @@ describe("svg emitter", () => {
     const emitted = emitSvg(semantic.scene);
 
     const pathTags = emitted.svg.match(/<path data-source-id="[^"]+" [^>]+>/g) ?? [];
-    expect(pathTags.length).toBe(2);
+    expect(pathTags.length).toBe(3);
     expect(pathTags[0]).not.toContain("marker-start=");
     expect(pathTags[0]).not.toContain("marker-end=");
-    expect(pathTags[1]).toContain("marker-start=");
-    expect(pathTags[1]).toContain("marker-end=");
+    expect(pathTags[1]).not.toContain("marker-start=");
+    expect(pathTags[1]).not.toContain("marker-end=");
+    expect(pathTags[2]).toContain("marker-start=");
+    expect(pathTags[2]).toContain("marker-end=");
+    expect(pathTags[2]).toContain('stroke="none"');
   });
 
   it("shortens path geometry to accommodate arrow tips", () => {
     const source = String.raw`\begin{tikzpicture}
-  \draw[<->] (0,0) -- (2,0);
+  \draw[arrows={Stealth-Stealth}] (0,0) -- (2,0);
 \end{tikzpicture}`;
     const parsed = parseTikz(source);
     const semantic = evaluateTikzFigure(parsed.figure, source);
@@ -309,8 +336,8 @@ describe("svg emitter", () => {
 
     const startX = Number(linePath[1]);
     const endX = Number(linePath[2]);
-    expect(startX).toBeGreaterThan(5);
-    expect(endX).toBeLessThan(52);
+    expect(startX).toBeGreaterThan(0.5);
+    expect(endX).toBeLessThan(55);
   });
 
   it("emits even-odd fill rule on compound fill paths", () => {

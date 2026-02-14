@@ -855,6 +855,29 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("uses computer modern rightarrow as the default > tip in arrows.meta-style specs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[->]        (0,0)   -- (1,0);
+  \draw[>-Stealth] (0,0.3) -- (1,0.3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+
+    const first = paths[0];
+    const second = paths[1];
+    expect(first?.kind).toBe("Path");
+    expect(second?.kind).toBe("Path");
+    if (first?.kind === "Path" && second?.kind === "Path") {
+      expect(first.style.markerStart).toBeNull();
+      expect(first.style.markerEnd?.tips[0]?.kind).toBe("cm-rightarrow");
+      expect(second.style.markerStart?.tips[0]?.kind).toBe("cm-rightarrow");
+      expect(second.style.markerEnd?.tips[0]?.kind).toBe("stealth");
+    }
+  });
+
   it("treats double distance as enabling a double stroke", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[thin,double distance=2pt] (0,0) arc (180:90:1cm);

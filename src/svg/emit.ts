@@ -183,6 +183,21 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           continue;
         }
 
+        if (part.markerOnly) {
+          const markerAttrs = styleAttributes(element.style, false, {
+            stroke: "none",
+            fill: "none"
+          });
+          if (part.markerStartId) {
+            markerAttrs.push(`marker-start="url(#${part.markerStartId})"`);
+          }
+          if (part.markerEndId) {
+            markerAttrs.push(`marker-end="url(#${part.markerEndId})"`);
+          }
+          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${markerAttrs.join(" ")} />`);
+          continue;
+        }
+
         emitShadowPathPart({
           body,
           sourceId: element.sourceId,
@@ -743,6 +758,7 @@ type PathRenderPart = {
   commands: ScenePathCommand[];
   markerStartId: string | null;
   markerEndId: string | null;
+  markerOnly: boolean;
 };
 
 function buildPathRenderParts(path: ScenePath, ensureMarkerDefinition: (marker: ArrowMarker) => string): PathRenderPart[] {
@@ -751,35 +767,54 @@ function buildPathRenderParts(path: ScenePath, ensureMarkerDefinition: (marker: 
     return [];
   }
 
-  const markerAttrs = resolvePathMarkers(path, subpaths, ensureMarkerDefinition);
+  const markerStart = path.style.markerStart ? markerWithContextLineWidth(path.style.markerStart, path.style.lineWidth) : null;
+  const markerEnd = path.style.markerEnd ? markerWithContextLineWidth(path.style.markerEnd, path.style.lineWidth) : null;
+  const markerColor = path.style.stroke && path.style.stroke !== "none" ? path.style.stroke : "#000000";
+  const markerStartForPath = markerStart ? markerWithResolvedColors(markerStart, markerColor) : null;
+  const markerEndForPath = markerEnd ? markerWithResolvedColors(markerEnd, markerColor) : null;
+  const markerAttrs = resolvePathMarkers(path, subpaths, markerStartForPath, markerEndForPath, ensureMarkerDefinition);
   if (!markerAttrs.startId && !markerAttrs.endId) {
-    return [{ commands: path.commands, markerStartId: null, markerEndId: null }];
+    return [{ commands: path.commands, markerStartId: null, markerEndId: null, markerOnly: false }];
   }
 
   const leadingSubpaths = subpaths.slice(0, -1);
   const leadingCommands = flattenSubpaths(leadingSubpaths);
   const lastSubpath = subpaths[subpaths.length - 1] ?? [];
-  const shortenedLastSubpath = shortenSubpathForMarkers(lastSubpath, path.style.markerStart, path.style.markerEnd);
+  const shortenedLastSubpath = shortenSubpathForMarkers(lastSubpath, markerStart, markerEnd);
 
   const parts: PathRenderPart[] = [];
   if (leadingCommands.length > 0 && hasDrawablePathCommands(leadingCommands)) {
     parts.push({
       commands: leadingCommands,
       markerStartId: null,
-      markerEndId: null
+      markerEndId: null,
+      markerOnly: false
     });
   }
-  parts.push({
-    commands: shortenedLastSubpath,
-    markerStartId: markerAttrs.startId,
-    markerEndId: markerAttrs.endId
-  });
+  if (hasDrawablePathCommands(shortenedLastSubpath)) {
+    parts.push({
+      commands: shortenedLastSubpath,
+      markerStartId: null,
+      markerEndId: null,
+      markerOnly: false
+    });
+  }
+  if (hasDrawablePathCommands(lastSubpath)) {
+    parts.push({
+      commands: lastSubpath.map(clonePathCommand),
+      markerStartId: markerAttrs.startId,
+      markerEndId: markerAttrs.endId,
+      markerOnly: true
+    });
+  }
   return parts;
 }
 
 function resolvePathMarkers(
   path: ScenePath,
   subpaths: ScenePathCommand[][],
+  markerStart: ArrowMarker | null,
+  markerEnd: ArrowMarker | null,
   ensureMarkerDefinition: (marker: ArrowMarker) => string
 ): { startId: string | null; endId: string | null } {
   if (!shouldEmitPathMarkers(path, subpaths)) {
@@ -787,8 +822,34 @@ function resolvePathMarkers(
   }
 
   return {
-    startId: path.style.markerStart ? ensureMarkerDefinition(path.style.markerStart) : null,
-    endId: path.style.markerEnd ? ensureMarkerDefinition(path.style.markerEnd) : null
+    startId: markerStart ? ensureMarkerDefinition(markerStart) : null,
+    endId: markerEnd ? ensureMarkerDefinition(markerEnd) : null
+  };
+}
+
+function markerWithContextLineWidth(marker: ArrowMarker, lineWidth: number): ArrowMarker {
+  const fallback = Number.isFinite(lineWidth) && lineWidth > 0 ? lineWidth : 0.4;
+  return {
+    tips: marker.tips.map((tip) => {
+      if (tip.lineWidth != null) {
+        return { ...tip };
+      }
+      if (tip.kind === "cm-rightarrow") {
+        return { ...tip, lineWidth: fallback };
+      }
+      return { ...tip };
+    })
+  };
+}
+
+function markerWithResolvedColors(marker: ArrowMarker, color: string): ArrowMarker {
+  return {
+    tips: marker.tips.map((tip) => {
+      if (tip.color != null) {
+        return { ...tip };
+      }
+      return { ...tip, color };
+    })
   };
 }
 
@@ -870,7 +931,7 @@ function shortenSubpathForMarkers(
   }
 
   if (markerStart) {
-    const requested = markerShorteningLength(markerStart);
+    const requested = markerStartShorteningLength(markerStart);
     applyStartShortening(commands, firstSegmentIndex, requested);
   }
 
@@ -888,12 +949,57 @@ function markerShorteningLength(marker: ArrowMarker): number {
   }
   let length = 0;
   for (const tip of marker.tips) {
-    length += Math.max(1, tip.length);
+    length += tipShorteningLength(tip, "end");
   }
   if (marker.tips.length > 1) {
     length += (marker.tips.length - 1) * 0.8;
   }
   return length;
+}
+
+function markerStartShorteningLength(marker: ArrowMarker): number {
+  if (marker.tips.length === 0) {
+    return 0;
+  }
+  let length = 0;
+  for (const tip of marker.tips) {
+    length += tipShorteningLength(tip, "start");
+  }
+  if (marker.tips.length > 1) {
+    length += (marker.tips.length - 1) * 0.8;
+  }
+  return length;
+}
+
+function tipShorteningLength(tip: ArrowTip, side: "start" | "end"): number {
+  const length = Math.max(1, tip.length);
+
+  if (tip.kind === "cm-rightarrow") {
+    if (side === "start") {
+      return length;
+    }
+    return tip.lineWidth != null && tip.lineWidth > 0 ? tip.lineWidth : 0.4;
+  }
+  if (tip.kind === "hooks" || tip.kind === "bar") {
+    return 0;
+  }
+  if (tip.kind === "stealth") {
+    return side === "start" ? length * 0.18 : length * 0.88;
+  }
+  if (tip.kind === "latex") {
+    return side === "start" ? length * 0.2 : length * 0.85;
+  }
+  if (tip.kind === "triangle") {
+    return side === "start" ? length * 0.2 : length * 0.9;
+  }
+  if (tip.kind === "implies") {
+    return side === "start" ? length * 0.25 : length * 0.9;
+  }
+  if (tip.kind === "to") {
+    return side === "start" ? length * 0.2 : length * 0.85;
+  }
+
+  return side === "start" ? length * 0.2 : length * 0.8;
 }
 
 function applyStartShortening(commands: ScenePathCommand[], firstSegmentIndex: number, requested: number): void {
@@ -1117,6 +1223,20 @@ function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string
   const fill = tip.fill ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? "none" : color);
   const stroke = strokeWidth > 0 ? color : "none";
 
+  if (tip.kind === "cm-rightarrow") {
+    const c1x = tipX - tip.length * 0.81731;
+    const c2x = tipX - tip.length * 0.41019;
+    const c1y = halfWidth * 0.4;
+    const c2y = halfWidth * 0.116666;
+    return (
+      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} ` +
+      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(tipX)} 0 ` +
+      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(baseX)} ${fmt(halfWidth)}" ` +
+      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1)}" ` +
+      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
   if (tip.kind === "bar") {
     const x = (tipX + baseX) / 2;
     return (
@@ -1147,7 +1267,7 @@ function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string
   }
 
   if (tip.kind === "stealth") {
-    const insetX = baseX + tip.length * 0.3;
+    const insetX = baseX + tip.length * 0.329;
     return (
       `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} L ${fmt(insetX)} 0 z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
