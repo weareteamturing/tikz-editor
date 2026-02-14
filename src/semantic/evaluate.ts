@@ -32,6 +32,7 @@ import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleVa
 import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
 import { expandOptionListMacros } from "./style/macro-options.js";
 import { readBalancedBlock } from "./style/option-utils.js";
+import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { identityMatrix } from "./transform.js";
 import type {
   Bounds,
@@ -308,19 +309,6 @@ function evaluateStatement(
   return [];
 }
 
-const STANDALONE_FONT_SIZE_FACTORS: Record<string, number> = {
-  "\\tiny": 0.5,
-  "\\scriptsize": 0.7,
-  "\\footnotesize": 0.8,
-  "\\small": 0.9,
-  "\\normalsize": 1,
-  "\\large": 1.2,
-  "\\Large": 1.44,
-  "\\LARGE": 1.728,
-  "\\huge": 2.074,
-  "\\Huge": 2.488
-};
-
 function applyStandaloneCommandStatement(
   raw: string,
   context: ReturnType<typeof createSemanticContext>,
@@ -329,7 +317,7 @@ function applyStandaloneCommandStatement(
 ): boolean {
   const command = parseStandaloneCommandName(raw);
   if (command) {
-    const fontFactor = STANDALONE_FONT_SIZE_FACTORS[command];
+    const fontFactor = FONT_SIZE_COMMAND_FACTORS[command];
     if (fontFactor != null) {
       const frame = currentFrame(context);
       frame.style = {

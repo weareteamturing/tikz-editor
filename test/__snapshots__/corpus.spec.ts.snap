@@ -13,9 +13,9 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   },
   "parse": {
     "failedHard": 0,
-    "parsedClean": 950,
-    "parsedWithRecovery": 1237,
-    "recoverableRate": 0.5656,
+    "parsedClean": 966,
+    "parsedWithRecovery": 1221,
+    "recoverableRate": 0.5583,
   },
   "sampleHardFailures": [],
   "semantic": {
@@ -80,7 +80,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topDiagnosticCodes": [
     {
       "code": "parse-error",
-      "count": 5924,
+      "count": 5802,
     },
     {
       "code": "missing-option-close",
@@ -113,12 +113,12 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-tikz-animations.tex",
     },
     {
-      "count": 50,
-      "filePath": "pgfmanual-en-tikz-shapes.tex",
-    },
-    {
       "count": 48,
       "filePath": "pgfmanual-en-base-animations.tex",
+    },
+    {
+      "count": 46,
+      "filePath": "pgfmanual-en-tikz-shapes.tex",
     },
     {
       "count": 36,
@@ -148,7 +148,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "foreach-body-parse-error",
-      "count": 1139,
+      "count": 1125,
     },
     {
       "code": "invalid-coordinate-operation",

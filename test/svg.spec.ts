@@ -468,4 +468,18 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('font-style="italic"');
     expect(emitted.svg).toContain('font-size="29.8879"');
   });
+
+  it("emits scaled font-size attributes for node font commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[font=\footnotesize] at (0,0) {small};
+  \node[font=\pgfutil@font@Large\itshape] at (1,0) {large};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('font-size="7.9701"');
+    expect(emitted.svg).toContain('font-size="14.3462"');
+    expect(emitted.svg).toContain('font-style="italic"');
+  });
 });

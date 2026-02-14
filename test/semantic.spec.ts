@@ -1858,4 +1858,48 @@ describe("semantic evaluator", () => {
       expect(text.style.fontStyle).toBe("italic");
     }
   });
+
+  it("supports font option with TeX size and shape commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {base};
+  \node[font=\footnotesize] at (1,0) {small};
+  \node[font=\Large\itshape] at (2,0) {large};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const base = result.scene.elements.find((element) => element.kind === "Text" && element.text === "base");
+    const small = result.scene.elements.find((element) => element.kind === "Text" && element.text === "small");
+    const large = result.scene.elements.find((element) => element.kind === "Text" && element.text === "large");
+    expect(base?.kind).toBe("Text");
+    expect(small?.kind).toBe("Text");
+    expect(large?.kind).toBe("Text");
+    if (base?.kind === "Text" && small?.kind === "Text" && large?.kind === "Text") {
+      expect(small.style.fontSize).toBeCloseTo(base.style.fontSize * 0.8, 3);
+      expect(large.style.fontSize).toBeCloseTo(base.style.fontSize * 1.44, 3);
+      expect(large.style.fontStyle).toBe("italic");
+    }
+  });
+
+  it("supports pgfutil font aliases and explicit \\fontsize commands in font options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {base};
+  \node[font=\pgfutil@font@footnotesize\pgfutil@font@itshape] at (1,0) {alias};
+  \node[font=\fontsize{6}{7}\selectfont] at (2,0) {custom};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const base = result.scene.elements.find((element) => element.kind === "Text" && element.text === "base");
+    const alias = result.scene.elements.find((element) => element.kind === "Text" && element.text === "alias");
+    const custom = result.scene.elements.find((element) => element.kind === "Text" && element.text === "custom");
+    expect(base?.kind).toBe("Text");
+    expect(alias?.kind).toBe("Text");
+    expect(custom?.kind).toBe("Text");
+    if (base?.kind === "Text" && alias?.kind === "Text" && custom?.kind === "Text") {
+      expect(alias.style.fontSize).toBeCloseTo(base.style.fontSize * 0.8, 3);
+      expect(alias.style.fontStyle).toBe("italic");
+      expect(custom.style.fontSize).toBeCloseTo(6, 3);
+    }
+  });
 });

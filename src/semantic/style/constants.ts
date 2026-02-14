@@ -150,6 +150,28 @@ export const NON_STYLE_OPTION_FLAGS = new Set([
 
 export const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
 export const DEFAULT_TEXT_FONT_SIZE = 9.96264;
+export const FONT_SIZE_COMMAND_FACTORS: Record<string, number> = {
+  "\\tiny": 0.5,
+  "\\scriptsize": 0.7,
+  "\\footnotesize": 0.8,
+  "\\small": 0.9,
+  "\\normalsize": 1,
+  "\\large": 1.2,
+  "\\Large": 1.44,
+  "\\LARGE": 1.728,
+  "\\huge": 2.074,
+  "\\Huge": 2.488,
+  "\\pgfutil@font@tiny": 0.5,
+  "\\pgfutil@font@scriptsize": 0.7,
+  "\\pgfutil@font@footnotesize": 0.8,
+  "\\pgfutil@font@small": 0.9,
+  "\\pgfutil@font@normalsize": 1,
+  "\\pgfutil@font@large": 1.2,
+  "\\pgfutil@font@Large": 1.44,
+  "\\pgfutil@font@LARGE": 1.728,
+  "\\pgfutil@font@huge": 2.074,
+  "\\pgfutil@font@Huge": 2.488
+};
 export const DEFAULT_DOUBLE_DISTANCE = 0.6;
 export const DEFAULT_ARROW_LENGTH = 8;
 export const DEFAULT_ARROW_WIDTH = 6;

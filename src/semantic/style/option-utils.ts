@@ -2,6 +2,7 @@ import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import type { ResolvedStyle } from "../types.js";
+import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
 export function parseStyleValueAsOptionList(valueRaw: string): OptionListAst | null {
   const trimmed = valueRaw.trim();
@@ -22,15 +23,57 @@ export function parseStyleValueAsOptionList(valueRaw: string): OptionListAst | n
   return parseOptionListRaw(optionRaw);
 }
 
-export function parseFontStyle(raw: string): Pick<ResolvedStyle, "fontStyle"> | null {
-  const normalized = raw.trim().toLowerCase();
-  if (normalized.includes("itshape") || normalized.includes("slshape")) {
-    return { fontStyle: "italic" };
+const FONT_STYLE_BY_COMMAND: Record<string, ResolvedStyle["fontStyle"]> = {
+  "\\itshape": "italic",
+  "\\slshape": "italic",
+  "\\upshape": "normal",
+  "\\normalfont": "normal",
+  "\\pgfutil@font@itshape": "italic",
+  "\\pgfutil@font@normalfont": "normal"
+};
+
+const CONTROL_SEQUENCE_PATTERN = /\\[A-Za-z@]+/g;
+
+export function parseFontStyle(raw: string): Partial<Pick<ResolvedStyle, "fontStyle" | "fontSize">> | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
   }
-  if (normalized.includes("upshape") || normalized.includes("normalfont")) {
-    return { fontStyle: "normal" };
+
+  let fontStyle: ResolvedStyle["fontStyle"] | undefined;
+  let fontSize: number | undefined;
+
+  const commands = extractControlSequences(trimmed);
+  for (const command of commands) {
+    const mappedStyle = FONT_STYLE_BY_COMMAND[command.name];
+    if (mappedStyle) {
+      fontStyle = mappedStyle;
+    }
+
+    const mappedScale = FONT_SIZE_COMMAND_FACTORS[command.name];
+    if (mappedScale != null) {
+      fontSize = DEFAULT_TEXT_FONT_SIZE * mappedScale;
+      continue;
+    }
+
+    if (command.name !== "\\fontsize") {
+      continue;
+    }
+
+    const explicitSize = parseExplicitFontSize(trimmed, command.endIndex);
+    if (explicitSize != null) {
+      fontSize = explicitSize;
+    }
   }
-  return null;
+
+  const parsed: Partial<Pick<ResolvedStyle, "fontStyle" | "fontSize">> = {};
+  if (fontStyle) {
+    parsed.fontStyle = fontStyle;
+  }
+  if (fontSize != null) {
+    parsed.fontSize = fontSize;
+  }
+  return Object.keys(parsed).length > 0 ? parsed : null;
 }
 
 export function parseAxisVector(raw: string, axis: "x" | "y"): { x: number; y: number } | null {
@@ -159,4 +202,45 @@ export function findTopLevelCharacter(input: string, character: string): number 
   }
 
   return -1;
+}
+
+function extractControlSequences(input: string): Array<{ name: string; endIndex: number }> {
+  const commands: Array<{ name: string; endIndex: number }> = [];
+  const matcher = new RegExp(CONTROL_SEQUENCE_PATTERN.source, "g");
+  let match = matcher.exec(input);
+  while (match) {
+    commands.push({
+      name: match[0],
+      endIndex: match.index + match[0].length
+    });
+    match = matcher.exec(input);
+  }
+  return commands;
+}
+
+function parseExplicitFontSize(input: string, startIndex: number): number | null {
+  let cursor = startIndex;
+  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+
+  const sizeBlock = readBalancedBlock(input, cursor, "{", "}");
+  if (!sizeBlock) {
+    return null;
+  }
+  cursor = sizeBlock.nextIndex;
+  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+
+  const baselineBlock = readBalancedBlock(input, cursor, "{", "}");
+  if (!baselineBlock) {
+    return null;
+  }
+
+  const parsedSize = parseLength(sizeBlock.content, "pt");
+  if (parsedSize == null || !Number.isFinite(parsedSize) || parsedSize <= 0) {
+    return null;
+  }
+  return parsedSize;
 }

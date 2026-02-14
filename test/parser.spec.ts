@@ -100,6 +100,28 @@ describe("parseTikz", () => {
     expect(result.figure.body[1]?.kind).toBe("Path");
   });
 
+  it("accepts font-size commands inside node font options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [font=\small] at (0,0) {hi};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(1);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "Path") {
+      const node = result.figure.body[0].items.find((item) => item.kind === "Node");
+      expect(node?.kind).toBe("Node");
+      if (node?.kind === "Node") {
+        const fontEntry = node.options?.entries.find((entry) => entry.kind === "kv" && entry.key === "font");
+        expect(fontEntry?.kind).toBe("kv");
+        if (fontEntry?.kind === "kv") {
+          expect(fontEntry.valueRaw).toBe("\\small");
+        }
+      }
+    }
+  });
+
   it("parses standalone style-definition commands without requiring semicolons", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{highlight/.style={draw=red}}
