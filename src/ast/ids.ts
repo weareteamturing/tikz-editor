@@ -10,6 +10,14 @@ export function foreachStatementId(statementIndex: number): string {
   return `foreach:${statementIndex}`;
 }
 
+export function macroDefinitionStatementId(statementIndex: number): string {
+  return `macro-definition:${statementIndex}`;
+}
+
+export function macroAliasStatementId(statementIndex: number): string {
+  return `macro-alias:${statementIndex}`;
+}
+
 export function unknownStatementId(statementIndex: number): string {
   return `unknown-statement:${statementIndex}`;
 }

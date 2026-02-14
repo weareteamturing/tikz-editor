@@ -9,7 +9,13 @@ export type TikzFigure = {
   body: Statement[];
 };
 
-export type Statement = PathStatement | ScopeStatement | ForeachStatement | UnknownStatement;
+export type Statement =
+  | PathStatement
+  | ScopeStatement
+  | ForeachStatement
+  | MacroDefinitionStatement
+  | MacroAliasStatement
+  | UnknownStatement;
 
 export type PathStatement = {
   kind: "Path";
@@ -40,6 +46,30 @@ export type ForeachStatement = {
   listRaw?: string;
   prefixRaw: string;
   bodyRaw: string;
+};
+
+export type MacroDefinitionStatement = {
+  kind: "MacroDefinition";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\def";
+  nameRaw: string;
+  nameSpan?: Span;
+  valueRaw: string;
+  valueSpan?: Span;
+};
+
+export type MacroAliasStatement = {
+  kind: "MacroAlias";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\let";
+  nameRaw: string;
+  nameSpan?: Span;
+  targetRaw: string;
+  targetSpan?: Span;
 };
 
 export type PathCommand =

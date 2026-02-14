@@ -1,7 +1,14 @@
 import type { SyntaxNode } from "@lezer/common";
 
-import { foreachStatementId, scopeStatementId } from "../../ast/ids.js";
-import type { ForeachStatement, ScopeStatement, Statement } from "../../ast/types.js";
+import { foreachStatementId, macroAliasStatementId, macroDefinitionStatementId, scopeStatementId } from "../../ast/ids.js";
+import type {
+  ForeachStatement,
+  MacroAliasStatement,
+  MacroDefinitionStatement,
+  ScopeStatement,
+  Span,
+  Statement
+} from "../../ast/types.js";
 import { mapPathStatement } from "../paths/parse.js";
 import { mapUnknownStatement } from "../../transform/unknown.js";
 import { parseOptionListRaw } from "../../options/parse.js";
@@ -39,6 +46,14 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
 
   if (node.type.name === "StyleDefinitionStatement") {
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
+  if (node.type.name === "MacroDefinitionStatement") {
+    return mapMacroDefinitionStatement(node, source, state);
+  }
+
+  if (node.type.name === "MacroAliasStatement") {
+    return mapMacroAliasStatement(node, source, state);
   }
 
   if (node.type.name === "TikzSetStatement" || node.type.name === "TikzStyleStatement" || node.type.name === "PgfkeysStatement") {
@@ -118,6 +133,75 @@ function mapForeachStatement(node: SyntaxNode, source: string, state: StatementM
     prefixRaw: parsedHeader.headerRaw,
     bodyRaw
   };
+}
+
+function mapMacroDefinitionStatement(node: SyntaxNode, source: string, state: StatementMappingState): MacroDefinitionStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const nameNode = findFirstChildByName(node, "CommandName");
+  const valueNode = findFirstChildByName(node, "Group");
+
+  return {
+    kind: "MacroDefinition",
+    id: macroDefinitionStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\def",
+    nameRaw: nameNode ? source.slice(nameNode.from, nameNode.to) : "",
+    nameSpan: toSpan(nameNode),
+    valueRaw: valueNode ? extractGroupInnerRaw(valueNode, source) : "",
+    valueSpan: valueNode ? toGroupInnerSpan(valueNode, source) : undefined
+  };
+}
+
+function mapMacroAliasStatement(node: SyntaxNode, source: string, state: StatementMappingState): MacroAliasStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const nameNode = findFirstChildByName(node, "CommandName");
+  const targetNode = findFirstChildByName(node, "LetAliasTarget");
+  const targetCommandNode = targetNode ? findFirstChildByName(targetNode, "CommandName") : null;
+  const targetGroupNode = targetNode ? findFirstChildByName(targetNode, "Group") : null;
+
+  return {
+    kind: "MacroAlias",
+    id: macroAliasStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\let",
+    nameRaw: nameNode ? source.slice(nameNode.from, nameNode.to) : "",
+    nameSpan: toSpan(nameNode),
+    targetRaw: targetCommandNode
+      ? source.slice(targetCommandNode.from, targetCommandNode.to)
+      : targetGroupNode
+        ? extractGroupInnerRaw(targetGroupNode, source)
+        : "",
+    targetSpan: targetCommandNode
+      ? toSpan(targetCommandNode)
+      : targetGroupNode
+        ? toGroupInnerSpan(targetGroupNode, source)
+        : undefined
+  };
+}
+
+function toGroupInnerSpan(node: SyntaxNode, source: string): Span {
+  const hasOpen = source[node.from] === "{";
+  const hasClose = source[node.to - 1] === "}";
+  const from = hasOpen ? node.from + 1 : node.from;
+  const to = hasClose ? node.to - 1 : node.to;
+  return {
+    from,
+    to: Math.max(from, to)
+  };
+}
+
+function extractGroupInnerRaw(node: SyntaxNode, source: string): string {
+  const span = toGroupInnerSpan(node, source);
+  return source.slice(span.from, span.to);
+}
+
+function toSpan(node: SyntaxNode | null): Span | undefined {
+  if (!node) {
+    return undefined;
+  }
+  return { from: node.from, to: node.to };
 }
 
 function allocateStatementIndex(state: StatementMappingState): number {

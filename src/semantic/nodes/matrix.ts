@@ -1,4 +1,5 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
+import { expandMacroBindings } from "../../macros/index.js";
 import { parseOptionListRaw, splitTopLevel } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseLength } from "../coords/parse-length.js";
@@ -126,7 +127,17 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       const cellOptionScale = resolveNodeOptionScale(combinedCellOptions, params.style, params.context);
       const cellTransformScale = params.inheritedTransformScale * cellOptionScale;
       const cellStyle = resolveNodeStyle(combinedCellOptions, params.style, params.context, cellTransformScale);
-      const cellLayout = resolveNodeLayout(parsedCell.text, combinedCellOptions, cellStyle, cellTransformScale, params.context.textEngine);
+      const expandedCellText = expandMacroBindings(
+        parsedCell.text,
+        params.context.stack[params.context.stack.length - 1].macroBindings
+      );
+      const cellLayout = resolveNodeLayout(
+        expandedCellText,
+        combinedCellOptions,
+        cellStyle,
+        cellTransformScale,
+        params.context.textEngine
+      );
 
       cellGrid[row][column] = {
         cell: parsedCell,
@@ -244,7 +255,10 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         atRaw: `(${formatCoordinateValue(position.x)},${formatCoordinateValue(position.y)})`,
         textSource: "group",
         textSpan: params.item.textSpan,
-        text: resolvedCell.cell.text
+        text: expandMacroBindings(
+          resolvedCell.cell.text,
+          params.context.stack[params.context.stack.length - 1].macroBindings
+        )
       };
       const evaluatedCell = params.evaluateNestedNode(cellItem);
       behindCellElements.push(...evaluatedCell.behindElements);

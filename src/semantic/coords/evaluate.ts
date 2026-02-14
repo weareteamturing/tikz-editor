@@ -1,6 +1,7 @@
 import type { CoordinateItem } from "../../ast/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import { expandMacroBindings } from "../../macros/index.js";
 import type { SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
 import { applyMatrix, applyMatrixToVector } from "../transform.js";
@@ -17,7 +18,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   const frame = context.stack[context.stack.length - 1];
 
   if (item.form === "named") {
-    const rawName = item.x.trim();
+    const rawName = expandCoordinateComponent(item.x.trim(), frame.macroBindings).trim();
     const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
     const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
     if (!named) {
@@ -32,7 +33,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   }
 
   if (item.form === "calc") {
-    const evaluatedCalc = evaluateCalcCoordinate(item.x, context, frame.transform);
+    const evaluatedCalc = evaluateCalcCoordinate(expandCoordinateComponent(item.x, frame.macroBindings), context, frame.transform);
     return {
       point: evaluatedCalc.point,
       diagnostics: evaluatedCalc.diagnostics,
@@ -41,7 +42,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   }
 
   if (item.form === "explicit") {
-    const parsed = parseExplicitCoordinate(item.x);
+    const parsed = parseExplicitCoordinate(expandCoordinateComponent(item.x, frame.macroBindings));
     if (!parsed) {
       diagnostics.push(`unsupported-coordinate-form:${item.form}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
@@ -63,9 +64,9 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   }
 
   if (item.form === "xyz") {
-    const x = parseLength(item.x, "cm");
-    const y = parseLength(item.y, "cm");
-    const z = item.z ? parseLength(item.z, "cm") : 0;
+    const x = parseLength(expandCoordinateComponent(item.x, frame.macroBindings), "cm");
+    const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings), "cm");
+    const z = item.z ? parseLength(expandCoordinateComponent(item.z, frame.macroBindings), "cm") : 0;
     if (x == null || y == null || z == null) {
       diagnostics.push(`invalid-xyz-coordinate:${item.raw}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
@@ -90,8 +91,8 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   let localPoint: Point | null = null;
 
   if (item.form === "polar") {
-    const angleQuantity = parseQuantityExpression(item.x.trim());
-    const radius = parseLength(item.y, "cm");
+    const angleQuantity = parseQuantityExpression(expandCoordinateComponent(item.x.trim(), frame.macroBindings));
+    const radius = parseLength(expandCoordinateComponent(item.y, frame.macroBindings), "cm");
     if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
       diagnostics.push(`invalid-polar-coordinate:${item.raw}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
@@ -104,8 +105,8 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       y: radius * Math.sin(radians)
     };
   } else {
-    const x = parseLength(item.x, "cm");
-    const y = parseLength(item.y, "cm");
+    const x = parseLength(expandCoordinateComponent(item.x, frame.macroBindings), "cm");
+    const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings), "cm");
     if (x == null || y == null) {
       diagnostics.push(`invalid-cartesian-coordinate:${item.raw}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
@@ -373,4 +374,8 @@ export function evaluateRawCoordinate(
     options: undefined
   };
   return evaluateCoordinate(pseudo, context);
+}
+
+function expandCoordinateComponent(raw: string, bindings: ReadonlyMap<string, string>): string {
+  return expandMacroBindings(raw, bindings);
 }

@@ -127,6 +127,44 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone macro definition and alias commands without requiring semicolons", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{3}
+  \let\y\x
+  \draw (\x,0) -- (\y,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.length).toBe(3);
+    expect(result.figure.body[0]?.kind).toBe("MacroDefinition");
+    expect(result.figure.body[1]?.kind).toBe("MacroAlias");
+    expect(result.figure.body[2]?.kind).toBe("Path");
+
+    if (result.figure.body[0]?.kind === "MacroDefinition") {
+      expect(result.figure.body[0].nameRaw).toBe("\\x");
+      expect(result.figure.body[0].valueRaw.trim()).toBe("3");
+    }
+    if (result.figure.body[1]?.kind === "MacroAlias") {
+      expect(result.figure.body[1].nameRaw).toBe("\\y");
+      expect(result.figure.body[1].targetRaw).toBe("\\x");
+    }
+  });
+
+  it("allows trailing semicolons after standalone macro commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{3};
+  \let\y=\x;
+  \draw (\x,0) -- (\y,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body[0]?.kind).toBe("MacroDefinition");
+    expect(result.figure.body[1]?.kind).toBe("MacroAlias");
+    expect(result.figure.body[2]?.kind).toBe("Path");
+  });
+
   it("returns diagnostics while still producing IR for incomplete input", () => {
     const source = loadFixture("incomplete.tex");
     const result = parseTikz(source);

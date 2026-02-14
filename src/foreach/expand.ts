@@ -3,6 +3,8 @@ import {
   coordinateOperationItemId,
   foreachStatementId,
   letOperationItemId,
+  macroAliasStatementId,
+  macroDefinitionStatementId,
   nodeForeachClauseId,
   nodeItemId,
   pathCommentItemId,
@@ -477,6 +479,16 @@ function reindexStatementsInPlace(statements: Statement[], state: { nextStatemen
 
     if (statement.kind === "Foreach") {
       statement.id = foreachStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "MacroDefinition") {
+      statement.id = macroDefinitionStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "MacroAlias") {
+      statement.id = macroAliasStatementId(statementIndex);
       continue;
     }
 

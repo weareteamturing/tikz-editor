@@ -1442,6 +1442,85 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies \\def macro bindings to coordinate expressions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{3}
+  \draw (\x,2) -- (\x,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      const line = path.commands.find((command) => command.kind === "L");
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M" && line?.kind === "L") {
+        expect(move.to.x).toBeCloseTo(85.3583, 3);
+        expect(move.to.y).toBeCloseTo(56.9055, 3);
+        expect(line.to.x).toBeCloseTo(85.3583, 3);
+        expect(line.to.y).toBeCloseTo(85.3583, 3);
+      }
+    }
+  });
+
+  it("applies \\let aliases by value at definition time", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{1}
+  \let\y=\x
+  \def\x{2}
+  \draw (\y,0) -- (\x,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      const line = path.commands.find((command) => command.kind === "L");
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M" && line?.kind === "L") {
+        expect(move.to.x).toBeCloseTo(28.4527, 3);
+        expect(line.to.x).toBeCloseTo(56.9055, 3);
+      }
+    }
+  });
+
+  it("keeps macro definitions scoped inside nested scope statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{1}
+  \begin{scope}
+    \def\x{2}
+    \draw (\x,0) -- (\x,1);
+  \end{scope}
+  \draw (\x,0) -- (\x,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths).toHaveLength(2);
+    const first = paths[0];
+    const second = paths[1];
+    expect(first?.kind).toBe("Path");
+    expect(second?.kind).toBe("Path");
+    if (first?.kind === "Path" && second?.kind === "Path") {
+      const firstMove = first.commands.find((command) => command.kind === "M");
+      const secondMove = second.commands.find((command) => command.kind === "M");
+      expect(firstMove?.kind).toBe("M");
+      expect(secondMove?.kind).toBe("M");
+      if (firstMove?.kind === "M" && secondMove?.kind === "M") {
+        expect(firstMove.to.x).toBeCloseTo(56.9055, 3);
+        expect(secondMove.to.x).toBeCloseTo(28.4527, 3);
+      }
+    }
+  });
+
   it("resolves custom style overwrite order left-to-right", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{

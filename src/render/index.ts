@@ -51,6 +51,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
   let textEngine = providedEngine;
   const browserRuntime = hasBrowserDomGlobals();
   const useDefaultNodeTextValidator = opts.validateNodeText ?? true;
+  const hasUserMacros = containsUserMacroDefinitions(source);
   if (!textEngine && !browserRuntime && mathJaxEngineUnavailable) {
     renderDiagnostics.push({
       code: "mathjax-engine-unavailable",
@@ -85,7 +86,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
     ...(opts.parse ?? {}),
     nodeTextValidator:
       opts.parse?.nodeTextValidator ??
-      (useDefaultNodeTextValidator && textEngine
+      (useDefaultNodeTextValidator && textEngine && !hasUserMacros
         ? ({ node }) => {
             return textEngine?.validate(node.text) ?? null;
           }
@@ -126,6 +127,10 @@ function describeMathJaxFailure(error: unknown): string {
     return "MathJax text engine initialization failed; falling back to plain SVG text rendering.";
   }
   return `MathJax text engine initialization failed; falling back to plain SVG text rendering. (${normalizedDetails})`;
+}
+
+function containsUserMacroDefinitions(source: string): boolean {
+  return /\\(?:def|let|newcommand|renewcommand)\b/.test(source);
 }
 
 function logMathJaxWarning(message: string): void {

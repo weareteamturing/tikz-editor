@@ -1,4 +1,5 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
+import { expandMacroBindings } from "../../macros/index.js";
 import type { SemanticContext } from "../context.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
@@ -69,6 +70,8 @@ export function evaluateNodeItem(
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
   }
 
+  const expandedNodeText = expandMacroBindings(item.text, frame.macroBindings);
+
   const matrixMode = resolveMatrixMode(effectiveNodeOptions);
   if (matrixMode.enabled) {
     return evaluateMatrixNodeItem({
@@ -92,7 +95,7 @@ export function evaluateNodeItem(
     });
   }
 
-  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const nodeLayout = resolveNodeLayout(expandedNodeText, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,

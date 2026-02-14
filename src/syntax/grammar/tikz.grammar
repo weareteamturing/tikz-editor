@@ -22,6 +22,8 @@ Statement {
   PathStatement |
   FontSizeStatement |
   StyleDefinitionStatement |
+  MacroDefinitionStatement |
+  MacroAliasStatement |
   UnknownStatement
 }
 
@@ -228,6 +230,18 @@ TikzStyleStatement {
 
 PgfkeysStatement {
   PgfkeysCmd StylePayload
+}
+
+MacroDefinitionStatement {
+  DefCmd CommandName Group
+}
+
+MacroAliasStatement {
+  LetDefCmd CommandName LetAliasTarget
+}
+
+LetAliasTarget {
+  "="? (CommandName | Group)
 }
 
 UnknownPart {
@@ -464,6 +478,8 @@ StrayToken {
     BeginTikz,
     TikzSetCmd,
     TikzStyleCmd,
+    DefCmd,
+    LetDefCmd,
     InlineTikzCmd,
     EndTikz,
     FillDrawCmd,
@@ -540,6 +556,8 @@ StrayToken {
   CoordinateCmd { "\\coordinate" }
   TikzSetCmd { "\\tikzset" }
   TikzStyleCmd { "\\tikzstyle" }
+  DefCmd { "\\def" }
+  LetDefCmd { "\\let" }
   PgfkeysCmd { "\\pgfkeys" }
   MatrixRowSepCmd { "\\\\" }
   EscapedAmpersandCmd { "\\&" }

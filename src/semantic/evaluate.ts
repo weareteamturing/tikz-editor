@@ -1,8 +1,16 @@
-import type { PathItem, PathStatement, TikzFigure, Statement } from "../ast/types.js";
+import type {
+  MacroAliasStatement,
+  MacroDefinitionStatement,
+  PathItem,
+  PathStatement,
+  TikzFigure,
+  Statement
+} from "../ast/types.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
 import type { FeatureId } from "../capabilities/feature-ids.js";
 import { expandForeachFigure } from "../foreach/index.js";
+import { expandMacroBindings, isControlSequenceToken } from "../macros/index.js";
 import type {
   ForeachOriginFrame as ExpansionForeachOriginFrame,
   ForeachStatementAttribution
@@ -57,6 +65,7 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       style: rootDelta.style,
       transform: rootDelta.transform,
       customStyles: rootCustomStyles,
+      macroBindings: new Map(parent.macroBindings),
       namePrefix: rootMeta.namePrefix,
       nameSuffix: rootMeta.nameSuffix,
       nodeLayerMode: rootMeta.nodeLayerMode,
@@ -147,6 +156,7 @@ function evaluateStatement(
       style: resolved.style,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
+      macroBindings: new Map(parent.macroBindings),
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
@@ -196,6 +206,7 @@ function evaluateStatement(
       style: resolved.style,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
+      macroBindings: new Map(parent.macroBindings),
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
@@ -221,6 +232,18 @@ function evaluateStatement(
 
   if (statement.kind === "Foreach") {
     markFeature(featureUsage, "foreach_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "MacroDefinition") {
+    applyMacroDefinitionStatement(statement, context);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "MacroAlias") {
+    applyMacroAliasStatement(statement, context);
+    markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
 
@@ -324,6 +347,49 @@ function applyOptionListsToCurrentFrame(
       span
     });
   }
+}
+
+function applyMacroDefinitionStatement(
+  statement: MacroDefinitionStatement,
+  context: ReturnType<typeof createSemanticContext>
+): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) {
+    return;
+  }
+
+  const frame = currentFrame(context);
+  frame.macroBindings.set(name, statement.valueRaw);
+}
+
+function applyMacroAliasStatement(statement: MacroAliasStatement, context: ReturnType<typeof createSemanticContext>): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) {
+    return;
+  }
+
+  const frame = currentFrame(context);
+  const targetRaw = statement.targetRaw.trim();
+  if (targetRaw.length === 0) {
+    return;
+  }
+
+  let aliasValue = targetRaw;
+  if (isControlSequenceToken(targetRaw)) {
+    aliasValue = frame.macroBindings.get(targetRaw) ?? targetRaw;
+  } else {
+    aliasValue = expandMacroBindings(targetRaw, frame.macroBindings);
+  }
+
+  frame.macroBindings.set(name, aliasValue);
+}
+
+function normalizeMacroName(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!isControlSequenceToken(trimmed)) {
+    return null;
+  }
+  return trimmed;
 }
 
 function parseStandaloneCommandName(raw: string): string | null {
