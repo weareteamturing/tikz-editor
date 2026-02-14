@@ -79,4 +79,33 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
     expect(result.svg.svg).toContain("\\textit");
   });
+
+  it("renders foreach \\textsf labels through MathJax in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \label in {1,2,3}
+    \node at (\label,0) {\textsf{\label}};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg.includes('xml:space="preserve">\\textsf{')).toBe(false);
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
+  it("keeps math control sequence boundaries after foreach substitution in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {a}
+    \foreach \y in {b}
+      \node at (0,0) {$\mathstrut\x\y$};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg.includes('xml:space="preserve">$\\mathstrut')).toBe(false);
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toBe(String.raw`$\mathstrut{}ab$`);
+    }
+  });
 });

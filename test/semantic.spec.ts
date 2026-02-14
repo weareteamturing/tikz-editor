@@ -279,6 +279,57 @@ describe("semantic evaluator", () => {
     expect(labels).toEqual(["a", "2"]);
   });
 
+  it("supports grouped slash bindings in list entries", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \center/\r in {{(0,0)/2mm}, {(1,1)/3mm}, {(2,0)/1mm}}
+    \draw[yshift=2.5cm] \center circle (\r);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate"))).toBe(false);
+
+    const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+    expect(circles).toHaveLength(3);
+    const maxRadius = circles.reduce((max, element) => {
+      if (element.kind !== "Circle") {
+        return max;
+      }
+      return Math.max(max, element.radius);
+    }, 0);
+    expect(maxRadius).toBeLessThan(10);
+  });
+
+  it("keeps single-anchor dots ranges as a single item", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {e,...,e}
+    \node at (0,0) {\x};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toEqual(["e"]);
+  });
+
+  it("preserves TeX control sequence boundaries during foreach substitution", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {a}
+    \foreach \y in {a}
+      \node at (0,0) {$\mathstrut\x\y$};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (text?.kind === "Text") {
+      expect(text.text).toBe(String.raw`$\mathstrut{}aa$`);
+    }
+  });
+
   it("expands dots lists for numeric, single-anchor, alphabetic, and contextual forms", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {1,2,...,4} \node at (\x,0) {\x};
@@ -532,6 +583,85 @@ describe("semantic evaluator", () => {
       expect(topPath.style.dashOffset).toBeCloseTo(0);
       expect(bottomPath.style.dashArray).toEqual([20, 10]);
       expect(bottomPath.style.dashOffset).toBeCloseTo(10);
+    }
+  });
+
+  it("resolves TikZ shading option keys into semantic shading state", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[top color=red,bottom color=blue,shading angle=30] (0,0) rectangle (1,1);
+  \shade[left color=green,right color=yellow] (2,0) rectangle (3,1);
+  \shade[inner color=white,outer color=black] (4,0) circle (0.5);
+  \shade[ball color=red] (6,0) circle (0.5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const unsupportedShadingOptions = result.diagnostics.filter((diagnostic) =>
+      [
+        "unsupported-option-key:top color",
+        "unsupported-option-key:bottom color",
+        "unsupported-option-key:left color",
+        "unsupported-option-key:right color",
+        "unsupported-option-key:inner color",
+        "unsupported-option-key:outer color",
+        "unsupported-option-key:ball color"
+      ].includes(diagnostic.code)
+    );
+    expect(unsupportedShadingOptions).toHaveLength(0);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(4);
+
+    const axisPath = paths[0];
+    expect(axisPath?.kind).toBe("Path");
+    if (axisPath?.kind === "Path") {
+      expect(axisPath.style.shadeEnabled).toBe(true);
+      expect(axisPath.style.shading).toBe("axis");
+      expect(axisPath.style.shadingAngle).toBeCloseTo(30);
+      expect(axisPath.style.axisTopColor).toBe("#ff0000");
+      expect(axisPath.style.axisBottomColor).toBe("#0000ff");
+      expect(axisPath.style.axisMiddleColor).toBe("#800080");
+    }
+
+    const sideAxisPath = paths[1];
+    expect(sideAxisPath?.kind).toBe("Path");
+    if (sideAxisPath?.kind === "Path") {
+      expect(sideAxisPath.style.shading).toBe("axis");
+      expect(sideAxisPath.style.shadingAngle).toBeCloseTo(90);
+      expect(sideAxisPath.style.axisTopColor).toBe("#008000");
+      expect(sideAxisPath.style.axisBottomColor).toBe("#ffff00");
+    }
+
+    const radialPath = paths[2];
+    expect(radialPath?.kind).toBe("Path");
+    if (radialPath?.kind === "Path") {
+      expect(radialPath.style.shading).toBe("radial");
+      expect(radialPath.style.radialInnerColor).toBe("#ffffff");
+      expect(radialPath.style.radialOuterColor).toBe("#000000");
+    }
+
+    const ballPath = paths[3];
+    expect(ballPath?.kind).toBe("Path");
+    if (ballPath?.kind === "Path") {
+      expect(ballPath.style.shading).toBe("ball");
+      expect(ballPath.style.ballColor).toBe("#ff0000");
+    }
+  });
+
+  it("supports shade=false/none choices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[shade,shade=false,fill=red] (0,0) rectangle (1,1);
+  \draw[shade,shade=none,fill=blue] (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    for (const path of paths) {
+      if (path.kind === "Path") {
+        expect(path.style.shadeEnabled).toBe(false);
+      }
     }
   });
 

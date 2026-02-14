@@ -146,6 +146,19 @@ export type ResolvedStyle = {
   opacity: number;
   strokeOpacity: number;
   fillOpacity: number;
+  shadeEnabled: boolean;
+  shading: string;
+  shadingAngle: number;
+  axisTopColor: string;
+  axisMiddleColor: string;
+  axisBottomColor: string;
+  radialInnerColor: string;
+  radialOuterColor: string;
+  ballColor: string;
+  bilinearLowerLeft: string;
+  bilinearLowerRight: string;
+  bilinearUpperLeft: string;
+  bilinearUpperRight: string;
 };
 
 export type FeatureUsageState = "unused" | "used-supported" | "used-unsupported";

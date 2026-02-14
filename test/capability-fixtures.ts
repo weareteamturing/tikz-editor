@@ -26,6 +26,9 @@ export const capabilityFixtures: Record<string, string> = {
   option_styles: String.raw`\begin{tikzpicture}
   \draw[red,fill=blue,line width=1pt] (0,0) -- (1,0);
 \end{tikzpicture}`,
+  shading_styles: String.raw`\begin{tikzpicture}
+  \shade[top color=red,bottom color=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`,
   arrow_tips: String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt]}] (0,0) -- (1,0);
 \end{tikzpicture}`,

@@ -59,7 +59,7 @@ export function evaluatePathStatement(
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
-  const shouldCompoundFilledSubpaths = style.fill != null && style.fill !== "none";
+  const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none");
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];

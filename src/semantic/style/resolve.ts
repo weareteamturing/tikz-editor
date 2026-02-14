@@ -157,6 +157,12 @@ export const DEFAULT_TEXT_FONT_SIZE = 9.96264;
 const DEFAULT_DOUBLE_DISTANCE = 0.6;
 const DEFAULT_ARROW_LENGTH = 8;
 const DEFAULT_ARROW_WIDTH = 6;
+const DEFAULT_AXIS_TOP_COLOR = COLOR_HEX.gray;
+const DEFAULT_AXIS_MIDDLE_COLOR = mixNormalizedColors(COLOR_HEX.gray, COLOR_HEX.white, 0.5) ?? "#c0c0c0";
+const DEFAULT_AXIS_BOTTOM_COLOR = COLOR_HEX.white;
+const DEFAULT_BALL_COLOR = COLOR_HEX.blue;
+const DEFAULT_RADIAL_INNER_COLOR = COLOR_HEX.gray;
+const DEFAULT_RADIAL_OUTER_COLOR = COLOR_HEX.white;
 
 const ARROW_NAME_ALIASES = ([
   { name: "computer modern rightarrow", kind: "cm-rightarrow" },
@@ -214,7 +220,20 @@ export function defaultStyle(): ResolvedStyle {
     tipsMode: "on draw",
     opacity: 1,
     strokeOpacity: 1,
-    fillOpacity: 1
+    fillOpacity: 1,
+    shadeEnabled: false,
+    shading: "axis",
+    shadingAngle: 0,
+    axisTopColor: DEFAULT_AXIS_TOP_COLOR,
+    axisMiddleColor: DEFAULT_AXIS_MIDDLE_COLOR,
+    axisBottomColor: DEFAULT_AXIS_BOTTOM_COLOR,
+    radialInnerColor: DEFAULT_RADIAL_INNER_COLOR,
+    radialOuterColor: DEFAULT_RADIAL_OUTER_COLOR,
+    ballColor: DEFAULT_BALL_COLOR,
+    bilinearLowerLeft: COLOR_HEX.white,
+    bilinearLowerRight: COLOR_HEX.white,
+    bilinearUpperLeft: COLOR_HEX.white,
+    bilinearUpperRight: COLOR_HEX.white
   };
 }
 
@@ -229,22 +248,26 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
       return {
         stroke: null,
         fill: null,
-        drawExplicit: false
+        drawExplicit: false,
+        shadeEnabled: false
       };
     case "pattern":
       return {
-        fill: inheritedStyle.fill ?? "black"
+        fill: inheritedStyle.fill ?? "black",
+        shadeEnabled: false
       };
     case "shade":
       return {
         fill: inheritedStyle.fill ?? "black",
-        stroke: inheritedStyle.drawExplicit ? inheritedStyle.stroke ?? "black" : null
+        stroke: inheritedStyle.drawExplicit ? inheritedStyle.stroke ?? "black" : null,
+        shadeEnabled: true
       };
     case "shadedraw":
       return {
         fill: inheritedStyle.fill ?? "black",
         stroke: inheritedStyle.stroke ?? "black",
-        drawExplicit: true
+        drawExplicit: true,
+        shadeEnabled: true
       };
     case "fill":
       return {
@@ -262,7 +285,8 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
       return {
         stroke: null,
         fill: null,
-        drawExplicit: false
+        drawExplicit: false,
+        shadeEnabled: false
       };
     case "node":
     case "coordinate":
@@ -320,6 +344,9 @@ function applyFlagEntry(
   }
   if (key === "fill") {
     return { style: { ...style, fill: style.fill ?? "black" }, transform, diagnostics: [] };
+  }
+  if (key === "shade") {
+    return { style: { ...style, fill: style.fill ?? "black", shadeEnabled: true }, transform, diagnostics: [] };
   }
   if (key === "rounded corners") {
     return { style: { ...style, roundedCorners: parseLength("4pt", "pt") ?? 4 }, transform, diagnostics: [] };
@@ -463,6 +490,190 @@ function applyKvEntry(
       return { style, transform, diagnostics: [`invalid-tips:${valueRaw}`] };
     }
     return { style: { ...style, tipsMode: parsed }, transform, diagnostics: [] };
+  }
+  if (key === "shade") {
+    const normalized = normalizeOptionValue(valueRaw).toLowerCase();
+    if (normalized === "" || normalized === "true") {
+      return { style: { ...style, fill: style.fill ?? "black", shadeEnabled: true }, transform, diagnostics: [] };
+    }
+    if (normalized === "false" || normalized === "none") {
+      return { style: { ...style, shadeEnabled: false }, transform, diagnostics: [] };
+    }
+    return { style, transform, diagnostics: [`invalid-shade:${valueRaw}`] };
+  }
+  if (key === "shading") {
+    const shading = normalizeShadingName(valueRaw);
+    if (!shading) {
+      return { style, transform, diagnostics: [`invalid-shading:${valueRaw}`] };
+    }
+    return { style: { ...style, shading, shadeEnabled: true }, transform, diagnostics: [] };
+  }
+  if (key === "shading angle") {
+    const angle = Number(valueRaw);
+    if (!Number.isFinite(angle)) {
+      return { style, transform, diagnostics: [`invalid-shading-angle:${valueRaw}`] };
+    }
+    return { style: { ...style, shadingAngle: angle, shadeEnabled: true }, transform, diagnostics: [] };
+  }
+  if (key === "top color") {
+    const topColor = normalizeColor(valueRaw);
+    const middleColor = mixNormalizedColors(topColor, style.axisBottomColor, 0.5) ?? style.axisMiddleColor;
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "axis",
+        shadingAngle: 0,
+        axisTopColor: topColor,
+        axisMiddleColor: middleColor
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "bottom color") {
+    const bottomColor = normalizeColor(valueRaw);
+    const middleColor = mixNormalizedColors(style.axisTopColor, bottomColor, 0.5) ?? style.axisMiddleColor;
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "axis",
+        shadingAngle: 0,
+        axisBottomColor: bottomColor,
+        axisMiddleColor: middleColor
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "middle color") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "axis",
+        axisMiddleColor: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "left color") {
+    const topColor = normalizeColor(valueRaw);
+    const middleColor = mixNormalizedColors(topColor, style.axisBottomColor, 0.5) ?? style.axisMiddleColor;
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "axis",
+        shadingAngle: 90,
+        axisTopColor: topColor,
+        axisMiddleColor: middleColor
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "right color") {
+    const bottomColor = normalizeColor(valueRaw);
+    const middleColor = mixNormalizedColors(style.axisTopColor, bottomColor, 0.5) ?? style.axisMiddleColor;
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "axis",
+        shadingAngle: 90,
+        axisBottomColor: bottomColor,
+        axisMiddleColor: middleColor
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "ball color") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "ball",
+        ballColor: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "inner color") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "radial",
+        radialInnerColor: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "outer color") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "radial",
+        radialOuterColor: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "lower left") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "bilinear interpolation",
+        bilinearLowerLeft: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "lower right") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "bilinear interpolation",
+        bilinearLowerRight: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "upper left") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "bilinear interpolation",
+        bilinearUpperLeft: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key === "upper right") {
+    return {
+      style: {
+        ...style,
+        shadeEnabled: true,
+        shading: "bilinear interpolation",
+        bilinearUpperRight: normalizeColor(valueRaw)
+      },
+      transform,
+      diagnostics: []
+    };
   }
 
   if (key === "fill") {
@@ -800,6 +1011,41 @@ function normalizeColor(raw: string): string {
     return mixed;
   }
   return normalized || "black";
+}
+
+function normalizeOptionValue(raw: string): string {
+  return stripEnclosingBraces(raw).trim();
+}
+
+function normalizeShadingName(raw: string): string {
+  const normalized = normalizeOptionValue(raw).toLowerCase();
+  return normalized.replace(/\s+/g, " ").trim();
+}
+
+function mixNormalizedColors(first: string, second: string, ratio: number): string | null {
+  const c1 = toRgbColor(first);
+  const c2 = toRgbColor(second);
+  if (!c1 || !c2) {
+    return null;
+  }
+
+  const t = clamp01(ratio);
+  return rgbToHex({
+    r: Math.round(c1.r * t + c2.r * (1 - t)),
+    g: Math.round(c1.g * t + c2.g * (1 - t)),
+    b: Math.round(c1.b * t + c2.b * (1 - t))
+  });
+}
+
+function toRgbColor(color: string): { r: number; g: number; b: number } | null {
+  const normalized = color.trim().toLowerCase();
+  if (normalized in COLOR_HEX) {
+    return hexToRgb(COLOR_HEX[normalized]);
+  }
+  if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
+    return hexToRgb(normalized);
+  }
+  return null;
 }
 
 function clamp01(value: number): number {

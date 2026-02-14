@@ -151,6 +151,38 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('id="tikz-bar"');
   });
 
+  it("emits SVG gradients for axis/radial/ball shading options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \shade[top color=red,bottom color=blue,shading angle=45] (0,0) rectangle (1,1);
+  \shade[inner color=white,outer color=black] (2,0) circle (0.5);
+  \shade[ball color=red] (3,0) circle (0.5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<defs>");
+    expect(emitted.svg).toContain("<linearGradient");
+    expect(emitted.svg).toContain('id="tikz-shading-axis-');
+    expect(emitted.svg).toContain('gradientTransform="rotate(-45 0.5 0.5)"');
+    expect(emitted.svg).toContain("<radialGradient");
+    expect(emitted.svg).toContain('id="tikz-shading-radial-');
+    expect(emitted.svg).toContain('id="tikz-shading-ball-');
+    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-shading:"))).toBe(false);
+  });
+
+  it("reports unsupported shading names while falling back to fill color", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \shade[shading=color wheel] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-shading:color wheel")).toBe(true);
+    expect(emitted.svg).toContain('fill="black"');
+  });
+
   it("emits arrow markers from arrows= specifications and > shorthand defaults", () => {
     const source = String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt,color=blue]}] (0,0) -- (2,0);

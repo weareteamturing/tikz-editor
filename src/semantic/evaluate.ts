@@ -118,6 +118,10 @@ function evaluateStatement(
     const resolved = resolveContextDelta(baseStyle, parent.transform, optionLists);
     const frameMeta = resolveFrameMeta(parent, optionLists);
 
+    if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
+      markFeature(featureUsage, "path_shading", "supported");
+    }
+
     for (const code of resolved.diagnostics) {
       diagnostics.push({
         severity: "warning",

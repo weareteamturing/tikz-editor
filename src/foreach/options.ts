@@ -192,7 +192,8 @@ export function buildForeachIterations(params: {
   const iterations: ForeachIteration[] = [];
   for (let index = 0; index < listEntries.length; index += 1) {
     const listEntry = listEntries[index];
-    const splitValues = splitAllAtTopLevel(listEntry, "/").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+    const normalizedEntry = normalizeListEntryForSplit(listEntry);
+    const splitValues = splitAllAtTopLevel(normalizedEntry, "/").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
     const fallbackValue = splitValues.length > 0 ? splitValues[splitValues.length - 1] : "";
 
     const bindingScope: ForeachIterationBinding = { ...params.baseBindings };
@@ -342,4 +343,42 @@ function formatNumber(value: number): string {
     .toFixed(12)
     .replace(/\.?0+$/, "")
     .replace(/^-0$/, "0");
+}
+
+function normalizeListEntryForSplit(raw: string): string {
+  let current = raw.trim();
+  while (true) {
+    const stripped = stripOuterBraces(current);
+    if (stripped === current) {
+      return current;
+    }
+    current = stripped;
+  }
+}
+
+function stripOuterBraces(raw: string): string {
+  if (!raw.startsWith("{") || !raw.endsWith("}")) {
+    return raw;
+  }
+
+  let depth = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && index !== raw.length - 1) {
+        return raw;
+      }
+    }
+  }
+
+  return raw.slice(1, -1).trim();
 }

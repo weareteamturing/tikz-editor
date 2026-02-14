@@ -832,6 +832,8 @@ function resolveNodeBoxPaintMode(options: PathOptionItem["options"] | undefined)
         draw = true;
       } else if (entry.key === "fill") {
         fill = true;
+      } else if (entry.key === "shade") {
+        fill = true;
       }
       continue;
     }
@@ -847,6 +849,31 @@ function resolveNodeBoxPaintMode(options: PathOptionItem["options"] | undefined)
 
     if (entry.key === "fill") {
       fill = normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none";
+      continue;
+    }
+
+    if (entry.key === "shade") {
+      const value = normalizeOptionValue(entry.valueRaw).toLowerCase();
+      fill = value !== "none" && value !== "false";
+      continue;
+    }
+
+    if (
+      entry.key === "shading" ||
+      entry.key === "top color" ||
+      entry.key === "bottom color" ||
+      entry.key === "middle color" ||
+      entry.key === "left color" ||
+      entry.key === "right color" ||
+      entry.key === "ball color" ||
+      entry.key === "inner color" ||
+      entry.key === "outer color" ||
+      entry.key === "lower left" ||
+      entry.key === "lower right" ||
+      entry.key === "upper left" ||
+      entry.key === "upper right"
+    ) {
+      fill = true;
     }
   }
 

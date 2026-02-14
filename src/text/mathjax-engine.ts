@@ -15,6 +15,7 @@ type MathJaxAdaptor = {
 
 type MathJaxRuntime = {
   tex2svg(tex: string, options: { display: boolean }): unknown;
+  tex2svgPromise?: (tex: string, options: { display: boolean }) => Promise<unknown>;
   startup: {
     adaptor: MathJaxAdaptor;
   };
@@ -74,6 +75,7 @@ async function initializeEngine(): Promise<NodeTextEngine> {
       }
     }
   });
+  await preloadMathJaxWarmupExpressions(runtime);
 
   const adaptor = runtime.startup?.adaptor;
   if (!adaptor) {
@@ -127,6 +129,29 @@ async function initializeEngine(): Promise<NodeTextEngine> {
       return cache.get(cacheKey)?.payload ?? null;
     }
   };
+}
+
+async function preloadMathJaxWarmupExpressions(runtime: MathJaxRuntime): Promise<void> {
+  if (typeof runtime.tex2svgPromise !== "function") {
+    return;
+  }
+
+  const warmupExpressions = [
+    "\\mbox{\\textsf{0}}",
+    "\\mbox{\\texttt{0}}",
+    "\\mbox{\\textrm{0}}",
+    "\\mbox{\\textbf{0}}",
+    "\\mbox{\\textit{0}}",
+    "\\mbox{$\\mathstrut a$}"
+  ];
+
+  for (const expression of warmupExpressions) {
+    try {
+      await runtime.tex2svgPromise(expression, { display: false });
+    } catch {
+      // Fall back silently; measure/validate will still guard individual failures.
+    }
+  }
 }
 
 function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor): CachedRenderEntry | null {

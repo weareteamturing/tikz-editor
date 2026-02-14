@@ -6,6 +6,7 @@ export const FEATURE_IDS = [
   "foreach_node_operation",
   "unknown_statement",
   "options_structured",
+  "path_shading",
   "arrow_tips",
   "path_operators_basic",
   "path_operator_curves",

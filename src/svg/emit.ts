@@ -1,6 +1,21 @@
-import type { ArrowMarker, ArrowTip, SceneElement, SceneFigure, ScenePath, ScenePathCommand } from "../semantic/types.js";
+import type { ArrowMarker, ArrowTip, ResolvedStyle, SceneElement, SceneFigure, ScenePath, ScenePathCommand } from "../semantic/types.js";
 import { computeViewBox } from "./viewbox.js";
 import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
+
+const COLOR_HEX = {
+  black: "#000000",
+  white: "#ffffff",
+  red: "#ff0000",
+  blue: "#0000ff",
+  green: "#008000",
+  yellow: "#ffff00",
+  orange: "#ffa500",
+  brown: "#8b4513",
+  gray: "#808080",
+  purple: "#800080",
+  cyan: "#00ffff",
+  magenta: "#ff00ff"
+} as const;
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
   const padding = opts.padding ?? 12;
@@ -10,6 +25,9 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
   const body: string[] = [];
   const markerIdBySignature = new Map<string, string>();
   const markerDefById = new Map<string, string>();
+  const gradientIdBySignature = new Map<string, string>();
+  const gradientDefById = new Map<string, string>();
+  const unsupportedShadingNames = new Set<string>();
 
   const ensureMarkerDefinition = (marker: ArrowMarker): string => {
     const signature = markerSignature(marker);
@@ -23,6 +41,70 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     markerIdBySignature.set(signature, id);
     markerDefById.set(id, renderMarkerDefinition(id, marker));
     return id;
+  };
+
+  const ensureGradientDefinition = (signature: string, kind: string, buildDef: (id: string) => string): string => {
+    const existing = gradientIdBySignature.get(signature);
+    if (existing) {
+      return existing;
+    }
+
+    const id = `tikz-shading-${kind}-${gradientIdBySignature.size + 1}`;
+    gradientIdBySignature.set(signature, id);
+    gradientDefById.set(id, buildDef(id));
+    return id;
+  };
+
+  const resolveShadingFill = (style: ResolvedStyle, sourceId: string): string | null => {
+    if (!style.shadeEnabled) {
+      return null;
+    }
+
+    const shadingName = normalizeShadingName(style.shading);
+    if (!shadingName || shadingName === "axis") {
+      const signature = JSON.stringify({
+        kind: "axis",
+        angle: style.shadingAngle,
+        top: style.axisTopColor,
+        middle: style.axisMiddleColor,
+        bottom: style.axisBottomColor
+      });
+      const id = ensureGradientDefinition(signature, "axis", (gradientId) =>
+        renderAxisGradientDefinition(gradientId, style.shadingAngle, style.axisTopColor, style.axisMiddleColor, style.axisBottomColor)
+      );
+      return `url(#${id})`;
+    }
+
+    if (shadingName === "radial") {
+      const signature = JSON.stringify({
+        kind: "radial",
+        inner: style.radialInnerColor,
+        outer: style.radialOuterColor
+      });
+      const id = ensureGradientDefinition(signature, "radial", (gradientId) =>
+        renderRadialGradientDefinition(gradientId, style.radialInnerColor, style.radialOuterColor)
+      );
+      return `url(#${id})`;
+    }
+
+    if (shadingName === "ball") {
+      const signature = JSON.stringify({
+        kind: "ball",
+        color: style.ballColor
+      });
+      const id = ensureGradientDefinition(signature, "ball", (gradientId) => renderBallGradientDefinition(gradientId, style.ballColor));
+      return `url(#${id})`;
+    }
+
+    if (!unsupportedShadingNames.has(shadingName)) {
+      unsupportedShadingNames.add(shadingName);
+      diagnostics.push({
+        code: `unsupported-shading:${shadingName}`,
+        message: `Shading "${shadingName}" is not currently supported in SVG output (source ${sourceId}).`
+      });
+    }
+
+    return null;
   };
 
   for (const element of scene.elements) {
@@ -43,8 +125,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         }
 
         if (shouldEmitDoubleStroke(element.style)) {
+          const outerFill = resolveShadingFill(element.style, element.sourceId);
           const outerAttrs = styleAttributes(element.style, false, {
-            lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
+            lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+            fill: outerFill ?? undefined
           });
           if (part.markerStartId) {
             outerAttrs.push(`marker-start="url(#${part.markerStartId})"`);
@@ -62,7 +146,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           continue;
         }
 
-        const attrs = styleAttributes(element.style);
+        const shadingFill = resolveShadingFill(element.style, element.sourceId);
+        const attrs = styleAttributes(element.style, false, {
+          fill: shadingFill ?? undefined
+        });
         if (part.markerStartId) {
           attrs.push(`marker-start="url(#${part.markerStartId})"`);
         }
@@ -77,8 +164,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
       if (shouldEmitDoubleStroke(element.style)) {
+        const outerFill = resolveShadingFill(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
-          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
+          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+          fill: outerFill ?? undefined
         });
         body.push(
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${outerAttrs.join(" ")} />`
@@ -92,7 +181,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const attrs = styleAttributes(element.style);
+        const shadingFill = resolveShadingFill(element.style, element.sourceId);
+        const attrs = styleAttributes(element.style, false, {
+          fill: shadingFill ?? undefined
+        });
         body.push(
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${attrs.join(" ")} />`
         );
@@ -103,8 +195,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
       if (shouldEmitDoubleStroke(element.style)) {
+        const outerFill = resolveShadingFill(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
-          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
+          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+          fill: outerFill ?? undefined
         });
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           outerAttrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
@@ -124,7 +218,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const attrs = styleAttributes(element.style);
+        const shadingFill = resolveShadingFill(element.style, element.sourceId);
+        const attrs = styleAttributes(element.style, false, {
+          fill: shadingFill ?? undefined
+        });
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           attrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
         }
@@ -163,7 +260,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }
 
-  const defsParts = [...markerDefById.values()];
+  const defsParts = [...markerDefById.values(), ...gradientDefById.values()];
   const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
 
   const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
@@ -692,27 +789,79 @@ function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string
   );
 }
 
+function normalizeShadingName(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function renderAxisGradientDefinition(id: string, angle: number, topColor: string, middleColor: string, bottomColor: string): string {
+  const resolvedAngle = Number.isFinite(angle) ? angle : 0;
+  return (
+    `<linearGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" x1="0.5" y1="1" x2="0.5" y2="0" ` +
+    `gradientTransform="rotate(${fmt(-resolvedAngle)} 0.5 0.5)">` +
+    `<stop offset="0%" stop-color="${escapeAttr(bottomColor)}" />` +
+    `<stop offset="25%" stop-color="${escapeAttr(bottomColor)}" />` +
+    `<stop offset="50%" stop-color="${escapeAttr(middleColor)}" />` +
+    `<stop offset="75%" stop-color="${escapeAttr(topColor)}" />` +
+    `<stop offset="100%" stop-color="${escapeAttr(topColor)}" />` +
+    `</linearGradient>`
+  );
+}
+
+function renderRadialGradientDefinition(id: string, innerColor: string, outerColor: string): string {
+  return (
+    `<radialGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.7071" fx="0.5" fy="0.5">` +
+    `<stop offset="0%" stop-color="${escapeAttr(innerColor)}" />` +
+    `<stop offset="50%" stop-color="${escapeAttr(outerColor)}" />` +
+    `<stop offset="100%" stop-color="${escapeAttr(outerColor)}" />` +
+    `</radialGradient>`
+  );
+}
+
+function renderBallGradientDefinition(id: string, ballColor: string): string {
+  const light15 = mixColors(ballColor, "#ffffff", 0.15) ?? ballColor;
+  const light75 = mixColors(ballColor, "#ffffff", 0.75) ?? ballColor;
+  const dark70 = mixColors(ballColor, "#000000", 0.7) ?? ballColor;
+  const dark50 = mixColors(ballColor, "#000000", 0.5) ?? ballColor;
+
+  return (
+    `<radialGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.75" fx="0.3" fy="0.3">` +
+    `<stop offset="0%" stop-color="${escapeAttr(light15)}" />` +
+    `<stop offset="18%" stop-color="${escapeAttr(light75)}" />` +
+    `<stop offset="36%" stop-color="${escapeAttr(dark70)}" />` +
+    `<stop offset="50%" stop-color="${escapeAttr(dark50)}" />` +
+    `<stop offset="100%" stop-color="#000000" />` +
+    `</radialGradient>`
+  );
+}
+
+function mixColors(first: string, second: string, ratioFirst: number): string | null {
+  const c1 = toRgb(first);
+  const c2 = toRgb(second);
+  if (!c1 || !c2) {
+    return null;
+  }
+
+  const t = clamp01(ratioFirst);
+  return rgbToHex({
+    r: Math.round(c1.r * t + c2.r * (1 - t)),
+    g: Math.round(c1.g * t + c2.g * (1 - t)),
+    b: Math.round(c1.b * t + c2.b * (1 - t))
+  });
+}
+
+function toRgb(color: string): { r: number; g: number; b: number } | null {
+  const normalized = color.trim().toLowerCase();
+  if (normalized in COLOR_HEX) {
+    return hexToRgb(COLOR_HEX[normalized as keyof typeof COLOR_HEX]);
+  }
+  if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
+    return hexToRgb(normalized);
+  }
+  return null;
+}
+
 function styleAttributes(
-  style: {
-    stroke: string | null;
-    fill: string | null;
-    fillRule: "nonzero" | "evenodd";
-    lineWidth: number;
-    dashArray: number[] | null;
-    dashOffset: number;
-    lineCap: "butt" | "round" | "square";
-    lineJoin: "miter" | "round" | "bevel";
-    opacity: number;
-    strokeOpacity: number;
-    fillOpacity: number;
-    fontSize: number;
-    fontStyle: "normal" | "italic";
-    doubleStroke: boolean;
-    doubleDistance: number;
-    textColor?: string | null;
-    textOpacity?: number;
-    textAlign?: "left" | "flush left" | "right" | "flush right" | "center" | "flush center" | "justify" | "none";
-  },
+  style: ResolvedStyle,
   isText = false,
   overrides: { stroke?: string | null; fill?: string | null; lineWidth?: number } = {}
 ): string[] {
@@ -769,6 +918,37 @@ function toSvgPoint(point: { x: number; y: number }, viewBox: { y: number; heigh
 
 function fmt(value: number): string {
   return Number(value.toFixed(4)).toString();
+}
+
+function clamp01(value: number): number {
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 1) {
+    return 1;
+  }
+  return value;
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace(/^#/, "");
+  const value = normalized.length === 3 ? normalized.split("").map((char) => char + char).join("") : normalized;
+  const parsed = Number.parseInt(value, 16);
+  return {
+    r: (parsed >> 16) & 255,
+    g: (parsed >> 8) & 255,
+    b: parsed & 255
+  };
+}
+
+function rgbToHex(rgb: { r: number; g: number; b: number }): string {
+  return (
+    "#" +
+    [rgb.r, rgb.g, rgb.b]
+      .map((component) => Math.max(0, Math.min(255, component)))
+      .map((component) => component.toString(16).padStart(2, "0"))
+      .join("")
+  );
 }
 
 function escapeText(value: string): string {

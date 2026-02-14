@@ -40,9 +40,14 @@ export function expandForeachList(listRaw: string, opts: ForeachListExpansionOpt
       continue;
     }
 
-    const inserted = expandDotsEntry(entry, expanded, next, opts);
-    if (!inserted) {
+    const expandedDots = expandDotsEntry(entry, expanded, next, opts);
+    if (!expandedDots.inserted) {
       expanded.push(entry);
+      continue;
+    }
+
+    if (expandedDots.consumeNext) {
+      index += 1;
     }
   }
 
@@ -54,21 +59,21 @@ function expandDotsEntry(
   expandedSoFar: string[],
   nextRaw: string,
   opts: ForeachListExpansionOptions
-): boolean {
+): { inserted: boolean; consumeNext: boolean } {
   if (expandedSoFar.length === 0) {
-    return false;
+    return { inserted: false, consumeNext: false };
   }
 
   const { prefix, suffix } = splitContext(dotsEntry);
   const previousRaw = expandedSoFar[expandedSoFar.length - 1];
   const previous = extractDotValue(previousRaw, prefix, suffix, opts.parseExpressions);
   if (!previous) {
-    return false;
+    return { inserted: false, consumeNext: false };
   }
 
   const next = extractDotValue(nextRaw, prefix, suffix, opts.parseExpressions);
   if (!next || next.kind !== previous.kind) {
-    return false;
+    return { inserted: false, consumeNext: false };
   }
 
   let step: number;
@@ -84,28 +89,24 @@ function expandDotsEntry(
     step = next.value > previous.value ? 1 : -1;
   }
 
-  if (step === 0) {
-    return false;
-  }
-
   const generated: string[] = [];
   if (previous.kind === "number") {
     let value = previous.value + step;
     const epsilon = 1e-9;
-    while (step > 0 ? value < next.value - epsilon : value > next.value + epsilon) {
+    while (step > 0 ? value <= next.value + epsilon : value >= next.value - epsilon) {
       generated.push(`${prefix}${formatNumber(value)}${suffix}`);
       value += step;
     }
   } else {
     let value = previous.value + step;
-    while (step > 0 ? value < next.value : value > next.value) {
+    while (step > 0 ? value <= next.value : value >= next.value) {
       generated.push(`${prefix}${String.fromCharCode(value)}${suffix}`);
       value += step;
     }
   }
 
   expandedSoFar.push(...generated);
-  return true;
+  return { inserted: true, consumeNext: true };
 }
 
 function splitContext(raw: string): { prefix: string; suffix: string } {
