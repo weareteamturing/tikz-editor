@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
-import { EditorState, StateEffect, StateField } from "@codemirror/state";
-import { EditorView, Decoration, DecorationSet } from "@codemirror/view";
+import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
+import { deleteLine, indentLess, indentMore } from "@codemirror/commands";
+import { EditorView, Decoration, DecorationSet, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
@@ -36,6 +37,26 @@ const defaultSource = String.raw`\begin{tikzpicture}[line width=0.8pt]
 \end{tikzpicture}`;
 
 const setHighlight = StateEffect.define<[number, number] | null>();
+
+const playgroundKeymap = Prec.highest(
+  keymap.of([
+    {
+      key: "Mod-d",
+      run: deleteLine,
+      preventDefault: true
+    },
+    {
+      key: "Mod-[",
+      run: indentLess,
+      preventDefault: true
+    },
+    {
+      key: "Mod-]",
+      run: indentMore,
+      preventDefault: true
+    }
+  ])
+);
 
 const highlightField = StateField.define<DecorationSet>({
   create() {
@@ -153,7 +174,7 @@ export function App() {
 
     const state = EditorState.create({
       doc: defaultSource,
-      extensions: [basicSetup, tikzLanguage(), highlightField, updateListener]
+      extensions: [basicSetup, playgroundKeymap, tikzLanguage(), highlightField, updateListener]
     });
 
     const view = new EditorView({
