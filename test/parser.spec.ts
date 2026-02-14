@@ -446,6 +446,51 @@ describe("parseTikz", () => {
     if (foreach?.kind === "Foreach") {
       expect(foreach.prefixRaw).toContain("\\lw");
       expect(foreach.bodyRaw.length).toBeGreaterThan(0);
+      expect(foreach.variablesRaw).toContain("\\lw");
+      expect(foreach.listRaw).toContain("0.5");
+    }
+  });
+
+  it("parses path foreach operations as typed path items", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const foreachItem = statement.items.find((item) => item.kind === "PathForeach");
+    expect(foreachItem?.kind).toBe("PathForeach");
+    if (foreachItem?.kind === "PathForeach") {
+      expect(foreachItem.variablesRaw).toContain("\\x");
+      expect(foreachItem.listRaw).toContain("1,2");
+      expect(foreachItem.bodyRaw).toContain("--");
+    }
+  });
+
+  it("parses node foreach clauses and keeps a foreach-free node template", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) -- (2,0) node foreach \p in {0.25,0.75} [pos=\p] {\p};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.foreachClauses).toHaveLength(1);
+      expect(node.foreachClauses?.[0]?.variablesRaw).toContain("\\p");
+      expect(node.foreachClauses?.[0]?.listRaw).toContain("0.25");
+      expect(node.templateRaw.includes("foreach")).toBe(false);
     }
   });
 });

@@ -22,6 +22,10 @@ export function nodeItemId(statementIndex: number, itemIndex: number): string {
   return `node:${statementIndex}:${itemIndex}`;
 }
 
+export function nodeForeachClauseId(statementIndex: number, itemIndex: number, clauseIndex: number): string {
+  return `node-foreach-clause:${statementIndex}:${itemIndex}:${clauseIndex}`;
+}
+
 export function pathOptionItemId(statementIndex: number, itemIndex: number): string {
   return `path-option:${statementIndex}:${itemIndex}`;
 }
@@ -32,6 +36,10 @@ export function pathCommentItemId(statementIndex: number, itemIndex: number): st
 
 export function pathKeywordItemId(statementIndex: number, itemIndex: number): string {
   return `path-keyword:${statementIndex}:${itemIndex}`;
+}
+
+export function pathForeachItemId(statementIndex: number, itemIndex: number): string {
+  return `path-foreach:${statementIndex}:${itemIndex}`;
 }
 
 export function toOperationItemId(statementIndex: number, itemIndex: number): string {

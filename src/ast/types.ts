@@ -33,6 +33,11 @@ export type ForeachStatement = {
   id: string;
   span: Span;
   options?: OptionListAst;
+  optionsSpan?: Span;
+  headerSpan?: Span;
+  headerRaw?: string;
+  variablesRaw?: string;
+  listRaw?: string;
   prefixRaw: string;
   bodyRaw: string;
 };
@@ -53,6 +58,7 @@ export type PathCommand =
 export type PathItem =
   | CoordinateItem
   | NodeItem
+  | PathForeachItem
   | PathCommentItem
   | PathOptionItem
   | PathKeywordItem
@@ -80,16 +86,31 @@ export type NodeItem = {
   kind: "Node";
   id: string;
   span: Span;
+  raw: string;
+  templateRaw: string;
   name?: string;
   aliases?: string[];
   optionsSpan?: Span;
   options?: OptionListAst;
+  foreachClauses?: NodeForeachClause[];
   atSpan?: Span;
   atRaw?: string;
   atRelativePrefix?: RelativeCoordinatePrefix;
   textSource: "group" | "option";
   textSpan: Span;
   text: string;
+};
+
+export type NodeForeachClause = {
+  kind: "NodeForeachClause";
+  id: string;
+  span: Span;
+  raw: string;
+  headerRaw: string;
+  variablesRaw?: string;
+  listRaw?: string;
+  optionsSpan?: Span;
+  options?: OptionListAst;
 };
 
 export type PathOptionItem = {
@@ -112,6 +133,20 @@ export type PathKeywordItem = {
   id: string;
   span: Span;
   keyword: string;
+};
+
+export type PathForeachItem = {
+  kind: "PathForeach";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "foreach" | "\\foreach";
+  headerRaw: string;
+  variablesRaw?: string;
+  listRaw?: string;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  bodyRaw: string;
 };
 
 export type ToOperationItem = {

@@ -17,6 +17,8 @@ Capabilities are tracked explicitly in:
 
 Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabilities.spec.ts`.
 
+Foreach constructs (`\foreach`, path `foreach`, and `node foreach`) are expanded in the semantic stage with per-element loop provenance in `origin.foreachStack`.
+
 ## Scripts
 1. `npm test` runs all tests.
 2. `npm run test:capabilities` runs capability matrix guards only.

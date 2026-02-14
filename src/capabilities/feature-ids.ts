@@ -2,6 +2,8 @@ export const FEATURE_IDS = [
   "path_statement",
   "scope_statement",
   "foreach_statement",
+  "foreach_path_operation",
+  "foreach_node_operation",
   "unknown_statement",
   "options_structured",
   "arrow_tips",

@@ -17,11 +17,25 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   foreach_statement: {
     parser: "stable",
-    semantic: "partial",
-    svg: "none",
+    semantic: "stable",
+    svg: "stable",
     edit: "none",
-    fixtures: ["foreach_basic"],
-    notes: "Parsed and surfaced in AST; semantic expansion remains unsupported."
+    fixtures: ["foreach_basic", "foreach_options_core"],
+    notes: "Expanded during semantic evaluation with provenance metadata on generated scene elements."
+  },
+  foreach_path_operation: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["foreach_path_basic"]
+  },
+  foreach_node_operation: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["foreach_node_basic"]
   },
   unknown_statement: {
     parser: "stable",

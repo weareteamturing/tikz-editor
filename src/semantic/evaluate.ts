@@ -1,7 +1,12 @@
-import type { TikzFigure, Statement } from "../ast/types.js";
+import type { PathItem, PathStatement, TikzFigure, Statement } from "../ast/types.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
 import type { FeatureId } from "../capabilities/feature-ids.js";
+import { expandForeachFigure } from "../foreach/index.js";
+import type {
+  ForeachOriginFrame as ExpansionForeachOriginFrame,
+  ForeachStatementAttribution
+} from "../foreach/types.js";
 import type { OptionListAst } from "../options/types.js";
 import { createSemanticContext, currentFrame, popFrame, pushFrame, type NodeDistanceSpec } from "./context.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
@@ -24,9 +29,19 @@ export type EvaluateTikzResult = {
   featureUsage: FeatureUsage;
 };
 
-export function evaluateTikzFigure(figure: TikzFigure, _source: string, _opts: EvaluateOptions = {}): EvaluateTikzResult {
+export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
   const diagnostics: Diagnostic[] = [];
   const featureUsage = initializeFeatureUsage();
+  markForeachFeaturesFromFigure(figure, featureUsage);
+  const expanded = expandForeachFigure(figure, source, opts.maxForeachExpansions ?? 10_000);
+  for (const diagnostic of expanded.diagnostics) {
+    diagnostics.push({
+      severity: diagnostic.severity,
+      code: diagnostic.code,
+      message: diagnostic.message,
+      span: diagnostic.span
+    });
+  }
   const context = createSemanticContext(defaultStyle(), identityMatrix());
 
   if (figure.options) {
@@ -58,8 +73,16 @@ export function evaluateTikzFigure(figure: TikzFigure, _source: string, _opts: E
   }
 
   const elements: SceneElement[] = [];
-  for (const statement of figure.body) {
-    elements.push(...evaluateStatement(statement, context, diagnostics, featureUsage));
+  for (const statement of expanded.figureBody) {
+    const statementElements = evaluateStatement(statement, context, diagnostics, featureUsage);
+    elements.push(
+      ...applyForeachAttributionToElements(
+        statement,
+        statementElements,
+        expanded.statementAttribution,
+        expanded.pathItemForeachStack
+      )
+    );
   }
 
   if (figure.options) {
@@ -181,13 +204,7 @@ function evaluateStatement(
   }
 
   if (statement.kind === "Foreach") {
-    markFeature(featureUsage, "foreach_statement", "unsupported");
-    diagnostics.push({
-      severity: "warning",
-      code: "unsupported-foreach",
-      message: "Foreach statements are parsed but not semantically expanded yet.",
-      span: statement.span
-    });
+    markFeature(featureUsage, "foreach_statement", "supported");
     return [];
   }
 
@@ -520,6 +537,168 @@ function markFeature(featureUsage: FeatureUsage, featureId: FeatureId, status: "
   if (current !== "used-unsupported") {
     featureUsage[featureId] = "used-supported";
   }
+}
+
+function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: FeatureUsage): void {
+  const walkStatement = (statement: Statement): void => {
+    if (statement.kind === "Foreach") {
+      markFeature(featureUsage, "foreach_statement", "supported");
+      return;
+    }
+
+    if (statement.kind === "Scope") {
+      for (const nested of statement.body) {
+        walkStatement(nested);
+      }
+      return;
+    }
+
+    if (statement.kind !== "Path") {
+      return;
+    }
+
+    for (const item of statement.items) {
+      if (item.kind === "PathForeach") {
+        markFeature(featureUsage, "foreach_path_operation", "supported");
+      } else if (item.kind === "Node" && item.foreachClauses && item.foreachClauses.length > 0) {
+        markFeature(featureUsage, "foreach_node_operation", "supported");
+      }
+    }
+  };
+
+  for (const statement of figure.body) {
+    walkStatement(statement);
+  }
+}
+
+function applyForeachAttributionToElements(
+  statement: Statement,
+  elements: SceneElement[],
+  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>,
+  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>
+): SceneElement[] {
+  if (elements.length === 0) {
+    return elements;
+  }
+
+  const attribution = statementAttribution.get(statement);
+  const pathItemsById = statement.kind === "Path" ? buildPathItemLookup(statement) : undefined;
+  const pathFallbackStack =
+    statement.kind === "Path" ? resolveFirstPathItemForeachStack(statement.items, pathItemForeachStack) : undefined;
+
+  return elements.map((element) => {
+    const itemStack =
+      statement.kind === "Path" && pathItemsById
+        ? resolvePathItemForeachStackForElement(element, statement, pathItemsById, pathItemForeachStack)
+        : undefined;
+    const fallbackStack =
+      (itemStack && itemStack.length > 0
+        ? itemStack
+        : pathFallbackStack && pathFallbackStack.length > 0
+          ? pathFallbackStack
+          : attribution?.foreachStack);
+    const nextOrigin =
+      fallbackStack && fallbackStack.length > 0
+        ? {
+            foreachStack: cloneForeachStack(fallbackStack)
+          }
+        : element.origin;
+
+    const nextSourceId = attribution?.sourceId ?? element.sourceId;
+    const nextSourceSpan = attribution?.sourceSpan ?? element.sourceSpan;
+    return {
+      ...element,
+      sourceId: nextSourceId,
+      sourceSpan: nextSourceSpan,
+      origin: nextOrigin
+    };
+  });
+}
+
+function buildPathItemLookup(statement: PathStatement): Map<string, PathItem> {
+  const byId = new Map<string, PathItem>();
+  for (const item of statement.items) {
+    byId.set(item.id, item);
+  }
+  return byId;
+}
+
+function resolvePathItemForeachStackForElement(
+  element: SceneElement,
+  statement: PathStatement,
+  pathItemsById: Map<string, PathItem>,
+  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>
+): ExpansionForeachOriginFrame[] | undefined {
+  const itemPayload = extractElementItemPayload(element.id, statement.id);
+  if (!itemPayload) {
+    return undefined;
+  }
+
+  let matchedItemId: string | undefined;
+  for (const itemId of pathItemsById.keys()) {
+    if (itemPayload === itemId || itemPayload.startsWith(`${itemId}:`)) {
+      if (!matchedItemId || itemId.length > matchedItemId.length) {
+        matchedItemId = itemId;
+      }
+    }
+  }
+
+  if (!matchedItemId) {
+    return undefined;
+  }
+
+  const item = pathItemsById.get(matchedItemId);
+  if (!item) {
+    return undefined;
+  }
+  return pathItemForeachStack.get(item);
+}
+
+function resolveFirstPathItemForeachStack(
+  items: PathItem[],
+  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>
+): ExpansionForeachOriginFrame[] | undefined {
+  for (const item of items) {
+    const stack = pathItemForeachStack.get(item);
+    if (stack && stack.length > 0) {
+      return stack;
+    }
+  }
+  return undefined;
+}
+
+function extractElementItemPayload(elementId: string, sourceId: string): string | undefined {
+  const prefixes = [
+    "scene-path:",
+    "scene-rectangle:",
+    "scene-node-box:",
+    "scene-node-ellipse:",
+    "scene-grid-x:",
+    "scene-grid-y:",
+    "scene-text:"
+  ];
+
+  for (const prefix of prefixes) {
+    if (!elementId.startsWith(prefix)) {
+      continue;
+    }
+    const withoutPrefix = elementId.slice(prefix.length);
+    if (!withoutPrefix.startsWith(`${sourceId}:`)) {
+      return undefined;
+    }
+    return withoutPrefix.slice(sourceId.length + 1);
+  }
+
+  return undefined;
+}
+
+function cloneForeachStack(stack: ExpansionForeachOriginFrame[]): ExpansionForeachOriginFrame[] {
+  return stack.map((frame) => ({
+    loopId: frame.loopId,
+    loopSpan: frame.loopSpan,
+    iterationIndex: frame.iterationIndex,
+    bindings: { ...frame.bindings }
+  }));
 }
 
 function resolveFrameMeta(

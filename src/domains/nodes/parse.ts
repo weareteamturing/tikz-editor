@@ -1,12 +1,16 @@
 import type { SyntaxNode } from "@lezer/common";
 
-import { nodeItemId } from "../../ast/ids.js";
-import type { NodeItem, RelativeCoordinatePrefix, Span } from "../../ast/types.js";
+import { nodeForeachClauseId, nodeItemId } from "../../ast/ids.js";
+import type { NodeForeachClause, NodeItem, RelativeCoordinatePrefix, Span } from "../../ast/types.js";
+import { parseForeachHeaderRaw, stripForeachCommandPrefix } from "../../foreach/header.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 
 export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: number, itemIndex: number): NodeItem {
+  const raw = source.slice(node.from, node.to);
+  const foreachClauses = mapNodeForeachClauses(node, source, statementIndex, itemIndex);
+  const templateRaw = buildNodeTemplateRaw(node, source, foreachClauses);
   const groupNode = findFirstChildByName(node, "Group");
   const options = mergeNodeOptionLists(findNodeOptionLists(node), source);
   const placement = extractPlacementFromNode(node, source) ?? extractPlacementFromOptions(options.options);
@@ -19,10 +23,13 @@ export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: nu
     kind: "Node",
     id: nodeItemId(statementIndex, itemIndex),
     span: { from: node.from, to: node.to },
+    raw,
+    templateRaw,
     name: explicitName ?? optionName,
     aliases: aliases.length > 0 ? aliases : undefined,
     optionsSpan: options.span,
     options: options.options,
+    foreachClauses: foreachClauses.length > 0 ? foreachClauses : undefined,
     atSpan: placement?.span,
     atRaw: placement?.raw,
     atRelativePrefix: placement?.relativePrefix,
@@ -54,6 +61,8 @@ export function mapSyntheticNodeItem(
     kind: "Node",
     id: nodeItemId(statementIndex, itemIndex),
     span: { from: spanFrom, to: spanTo },
+    raw: source.slice(spanFrom, spanTo),
+    templateRaw: source.slice(spanFrom, spanTo),
     name: optionName,
     aliases: aliases.length > 0 ? aliases : undefined,
     optionsSpan: options.span,
@@ -121,6 +130,68 @@ function mapNodeText(
     text: "",
     textSource: "option"
   };
+}
+
+function mapNodeForeachClauses(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): NodeForeachClause[] {
+  const clauses: NodeForeachClause[] = [];
+  let clauseIndex = 0;
+
+  forEachChild(node, (child) => {
+    if (child.type.name !== "NodeForeachClause") {
+      return;
+    }
+
+    const raw = source.slice(child.from, child.to);
+    const stripped = stripForeachCommandPrefix(raw);
+    const parsed = parseForeachHeaderRaw(stripped);
+    const headerStartInRaw = raw.indexOf(parsed.headerRaw);
+    const headerFrom = child.from + (headerStartInRaw >= 0 ? headerStartInRaw : 0);
+
+    const options =
+      parsed.optionsRaw && parsed.optionsSpan
+        ? parseOptionListRaw(parsed.optionsRaw, headerFrom + parsed.optionsSpan.from)
+        : undefined;
+    const optionsSpan =
+      parsed.optionsSpan != null
+        ? {
+            from: headerFrom + parsed.optionsSpan.from,
+            to: headerFrom + parsed.optionsSpan.to
+          }
+        : undefined;
+
+    clauses.push({
+      kind: "NodeForeachClause",
+      id: nodeForeachClauseId(statementIndex, itemIndex, clauseIndex),
+      span: { from: child.from, to: child.to },
+      raw,
+      headerRaw: parsed.headerRaw,
+      variablesRaw: parsed.variablesRaw,
+      listRaw: parsed.listRaw,
+      options,
+      optionsSpan
+    });
+    clauseIndex += 1;
+  });
+
+  return clauses;
+}
+
+function buildNodeTemplateRaw(node: SyntaxNode, source: string, clauses: NodeForeachClause[]): string {
+  if (clauses.length === 0) {
+    return source.slice(node.from, node.to);
+  }
+
+  const nodeKeywordNode = findFirstChildByName(node, "NodeKw");
+  const prefixTo = nodeKeywordNode?.to ?? node.from;
+  const clauseEnd = clauses.reduce((max, clause) => Math.max(max, clause.span.to), prefixTo);
+  const prefix = source.slice(node.from, prefixTo);
+  const suffix = source.slice(clauseEnd, node.to);
+  return `${prefix}${suffix}`;
 }
 
 function findNodeOptionLists(node: SyntaxNode): SyntaxNode[] {

@@ -1,0 +1,39 @@
+import type { PathItem, Span, Statement } from "../ast/types.js";
+import type { OptionListAst } from "../options/types.js";
+
+export type ForeachLoopHeader = {
+  headerRaw: string;
+  variablesRaw: string;
+  listRaw: string;
+  options?: OptionListAst;
+  optionsSpan?: Span;
+};
+
+export type ForeachIterationBinding = Record<string, string>;
+
+export type ForeachOriginFrame = {
+  loopId: string;
+  loopSpan: Span;
+  iterationIndex: number;
+  bindings: ForeachIterationBinding;
+};
+
+export type ForeachStatementAttribution = {
+  sourceId: string;
+  sourceSpan: Span;
+  foreachStack: ForeachOriginFrame[];
+};
+
+export type ForeachExpansionDiagnostic = {
+  code: string;
+  message: string;
+  span: Span;
+  severity: "warning" | "error";
+};
+
+export type ForeachExpansionResult = {
+  figureBody: Statement[];
+  diagnostics: ForeachExpansionDiagnostic[];
+  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
+  pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
+};

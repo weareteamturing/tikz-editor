@@ -3,6 +3,7 @@ import type { SyntaxNode } from "@lezer/common";
 import {
   coordinateOperationItemId,
   letOperationItemId,
+  pathForeachItemId,
   svgOperationItemId,
   toOperationItemId
 } from "../../ast/ids.js";
@@ -10,11 +11,13 @@ import type {
   CoordinateOperationItem,
   LetOperationItem,
   NodeItem,
+  PathForeachItem,
   Span,
   SvgOperationItem,
   ToOperationTarget,
   ToOperationItem
 } from "../../ast/types.js";
+import { parseForeachHeaderRaw } from "../../foreach/header.js";
 import { parseCoordinate } from "../coordinates/parse.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName, firstNamedChild } from "../../syntax/cursor.js";
@@ -96,6 +99,51 @@ export function mapCoordinateOperationItem(
     nameSpan: toSpan(nameNode),
     placementSpan: undefined,
     raw: source.slice(node.from, node.to)
+  };
+}
+
+export function mapPathForeachOperationItem(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): PathForeachItem {
+  const commandNode = findFirstChildByName(node, "ForeachKw") ?? findFirstChildByName(node, "ForeachCmd");
+  const listNode = findFirstChildByName(node, "ForeachList");
+  const bodyNode = findFirstChildByName(node, "Group");
+
+  const commandRaw = commandNode ? source.slice(commandNode.from, commandNode.to).trim() : "foreach";
+  const headerFrom = commandNode ? commandNode.to : node.from;
+  const headerTo = listNode ? listNode.to : (bodyNode?.from ?? node.to);
+  const headerSlice = source.slice(headerFrom, Math.max(headerFrom, headerTo));
+  const parsedHeader = parseForeachHeaderRaw(headerSlice);
+  const headerStartOffset = headerSlice.indexOf(parsedHeader.headerRaw);
+  const headerFromAbsolute = headerStartOffset >= 0 ? headerFrom + headerStartOffset : headerFrom;
+
+  const options =
+    parsedHeader.optionsRaw && parsedHeader.optionsSpan
+      ? parseOptionListRaw(parsedHeader.optionsRaw, headerFromAbsolute + parsedHeader.optionsSpan.from)
+      : undefined;
+  const optionsSpan =
+    parsedHeader.optionsSpan != null
+      ? {
+          from: headerFromAbsolute + parsedHeader.optionsSpan.from,
+          to: headerFromAbsolute + parsedHeader.optionsSpan.to
+        }
+      : undefined;
+
+  return {
+    kind: "PathForeach",
+    id: pathForeachItemId(statementIndex, itemIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: commandRaw.startsWith("\\") ? "\\foreach" : "foreach",
+    headerRaw: parsedHeader.headerRaw,
+    variablesRaw: parsedHeader.variablesRaw,
+    listRaw: parsedHeader.listRaw,
+    options,
+    optionsSpan,
+    bodyRaw: bodyNode ? source.slice(bodyNode.from, bodyNode.to) : ""
   };
 }
 

@@ -61,6 +61,7 @@ export type ScenePath = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  origin?: SceneElementOrigin;
   style: ResolvedStyle;
   commands: ScenePathCommand[];
 };
@@ -70,6 +71,7 @@ export type SceneCircle = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  origin?: SceneElementOrigin;
   style: ResolvedStyle;
   center: Point;
   radius: number;
@@ -80,6 +82,7 @@ export type SceneEllipse = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  origin?: SceneElementOrigin;
   style: ResolvedStyle;
   center: Point;
   rx: number;
@@ -92,10 +95,22 @@ export type SceneText = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  origin?: SceneElementOrigin;
   style: ResolvedStyle;
   position: Point;
   text: string;
   textBlockWidth?: number;
+};
+
+export type ForeachOriginFrame = {
+  loopId: string;
+  loopSpan: Span;
+  iterationIndex: number;
+  bindings: Record<string, string>;
+};
+
+export type SceneElementOrigin = {
+  foreachStack: ForeachOriginFrame[];
 };
 
 export type ResolvedStyle = {
@@ -136,4 +151,5 @@ export type FeatureUsage = Record<string, FeatureUsageState>;
 
 export type EvaluateOptions = {
   defaultLengthUnit?: "cm" | "pt";
+  maxForeachExpansions?: number;
 };

@@ -223,14 +223,145 @@ describe("semantic evaluator", () => {
     }
   });
 
-  it("emits warning for unsupported foreach semantics", () => {
+  it("expands foreach statements and attaches provenance metadata", () => {
     const source = String.raw`\begin{tikzpicture}
-  \foreach \x in {0,1} \draw (\x,0) -- ++(1,0);
+  \foreach \x in {0,1}
+    \node at (\x,0) {\x};
 \end{tikzpicture}`;
     const parsed = parseTikz(source);
     const result = evaluateTikzFigure(parsed.figure, source);
 
-    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-foreach")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-foreach")).toBe(false);
+    const labels = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(labels).toHaveLength(2);
+    for (const label of labels) {
+      if (label.kind !== "Text") {
+        continue;
+      }
+      expect(label.sourceId.startsWith("foreach:")).toBe(true);
+      expect(label.origin?.foreachStack.length).toBeGreaterThan(0);
+      expect(label.origin?.foreachStack[0]?.bindings["\\x"]).toBeDefined();
+    }
+  });
+
+  it("supports directly-followed nested foreach loops", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1}
+    \foreach \y in {0,1}
+      \node at (\x,\y) {\x\y};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(labels).toHaveLength(4);
+    for (const label of labels) {
+      if (label.kind !== "Text") {
+        continue;
+      }
+      expect(label.origin?.foreachStack).toHaveLength(2);
+      expect(label.origin?.foreachStack[0]?.bindings["\\x"]).toBeDefined();
+      expect(label.origin?.foreachStack[1]?.bindings["\\y"]).toBeDefined();
+    }
+  });
+
+  it("supports slash multi-variable bindings with repeat-last fallback", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x/\y in {1/a,2}
+    \node at (\x,0) {\y};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toEqual(["a", "2"]);
+  });
+
+  it("expands dots lists for numeric, single-anchor, alphabetic, and contextual forms", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {1,2,...,4} \node at (\x,0) {\x};
+  \foreach \x in {1,...,4} \node at (\x,1) {\x};
+  \foreach \x in {a,...,d} \node at (0,0) {\x};
+  \foreach \x in {2^1,2^...,2^4} \node at (0,0) {\x};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toEqual(
+      expect.arrayContaining(["1", "2", "3", "4", "a", "b", "c", "d", "2^1", "2^2", "2^3", "2^4"])
+    );
+  });
+
+  it("expands path foreach operations in-place", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2,3} { -- (\x,0) };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-path:"));
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const lineCount = path.commands.filter((command) => command.kind === "L").length;
+      expect(lineCount).toBe(3);
+      expect(path.origin?.foreachStack.length).toBeGreaterThan(0);
+      expect(path.origin?.foreachStack[0]?.bindings["\\x"]).toBe("1");
+    }
+  });
+
+  it("expands node foreach clauses including chained clauses", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0) node foreach \p in {0.25,0.75} [pos=\p] {\p};
+  \path (0,0) node foreach \x in {0,1} foreach \y in {a,b} {\x\y};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(labels.length).toBeGreaterThanOrEqual(6);
+    const chained = labels.filter((element) => element.kind === "Text" && /^(0|1)(a|b)$/.test(element.text));
+    expect(chained).toHaveLength(4);
+    for (const element of chained) {
+      if (element.kind !== "Text") {
+        continue;
+      }
+      expect(element.origin?.foreachStack).toHaveLength(2);
+    }
+  });
+
+  it("supports core foreach options (var/evaluate/remember/count/parse/expand list)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x [var=\v,count=\i from 1,remember=\x as \prev (initially 0),evaluate=\x as \dbl using \x*2,parse=true,expand list=true] in {1,2}
+    \node at (\i,0) {\prev/\dbl/\v};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const unsupported = result.diagnostics.filter((diagnostic) => diagnostic.code.startsWith("foreach-unsupported-option:"));
+    expect(unsupported).toHaveLength(0);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toEqual(["0/2/1", "1/4/2"]);
+  });
+
+  it("enforces maxForeachExpansions with truncation warning", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1,2,3,4}
+    \node at (\x,0) {\x};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source, { maxForeachExpansions: 2 });
+
+    const labels = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(labels).toHaveLength(2);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "foreach-expansion-limit")).toBe(true);
   });
 
   it("supports basic to/ellipse/arc/grid semantics without unsupported diagnostics", () => {

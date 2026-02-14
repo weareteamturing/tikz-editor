@@ -5,6 +5,7 @@ import type { ForeachStatement, ScopeStatement, Statement } from "../../ast/type
 import { mapPathStatement } from "../paths/parse.js";
 import { mapUnknownStatement } from "../../transform/unknown.js";
 import { parseOptionListRaw } from "../../options/parse.js";
+import { parseForeachHeaderRaw } from "../../foreach/header.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 
 export type StatementMappingState = {
@@ -68,35 +69,47 @@ function mapForeachStatement(node: SyntaxNode, source: string, state: StatementM
   const statementIndex = allocateStatementIndex(state);
   const foreachCmdNode = findFirstChildByName(node, "ForeachCmd");
   const foreachBodyNode = findFirstChildByName(node, "ForeachBody");
-  const optionsNode = findForeachOptionsNode(node);
 
   const prefixFrom = foreachCmdNode ? foreachCmdNode.to : node.from;
   const prefixTo = foreachBodyNode ? foreachBodyNode.from : node.to;
+  const prefixSlice = source.slice(prefixFrom, Math.max(prefixFrom, prefixTo));
+  const parsedHeader = parseForeachHeaderRaw(prefixSlice);
+  const headerStartOffset = prefixSlice.indexOf(parsedHeader.headerRaw);
+  const headerFrom = headerStartOffset >= 0 ? prefixFrom + headerStartOffset : prefixFrom;
   const bodyRaw = foreachBodyNode ? source.slice(foreachBodyNode.from, foreachBodyNode.to) : "";
+
+  const options =
+    parsedHeader.optionsRaw && parsedHeader.optionsSpan
+      ? parseOptionListRaw(parsedHeader.optionsRaw, headerFrom + parsedHeader.optionsSpan.from)
+      : undefined;
+  const optionsSpan =
+    parsedHeader.optionsSpan != null
+      ? {
+          from: headerFrom + parsedHeader.optionsSpan.from,
+          to: headerFrom + parsedHeader.optionsSpan.to
+        }
+      : undefined;
+  const headerSpan =
+    parsedHeader.headerRaw.length > 0
+      ? {
+          from: headerFrom,
+          to: headerFrom + parsedHeader.headerRaw.length
+        }
+      : undefined;
 
   return {
     kind: "Foreach",
     id: foreachStatementId(statementIndex),
     span: { from: node.from, to: node.to },
-    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
-    prefixRaw: source.slice(prefixFrom, Math.max(prefixFrom, prefixTo)).trim(),
+    options,
+    optionsSpan,
+    headerSpan,
+    headerRaw: parsedHeader.headerRaw,
+    variablesRaw: parsedHeader.variablesRaw,
+    listRaw: parsedHeader.listRaw,
+    prefixRaw: parsedHeader.headerRaw,
     bodyRaw
   };
-}
-
-function findForeachOptionsNode(node: SyntaxNode): SyntaxNode | null {
-  let found: SyntaxNode | null = null;
-  forEachChild(node, (child) => {
-    if (found || child.type.name !== "ForeachPrefix") {
-      return;
-    }
-
-    const actual = firstNamedChild(child) ?? child;
-    if (actual.type.name === "OptionList") {
-      found = actual;
-    }
-  });
-  return found;
 }
 
 function allocateStatementIndex(state: StatementMappingState): number {

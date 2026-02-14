@@ -36,6 +36,20 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("Hello");
   });
 
+  it("keeps foreach-expanded instances mapped to authored template source IDs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1}
+    \draw (\x,0) -- ++(1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const sourceIds = [...emitted.svg.matchAll(/data-source-id="([^"]+)"/g)].map((match) => match[1]);
+    expect(sourceIds.length).toBeGreaterThan(0);
+    expect(sourceIds.every((id) => id.startsWith("foreach:"))).toBe(true);
+  });
+
   it("emits positioned nodes placed using `...=of` syntax at distinct coordinates", () => {
     const source = String.raw`\begin{tikzpicture}[on grid,node distance=12pt]
   \node[draw,name=a,node contents=A] at (0,0);

@@ -29,24 +29,30 @@ ScopeStatement {
 }
 
 ForeachStatement {
-  ForeachCmd ForeachPrefix+ ForeachBody
+  ForeachCmd ForeachHeaderToken* InKw ForeachList ForeachBody
 }
 
 ForeachBody {
   Group |
-  PathStatement
+  Statement
 }
 
-ForeachPrefix {
+ForeachHeaderToken {
   Comment |
   OptionList |
   Coordinate |
   PathKeyword |
-  InKw |
   CommandName |
   IdentifierLike |
   Number |
   OptionPunct
+}
+
+ForeachList {
+  Group |
+  Coordinate |
+  CommandName |
+  IdentifierLike
 }
 
 PathStatement {
@@ -68,6 +74,7 @@ PathCommand {
 }
 
 PathItem {
+  PathForeachOperation |
   ToOperation |
   SvgOperation |
   LetOperation |
@@ -92,7 +99,11 @@ PathOperator {
 }
 
 NodeItem {
-  NodeKw NodeQualifier* Group
+  NodeKw NodeForeachClause* NodeQualifier* Group
+}
+
+NodeForeachClause {
+  ForeachKw ForeachHeaderToken* InKw ForeachList
 }
 
 NodeQualifier {
@@ -143,6 +154,10 @@ PathKeyword {
 
 ToOperation {
   ToKw OptionList? NodeItem* ToTarget
+}
+
+PathForeachOperation {
+  (ForeachKw | ForeachCmd) ForeachHeaderToken* InKw ForeachList Group
 }
 
 ToTarget {
@@ -411,8 +426,9 @@ StrayToken {
     ShadeCmd,
     UseAsBoundingBoxCmd,
     BeginScope,
-    EndScope,
-    ForeachCmd,
+  EndScope,
+  ForeachCmd,
+    ForeachKw,
     NodeCmd,
     CoordinateCmd,
     AtKw,
@@ -464,6 +480,7 @@ StrayToken {
   BeginScope { "\\begin{scope}" }
   EndScope { "\\end{scope}" }
   ForeachCmd { "\\foreach" }
+  ForeachKw { "foreach" }
   NodeCmd { "\\node" }
   CoordinateCmd { "\\coordinate" }
 

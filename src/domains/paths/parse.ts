@@ -11,6 +11,7 @@ import { findFirstChildByName, firstNamedChild, forEachChild } from "../../synta
 import {
   mapCoordinateOperationItem,
   mapLetOperationItem,
+  mapPathForeachOperationItem,
   mapSvgOperationItem,
   mapToOperationItem
 } from "./operations.js";
@@ -102,6 +103,10 @@ function mapPathItem(
     return mapToOperationItem(actual, source, statementIndex, itemIndex);
   }
 
+  if (actual.type.name === "PathForeachOperation") {
+    return mapPathForeachOperationItem(actual, source, statementIndex, itemIndex);
+  }
+
   if (actual.type.name === "SvgOperation") {
     return mapSvgOperationItem(actual, source, statementIndex, itemIndex);
   }
@@ -174,6 +179,7 @@ function isDirectPathItemNode(name: string): boolean {
     name === "Coordinate" ||
     name === "RelativeCoordinate" ||
     name === "ToOperation" ||
+    name === "PathForeachOperation" ||
     name === "SvgOperation" ||
     name === "LetOperation" ||
     name === "CoordinateOperation" ||

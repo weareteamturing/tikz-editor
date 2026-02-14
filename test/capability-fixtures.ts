@@ -10,6 +10,16 @@ export const capabilityFixtures: Record<string, string> = {
   foreach_basic: String.raw`\begin{tikzpicture}
   \foreach \x in {0,1} \draw (\x,0) -- ++(1,0);
 \end{tikzpicture}`,
+  foreach_path_basic: String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
+\end{tikzpicture}`,
+  foreach_node_basic: String.raw`\begin{tikzpicture}
+  \path (0,0) -- (2,0) node foreach \p in {0.25,0.75} [pos=\p] {\p};
+\end{tikzpicture}`,
+  foreach_options_core: String.raw`\begin{tikzpicture}
+  \foreach \x [count=\i from 1, evaluate=\x as \y using \x*2] in {1,2}
+    \draw (\i,0) -- (\y,0);
+\end{tikzpicture}`,
   unknown_statement: String.raw`\begin{tikzpicture}
   \foo bar;
 \end{tikzpicture}`,

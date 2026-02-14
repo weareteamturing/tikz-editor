@@ -22,8 +22,10 @@
 `/Users/dominik/GitHub/tikz-editor/src/semantic` provides:
 1. Context stack with inherited style + transform.
 2. Coordinate evaluation (cartesian, relative, polar; named coordinates partial).
-3. Path semantics for `--`, `-|`, `|-`, `cycle`, `rectangle`, `circle`.
-4. Unsupported-feature diagnostics for partial slices (`foreach`, `to`, `svg`, `let`, advanced keywords).
+3. Foreach expansion pass (`statement`, `path`, and `node` forms) before geometry evaluation.
+4. Path semantics for `--`, `-|`, `|-`, `cycle`, `rectangle`, `circle`.
+5. Scene provenance metadata (`origin.foreachStack`) that links expanded instances back to loop bindings.
+6. Unsupported-feature diagnostics for still-partial slices (`to`, `svg`, `let`, some advanced keywords).
 
 Internal units use `pt` and y-up geometry; y inversion happens only in SVG emission.
 
