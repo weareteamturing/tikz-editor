@@ -356,10 +356,28 @@ export function applyKvEntry(
   }
   if (key === "color") {
     if (valueRaw.trim().toLowerCase() === "none") {
-      return { style: { ...style, stroke: null, textColor: null }, transform, diagnostics: [] };
+      return {
+        style: {
+          ...style,
+          stroke: style.drawExplicit || style.stroke != null ? null : style.stroke,
+          fill: style.fill != null ? null : style.fill,
+          textColor: null
+        },
+        transform,
+        diagnostics: []
+      };
     }
     const normalizedColor = normalizeColor(valueRaw);
-    return { style: { ...style, stroke: normalizedColor, textColor: normalizedColor }, transform, diagnostics: [] };
+    return {
+      style: {
+        ...style,
+        stroke: style.drawExplicit || style.stroke != null ? normalizedColor : style.stroke,
+        fill: style.fill != null ? normalizedColor : style.fill,
+        textColor: normalizedColor
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "text") {
     return { style: { ...style, textColor: normalizeColor(valueRaw) }, transform, diagnostics: [] };

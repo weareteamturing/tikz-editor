@@ -52,7 +52,7 @@ function TreeNode({
     node.text.length > 60 ? node.text.slice(0, 60) + "…" : node.text;
 
   return (
-    <div className="tree-node" style={{ paddingLeft: depth * 10 }}>
+    <div className="tree-node" style={{ paddingLeft: depth * 4 }}>
       <div
         className={`tree-node-header ${node.isError ? "tree-error" : ""}`}
         onClick={() => hasChildren && setCollapsed(!collapsed)}

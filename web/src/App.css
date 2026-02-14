@@ -235,7 +235,6 @@ body.is-scrubbing {
 
 .tree-toggle,
 .tree-toggle-placeholder {
-  width: 14px;
   flex-shrink: 0;
   font-size: 10px;
   color: #8ea0b2;

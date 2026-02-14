@@ -355,6 +355,30 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("<circle");
   });
 
+  it("renders fill paths with named color flags as fill-only paint", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [green] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('fill="#00ff00"');
+    expect(emitted.svg).toContain('stroke="none"');
+  });
+
+  it("renders fill paths with xcolor mix flags as fill-only paint", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [green!50!white] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('fill="#80ff80"');
+    expect(emitted.svg).toContain('stroke="none"');
+  });
+
   it("does not emit empty move-only path elements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm, y radius=.5cm];

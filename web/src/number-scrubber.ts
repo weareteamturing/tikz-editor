@@ -13,6 +13,7 @@ interface ScrubContext {
   kind: ScrubKind;
   step: number;
   minPrecision: number;
+  integerOnly?: boolean;
   min?: number;
   max?: number;
 }
@@ -364,14 +365,14 @@ function buildScrubTarget(view: EditorView, numberNode: SyntaxNode): ScrubTarget
     return null;
   }
 
-  const sourcePrecision = fractionDigits(rawText);
+  const sourcePrecision = context.integerOnly ? 0 : fractionDigits(rawText);
   const stepPrecision = fractionDigits(context.step.toString());
-  const precision = Math.max(sourcePrecision, context.minPrecision, stepPrecision);
+  const precision = context.integerOnly ? 0 : Math.max(sourcePrecision, context.minPrecision, stepPrecision);
 
   return {
     from: signedFrom,
     to: numberNode.to,
-    value,
+    value: context.integerOnly ? Math.round(value) : value,
     step: context.step,
     precision,
     minDisplayPrecision: sourcePrecision,
@@ -394,6 +395,9 @@ function classifyScrubContext(doc: EditorView["state"]["doc"], numberNode: Synta
   }
   if (optionKey && OPACITY_KEYS.has(optionKey)) {
     return { kind: "opacity", step: 0.02, minPrecision: 2, min: 0, max: 1 };
+  }
+  if (isXcolorMixPercentage(doc, numberNode)) {
+    return { kind: "numeric", step: 1, minPrecision: 0, integerOnly: true, min: 0, max: 100 };
   }
   if (unit) {
     const unitStep = lengthStepForUnit(unit);
@@ -425,6 +429,47 @@ function extractUnitAfterNumber(doc: EditorView["state"]["doc"], numberEnd: numb
     return null;
   }
   return match[1].toLowerCase();
+}
+
+function isXcolorMixPercentage(doc: EditorView["state"]["doc"], numberNode: SyntaxNode): boolean {
+  if (!hasAncestor(numberNode, "OptionList") && !hasAncestor(numberNode, "StylePayload")) {
+    return false;
+  }
+
+  const before = previousNonWhitespaceChar(doc, numberNode.from);
+  if (before !== "!") {
+    return false;
+  }
+
+  const after = nextNonWhitespaceChar(doc, numberNode.to);
+  if (after === "!") {
+    return true;
+  }
+  if (after == null) {
+    return true;
+  }
+
+  return /[,\]\});%]/u.test(after);
+}
+
+function previousNonWhitespaceChar(doc: EditorView["state"]["doc"], start: number): string | null {
+  for (let index = start - 1; index >= 0; index -= 1) {
+    const ch = doc.sliceString(index, index + 1);
+    if (!/\s/u.test(ch)) {
+      return ch;
+    }
+  }
+  return null;
+}
+
+function nextNonWhitespaceChar(doc: EditorView["state"]["doc"], start: number): string | null {
+  for (let index = start; index < doc.length; index += 1) {
+    const ch = doc.sliceString(index, index + 1);
+    if (!/\s/u.test(ch)) {
+      return ch;
+    }
+  }
+  return null;
 }
 
 function isNumericCoordinateValue(

@@ -4,31 +4,33 @@ import { parseLength } from "../coords/parse-length.js";
 export const NAMED_COLORS = new Set([
   "black",
   "white",
+  "gray",
   "red",
-  "blue",
   "green",
+  "blue",
+  "cyan",
+  "magenta",
   "yellow",
   "orange",
-  "brown",
-  "gray",
+  "violet",
   "purple",
-  "cyan",
-  "magenta"
+  "brown",
 ]);
 
 export const COLOR_HEX: Record<string, string> = {
   black: "#000000",
   white: "#ffffff",
-  red: "#ff0000",
-  blue: "#0000ff",
-  green: "#008000",
-  yellow: "#ffff00",
-  orange: "#ffa500",
-  brown: "#8b4513",
   gray: "#808080",
-  purple: "#800080",
+  red: "#ff0000",
+  green: "#00ff00",
+  blue: "#0000ff",
   cyan: "#00ffff",
-  magenta: "#ff00ff"
+  magenta: "#ff00ff",
+  yellow: "#ffff00",
+  orange: "#ff8000",
+  violet: "#800080",
+  purple: "#bf0040",
+  brown: "#bf8040"
 };
 
 export const NON_STYLE_OPTION_KEYS = new Set([

@@ -2,6 +2,7 @@ import { parseLength } from "../coords/parse-length.js";
 import type { Matrix2D, ResolvedStyle } from "../types.js";
 import { parseArrowSpecification } from "./arrows.js";
 import type { ApplyOutcome } from "./apply-types.js";
+import { normalizeColor } from "./colors.js";
 import { COLOR_HEX, NAMED_COLORS, NON_STYLE_OPTION_FLAGS } from "./constants.js";
 
 export function applyFlagEntry(
@@ -83,7 +84,30 @@ export function applyFlagEntry(
     return { style: { ...style, dashArray: [1, 4] }, transform, diagnostics: [] };
   }
   if (NAMED_COLORS.has(key)) {
-    return { style: { ...style, stroke: key, textColor: key }, transform, diagnostics: [] };
+    const normalizedColor = normalizeColor(key);
+    return {
+      style: {
+        ...style,
+        stroke: style.drawExplicit || style.stroke != null ? normalizedColor : style.stroke,
+        fill: style.fill != null ? normalizedColor : style.fill,
+        textColor: normalizedColor
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+  if (key.includes("!") || key.startsWith("#")) {
+    const normalizedColor = normalizeColor(key);
+    return {
+      style: {
+        ...style,
+        stroke: style.drawExplicit || style.stroke != null ? normalizedColor : style.stroke,
+        fill: style.fill != null ? normalizedColor : style.fill,
+        textColor: normalizedColor
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "help lines") {
     return {

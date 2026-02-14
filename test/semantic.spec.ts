@@ -15,7 +15,7 @@ describe("semantic evaluator", () => {
     const path = result.scene.elements.find((element) => element.kind === "Path");
     expect(path?.kind).toBe("Path");
     if (path?.kind === "Path") {
-      expect(path.style.stroke).toBe("red");
+      expect(path.style.stroke).toBe("#ff0000");
       expect(path.style.lineWidth).toBeCloseTo(2);
     }
   });
@@ -31,6 +31,36 @@ describe("semantic evaluator", () => {
     expect(path?.kind).toBe("Path");
     if (path?.kind === "Path") {
       expect(path.style.stroke).toBe("black");
+    }
+  });
+
+  it("uses named color flags as fill color for fill commands without enabling stroke", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [green] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.fill).toBe("#00ff00");
+      expect(path.style.stroke).toBeNull();
+    }
+  });
+
+  it("uses xcolor mix flags as fill color for fill commands without enabling stroke", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [green!50!white] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.fill).toBe("#80ff80");
+      expect(path.style.stroke).toBeNull();
     }
   });
 
@@ -705,7 +735,7 @@ describe("semantic evaluator", () => {
     if (sideAxisPath?.kind === "Path") {
       expect(sideAxisPath.style.shading).toBe("axis");
       expect(sideAxisPath.style.shadingAngle).toBeCloseTo(90);
-      expect(sideAxisPath.style.axisTopColor).toBe("#008000");
+      expect(sideAxisPath.style.axisTopColor).toBe("#00ff00");
       expect(sideAxisPath.style.axisBottomColor).toBe("#ffff00");
     }
 
@@ -924,14 +954,14 @@ describe("semantic evaluator", () => {
     const drawInScope = paths[0];
     expect(drawInScope?.kind).toBe("Path");
     if (drawInScope?.kind === "Path") {
-      expect(drawInScope.style.stroke).toBe("green");
+      expect(drawInScope.style.stroke).toBe("#00ff00");
       expect(drawInScope.style.lineWidth).toBeCloseTo(3);
     }
 
     const drawOutsideScope = paths[1];
     expect(drawOutsideScope?.kind).toBe("Path");
     if (drawOutsideScope?.kind === "Path") {
-      expect(drawOutsideScope.style.stroke).toBe("blue");
+      expect(drawOutsideScope.style.stroke).toBe("#0000ff");
       expect(drawOutsideScope.style.lineWidth).toBeCloseTo(1);
     }
 
@@ -1751,7 +1781,7 @@ describe("semantic evaluator", () => {
     expect(second?.kind).toBe("Path");
     if (first?.kind === "Path" && second?.kind === "Path") {
       expect(first.style.fill).toBe("#0000ff");
-      expect(first.style.stroke).toBe("#008000");
+      expect(first.style.stroke).toBe("#00ff00");
       expect(second.style.fill).toBe("#0000ff");
       expect(second.style.stroke).toBe("#ff0000");
     }

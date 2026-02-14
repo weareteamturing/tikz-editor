@@ -8,24 +8,10 @@ import type {
   ScenePathCommand,
   ShadowLayer
 } from "../semantic/types.js";
+import { COLOR_HEX } from "../semantic/style/constants.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
 import { computeViewBox } from "./viewbox.js";
 import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
-
-const COLOR_HEX = {
-  black: "#000000",
-  white: "#ffffff",
-  red: "#ff0000",
-  blue: "#0000ff",
-  green: "#008000",
-  yellow: "#ffff00",
-  orange: "#ffa500",
-  brown: "#8b4513",
-  gray: "#808080",
-  purple: "#800080",
-  cyan: "#00ffff",
-  magenta: "#ff00ff"
-} as const;
 
 type ShadowRenderableStyle = Pick<
   ResolvedStyle,

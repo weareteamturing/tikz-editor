@@ -78,7 +78,11 @@ function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: numbe
     };
   }
 
-  if (/^(<-|->|<->|\|-\||[A-Za-z][A-Za-z0-9 -]*)$/.test(token) || looksLikeArrowSpecification(token)) {
+  if (
+    /^(<-|->|<->|\|-\||[A-Za-z][A-Za-z0-9 -]*)$/.test(token) ||
+    looksLikeArrowSpecification(token) ||
+    looksLikeColorSpecification(token)
+  ) {
     return {
       kind: "flag",
       key: token.trim().toLowerCase(),
@@ -111,6 +115,23 @@ function looksLikeArrowSpecification(token: string): boolean {
   }
 
   return /^[A-Za-z0-9<>\-\|\{\}\[\].' ]+$/.test(trimmed);
+}
+
+function looksLikeColorSpecification(token: string): boolean {
+  const trimmed = token.trim();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  if (/^#[0-9a-f]{3,8}$/i.test(trimmed)) {
+    return true;
+  }
+  if (!trimmed.includes("!")) {
+    return false;
+  }
+
+  return /^[A-Za-z][A-Za-z0-9]*\s*!\s*\d+(?:\.\d+)?(?:\s*!\s*[A-Za-z][A-Za-z0-9]*)?(?:\s*!\s*\d+(?:\.\d+)?(?:\s*!\s*[A-Za-z][A-Za-z0-9]*)?)*\s*$/.test(
+    trimmed
+  );
 }
 
 function findOptionCloseIndex(raw: string): number {

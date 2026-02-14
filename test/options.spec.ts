@@ -35,6 +35,14 @@ describe("options parser", () => {
     expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "|<->|")).toBe(true);
   });
 
+  it("classifies xcolor-style mix expressions as flags", () => {
+    const parsed = parseOptionListRaw("[green!50!white, red!20, #00ff00]");
+
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "green!50!white")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "red!20")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "#00ff00")).toBe(true);
+  });
+
   it("keeps unknown tokens", () => {
     const parsed = parseOptionListRaw("[foo={a,b}, ???]");
 
