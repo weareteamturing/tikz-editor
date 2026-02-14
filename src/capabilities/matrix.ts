@@ -37,6 +37,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["option_styles"]
   },
+  arrow_tips: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["arrow_tips"]
+  },
   path_operators_basic: {
     parser: "stable",
     semantic: "stable",

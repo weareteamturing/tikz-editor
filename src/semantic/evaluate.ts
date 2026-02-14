@@ -103,6 +103,9 @@ function evaluateStatement(
         span: statement.span
       });
     }
+    if (resolved.style.markerStart || resolved.style.markerEnd) {
+      markFeature(featureUsage, "arrow_tips", "supported");
+    }
 
     pushFrame(context, {
       style: resolved.style,
@@ -131,6 +134,13 @@ function evaluateStatement(
         });
       }
     );
+    if (
+      elements.some(
+        (element) => element.kind === "Path" && (element.style.markerStart != null || element.style.markerEnd != null)
+      )
+    ) {
+      markFeature(featureUsage, "arrow_tips", "supported");
+    }
     popFrame(context);
     return elements;
   }

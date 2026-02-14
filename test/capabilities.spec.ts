@@ -90,6 +90,10 @@ describe("capability matrix guards", () => {
         if (featureId === "render_pipeline") {
           expect(svg).toContain("<svg");
         }
+        if (featureId === "arrow_tips") {
+          expect(svg).toContain("marker-end=");
+          expect(svg).toContain("<defs>");
+        }
       }
     }
   });

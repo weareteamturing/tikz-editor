@@ -16,6 +16,9 @@ export const capabilityFixtures: Record<string, string> = {
   option_styles: String.raw`\begin{tikzpicture}
   \draw[red,fill=blue,line width=1pt] (0,0) -- (1,0);
 \end{tikzpicture}`,
+  arrow_tips: String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[arrows={-Latex[open,length=10pt]}] (0,0) -- (1,0);
+\end{tikzpicture}`,
   curve_operator: String.raw`\begin{tikzpicture}
   \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
 \end{tikzpicture}`,
@@ -54,4 +57,3 @@ export const capabilityFixtures: Record<string, string> = {
   \node at (1,1) {Hello};
 \end{tikzpicture}`
 };
-

@@ -166,6 +166,42 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("marker-end=");
   });
 
+  it("applies tips only to the last open subpath", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[<->] (0,0) -- (1,0) (2,0) -- (3,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const pathTags = emitted.svg.match(/<path data-source-id="[^"]+" [^>]+>/g) ?? [];
+    expect(pathTags.length).toBe(2);
+    expect(pathTags[0]).not.toContain("marker-start=");
+    expect(pathTags[0]).not.toContain("marker-end=");
+    expect(pathTags[1]).toContain("marker-start=");
+    expect(pathTags[1]).toContain("marker-end=");
+  });
+
+  it("shortens path geometry to accommodate arrow tips", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[<->] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const linePath = emitted.svg.match(/d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
+    expect(linePath).not.toBeNull();
+    if (!linePath) {
+      return;
+    }
+
+    const startX = Number(linePath[1]);
+    const endX = Number(linePath[2]);
+    expect(startX).toBeGreaterThan(5);
+    expect(endX).toBeLessThan(52);
+  });
+
   it("emits even-odd fill rule on compound fill paths", () => {
     const source = String.raw`\begin{tikzpicture}
   \fill[even odd rule] (0,0) circle (.5cm) (0.5,0) circle (.5cm);

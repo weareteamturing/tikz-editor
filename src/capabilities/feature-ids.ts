@@ -4,6 +4,7 @@ export const FEATURE_IDS = [
   "foreach_statement",
   "unknown_statement",
   "options_structured",
+  "arrow_tips",
   "path_operators_basic",
   "path_operator_curves",
   "path_cycle",
@@ -26,4 +27,3 @@ export const FEATURE_IDS = [
 ] as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[number];
-

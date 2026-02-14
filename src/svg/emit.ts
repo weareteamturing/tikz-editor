@@ -35,44 +35,42 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         continue;
       }
 
-      const d = encodePathData(element.commands, viewBox);
-      if (d.length === 0) {
-        diagnostics.push({
-          code: "empty-path",
-          message: `Skipping path ${element.id} because it has no drawing commands.`
-        });
-        continue;
-      }
-
-      const markerAttrs = resolvePathMarkers(element, ensureMarkerDefinition);
-      if (shouldEmitDoubleStroke(element.style)) {
-        const outerAttrs = styleAttributes(element.style, false, {
-          lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
-        });
-        if (markerAttrs.startId) {
-          outerAttrs.push(`marker-start="url(#${markerAttrs.startId})"`);
+      const parts = buildPathRenderParts(element, ensureMarkerDefinition);
+      for (const part of parts) {
+        const d = encodePathData(part.commands, viewBox);
+        if (d.length === 0) {
+          continue;
         }
-        if (markerAttrs.endId) {
-          outerAttrs.push(`marker-end="url(#${markerAttrs.endId})"`);
-        }
-        body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
-        const innerAttrs = styleAttributes(element.style, false, {
-          stroke: "#ffffff",
-          fill: "none",
-          lineWidth: element.style.doubleDistance
-        });
-        body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`);
-        continue;
-      }
 
-      const attrs = styleAttributes(element.style);
-      if (markerAttrs.startId) {
-        attrs.push(`marker-start="url(#${markerAttrs.startId})"`);
+        if (shouldEmitDoubleStroke(element.style)) {
+          const outerAttrs = styleAttributes(element.style, false, {
+            lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
+          });
+          if (part.markerStartId) {
+            outerAttrs.push(`marker-start="url(#${part.markerStartId})"`);
+          }
+          if (part.markerEndId) {
+            outerAttrs.push(`marker-end="url(#${part.markerEndId})"`);
+          }
+          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
+          const innerAttrs = styleAttributes(element.style, false, {
+            stroke: "#ffffff",
+            fill: "none",
+            lineWidth: element.style.doubleDistance
+          });
+          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`);
+          continue;
+        }
+
+        const attrs = styleAttributes(element.style);
+        if (part.markerStartId) {
+          attrs.push(`marker-start="url(#${part.markerStartId})"`);
+        }
+        if (part.markerEndId) {
+          attrs.push(`marker-end="url(#${part.markerEndId})"`);
+        }
+        body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
       }
-      if (markerAttrs.endId) {
-        attrs.push(`marker-end="url(#${markerAttrs.endId})"`);
-      }
-      body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
       continue;
     }
 
@@ -237,11 +235,50 @@ function isDefaultBarMarker(marker: ArrowMarker): boolean {
   );
 }
 
+type PathRenderPart = {
+  commands: ScenePathCommand[];
+  markerStartId: string | null;
+  markerEndId: string | null;
+};
+
+function buildPathRenderParts(path: ScenePath, ensureMarkerDefinition: (marker: ArrowMarker) => string): PathRenderPart[] {
+  const subpaths = splitPathIntoSubpaths(path.commands);
+  if (subpaths.length === 0) {
+    return [];
+  }
+
+  const markerAttrs = resolvePathMarkers(path, subpaths, ensureMarkerDefinition);
+  if (!markerAttrs.startId && !markerAttrs.endId) {
+    return [{ commands: path.commands, markerStartId: null, markerEndId: null }];
+  }
+
+  const leadingSubpaths = subpaths.slice(0, -1);
+  const leadingCommands = flattenSubpaths(leadingSubpaths);
+  const lastSubpath = subpaths[subpaths.length - 1] ?? [];
+  const shortenedLastSubpath = shortenSubpathForMarkers(lastSubpath, path.style.markerStart, path.style.markerEnd);
+
+  const parts: PathRenderPart[] = [];
+  if (leadingCommands.length > 0 && hasDrawablePathCommands(leadingCommands)) {
+    parts.push({
+      commands: leadingCommands,
+      markerStartId: null,
+      markerEndId: null
+    });
+  }
+  parts.push({
+    commands: shortenedLastSubpath,
+    markerStartId: markerAttrs.startId,
+    markerEndId: markerAttrs.endId
+  });
+  return parts;
+}
+
 function resolvePathMarkers(
   path: ScenePath,
+  subpaths: ScenePathCommand[][],
   ensureMarkerDefinition: (marker: ArrowMarker) => string
 ): { startId: string | null; endId: string | null } {
-  if (!shouldEmitPathMarkers(path)) {
+  if (!shouldEmitPathMarkers(path, subpaths)) {
     return { startId: null, endId: null };
   }
 
@@ -251,7 +288,7 @@ function resolvePathMarkers(
   };
 }
 
-function shouldEmitPathMarkers(path: ScenePath): boolean {
+function shouldEmitPathMarkers(path: ScenePath, subpaths: ScenePathCommand[][]): boolean {
   if (!path.style.markerStart && !path.style.markerEnd) {
     return false;
   }
@@ -260,14 +297,17 @@ function shouldEmitPathMarkers(path: ScenePath): boolean {
     return false;
   }
 
-  if (path.commands.some((command) => command.kind === "Z")) {
+  if (subpaths.length === 0) {
     return false;
   }
 
-  const hasDrawableSegment = path.commands.some(
-    (command) => command.kind === "L" || command.kind === "C" || command.kind === "A"
-  );
-  if (!hasDrawableSegment && (path.style.tipsMode === "proper" || path.style.tipsMode === "on proper draw")) {
+  if (subpaths.some((subpath) => subpath.some((command) => command.kind === "Z"))) {
+    return false;
+  }
+
+  const lastSubpath = subpaths[subpaths.length - 1] ?? [];
+  const lastHasDrawableSegment = hasDrawablePathCommands(lastSubpath);
+  if (!lastHasDrawableSegment && (path.style.tipsMode === "proper" || path.style.tipsMode === "on proper draw")) {
     return false;
   }
 
@@ -277,6 +317,255 @@ function shouldEmitPathMarkers(path: ScenePath): boolean {
   }
 
   return true;
+}
+
+function splitPathIntoSubpaths(commands: ScenePathCommand[]): ScenePathCommand[][] {
+  const subpaths: ScenePathCommand[][] = [];
+  let current: ScenePathCommand[] = [];
+
+  for (const command of commands) {
+    if (command.kind === "M" && current.length > 0) {
+      subpaths.push(current);
+      current = [clonePathCommand(command)];
+      continue;
+    }
+    current.push(clonePathCommand(command));
+  }
+
+  if (current.length > 0) {
+    subpaths.push(current);
+  }
+
+  return subpaths;
+}
+
+function flattenSubpaths(subpaths: ScenePathCommand[][]): ScenePathCommand[] {
+  const flattened: ScenePathCommand[] = [];
+  for (const subpath of subpaths) {
+    for (const command of subpath) {
+      flattened.push(clonePathCommand(command));
+    }
+  }
+  return flattened;
+}
+
+function shortenSubpathForMarkers(
+  subpath: ScenePathCommand[],
+  markerStart: ArrowMarker | null,
+  markerEnd: ArrowMarker | null
+): ScenePathCommand[] {
+  const commands = subpath.map(clonePathCommand);
+  if (commands.length < 2) {
+    return commands;
+  }
+
+  const firstSegmentIndex = findFirstDrawableCommandIndex(commands);
+  const lastSegmentIndex = findLastDrawableCommandIndex(commands);
+  if (firstSegmentIndex < 0 || lastSegmentIndex < 0) {
+    return commands;
+  }
+
+  if (markerStart) {
+    const requested = markerShorteningLength(markerStart);
+    applyStartShortening(commands, firstSegmentIndex, requested);
+  }
+
+  if (markerEnd) {
+    const requested = markerShorteningLength(markerEnd);
+    applyEndShortening(commands, lastSegmentIndex, requested);
+  }
+
+  return commands;
+}
+
+function markerShorteningLength(marker: ArrowMarker): number {
+  if (marker.tips.length === 0) {
+    return 0;
+  }
+  let length = 0;
+  for (const tip of marker.tips) {
+    length += Math.max(1, tip.length);
+  }
+  if (marker.tips.length > 1) {
+    length += (marker.tips.length - 1) * 0.8;
+  }
+  return length;
+}
+
+function applyStartShortening(commands: ScenePathCommand[], firstSegmentIndex: number, requested: number): void {
+  if (requested <= 0 || firstSegmentIndex <= 0) {
+    return;
+  }
+
+  const segment = commands[firstSegmentIndex];
+  if (!segment || !isDrawableCommand(segment)) {
+    return;
+  }
+  const previous = commandPoint(commands[firstSegmentIndex - 1]);
+  if (!previous) {
+    return;
+  }
+
+  const tangent = startTangentForCommand(segment, previous);
+  const tangentLength = lengthOfVector(tangent);
+  if (tangentLength <= 1e-6) {
+    return;
+  }
+
+  const delta = Math.min(requested, tangentLength * 0.45);
+  if (delta <= 1e-6) {
+    return;
+  }
+  const unit = scaleVector(tangent, 1 / tangentLength);
+  const shift = scaleVector(unit, delta);
+  const newStart = addPoint(previous, shift);
+  const previousCommand = commands[firstSegmentIndex - 1];
+  if (previousCommand.kind !== "M" && previousCommand.kind !== "L" && previousCommand.kind !== "C" && previousCommand.kind !== "A") {
+    return;
+  }
+  previousCommand.to = newStart;
+
+  if (segment.kind === "C") {
+    segment.c1 = addPoint(segment.c1, shift);
+  }
+}
+
+function applyEndShortening(commands: ScenePathCommand[], lastSegmentIndex: number, requested: number): void {
+  if (requested <= 0 || lastSegmentIndex <= 0) {
+    return;
+  }
+
+  const segment = commands[lastSegmentIndex];
+  if (!segment || !isDrawableCommand(segment)) {
+    return;
+  }
+  const previous = commandPoint(commands[lastSegmentIndex - 1]);
+  if (!previous) {
+    return;
+  }
+
+  const tangent = endTangentForCommand(segment, previous);
+  const tangentLength = lengthOfVector(tangent);
+  if (tangentLength <= 1e-6) {
+    return;
+  }
+
+  const delta = Math.min(requested, tangentLength * 0.45);
+  if (delta <= 1e-6) {
+    return;
+  }
+
+  const unit = scaleVector(tangent, 1 / tangentLength);
+  const shift = scaleVector(unit, -delta);
+  segment.to = addPoint(segment.to, shift);
+
+  if (segment.kind === "C") {
+    segment.c2 = addPoint(segment.c2, shift);
+  }
+}
+
+function findFirstDrawableCommandIndex(commands: ScenePathCommand[]): number {
+  for (let index = 0; index < commands.length; index += 1) {
+    if (isDrawableCommand(commands[index])) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function findLastDrawableCommandIndex(commands: ScenePathCommand[]): number {
+  for (let index = commands.length - 1; index >= 0; index -= 1) {
+    if (isDrawableCommand(commands[index])) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function isDrawableCommand(command: ScenePathCommand | undefined): command is Extract<ScenePathCommand, { kind: "L" | "C" | "A" }> {
+  return command?.kind === "L" || command?.kind === "C" || command?.kind === "A";
+}
+
+function startTangentForCommand(command: Extract<ScenePathCommand, { kind: "L" | "C" | "A" }>, start: { x: number; y: number }): {
+  x: number;
+  y: number;
+} {
+  if (command.kind === "L" || command.kind === "A") {
+    return subtractPoint(command.to, start);
+  }
+
+  const c1 = subtractPoint(command.c1, start);
+  if (lengthOfVector(c1) > 1e-6) {
+    return c1;
+  }
+  const c2 = subtractPoint(command.c2, start);
+  if (lengthOfVector(c2) > 1e-6) {
+    return c2;
+  }
+  return subtractPoint(command.to, start);
+}
+
+function endTangentForCommand(command: Extract<ScenePathCommand, { kind: "L" | "C" | "A" }>, previous: { x: number; y: number }): {
+  x: number;
+  y: number;
+} {
+  if (command.kind === "L" || command.kind === "A") {
+    return subtractPoint(command.to, previous);
+  }
+
+  const c2 = subtractPoint(command.to, command.c2);
+  if (lengthOfVector(c2) > 1e-6) {
+    return c2;
+  }
+  const fallback = subtractPoint(command.to, previous);
+  return fallback;
+}
+
+function commandPoint(command: ScenePathCommand | undefined): { x: number; y: number } | null {
+  if (!command) {
+    return null;
+  }
+  if (command.kind === "M" || command.kind === "L" || command.kind === "C" || command.kind === "A") {
+    return command.to;
+  }
+  return null;
+}
+
+function clonePathCommand(command: ScenePathCommand): ScenePathCommand {
+  if (command.kind === "M" || command.kind === "L") {
+    return { kind: command.kind, to: { ...command.to } };
+  }
+  if (command.kind === "C") {
+    return { kind: "C", c1: { ...command.c1 }, c2: { ...command.c2 }, to: { ...command.to } };
+  }
+  if (command.kind === "A") {
+    return {
+      kind: "A",
+      rx: command.rx,
+      ry: command.ry,
+      xAxisRotation: command.xAxisRotation,
+      largeArc: command.largeArc,
+      sweep: command.sweep,
+      to: { ...command.to }
+    };
+  }
+  return { kind: "Z" };
+}
+
+function addPoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
+  return { x: left.x + right.x, y: left.y + right.y };
+}
+
+function subtractPoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
+  return { x: left.x - right.x, y: left.y - right.y };
+}
+
+function scaleVector(vector: { x: number; y: number }, factor: number): { x: number; y: number } {
+  return { x: vector.x * factor, y: vector.y * factor };
+}
+
+function lengthOfVector(vector: { x: number; y: number }): number {
+  return Math.hypot(vector.x, vector.y);
 }
 
 function renderMarkerDefinition(id: string, marker: ArrowMarker): string {
