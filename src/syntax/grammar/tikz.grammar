@@ -24,6 +24,7 @@ Statement {
   StyleDefinitionStatement |
   MacroDefinitionStatement |
   MacroAliasStatement |
+  MacroCommandDefinitionStatement |
   UnknownStatement
 }
 
@@ -244,6 +245,22 @@ LetAliasTarget {
   "="? (CommandName | Group)
 }
 
+MacroCommandDefinitionStatement {
+  (NewCommandCmd | RenewCommandCmd) "*"?
+  MacroCommandName
+  MacroCommandArity?
+  Group
+}
+
+MacroCommandName {
+  CommandName |
+  Group
+}
+
+MacroCommandArity {
+  "[" Number "]"
+}
+
 UnknownPart {
   Comment |
   RelativeCoordinate |
@@ -375,6 +392,7 @@ GroupPunct {
   "_" |
   "~" |
   "*" |
+  "#" |
   "'" |
   "\"" |
   "`"
@@ -480,6 +498,8 @@ StrayToken {
     TikzStyleCmd,
     DefCmd,
     LetDefCmd,
+    NewCommandCmd,
+    RenewCommandCmd,
     InlineTikzCmd,
     EndTikz,
     FillDrawCmd,
@@ -558,6 +578,8 @@ StrayToken {
   TikzStyleCmd { "\\tikzstyle" }
   DefCmd { "\\def" }
   LetDefCmd { "\\let" }
+  NewCommandCmd { "\\newcommand" }
+  RenewCommandCmd { "\\renewcommand" }
   PgfkeysCmd { "\\pgfkeys" }
   MatrixRowSepCmd { "\\\\" }
   EscapedAmpersandCmd { "\\&" }

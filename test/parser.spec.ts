@@ -165,6 +165,60 @@ describe("parseTikz", () => {
     expect(result.figure.body[2]?.kind).toBe("Path");
   });
 
+  it("parses standalone newcommand definitions with grouped names and arity", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2]{#1/#2}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.length).toBe(2);
+    expect(result.figure.body[0]?.kind).toBe("MacroCommandDefinition");
+    expect(result.figure.body[1]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "MacroCommandDefinition") {
+      expect(result.figure.body[0].commandRaw).toBe("\\newcommand");
+      expect(result.figure.body[0].nameRaw).toBe("\\pair");
+      expect(result.figure.body[0].arity).toBe(2);
+      expect(result.figure.body[0].bodyRaw).toContain("#1/#2");
+    }
+  });
+
+  it("parses renewcommand definitions with ungrouped names", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \renewcommand\labelmacro[1]{\textsf{#1}}
+  \node at (0,0) {\labelmacro{A}};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.length).toBe(2);
+    expect(result.figure.body[0]?.kind).toBe("MacroCommandDefinition");
+    expect(result.figure.body[1]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "MacroCommandDefinition") {
+      expect(result.figure.body[0].commandRaw).toBe("\\renewcommand");
+      expect(result.figure.body[0].nameRaw).toBe("\\labelmacro");
+      expect(result.figure.body[0].arity).toBe(1);
+      expect(result.figure.body[0].bodyRaw).toContain(String.raw`\textsf{#1}`);
+    }
+  });
+
+  it("captures starred newcommand definitions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand*{\tagged}[1]{#1}
+  \node at (0,0) {\tagged{A}};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body[0]?.kind).toBe("MacroCommandDefinition");
+    if (result.figure.body[0]?.kind === "MacroCommandDefinition") {
+      expect(result.figure.body[0].starred).toBe(true);
+      expect(result.figure.body[0].nameRaw).toBe("\\tagged");
+      expect(result.figure.body[0].arity).toBe(1);
+    }
+  });
+
   it("returns diagnostics while still producing IR for incomplete input", () => {
     const source = loadFixture("incomplete.tex");
     const result = parseTikz(source);

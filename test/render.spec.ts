@@ -108,6 +108,22 @@ describe("render pipeline", () => {
     }
   });
 
+  it("expands fixed-arity newcommand macros before MathJax rendering in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\vect}[1]{\mathbf{#1}}
+  \node at (0,0) {$\vect{x}$};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toBe(String.raw`$\mathbf{x}$`);
+    }
+  });
+
   it("keeps math control sequence boundaries after foreach substitution in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {a}

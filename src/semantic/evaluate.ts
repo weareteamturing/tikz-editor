@@ -1,5 +1,6 @@
 import type {
   MacroAliasStatement,
+  MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
   PathItem,
   PathStatement,
@@ -10,7 +11,14 @@ import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
 import type { FeatureId } from "../capabilities/feature-ids.js";
 import { expandForeachFigure } from "../foreach/index.js";
-import { expandMacroBindings, isControlSequenceToken } from "../macros/index.js";
+import {
+  DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+  expandMacroBindings,
+  isControlSequenceToken,
+  type MacroBinding,
+  type MacroExpansionTraceEvent,
+  type MacroOriginFrame
+} from "../macros/index.js";
 import type {
   ForeachOriginFrame as ExpansionForeachOriginFrame,
   ForeachStatementAttribution
@@ -87,14 +95,16 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
   }
 
   const elements: SceneElement[] = [];
+  const statementMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
   for (const statement of expanded.figureBody) {
-    const statementElements = evaluateStatement(statement, context, diagnostics, featureUsage);
+    const statementElements = evaluateStatement(statement, context, diagnostics, featureUsage, statementMacroAttribution);
     elements.push(
       ...applyForeachAttributionToElements(
         statement,
         statementElements,
         expanded.statementAttribution,
-        expanded.pathItemForeachStack
+        expanded.pathItemForeachStack,
+        statementMacroAttribution
       )
     );
   }
@@ -119,7 +129,8 @@ function evaluateStatement(
   statement: Statement,
   context: ReturnType<typeof createSemanticContext>,
   diagnostics: Diagnostic[],
-  featureUsage: FeatureUsage
+  featureUsage: FeatureUsage,
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>
 ): SceneElement[] {
   if (statement.kind === "Path") {
     markFeature(featureUsage, "path_statement", "supported");
@@ -167,29 +178,40 @@ function evaluateStatement(
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles
     });
-    const elements = evaluatePathStatement(
-      statement,
-      context,
-      resolved.style,
-      (featureId, status) => markFeature(featureUsage, featureId, status),
-      (code, message, from, to) => {
-        diagnostics.push({
-          severity: code.startsWith("unsupported") ? "warning" : "error",
-          code,
-          message,
-          span: { from, to }
-        });
+    const previousTraceCollector = context.macroTraceCollector;
+    const statementMacroTrace: MacroExpansionTraceEvent[] = [];
+    context.macroTraceCollector = statementMacroTrace;
+    try {
+      const elements = evaluatePathStatement(
+        statement,
+        context,
+        resolved.style,
+        (featureId, status) => markFeature(featureUsage, featureId, status),
+        (code, message, from, to) => {
+          diagnostics.push({
+            severity: code.startsWith("unsupported") ? "warning" : "error",
+            code,
+            message,
+            span: { from, to }
+          });
+        }
+      );
+      const originStack = extractStatementMacroOriginStack(statementMacroTrace);
+      if (originStack.length > 0) {
+        statementMacroAttribution.set(statement, originStack);
       }
-    );
-    if (
-      elements.some(
-        (element) => element.kind === "Path" && (element.style.markerStart != null || element.style.markerEnd != null)
-      )
-    ) {
-      markFeature(featureUsage, "arrow_tips", "supported");
+      if (
+        elements.some(
+          (element) => element.kind === "Path" && (element.style.markerStart != null || element.style.markerEnd != null)
+        )
+      ) {
+        markFeature(featureUsage, "arrow_tips", "supported");
+      }
+      return elements;
+    } finally {
+      context.macroTraceCollector = previousTraceCollector;
+      popFrame(context);
     }
-    popFrame(context);
-    return elements;
   }
 
   if (statement.kind === "Scope") {
@@ -225,7 +247,9 @@ function evaluateStatement(
         span: statement.span
       });
     }
-    const nested = statement.body.flatMap((entry) => evaluateStatement(entry, context, diagnostics, featureUsage));
+    const nested = statement.body.flatMap((entry) =>
+      evaluateStatement(entry, context, diagnostics, featureUsage, statementMacroAttribution)
+    );
     popFrame(context);
     return nested;
   }
@@ -243,6 +267,12 @@ function evaluateStatement(
 
   if (statement.kind === "MacroAlias") {
     applyMacroAliasStatement(statement, context);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "MacroCommandDefinition") {
+    applyMacroCommandDefinitionStatement(statement, context, diagnostics);
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -359,7 +389,11 @@ function applyMacroDefinitionStatement(
   }
 
   const frame = currentFrame(context);
-  frame.macroBindings.set(name, statement.valueRaw);
+  frame.macroBindings.set(name, {
+    kind: "text",
+    value: statement.valueRaw,
+    provenance: [buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw)]
+  });
 }
 
 function applyMacroAliasStatement(statement: MacroAliasStatement, context: ReturnType<typeof createSemanticContext>): void {
@@ -374,14 +408,147 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
     return;
   }
 
-  let aliasValue = targetRaw;
+  const aliasOrigin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
+  let binding: MacroBinding | null = null;
   if (isControlSequenceToken(targetRaw)) {
-    aliasValue = frame.macroBindings.get(targetRaw) ?? targetRaw;
+    const targetBinding = frame.macroBindings.get(targetRaw);
+    if (targetBinding) {
+      binding = cloneMacroBinding(targetBinding);
+      binding.provenance.push(aliasOrigin);
+    } else {
+      binding = {
+        kind: "text",
+        value: targetRaw,
+        provenance: [aliasOrigin]
+      };
+    }
   } else {
-    aliasValue = expandMacroBindings(targetRaw, frame.macroBindings);
+    binding = {
+      kind: "text",
+      value: expandMacroBindings(targetRaw, frame.macroBindings, {
+        maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
+      }),
+      provenance: [aliasOrigin]
+    };
   }
 
-  frame.macroBindings.set(name, aliasValue);
+  if (binding) {
+    frame.macroBindings.set(name, binding);
+  }
+}
+
+function applyMacroCommandDefinitionStatement(
+  statement: MacroCommandDefinitionStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) {
+    return;
+  }
+
+  const frame = currentFrame(context);
+  const parameterCount = clampMacroParameterCount(statement.arity, diagnostics, statement);
+  const origin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
+  const binding: MacroBinding =
+    parameterCount === 0
+      ? {
+          kind: "text",
+          value: statement.bodyRaw,
+          provenance: [origin]
+        }
+      : {
+          kind: "callable",
+          parameterCount,
+          body: statement.bodyRaw,
+          provenance: [origin]
+        };
+  frame.macroBindings.set(name, binding);
+}
+
+function clampMacroParameterCount(arity: number, diagnostics: Diagnostic[], statement: MacroCommandDefinitionStatement): number {
+  if (arity <= 9) {
+    return Math.max(0, arity);
+  }
+
+  diagnostics.push({
+    severity: "warning",
+    code: "unsupported-macro-arity",
+    message: `Only up to 9 macro parameters are supported; ${statement.commandRaw} ${statement.nameRaw} will use 9.`,
+    span: statement.aritySpan ?? statement.span
+  });
+  return 9;
+}
+
+function cloneMacroBinding(binding: MacroBinding): MacroBinding {
+  if (binding.kind === "text") {
+    return {
+      kind: "text",
+      value: binding.value,
+      provenance: cloneMacroOriginStack(binding.provenance)
+    };
+  }
+
+  return {
+    kind: "callable",
+    parameterCount: binding.parameterCount,
+    body: binding.body,
+    provenance: cloneMacroOriginStack(binding.provenance)
+  };
+}
+
+function buildMacroOriginFrame(
+  macroName: string,
+  definitionId: string,
+  definitionSpan: { from: number; to: number },
+  commandRaw: MacroOriginFrame["commandRaw"]
+): MacroOriginFrame {
+  return {
+    macroName,
+    definitionId,
+    definitionSpan,
+    commandRaw
+  };
+}
+
+function extractStatementMacroOriginStack(trace: MacroExpansionTraceEvent[]): MacroOriginFrame[] {
+  if (trace.length === 0) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const ordered: MacroOriginFrame[] = [];
+  for (const event of trace) {
+    for (const origin of event.provenance) {
+      const key = `${origin.definitionId}:${origin.macroName}:${origin.commandRaw}:${origin.definitionSpan.from}:${origin.definitionSpan.to}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      ordered.push({
+        macroName: origin.macroName,
+        definitionId: origin.definitionId,
+        definitionSpan: {
+          from: origin.definitionSpan.from,
+          to: origin.definitionSpan.to
+        },
+        commandRaw: origin.commandRaw
+      });
+    }
+  }
+  return ordered;
+}
+
+function cloneMacroOriginStack(stack: MacroOriginFrame[]): MacroOriginFrame[] {
+  return stack.map((origin) => ({
+    macroName: origin.macroName,
+    definitionId: origin.definitionId,
+    definitionSpan: {
+      from: origin.definitionSpan.from,
+      to: origin.definitionSpan.to
+    },
+    commandRaw: origin.commandRaw
+  }));
 }
 
 function normalizeMacroName(raw: string): string | null {
@@ -888,13 +1055,15 @@ function applyForeachAttributionToElements(
   statement: Statement,
   elements: SceneElement[],
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>,
-  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>
+  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>,
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>
 ): SceneElement[] {
   if (elements.length === 0) {
     return elements;
   }
 
   const attribution = statementAttribution.get(statement);
+  const statementMacroStack = statementMacroAttribution.get(statement);
   const pathItemsById = statement.kind === "Path" ? buildPathItemLookup(statement) : undefined;
   const pathFallbackStack =
     statement.kind === "Path" ? resolveFirstPathItemForeachStack(statement.items, pathItemForeachStack) : undefined;
@@ -910,12 +1079,25 @@ function applyForeachAttributionToElements(
         : pathFallbackStack && pathFallbackStack.length > 0
           ? pathFallbackStack
           : attribution?.foreachStack);
-    const nextOrigin =
+    const foreachStack =
       fallbackStack && fallbackStack.length > 0
+        ? cloneForeachStack(fallbackStack)
+        : element.origin?.foreachStack
+          ? cloneForeachStack(element.origin.foreachStack)
+          : [];
+    const macroStack =
+      statementMacroStack && statementMacroStack.length > 0
+        ? cloneMacroOriginStack(statementMacroStack)
+        : element.origin?.macroStack
+          ? cloneMacroOriginStack(element.origin.macroStack)
+          : undefined;
+    const nextOrigin =
+      foreachStack.length > 0 || (macroStack != null && macroStack.length > 0)
         ? {
-            foreachStack: cloneForeachStack(fallbackStack)
+            foreachStack,
+            macroStack
           }
-        : element.origin;
+        : undefined;
 
     const nextSourceId = attribution?.sourceId ?? element.sourceId;
     const nextSourceSpan = attribution?.sourceSpan ?? element.sourceSpan;

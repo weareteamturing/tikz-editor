@@ -1,6 +1,7 @@
 import type { Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
+import type { MacroOriginFrame } from "../macros/index.js";
 
 export const SHADOW_INHERIT_STROKE = "__tikz-shadow-inherit-stroke__";
 export const SHADOW_INHERIT_FILL = "__tikz-shadow-inherit-fill__";
@@ -118,6 +119,7 @@ export type ForeachOriginFrame = {
 
 export type SceneElementOrigin = {
   foreachStack: ForeachOriginFrame[];
+  macroStack?: MacroOriginFrame[];
 };
 
 export type ShadowFadeKind = "none" | "circle-fuzzy-edge-15";

@@ -1521,6 +1521,125 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies fixed-arity \\newcommand macros in coordinate expressions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\xof}[1]{#1}
+  \draw (\xof{3},0) -- (\xof{4},0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      const line = path.commands.find((command) => command.kind === "L");
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M" && line?.kind === "L") {
+        expect(move.to.x).toBeCloseTo(85.3583, 3);
+        expect(line.to.x).toBeCloseTo(113.811, 3);
+      }
+    }
+  });
+
+  it("supports callable aliases via \\let for \\newcommand macros", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2]{#1/#2}
+  \let\alias=\pair
+  \node at (0,0) {\alias{A}{B}};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toBe("A/B");
+    }
+  });
+
+  it("applies renewcommand overrides with normal scope rollback", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\xv}{1}
+  \begin{scope}
+    \renewcommand{\xv}{2}
+    \draw (\xv,0) -- (\xv,1);
+  \end{scope}
+  \draw (\xv,0) -- (\xv,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths).toHaveLength(2);
+    const first = paths[0];
+    const second = paths[1];
+    expect(first?.kind).toBe("Path");
+    expect(second?.kind).toBe("Path");
+    if (first?.kind === "Path" && second?.kind === "Path") {
+      const firstMove = first.commands.find((command) => command.kind === "M");
+      const secondMove = second.commands.find((command) => command.kind === "M");
+      expect(firstMove?.kind).toBe("M");
+      expect(secondMove?.kind).toBe("M");
+      if (firstMove?.kind === "M" && secondMove?.kind === "M") {
+        expect(firstMove.to.x).toBeCloseTo(56.9055, 3);
+        expect(secondMove.to.x).toBeCloseTo(28.4527, 3);
+      }
+    }
+  });
+
+  it("attaches macro provenance metadata to expanded elements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\x{A}
+  \newcommand{\fmt}[1]{#1}
+  \node at (0,0) {\fmt{\x}};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.origin?.foreachStack).toEqual([]);
+      expect(label.origin?.macroStack?.map((entry) => entry.macroName)).toEqual(expect.arrayContaining(["\\x", "\\fmt"]));
+      expect(label.origin?.macroStack?.some((entry) => entry.commandRaw === "\\newcommand")).toBe(true);
+    }
+  });
+
+  it("expands fixed-arity \\newcommand macros in node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2]{#1-#2}
+  \node at (0,0) {\pair{A}{B}};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toBe("A-B");
+    }
+  });
+
+  it("caps recursive macro expansion depth during semantic evaluation", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\loop{\loop x}
+  \node at (0,0) {\loop};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      const growthCount = (label.text.match(/ x/g) ?? []).length;
+      expect(growthCount).toBe(100);
+      expect(label.text.startsWith(String.raw`\loop`)).toBe(true);
+    }
+  });
+
   it("resolves custom style overwrite order left-to-right", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{

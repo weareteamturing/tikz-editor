@@ -15,6 +15,7 @@ export type Statement =
   | ForeachStatement
   | MacroDefinitionStatement
   | MacroAliasStatement
+  | MacroCommandDefinitionStatement
   | UnknownStatement;
 
 export type PathStatement = {
@@ -70,6 +71,21 @@ export type MacroAliasStatement = {
   nameSpan?: Span;
   targetRaw: string;
   targetSpan?: Span;
+};
+
+export type MacroCommandDefinitionStatement = {
+  kind: "MacroCommandDefinition";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\newcommand" | "\\renewcommand";
+  nameRaw: string;
+  nameSpan?: Span;
+  arity: number;
+  aritySpan?: Span;
+  bodyRaw: string;
+  bodySpan?: Span;
+  starred: boolean;
 };
 
 export type PathCommand =

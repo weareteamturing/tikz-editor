@@ -18,6 +18,10 @@ export function macroAliasStatementId(statementIndex: number): string {
   return `macro-alias:${statementIndex}`;
 }
 
+export function macroCommandDefinitionStatementId(statementIndex: number): string {
+  return `macro-command-definition:${statementIndex}`;
+}
+
 export function unknownStatementId(statementIndex: number): string {
   return `unknown-statement:${statementIndex}`;
 }

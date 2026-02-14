@@ -4,6 +4,7 @@ import {
   foreachStatementId,
   letOperationItemId,
   macroAliasStatementId,
+  macroCommandDefinitionStatementId,
   macroDefinitionStatementId,
   nodeForeachClauseId,
   nodeItemId,
@@ -489,6 +490,11 @@ function reindexStatementsInPlace(statements: Statement[], state: { nextStatemen
 
     if (statement.kind === "MacroAlias") {
       statement.id = macroAliasStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "MacroCommandDefinition") {
+      statement.id = macroCommandDefinitionStatementId(statementIndex);
       continue;
     }
 

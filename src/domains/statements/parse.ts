@@ -1,9 +1,16 @@
 import type { SyntaxNode } from "@lezer/common";
 
-import { foreachStatementId, macroAliasStatementId, macroDefinitionStatementId, scopeStatementId } from "../../ast/ids.js";
+import {
+  foreachStatementId,
+  macroAliasStatementId,
+  macroCommandDefinitionStatementId,
+  macroDefinitionStatementId,
+  scopeStatementId
+} from "../../ast/ids.js";
 import type {
   ForeachStatement,
   MacroAliasStatement,
+  MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
   ScopeStatement,
   Span,
@@ -54,6 +61,10 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
 
   if (node.type.name === "MacroAliasStatement") {
     return mapMacroAliasStatement(node, source, state);
+  }
+
+  if (node.type.name === "MacroCommandDefinitionStatement") {
+    return mapMacroCommandDefinitionStatement(node, source, state);
   }
 
   if (node.type.name === "TikzSetStatement" || node.type.name === "TikzStyleStatement" || node.type.name === "PgfkeysStatement") {
@@ -178,6 +189,95 @@ function mapMacroAliasStatement(node: SyntaxNode, source: string, state: Stateme
       : targetGroupNode
         ? toGroupInnerSpan(targetGroupNode, source)
         : undefined
+  };
+}
+
+function mapMacroCommandDefinitionStatement(
+  node: SyntaxNode,
+  source: string,
+  state: StatementMappingState
+): MacroCommandDefinitionStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const newCommandNode = findFirstChildByName(node, "NewCommandCmd");
+  const renewCommandNode = findFirstChildByName(node, "RenewCommandCmd");
+  const commandNode = newCommandNode ?? renewCommandNode;
+  const commandRaw = renewCommandNode ? "\\renewcommand" : "\\newcommand";
+  const commandNameNode = findFirstChildByName(node, "MacroCommandName");
+  const commandNameTokenNode = commandNameNode ? findFirstChildByName(commandNameNode, "CommandName") : null;
+  const commandNameGroupNode = commandNameNode ? findFirstChildByName(commandNameNode, "Group") : null;
+  const bodyNode = resolveMacroCommandBodyNode(node, source);
+  const arityNode = findFirstChildByName(node, "MacroCommandArity");
+  const arityNumberNode = arityNode ? findFirstChildByName(arityNode, "Number") : null;
+
+  const parsedNameFromGroup = commandNameGroupNode ? parseCommandNameFromGroup(commandNameGroupNode, source) : null;
+  const nameRaw = commandNameTokenNode
+    ? source.slice(commandNameTokenNode.from, commandNameTokenNode.to)
+    : parsedNameFromGroup?.nameRaw ?? "";
+  const nameSpan = commandNameTokenNode ? toSpan(commandNameTokenNode) : parsedNameFromGroup?.nameSpan;
+
+  const arityRaw = arityNumberNode ? source.slice(arityNumberNode.from, arityNumberNode.to) : "";
+  const parsedArity = Number.parseInt(arityRaw, 10);
+  const arity = Number.isFinite(parsedArity) ? Math.max(0, parsedArity) : 0;
+
+  const starred =
+    commandNode != null && commandNameNode != null
+      ? source.slice(commandNode.to, commandNameNode.from).includes("*")
+      : false;
+
+  return {
+    kind: "MacroCommandDefinition",
+    id: macroCommandDefinitionStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw,
+    nameRaw,
+    nameSpan,
+    arity,
+    aritySpan: toSpan(arityNumberNode),
+    bodyRaw: bodyNode ? extractGroupInnerRaw(bodyNode, source) : "",
+    bodySpan: bodyNode ? toGroupInnerSpan(bodyNode, source) : undefined,
+    starred
+  };
+}
+
+function resolveMacroCommandBodyNode(node: SyntaxNode, source: string): SyntaxNode | null {
+  const groups: SyntaxNode[] = [];
+  forEachChild(node, (child) => {
+    if (child.type.name === "Group") {
+      groups.push(child);
+      return;
+    }
+
+    if (child.type.name === "MacroCommandName") {
+      const groupedName = findFirstChildByName(child, "Group");
+      if (groupedName) {
+        groups.push(groupedName);
+      }
+    }
+  });
+
+  if (groups.length === 0) {
+    return null;
+  }
+  return groups[groups.length - 1];
+}
+
+function parseCommandNameFromGroup(
+  groupNode: SyntaxNode,
+  source: string
+): { nameRaw: string; nameSpan?: Span } | null {
+  const inner = toGroupInnerSpan(groupNode, source);
+  const innerRaw = source.slice(inner.from, inner.to);
+  const match = /\\[A-Za-z@]+/.exec(innerRaw);
+  if (!match) {
+    return null;
+  }
+
+  const from = inner.from + match.index;
+  const to = from + match[0].length;
+  return {
+    nameRaw: match[0],
+    nameSpan: { from, to }
   };
 }
 

@@ -1,5 +1,5 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
-import { expandMacroBindings } from "../../macros/index.js";
+import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import { parseOptionListRaw, splitTopLevel } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parseLength } from "../coords/parse-length.js";
@@ -129,7 +129,11 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       const cellStyle = resolveNodeStyle(combinedCellOptions, params.style, params.context, cellTransformScale);
       const expandedCellText = expandMacroBindings(
         parsedCell.text,
-        params.context.stack[params.context.stack.length - 1].macroBindings
+        params.context.stack[params.context.stack.length - 1].macroBindings,
+        {
+          maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+          trace: params.context.macroTraceCollector ?? undefined
+        }
       );
       const cellLayout = resolveNodeLayout(
         expandedCellText,
@@ -257,7 +261,11 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         textSpan: params.item.textSpan,
         text: expandMacroBindings(
           resolvedCell.cell.text,
-          params.context.stack[params.context.stack.length - 1].macroBindings
+          params.context.stack[params.context.stack.length - 1].macroBindings,
+          {
+            maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+            trace: params.context.macroTraceCollector ?? undefined
+          }
         )
       };
       const evaluatedCell = params.evaluateNestedNode(cellItem);
