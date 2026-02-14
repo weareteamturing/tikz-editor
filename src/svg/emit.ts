@@ -137,6 +137,26 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
     const position = toSvgPoint(element.position, viewBox);
     const textBlockWidth = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
+    const textBlockHeight = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
+    if (element.textRenderInfo?.mode === "mathjax") {
+      const rendered = opts.textEngine?.renderFromCache(element.textRenderInfo.cacheKey) ?? null;
+      if (!rendered) {
+        diagnostics.push({
+          code: "missing-mathjax-text-render",
+          message: `Missing cached MathJax text render payload for ${element.id}.`
+        });
+      } else {
+        const textColor = element.style.textColor ?? "#000000";
+        const textOpacity = element.style.textOpacity ?? element.style.strokeOpacity;
+        const x = position.x - textBlockWidth / 2;
+        const y = position.y - textBlockHeight / 2;
+        const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
+        body.push(
+          `<svg data-source-id="${escapeAttr(element.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`
+        );
+        continue;
+      }
+    }
     const textX = alignedTextAnchorX(position.x, textBlockWidth, element.style.textAlign);
     const attrs = styleAttributes(element.style, true);
     const textBody = encodeTextBody(element.text, textX, position.y);

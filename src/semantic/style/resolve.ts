@@ -158,7 +158,7 @@ const DEFAULT_DOUBLE_DISTANCE = 0.6;
 const DEFAULT_ARROW_LENGTH = 8;
 const DEFAULT_ARROW_WIDTH = 6;
 
-const ARROW_NAME_ALIASES: Array<{ name: string; kind: ArrowTipKind }> = [
+const ARROW_NAME_ALIASES = ([
   { name: "computer modern rightarrow", kind: "cm-rightarrow" },
   { name: "classical tikz rightarrow", kind: "to" },
   { name: "rightarrow", kind: "cm-rightarrow" },
@@ -176,8 +176,7 @@ const ARROW_NAME_ALIASES: Array<{ name: string; kind: ArrowTipKind }> = [
   { name: "hooks", kind: "hooks" },
   { name: "bar", kind: "bar" },
   { name: "to", kind: "to" }
-];
-ARROW_NAME_ALIASES.sort((left, right) => right.name.length - left.name.length);
+] as Array<{ name: string; kind: ArrowTipKind }>).sort((left, right) => right.name.length - left.name.length);
 
 export type ResolvedContextDelta = {
   style: ResolvedStyle;

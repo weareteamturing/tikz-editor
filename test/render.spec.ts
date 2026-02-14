@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderTikzToSvg } from "../src/render/index.js";
+import { renderTikzToSvg, renderTikzToSvgAsync } from "../src/render/index.js";
 
 describe("render pipeline", () => {
   it("renders basic source end-to-end", () => {
@@ -29,5 +29,54 @@ describe("render pipeline", () => {
     expect(result.parse.diagnostics.length).toBeGreaterThan(0);
     expect(result.semantic.scene.kind).toBe("SceneFigure");
   });
-});
 
+  it("renders node text through MathJax in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,text width=2cm] at (0,0) {Hello \textit{World}};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
+  it("reports invalid node TeX as parser errors while preserving rendering", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A_};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(true);
+    expect(result.svg.svg).toContain("<svg");
+    expect(result.semantic.scene.elements.length).toBeGreaterThan(0);
+  });
+
+  it("uses measured parbox heights for text width wrapping in async mode", async () => {
+    const narrow = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=1cm] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+    const wide = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
+  \node[draw,text width=3cm] at (0,0) {alpha beta gamma delta epsilon};
+\end{tikzpicture}`);
+
+    const narrowText = narrow.semantic.scene.elements.find((element) => element.kind === "Text");
+    const wideText = wide.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(narrowText?.kind).toBe("Text");
+    expect(wideText?.kind).toBe("Text");
+    if (narrowText?.kind === "Text" && wideText?.kind === "Text") {
+      expect((narrowText.textBlockHeight ?? 0)).toBeGreaterThan(wideText.textBlockHeight ?? 0);
+    }
+  });
+
+  it("preserves node font italic styling through MathJax wrappers in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[node font=\itshape] (0,0) -- +(1,0) node[above] {italic};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg).toContain("\\textit");
+  });
+});

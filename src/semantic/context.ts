@@ -1,4 +1,5 @@
 import type { OptionListAst } from "../options/types.js";
+import type { NodeTextEngine } from "../text/types.js";
 import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
 
 export type NodeLayerMode = "front" | "behind";
@@ -51,9 +52,14 @@ export type SemanticContext = {
   namedNodeGeometries: Map<string, NamedNodeGeometry>;
   currentPoint: Point | null;
   pathStartPoint: Point | null;
+  textEngine: NodeTextEngine | null;
 };
 
-export function createSemanticContext(initialStyle: ResolvedStyle, initialTransform: Matrix2D): SemanticContext {
+export function createSemanticContext(
+  initialStyle: ResolvedStyle,
+  initialTransform: Matrix2D,
+  textEngine: NodeTextEngine | null = null
+): SemanticContext {
   const defaultNodeDistance = 28.4527559055;
   return {
     stack: [
@@ -78,7 +84,8 @@ export function createSemanticContext(initialStyle: ResolvedStyle, initialTransf
     namedCoordinates: new Map<string, Point>(),
     namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
     currentPoint: null,
-    pathStartPoint: null
+    pathStartPoint: null,
+    textEngine
   };
 }
 
