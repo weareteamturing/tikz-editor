@@ -82,6 +82,19 @@ const OPACITY_KEYS = new Set(["opacity", "fill opacity", "draw opacity", "text o
 
 const NUMERIC_KEYS = new Set(["line cap", "line join", "miter limit", "looseness", "samples"]);
 
+const NON_NEGATIVE_KEYS = new Set([
+  "line width",
+  "radius",
+  "x radius",
+  "y radius",
+  "step",
+  "minimum width",
+  "minimum height",
+  "inner sep",
+  "outer sep",
+  "node distance"
+]);
+
 export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
   return ViewPlugin.fromClass(
     class {
@@ -371,6 +384,7 @@ function classifyScrubContext(doc: EditorView["state"]["doc"], numberNode: Synta
   const optionKey = extractOptionKey(doc, signedFrom);
   const unit = extractUnitAfterNumber(doc, numberNode.to);
   const insideCoordinate = hasAncestor(numberNode, "Coordinate");
+  const nonNegative = optionKey ? NON_NEGATIVE_KEYS.has(optionKey) : false;
 
   if (optionKey && ANGLE_KEYS.has(optionKey)) {
     return { kind: "angle", step: 1, minPrecision: 0 };
@@ -383,10 +397,10 @@ function classifyScrubContext(doc: EditorView["state"]["doc"], numberNode: Synta
   }
   if (unit) {
     const unitStep = lengthStepForUnit(unit);
-    return { kind: "length", step: unitStep.step, minPrecision: unitStep.minPrecision };
+    return { kind: "length", step: unitStep.step, minPrecision: unitStep.minPrecision, min: nonNegative ? 0 : undefined };
   }
   if (optionKey && LENGTH_KEYS.has(optionKey)) {
-    return { kind: "length", step: 0.05, minPrecision: 2 };
+    return { kind: "length", step: 0.05, minPrecision: 2, min: nonNegative ? 0 : undefined };
   }
   if (insideCoordinate) {
     if (!isNumericCoordinateValue(doc, numberNode, signedFrom, unit)) {
