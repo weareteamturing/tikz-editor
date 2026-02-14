@@ -101,6 +101,7 @@ const NON_STYLE_OPTION_FLAGS = new Set([
   "behind path",
   "in front of path",
   "circle",
+  "ellipse",
   "rectangle",
   "coordinate",
   "above",
@@ -124,7 +125,9 @@ const NON_STYLE_OPTION_FLAGS = new Set([
   "allow upside down",
   "bend at start",
   "bend at end",
-  "transform shape"
+  "transform shape",
+  "dash expand off",
+  "dash expand on"
 ]);
 
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
@@ -141,6 +144,7 @@ export function defaultStyle(): ResolvedStyle {
   return {
     stroke: "black",
     fill: null,
+    fillRule: "nonzero",
     textColor: null,
     textOpacity: 1,
     fontSize: DEFAULT_TEXT_FONT_SIZE,
@@ -155,6 +159,7 @@ export function defaultStyle(): ResolvedStyle {
     roundedCorners: null,
     lineWidth: 0.4,
     dashArray: null,
+    dashOffset: 0,
     lineCap: "butt",
     lineJoin: "miter",
     markerStart: null,
@@ -299,11 +304,20 @@ function applyFlagEntry(
   if (key === "<->") {
     return { style: { ...style, markerStart: "arrow", markerEnd: "arrow" }, transform, diagnostics: [] };
   }
+  if (key === "|-|") {
+    return { style: { ...style, markerStart: "bar", markerEnd: "bar" }, transform, diagnostics: [] };
+  }
   if (key === "solid") {
-    return { style: { ...style, dashArray: null }, transform, diagnostics: [] };
+    return { style: { ...style, dashArray: null, dashOffset: 0 }, transform, diagnostics: [] };
   }
   if (key === "double") {
     return { style: { ...style, doubleStroke: true }, transform, diagnostics: [] };
+  }
+  if (key === "even odd rule") {
+    return { style: { ...style, fillRule: "evenodd" }, transform, diagnostics: [] };
+  }
+  if (key === "nonzero rule") {
+    return { style: { ...style, fillRule: "nonzero" }, transform, diagnostics: [] };
   }
   if (key === "dashed") {
     return { style: { ...style, dashArray: [3, 3] }, transform, diagnostics: [] };
@@ -429,7 +443,7 @@ function applyKvEntry(
     if (length == null || length < 0) {
       return { style, transform, diagnostics: [`invalid-double-distance:${valueRaw}`] };
     }
-    return { style: { ...style, doubleDistance: length }, transform, diagnostics: [] };
+    return { style: { ...style, doubleStroke: true, doubleDistance: length }, transform, diagnostics: [] };
   }
   if (key === "node font" || key === "font") {
     const parsed = parseFontStyle(valueRaw);
@@ -515,6 +529,28 @@ function applyKvEntry(
       return { style, transform, diagnostics: [`invalid-dash-pattern:${valueRaw}`] };
     }
     return { style: { ...style, dashArray: parsed }, transform, diagnostics: [] };
+  }
+  if (key === "dash phase") {
+    const phase = parseLength(valueRaw, "pt");
+    if (phase == null) {
+      return { style, transform, diagnostics: [`invalid-dash-phase:${valueRaw}`] };
+    }
+    return { style: { ...style, dashOffset: phase }, transform, diagnostics: [] };
+  }
+  if (key === "dash") {
+    const parsed = parseDashValue(valueRaw);
+    if (!parsed) {
+      return { style, transform, diagnostics: [`invalid-dash:${valueRaw}`] };
+    }
+    return {
+      style: {
+        ...style,
+        dashArray: parsed.pattern,
+        dashOffset: parsed.phase ?? style.dashOffset
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "xshift") {
     const shift = parseLength(valueRaw, "pt");
@@ -721,6 +757,46 @@ function parseDashPattern(raw: string): number[] | null {
   }
 
   return result.length > 0 ? result : null;
+}
+
+function parseDashValue(raw: string): { pattern: number[] | null; phase: number | null } | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (normalized === "solid" || normalized === "none") {
+    return { pattern: null, phase: 0 };
+  }
+
+  const tokens = trimmed.split(/\s+/).filter((token) => token.length > 0);
+  const patternTokens: string[] = [];
+  let phase: number | null = null;
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.toLowerCase() === "phase") {
+      const next = tokens[index + 1];
+      if (!next) {
+        return null;
+      }
+      const parsedPhase = parseLength(next, "pt");
+      if (parsedPhase == null) {
+        return null;
+      }
+      phase = parsedPhase;
+      index += 1;
+      continue;
+    }
+    patternTokens.push(token);
+  }
+
+  const pattern = parseDashPattern(patternTokens.join(" "));
+  if (!pattern) {
+    return null;
+  }
+  return { pattern, phase };
 }
 
 function parseMixedColor(raw: string): string | null {

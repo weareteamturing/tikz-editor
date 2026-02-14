@@ -210,7 +210,11 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
       continue;
     }
 
-    points.push(element.position);
+    const lineCount = Math.max(1, element.text.split("\n").length);
+    const textHeight = lineCount * element.style.fontSize * 1.15;
+    const textWidth = element.textBlockWidth ?? estimateTextWidth(element.text, element.style.fontSize);
+    points.push({ x: element.position.x - textWidth / 2, y: element.position.y - textHeight / 2 });
+    points.push({ x: element.position.x + textWidth / 2, y: element.position.y + textHeight / 2 });
   }
 
   if (points.length === 0) {
@@ -223,6 +227,12 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
   const maxY = Math.max(...points.map((point) => point.y));
 
   return { minX, minY, maxX, maxY };
+}
+
+function estimateTextWidth(text: string, fontSize: number): number {
+  const lines = text.split("\n");
+  const maxChars = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  return maxChars * fontSize * 0.7;
 }
 
 function pathBoundsPoints(commands: ScenePathCommand[]): Array<{ x: number; y: number }> {

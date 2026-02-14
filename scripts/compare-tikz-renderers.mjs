@@ -23,7 +23,8 @@ export class RendererComparisonError extends Error {
 export async function compareTikzRenderers(options = {}) {
   const referenceMode = normalizeReferenceMode(options.referenceMode);
   const useDvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
-  const rasterizeLatexSvg = referenceMode === "dvisvgm-svg-png";
+  // Always rasterize reference SVGs so PNG comparable and side-by-side assets can be produced.
+  const rasterizeLatexSvg = true;
   const input = loadInput({
     inputPath: options.inputPath ?? null,
     code: options.code ?? null,
@@ -90,6 +91,8 @@ export async function compareTikzRenderers(options = {}) {
 
   const oursSvgPath = join(runDir, "ours.svg");
   const oursPngPath = join(runDir, "ours.png");
+  let oursRasterPath = null;
+  let latexRasterPath = null;
   writeFileSync(oursSvgPath, rendered.svg.svg, "utf8");
   report.outputs.oursSvg = oursSvgPath;
 
@@ -104,6 +107,7 @@ export async function compareTikzRenderers(options = {}) {
       );
     }
     report.outputs.oursPng = oursPngPath;
+    oursRasterPath = oursPngPath;
   }
 
   const wrappedTex = wrapTikzForStandalone(input.code, referenceMode, {
@@ -134,6 +138,7 @@ export async function compareTikzRenderers(options = {}) {
         report.latex.error = latexRaster.error;
       } else {
         report.outputs.latexPng = latexPngPath;
+        latexRasterPath = latexPngPath;
       }
     }
   } else {
@@ -155,14 +160,40 @@ export async function compareTikzRenderers(options = {}) {
         report.outputs.latexSvg = latexSvgPath;
         if (rasterizeLatexSvg) {
           const latexRaster = rasterizeSvg(latexSvgPath, latexPngPath, report.tools);
+          report.latex.converter = report.latex.converter ?? latexRaster.tool ?? null;
           report.latex.rasterized = latexRaster.ok;
           if (!latexRaster.ok) {
             report.latex.error = latexRaster.error;
           } else {
             report.outputs.latexPng = latexPngPath;
+            latexRasterPath = latexPngPath;
           }
         }
       }
+    }
+  }
+
+  if (oursRasterPath && latexRasterPath) {
+    const comparisonAssets = createComparisonPngAssets(
+      runDir,
+      {
+        oursPngPath: oursRasterPath,
+        latexPngPath: latexRasterPath,
+        oursSvgPath
+      },
+      report.tools
+    );
+    if (comparisonAssets.ok) {
+      Object.assign(report.outputs, comparisonAssets.outputs);
+      report.comparison = {
+        ok: true,
+        ...(comparisonAssets.metadata ?? {})
+      };
+    } else {
+      report.comparison = {
+        ok: false,
+        error: comparisonAssets.error
+      };
     }
   }
 
@@ -284,10 +315,11 @@ function printUsage() {
 
 Outputs:
   input.tikz
-  ours.svg / ours.png
-  latex-standalone.tex / latex-standalone.pdf / latex-standalone.png (pdf-png mode)
-  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg (dvisvgm-svg mode)
-  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg / latex-standalone.png (dvisvgm-svg-png mode)
+  ours.svg / ours.png / ours-white.png / ours-comparable.png
+  latex-standalone.tex / latex-standalone.pdf / latex-standalone.png / latex-white.png / latex-comparable.png (pdf-png mode)
+  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg / latex-standalone.png / latex-white.png / latex-comparable.png (dvisvgm-svg mode)
+  latex-standalone.tex / latex-standalone.dvi / latex-standalone.svg / latex-standalone.png / latex-white.png / latex-comparable.png (dvisvgm-svg-png mode)
+  side-by-side.png
   compare-report.json
 `);
 }
@@ -329,7 +361,8 @@ function wrapTikzForStandalone(code, referenceMode, latexContext = {}) {
   const preamble = normalizeLatexInjection(latexContext.preamble);
   const pre = normalizeLatexInjection(latexContext.pre);
   const hasTikzPicture = /\\begin\{tikzpicture\}/.test(trimmed);
-  const body = hasTikzPicture ? trimmed : `\\begin{tikzpicture}\n${trimmed}\n\\end{tikzpicture}`;
+  const startsWithInlineTikz = /^\s*\\tikz(?:\s|\[|$)/.test(trimmed);
+  const body = hasTikzPicture || startsWithInlineTikz ? trimmed : `\\begin{tikzpicture}\n${trimmed}\n\\end{tikzpicture}`;
   const bodyWithPre = pre.length > 0 ? `${pre}\n${body}` : body;
   const useDvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
   const standaloneClassOptions = useDvisvgmReference ? "dvisvgm,border=2pt" : "tikz,border=2pt";
@@ -434,31 +467,53 @@ function compileLatexToDvi(texPath, cwd, tools) {
   };
 }
 
-function rasterizeSvg(svgPath, pngPath, tools) {
-  if (tools.magick) {
-    const magick = runCommand("magick", [svgPath, "-background", "white", "-alpha", "remove", pngPath]);
-    if (magick.ok && existsSync(pngPath)) {
-      return { ok: true };
-    }
-  }
-
+function rasterizeSvg(svgPath, pngPath, tools, options = {}) {
+  const zoom = normalizeScaleFactor(options.zoom ?? 1);
   if (tools.rsvgConvert) {
-    const rsvg = runCommand("rsvg-convert", ["-f", "png", "-o", pngPath, svgPath]);
+    const rsvgArgs = [
+      "-f",
+      "png",
+      "-d",
+      String(PDF_RASTER_DPI),
+      "-p",
+      String(PDF_RASTER_DPI),
+      "-z",
+      String(zoom),
+      "-b",
+      "white",
+      "-o",
+      pngPath,
+      svgPath
+    ];
+    const rsvg = runCommand("rsvg-convert", rsvgArgs);
     if (rsvg.ok && existsSync(pngPath)) {
-      return { ok: true };
+      if (!ensureOpaqueWhitePng(pngPath, tools)) {
+        return { ok: false, error: "Failed to normalize SVG raster output to an opaque white background." };
+      }
+      return { ok: true, tool: "rsvg-convert" };
     }
   }
 
   if (tools.sips) {
     const sips = runCommand("sips", ["-s", "format", "png", svgPath, "--out", pngPath]);
     if (sips.ok && existsSync(pngPath)) {
-      return { ok: true };
+      if (Math.abs(zoom - 1) > 0.02) {
+        const scaledPath = pngPath.replace(/\.png$/i, ".scaled.png");
+        if (!resizePngByScale(pngPath, scaledPath, zoom, tools) || !existsSync(scaledPath)) {
+          return { ok: false, error: "Failed to apply scale factor to SVG rasterized with sips." };
+        }
+        renameSync(scaledPath, pngPath);
+      }
+      if (!ensureOpaqueWhitePng(pngPath, tools)) {
+        return { ok: false, error: "Failed to normalize SVG raster output to an opaque white background." };
+      }
+      return { ok: true, tool: "sips" };
     }
   }
 
   return {
     ok: false,
-    error: "No SVG rasterizer succeeded. Tried magick, rsvg-convert, and sips."
+    error: "No SVG rasterizer succeeded. Tried rsvg-convert and sips."
   };
 }
 
@@ -475,6 +530,9 @@ function rasterizePdf(pdfPath, pngPath, tools) {
       pngPath
     ]);
     if (magick.ok && existsSync(pngPath)) {
+      if (!ensureOpaqueWhitePng(pngPath, tools)) {
+        return { ok: false, error: "Failed to normalize PDF raster output to an opaque white background." };
+      }
       return { ok: true, tool: "magick" };
     }
   }
@@ -487,6 +545,9 @@ function rasterizePdf(pdfPath, pngPath, tools) {
       if (producedPng !== pngPath) {
         renameSync(producedPng, pngPath);
       }
+      if (!ensureOpaqueWhitePng(pngPath, tools)) {
+        return { ok: false, error: "Failed to normalize PDF raster output to an opaque white background." };
+      }
       return { ok: true, tool: "pdftoppm" };
     }
   }
@@ -495,6 +556,218 @@ function rasterizePdf(pdfPath, pngPath, tools) {
     ok: false,
     error: "No PDF rasterizer succeeded. Tried magick and pdftoppm."
   };
+}
+
+function ensureOpaqueWhitePng(pngPath, tools) {
+  if (!tools.magick) {
+    return true;
+  }
+
+  const tempPath = pngPath.replace(/\.png$/i, ".opaque.png");
+  const result = runCommand("magick", [pngPath, "-background", "white", "-alpha", "remove", "-alpha", "off", tempPath]);
+  if (!result.ok || !existsSync(tempPath)) {
+    return false;
+  }
+
+  renameSync(tempPath, pngPath);
+  return true;
+}
+
+function createComparisonPngAssets(
+  runDir,
+  { oursPngPath, latexPngPath, oursSvgPath = null },
+  tools
+) {
+  if (!tools.magick) {
+    return { ok: false, error: "magick command not found. Cannot build comparable PNG assets." };
+  }
+
+  const COMPARISON_TRIM_FUZZ = "2%";
+  const oursWhitePath = join(runDir, "ours-white.png");
+  const latexWhitePath = join(runDir, "latex-white.png");
+  const oursTrimmedPath = join(runDir, "ours-trimmed.png");
+  const latexTrimmedPath = join(runDir, "latex-trimmed.png");
+  const oursComparablePath = join(runDir, "ours-comparable.png");
+  const latexComparablePath = join(runDir, "latex-comparable.png");
+  const sideBySidePath = join(runDir, "side-by-side.png");
+  const oursRerasterPath = join(runDir, "ours-rerasterized.png");
+
+  let rendererRasterPath = oursPngPath;
+  let rendererRerasterZoom = 1;
+  let rendererRerasterApplied = false;
+
+  if (!flattenPngOnWhite(rendererRasterPath, oursWhitePath, tools)) {
+    return { ok: false, error: "Failed to flatten renderer PNG onto white background." };
+  }
+  if (!flattenPngOnWhite(latexPngPath, latexWhitePath, tools)) {
+    return { ok: false, error: "Failed to flatten reference PNG onto white background." };
+  }
+
+  if (!trimPngContent(oursWhitePath, oursTrimmedPath, COMPARISON_TRIM_FUZZ, tools)) {
+    return { ok: false, error: "Failed to trim renderer PNG content bounds." };
+  }
+  if (!trimPngContent(latexWhitePath, latexTrimmedPath, COMPARISON_TRIM_FUZZ, tools)) {
+    return { ok: false, error: "Failed to trim reference PNG content bounds." };
+  }
+
+  const oursContentSize = identifyPngSize(oursTrimmedPath, tools);
+  const latexContentSize = identifyPngSize(latexTrimmedPath, tools);
+  if (!oursContentSize || !latexContentSize) {
+    return { ok: false, error: "Failed to read content bounds for comparison assets." };
+  }
+
+  const initialRendererContentSize = { ...oursContentSize };
+  const rawRerasterZoom = Math.max(
+    latexContentSize.width / oursContentSize.width,
+    latexContentSize.height / oursContentSize.height
+  );
+  const shouldRerasterizeRenderer = oursSvgPath && Math.abs(rawRerasterZoom - 1) > 0.05;
+  if (shouldRerasterizeRenderer) {
+    const rerasterResult = rasterizeSvg(oursSvgPath, oursRerasterPath, tools, { zoom: rawRerasterZoom });
+    if (rerasterResult.ok && existsSync(oursRerasterPath)) {
+      rendererRasterPath = oursRerasterPath;
+      rendererRerasterZoom = normalizeScaleFactor(rawRerasterZoom);
+      rendererRerasterApplied = true;
+
+      if (!flattenPngOnWhite(rendererRasterPath, oursWhitePath, tools)) {
+        return { ok: false, error: "Failed to flatten rerasterized renderer PNG onto white background." };
+      }
+      if (!trimPngContent(oursWhitePath, oursTrimmedPath, COMPARISON_TRIM_FUZZ, tools)) {
+        return { ok: false, error: "Failed to trim rerasterized renderer PNG content bounds." };
+      }
+
+      const rerasterizedContentSize = identifyPngSize(oursTrimmedPath, tools);
+      if (!rerasterizedContentSize) {
+        return { ok: false, error: "Failed to read rerasterized renderer content bounds." };
+      }
+      oursContentSize.width = rerasterizedContentSize.width;
+      oursContentSize.height = rerasterizedContentSize.height;
+    }
+  }
+
+  const targetContentWidth = latexContentSize.width;
+  const targetContentHeight = latexContentSize.height;
+  const oursScale = normalizeScaleFactor(
+    Math.min(targetContentWidth / oursContentSize.width, targetContentHeight / oursContentSize.height)
+  );
+  const latexScale = 1;
+
+  if (!resizePngByScale(oursTrimmedPath, oursComparablePath, oursScale, tools)) {
+    return { ok: false, error: "Failed to resize renderer PNG to normalized comparison scale." };
+  }
+  if (!resizePngByScale(latexTrimmedPath, latexComparablePath, latexScale, tools)) {
+    return { ok: false, error: "Failed to resize reference PNG to normalized comparison scale." };
+  }
+
+  const oursScaledSize = identifyPngSize(oursComparablePath, tools);
+  const latexScaledSize = identifyPngSize(latexComparablePath, tools);
+  if (!oursScaledSize || !latexScaledSize) {
+    return { ok: false, error: "Failed to read scaled dimensions for comparison assets." };
+  }
+
+  if (!makeSideBySidePng(oursComparablePath, latexComparablePath, sideBySidePath, tools)) {
+    return { ok: false, error: "Failed to build side-by-side comparison PNG." };
+  }
+
+  return {
+    ok: true,
+    outputs: {
+      oursWhitePng: oursWhitePath,
+      latexWhitePng: latexWhitePath,
+      oursComparablePng: oursComparablePath,
+      latexComparablePng: latexComparablePath,
+      sideBySidePng: sideBySidePath
+    },
+    metadata: {
+      trimFuzz: COMPARISON_TRIM_FUZZ,
+      rendererContent: oursContentSize,
+      rendererContentBeforeReraster: initialRendererContentSize,
+      referenceContent: latexContentSize,
+      rendererScaleApplied: oursScale,
+      referenceScaleApplied: latexScale,
+      rendererRerasterApplied,
+      rendererRerasterZoom,
+      comparableSize: {
+        renderer: oursScaledSize,
+        reference: latexScaledSize
+      }
+    }
+  };
+}
+
+function flattenPngOnWhite(inputPath, outputPath, tools) {
+  if (!tools.magick) {
+    return false;
+  }
+  const result = runCommand("magick", [inputPath, "-background", "white", "-alpha", "remove", "-alpha", "off", outputPath]);
+  return result.ok && existsSync(outputPath);
+}
+
+function identifyPngSize(pngPath, tools) {
+  if (!tools.magick) {
+    return null;
+  }
+
+  const identified = runCommand("magick", ["identify", "-format", "%w %h", pngPath]);
+  if (!identified.ok) {
+    return null;
+  }
+
+  const [widthRaw, heightRaw] = identified.stdout.trim().split(/\s+/);
+  const width = Number.parseInt(widthRaw ?? "", 10);
+  const height = Number.parseInt(heightRaw ?? "", 10);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  return { width, height };
+}
+
+function trimPngContent(inputPath, outputPath, fuzz, tools) {
+  if (!tools.magick) {
+    return false;
+  }
+
+  const result = runCommand("magick", [
+    inputPath,
+    "-alpha",
+    "off",
+    "-fuzz",
+    fuzz,
+    "-trim",
+    "+repage",
+    outputPath
+  ]);
+  return result.ok && existsSync(outputPath);
+}
+
+function resizePngByScale(inputPath, outputPath, scale, tools) {
+  if (!tools.magick) {
+    return false;
+  }
+
+  const percentage = (scale * 100).toFixed(4);
+  const resizeFilter = scale >= 1 ? "point" : "Lanczos";
+  const result = runCommand("magick", [inputPath, "-filter", resizeFilter, "-resize", `${percentage}%`, outputPath]);
+  return result.ok && existsSync(outputPath);
+}
+
+function normalizeScaleFactor(value) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 1;
+  }
+
+  const MAX_SCALE = 32;
+  const MIN_SCALE = 1 / 32;
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+}
+
+function makeSideBySidePng(leftPath, rightPath, outputPath, tools) {
+  if (!tools.magick) {
+    return false;
+  }
+  const result = runCommand("magick", [leftPath, rightPath, "-background", "white", "+append", outputPath]);
+  return result.ok && existsSync(outputPath);
 }
 
 function convertDviToSvg(dviPath, svgPath, tools) {

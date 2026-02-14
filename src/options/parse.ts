@@ -78,7 +78,7 @@ function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: numbe
     };
   }
 
-  if (/^(<-|->|<->|[A-Za-z][A-Za-z0-9 -]*)$/.test(token)) {
+  if (/^(<-|->|<->|\|-\||[A-Za-z][A-Za-z0-9 -]*)$/.test(token)) {
     return {
       kind: "flag",
       key: token.trim().toLowerCase(),

@@ -76,11 +76,13 @@ export type SceneText = {
   style: ResolvedStyle;
   position: Point;
   text: string;
+  textBlockWidth?: number;
 };
 
 export type ResolvedStyle = {
   stroke: string | null;
   fill: string | null;
+  fillRule: "nonzero" | "evenodd";
   textColor: string | null;
   textOpacity: number;
   fontSize: number;
@@ -96,10 +98,11 @@ export type ResolvedStyle = {
   roundedCorners: number | null;
   lineWidth: number;
   dashArray: number[] | null;
+  dashOffset: number;
   lineCap: "butt" | "round" | "square";
   lineJoin: "miter" | "round" | "bevel";
-  markerStart: string | null;
-  markerEnd: string | null;
+  markerStart: "arrow" | "bar" | null;
+  markerEnd: "arrow" | "bar" | null;
   opacity: number;
   strokeOpacity: number;
   fillOpacity: number;

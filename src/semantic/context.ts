@@ -4,7 +4,7 @@ import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
 export type NodeLayerMode = "front" | "behind";
 
 export type NamedNodeGeometry = {
-  shape: "rectangle" | "circle" | "coordinate";
+  shape: "rectangle" | "circle" | "ellipse" | "coordinate";
   center: Point;
   anchorHalfWidth: number;
   anchorHalfHeight: number;

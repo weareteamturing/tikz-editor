@@ -9,6 +9,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
   const diagnostics: EmitSvgResult["diagnostics"] = [];
   const body: string[] = [];
   let usesArrowMarker = false;
+  let usesBarMarker = false;
 
   for (const element of scene.elements) {
     if (element.kind === "Path") {
@@ -28,18 +29,21 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         });
         continue;
       }
-      if (element.style.markerStart || element.style.markerEnd) {
+      if (element.style.markerStart === "arrow" || element.style.markerEnd === "arrow") {
         usesArrowMarker = true;
+      }
+      if (element.style.markerStart === "bar" || element.style.markerEnd === "bar") {
+        usesBarMarker = true;
       }
       if (shouldEmitDoubleStroke(element.style)) {
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
         });
         if (element.style.markerStart) {
-          outerAttrs.push(`marker-start="url(#tikz-arrow)"`);
+          outerAttrs.push(`marker-start="url(#tikz-${element.style.markerStart})"`);
         }
         if (element.style.markerEnd) {
-          outerAttrs.push(`marker-end="url(#tikz-arrow)"`);
+          outerAttrs.push(`marker-end="url(#tikz-${element.style.markerEnd})"`);
         }
         body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
         const innerAttrs = styleAttributes(element.style, false, {
@@ -53,10 +57,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
       const attrs = styleAttributes(element.style);
       if (element.style.markerStart) {
-        attrs.push(`marker-start="url(#tikz-arrow)"`);
+        attrs.push(`marker-start="url(#tikz-${element.style.markerStart})"`);
       }
       if (element.style.markerEnd) {
-        attrs.push(`marker-end="url(#tikz-arrow)"`);
+        attrs.push(`marker-end="url(#tikz-${element.style.markerEnd})"`);
       }
       body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
       continue;
@@ -124,14 +128,25 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     }
 
     const position = toSvgPoint(element.position, viewBox);
+    const textBlockWidth = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
+    const textX = alignedTextAnchorX(position.x, textBlockWidth, element.style.textAlign);
     const attrs = styleAttributes(element.style, true);
-    const textBody = encodeTextBody(element.text, position.x, position.y);
-    body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(position.x)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
+    const textBody = encodeTextBody(element.text, textX, position.y);
+    body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }
 
-  const defs = usesArrowMarker
-    ? `<defs><marker id="tikz-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker></defs>`
-    : "";
+  const defsParts: string[] = [];
+  if (usesArrowMarker) {
+    defsParts.push(
+      `<marker id="tikz-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker>`
+    );
+  }
+  if (usesBarMarker) {
+    defsParts.push(
+      `<marker id="tikz-bar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 5 0 L 5 10" stroke="currentColor" stroke-width="1.6" fill="none" /></marker>`
+    );
+  }
+  const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
 
   const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
   const svg =
@@ -178,8 +193,10 @@ function styleAttributes(
   style: {
     stroke: string | null;
     fill: string | null;
+    fillRule: "nonzero" | "evenodd";
     lineWidth: number;
     dashArray: number[] | null;
+    dashOffset: number;
     lineCap: "butt" | "round" | "square";
     lineJoin: "miter" | "round" | "bevel";
     opacity: number;
@@ -198,7 +215,7 @@ function styleAttributes(
 ): string[] {
   const attrs: string[] = [];
   if (isText) {
-    const textColor = style.textColor ?? style.stroke ?? "#000000";
+    const textColor = style.textColor ?? "#000000";
     attrs.push(`fill="${escapeAttr(textColor)}"`);
     attrs.push(`fill-opacity="${fmt(style.textOpacity ?? style.strokeOpacity)}"`);
     attrs.push(`font-family="CMU Serif, Latin Modern Roman, Times New Roman, serif"`);
@@ -214,6 +231,9 @@ function styleAttributes(
 
   attrs.push(`stroke="${escapeAttr(overrides.stroke ?? style.stroke ?? "none")}"`);
   attrs.push(`fill="${escapeAttr(overrides.fill ?? (style.fill && style.fill !== "none" ? style.fill : "none"))}"`);
+  if (style.fillRule === "evenodd") {
+    attrs.push(`fill-rule="evenodd"`);
+  }
   attrs.push(`stroke-width="${fmt(overrides.lineWidth ?? style.lineWidth)}"`);
   attrs.push(`stroke-linecap="${style.lineCap}"`);
   attrs.push(`stroke-linejoin="${style.lineJoin}"`);
@@ -221,6 +241,9 @@ function styleAttributes(
   attrs.push(`fill-opacity="${fmt(style.fillOpacity)}"`);
   if (style.dashArray && style.dashArray.length > 0) {
     attrs.push(`stroke-dasharray="${style.dashArray.map((entry) => fmt(entry)).join(" ")}"`);
+    if (Math.abs(style.dashOffset) > 1e-6) {
+      attrs.push(`stroke-dashoffset="${fmt(style.dashOffset)}"`);
+    }
   }
   attrs.push(`opacity="${fmt(style.opacity)}"`);
   return attrs;
@@ -266,6 +289,32 @@ function textAnchorForAlign(
     return "end";
   }
   return "middle";
+}
+
+function alignedTextAnchorX(
+  centerX: number,
+  blockWidth: number,
+  align: "left" | "flush left" | "right" | "flush right" | "center" | "flush center" | "justify" | "none" | undefined
+): number {
+  if (!Number.isFinite(blockWidth) || blockWidth <= 0) {
+    return centerX;
+  }
+  if (align === "left" || align === "flush left" || align === "justify") {
+    return centerX - blockWidth / 2;
+  }
+  if (align === "right" || align === "flush right") {
+    return centerX + blockWidth / 2;
+  }
+  return centerX;
+}
+
+function estimateTextBlockWidth(text: string, fontSize: number): number {
+  const lines = text.split("\n");
+  const maxChars = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  if (maxChars <= 0) {
+    return 0;
+  }
+  return maxChars * fontSize * 0.7;
 }
 
 function encodeTextBody(text: string, x: number, y: number): string {

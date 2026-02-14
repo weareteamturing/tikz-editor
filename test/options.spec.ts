@@ -20,6 +20,13 @@ describe("options parser", () => {
     expect(parsed.entries.every((entry) => entry.span.from >= 10)).toBe(true);
   });
 
+  it("parses symbolic marker flags like |-|", () => {
+    const parsed = parseOptionListRaw("[|-|, dashed]");
+
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "|-|")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "dashed")).toBe(true);
+  });
+
   it("keeps unknown tokens", () => {
     const parsed = parseOptionListRaw("[foo={a,b}, ???]");
 

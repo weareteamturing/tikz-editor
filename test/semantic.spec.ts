@@ -377,6 +377,48 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports dash phase and dash shorthand while recognizing bar markers", () => {
+    const source = String.raw`\begin{tikzpicture}[|-|, dash pattern=on 20pt off 10pt]
+  \draw[dash phase=0pt] (0,0) -- (2,0);
+  \draw[dash=on 20pt off 10pt phase 10pt] (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:dash phase")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:dash")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+    const topPath = paths[0];
+    const bottomPath = paths[1];
+    expect(topPath?.kind).toBe("Path");
+    expect(bottomPath?.kind).toBe("Path");
+    if (topPath?.kind === "Path" && bottomPath?.kind === "Path") {
+      expect(topPath.style.markerStart).toBe("bar");
+      expect(topPath.style.markerEnd).toBe("bar");
+      expect(topPath.style.dashArray).toEqual([20, 10]);
+      expect(topPath.style.dashOffset).toBeCloseTo(0);
+      expect(bottomPath.style.dashArray).toEqual([20, 10]);
+      expect(bottomPath.style.dashOffset).toBeCloseTo(10);
+    }
+  });
+
+  it("treats double distance as enabling a double stroke", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[thin,double distance=2pt] (0,0) arc (180:90:1cm);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.doubleStroke).toBe(true);
+      expect(path.style.doubleDistance).toBeCloseTo(2);
+    }
+  });
+
   it("registers node anchors used by |- and -| paths", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) node(a) [draw] {A}  (1,1) node(b) [draw] {B};
@@ -542,6 +584,94 @@ describe("semantic evaluator", () => {
     if (cText?.kind === "Text") {
       expect(cText.position.x).toBeCloseTo(56.9055, 3);
       expect(cText.position.y).toBeCloseTo(0, 3);
+    }
+  });
+
+  it("does not let statement fill options implicitly paint node boxes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [fill=yellow!80!black]
+       (0,0) node              {first node}
+    -- (1,1) node[behind path] {second node}
+    -- (2,0) node              {third node};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    expect(nodeBoxes).toHaveLength(0);
+  });
+
+  it("suppresses inherited stroke on fill-only nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [fill=blue!50, draw=blue, very thick]
+       (0,0)   node [behind path, fill=red!50]   {first node}
+    -- (1.5,0) node [behind path, fill=green!50] {second node}
+    -- (1.5,1) node [behind path, fill=brown!50] {third node}
+    -- (0,1)   node [             fill=blue!30]  {fourth node};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes.length).toBe(4);
+    expect(nodeBoxes.every((nodeBox) => nodeBox.style.stroke == null)).toBe(true);
+  });
+
+  it("applies node-local scale options to text and box metrics", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[line width=5pt]
+    (0,0)  node[draw]         (d) {drawn}
+    (1,-1) node[draw,scale=2] (s) {scaled};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const drawn = result.scene.elements.find((element) => element.kind === "Text" && element.text === "drawn");
+    const scaled = result.scene.elements.find((element) => element.kind === "Text" && element.text === "scaled");
+    expect(drawn?.kind).toBe("Text");
+    expect(scaled?.kind).toBe("Text");
+    if (drawn?.kind === "Text" && scaled?.kind === "Text") {
+      expect(scaled.style.fontSize).toBeGreaterThan(drawn.style.fontSize * 1.9);
+    }
+  });
+
+  it("supports ellipse-shaped nodes in path syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill[fill=yellow!80!black]
+        (0,0) node                            {first node}
+     -- (1,1) node[ellipse,draw,behind path] {second node};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const ellipse = result.scene.elements.find((element) => element.kind === "Ellipse" && element.id.startsWith("scene-node-ellipse:"));
+    expect(ellipse?.kind).toBe("Ellipse");
+    if (ellipse?.kind === "Ellipse") {
+      expect(ellipse.style.stroke).not.toBeNull();
+      expect(ellipse.style.fill).toBeNull();
+    }
+  });
+
+  it("recovers trailing coordinates after node-contents nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) node [red]                    {A}
+        (1,0) node [blue]                   {B}
+        (2,0) node [green, node contents=C]
+        (3,0) node [node contents=D]           ;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const c = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const d = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
+    expect(c?.kind).toBe("Text");
+    expect(d?.kind).toBe("Text");
+    if (c?.kind === "Text" && d?.kind === "Text") {
+      expect(d.position.x).toBeGreaterThan(c.position.x + 20);
+      expect(d.position.y).toBeCloseTo(c.position.y, 3);
     }
   });
 

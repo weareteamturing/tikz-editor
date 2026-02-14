@@ -48,11 +48,15 @@ async function runCli() {
     if (!args.includeIncomplete) {
       snippets = snippets.filter((snippet) => !snippet.incomplete);
     }
+    let selected = snippets.map((snippet, index) => ({ snippet, ordinal: index + 1 }));
+    if (args.only && args.only.size > 0) {
+      selected = selected.filter((entry) => args.only.has(entry.ordinal));
+    }
     if (args.max != null) {
-      snippets = snippets.slice(0, args.max);
+      selected = selected.slice(0, args.max);
     }
 
-    if (snippets.length === 0) {
+    if (selected.length === 0) {
       throw new Error("No snippets matched the selected filters.");
     }
 
@@ -64,12 +68,13 @@ async function runCli() {
     const entries = [];
     let okCount = 0;
     let failCount = 0;
-    const rasterizeOursSvg = args.referenceMode === "dvisvgm-svg-png";
+    const rasterizeOurs = true;
 
-    for (let i = 0; i < snippets.length; i += 1) {
-      const snippet = snippets[i];
-      const snippetName = createSnippetRunName(i, snippet);
-      process.stdout.write(`[${i + 1}/${snippets.length}] ${snippetName}\n`);
+    for (let i = 0; i < selected.length; i += 1) {
+      const entry = selected[i];
+      const snippet = entry.snippet;
+      const snippetName = createSnippetRunName(entry.ordinal - 1, snippet);
+      process.stdout.write(`[${i + 1}/${selected.length}] ${snippetName}\n`);
 
       try {
         const result = await compareTikzRenderers({
@@ -77,7 +82,7 @@ async function runCli() {
           outDir: batchDir,
           name: snippetName,
           includeTimestamp: false,
-          rasterizeOurs: rasterizeOursSvg,
+          rasterizeOurs,
           referenceMode: args.referenceMode,
           latexPreamble: snippet.latexPreamble ?? null,
           latexPrepend: snippet.latexPrepend ?? null
@@ -85,7 +90,7 @@ async function runCli() {
         okCount += 1;
         entries.push(
           buildEntry({
-            index: i + 1,
+            index: entry.ordinal,
             snippet,
             batchDir,
             status: "ok",
@@ -103,7 +108,7 @@ async function runCli() {
 
         entries.push(
           buildEntry({
-            index: i + 1,
+            index: entry.ordinal,
             snippet,
             batchDir,
             status: "error",
@@ -128,12 +133,13 @@ async function runCli() {
       filters: {
         kind: args.kind,
         includeIncomplete: args.includeIncomplete,
+        only: args.only ? [...args.only].sort((a, b) => a - b) : null,
         max: args.max,
         referenceMode: args.referenceMode,
-        rasterizeOursSvg
+        rasterizeOurs
       },
       totals: {
-        snippets: snippets.length,
+        snippets: selected.length,
         succeeded: okCount,
         failed: failCount
       },
@@ -170,6 +176,7 @@ function parseArgs(argv) {
     sourceFile: defaultSourceFile,
     outDir: null,
     name: null,
+    only: null,
     max: null,
     kind: "all",
     includeIncomplete: false,
@@ -201,6 +208,11 @@ function parseArgs(argv) {
     }
     if (arg === "--name") {
       parsed.name = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--only") {
+      parsed.only = parseOnlySelection(argv[i + 1] ?? "");
       i += 1;
       continue;
     }
@@ -245,6 +257,7 @@ function printUsage() {
   console.log(`Usage:
   node scripts/compare-pgf-docs-renderings.mjs
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-paths.tex --max 25
+  node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-actions.tex --only 6,7,8,10,13,14
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-paths.tex --kind tikzpicture
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg-png
@@ -753,7 +766,8 @@ function buildEntry(params) {
   const outputs = report?.outputs ?? {};
   const referenceMode = parseReferenceMode(report?.reference?.mode ?? latex.mode ?? defaultReferenceMode);
   const dvisvgmReference = referenceMode === "dvisvgm-svg" || referenceMode === "dvisvgm-svg-png";
-  const latexImagePath = dvisvgmReference ? outputs.latexSvg : outputs.latexPng;
+  const oursImagePath = outputs.oursComparablePng ?? outputs.oursWhitePng ?? outputs.oursPng ?? outputs.oursSvg;
+  const latexImagePath = outputs.latexComparablePng ?? outputs.latexWhitePng ?? outputs.latexPng ?? (dvisvgmReference ? outputs.latexSvg : null);
 
   return {
     index,
@@ -769,8 +783,9 @@ function buildEntry(params) {
     reportPath: reportPath ? relativizePath(batchDir, reportPath) : null,
     referenceMode,
     images: {
-      ours: outputs.oursSvg ? relativizePath(batchDir, outputs.oursSvg) : null,
-      latex: latexImagePath ? relativizePath(batchDir, latexImagePath) : null
+      ours: oursImagePath ? relativizePath(batchDir, oursImagePath) : null,
+      latex: latexImagePath ? relativizePath(batchDir, latexImagePath) : null,
+      sideBySide: outputs.sideBySidePng ? relativizePath(batchDir, outputs.sideBySidePng) : null
     },
     diagnostics: {
       parseCount: parseDiagnostics.length,
@@ -928,7 +943,7 @@ function renderEntryCard(entry) {
   const title = `#${entry.index} ${entry.kind} lines ${entry.startLine}-${entry.endLine}`;
   const oursPane = renderImagePane("Our renderer", entry.images.ours, `ours-${entry.index}`);
   const dvisvgmReference = entry.referenceMode === "dvisvgm-svg" || entry.referenceMode === "dvisvgm-svg-png";
-  const referenceLabel = dvisvgmReference ? "dvisvgm reference (SVG)" : "pdflatex reference (PNG)";
+  const referenceLabel = dvisvgmReference ? "dvisvgm reference (PNG)" : "pdflatex reference (PNG)";
   const latexPane = renderImagePane(referenceLabel, entry.images.latex, `latex-${entry.index}`);
   const diag = `parse:${entry.diagnostics.parseCount} (errors ${entry.diagnostics.parseErrorCount}), semantic:${entry.diagnostics.semanticCount} (errors ${entry.diagnostics.semanticErrorCount}), svg:${entry.diagnostics.svgCount} (errors ${entry.diagnostics.svgErrorCount})`;
   const latexInfo =
@@ -997,6 +1012,47 @@ function parseReferenceMode(value) {
     throw new Error(`Invalid --reference-mode value: ${value}. Expected one of: ${[...validReferenceModes].join(", ")}.`);
   }
   return mode;
+}
+
+function parseOnlySelection(raw) {
+  const normalized = String(raw ?? "").trim();
+  if (normalized.length === 0) {
+    throw new Error("--only requires a comma-separated list like `6,7,8` or ranges like `10-14`.");
+  }
+
+  const selected = new Set();
+  const tokens = normalized.split(",");
+  for (const tokenRaw of tokens) {
+    const token = tokenRaw.trim();
+    if (token.length === 0) {
+      continue;
+    }
+
+    const rangeMatch = token.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) {
+      const start = Number.parseInt(rangeMatch[1], 10);
+      const end = Number.parseInt(rangeMatch[2], 10);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0 || start > end) {
+        throw new Error(`Invalid --only range: ${token}`);
+      }
+      for (let index = start; index <= end; index += 1) {
+        selected.add(index);
+      }
+      continue;
+    }
+
+    const index = Number.parseInt(token, 10);
+    if (!Number.isFinite(index) || index <= 0) {
+      throw new Error(`Invalid --only index: ${token}`);
+    }
+    selected.add(index);
+  }
+
+  if (selected.size === 0) {
+    throw new Error("--only did not contain any valid snippet indices.");
+  }
+
+  return selected;
 }
 
 function isMain(metaUrl) {

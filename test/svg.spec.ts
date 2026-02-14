@@ -103,6 +103,36 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("vector-effect=");
   });
 
+  it("emits dash offsets and bar markers for |-| paths", () => {
+    const source = String.raw`\begin{tikzpicture}[|-|,dash pattern=on 4pt off 2pt]
+  \draw[dash phase=2pt] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('stroke-dasharray="4 2"');
+    expect(emitted.svg).toContain('stroke-dashoffset="2"');
+    expect(emitted.svg).toContain('marker-start="url(#tikz-bar)"');
+    expect(emitted.svg).toContain('marker-end="url(#tikz-bar)"');
+    expect(emitted.svg).toContain('id="tikz-bar"');
+  });
+
+  it("emits even-odd fill rule on compound fill paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill[even odd rule] (0,0) circle (.5cm) (0.5,0) circle (.5cm);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:even odd rule")).toBe(false);
+    expect(emitted.svg).toContain('fill-rule="evenodd"');
+    expect(emitted.svg).toContain("<path");
+    expect(emitted.svg).toContain(" A ");
+    expect(emitted.svg).not.toContain("<circle");
+  });
+
   it("does not emit empty move-only path elements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm, y radius=.5cm];
@@ -129,6 +159,44 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('fill-opacity="0.5"');
     expect(emitted.svg).toContain('text-anchor="end"');
     expect(emitted.svg).toContain("<tspan");
+
+    const semanticText = semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(semanticText?.kind).toBe("Text");
+    const emittedTextX = Number(emitted.svg.match(/<text[^>]* x="([^"]+)"/)?.[1] ?? Number.NaN);
+    expect(Number.isFinite(emittedTextX)).toBe(true);
+    if (semanticText?.kind === "Text" && Number.isFinite(emittedTextX)) {
+      expect(emittedTextX).toBeGreaterThan(semanticText.position.x);
+    }
+  });
+
+  it("shifts multiline align-left text anchors to the left edge of the text block", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[align=left,node contents={This is a\\demonstration.},draw] at (0,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('text-anchor="start"');
+    const semanticText = semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(semanticText?.kind).toBe("Text");
+    const emittedTextX = Number(emitted.svg.match(/<text[^>]* x="([^"]+)"/)?.[1] ?? Number.NaN);
+    expect(Number.isFinite(emittedTextX)).toBe(true);
+    if (semanticText?.kind === "Text" && Number.isFinite(emittedTextX)) {
+      expect(emittedTextX).toBeLessThan(semanticText.position.x);
+    }
+  });
+
+  it("keeps node text black when only draw color is inherited", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [fill=blue!50, draw=blue] (0,0) node [fill=red!50] {first node};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.scene.elements.some((element) => element.kind === "Text" && element.text === "first node")).toBe(true);
+    expect(emitted.svg).toContain('fill="#000000"');
   });
 
   it("emits circle primitives for circle-shaped nodes", () => {

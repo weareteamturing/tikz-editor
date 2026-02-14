@@ -63,6 +63,7 @@ export function evaluatePathStatement(
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
+  const shouldCompoundFilledSubpaths = style.fill != null && style.fill !== "none";
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
@@ -72,8 +73,14 @@ export function evaluatePathStatement(
         const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
         if (radius != null) {
           markFeature("shape_circle", "supported");
-          markFeature("svg_circle", "supported");
-          geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, radius, style, item.span));
+          if (shouldCompoundFilledSubpaths) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendCircleSubpath(activePath.commands, pendingCircleCenter, radius);
+            markFeature("svg_path", "supported");
+          } else {
+            markFeature("svg_circle", "supported");
+            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, radius, style, item.span));
+          }
           pendingCircleCenter = null;
           pendingCircleRadius = null;
           pendingCircleRadii = null;
@@ -84,17 +91,29 @@ export function evaluatePathStatement(
         const fallbackRadius = pendingCircleRadius ?? style.radius;
         if (fallbackRadius != null) {
           markFeature("shape_circle", "supported");
-          markFeature("svg_circle", "supported");
-          geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
+          if (shouldCompoundFilledSubpaths) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
+            markFeature("svg_path", "supported");
+          } else {
+            markFeature("svg_circle", "supported");
+            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
+          }
         } else {
           const fallbackRadii = pendingCircleRadii ?? {
             rx: style.xRadius ?? DEFAULT_GRID_STEP,
             ry: style.yRadius ?? DEFAULT_GRID_STEP
           };
           markFeature("keyword_ellipse", "supported");
-          geometryElements.push(
-            makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
-          );
+          if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
+            markFeature("svg_path", "supported");
+          } else {
+            geometryElements.push(
+              makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
+            );
+          }
         }
         pendingCircleCenter = null;
         pendingCircleRadius = null;
@@ -107,7 +126,13 @@ export function evaluatePathStatement(
         const parsedRadii = parseEllipseRadiiFromCoordinateRaw(item.raw);
         if (parsedRadii) {
           markFeature("keyword_ellipse", "supported");
-          geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, parsedRadii.rx, parsedRadii.ry, style, item.span));
+          if (shouldCompoundFilledSubpaths) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendEllipseSubpath(activePath.commands, pendingEllipseCenter, parsedRadii.rx, parsedRadii.ry, 0);
+            markFeature("svg_path", "supported");
+          } else {
+            geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, parsedRadii.rx, parsedRadii.ry, style, item.span));
+          }
           pendingEllipseCenter = null;
           pendingEllipseRadii = null;
           lastPlacementSegment = null;
@@ -178,8 +203,13 @@ export function evaluatePathStatement(
 
       if (pendingRectangleFrom) {
         markFeature("shape_rectangle", "supported");
+        if (shouldCompoundFilledSubpaths) {
+          activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point);
+        } else {
+          geometryElements.push(makeRectangleElement(statement.id, item.id, pendingRectangleFrom, evaluated.point, style, item.span));
+        }
         markFeature("svg_path", "supported");
-        geometryElements.push(makeRectangleElement(statement.id, item.id, pendingRectangleFrom, evaluated.point, style, item.span));
         pendingRectangleFrom = null;
         context.currentPoint = evaluated.point;
         if (!context.pathStartPoint) {
@@ -246,17 +276,29 @@ export function evaluatePathStatement(
         const fallbackRadius = pendingCircleRadius ?? style.radius;
         if (fallbackRadius != null) {
           markFeature("shape_circle", "supported");
-          markFeature("svg_circle", "supported");
-          geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
+          if (shouldCompoundFilledSubpaths) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
+            markFeature("svg_path", "supported");
+          } else {
+            markFeature("svg_circle", "supported");
+            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
+          }
         } else {
           const fallbackRadii = pendingCircleRadii ?? {
             rx: style.xRadius ?? DEFAULT_GRID_STEP,
             ry: style.yRadius ?? DEFAULT_GRID_STEP
           };
           markFeature("keyword_ellipse", "supported");
-          geometryElements.push(
-            makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
-          );
+          if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
+            markFeature("svg_path", "supported");
+          } else {
+            geometryElements.push(
+              makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
+            );
+          }
         }
         pendingCircleCenter = null;
         pendingCircleRadius = null;
@@ -388,7 +430,9 @@ export function evaluatePathStatement(
           pushDiagnostic("rectangle-without-start", "Rectangle operator requires a current point.", item.span.from, item.span.to);
           continue;
         }
-        activePath = flushDrawableActivePath(geometryElements, activePath);
+        if (!shouldCompoundFilledSubpaths) {
+          activePath = flushDrawableActivePath(geometryElements, activePath);
+        }
         previousSegmentRoundedCorners = null;
         pendingRectangleFrom = context.currentPoint;
         lastPlacementSegment = null;
@@ -401,7 +445,9 @@ export function evaluatePathStatement(
           pushDiagnostic("circle-without-center", "Circle operator requires a current point.", item.span.from, item.span.to);
           continue;
         }
-        activePath = flushDrawableActivePath(geometryElements, activePath);
+        if (!shouldCompoundFilledSubpaths) {
+          activePath = flushDrawableActivePath(geometryElements, activePath);
+        }
         previousSegmentRoundedCorners = null;
         pendingCircleCenter = context.currentPoint;
         pendingCircleRadius = null;
@@ -417,7 +463,9 @@ export function evaluatePathStatement(
           pushDiagnostic("ellipse-without-center", "Ellipse keyword requires a current point.", item.span.from, item.span.to);
           continue;
         }
-        activePath = flushDrawableActivePath(geometryElements, activePath);
+        if (!shouldCompoundFilledSubpaths) {
+          activePath = flushDrawableActivePath(geometryElements, activePath);
+        }
         previousSegmentRoundedCorners = null;
         pendingEllipseCenter = context.currentPoint;
         pendingEllipseRadii = null;
@@ -634,8 +682,10 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "Node") {
+      const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
+      const nodeItem = trailingCoordinateRaw ? { ...item, name: undefined } : item;
       const resolvedNode = evaluateNodeItem(
-        item,
+        nodeItem,
         statement,
         context,
         style,
@@ -647,6 +697,22 @@ export function evaluatePathStatement(
       pendingNodeNameForNodeCommand = null;
       behindNodeElements.push(...resolvedNode.behindElements);
       frontNodeElements.push(...resolvedNode.frontElements);
+      if (trailingCoordinateRaw) {
+        const trailingCoordinate = evaluateRawCoordinate(trailingCoordinateRaw, context);
+        if (trailingCoordinate.point) {
+          if (activePath) {
+            activePath.commands.push({ kind: "M", to: trailingCoordinate.point });
+          }
+          context.currentPoint = trailingCoordinate.point;
+          context.pathStartPoint = trailingCoordinate.point;
+          lastPlacementSegment = null;
+          previousSegmentRoundedCorners = null;
+        } else {
+          for (const code of trailingCoordinate.diagnostics) {
+            pushDiagnostic(code, `Node trailing coordinate issue: ${code}`, item.span.from, item.span.to);
+          }
+        }
+      }
       continue;
     }
 
@@ -715,17 +781,29 @@ export function evaluatePathStatement(
     const fallbackRadius = pendingCircleRadius ?? style.radius;
     if (fallbackRadius != null) {
       markFeature("shape_circle", "supported");
-      markFeature("svg_circle", "supported");
-      geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, statement.span));
+      if (shouldCompoundFilledSubpaths) {
+        activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
+        appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
+        markFeature("svg_path", "supported");
+      } else {
+        markFeature("svg_circle", "supported");
+        geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, statement.span));
+      }
     } else {
       const fallbackRadii = pendingCircleRadii ?? {
         rx: style.xRadius ?? DEFAULT_GRID_STEP,
         ry: style.yRadius ?? DEFAULT_GRID_STEP
       };
       markFeature("keyword_ellipse", "supported");
-      geometryElements.push(
-        makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, statement.span, pendingCircleRotation)
-      );
+      if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
+        activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
+        appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
+        markFeature("svg_path", "supported");
+      } else {
+        geometryElements.push(
+          makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, statement.span, pendingCircleRotation)
+        );
+      }
     }
     lastPlacementSegment = null;
   }
@@ -735,7 +813,13 @@ export function evaluatePathStatement(
       rx: DEFAULT_GRID_STEP,
       ry: DEFAULT_GRID_STEP
     };
-    geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, radii.rx, radii.ry, style, statement.span));
+    if (shouldCompoundFilledSubpaths) {
+      activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
+      appendEllipseSubpath(activePath.commands, pendingEllipseCenter, radii.rx, radii.ry, 0);
+      markFeature("svg_path", "supported");
+    } else {
+      geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, radii.rx, radii.ry, style, statement.span));
+    }
     lastPlacementSegment = null;
   }
 
@@ -759,6 +843,57 @@ function makePath(sourceId: string, itemId: string, style: ResolvedStyle, span: 
     style: { ...style },
     commands: []
   };
+}
+
+function ensurePathForSubpath(
+  activePath: ScenePath | null,
+  sourceId: string,
+  itemId: string,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  if (activePath) {
+    return activePath;
+  }
+  return makePath(sourceId, itemId, style, span);
+}
+
+function appendRectangleSubpath(commands: ScenePathCommand[], from: Point, to: Point): void {
+  commands.push({ kind: "M", to: from });
+  commands.push({ kind: "L", to: { x: to.x, y: from.y } });
+  commands.push({ kind: "L", to });
+  commands.push({ kind: "L", to: { x: from.x, y: to.y } });
+  commands.push({ kind: "Z" });
+}
+
+function appendCircleSubpath(commands: ScenePathCommand[], center: Point, radius: number): void {
+  appendEllipseSubpath(commands, center, radius, radius, 0);
+}
+
+function appendEllipseSubpath(commands: ScenePathCommand[], center: Point, rx: number, ry: number, rotation: number): void {
+  const start = { x: center.x + rx, y: center.y };
+  const opposite = { x: center.x - rx, y: center.y };
+
+  commands.push({ kind: "M", to: start });
+  commands.push({
+    kind: "A",
+    rx,
+    ry,
+    xAxisRotation: rotation,
+    largeArc: false,
+    sweep: true,
+    to: opposite
+  });
+  commands.push({
+    kind: "A",
+    rx,
+    ry,
+    xAxisRotation: rotation,
+    largeArc: false,
+    sweep: true,
+    to: start
+  });
+  commands.push({ kind: "Z" });
 }
 
 function appendPathPoint(
@@ -1039,7 +1174,8 @@ function makeTextElement(
   position: Point,
   style: ResolvedStyle,
   span: { from: number; to: number },
-  text: string
+  text: string,
+  textBlockWidth?: number
 ): SceneText {
   return {
     kind: "Text",
@@ -1048,7 +1184,8 @@ function makeTextElement(
     sourceSpan: span,
     style: { ...style },
     position,
-    text
+    text,
+    textBlockWidth
   };
 }
 
@@ -1075,7 +1212,16 @@ function evaluateNodeItem(
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles
   });
-  const transformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
+  const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
+    statementOptions: undefined,
+    nodeOptions,
+    everyNodeStyles: frame.everyNodeStyles,
+    everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+    everyCircleNodeStyles: frame.everyCircleNodeStyles
+  });
+  const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
+  const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
+  const transformScale = inheritedTransformScale * nodeOptionScale;
   const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
   const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale);
   const nodeShape = resolveNodeShape(effectiveNodeOptions);
@@ -1090,13 +1236,18 @@ function evaluateNodeItem(
   }
 
   const nodeElements: SceneElement[] = [];
-  if (shouldDrawNodeBox(effectiveNodeOptions)) {
+  const boxPaintMode = resolveNodeBoxPaintMode(effectiveNodeLocalOptions);
+  if (boxPaintMode.draw || boxPaintMode.fill) {
+    const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, boxPaintMode);
     if (nodeShape === "circle") {
-      nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeStyle, item.span));
+      nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
       markFeature("svg_circle", "supported");
+    } else if (nodeShape === "ellipse") {
+      nodeElements.push(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      markFeature("keyword_ellipse", "supported");
     } else if (nodeShape === "rectangle") {
-      nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeStyle, item.span));
+      nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("shape_rectangle", "supported");
       markFeature("svg_path", "supported");
     }
@@ -1104,7 +1255,7 @@ function evaluateNodeItem(
 
   const normalizedText = nodeLayout.textLines.join("\n");
   if (normalizedText.length > 0) {
-    nodeElements.push(makeTextElement(statement.id, item.id, center, nodeStyle, item.span, normalizedText));
+    nodeElements.push(makeTextElement(statement.id, item.id, center, nodeStyle, item.span, normalizedText, nodeLayout.textBlockWidth));
     markFeature("svg_text", "supported");
   }
 
@@ -1186,6 +1337,20 @@ function resolveNodeStyle(
   };
 }
 
+function resolveNodeOptionScale(
+  options: PathOptionItem["options"] | undefined,
+  baseStyle: ResolvedStyle,
+  context: SemanticContext
+): number {
+  if (!options) {
+    return 1;
+  }
+
+  const frame = context.stack[context.stack.length - 1];
+  const resolved = resolveContextDelta(baseStyle, frame.transform, [options]);
+  return computeRelativeTransformScale(frame.transform, resolved.transform);
+}
+
 function resolveEffectiveNodeOptions(params: {
   statementOptions: OptionListAst | undefined;
   nodeOptions: OptionListAst | undefined;
@@ -1236,10 +1401,26 @@ function computeTransformScale(transform: { a: number; b: number; c: number; d: 
   return averaged;
 }
 
-type NodeShape = "rectangle" | "circle" | "coordinate";
+function computeRelativeTransformScale(
+  baseTransform: { a: number; b: number; c: number; d: number },
+  resolvedTransform: { a: number; b: number; c: number; d: number }
+): number {
+  const base = computeTransformScale(baseTransform);
+  const resolved = computeTransformScale(resolvedTransform);
+  if (!Number.isFinite(resolved) || resolved <= 1e-6) {
+    return 1;
+  }
+  if (!Number.isFinite(base) || base <= 1e-6) {
+    return resolved;
+  }
+  return resolved / base;
+}
+
+type NodeShape = "rectangle" | "circle" | "ellipse" | "coordinate";
 type NodeLayer = "front" | "behind";
 type NodeLayout = {
   textLines: string[];
+  textBlockWidth: number;
   visualWidth: number;
   visualHeight: number;
   visualRadius: number;
@@ -1258,14 +1439,14 @@ function resolveNodeShape(options: PathOptionItem["options"] | undefined): NodeS
   let shape: NodeShape = "rectangle";
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
-      if (entry.key === "circle" || entry.key === "rectangle" || entry.key === "coordinate") {
+      if (entry.key === "circle" || entry.key === "rectangle" || entry.key === "ellipse" || entry.key === "coordinate") {
         shape = entry.key;
       }
       continue;
     }
     if (entry.kind === "kv" && entry.key === "shape") {
       const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
-      if (normalized === "circle" || normalized === "rectangle" || normalized === "coordinate") {
+      if (normalized === "circle" || normalized === "rectangle" || normalized === "ellipse" || normalized === "coordinate") {
         shape = normalized;
       }
     }
@@ -1464,6 +1645,7 @@ function resolveNodeLayout(
 
   return {
     textLines,
+    textBlockWidth: measuredTextWidth,
     visualWidth,
     visualHeight,
     visualRadius: Math.max(visualWidth, visualHeight) / 2,
@@ -1736,6 +1918,44 @@ function nodeAnchorOffset(shape: NodeShape, layout: NodeLayout, anchorRaw: strin
     }
   }
 
+  if (shape === "ellipse") {
+    const rx = layout.anchorHalfWidth;
+    const ry = layout.anchorHalfHeight;
+    switch (anchor) {
+      case "north":
+        return { x: 0, y: ry };
+      case "south":
+        return { x: 0, y: -ry };
+      case "east":
+        return { x: rx, y: 0 };
+      case "west":
+        return { x: -rx, y: 0 };
+      case "north east":
+        return ellipseDirectionalOffset(rx, ry, 1, 1);
+      case "north west":
+        return ellipseDirectionalOffset(rx, ry, -1, 1);
+      case "south east":
+        return ellipseDirectionalOffset(rx, ry, 1, -1);
+      case "south west":
+        return ellipseDirectionalOffset(rx, ry, -1, -1);
+      case "base east":
+        return { x: rx, y: layout.baseLineY };
+      case "base west":
+        return { x: -rx, y: layout.baseLineY };
+      case "mid":
+        return { x: 0, y: layout.midLineY };
+      case "mid east":
+        return { x: rx, y: layout.midLineY };
+      case "mid west":
+        return { x: -rx, y: layout.midLineY };
+      case "base":
+        return { x: 0, y: layout.baseLineY };
+      case "center":
+      default:
+        return { x: 0, y: 0 };
+    }
+  }
+
   const hw = layout.anchorHalfWidth;
   const hh = layout.anchorHalfHeight;
   switch (anchor) {
@@ -1773,18 +1993,59 @@ function nodeAnchorOffset(shape: NodeShape, layout: NodeLayout, anchorRaw: strin
   }
 }
 
-function shouldDrawNodeBox(options: PathOptionItem["options"] | undefined): boolean {
+function ellipseDirectionalOffset(rx: number, ry: number, dx: number, dy: number): Point {
+  const norm = Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+  if (!Number.isFinite(norm) || norm <= 1e-9) {
+    return { x: 0, y: 0 };
+  }
+  return {
+    x: dx / norm,
+    y: dy / norm
+  };
+}
+
+function resolveNodeBoxPaintMode(options: PathOptionItem["options"] | undefined): { draw: boolean; fill: boolean } {
+  let draw = false;
+  let fill = false;
+
   if (!options) {
-    return false;
+    return { draw, fill };
   }
 
-  return options.entries.some(
-    (entry) =>
-      (entry.kind === "flag" && (entry.key === "draw" || entry.key === "fill")) ||
-      (entry.kind === "kv" &&
-        ((entry.key === "draw" && normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none") ||
-          (entry.key === "fill" && normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none")))
-  );
+  for (const entry of options.entries) {
+    if (entry.kind === "flag") {
+      if (entry.key === "draw") {
+        draw = true;
+      } else if (entry.key === "fill") {
+        fill = true;
+      }
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    if (entry.key === "draw") {
+      draw = normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none";
+      continue;
+    }
+
+    if (entry.key === "fill") {
+      fill = normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none";
+    }
+  }
+
+  return { draw, fill };
+}
+
+function applyNodeBoxPaintMode(style: ResolvedStyle, paintMode: { draw: boolean; fill: boolean }): ResolvedStyle {
+  return {
+    ...style,
+    stroke: paintMode.draw ? style.stroke : null,
+    fill: paintMode.fill ? style.fill : null,
+    drawExplicit: paintMode.draw ? style.drawExplicit : false
+  };
 }
 
 function makeNodeBoxElement(
@@ -1812,6 +2073,27 @@ function makeNodeBoxElement(
       { kind: "L", to: { x: center.x - halfWidth, y: center.y + halfHeight } },
       { kind: "Z" }
     ]
+  };
+}
+
+function makeNodeEllipseElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  width: number,
+  height: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): SceneEllipse {
+  return {
+    kind: "Ellipse",
+    id: `scene-node-ellipse:${sourceId}:${itemId}`,
+    sourceId,
+    sourceSpan: span,
+    style: { ...style },
+    center,
+    rx: width / 2,
+    ry: height / 2
   };
 }
 
@@ -1864,6 +2146,24 @@ function collectScopedNodeNames(name: string | undefined, aliases: string[] | un
   const names = [name, ...(aliases ?? [])].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
   const scoped = names.map((entry) => applyNameScope(entry, context));
   return Array.from(new Set(scoped));
+}
+
+function maybeResolveTrailingCoordinateFromNodeName(name: string | undefined): string | null {
+  if (!name) {
+    return null;
+  }
+
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const asCoordinate = `(${trimmed})`;
+  const parsed = parseCoordinate(asCoordinate);
+  if (parsed.form === "named" || parsed.form === "unknown") {
+    return null;
+  }
+  return asCoordinate;
 }
 
 function applyNameScope(name: string, context: SemanticContext): string {
@@ -2357,7 +2657,7 @@ function maybeResolveNamedNodeBorderPoint(
 }
 
 function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): {
-  shape: "rectangle" | "circle" | "coordinate";
+  shape: "rectangle" | "circle" | "ellipse" | "coordinate";
   center: Point;
   anchorHalfWidth: number;
   anchorHalfHeight: number;
@@ -2376,7 +2676,7 @@ function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): {
 
 function intersectNodeBorder(
   geometry: {
-    shape: "rectangle" | "circle" | "coordinate";
+    shape: "rectangle" | "circle" | "ellipse" | "coordinate";
     center: Point;
     anchorHalfWidth: number;
     anchorHalfHeight: number;
@@ -2410,6 +2710,22 @@ function intersectNodeBorder(
       return null;
     }
     const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return {
+      x: geometry.center.x + dx * scale,
+      y: geometry.center.y + dy * scale
+    };
+  }
+
+  if (geometry.shape === "ellipse") {
+    const rx = geometry.anchorHalfWidth;
+    const ry = geometry.anchorHalfHeight;
+    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
+      return null;
+    }
+    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    if (!Number.isFinite(scale)) {
+      return null;
+    }
     return {
       x: geometry.center.x + dx * scale,
       y: geometry.center.y + dy * scale
