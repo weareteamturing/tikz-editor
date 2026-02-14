@@ -121,6 +121,9 @@ function evaluateStatement(
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
       markFeature(featureUsage, "path_shading", "supported");
     }
+    if (resolved.style.shadowLayers.length > 0) {
+      markFeature(featureUsage, "path_shadows", "supported");
+    }
 
     for (const code of resolved.diagnostics) {
       diagnostics.push({

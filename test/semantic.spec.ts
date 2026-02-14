@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseTikz } from "../src/parser/index.js";
 import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../src/semantic/types.js";
 
 describe("semantic evaluator", () => {
   it("applies style cascade with statement options", () => {
@@ -550,7 +551,7 @@ describe("semantic evaluator", () => {
     const path = result.scene.elements.find((element) => element.kind === "Path");
     expect(path?.kind).toBe("Path");
     if (path?.kind === "Path") {
-      expect(path.style.opacity).toBeCloseTo(0.8);
+      expect(path.style.opacity).toBeCloseTo(1);
       expect(path.style.strokeOpacity).toBeCloseTo(0.6);
       expect(path.style.fillOpacity).toBeCloseTo(0.3);
       expect(path.style.lineCap).toBe("round");
@@ -662,6 +663,90 @@ describe("semantic evaluator", () => {
       if (path.kind === "Path") {
         expect(path.style.shadeEnabled).toBe(false);
       }
+    }
+  });
+
+  it("resolves TikZ shadow option keys into semantic shadow layers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow] (0,0) rectangle (1,1);
+  \draw[copy shadow={opacity=.4}] (2,0) rectangle (3,1);
+  \draw[double copy shadow={shadow xshift=1ex,shadow yshift=1ex}] (4,0) rectangle (5,1);
+  \draw[circular glow] (6,0) rectangle (7,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const unsupportedShadowDiagnostics = result.diagnostics.filter((diagnostic) =>
+      [
+        "unsupported-option-key:general shadow",
+        "unsupported-option-key:drop shadow",
+        "unsupported-option-key:copy shadow",
+        "unsupported-option-key:double copy shadow",
+        "unsupported-option-key:circular drop shadow",
+        "unsupported-option-key:circular glow"
+      ].includes(diagnostic.code)
+    );
+    expect(unsupportedShadowDiagnostics).toHaveLength(0);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(4);
+
+    const dropShadow = paths[0];
+    expect(dropShadow?.kind).toBe("Path");
+    if (dropShadow?.kind === "Path") {
+      expect(dropShadow.style.shadowLayers).toHaveLength(1);
+      expect(dropShadow.style.shadowLayers[0]?.scale).toBeCloseTo(1, 4);
+      expect(dropShadow.style.shadowLayers[0]?.xshift).toBeCloseTo(2.15, 2);
+      expect(dropShadow.style.shadowLayers[0]?.yshift).toBeCloseTo(-2.15, 2);
+      expect(dropShadow.style.shadowLayers[0]?.style.stroke).toBeNull();
+      expect(dropShadow.style.shadowLayers[0]?.style.fill).toBe("#808080");
+      expect(dropShadow.style.shadowLayers[0]?.style.fillOpacity).toBeCloseTo(0.5, 4);
+      expect(dropShadow.style.shadowLayers[0]?.style.strokeOpacity).toBeCloseTo(0.5, 4);
+    }
+
+    const copyShadow = paths[1];
+    expect(copyShadow?.kind).toBe("Path");
+    if (copyShadow?.kind === "Path") {
+      expect(copyShadow.style.shadowLayers).toHaveLength(1);
+      expect(copyShadow.style.shadowLayers[0]?.style.stroke).toBe(SHADOW_INHERIT_STROKE);
+      expect(copyShadow.style.shadowLayers[0]?.style.fill).toBe(SHADOW_INHERIT_FILL);
+      expect(copyShadow.style.shadowLayers[0]?.style.fillOpacity).toBeCloseTo(0.4, 4);
+      expect(copyShadow.style.shadowLayers[0]?.style.strokeOpacity).toBeCloseTo(0.4, 4);
+      expect(copyShadow.style.shadowLayers[0]?.style.shadeEnabled).toBe(false);
+    }
+
+    const doubleCopyShadow = paths[2];
+    expect(doubleCopyShadow?.kind).toBe("Path");
+    if (doubleCopyShadow?.kind === "Path") {
+      expect(doubleCopyShadow.style.shadowLayers).toHaveLength(2);
+      expect(doubleCopyShadow.style.shadowLayers[0]?.xshift).toBeCloseTo(8.6, 2);
+      expect(doubleCopyShadow.style.shadowLayers[0]?.yshift).toBeCloseTo(8.6, 2);
+      expect(doubleCopyShadow.style.shadowLayers[1]?.xshift).toBeCloseTo(4.3, 2);
+      expect(doubleCopyShadow.style.shadowLayers[1]?.yshift).toBeCloseTo(4.3, 2);
+    }
+
+    const circularGlow = paths[3];
+    expect(circularGlow?.kind).toBe("Path");
+    if (circularGlow?.kind === "Path") {
+      expect(circularGlow.style.shadowLayers).toHaveLength(1);
+      expect(circularGlow.style.shadowLayers[0]?.fade).toBe("circle-fuzzy-edge-15");
+      expect(circularGlow.style.shadowLayers[0]?.scale).toBeCloseTo(1.25, 4);
+    }
+  });
+
+  it("keeps even-odd compound geometry for filled shadow preactions", () => {
+    const source = String.raw`\begin{tikzpicture}[even odd rule]
+  \draw[general shadow={fill=red}] (0,0) circle (.5) (0.5,0) circle (.5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.shadowLayers).toHaveLength(1);
+      expect(path.style.shadowLayers[0]?.style.fillRule).toBe("evenodd");
+      expect(path.commands.filter((command) => command.kind === "Z")).toHaveLength(2);
     }
   });
 

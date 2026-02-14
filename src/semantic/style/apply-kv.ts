@@ -1,6 +1,15 @@
+import type { OptionEntry } from "../../options/types.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
-import type { Matrix2D, ResolvedStyle } from "../types.js";
+import {
+  SHADOW_INHERIT_FILL,
+  SHADOW_INHERIT_STROKE,
+  type Matrix2D,
+  type ResolvedStyle,
+  type ShadowFadeKind,
+  type ShadowLayer,
+  type ShadowPaintStyle
+} from "../types.js";
 import { parseArrowSideSpecification, parseArrowSpecification, parseTipsMode } from "./arrows.js";
 import type { ApplyEntryFn, ApplyOutcome } from "./apply-types.js";
 import { NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./constants.js";
@@ -32,6 +41,95 @@ export function applyKvEntry(
     }
 
     return { style: nextStyle, transform: nextTransform, diagnostics };
+  }
+
+  if (key === "every shadow/.style" || key === "every shadow/.append style") {
+    const nested = parseStyleValueAsOptionList(valueRaw);
+    if (!nested) {
+      return { style, transform, diagnostics: [`invalid-style-value:${valueRaw}`] };
+    }
+
+    const everyShadowStyles = key === "every shadow/.style" ? [nested] : [...style.everyShadowStyles, nested];
+    return { style: { ...style, everyShadowStyles }, transform, diagnostics: [] };
+  }
+
+  if (key === "shadow scale") {
+    const scale = Number(normalizeOptionValue(valueRaw));
+    if (!Number.isFinite(scale)) {
+      return { style, transform, diagnostics: [`invalid-shadow-scale:${valueRaw}`] };
+    }
+    return { style: { ...style, shadowScale: scale }, transform, diagnostics: [] };
+  }
+
+  if (key === "shadow xshift") {
+    const shift = parseLength(valueRaw, "pt");
+    if (shift == null) {
+      return { style, transform, diagnostics: [`invalid-shadow-xshift:${valueRaw}`] };
+    }
+    return { style: { ...style, shadowXShift: shift }, transform, diagnostics: [] };
+  }
+
+  if (key === "shadow yshift") {
+    const shift = parseLength(valueRaw, "pt");
+    if (shift == null) {
+      return { style, transform, diagnostics: [`invalid-shadow-yshift:${valueRaw}`] };
+    }
+    return { style: { ...style, shadowYShift: shift }, transform, diagnostics: [] };
+  }
+
+  if (key === "path fading") {
+    const fading = parseShadowFadeKind(valueRaw);
+    if (!fading) {
+      return { style, transform, diagnostics: [`unsupported-path-fading:${normalizeOptionValue(valueRaw)}`] };
+    }
+    return { style: { ...style, shadowFade: fading }, transform, diagnostics: [] };
+  }
+
+  if (key === "general shadow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset: null,
+      applyEveryShadow: false
+    });
+  }
+
+  if (key === "drop shadow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=-.5ex,opacity=.5,fill=black!50",
+      applyEveryShadow: true
+    });
+  }
+
+  if (key === "copy shadow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=.5ex",
+      applyEveryShadow: true,
+      copyMainPaint: true
+    });
+  }
+
+  if (key === "double copy shadow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=.5ex",
+      applyEveryShadow: true,
+      duplicateWithDoubleShift: true,
+      copyMainPaint: true
+    });
+  }
+
+  if (key === "circular drop shadow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset:
+        "shadow scale=1.1,shadow xshift=.3ex,shadow yshift=-.3ex,fill=black!50,path fading={circle with fuzzy edge 15 percent}",
+      applyEveryShadow: true
+    });
+  }
+
+  if (key === "circular glow") {
+    return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
+      preset:
+        "shadow scale=1.25,shadow xshift=0pt,shadow yshift=0pt,fill=black!50,path fading={circle with fuzzy edge 15 percent}",
+      applyEveryShadow: true
+    });
   }
 
   if (key === "arrows") {
@@ -341,9 +439,13 @@ export function applyKvEntry(
   if (key === "opacity") {
     const value = Number(valueRaw);
     if (Number.isFinite(value)) {
-      const opacity = clamp01(value);
       return {
-        style: { ...style, opacity, strokeOpacity: opacity, fillOpacity: opacity, textOpacity: opacity },
+        style: {
+          ...style,
+          strokeOpacity: clamp01(value),
+          fillOpacity: clamp01(value),
+          textOpacity: clamp01(value)
+        },
         transform,
         diagnostics: []
       };
@@ -499,4 +601,167 @@ export function applyKvEntry(
     transform,
     diagnostics: [`unsupported-option-key:${key}`]
   };
+}
+
+type AppendShadowOptions = {
+  preset: string | null;
+  applyEveryShadow: boolean;
+  duplicateWithDoubleShift?: boolean;
+  copyMainPaint?: boolean;
+};
+
+function appendShadowLayers(
+  style: ResolvedStyle,
+  transform: Matrix2D,
+  valueRaw: string,
+  applyOptionEntry: ApplyEntryFn,
+  options: AppendShadowOptions
+): ApplyOutcome {
+  const seedStyle = toShadowSeedStyle(style);
+  let workingStyle = options.copyMainPaint
+    ? {
+        ...seedStyle,
+        stroke: SHADOW_INHERIT_STROKE,
+        drawExplicit: true,
+        fill: SHADOW_INHERIT_FILL
+      }
+    : seedStyle;
+  let workingTransform = transform;
+  const diagnostics: string[] = [];
+
+  if (options.preset) {
+    const presetList = parseStyleValueAsOptionList(options.preset);
+    if (presetList) {
+      const presetResult = applyOptionListEntries(presetList.entries, workingStyle, workingTransform, applyOptionEntry);
+      workingStyle = presetResult.style;
+      workingTransform = presetResult.transform;
+      diagnostics.push(...presetResult.diagnostics);
+    }
+  }
+
+  if (options.applyEveryShadow) {
+    for (const list of style.everyShadowStyles) {
+      const everyResult = applyOptionListEntries(list.entries, workingStyle, workingTransform, applyOptionEntry);
+      workingStyle = everyResult.style;
+      workingTransform = everyResult.transform;
+      diagnostics.push(...everyResult.diagnostics);
+    }
+  }
+
+  const nested = parseStyleValueAsOptionList(valueRaw);
+  if (valueRaw.trim().length > 0 && !nested) {
+    diagnostics.push(`invalid-style-value:${valueRaw}`);
+  } else if (nested) {
+    const nestedResult = applyOptionListEntries(nested.entries, workingStyle, workingTransform, applyOptionEntry);
+    workingStyle = nestedResult.style;
+    workingTransform = nestedResult.transform;
+    diagnostics.push(...nestedResult.diagnostics);
+  }
+
+  const shadowLayer = makeShadowLayerFromStyle(workingStyle);
+  const shadowLayers = options.duplicateWithDoubleShift
+    ? [
+        {
+          ...shadowLayer,
+          xshift: shadowLayer.xshift * 2,
+          yshift: shadowLayer.yshift * 2
+        },
+        shadowLayer
+      ]
+    : [shadowLayer];
+
+  return {
+    style: {
+      ...style,
+      shadowLayers: [...style.shadowLayers, ...shadowLayers]
+    },
+    transform,
+    diagnostics
+  };
+}
+
+function applyOptionListEntries(
+  entries: OptionEntry[],
+  style: ResolvedStyle,
+  transform: Matrix2D,
+  applyOptionEntry: ApplyEntryFn
+): ApplyOutcome {
+  let nextStyle = style;
+  let nextTransform = transform;
+  const diagnostics: string[] = [];
+
+  for (const entry of entries) {
+    const outcome = applyOptionEntry(entry, nextStyle, nextTransform);
+    nextStyle = outcome.style;
+    nextTransform = outcome.transform;
+    diagnostics.push(...outcome.diagnostics);
+  }
+
+  return { style: nextStyle, transform: nextTransform, diagnostics };
+}
+
+function makeShadowLayerFromStyle(style: ResolvedStyle): ShadowLayer {
+  const scale = Number.isFinite(style.shadowScale) ? style.shadowScale : 1;
+  const xshift = Number.isFinite(style.shadowXShift) ? style.shadowXShift : 0;
+  const yshift = Number.isFinite(style.shadowYShift) ? style.shadowYShift : 0;
+  const fade: ShadowFadeKind = style.shadowFade;
+  return {
+    scale,
+    xshift,
+    yshift,
+    fade,
+    style: extractShadowPaintStyle(style)
+  };
+}
+
+function toShadowSeedStyle(style: ResolvedStyle): ResolvedStyle {
+  return {
+    ...style,
+    stroke: null,
+    drawExplicit: false,
+    shadeEnabled: false,
+    shadowLayers: []
+  };
+}
+
+function extractShadowPaintStyle(style: ResolvedStyle): ShadowPaintStyle {
+  return {
+    stroke: style.stroke,
+    fill: style.fill,
+    fillRule: style.fillRule,
+    doubleStroke: style.doubleStroke,
+    doubleDistance: style.doubleDistance,
+    lineWidth: style.lineWidth,
+    dashArray: style.dashArray ? [...style.dashArray] : null,
+    dashOffset: style.dashOffset,
+    lineCap: style.lineCap,
+    lineJoin: style.lineJoin,
+    opacity: style.opacity,
+    strokeOpacity: style.strokeOpacity,
+    fillOpacity: style.fillOpacity,
+    shadeEnabled: style.shadeEnabled,
+    shading: style.shading,
+    shadingAngle: style.shadingAngle,
+    axisTopColor: style.axisTopColor,
+    axisMiddleColor: style.axisMiddleColor,
+    axisBottomColor: style.axisBottomColor,
+    radialInnerColor: style.radialInnerColor,
+    radialOuterColor: style.radialOuterColor,
+    ballColor: style.ballColor,
+    bilinearLowerLeft: style.bilinearLowerLeft,
+    bilinearLowerRight: style.bilinearLowerRight,
+    bilinearUpperLeft: style.bilinearUpperLeft,
+    bilinearUpperRight: style.bilinearUpperRight
+  };
+}
+
+function parseShadowFadeKind(valueRaw: string): ShadowFadeKind | null {
+  const normalized = normalizeOptionValue(valueRaw).toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "circle with fuzzy edge 15 percent") {
+    return "circle-fuzzy-edge-15";
+  }
+  if (normalized === "none" || normalized === "false") {
+    return "none";
+  }
+  return null;
 }

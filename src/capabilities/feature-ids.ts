@@ -7,6 +7,7 @@ export const FEATURE_IDS = [
   "unknown_statement",
   "options_structured",
   "path_shading",
+  "path_shadows",
   "arrow_tips",
   "path_operators_basic",
   "path_operator_curves",

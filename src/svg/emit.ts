@@ -1,4 +1,14 @@
-import type { ArrowMarker, ArrowTip, ResolvedStyle, SceneElement, SceneFigure, ScenePath, ScenePathCommand } from "../semantic/types.js";
+import type {
+  ArrowMarker,
+  ArrowTip,
+  ResolvedStyle,
+  SceneElement,
+  SceneFigure,
+  ScenePath,
+  ScenePathCommand,
+  ShadowLayer
+} from "../semantic/types.js";
+import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
 import { computeViewBox } from "./viewbox.js";
 import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
 
@@ -17,6 +27,43 @@ const COLOR_HEX = {
   magenta: "#ff00ff"
 } as const;
 
+type ShadowRenderableStyle = Pick<
+  ResolvedStyle,
+  | "stroke"
+  | "fill"
+  | "fillRule"
+  | "doubleStroke"
+  | "doubleDistance"
+  | "lineWidth"
+  | "dashArray"
+  | "dashOffset"
+  | "lineCap"
+  | "lineJoin"
+  | "opacity"
+  | "strokeOpacity"
+  | "fillOpacity"
+  | "shadeEnabled"
+  | "shading"
+  | "shadingAngle"
+  | "axisTopColor"
+  | "axisMiddleColor"
+  | "axisBottomColor"
+  | "radialInnerColor"
+  | "radialOuterColor"
+  | "ballColor"
+  | "bilinearLowerLeft"
+  | "bilinearLowerRight"
+  | "bilinearUpperLeft"
+  | "bilinearUpperRight"
+>;
+
+type ElementBounds = {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
+
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
   const padding = opts.padding ?? 12;
   const viewBox = computeViewBox(scene, padding);
@@ -27,6 +74,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
   const markerDefById = new Map<string, string>();
   const gradientIdBySignature = new Map<string, string>();
   const gradientDefById = new Map<string, string>();
+  const shadowMaskDefById = new Map<string, string>();
   const unsupportedShadingNames = new Set<string>();
 
   const ensureMarkerDefinition = (marker: ArrowMarker): string => {
@@ -55,7 +103,17 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     return id;
   };
 
-  const resolveShadingFill = (style: ResolvedStyle, sourceId: string): string | null => {
+  const ensureCircularShadowMaskDefinition = (): string => {
+    const id = "tikz-shadow-mask-circle-fuzzy-15";
+    if (shadowMaskDefById.has(id)) {
+      return id;
+    }
+
+    shadowMaskDefById.set(id, renderCircularShadowMaskDefinition(id, `${id}-gradient`));
+    return id;
+  };
+
+  const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string): string | null => {
     if (!style.shadeEnabled) {
       return null;
     }
@@ -118,11 +176,23 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
       }
 
       const parts = buildPathRenderParts(element, ensureMarkerDefinition);
+      const pathBounds = computePathBounds(element.commands, viewBox);
       for (const part of parts) {
         const d = encodePathData(part.commands, viewBox);
         if (d.length === 0) {
           continue;
         }
+
+        emitShadowPathPart({
+          body,
+          sourceId: element.sourceId,
+          d,
+          bounds: pathBounds,
+          shadowLayers: element.style.shadowLayers,
+          baseStyle: element.style,
+          resolveShadingFill,
+          ensureCircularShadowMaskDefinition
+        });
 
         if (shouldEmitDoubleStroke(element.style)) {
           const outerFill = resolveShadingFill(element.style, element.sourceId);
@@ -163,6 +233,24 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
     if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
+      const circleBounds: ElementBounds = {
+        minX: center.x - element.radius,
+        minY: center.y - element.radius,
+        maxX: center.x + element.radius,
+        maxY: center.y + element.radius
+      };
+      emitShadowCircle({
+        body,
+        sourceId: element.sourceId,
+        cx: center.x,
+        cy: center.y,
+        radius: element.radius,
+        bounds: circleBounds,
+        shadowLayers: element.style.shadowLayers,
+        baseStyle: element.style,
+        resolveShadingFill,
+        ensureCircularShadowMaskDefinition
+      });
       if (shouldEmitDoubleStroke(element.style)) {
         const outerFill = resolveShadingFill(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
@@ -194,6 +282,21 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
     if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
+      const ellipseBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+      emitShadowEllipse({
+        body,
+        sourceId: element.sourceId,
+        cx: center.x,
+        cy: center.y,
+        rx: element.rx,
+        ry: element.ry,
+        rotation: element.rotation ?? 0,
+        bounds: ellipseBounds,
+        shadowLayers: element.style.shadowLayers,
+        baseStyle: element.style,
+        resolveShadingFill,
+        ensureCircularShadowMaskDefinition
+      });
       if (shouldEmitDoubleStroke(element.style)) {
         const outerFill = resolveShadingFill(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
@@ -260,7 +363,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }
 
-  const defsParts = [...markerDefById.values(), ...gradientDefById.values()];
+  const defsParts = [...markerDefById.values(), ...gradientDefById.values(), ...shadowMaskDefById.values()];
   const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
 
   const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
@@ -302,6 +405,290 @@ function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; heig
     chunks.push(`${command.kind} ${fmt(point.x)} ${fmt(point.y)}`);
   }
   return chunks.join(" ");
+}
+
+function emitShadowPathPart(args: {
+  body: string[];
+  sourceId: string;
+  d: string;
+  bounds: ElementBounds | null;
+  shadowLayers: ShadowLayer[];
+  baseStyle: ResolvedStyle;
+  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  ensureCircularShadowMaskDefinition: () => string;
+}): void {
+  for (let index = 0; index < args.shadowLayers.length; index += 1) {
+    const layer = args.shadowLayers[index];
+    const layerStyle = resolveShadowLayerStyle(layer.style as ShadowRenderableStyle, args.baseStyle);
+    const groupTransform = shadowTransformMatrix(layer, args.bounds);
+    const maskId = layer.fade === "circle-fuzzy-edge-15" ? args.ensureCircularShadowMaskDefinition() : null;
+    const shapes: string[] = [];
+
+    if (shouldEmitDoubleStroke(layerStyle)) {
+      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerAttrs = styleAttributes(layerStyle, false, {
+        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        fill: outerFill ?? undefined
+      });
+      shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${outerAttrs.join(" ")} />`);
+      const innerAttrs = styleAttributes(layerStyle, false, {
+        stroke: "#ffffff",
+        fill: "none",
+        lineWidth: layerStyle.doubleDistance
+      });
+      shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${innerAttrs.join(" ")} />`);
+    } else {
+      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const attrs = styleAttributes(layerStyle, false, {
+        fill: shadingFill ?? undefined
+      });
+      shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${attrs.join(" ")} />`);
+    }
+
+    const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
+    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+  }
+}
+
+function emitShadowCircle(args: {
+  body: string[];
+  sourceId: string;
+  cx: number;
+  cy: number;
+  radius: number;
+  bounds: ElementBounds | null;
+  shadowLayers: ShadowLayer[];
+  baseStyle: ResolvedStyle;
+  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  ensureCircularShadowMaskDefinition: () => string;
+}): void {
+  for (let index = 0; index < args.shadowLayers.length; index += 1) {
+    const layer = args.shadowLayers[index];
+    const layerStyle = resolveShadowLayerStyle(layer.style as ShadowRenderableStyle, args.baseStyle);
+    const groupTransform = shadowTransformMatrix(layer, args.bounds);
+    const maskId = layer.fade === "circle-fuzzy-edge-15" ? args.ensureCircularShadowMaskDefinition() : null;
+    const shapes: string[] = [];
+
+    if (shouldEmitDoubleStroke(layerStyle)) {
+      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerAttrs = styleAttributes(layerStyle, false, {
+        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        fill: outerFill ?? undefined
+      });
+      shapes.push(
+        `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${outerAttrs.join(" ")} />`
+      );
+      const innerAttrs = styleAttributes(layerStyle, false, {
+        stroke: "#ffffff",
+        fill: "none",
+        lineWidth: layerStyle.doubleDistance
+      });
+      shapes.push(
+        `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${innerAttrs.join(" ")} />`
+      );
+    } else {
+      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const attrs = styleAttributes(layerStyle, false, {
+        fill: shadingFill ?? undefined
+      });
+      shapes.push(
+        `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${attrs.join(" ")} />`
+      );
+    }
+
+    const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
+    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+  }
+}
+
+function emitShadowEllipse(args: {
+  body: string[];
+  sourceId: string;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rotation: number;
+  bounds: ElementBounds | null;
+  shadowLayers: ShadowLayer[];
+  baseStyle: ResolvedStyle;
+  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  ensureCircularShadowMaskDefinition: () => string;
+}): void {
+  for (let index = 0; index < args.shadowLayers.length; index += 1) {
+    const layer = args.shadowLayers[index];
+    const layerStyle = resolveShadowLayerStyle(layer.style as ShadowRenderableStyle, args.baseStyle);
+    const groupTransform = shadowTransformMatrix(layer, args.bounds);
+    const maskId = layer.fade === "circle-fuzzy-edge-15" ? args.ensureCircularShadowMaskDefinition() : null;
+    const shapes: string[] = [];
+
+    if (shouldEmitDoubleStroke(layerStyle)) {
+      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerAttrs = styleAttributes(layerStyle, false, {
+        lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
+        fill: outerFill ?? undefined
+      });
+      if (Math.abs(args.rotation) > 1e-6) {
+        outerAttrs.push(`transform="rotate(${fmt(-args.rotation)} ${fmt(args.cx)} ${fmt(args.cy)})"`);
+      }
+      shapes.push(
+        `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${outerAttrs.join(" ")} />`
+      );
+      const innerAttrs = styleAttributes(layerStyle, false, {
+        stroke: "#ffffff",
+        fill: "none",
+        lineWidth: layerStyle.doubleDistance
+      });
+      if (Math.abs(args.rotation) > 1e-6) {
+        innerAttrs.push(`transform="rotate(${fmt(-args.rotation)} ${fmt(args.cx)} ${fmt(args.cy)})"`);
+      }
+      shapes.push(
+        `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${innerAttrs.join(" ")} />`
+      );
+    } else {
+      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const attrs = styleAttributes(layerStyle, false, {
+        fill: shadingFill ?? undefined
+      });
+      if (Math.abs(args.rotation) > 1e-6) {
+        attrs.push(`transform="rotate(${fmt(-args.rotation)} ${fmt(args.cx)} ${fmt(args.cy)})"`);
+      }
+      shapes.push(
+        `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${attrs.join(" ")} />`
+      );
+    }
+
+    const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
+    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+  }
+}
+
+function shadowGroupAttributes(
+  sourceId: string,
+  index: number,
+  layer: ShadowLayer,
+  transform: string | null,
+  maskId: string | null
+): string[] {
+  const attrs: string[] = [
+    `data-source-id="${escapeAttr(sourceId)}"`,
+    `data-shadow-layer="${index}"`
+  ];
+  if (layer.fade !== "none") {
+    attrs.push(`data-shadow-fade="${escapeAttr(layer.fade)}"`);
+  }
+  if (transform) {
+    attrs.push(`transform="${escapeAttr(transform)}"`);
+  }
+  if (maskId) {
+    attrs.push(`mask="url(#${escapeAttr(maskId)})"`);
+  }
+  return attrs;
+}
+
+function shadowTransformMatrix(layer: ShadowLayer, bounds: ElementBounds | null): string | null {
+  const scale = Number.isFinite(layer.scale) ? layer.scale : 1;
+  const dx = Number.isFinite(layer.xshift) ? layer.xshift : 0;
+  const dy = Number.isFinite(layer.yshift) ? -layer.yshift : 0;
+
+  let e = dx;
+  let f = dy;
+  if (bounds) {
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    e += cx - scale * cx;
+    f += cy - scale * cy;
+  }
+
+  if (Math.abs(scale - 1) <= 1e-6 && Math.abs(e) <= 1e-6 && Math.abs(f) <= 1e-6) {
+    return null;
+  }
+
+  return `matrix(${fmt(scale)} 0 0 ${fmt(scale)} ${fmt(e)} ${fmt(f)})`;
+}
+
+function computePathBounds(commands: ScenePathCommand[], viewBox: { y: number; height: number }): ElementBounds | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let previous: { x: number; y: number } | null = null;
+
+  const includePoint = (point: { x: number; y: number }) => {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  };
+
+  for (const command of commands) {
+    if (command.kind === "Z") {
+      continue;
+    }
+
+    if (command.kind === "C") {
+      const c1 = toSvgPoint(command.c1, viewBox);
+      const c2 = toSvgPoint(command.c2, viewBox);
+      includePoint(c1);
+      includePoint(c2);
+    }
+
+    if (command.kind === "A") {
+      if (previous) {
+        includePoint({ x: previous.x - command.rx, y: previous.y - command.ry });
+        includePoint({ x: previous.x + command.rx, y: previous.y + command.ry });
+      }
+      const to = toSvgPoint(command.to, viewBox);
+      includePoint({ x: to.x - command.rx, y: to.y - command.ry });
+      includePoint({ x: to.x + command.rx, y: to.y + command.ry });
+      previous = to;
+      continue;
+    }
+
+    const point = toSvgPoint(command.to, viewBox);
+    includePoint(point);
+    previous = point;
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
+function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): ElementBounds {
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
+  const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
+  return {
+    minX: cx - extentX,
+    maxX: cx + extentX,
+    minY: cy - extentY,
+    maxY: cy + extentY
+  };
+}
+
+function renderCircularShadowMaskDefinition(maskId: string, gradientId: string): string {
+  return (
+    `<radialGradient id="${escapeAttr(gradientId)}" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.5">` +
+    `<stop offset="85%" stop-color="#ffffff" stop-opacity="1" />` +
+    `<stop offset="100%" stop-color="#ffffff" stop-opacity="0" />` +
+    `</radialGradient>` +
+    `<mask id="${escapeAttr(maskId)}" maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox">` +
+    `<rect x="0" y="0" width="1" height="1" fill="url(#${escapeAttr(gradientId)})" />` +
+    `</mask>`
+  );
+}
+
+function resolveShadowLayerStyle(layerStyle: ShadowRenderableStyle, baseStyle: ResolvedStyle): ShadowRenderableStyle {
+  return {
+    ...layerStyle,
+    stroke: layerStyle.stroke === SHADOW_INHERIT_STROKE ? baseStyle.stroke : layerStyle.stroke,
+    fill: layerStyle.fill === SHADOW_INHERIT_FILL ? baseStyle.fill : layerStyle.fill
+  };
 }
 
 function markerSignature(marker: ArrowMarker): string {
@@ -861,21 +1248,22 @@ function toRgb(color: string): { r: number; g: number; b: number } | null {
 }
 
 function styleAttributes(
-  style: ResolvedStyle,
+  style: ResolvedStyle | ShadowRenderableStyle,
   isText = false,
   overrides: { stroke?: string | null; fill?: string | null; lineWidth?: number } = {}
 ): string[] {
   const attrs: string[] = [];
   if (isText) {
-    const textColor = style.textColor ?? "#000000";
+    const textStyle = style as ResolvedStyle;
+    const textColor = textStyle.textColor ?? "#000000";
     attrs.push(`fill="${escapeAttr(textColor)}"`);
-    attrs.push(`fill-opacity="${fmt(style.textOpacity ?? style.strokeOpacity)}"`);
+    attrs.push(`fill-opacity="${fmt(textStyle.textOpacity ?? textStyle.strokeOpacity)}"`);
     attrs.push(`font-family="CMU Serif, Latin Modern Roman, Times New Roman, serif"`);
-    attrs.push(`font-size="${fmt(style.fontSize)}"`);
-    if (style.fontStyle === "italic") {
+    attrs.push(`font-size="${fmt(textStyle.fontSize)}"`);
+    if (textStyle.fontStyle === "italic") {
       attrs.push(`font-style="italic"`);
     }
-    attrs.push(`text-anchor="${textAnchorForAlign(style.textAlign)}"`);
+    attrs.push(`text-anchor="${textAnchorForAlign(textStyle.textAlign)}"`);
     attrs.push(`dominant-baseline="middle"`);
     attrs.push(`xml:space="preserve"`);
     return attrs;
@@ -897,7 +1285,6 @@ function styleAttributes(
       attrs.push(`stroke-dashoffset="${fmt(style.dashOffset)}"`);
     }
   }
-  attrs.push(`opacity="${fmt(style.opacity)}"`);
   return attrs;
 }
 

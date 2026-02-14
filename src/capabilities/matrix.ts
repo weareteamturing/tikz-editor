@@ -60,6 +60,15 @@ export const capabilityMatrix: CapabilityMatrix = {
     notes:
       "Core axis/radial/ball shading keys map to SVG gradients; advanced functional shadings currently fall back with SVG diagnostics."
   },
+  path_shadows: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["shadow_styles"],
+    notes:
+      "General/drop/copy/double-copy/circular shadow presets resolve to semantic shadow layers and render via SVG duplicates; advanced fading variants remain partial."
+  },
   arrow_tips: {
     parser: "stable",
     semantic: "stable",

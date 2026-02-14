@@ -45,6 +45,32 @@ function applyOptionEntry(
   }
 
   if (entry.kind === "flag") {
+    if (entry.key === "every shadow") {
+      let nextStyle = style;
+      let nextTransform = transform;
+      const diagnostics: string[] = [];
+      for (const list of style.everyShadowStyles) {
+        for (const nestedEntry of list.entries) {
+          const outcome = applyOptionEntry(nestedEntry, nextStyle, nextTransform);
+          nextStyle = outcome.style;
+          nextTransform = outcome.transform;
+          diagnostics.push(...outcome.diagnostics);
+        }
+      }
+      return { style: nextStyle, transform: nextTransform, diagnostics };
+    }
+
+    if (
+      entry.key === "general shadow" ||
+      entry.key === "drop shadow" ||
+      entry.key === "copy shadow" ||
+      entry.key === "double copy shadow" ||
+      entry.key === "circular drop shadow" ||
+      entry.key === "circular glow"
+    ) {
+      return applyKvEntry(entry.key, "", style, transform, applyOptionEntry);
+    }
+
     return applyFlagEntry(entry.key, entry.raw, style, transform);
   }
 

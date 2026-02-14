@@ -4,7 +4,7 @@ import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
 import { applyMatrix, applyMatrixToVector } from "../transform.js";
-import { parseLength } from "./parse-length.js";
+import { parseLength, parseQuantityExpression } from "./parse-length.js";
 
 export type EvaluatedCoordinate = {
   point: Point | null;
@@ -90,13 +90,14 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   let localPoint: Point | null = null;
 
   if (item.form === "polar") {
-    const angle = Number(item.x.trim());
+    const angleQuantity = parseQuantityExpression(item.x.trim());
     const radius = parseLength(item.y, "cm");
-    if (!Number.isFinite(angle) || radius == null) {
+    if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
       diagnostics.push(`invalid-polar-coordinate:${item.raw}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
+    const angle = angleQuantity.value;
     const radians = (angle * Math.PI) / 180;
     localPoint = {
       x: radius * Math.cos(radians),

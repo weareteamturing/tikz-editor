@@ -1,5 +1,9 @@
 import type { Span } from "../ast/types.js";
+import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
+
+export const SHADOW_INHERIT_STROKE = "__tikz-shadow-inherit-stroke__";
+export const SHADOW_INHERIT_FILL = "__tikz-shadow-inherit-fill__";
 
 export type Point = {
   x: number;
@@ -116,6 +120,45 @@ export type SceneElementOrigin = {
   foreachStack: ForeachOriginFrame[];
 };
 
+export type ShadowFadeKind = "none" | "circle-fuzzy-edge-15";
+
+export type ShadowPaintStyle = {
+  stroke: string | null;
+  fill: string | null;
+  fillRule: "nonzero" | "evenodd";
+  doubleStroke: boolean;
+  doubleDistance: number;
+  lineWidth: number;
+  dashArray: number[] | null;
+  dashOffset: number;
+  lineCap: "butt" | "round" | "square";
+  lineJoin: "miter" | "round" | "bevel";
+  opacity: number;
+  strokeOpacity: number;
+  fillOpacity: number;
+  shadeEnabled: boolean;
+  shading: string;
+  shadingAngle: number;
+  axisTopColor: string;
+  axisMiddleColor: string;
+  axisBottomColor: string;
+  radialInnerColor: string;
+  radialOuterColor: string;
+  ballColor: string;
+  bilinearLowerLeft: string;
+  bilinearLowerRight: string;
+  bilinearUpperLeft: string;
+  bilinearUpperRight: string;
+};
+
+export type ShadowLayer = {
+  scale: number;
+  xshift: number;
+  yshift: number;
+  fade: ShadowFadeKind;
+  style: ShadowPaintStyle;
+};
+
 export type ResolvedStyle = {
   stroke: string | null;
   fill: string | null;
@@ -159,6 +202,12 @@ export type ResolvedStyle = {
   bilinearLowerRight: string;
   bilinearUpperLeft: string;
   bilinearUpperRight: string;
+  shadowScale: number;
+  shadowXShift: number;
+  shadowYShift: number;
+  shadowFade: ShadowFadeKind;
+  everyShadowStyles: OptionListAst[];
+  shadowLayers: ShadowLayer[];
 };
 
 export type FeatureUsageState = "unused" | "used-supported" | "used-unsupported";

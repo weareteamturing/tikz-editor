@@ -56,7 +56,13 @@ export function defaultStyle(): ResolvedStyle {
     bilinearLowerLeft: COLOR_HEX.white,
     bilinearLowerRight: COLOR_HEX.white,
     bilinearUpperLeft: COLOR_HEX.white,
-    bilinearUpperRight: COLOR_HEX.white
+    bilinearUpperRight: COLOR_HEX.white,
+    shadowScale: 1,
+    shadowXShift: 0,
+    shadowYShift: 0,
+    shadowFade: "none",
+    everyShadowStyles: [],
+    shadowLayers: []
   };
 }
 

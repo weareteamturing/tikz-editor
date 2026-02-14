@@ -82,7 +82,7 @@ export function evaluateNodeItem(
 
   const nodeElements: SceneElement[] = [];
   const boxPaintMode = resolveNodeBoxPaintMode(effectiveNodeLocalOptions);
-  if (boxPaintMode.draw || boxPaintMode.fill) {
+  if (boxPaintMode.draw || boxPaintMode.fill || nodeStyle.shadowLayers.length > 0) {
     const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, boxPaintMode);
     if (nodeShape === "circle") {
       nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));

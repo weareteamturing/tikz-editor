@@ -132,7 +132,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('stroke-linejoin="bevel"');
     expect(emitted.svg).toContain('stroke-opacity="0.6"');
     expect(emitted.svg).toContain('fill-opacity="0.3"');
-    expect(emitted.svg).toContain('opacity="0.8"');
+    expect(emitted.svg).not.toContain('opacity="0.8"');
     expect(emitted.svg).not.toContain("vector-effect=");
   });
 
@@ -181,6 +181,50 @@ describe("svg emitter", () => {
 
     expect(emitted.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-shading:color wheel")).toBe(true);
     expect(emitted.svg).toContain('fill="black"');
+  });
+
+  it("emits SVG shadow layers for drop/copy/circular shadow styles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow,fill=white] (0,0) rectangle (1,1);
+  \draw[double copy shadow={shadow xshift=1ex,shadow yshift=1ex},fill=white] (2,0) rectangle (3,1);
+  \draw[circular glow,fill=white] (4,0) rectangle (5,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const shadowLayerMatches = emitted.svg.match(/data-shadow-layer="/g) ?? [];
+    expect(shadowLayerMatches.length).toBeGreaterThanOrEqual(4);
+    expect(emitted.svg).toContain('data-shadow-fade="circle-fuzzy-edge-15"');
+    expect(emitted.svg).toContain('id="tikz-shadow-mask-circle-fuzzy-15"');
+    expect(emitted.svg).toContain('mask="url(#tikz-shadow-mask-circle-fuzzy-15)"');
+    expect(emitted.svg).toContain("<g data-source-id=");
+  });
+
+  it("emits node shadow geometry even when the node has no normal fill/draw", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,circular glow={fill=red!40}] at (0,0) {Glow};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('data-shadow-layer="1"');
+    expect(emitted.svg).toContain("<circle");
+    expect(emitted.svg).toContain("<text");
+  });
+
+  it("renders general-shadow fills without stroke and preserves even-odd shadow fill rule", () => {
+    const source = String.raw`\begin{tikzpicture}[even odd rule]
+  \draw[general shadow={fill=red}] (0,0) circle (.5) (0.5,0) circle (.5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('data-shadow-layer="1"');
+    expect(emitted.svg).toContain('stroke="none" fill="#ff0000" fill-rule="evenodd"');
+    expect(emitted.svg).toContain(" Z M ");
   });
 
   it("emits arrow markers from arrows= specifications and > shorthand defaults", () => {
