@@ -4,8 +4,9 @@ export { applyEdit } from "./edit/apply.js";
 export { collectTikzSnippetsFromDocs, extractTikzSnippetsFromSource } from "./corpus/extract.js";
 export { evaluateTikzFigure } from "./semantic/index.js";
 export { emitSvg } from "./svg/index.js";
-export { renderTikzToSvg } from "./render/index.js";
+export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
+export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 
 export type { ParseTikzOptions, ParseTikzResult } from "./parser/index.js";
 export type { TikzEdit, ApplyEditResult } from "./edit/types.js";
@@ -14,6 +15,7 @@ export type { EvaluateTikzResult } from "./semantic/index.js";
 export type { EmitSvgResult, EmitSvgOptions, SvgViewBox } from "./svg/index.js";
 export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js";
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
+export type * from "./text/types.js";
 export type * from "./ast/types.js";
 export type * from "./diagnostics/types.js";
 export type * from "./semantic/index.js";

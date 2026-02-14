@@ -3,12 +3,10 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { EditorState, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, Decoration, DecorationSet } from "@codemirror/view";
 import { basicSetup } from "codemirror";
-import { parseTikz } from "tikz-editor/parser/index";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
-import { evaluateTikzFigure } from "tikz-editor/semantic/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
-import { emitSvg } from "tikz-editor/svg/index";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
+import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import { tikzLanguage } from "./codemirror-tikz";
 import { TreeView } from "./TreeView";
 
@@ -63,6 +61,7 @@ export function App() {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const appBodyRef = useRef<HTMLDivElement>(null);
+  const renderRequestRef = useRef(0);
   const dragRef = useRef<{
     left: PaneId;
     right: PaneId;
@@ -92,20 +91,31 @@ export function App() {
   const visiblePaneIds = PANE_ORDER.filter((paneId) => paneVisibility[paneId]);
 
   const runParse = useCallback((src: string) => {
-    try {
-      const parsed = parseTikz(src, { recover: true });
-      const semantic = evaluateTikzFigure(parsed.figure, parsed.source);
-      const svg = emitSvg(semantic.scene, { padding: 18 });
-      setParseResult(parsed);
-      setSemanticResult(semantic);
-      setSvgResult(svg);
-      setParseError(null);
-    } catch (error) {
-      setParseResult(null);
-      setSemanticResult(null);
-      setSvgResult(null);
-      setParseError(error instanceof Error ? error.message : String(error));
-    }
+    const requestId = renderRequestRef.current + 1;
+    renderRequestRef.current = requestId;
+    void (async () => {
+      try {
+        const rendered = await renderTikzToSvgAsync(src, {
+          parse: { recover: true },
+          svg: { padding: 18 }
+        });
+        if (renderRequestRef.current !== requestId) {
+          return;
+        }
+        setParseResult(rendered.parse);
+        setSemanticResult(rendered.semantic);
+        setSvgResult(rendered.svg);
+        setParseError(null);
+      } catch (error) {
+        if (renderRequestRef.current !== requestId) {
+          return;
+        }
+        setParseResult(null);
+        setSemanticResult(null);
+        setSvgResult(null);
+        setParseError(error instanceof Error ? error.message : String(error));
+      }
+    })();
   }, []);
 
   useEffect(() => {

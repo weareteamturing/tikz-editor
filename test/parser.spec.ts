@@ -448,4 +448,24 @@ describe("parseTikz", () => {
       expect(foreach.bodyRaw.length).toBeGreaterThan(0);
     }
   });
+
+  it("supports node text validator hooks and reports TeX validation diagnostics", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node {ok} -- (1,0) node {bad};
+\end{tikzpicture}`;
+    const result = parseTikz(source, {
+      nodeTextValidator: ({ node }) =>
+        node.text === "bad"
+          ? {
+              code: "invalid-node-tex",
+              message: "Invalid node TeX."
+            }
+          : null
+    });
+
+    const textDiagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === "invalid-node-tex");
+    expect(textDiagnostics).toHaveLength(1);
+    expect(textDiagnostics[0]?.severity).toBe("error");
+    expect(textDiagnostics[0]?.message).toBe("Invalid node TeX.");
+  });
 });

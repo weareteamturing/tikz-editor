@@ -1,6 +1,7 @@
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, PathStatement } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
+import type { NodeTextEngine, NodeTextRenderInfo } from "../../text/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength } from "../coords/parse-length.js";
@@ -34,7 +35,9 @@ function makeTextElement(
   style: ResolvedStyle,
   span: { from: number; to: number },
   text: string,
-  textBlockWidth?: number
+  textBlockWidth?: number,
+  textBlockHeight?: number,
+  textRenderInfo?: NodeTextRenderInfo
 ): SceneText {
   return {
     kind: "Text",
@@ -44,7 +47,9 @@ function makeTextElement(
     style: { ...style },
     position,
     text,
-    textBlockWidth
+    textBlockWidth,
+    textBlockHeight,
+    textRenderInfo
   };
 }
 
@@ -82,7 +87,7 @@ export function evaluateNodeItem(
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
   const transformScale = inheritedTransformScale * nodeOptionScale;
   const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
-  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale);
+  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
   const nodeShape = resolveNodeShape(effectiveNodeOptions);
   const anchor = resolveNodeAnchor(effectiveNodeOptions);
   const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, segment);
@@ -122,7 +127,19 @@ export function evaluateNodeItem(
 
   const normalizedText = nodeLayout.textLines.join("\n");
   if (normalizedText.length > 0) {
-    nodeElements.push(makeTextElement(statement.id, item.id, center, nodeStyle, item.span, normalizedText, nodeLayout.textBlockWidth));
+    nodeElements.push(
+      makeTextElement(
+        statement.id,
+        item.id,
+        center,
+        nodeStyle,
+        item.span,
+        normalizedText,
+        nodeLayout.textBlockWidth,
+        nodeLayout.textBlockHeight,
+        nodeLayout.textRenderInfo
+      )
+    );
     markFeature("svg_text", "supported");
   }
 
@@ -288,6 +305,8 @@ type NodeLayer = "front" | "behind";
 type NodeLayout = {
   textLines: string[];
   textBlockWidth: number;
+  textBlockHeight: number;
+  textRenderInfo: NodeTextRenderInfo;
   visualWidth: number;
   visualHeight: number;
   visualRadius: number;
@@ -403,7 +422,8 @@ function resolveNodeLayout(
   text: string,
   options: PathOptionItem["options"] | undefined,
   style: ResolvedStyle,
-  transformScale = 1
+  transformScale = 1,
+  textEngine: NodeTextEngine | null = null
 ): NodeLayout {
   const fontSize = style.fontSize;
   const charWidth = fontSize * 0.7;
@@ -488,13 +508,40 @@ function resolveNodeLayout(
     }
   }
 
-  const textLines = computeNodeTextLines(text, textWidth, charWidth);
-  const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
-  const textNaturalWidth = maxLineLength * charWidth;
-  const textNaturalHeight = textLines.length * lineHeight;
+  let textRenderInfo: NodeTextRenderInfo = { mode: "plain" };
+  let textLines = computeNodeTextLines(text, textWidth, charWidth);
+  let textNaturalWidth: number;
+  let textNaturalHeight: number;
+  let baseLineY = -fontSize * 0.28;
+  let midLineY = -fontSize * 0.065;
+
+  const measuredText = textEngine?.measure({
+    text,
+    textWidthPt: textWidth,
+    fontStyle: style.fontStyle,
+    fontSizePt: style.fontSize
+  });
+
+  if (measuredText) {
+    // We trust MathJax for block metrics/wrapping; line-level alignment inside the block is best-effort for now.
+    textLines = splitNodeLines(text);
+    textNaturalWidth = measuredText.width;
+    textNaturalHeight = measuredText.height;
+    baseLineY = measuredText.baselineY;
+    midLineY = measuredText.midLineY;
+    textRenderInfo = {
+      mode: "mathjax",
+      cacheKey: measuredText.cacheKey
+    };
+  } else {
+    const maxLineLength = textLines.reduce((max, line) => Math.max(max, line.length), 0);
+    textNaturalWidth = maxLineLength * charWidth;
+    textNaturalHeight = textLines.length * lineHeight;
+  }
+
   const resolvedMinWidth = Math.max(minWidth, minSize ?? minWidth);
   const resolvedMinHeight = Math.max(minHeight, minSize ?? minHeight);
-  const measuredTextWidth = textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
+  const measuredTextWidth = measuredText ? textNaturalWidth : textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
   const visualWidth = Math.max(measuredTextWidth + innerXSep * 2, resolvedMinWidth);
   const visualHeight = Math.max(textNaturalHeight + innerYSep * 2, resolvedMinHeight);
   const resolvedOuterX = outerXSep ?? outerSep;
@@ -503,14 +550,16 @@ function resolveNodeLayout(
   return {
     textLines,
     textBlockWidth: measuredTextWidth,
+    textBlockHeight: textNaturalHeight,
+    textRenderInfo,
     visualWidth,
     visualHeight,
     visualRadius: Math.max(visualWidth, visualHeight) / 2,
     anchorHalfWidth: visualWidth / 2 + resolvedOuterX,
     anchorHalfHeight: visualHeight / 2 + resolvedOuterY,
     anchorRadius: Math.max(visualWidth / 2 + resolvedOuterX, visualHeight / 2 + resolvedOuterY),
-    baseLineY: -fontSize * 0.28,
-    midLineY: -fontSize * 0.065
+    baseLineY,
+    midLineY
   };
 }
 

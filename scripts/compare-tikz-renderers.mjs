@@ -80,11 +80,18 @@ export async function compareTikzRenderers(options = {}) {
   }
 
   const rendererModule = await import(pathToFileURL(distEntry).href);
-  if (typeof rendererModule.renderTikzToSvg !== "function") {
-    throwWithReport("renderTikzToSvg export not found in dist/index.js.", reportPath, runDir, report);
+  const renderAsync = typeof rendererModule.renderTikzToSvgAsync === "function" ? rendererModule.renderTikzToSvgAsync : null;
+  const renderSync = typeof rendererModule.renderTikzToSvg === "function" ? rendererModule.renderTikzToSvg : null;
+  if (!renderAsync && !renderSync) {
+    throwWithReport(
+      "Neither renderTikzToSvgAsync nor renderTikzToSvg export found in dist/index.js.",
+      reportPath,
+      runDir,
+      report
+    );
   }
 
-  const rendered = rendererModule.renderTikzToSvg(input.code, { parse: { recover: true } });
+  const rendered = await (renderAsync ?? renderSync)(input.code, { parse: { recover: true } });
   report.renderer.parseDiagnostics = rendered.parse.diagnostics;
   report.renderer.semanticDiagnostics = rendered.semantic.diagnostics;
   report.renderer.svgDiagnostics = rendered.svg.diagnostics;

@@ -24,10 +24,10 @@ export type EvaluateTikzResult = {
   featureUsage: FeatureUsage;
 };
 
-export function evaluateTikzFigure(figure: TikzFigure, _source: string, _opts: EvaluateOptions = {}): EvaluateTikzResult {
+export function evaluateTikzFigure(figure: TikzFigure, _source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
   const diagnostics: Diagnostic[] = [];
   const featureUsage = initializeFeatureUsage();
-  const context = createSemanticContext(defaultStyle(), identityMatrix());
+  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null);
 
   if (figure.options) {
     markFeature(featureUsage, "options_structured", "supported");
@@ -278,7 +278,7 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
     }
 
     const lineCount = Math.max(1, element.text.split("\n").length);
-    const textHeight = lineCount * element.style.fontSize * 1.15;
+    const textHeight = element.textBlockHeight ?? lineCount * element.style.fontSize * 1.15;
     const textWidth = element.textBlockWidth ?? estimateTextWidth(element.text, element.style.fontSize);
     points.push({ x: element.position.x - textWidth / 2, y: element.position.y - textHeight / 2 });
     points.push({ x: element.position.x + textWidth / 2, y: element.position.y + textHeight / 2 });

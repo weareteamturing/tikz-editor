@@ -1,4 +1,5 @@
 import type { Span } from "../ast/types.js";
+import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 
 export type Point = {
   x: number;
@@ -96,6 +97,8 @@ export type SceneText = {
   position: Point;
   text: string;
   textBlockWidth?: number;
+  textBlockHeight?: number;
+  textRenderInfo?: NodeTextRenderInfo;
 };
 
 export type ResolvedStyle = {
@@ -136,4 +139,5 @@ export type FeatureUsage = Record<string, FeatureUsageState>;
 
 export type EvaluateOptions = {
   defaultLengthUnit?: "cm" | "pt";
+  textEngine?: NodeTextEngine | null;
 };
