@@ -158,6 +158,58 @@ body.is-scrubbing {
   border-bottom: 2px solid var(--accent);
 }
 
+.cm-editor-diagnostic-range {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.cm-editor-diagnostic-error {
+  text-decoration-color: #bf2c29;
+}
+
+.cm-editor-diagnostic-warning {
+  text-decoration-color: #d97706;
+}
+
+.cm-editor-diagnostic-tooltip {
+  max-width: 360px;
+  border-radius: 6px;
+  border: 1px solid #c9d6e4;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(16, 42, 67, 0.16);
+  padding: 8px 10px;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.cm-editor-diagnostic-tooltip-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #596b7d;
+  margin-bottom: 4px;
+}
+
+.cm-editor-diagnostic-tooltip-header code {
+  font-weight: 700;
+}
+
+.cm-editor-diagnostic-tooltip-message {
+  color: #1f3347;
+  white-space: normal;
+}
+
+.cm-editor-diagnostic-tooltip-error .cm-editor-diagnostic-tooltip-header code {
+  color: #bf2c29;
+}
+
+.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code {
+  color: #d97706;
+}
+
 .tree-view {
   flex: 1;
   overflow: auto;
@@ -248,6 +300,7 @@ body.is-scrubbing {
   border-radius: 4px;
   padding: 4px 6px;
   font-size: 11px;
+  cursor: default;
 }
 
 .ir-diagnostic.error {

@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { deleteLine, indentLess, indentMore } from "@codemirror/commands";
-import { EditorView, Decoration, DecorationSet, keymap } from "@codemirror/view";
+import { EditorView, Decoration, DecorationSet, hoverTooltip, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
@@ -38,6 +38,31 @@ const defaultSource = String.raw`\begin{tikzpicture}[line width=0.8pt]
 \end{tikzpicture}`;
 
 const setHighlight = StateEffect.define<[number, number] | null>();
+const setEditorDiagnostics = StateEffect.define<EditorDiagnosticInput[]>();
+
+type SourceDiagnostic = {
+  severity: "error" | "warning";
+  message: string;
+  span: { from: number; to: number };
+  code?: string;
+};
+
+type EditorDiagnosticInput = SourceDiagnostic & {
+  source: "parse" | "semantic";
+};
+
+type EditorDiagnostic = {
+  from: number;
+  to: number;
+  severity: "error" | "warning";
+  message: string;
+  code?: string;
+  source: "parse" | "semantic";
+};
+
+const MAX_EDITOR_DIAGNOSTICS = 300;
+const MAX_DECORATED_SPAN = 160;
+const DIAGNOSTIC_DECORATION_DEBOUNCE_MS = 120;
 
 const playgroundKeymap = Prec.highest(
   keymap.of([
@@ -80,12 +105,87 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field)
 });
 
+const editorDiagnosticsField = StateField.define<{
+  diagnostics: EditorDiagnostic[];
+  decorations: DecorationSet;
+}>({
+  create() {
+    return {
+      diagnostics: [],
+      decorations: Decoration.none
+    };
+  },
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setEditorDiagnostics)) {
+        continue;
+      }
+      const diagnostics = normalizeEditorDiagnostics(effect.value, tr.state.doc.length);
+      return {
+        diagnostics,
+        decorations: buildDiagnosticDecorations(diagnostics)
+      };
+    }
+
+    if (tr.docChanged) {
+      return {
+        diagnostics: [],
+        decorations: Decoration.none
+      };
+    }
+
+    return value;
+  },
+  provide: (field) => EditorView.decorations.from(field, (value) => value.decorations)
+});
+
+const editorDiagnosticTooltip = hoverTooltip((view, position) => {
+  const field = view.state.field(editorDiagnosticsField, false);
+  if (!field) {
+    return null;
+  }
+
+  const diagnostic = findDiagnosticAtPosition(field.diagnostics, position);
+  if (!diagnostic) {
+    return null;
+  }
+
+  return {
+    pos: diagnostic.from,
+    end: diagnostic.to,
+    above: true,
+    create() {
+      const dom = document.createElement("div");
+      dom.className = `cm-editor-diagnostic-tooltip cm-editor-diagnostic-tooltip-${diagnostic.severity}`;
+
+      const header = document.createElement("div");
+      header.className = "cm-editor-diagnostic-tooltip-header";
+
+      const code = document.createElement("code");
+      code.textContent = diagnostic.code ?? diagnostic.severity;
+
+      const source = document.createElement("span");
+      source.textContent = diagnostic.source.toUpperCase();
+
+      header.append(code, source);
+
+      const message = document.createElement("div");
+      message.className = "cm-editor-diagnostic-tooltip-message";
+      message.textContent = diagnostic.message;
+
+      dom.append(header, message);
+      return { dom };
+    }
+  };
+});
+
 export function App() {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const appBodyRef = useRef<HTMLDivElement>(null);
   const renderRequestRef = useRef(0);
   const parseDebounceTimerRef = useRef<number | null>(null);
+  const diagnosticDebounceTimerRef = useRef<number | null>(null);
   const scrubAnimationFrameRef = useRef<number | null>(null);
   const scrubPendingSourceRef = useRef<string | null>(null);
   const isScrubbingRef = useRef(false);
@@ -230,6 +330,8 @@ export function App() {
         tikzLanguage(),
         numberScrubber({ onScrubStateChange: handleScrubStateChange }),
         highlightField,
+        editorDiagnosticsField,
+        editorDiagnosticTooltip,
         updateListener
       ]
     });
@@ -245,6 +347,10 @@ export function App() {
       if (parseDebounceTimerRef.current != null) {
         window.clearTimeout(parseDebounceTimerRef.current);
         parseDebounceTimerRef.current = null;
+      }
+      if (diagnosticDebounceTimerRef.current != null) {
+        window.clearTimeout(diagnosticDebounceTimerRef.current);
+        diagnosticDebounceTimerRef.current = null;
       }
       if (scrubAnimationFrameRef.current != null) {
         window.cancelAnimationFrame(scrubAnimationFrameRef.current);
@@ -303,6 +409,42 @@ export function App() {
     view.dispatch({ effects: setHighlight.of(range) });
   }, []);
 
+  useEffect(() => {
+    if (diagnosticDebounceTimerRef.current != null) {
+      window.clearTimeout(diagnosticDebounceTimerRef.current);
+      diagnosticDebounceTimerRef.current = null;
+    }
+
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+
+    diagnosticDebounceTimerRef.current = window.setTimeout(() => {
+      diagnosticDebounceTimerRef.current = null;
+      const currentView = viewRef.current;
+      if (!currentView) {
+        return;
+      }
+
+      const currentSource = currentView.state.doc.toString();
+      if (!parseResult || parseResult.source !== currentSource) {
+        currentView.dispatch({ effects: setEditorDiagnostics.of([]) });
+        return;
+      }
+
+      const diagnostics = toEditorDiagnostics(parseResult, semanticResult);
+      currentView.dispatch({ effects: setEditorDiagnostics.of(diagnostics) });
+    }, DIAGNOSTIC_DECORATION_DEBOUNCE_MS);
+
+    return () => {
+      if (diagnosticDebounceTimerRef.current != null) {
+        window.clearTimeout(diagnosticDebounceTimerRef.current);
+        diagnosticDebounceTimerRef.current = null;
+      }
+    };
+  }, [parseResult, semanticResult]);
+
   const handleTogglePane = useCallback((paneId: PaneId) => {
     setPaneVisibility((previous) => {
       const visibleCount = Object.values(previous).filter(Boolean).length;
@@ -356,7 +498,7 @@ export function App() {
               {paneId === "editor" && <div className="editor-container" ref={editorRef} />}
               {paneId === "tree" && <TreeView tree={parseResult?.tree ?? null} source={source} onHover={handleHover} />}
               {paneId === "ir" && (
-                <IrView parseResult={parseResult} semanticResult={semanticResult} parseError={parseError} />
+                <IrView parseResult={parseResult} semanticResult={semanticResult} parseError={parseError} onHover={handleHover} />
               )}
               {paneId === "svg" && (
                 <SvgView parseError={parseError} svgResult={svgResult} renderDiagnostics={renderDiagnostics} />
@@ -424,11 +566,13 @@ function normalizePaneSizes(
 function IrView({
   parseResult,
   semanticResult,
-  parseError
+  parseError,
+  onHover
 }: {
   parseResult: ParseTikzResult | null;
   semanticResult: EvaluateTikzResult | null;
   parseError: string | null;
+  onHover: (range: [number, number] | null) => void;
 }) {
   if (parseError) {
     return <div className="ir-view ir-error">{parseError}</div>;
@@ -455,7 +599,12 @@ function IrView({
       {diagnostics.length > 0 && (
         <div className="ir-diagnostics">
           {diagnostics.map((diagnostic, index) => (
-            <div key={index} className={`ir-diagnostic ${diagnostic.severity}`}>
+            <div
+              key={index}
+              className={`ir-diagnostic ${diagnostic.severity}`}
+              onMouseEnter={() => onHover([diagnostic.span.from, diagnostic.span.to])}
+              onMouseLeave={() => onHover(null)}
+            >
               <code>{diagnostic.code ?? diagnostic.severity}</code>
               <span>{diagnostic.message}</span>
               <span>
@@ -468,6 +617,110 @@ function IrView({
       <pre className="ir-json">{JSON.stringify({ figure: parseResult.figure, semantic: semanticResult?.scene }, null, 2)}</pre>
     </div>
   );
+}
+
+function toEditorDiagnostics(
+  parseResult: ParseTikzResult | null,
+  semanticResult: EvaluateTikzResult | null
+): EditorDiagnosticInput[] {
+  const diagnostics: EditorDiagnosticInput[] = [];
+
+  if (parseResult) {
+    diagnostics.push(...parseResult.diagnostics.map((diagnostic) => ({ ...diagnostic, source: "parse" as const })));
+  }
+  if (semanticResult) {
+    diagnostics.push(...semanticResult.diagnostics.map((diagnostic) => ({ ...diagnostic, source: "semantic" as const })));
+  }
+
+  return diagnostics;
+}
+
+function normalizeEditorDiagnostics(diagnostics: EditorDiagnosticInput[], docLength: number): EditorDiagnostic[] {
+  return [...diagnostics]
+    .sort((left, right) => {
+      const leftSeverity = left.severity === "error" ? 1 : 0;
+      const rightSeverity = right.severity === "error" ? 1 : 0;
+      if (leftSeverity !== rightSeverity) {
+        return rightSeverity - leftSeverity;
+      }
+      const leftSpan = Math.abs(left.span.to - left.span.from);
+      const rightSpan = Math.abs(right.span.to - right.span.from);
+      return leftSpan - rightSpan;
+    })
+    .slice(0, MAX_EDITOR_DIAGNOSTICS)
+    .map((diagnostic) => {
+      let [from, to] = normalizeDiagnosticRange(diagnostic.span.from, diagnostic.span.to, docLength);
+      if (to - from > MAX_DECORATED_SPAN) {
+        to = Math.min(docLength, from + MAX_DECORATED_SPAN);
+      }
+      return {
+        from,
+        to,
+        severity: diagnostic.severity,
+        message: diagnostic.message,
+        code: diagnostic.code,
+        source: diagnostic.source
+      };
+    })
+    .filter((diagnostic) => diagnostic.to > diagnostic.from);
+}
+
+function normalizeDiagnosticRange(from: number, to: number, docLength: number): [number, number] {
+  if (docLength <= 0) {
+    return [0, 0];
+  }
+
+  const start = clamp(Math.min(from, to), 0, docLength);
+  const end = clamp(Math.max(from, to), 0, docLength);
+
+  if (start === end) {
+    if (start < docLength) {
+      return [start, start + 1];
+    }
+    return [Math.max(0, start - 1), start];
+  }
+
+  return [start, end];
+}
+
+function buildDiagnosticDecorations(diagnostics: EditorDiagnostic[]): DecorationSet {
+  return Decoration.set(
+    diagnostics.map((diagnostic) =>
+      Decoration.mark({
+        class: `cm-editor-diagnostic-range cm-editor-diagnostic-${diagnostic.severity}`
+      }).range(diagnostic.from, diagnostic.to)
+    ),
+    true
+  );
+}
+
+function findDiagnosticAtPosition(diagnostics: EditorDiagnostic[], position: number): EditorDiagnostic | null {
+  let best: EditorDiagnostic | null = null;
+  for (const diagnostic of diagnostics) {
+    if (position < diagnostic.from || position > diagnostic.to) {
+      continue;
+    }
+    if (!best || isHigherPriorityDiagnostic(diagnostic, best)) {
+      best = diagnostic;
+    }
+  }
+  return best;
+}
+
+function isHigherPriorityDiagnostic(candidate: EditorDiagnostic, current: EditorDiagnostic): boolean {
+  const candidateSeverity = candidate.severity === "error" ? 2 : 1;
+  const currentSeverity = current.severity === "error" ? 2 : 1;
+  if (candidateSeverity !== currentSeverity) {
+    return candidateSeverity > currentSeverity;
+  }
+
+  const candidateSpan = candidate.to - candidate.from;
+  const currentSpan = current.to - current.from;
+  return candidateSpan < currentSpan;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function SvgView({
