@@ -25,6 +25,11 @@ body.is-resizing {
   user-select: none;
 }
 
+body.is-scrubbing {
+  cursor: ew-resize;
+  user-select: none;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -138,6 +143,10 @@ body.is-resizing {
 .editor-container .cm-editor .cm-scroller {
   font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
   font-size: 13px;
+}
+
+.editor-container .cm-editor.cm-scrub-hover .cm-scroller {
+  cursor: ew-resize;
 }
 
 .editor-container .cm-editor.cm-focused {

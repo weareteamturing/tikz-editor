@@ -10,6 +10,7 @@ import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import { tikzLanguage } from "./codemirror-tikz";
+import { numberScrubber } from "./number-scrubber";
 import { TreeView } from "./TreeView";
 
 type PaneId = "editor" | "tree" | "ir" | "svg";
@@ -85,6 +86,9 @@ export function App() {
   const appBodyRef = useRef<HTMLDivElement>(null);
   const renderRequestRef = useRef(0);
   const parseDebounceTimerRef = useRef<number | null>(null);
+  const scrubAnimationFrameRef = useRef<number | null>(null);
+  const scrubPendingSourceRef = useRef<string | null>(null);
+  const isScrubbingRef = useRef(false);
   const dragRef = useRef<{
     left: PaneId;
     right: PaneId;
@@ -158,6 +162,48 @@ export function App() {
     [runParse]
   );
 
+  const queueScrubParse = useCallback(
+    (src: string) => {
+      scrubPendingSourceRef.current = src;
+      if (scrubAnimationFrameRef.current != null) {
+        return;
+      }
+      scrubAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        scrubAnimationFrameRef.current = null;
+        const pending = scrubPendingSourceRef.current;
+        scrubPendingSourceRef.current = null;
+        if (pending != null) {
+          runParse(pending);
+        }
+      });
+    },
+    [runParse]
+  );
+
+  const handleScrubStateChange = useCallback(
+    (active: boolean) => {
+      isScrubbingRef.current = active;
+
+      if (active && parseDebounceTimerRef.current != null) {
+        window.clearTimeout(parseDebounceTimerRef.current);
+        parseDebounceTimerRef.current = null;
+      }
+
+      if (!active) {
+        if (scrubAnimationFrameRef.current != null) {
+          window.cancelAnimationFrame(scrubAnimationFrameRef.current);
+          scrubAnimationFrameRef.current = null;
+        }
+        const pending = scrubPendingSourceRef.current;
+        scrubPendingSourceRef.current = null;
+        if (pending != null) {
+          runParse(pending);
+        }
+      }
+    },
+    [runParse]
+  );
+
   useEffect(() => {
     if (!editorRef.current) {
       return;
@@ -169,12 +215,23 @@ export function App() {
       }
       const nextSource = update.state.doc.toString();
       setSource(nextSource);
-      queueParse(nextSource);
+      if (isScrubbingRef.current) {
+        queueScrubParse(nextSource);
+      } else {
+        queueParse(nextSource);
+      }
     });
 
     const state = EditorState.create({
       doc: defaultSource,
-      extensions: [basicSetup, playgroundKeymap, tikzLanguage(), highlightField, updateListener]
+      extensions: [
+        basicSetup,
+        playgroundKeymap,
+        tikzLanguage(),
+        numberScrubber({ onScrubStateChange: handleScrubStateChange }),
+        highlightField,
+        updateListener
+      ]
     });
 
     const view = new EditorView({
@@ -189,9 +246,16 @@ export function App() {
         window.clearTimeout(parseDebounceTimerRef.current);
         parseDebounceTimerRef.current = null;
       }
+      if (scrubAnimationFrameRef.current != null) {
+        window.cancelAnimationFrame(scrubAnimationFrameRef.current);
+        scrubAnimationFrameRef.current = null;
+      }
+      scrubPendingSourceRef.current = null;
+      isScrubbingRef.current = false;
+      document.body.classList.remove("is-scrubbing");
       view.destroy();
     };
-  }, [queueParse, runParse]);
+  }, [handleScrubStateChange, queueParse, queueScrubParse, runParse]);
 
   useEffect(() => {
     function onMouseMove(event: MouseEvent): void {
