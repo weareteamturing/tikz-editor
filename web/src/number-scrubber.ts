@@ -389,6 +389,9 @@ function classifyScrubContext(doc: EditorView["state"]["doc"], numberNode: Synta
     return { kind: "length", step: 0.05, minPrecision: 2 };
   }
   if (insideCoordinate) {
+    if (!isNumericCoordinateValue(doc, numberNode, signedFrom, unit)) {
+      return null;
+    }
     return { kind: "coordinate", step: 0.1, minPrecision: 1 };
   }
   if (optionKey && NUMERIC_KEYS.has(optionKey)) {
@@ -408,6 +411,50 @@ function extractUnitAfterNumber(doc: EditorView["state"]["doc"], numberEnd: numb
     return null;
   }
   return match[1].toLowerCase();
+}
+
+function isNumericCoordinateValue(
+  doc: EditorView["state"]["doc"],
+  numberNode: SyntaxNode,
+  signedFrom: number,
+  unit: string | null
+): boolean {
+  if (unit) {
+    return true;
+  }
+
+  const coordinateNode = findAncestor(numberNode, "Coordinate");
+  if (!coordinateNode) {
+    return true;
+  }
+
+  const inner = doc.sliceString(coordinateNode.from + 1, coordinateNode.to - 1).trim();
+  if (inner.length === 0) {
+    return false;
+  }
+
+  if (/[,:]/u.test(inner)) {
+    return true;
+  }
+
+  if (/[+*/!$]/u.test(inner)) {
+    return true;
+  }
+
+  if (/^[+-]?\d+(?:\.\d+)?$/u.test(inner)) {
+    return false;
+  }
+
+  if (/^[+-]?\d+(?:\.\d+)?(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/u.test(inner)) {
+    return false;
+  }
+
+  const token = doc.sliceString(signedFrom, numberNode.to);
+  if (inner === token || inner === token.replace(/^\+/, "")) {
+    return false;
+  }
+
+  return true;
 }
 
 function lengthStepForUnit(unit: string): { step: number; minPrecision: number } {
@@ -447,6 +494,17 @@ function hasAncestor(node: SyntaxNode, name: string): boolean {
     current = current.parent;
   }
   return false;
+}
+
+function findAncestor(node: SyntaxNode, name: string): SyntaxNode | null {
+  let current: SyntaxNode | null = node;
+  while (current) {
+    if (current.name === name) {
+      return current;
+    }
+    current = current.parent;
+  }
+  return null;
 }
 
 function signedNumberStart(doc: EditorView["state"]["doc"], numberStart: number): number {
