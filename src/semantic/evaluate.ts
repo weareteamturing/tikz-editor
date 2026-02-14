@@ -3,9 +3,10 @@ import type { Diagnostic } from "../diagnostics/types.js";
 import { FEATURE_IDS } from "../capabilities/feature-ids.js";
 import type { FeatureId } from "../capabilities/feature-ids.js";
 import type { OptionListAst } from "../options/types.js";
-import { createSemanticContext, currentFrame, popFrame, pushFrame } from "./context.js";
+import { createSemanticContext, currentFrame, popFrame, pushFrame, type NodeDistanceSpec } from "./context.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
-import { defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
+import { parseNodeDistance } from "./path/node-positioning.js";
+import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
 import { identityMatrix } from "./transform.js";
 import type {
   Bounds,
@@ -39,6 +40,8 @@ export function evaluateTikzFigure(figure: TikzFigure, _source: string, _opts: E
       namePrefix: rootMeta.namePrefix,
       nameSuffix: rootMeta.nameSuffix,
       nodeLayerMode: rootMeta.nodeLayerMode,
+      onGrid: rootMeta.onGrid,
+      nodeDistance: rootMeta.nodeDistance,
       transformShape: rootMeta.transformShape,
       everyNodeStyles: rootMeta.everyNodeStyles,
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
@@ -107,6 +110,8 @@ function evaluateStatement(
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
+      onGrid: frameMeta.onGrid,
+      nodeDistance: frameMeta.nodeDistance,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
@@ -145,6 +150,8 @@ function evaluateStatement(
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
       nodeLayerMode: frameMeta.nodeLayerMode,
+      onGrid: frameMeta.onGrid,
+      nodeDistance: frameMeta.nodeDistance,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
@@ -174,6 +181,11 @@ function evaluateStatement(
     return [];
   }
 
+  if (applyStandaloneCommandStatement(statement.raw, context)) {
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
   markFeature(featureUsage, "unknown_statement", "unsupported");
   diagnostics.push({
     severity: "warning",
@@ -182,6 +194,51 @@ function evaluateStatement(
     span: statement.span
   });
   return [];
+}
+
+const STANDALONE_FONT_SIZE_FACTORS: Record<string, number> = {
+  "\\tiny": 0.5,
+  "\\scriptsize": 0.7,
+  "\\footnotesize": 0.8,
+  "\\small": 0.9,
+  "\\normalsize": 1,
+  "\\large": 1.2,
+  "\\Large": 1.44,
+  "\\LARGE": 1.728,
+  "\\huge": 2.074,
+  "\\Huge": 2.488
+};
+
+function applyStandaloneCommandStatement(raw: string, context: ReturnType<typeof createSemanticContext>): boolean {
+  const command = parseStandaloneCommand(raw);
+  if (!command) {
+    return false;
+  }
+
+  const fontFactor = STANDALONE_FONT_SIZE_FACTORS[command];
+  if (fontFactor == null) {
+    return false;
+  }
+
+  const frame = currentFrame(context);
+  frame.style = {
+    ...frame.style,
+    fontSize: DEFAULT_TEXT_FONT_SIZE * fontFactor
+  };
+  return true;
+}
+
+function parseStandaloneCommand(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const maybeSemicolon = trimmed.endsWith(";") ? trimmed.slice(0, -1).trim() : trimmed;
+  if (!/^\\[A-Za-z@]+$/.test(maybeSemicolon)) {
+    return null;
+  }
+  return maybeSemicolon;
 }
 
 function computeBounds(elements: SceneElement[]): Bounds | undefined {
@@ -460,6 +517,8 @@ function resolveFrameMeta(
     namePrefix: string;
     nameSuffix: string;
     nodeLayerMode: "front" | "behind";
+    onGrid: boolean;
+    nodeDistance: NodeDistanceSpec;
     transformShape: boolean;
     everyNodeStyles: OptionListAst[];
     everyRectangleNodeStyles: OptionListAst[];
@@ -470,6 +529,8 @@ function resolveFrameMeta(
   namePrefix: string;
   nameSuffix: string;
   nodeLayerMode: "front" | "behind";
+  onGrid: boolean;
+  nodeDistance: NodeDistanceSpec;
   transformShape: boolean;
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
@@ -478,6 +539,8 @@ function resolveFrameMeta(
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
   let nodeLayerMode = base.nodeLayerMode;
+  let onGrid = base.onGrid;
+  let nodeDistance = base.nodeDistance;
   let transformShape = base.transformShape;
   let everyNodeStyles = [...base.everyNodeStyles];
   let everyRectangleNodeStyles = [...base.everyRectangleNodeStyles];
@@ -490,6 +553,8 @@ function resolveFrameMeta(
           nodeLayerMode = "behind";
         } else if (entry.key === "in front of path") {
           nodeLayerMode = "front";
+        } else if (entry.key === "on grid") {
+          onGrid = true;
         } else if (entry.key === "transform shape") {
           transformShape = true;
         }
@@ -521,6 +586,22 @@ function resolveFrameMeta(
         const parsed = parseBoolish(entry.valueRaw);
         if (parsed != null) {
           nodeLayerMode = parsed ? "front" : "behind";
+        }
+        continue;
+      }
+
+      if (entry.key === "on grid") {
+        const parsed = parseBoolish(entry.valueRaw);
+        if (parsed != null) {
+          onGrid = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "node distance") {
+        const parsed = parseNodeDistance(entry.valueRaw);
+        if (parsed) {
+          nodeDistance = parsed;
         }
         continue;
       }
@@ -581,6 +662,8 @@ function resolveFrameMeta(
     namePrefix,
     nameSuffix,
     nodeLayerMode,
+    onGrid,
+    nodeDistance,
     transformShape,
     everyNodeStyles,
     everyRectangleNodeStyles,

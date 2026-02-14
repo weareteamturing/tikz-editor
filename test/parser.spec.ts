@@ -88,6 +88,19 @@ describe("parseTikz", () => {
     expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
   });
 
+  it("parses standalone font-size commands without swallowing following path statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \huge
+  \node (x) at (0,0) {X};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body.length).toBe(2);
+    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[1]?.kind).toBe("Path");
+  });
+
   it("returns diagnostics while still producing IR for incomplete input", () => {
     const source = loadFixture("incomplete.tex");
     const result = parseTikz(source);

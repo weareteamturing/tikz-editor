@@ -40,4 +40,14 @@ every path/.style={draw}]`);
     expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "fill")).toBe(true);
     expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "every path/.style")).toBe(true);
   });
+
+  it("parses positioning-library and legacy relative placement keys", () => {
+    const parsed = parseOptionListRaw("[above=of a, above left=1cm and 2cm of b, left of=c, on grid, node distance=5mm and 7mm]");
+
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "above" && entry.valueRaw === "of a")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "above left" && entry.valueRaw === "1cm and 2cm of b")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "left of" && entry.valueRaw === "c")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "on grid")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "node distance")).toBe(true);
+  });
 });

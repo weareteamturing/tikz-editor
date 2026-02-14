@@ -731,6 +731,165 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports positioning library relative placement like right=of and above left=of", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,right=of a,name=b,node contents=B];
+  \node[draw,above left=of a,name=c,node contents=C];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:a")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-positioning"))).toBe(false);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const cText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    expect(cText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text" && cText?.kind === "Text") {
+      expect(bText.position.x).toBeGreaterThan(aText.position.x + 10);
+      expect(cText.position.x).toBeLessThan(aText.position.x - 10);
+      expect(cText.position.y).toBeGreaterThan(aText.position.y + 10);
+    }
+  });
+
+  it("supports positioning shift expressions like 2pt+3pt and .2 and 3mm", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,above=2pt+3pt,name=b,node contents=B] at (0,0);
+  \node[draw,above=.2 and 3mm,name=c,node contents=C] at (0,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-positioning-shift"))).toBe(false);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const cText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    expect(cText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text" && cText?.kind === "Text") {
+      expect(bText.position.y).toBeGreaterThan(aText.position.y + 4.5);
+      expect(cText.position.y).toBeGreaterThan(bText.position.y + 0.5);
+    }
+  });
+
+  it("resolves standalone node names for above=of chains", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style=draw]
+  \node (a1) at (0,0) {A};
+  \node (b1) [above=1cm of a1] {B};
+  \node (c1) [above=1cm of b1] {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:a1")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:b1")).toBe(false);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const cText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    expect(cText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text" && cText?.kind === "Text") {
+      expect(bText.position.y).toBeGreaterThan(aText.position.y + 10);
+      expect(cText.position.y).toBeGreaterThan(bText.position.y + 10);
+    }
+  });
+
+  it("treats unitless node distance as coordinate units under on-grid placement", () => {
+    const source = String.raw`\begin{tikzpicture}[on grid,node distance=1]
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,right=of a,name=b,node contents=B];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text") {
+      expect(bText.position.x).toBeCloseTo(aText.position.x + 28.4528, 3);
+      expect(bText.position.y).toBeCloseTo(aText.position.y, 3);
+    }
+  });
+
+  it("supports deprecated placement keys like left of=... and below right of=...", () => {
+    const source = String.raw`\begin{tikzpicture}[node distance=10pt]
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,left of=a,name=l,node contents=L];
+  \node[draw,below right of=a,name=r,node contents=R];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const lText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "L");
+    const rText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "R");
+    expect(aText?.kind).toBe("Text");
+    expect(lText?.kind).toBe("Text");
+    expect(rText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && lText?.kind === "Text" && rText?.kind === "Text") {
+      expect(lText.position.x).toBeCloseTo(aText.position.x - 10, 3);
+      expect(rText.position.x).toBeCloseTo(aText.position.x + 10 / Math.sqrt(2), 3);
+      expect(rText.position.y).toBeCloseTo(aText.position.y - 10 / Math.sqrt(2), 3);
+    }
+  });
+
+  it("supports on-grid center-to-center relative placement", () => {
+    const source = String.raw`\begin{tikzpicture}[on grid,node distance=12pt]
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,above=of a,name=b,node contents=B];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:on grid")).toBe(false);
+
+    const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    expect(aText?.kind).toBe("Text");
+    expect(bText?.kind).toBe("Text");
+    if (aText?.kind === "Text" && bText?.kind === "Text") {
+      expect(bText.position.x).toBeCloseTo(aText.position.x, 3);
+      expect(bText.position.y).toBeCloseTo(aText.position.y + 12, 3);
+    }
+  });
+
+  it("applies standalone font-size commands like \\huge before subsequent nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[node distance=1ex]
+  \huge
+  \node (X) at (0,1) {X};
+  \node (a) [right=of X] {a};
+  \node (y) [base right=of a] {y};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-statement")).toBe(false);
+    const texts = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(texts.length).toBe(3);
+
+    const xText = texts.find((element) => element.kind === "Text" && element.text === "X");
+    const aText = texts.find((element) => element.kind === "Text" && element.text === "a");
+    const yText = texts.find((element) => element.kind === "Text" && element.text === "y");
+    expect(xText?.kind).toBe("Text");
+    expect(aText?.kind).toBe("Text");
+    expect(yText?.kind).toBe("Text");
+    if (xText?.kind === "Text" && aText?.kind === "Text" && yText?.kind === "Text") {
+      expect(xText.style.fontSize).toBeGreaterThan(18);
+      expect(aText.position.x).toBeGreaterThan(xText.position.x);
+      expect(yText.position.x).toBeGreaterThan(aText.position.x);
+    }
+  });
+
   it("applies every-node style keys for rectangle and circle nodes", () => {
     const source = String.raw`\begin{tikzpicture}[
   every node/.style={draw},

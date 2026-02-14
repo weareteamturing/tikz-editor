@@ -82,9 +82,11 @@ export const
   CoordinateOperation = 80,
   PathOperator = 81,
   UnknownPathItem = 82,
-  UnknownStatement = 83,
-  UnknownPart = 84,
-  StrayToken = 85,
-  EndTikz = 86,
-  TikzInline = 87,
-  InlineTikzCmd = 88
+  FontSizeStatement = 83,
+  FontSizeCmd = 84,
+  UnknownStatement = 85,
+  UnknownPart = 86,
+  StrayToken = 87,
+  EndTikz = 88,
+  TikzInline = 89,
+  InlineTikzCmd = 90

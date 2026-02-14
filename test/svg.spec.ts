@@ -36,6 +36,25 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("Hello");
   });
 
+  it("emits positioned nodes placed using `...=of` syntax at distinct coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}[on grid,node distance=12pt]
+  \node[draw,name=a,node contents=A] at (0,0);
+  \node[draw,above=of a,name=b,node contents=B];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const textPoints = [...emitted.svg.matchAll(/<text[^>]* x="([^"]+)" y="([^"]+)"/g)].map((match) => ({
+      x: Number(match[1]),
+      y: Number(match[2])
+    }));
+
+    expect(textPoints.length).toBe(2);
+    expect(textPoints[0]?.x).toBeCloseTo(textPoints[1]?.x ?? Number.NaN, 3);
+    expect(textPoints[0]?.y).not.toBeCloseTo(textPoints[1]?.y ?? Number.NaN, 3);
+  });
+
   it("emits cubic Bezier path commands", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);

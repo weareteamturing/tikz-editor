@@ -36,6 +36,10 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }
 
+  if (node.type.name === "FontSizeStatement") {
+    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
   if (node.type.name === "ScopeStatement") {
     return mapScopeStatement(node, source, state);
   }
@@ -100,4 +104,3 @@ function allocateStatementIndex(state: StatementMappingState): number {
   state.nextStatementIndex += 1;
   return statementIndex;
 }
-

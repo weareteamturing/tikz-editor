@@ -2,6 +2,26 @@ import type { OptionListAst } from "../options/types.js";
 import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
 
 export type NodeLayerMode = "front" | "behind";
+export type NodeDistanceValue =
+  | {
+      kind: "dimension";
+      value: number;
+    }
+  | {
+      kind: "number";
+      value: number;
+    };
+
+export type NodeDistanceSpec =
+  | {
+      kind: "single";
+      value: NodeDistanceValue;
+    }
+  | {
+      kind: "pair";
+      vertical: NodeDistanceValue;
+      horizontal: NodeDistanceValue;
+    };
 
 export type NamedNodeGeometry = {
   shape: "rectangle" | "circle" | "ellipse" | "coordinate";
@@ -17,6 +37,8 @@ export type SemanticContextFrame = {
   namePrefix: string;
   nameSuffix: string;
   nodeLayerMode: NodeLayerMode;
+  onGrid: boolean;
+  nodeDistance: NodeDistanceSpec;
   transformShape: boolean;
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
@@ -32,6 +54,7 @@ export type SemanticContext = {
 };
 
 export function createSemanticContext(initialStyle: ResolvedStyle, initialTransform: Matrix2D): SemanticContext {
+  const defaultNodeDistance = 28.4527559055;
   return {
     stack: [
       {
@@ -40,6 +63,12 @@ export function createSemanticContext(initialStyle: ResolvedStyle, initialTransf
         namePrefix: "",
         nameSuffix: "",
         nodeLayerMode: "front",
+        onGrid: false,
+        nodeDistance: {
+          kind: "pair",
+          vertical: { kind: "dimension", value: defaultNodeDistance },
+          horizontal: { kind: "dimension", value: defaultNodeDistance }
+        },
         transformShape: false,
         everyNodeStyles: [],
         everyRectangleNodeStyles: [],

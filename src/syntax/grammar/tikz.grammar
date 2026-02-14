@@ -20,6 +20,7 @@ Statement {
   ScopeStatement |
   ForeachStatement |
   PathStatement |
+  FontSizeStatement |
   UnknownStatement
 }
 
@@ -188,6 +189,10 @@ CoordinateOperation {
 
 UnknownStatement {
   CommandName UnknownPart* ";"
+}
+
+FontSizeStatement {
+  FontSizeCmd
 }
 
 UnknownPart {
@@ -431,6 +436,7 @@ StrayToken {
     SinKw,
     CosKw,
     NodeKw,
+    FontSizeCmd,
     CommandName,
     Number,
     Identifier,
@@ -483,6 +489,19 @@ StrayToken {
   CosKw { "cos" }
 
   NodeKw { "node" }
+
+  FontSizeCmd {
+    "\\tiny" |
+    "\\scriptsize" |
+    "\\footnotesize" |
+    "\\small" |
+    "\\normalsize" |
+    "\\large" |
+    "\\Large" |
+    "\\LARGE" |
+    "\\huge" |
+    "\\Huge"
+  }
 
   CommandName { "\\" $[A-Za-z@]+ }
 

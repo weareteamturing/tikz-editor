@@ -5,6 +5,7 @@ import type { OptionListAst } from "../../options/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
+import { currentAnchorForDirection, parseDirectionalKey, resolveNodePositioningTarget } from "./node-positioning.js";
 import { resolveContextDelta } from "../style/resolve.js";
 import { applyMatrixToVector } from "../transform.js";
 import type {
@@ -160,14 +161,11 @@ export function evaluatePathStatement(
         }
       }
 
-      const nextItem = statement.items[index + 1];
       if (
         statement.command === "node" &&
         item.form === "named" &&
         pendingNodeNameForNodeCommand == null &&
-        nextItem?.kind === "PathKeyword" &&
-        nextItem.keyword === "at" &&
-        statement.items[index + 2]?.kind === "Coordinate"
+        shouldCaptureStandaloneNodeNameCoordinate(statement.items, index)
       ) {
         const rawName = item.x.trim();
         if (rawName.length > 0) {
@@ -1227,8 +1225,16 @@ function evaluateNodeItem(
   const nodeShape = resolveNodeShape(effectiveNodeOptions);
   const anchor = resolveNodeAnchor(effectiveNodeOptions);
   const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, segment);
-  const offset = resolveNodePlacementOffset(effectiveNodeOptions);
-  const center = placeNodeCenter({ x: target.x + offset.x, y: target.y + offset.y }, nodeShape, nodeLayout, anchor);
+  const resolvedPositioning = resolveNodePositioningTarget(effectiveNodeOptions, context, target);
+  for (const code of resolvedPositioning.diagnostics) {
+    pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
+  }
+  const center = placeNodeCenter(
+    resolvedPositioning.anchorPoint,
+    nodeShape,
+    nodeLayout,
+    resolvedPositioning.anchorOverride ?? anchor
+  );
   const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
 
   for (const name of scopedNames) {
@@ -1461,10 +1467,18 @@ function resolveNodeAnchor(options: PathOptionItem["options"] | undefined): stri
 
   let anchor = "center";
   for (const entry of options.entries) {
-    if (entry.kind === "kv" && entry.key === "anchor") {
-      const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase().replaceAll("_", " ");
-      if (normalized.length > 0) {
-        anchor = normalized;
+    if (entry.kind === "kv") {
+      if (entry.key === "anchor") {
+        const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase().replaceAll("_", " ");
+        if (normalized.length > 0) {
+          anchor = normalized;
+        }
+        continue;
+      }
+
+      const directional = parseDirectionalKey(entry.key);
+      if (directional) {
+        anchor = directional.legacyOf ? "center" : currentAnchorForDirection(directional.direction);
       }
       continue;
     }
@@ -1473,32 +1487,14 @@ function resolveNodeAnchor(options: PathOptionItem["options"] | undefined): stri
       continue;
     }
 
-    if (entry.key === "above") {
-      anchor = "south";
-    } else if (entry.key === "below") {
-      anchor = "north";
-    } else if (entry.key === "left") {
-      anchor = "east";
-    } else if (entry.key === "right") {
-      anchor = "west";
-    } else if (entry.key === "above left") {
-      anchor = "south east";
-    } else if (entry.key === "above right") {
-      anchor = "south west";
-    } else if (entry.key === "below left") {
-      anchor = "north east";
-    } else if (entry.key === "below right") {
-      anchor = "north west";
-    } else if (entry.key === "base left") {
-      anchor = "base east";
-    } else if (entry.key === "base right") {
-      anchor = "base west";
-    } else if (entry.key === "mid left") {
-      anchor = "mid east";
-    } else if (entry.key === "mid right") {
-      anchor = "mid west";
-    } else if (entry.key === "centered") {
+    if (entry.key === "centered") {
       anchor = "center";
+      continue;
+    }
+
+    const directional = parseDirectionalKey(entry.key);
+    if (directional) {
+      anchor = directional.legacyOf ? "center" : currentAnchorForDirection(directional.direction);
     }
   }
 
@@ -1685,98 +1681,6 @@ function resolveNodeTargetPoint(
   }
 
   return context.currentPoint ?? { x: 0, y: 0 };
-}
-
-function resolveNodePlacementOffset(options: PathOptionItem["options"] | undefined): Point {
-  if (!options) {
-    return { x: 0, y: 0 };
-  }
-
-  let offset: Point = { x: 0, y: 0 };
-  for (const entry of options.entries) {
-    if (entry.kind === "flag") {
-      if (entry.key === "centered") {
-        offset = { x: 0, y: 0 };
-      }
-      continue;
-    }
-
-    if (entry.kind !== "kv") {
-      continue;
-    }
-
-    if (entry.key === "above") {
-      const dy = parsePlacementLength(entry.valueRaw);
-      if (dy != null) {
-        offset = { ...offset, y: offset.y + dy };
-      }
-      continue;
-    }
-    if (entry.key === "below") {
-      const dy = parsePlacementLength(entry.valueRaw);
-      if (dy != null) {
-        offset = { ...offset, y: offset.y - dy };
-      }
-      continue;
-    }
-    if (entry.key === "left") {
-      const dx = parsePlacementLength(entry.valueRaw);
-      if (dx != null) {
-        offset = { ...offset, x: offset.x - dx };
-      }
-      continue;
-    }
-    if (entry.key === "right") {
-      const dx = parsePlacementLength(entry.valueRaw);
-      if (dx != null) {
-        offset = { ...offset, x: offset.x + dx };
-      }
-      continue;
-    }
-
-    if (entry.key === "above left" || entry.key === "above right" || entry.key === "below left" || entry.key === "below right") {
-      const parsed = parseDiagonalPlacement(entry.valueRaw);
-      if (parsed) {
-        const sx = entry.key.includes("left") ? -parsed.x : parsed.x;
-        const sy = entry.key.includes("below") ? -parsed.y : parsed.y;
-        offset = { x: offset.x + sx, y: offset.y + sy };
-      }
-      continue;
-    }
-  }
-
-  return offset;
-}
-
-function parsePlacementLength(raw: string): number | null {
-  const normalized = normalizeOptionValue(raw);
-  if (normalized.length === 0) {
-    return 0;
-  }
-  return parseLength(normalized, "pt");
-}
-
-function parseDiagonalPlacement(raw: string): { x: number; y: number } | null {
-  const normalized = normalizeOptionValue(raw);
-  if (normalized.length === 0) {
-    return { x: 0, y: 0 };
-  }
-
-  const parts = normalized.split(/\band\b/i).map((part) => part.trim()).filter((part) => part.length > 0);
-  if (parts.length === 2) {
-    const vertical = parseLength(parts[0], "pt");
-    const horizontal = parseLength(parts[1], "pt");
-    if (vertical != null && horizontal != null) {
-      return { x: horizontal, y: vertical };
-    }
-  }
-
-  const diagonal = parseLength(normalized, "pt");
-  if (diagonal == null) {
-    return null;
-  }
-  const component = diagonal / Math.sqrt(2);
-  return { x: component, y: component };
 }
 
 function resolveNodePositionFraction(options: PathOptionItem["options"] | undefined): number | null {
@@ -2164,6 +2068,27 @@ function maybeResolveTrailingCoordinateFromNodeName(name: string | undefined): s
     return null;
   }
   return asCoordinate;
+}
+
+function shouldCaptureStandaloneNodeNameCoordinate(items: PathItem[], coordinateIndex: number): boolean {
+  for (let index = 0; index < coordinateIndex; index += 1) {
+    if (items[index]?.kind === "Node") {
+      return false;
+    }
+  }
+
+  for (let index = coordinateIndex - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (!item || item.kind === "PathComment") {
+      continue;
+    }
+    if (item.kind === "PathKeyword" && item.keyword === "at") {
+      return false;
+    }
+    break;
+  }
+
+  return true;
 }
 
 function applyNameScope(name: string, context: SemanticContext): string {
