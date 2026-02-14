@@ -1,4 +1,4 @@
-Support is feasible and now implemented in two slices, with optional/default-arg TeX behavior intentionally deferred.
+Support is feasible and now implemented in three slices, including optional/default-arg support for `\newcommand`/`\renewcommand`.
 
 ## Implementation Status (2026-02-14)
 
@@ -25,6 +25,16 @@ Support is feasible and now implemented in two slices, with optional/default-arg
 7. ✅ Added stability guard:
    - default macro recursion/expansion depth limit is now **100** (`DEFAULT_MACRO_EXPANSION_MAX_DEPTH`).
 
+### Phase 2.5 (`\newcommand` optional/default first argument) completed
+1. ✅ Added parser/AST support for macro definitions of the form:
+   - `\newcommand{\foo}[2][default]{...}`
+   - `\renewcommand\foo[2][default]{...}`
+2. ✅ Added callable binding metadata for optional first argument defaults.
+3. ✅ Extended invocation expansion to support:
+   - omitted optional argument (`\foo{arg}`)
+   - explicit optional argument (`\foo[opt]{arg}`)
+4. ✅ Added parser/semantic/render/unit tests for defaulted and explicit optional invocation behavior.
+
 ## Test Coverage Added
 1. Parser:
    - `\newcommand` grouped and ungrouped forms
@@ -44,7 +54,6 @@ Support is feasible and now implemented in two slices, with optional/default-arg
    - recursion depth cap = 100
 
 ## Remaining Work
-1. Optional/default-argument macro forms (`\newcommand` with `[default]`) are not implemented yet.
-2. TeX fragment macros that expand to statement/path snippets are still deferred.
-3. Parse-time MathJax validation still uses the current coarse skip when user macros are present; explicit macro-aware validator preamble wiring remains a follow-up.
-4. Macro expansion is currently focused on coordinates/node text; broader option-expression expansion can be incrementally extended.
+1. TeX fragment macros that expand to statement/path snippets are still deferred.
+2. Parse-time MathJax validation still uses the current coarse skip when user macros are present; explicit macro-aware validator preamble wiring remains a follow-up.
+3. Macro expansion is currently focused on coordinates/node text; broader option-expression expansion can be incrementally extended.

@@ -449,6 +449,7 @@ function applyMacroCommandDefinitionStatement(
 
   const frame = currentFrame(context);
   const parameterCount = clampMacroParameterCount(statement.arity, diagnostics, statement);
+  const optionalFirstArgDefault = resolveOptionalFirstArgDefault(statement, parameterCount, diagnostics);
   const origin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
   const binding: MacroBinding =
     parameterCount === 0
@@ -460,6 +461,7 @@ function applyMacroCommandDefinitionStatement(
       : {
           kind: "callable",
           parameterCount,
+          optionalFirstArgDefault,
           body: statement.bodyRaw,
           provenance: [origin]
         };
@@ -492,9 +494,33 @@ function cloneMacroBinding(binding: MacroBinding): MacroBinding {
   return {
     kind: "callable",
     parameterCount: binding.parameterCount,
+    optionalFirstArgDefault: binding.optionalFirstArgDefault,
     body: binding.body,
     provenance: cloneMacroOriginStack(binding.provenance)
   };
+}
+
+function resolveOptionalFirstArgDefault(
+  statement: MacroCommandDefinitionStatement,
+  parameterCount: number,
+  diagnostics: Diagnostic[]
+): string | undefined {
+  const defaultRaw = statement.optionalDefaultRaw;
+  if (defaultRaw == null) {
+    return undefined;
+  }
+
+  if (parameterCount <= 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-macro-default-arg",
+      message: `${statement.commandRaw} ${statement.nameRaw} declares a default argument but has no parameters.`,
+      span: statement.optionalDefaultSpan ?? statement.span
+    });
+    return undefined;
+  }
+
+  return defaultRaw;
 }
 
 function buildMacroOriginFrame(

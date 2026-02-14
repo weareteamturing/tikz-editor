@@ -18,6 +18,7 @@ export type TextMacroBinding = {
 export type CallableMacroBinding = {
   kind: "callable";
   parameterCount: number;
+  optionalFirstArgDefault?: string;
   body: string;
   provenance: MacroOriginFrame[];
 };

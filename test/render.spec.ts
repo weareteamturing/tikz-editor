@@ -124,6 +124,23 @@ describe("render pipeline", () => {
     }
   });
 
+  it("expands newcommand optional/default arguments before MathJax rendering in async mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2][\alpha]{#1+#2}
+  \node at (0,0) {$\pair{x}$};
+  \node at (1,0) {$\pair[\beta]{x}$};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    const labels = result.semantic.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toContain(String.raw`$\alpha+x$`);
+    expect(labels).toContain(String.raw`$\beta+x$`);
+  });
+
   it("keeps math control sequence boundaries after foreach substitution in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {a}

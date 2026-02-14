@@ -72,6 +72,7 @@ function substituteSinglePass(
     if (binding == null) {
       output += macroName;
       cursor = matchEnd;
+      CONTROL_SEQUENCE_REGEX.lastIndex = cursor;
       match = CONTROL_SEQUENCE_REGEX.exec(input);
       continue;
     }
@@ -82,7 +83,12 @@ function substituteSinglePass(
     if (binding.kind === "text") {
       replacement = binding.value;
     } else {
-      const args = parseMacroInvocationArgs(input, matchEnd, binding.parameterCount);
+      const args = parseMacroInvocationArgs(
+        input,
+        matchEnd,
+        binding.parameterCount,
+        binding.optionalFirstArgDefault
+      );
       if (args) {
         replacement = applyMacroArguments(binding.body, args.values);
         consumedUntil = args.nextIndex;
@@ -92,6 +98,7 @@ function substituteSinglePass(
     if (replacement == null) {
       output += macroName;
       cursor = matchEnd;
+      CONTROL_SEQUENCE_REGEX.lastIndex = cursor;
       match = CONTROL_SEQUENCE_REGEX.exec(input);
       continue;
     }
@@ -107,6 +114,7 @@ function substituteSinglePass(
     }
 
     cursor = consumedUntil;
+    CONTROL_SEQUENCE_REGEX.lastIndex = cursor;
     match = CONTROL_SEQUENCE_REGEX.exec(input);
   }
 
@@ -117,7 +125,8 @@ function substituteSinglePass(
 function parseMacroInvocationArgs(
   input: string,
   startIndex: number,
-  count: number
+  count: number,
+  optionalFirstArgDefault: string | undefined
 ): { values: string[]; nextIndex: number } | null {
   if (count <= 0) {
     return { values: [], nextIndex: startIndex };
@@ -125,7 +134,19 @@ function parseMacroInvocationArgs(
 
   let cursor = startIndex;
   const values: string[] = [];
-  for (let argIndex = 0; argIndex < count; argIndex += 1) {
+  if (optionalFirstArgDefault != null) {
+    cursor = skipWhitespace(input, cursor);
+    const optionalArg = parseOptionalBracketArgument(input, cursor);
+    if (optionalArg) {
+      values.push(optionalArg.value);
+      cursor = optionalArg.nextIndex;
+    } else {
+      values.push(optionalFirstArgDefault);
+    }
+  }
+
+  const requiredCount = Math.max(0, count - values.length);
+  for (let argIndex = 0; argIndex < requiredCount; argIndex += 1) {
     cursor = skipWhitespace(input, cursor);
     if (cursor >= input.length) {
       return null;
@@ -143,6 +164,13 @@ function parseMacroInvocationArgs(
     values,
     nextIndex: cursor
   };
+}
+
+function parseOptionalBracketArgument(input: string, startIndex: number): { value: string; nextIndex: number } | null {
+  if (input[startIndex] !== "[") {
+    return null;
+  }
+  return readBracketContent(input, startIndex);
 }
 
 function parseSingleMacroArgument(input: string, startIndex: number): { value: string; nextIndex: number } | null {
@@ -191,6 +219,43 @@ function readBracedContent(input: string, startIndex: number): { value: string; 
       continue;
     }
     if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          value: input.slice(startIndex + 1, index),
+          nextIndex: index + 1
+        };
+      }
+      if (depth < 0) {
+        return null;
+      }
+    }
+    index += 1;
+  }
+
+  return null;
+}
+
+function readBracketContent(input: string, startIndex: number): { value: string; nextIndex: number } | null {
+  if (input[startIndex] !== "[") {
+    return null;
+  }
+
+  let depth = 0;
+  let index = startIndex;
+  while (index < input.length) {
+    const char = input[index] ?? "";
+    if (char === "\\") {
+      index += 2;
+      continue;
+    }
+
+    if (char === "[") {
+      depth += 1;
+      index += 1;
+      continue;
+    }
+    if (char === "]") {
       depth -= 1;
       if (depth === 0) {
         return {

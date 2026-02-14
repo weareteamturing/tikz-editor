@@ -248,8 +248,13 @@ LetAliasTarget {
 MacroCommandDefinitionStatement {
   (NewCommandCmd | RenewCommandCmd) "*"?
   MacroCommandName
-  MacroCommandArity?
+  MacroCommandArityClause?
   Group
+}
+
+MacroCommandArityClause {
+  MacroCommandArity
+  MacroCommandDefaultArg?
 }
 
 MacroCommandName {
@@ -259,6 +264,31 @@ MacroCommandName {
 
 MacroCommandArity {
   "[" Number "]"
+}
+
+MacroCommandDefaultArg {
+  "[" MacroCommandDefaultArgPart* "]"
+}
+
+MacroCommandDefaultArgPart {
+  Comment |
+  Group |
+  Coordinate |
+  OptionList |
+  GroupPathOperator |
+  MatrixRowSepCmd |
+  EscapedAmpersandCmd |
+  PathKeyword |
+  KnownCommand |
+  CommandName |
+  ToKw |
+  SvgKw |
+  LetKw |
+  InKw |
+  CoordinateKw |
+  Number |
+  IdentifierLike |
+  GroupPunct
 }
 
 UnknownPart {

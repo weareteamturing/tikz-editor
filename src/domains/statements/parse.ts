@@ -20,7 +20,7 @@ import { mapPathStatement } from "../paths/parse.js";
 import { mapUnknownStatement } from "../../transform/unknown.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import { parseForeachHeaderRaw } from "../../foreach/header.js";
-import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
+import { findFirstChildByName, findFirstNodeByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 
 export type StatementMappingState = {
   nextStatementIndex: number;
@@ -206,8 +206,9 @@ function mapMacroCommandDefinitionStatement(
   const commandNameTokenNode = commandNameNode ? findFirstChildByName(commandNameNode, "CommandName") : null;
   const commandNameGroupNode = commandNameNode ? findFirstChildByName(commandNameNode, "Group") : null;
   const bodyNode = resolveMacroCommandBodyNode(node, source);
-  const arityNode = findFirstChildByName(node, "MacroCommandArity");
+  const arityNode = findFirstNodeByName(node, "MacroCommandArity");
   const arityNumberNode = arityNode ? findFirstChildByName(arityNode, "Number") : null;
+  const defaultArgNode = findFirstNodeByName(node, "MacroCommandDefaultArg");
 
   const parsedNameFromGroup = commandNameGroupNode ? parseCommandNameFromGroup(commandNameGroupNode, source) : null;
   const nameRaw = commandNameTokenNode
@@ -234,6 +235,8 @@ function mapMacroCommandDefinitionStatement(
     nameSpan,
     arity,
     aritySpan: toSpan(arityNumberNode),
+    optionalDefaultRaw: defaultArgNode ? extractBracketInnerRaw(defaultArgNode, source) : undefined,
+    optionalDefaultSpan: defaultArgNode ? toBracketInnerSpan(defaultArgNode, source) : undefined,
     bodyRaw: bodyNode ? extractGroupInnerRaw(bodyNode, source) : "",
     bodySpan: bodyNode ? toGroupInnerSpan(bodyNode, source) : undefined,
     starred
@@ -294,6 +297,22 @@ function toGroupInnerSpan(node: SyntaxNode, source: string): Span {
 
 function extractGroupInnerRaw(node: SyntaxNode, source: string): string {
   const span = toGroupInnerSpan(node, source);
+  return source.slice(span.from, span.to);
+}
+
+function toBracketInnerSpan(node: SyntaxNode, source: string): Span {
+  const hasOpen = source[node.from] === "[";
+  const hasClose = source[node.to - 1] === "]";
+  const from = hasOpen ? node.from + 1 : node.from;
+  const to = hasClose ? node.to - 1 : node.to;
+  return {
+    from,
+    to: Math.max(from, to)
+  };
+}
+
+function extractBracketInnerRaw(node: SyntaxNode, source: string): string {
+  const span = toBracketInnerSpan(node, source);
   return source.slice(span.from, span.to);
 }
 

@@ -83,6 +83,8 @@ export type MacroCommandDefinitionStatement = {
   nameSpan?: Span;
   arity: number;
   aritySpan?: Span;
+  optionalDefaultRaw?: string;
+  optionalDefaultSpan?: Span;
   bodyRaw: string;
   bodySpan?: Span;
   starred: boolean;

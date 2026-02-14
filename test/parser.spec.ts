@@ -219,6 +219,22 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses optional/default argument metadata for newcommand definitions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2][left]{#1/#2}
+  \node at (0,0) {\pair{R}};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body[0]?.kind).toBe("MacroCommandDefinition");
+    if (result.figure.body[0]?.kind === "MacroCommandDefinition") {
+      expect(result.figure.body[0].arity).toBe(2);
+      expect(result.figure.body[0].optionalDefaultRaw).toBe("left");
+      expect(result.figure.body[0].bodyRaw).toContain("#1/#2");
+    }
+  });
+
   it("returns diagnostics while still producing IR for incomplete input", () => {
     const source = loadFixture("incomplete.tex");
     const result = parseTikz(source);

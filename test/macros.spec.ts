@@ -95,4 +95,24 @@ describe("macro expansion", () => {
     expect(growthCount).toBe(DEFAULT_MACRO_EXPANSION_MAX_DEPTH);
     expect(expanded.startsWith(String.raw`\loop`)).toBe(true);
   });
+
+  it("supports optional first arguments with defaults", () => {
+    const bindings = new Map<string, MacroBinding>([
+      [
+        "\\pair",
+        {
+          kind: "callable",
+          body: "#1/#2",
+          parameterCount: 2,
+          optionalFirstArgDefault: "left",
+          provenance: [makeOrigin("\\pair", "macro:pair", "\\newcommand")]
+        }
+      ]
+    ]);
+
+    const defaulted = expandMacroBindings(String.raw`\pair{R}`, bindings);
+    const explicit = expandMacroBindings(String.raw`\pair[right]{R}`, bindings);
+    expect(defaulted).toBe("left/R");
+    expect(explicit).toBe("right/R");
+  });
 });

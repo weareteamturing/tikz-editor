@@ -1640,6 +1640,62 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports newcommand optional/default arguments in semantic text expansion", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2][left]{#1/#2}
+  \node at (0,0) {\pair{R}};
+  \node at (1,0) {\pair[right]{R}};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toContain("left/R");
+    expect(labels).toContain("right/R");
+  });
+
+  it("supports newcommand optional/default arguments in coordinate expansion", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\xof}[2][2]{#1}
+  \draw (\xof{Q},0) -- (\xof[3]{Q},0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      const line = path.commands.find((command) => command.kind === "L");
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M" && line?.kind === "L") {
+        expect(move.to.x).toBeCloseTo(56.9055, 3);
+        expect(line.to.x).toBeCloseTo(85.3583, 3);
+      }
+    }
+  });
+
+  it("preserves optional/default behavior through callable let aliases", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2][left]{#1/#2}
+  \let\alias=\pair
+  \node at (0,0) {\alias{R}};
+  \node at (1,0) {\alias[right]{R}};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const labels = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""));
+    expect(labels).toContain("left/R");
+    expect(labels).toContain("right/R");
+  });
+
   it("resolves custom style overwrite order left-to-right", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{
