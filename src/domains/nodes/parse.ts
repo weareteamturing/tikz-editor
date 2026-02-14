@@ -44,9 +44,10 @@ export function mapSyntheticNodeItem(
   optionsNodes: SyntaxNode[],
   source: string,
   statementIndex: number,
-  itemIndex: number
+  itemIndex: number,
+  opts: { implicitFlags?: string[] } = {}
 ): NodeItem {
-  const options = mergeNodeOptionLists(optionsNodes, source);
+  const options = mergeNodeOptionLists(optionsNodes, source, opts.implicitFlags ?? []);
   const placement = extractPlacementFromOptions(options.options);
   const fallbackOffset = groupNode ? groupNode.to : options.span?.to ?? 0;
   const mappedText = mapNodeText(groupNode, source, fallbackOffset, options.options);
@@ -232,31 +233,92 @@ function dedupeNodesBySpan(nodes: SyntaxNode[]): SyntaxNode[] {
 
 function mergeNodeOptionLists(
   optionNodes: SyntaxNode[],
-  source: string
+  source: string,
+  implicitFlags: string[] = []
 ): {
   span?: Span;
   options?: OptionListAst;
 } {
   if (optionNodes.length === 0) {
-    return {};
+    return appendImplicitFlags({}, implicitFlags);
   }
 
   const parsed = optionNodes.map((node) => parseOptionListRaw(source.slice(node.from, node.to), node.from));
   if (parsed.length === 1) {
-    return {
-      span: { from: optionNodes[0].from, to: optionNodes[0].to },
-      options: parsed[0]
-    };
+    return appendImplicitFlags(
+      {
+        span: { from: optionNodes[0].from, to: optionNodes[0].to },
+        options: parsed[0]
+      },
+      implicitFlags
+    );
   }
 
   const first = optionNodes[0];
   const last = optionNodes[optionNodes.length - 1];
-  return {
-    span: { from: first.from, to: last.to },
-    options: {
+  return appendImplicitFlags(
+    {
       span: { from: first.from, to: last.to },
-      raw: optionNodes.map((node) => source.slice(node.from, node.to)).join(" "),
-      entries: parsed.flatMap((list) => list.entries)
+      options: {
+        span: { from: first.from, to: last.to },
+        raw: optionNodes.map((node) => source.slice(node.from, node.to)).join(" "),
+        entries: parsed.flatMap((list) => list.entries)
+      }
+    },
+    implicitFlags
+  );
+}
+
+function appendImplicitFlags(
+  merged: {
+    span?: Span;
+    options?: OptionListAst;
+  },
+  implicitFlags: string[]
+): {
+  span?: Span;
+  options?: OptionListAst;
+} {
+  if (implicitFlags.length === 0) {
+    return merged;
+  }
+
+  const existing = new Set(
+    (merged.options?.entries ?? [])
+      .filter((entry): entry is Extract<OptionListAst["entries"][number], { kind: "flag" }> => entry.kind === "flag")
+      .map((entry) => entry.key)
+  );
+  const flagsToAdd = implicitFlags.filter((flag) => !existing.has(flag));
+  if (flagsToAdd.length === 0) {
+    return merged;
+  }
+
+  const anchor = merged.options?.span.from ?? merged.span?.from ?? 0;
+  const flagEntries = flagsToAdd.map((flag) => ({
+    kind: "flag" as const,
+    key: flag,
+    span: { from: anchor, to: anchor + flag.length },
+    raw: flag
+  }));
+
+  if (!merged.options) {
+    const span = merged.span ?? { from: anchor, to: anchor + 1 };
+    return {
+      span,
+      options: {
+        span,
+        raw: `[${flagsToAdd.join(", ")}]`,
+        entries: flagEntries
+      }
+    };
+  }
+
+  return {
+    span: merged.span,
+    options: {
+      span: merged.options.span,
+      raw: `${merged.options.raw}, ${flagsToAdd.join(", ")}`,
+      entries: [...merged.options.entries, ...flagEntries]
     }
   };
 }

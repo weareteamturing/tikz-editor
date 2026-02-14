@@ -16,8 +16,9 @@ type MathJaxAdaptor = {
 type MathJaxRuntime = {
   tex2svg(tex: string, options: { display: boolean }): unknown;
   tex2svgPromise?: (tex: string, options: { display: boolean }) => Promise<unknown>;
-  startup: {
-    adaptor: MathJaxAdaptor;
+  startup?: {
+    adaptor?: MathJaxAdaptor;
+    promise?: Promise<unknown>;
   };
 };
 
@@ -34,8 +35,13 @@ type CachedRenderEntry = {
 };
 
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
+const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
+const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";
+const SCRIPT_LOADED_MARKER = "__tikzMathJaxLoaded";
+const SCRIPT_ERROR_MARKER = "__tikzMathJaxLoadError";
 
 let sharedEnginePromise: Promise<NodeTextEngine> | null = null;
+let browserRuntimePromise: Promise<MathJaxRuntime> | null = null;
 
 export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
   if (!sharedEnginePromise) {
@@ -50,51 +56,37 @@ export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
 }
 
 async function initializeEngine(): Promise<NodeTextEngine> {
-  const module = (await import("mathjax")) as { default?: MathJaxEntrypoint };
-  const entrypoint = module.default;
-  if (!entrypoint || typeof entrypoint.init !== "function") {
-    throw new Error("MathJax entrypoint is unavailable.");
-  }
-
-  const runtime = await entrypoint.init({
-    loader: {
-      load: ["input/tex", "output/svg"]
-    },
-    tex: {
-      packages: {
-        "[-]": ["noundefined"]
-      },
-      formatError: (_jax: unknown, err: Error) => {
-        throw err;
-      }
-    },
-    svg: {
-      fontCache: "none",
-      linebreaks: {
-        inline: false
-      }
-    }
-  });
+  const runtime = hasBrowserDomGlobals() ? await initializeBrowserRuntime() : await initializeNodeRuntime();
   await preloadMathJaxWarmupExpressions(runtime);
 
-  const adaptor = runtime.startup?.adaptor;
-  if (!adaptor) {
-    throw new Error("MathJax adaptor is unavailable.");
-  }
-
   const cache = new Map<string, CachedRenderEntry>();
+  const validationCache = new Map<string, NodeTextValidationIssue | null>();
 
   return {
     validate(text: string): NodeTextValidationIssue | null {
+      if (validationCache.has(text)) {
+        return validationCache.get(text) ?? null;
+      }
+
       try {
         const tex = buildWrappedTeX(text, null, "normal");
-        runtime.tex2svg(tex, { display: false });
+        const node = runtime.tex2svg(tex, { display: false });
+        const defaultMeasureKey = measurementKey(text, null, "normal");
+        if (!cache.has(defaultMeasureKey)) {
+          const entry = buildCacheEntry(defaultMeasureKey, node, runtime.startup?.adaptor ?? null);
+          if (entry) {
+            cache.set(defaultMeasureKey, entry);
+          }
+        }
+        validationCache.set(text, null);
         return null;
       } catch (error) {
-        return {
+        const issue = {
           code: "invalid-node-tex",
           message: sanitizeErrorMessage(error)
         };
+        validationCache.set(text, issue);
+        return issue;
       }
     },
     measure(request: NodeTextMeasureRequest): NodeTextMetrics | null {
@@ -107,11 +99,12 @@ async function initializeEngine(): Promise<NodeTextEngine> {
         try {
           const tex = buildWrappedTeX(request.text, normalizedWidth, request.fontStyle);
           const node = runtime.tex2svg(tex, { display: false });
-          entry = buildCacheEntry(cacheKey, node, adaptor);
+          entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
           if (!entry) {
             return null;
           }
           cache.set(cacheKey, entry);
+          validationCache.set(request.text, null);
         } catch {
           return null;
         }
@@ -128,6 +121,341 @@ async function initializeEngine(): Promise<NodeTextEngine> {
     renderFromCache(cacheKey: string): NodeTextRenderPayload | null {
       return cache.get(cacheKey)?.payload ?? null;
     }
+  };
+}
+
+async function initializeNodeRuntime(): Promise<MathJaxRuntime> {
+  const moduleId = "mathjax";
+  const module = (await import(/* @vite-ignore */ moduleId)) as { default?: MathJaxEntrypoint };
+  const entrypoint = module.default;
+  if (!entrypoint || typeof entrypoint.init !== "function") {
+    throw new Error("MathJax entrypoint is unavailable.");
+  }
+  return entrypoint.init(createMathJaxConfig());
+}
+
+async function initializeBrowserRuntime(): Promise<MathJaxRuntime> {
+  if (!browserRuntimePromise) {
+    browserRuntimePromise = initializeBrowserRuntimeOnce();
+  }
+  try {
+    return await browserRuntimePromise;
+  } catch (error) {
+    browserRuntimePromise = null;
+    throw error;
+  }
+}
+
+async function initializeBrowserRuntimeOnce(): Promise<MathJaxRuntime> {
+  const preloadedRuntime = await readBrowserRuntime(150);
+  if (preloadedRuntime) {
+    return preloadedRuntime;
+  }
+
+  configureBrowserMathJaxGlobal();
+  await ensureBrowserStartupComponentLoaded();
+
+  const runtime = await readBrowserRuntime(5000);
+  if (!runtime) {
+    const observed = (globalThis as { MathJax?: unknown }).MathJax;
+    throw new Error(`MathJax browser runtime is unavailable. ${formatMathJaxShape(observed)}`);
+  }
+  return runtime;
+}
+
+function hasBrowserDomGlobals(): boolean {
+  const candidate = globalThis as { window?: unknown; document?: unknown };
+  return candidate.window != null && candidate.document != null;
+}
+
+function createMathJaxConfig(): Record<string, unknown> {
+  return {
+    loader: {
+      load: ["input/tex", "output/svg"]
+    },
+    tex: {
+      packages: {
+        "[-]": ["noundefined"]
+      },
+      formatError: (_jax: unknown, err: Error) => {
+        throw err;
+      }
+    },
+    svg: {
+      fontCache: "none",
+      linebreaks: {
+        inline: false
+      }
+    },
+    startup: {
+      typeset: false
+    }
+  };
+}
+
+async function readBrowserRuntime(timeoutMs: number): Promise<MathJaxRuntime | null> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  do {
+    const candidate = (globalThis as { MathJax?: unknown }).MathJax;
+    const runtime = await coerceBrowserRuntime(candidate);
+    if (runtime) {
+      return runtime;
+    }
+    if (Date.now() >= deadline) {
+      return null;
+    }
+    await waitForNextTurn();
+  } while (true);
+}
+
+async function coerceBrowserRuntime(candidate: unknown): Promise<MathJaxRuntime | null> {
+  if (!isRecord(candidate)) {
+    return null;
+  }
+
+  if (typeof candidate.tex2svg !== "function") {
+    return null;
+  }
+
+  const startup = isRecord(candidate.startup) ? startupFromRecord(candidate.startup) : null;
+  if (startup?.promise && isPromiseLike(startup.promise)) {
+    await startup.promise;
+  }
+
+  return {
+    tex2svg: candidate.tex2svg as MathJaxRuntime["tex2svg"],
+    tex2svgPromise:
+      typeof candidate.tex2svgPromise === "function" ? (candidate.tex2svgPromise as MathJaxRuntime["tex2svgPromise"]) : undefined,
+    startup: startup ?? undefined
+  };
+}
+
+function configureBrowserMathJaxGlobal(): void {
+  const globals = globalThis as { MathJax?: Record<string, unknown> };
+  const existing = isRecord(globals.MathJax) ? globals.MathJax : {};
+  const existingLoader = isRecord(existing.loader) ? existing.loader : {};
+  const existingTex = isRecord(existing.tex) ? existing.tex : {};
+  const existingSvg = isRecord(existing.svg) ? existing.svg : {};
+  const existingStartup = isRecord(existing.startup) ? existing.startup : {};
+  const existingTexPackages = isRecord(existingTex.packages) ? existingTex.packages : {};
+  const existingSvgLinebreaks = isRecord(existingSvg.linebreaks) ? existingSvg.linebreaks : {};
+
+  const loaderLoad = uniqueStrings([...toStringArray(existingLoader.load), "input/tex", "output/svg"]);
+  const disabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[-]"]), "noundefined"]);
+
+  globals.MathJax = {
+    ...existing,
+    loader: {
+      ...existingLoader,
+      load: loaderLoad
+    },
+    tex: {
+      ...existingTex,
+      packages: {
+        ...existingTexPackages,
+        "[-]": disabledPackages
+      },
+      formatError: (_jax: unknown, err: Error) => {
+        throw err;
+      }
+    },
+    svg: {
+      ...existingSvg,
+      fontCache: "none",
+      linebreaks: {
+        ...existingSvgLinebreaks,
+        inline: false
+      }
+    },
+    startup: {
+      ...existingStartup,
+      typeset: false
+    }
+  };
+}
+
+async function ensureBrowserStartupComponentLoaded(): Promise<void> {
+  const documentRef = getBrowserDocument();
+  if (!documentRef) {
+    throw new Error("Browser document is unavailable while loading MathJax startup component.");
+  }
+
+  const existingScript =
+    typeof documentRef.getElementById === "function"
+      ? toScriptRecord(documentRef.getElementById(BROWSER_STARTUP_COMPONENT_ID))
+      : null;
+
+  if (existingScript) {
+    await waitForScriptLoad(existingScript);
+    return;
+  }
+
+  if (typeof documentRef.createElement !== "function") {
+    throw new Error("Browser document.createElement is unavailable for MathJax startup component.");
+  }
+  const createdScript = toScriptRecord(documentRef.createElement("script"));
+  if (!createdScript) {
+    throw new Error("Unable to create MathJax startup script element.");
+  }
+
+  setScriptStringField(createdScript, "id", BROWSER_STARTUP_COMPONENT_ID);
+  setScriptStringField(createdScript, "src", BROWSER_STARTUP_COMPONENT_URL);
+  setScriptBooleanField(createdScript, "async", true);
+  setScriptBooleanField(createdScript, "defer", true);
+  if (typeof createdScript.setAttribute === "function") {
+    createdScript.setAttribute("data-tikz-editor-mathjax", "startup");
+  }
+
+  const headRef = documentRef.head;
+  if (!isRecord(headRef) || typeof headRef.appendChild !== "function") {
+    throw new Error("Browser document.head is unavailable for MathJax startup component.");
+  }
+
+  const loadPromise = waitForScriptLoad(createdScript);
+  headRef.appendChild(createdScript);
+  await loadPromise;
+}
+
+function getBrowserDocument(): BrowserDocumentLike | null {
+  const candidate = (globalThis as { document?: unknown }).document;
+  if (!isRecord(candidate)) {
+    return null;
+  }
+  return candidate as BrowserDocumentLike;
+}
+
+function toScriptRecord(value: unknown): ScriptRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return value as ScriptRecord;
+}
+
+async function waitForScriptLoad(script: ScriptRecord): Promise<void> {
+  const maybeLoaded = script[SCRIPT_LOADED_MARKER];
+  if (maybeLoaded === true) {
+    return;
+  }
+
+  const existingError = script[SCRIPT_ERROR_MARKER];
+  if (existingError instanceof Error) {
+    throw existingError;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const onLoad = () => {
+      script[SCRIPT_LOADED_MARKER] = true;
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      const error = new Error(`Unable to load MathJax startup component from ${BROWSER_STARTUP_COMPONENT_URL}.`);
+      script[SCRIPT_ERROR_MARKER] = error;
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      if (typeof script.removeEventListener === "function") {
+        script.removeEventListener("load", onLoad);
+        script.removeEventListener("error", onError);
+      }
+      const currentOnLoad = script.onload;
+      if (currentOnLoad === onLoad) {
+        script.onload = null;
+      }
+      const currentOnError = script.onerror;
+      if (currentOnError === onError) {
+        script.onerror = null;
+      }
+    };
+
+    if (typeof script.addEventListener === "function") {
+      script.addEventListener("load", onLoad, { once: true });
+      script.addEventListener("error", onError, { once: true });
+      return;
+    }
+
+    script.onload = onLoad;
+    script.onerror = onError;
+  });
+}
+
+function setScriptStringField(script: ScriptRecord, field: "id" | "src", value: string): void {
+  script[field] = value;
+}
+
+function setScriptBooleanField(script: ScriptRecord, field: "async" | "defer", value: boolean): void {
+  script[field] = value;
+}
+
+function isMathJaxAdaptor(value: unknown): value is MathJaxAdaptor {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.firstChild === "function" &&
+    typeof value.getAttribute === "function" &&
+    typeof value.innerHTML === "function"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPromiseLike(value: unknown): value is Promise<unknown> {
+  return isRecord(value) && typeof value.then === "function";
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function waitForNextTurn(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+function formatMathJaxShape(value: unknown): string {
+  if (!isRecord(value)) {
+    return "globalThis.MathJax is missing.";
+  }
+
+  const rootKeys = summarizeKeys(value);
+  const startup = isRecord(value.startup) ? value.startup : null;
+  const startupKeys = startup ? summarizeKeys(startup) : "(missing)";
+  const hasTex2svg = typeof value.tex2svg === "function";
+  const hasStartupPromise = startup ? isPromiseLike(startup.promise) : false;
+  const hasAdaptor = startup ? isMathJaxAdaptor(startup.adaptor) : false;
+
+  return (
+    `MathJax keys: ${rootKeys}; ` +
+    `startup keys: ${startupKeys}; ` +
+    `tex2svg: ${hasTex2svg}; startup.promise: ${hasStartupPromise}; startup.adaptor: ${hasAdaptor}.`
+  );
+}
+
+function summarizeKeys(value: Record<string, unknown>): string {
+  const keys = Object.keys(value);
+  if (keys.length === 0) {
+    return "(none)";
+  }
+  return `[${keys.slice(0, 12).join(", ")}${keys.length > 12 ? ", ..." : ""}]`;
+}
+
+function startupFromRecord(value: Record<string, unknown>): MathJaxRuntime["startup"] {
+  return {
+    adaptor: isMathJaxAdaptor(value.adaptor) ? value.adaptor : undefined,
+    promise: isPromiseLike(value.promise) ? (value.promise as Promise<unknown>) : undefined
   };
 }
 
@@ -154,19 +482,18 @@ async function preloadMathJaxWarmupExpressions(runtime: MathJaxRuntime): Promise
   }
 }
 
-function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor): CachedRenderEntry | null {
-  const svgNode = adaptor.firstChild(containerNode);
-  if (!svgNode) {
+function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor | null): CachedRenderEntry | null {
+  const extracted = extractSvgPayload(containerNode, adaptor);
+  if (!extracted) {
     return null;
   }
 
-  const viewBoxRaw = adaptor.getAttribute(svgNode, "viewBox");
-  const viewBox = parseViewBox(viewBoxRaw);
+  const viewBox = parseViewBox(extracted.viewBoxRaw);
   if (!viewBox) {
     return null;
   }
 
-  const body = adaptor.innerHTML(svgNode);
+  const body = extracted.body;
   const baseWidthPt = (viewBox.width / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const baseHeightPt = (viewBox.height / 1000) * DEFAULT_TEXT_FONT_SIZE;
   const ascentUnits = Math.max(0, -viewBox.y);
@@ -186,6 +513,91 @@ function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: Math
     midLineYPt
   };
 }
+
+function extractSvgPayload(
+  containerNode: unknown,
+  adaptor: MathJaxAdaptor | null
+): { viewBoxRaw: string | null; body: string } | null {
+  if (adaptor) {
+    const svgNode = adaptor.firstChild(containerNode);
+    if (!svgNode) {
+      return null;
+    }
+    return {
+      viewBoxRaw: adaptor.getAttribute(svgNode, "viewBox"),
+      body: adaptor.innerHTML(svgNode)
+    };
+  }
+
+  const svgNode = findSvgElement(containerNode);
+  if (!svgNode) {
+    return null;
+  }
+
+  return {
+    viewBoxRaw: readAttr(svgNode, "viewBox"),
+    body: readInnerHtml(svgNode)
+  };
+}
+
+function findSvgElement(value: unknown): unknown | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const tagName = typeof value.tagName === "string" ? value.tagName.toLowerCase() : "";
+  if (tagName === "svg") {
+    return value;
+  }
+
+  const querySelector = value.querySelector;
+  if (typeof querySelector === "function") {
+    const nested = querySelector.call(value, "svg");
+    return nested ?? null;
+  }
+
+  return null;
+}
+
+function readAttr(node: unknown, name: string): string | null {
+  if (!isRecord(node) || typeof node.getAttribute !== "function") {
+    return null;
+  }
+  const value = node.getAttribute.call(node, name);
+  return typeof value === "string" ? value : value == null ? null : String(value);
+}
+
+function readInnerHtml(node: unknown): string {
+  if (!isRecord(node)) {
+    return "";
+  }
+  const value = node.innerHTML;
+  if (typeof value === "string") {
+    return value;
+  }
+  return "";
+}
+
+type ScriptRecord = {
+  id?: string;
+  src?: string;
+  async?: boolean;
+  defer?: boolean;
+  onload?: (() => void) | null;
+  onerror?: (() => void) | null;
+  setAttribute?: (name: string, value: string) => void;
+  addEventListener?: (name: string, listener: () => void, options?: { once?: boolean }) => void;
+  removeEventListener?: (name: string, listener: () => void) => void;
+  [SCRIPT_LOADED_MARKER]?: boolean;
+  [SCRIPT_ERROR_MARKER]?: unknown;
+  [key: string]: unknown;
+};
+
+type BrowserDocumentLike = {
+  getElementById?: (id: string) => unknown;
+  createElement?: (tag: string) => unknown;
+  head?: { appendChild?: (node: unknown) => unknown } | null;
+};
 
 function measurementKey(text: string, textWidthPt: number | null, fontStyle: "normal" | "italic"): string {
   return JSON.stringify({

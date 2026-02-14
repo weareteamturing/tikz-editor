@@ -541,6 +541,59 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("evaluates matrix nodes, emits cell text, and registers generated matrix cell names", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=4mm,column sep=6mm] (m) {
+    A & B \\
+    C & D \\
+  };
+  \draw (m-1-1) -- (m-2-2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.featureUsage.matrix_node).toBe("used-supported");
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:m-1-1")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:m-2-2")).toBe(false);
+
+    const matrixTexts = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""))
+      .sort();
+    expect(matrixTexts).toEqual(["A", "B", "C", "D"]);
+
+    const linePath = result.scene.elements.find(
+      (element) =>
+        element.kind === "Path" &&
+        element.commands.length === 2 &&
+        element.commands[0]?.kind === "M" &&
+        element.commands[1]?.kind === "L"
+    );
+    expect(linePath?.kind).toBe("Path");
+  });
+
+  it("evaluates explicit \\node cell entries inside matrices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[row sep=3mm,column sep=5mm] (m) {
+    \node(a) {1}; & \node {2}; \\
+    \node {3}; & \node(b) {4}; \\
+  };
+  \draw (a) -- (b);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.featureUsage.matrix_node).toBe("used-supported");
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:a")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:b")).toBe(false);
+
+    const matrixTexts = result.scene.elements
+      .filter((element) => element.kind === "Text")
+      .map((element) => (element.kind === "Text" ? element.text : ""))
+      .sort();
+    expect(matrixTexts).toEqual(["1", "2", "3", "4"]);
+  });
+
   it("resolves dash/cap/join and opacity style options", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[opacity=0.8, draw opacity=0.6, fill opacity=0.3, dashed, line cap=round, line join=bevel] (0,0) -- (1,0);

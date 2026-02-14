@@ -174,6 +174,56 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone matrix commands as node statements with implicit matrix options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=4mm,column sep=6mm] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    expect(statement.command).toBe("node");
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.text).toContain("A & B");
+      expect(node.text).toContain("C & D");
+      expect(node.options?.entries.some((entry) => entry.kind === "flag" && entry.key === "matrix")).toBe(true);
+      expect(node.options?.entries.some((entry) => entry.kind === "flag" && entry.key === "matrix of nodes")).toBe(true);
+    }
+  });
+
+  it("parses matrix ampersand replacement separators without hard parse errors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,ampersand replacement=\&] {
+    A \& B \\
+    C \& D \\
+  };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.text).toContain(String.raw`A \& B`);
+      expect(node.text).toContain(String.raw`C \& D`);
+    }
+  });
+
   it("captures inline node placement coordinates in path syntax", () => {
     const source = String.raw`\begin{tikzpicture}
       \draw (0,0) node[draw] at (1,0) {A};

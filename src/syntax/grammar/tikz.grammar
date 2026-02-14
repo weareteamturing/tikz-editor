@@ -69,6 +69,7 @@ PathCommand {
   ShadeCmd |
   ShadeDrawCmd |
   UseAsBoundingBoxCmd |
+  MatrixCmd |
   NodeCmd |
   CoordinateCmd
 }
@@ -237,6 +238,7 @@ OptionPart {
   Coordinate |
   GroupPathOperator |
   PathKeyword |
+  EscapedAmpersandCmd |
   KnownCommand |
   CommandName |
   NodeKw |
@@ -276,6 +278,8 @@ GroupPart {
   Coordinate |
   OptionList |
   GroupPathOperator |
+  MatrixRowSepCmd |
+  EscapedAmpersandCmd |
   PathKeyword |
   KnownCommand |
   CommandName |
@@ -367,6 +371,7 @@ KnownCommand {
   ShadeCmd |
   ShadeDrawCmd |
   UseAsBoundingBoxCmd |
+  MatrixCmd |
   NodeCmd |
   CoordinateCmd
 }
@@ -429,8 +434,11 @@ StrayToken {
   EndScope,
   ForeachCmd,
     ForeachKw,
+    MatrixCmd,
     NodeCmd,
     CoordinateCmd,
+    MatrixRowSepCmd,
+    EscapedAmpersandCmd,
     AtKw,
     BendKw,
     CycleKw,
@@ -477,12 +485,15 @@ StrayToken {
   ShadeCmd { "\\shade" }
   ShadeDrawCmd { "\\shadedraw" }
   UseAsBoundingBoxCmd { "\\useasboundingbox" }
+  MatrixCmd { "\\matrix" }
   BeginScope { "\\begin{scope}" }
   EndScope { "\\end{scope}" }
   ForeachCmd { "\\foreach" }
   ForeachKw { "foreach" }
   NodeCmd { "\\node" }
   CoordinateCmd { "\\coordinate" }
+  MatrixRowSepCmd { "\\\\" }
+  EscapedAmpersandCmd { "\\&" }
 
   AtKw { "at" }
   BendKw { "bend" }

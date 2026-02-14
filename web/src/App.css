@@ -279,6 +279,37 @@ body.is-resizing {
   border-bottom: 1px solid var(--border);
 }
 
+.svg-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: #f7fbff;
+}
+
+.svg-diagnostic {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: baseline;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.svg-diagnostic.warning {
+  border-color: rgba(217, 119, 6, 0.35);
+  background: rgba(217, 119, 6, 0.08);
+}
+
+.svg-diagnostic.error {
+  border-color: rgba(191, 44, 41, 0.35);
+  background: rgba(191, 44, 41, 0.06);
+}
+
 .svg-canvas {
   flex: 1;
   overflow: auto;

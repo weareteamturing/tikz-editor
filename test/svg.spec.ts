@@ -36,6 +36,27 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("Hello");
   });
 
+  it("emits matrix cell text and matrix-referenced paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=4mm,column sep=6mm] (m) {
+    A & B \\
+    C & D \\
+  };
+  \draw (m-1-1) -- (m-2-2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const textCount = emitted.svg.match(/<text /g)?.length ?? 0;
+    expect(textCount).toBe(4);
+    expect(emitted.svg).toContain("A");
+    expect(emitted.svg).toContain("B");
+    expect(emitted.svg).toContain("C");
+    expect(emitted.svg).toContain("D");
+    expect(emitted.svg).toContain("<path");
+  });
+
   it("keeps foreach-expanded instances mapped to authored template source IDs", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {0,1}

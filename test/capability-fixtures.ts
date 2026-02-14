@@ -71,5 +71,11 @@ export const capabilityFixtures: Record<string, string> = {
 \end{tikzpicture}`,
   node_text: String.raw`\begin{tikzpicture}
   \node at (1,1) {Hello};
+\end{tikzpicture}`,
+  matrix_basic: String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=4mm,column sep=6mm] (m) {
+    A & B \\
+    C & D \\
+  };
 \end{tikzpicture}`
 };

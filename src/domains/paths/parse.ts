@@ -20,17 +20,20 @@ type PathItemContext = {
   command: PathCommand;
   syntheticNodeEmitted: boolean;
   pendingNodeOptions: SyntaxNode[];
+  syntheticNodeImplicitFlags: string[];
 };
 
 export function mapPathStatement(node: SyntaxNode, source: string, statementIndex: number): PathStatement {
   const commandNode = findFirstChildByName(node, "PathCommand");
   const commandText = commandNode ? source.slice(commandNode.from, commandNode.to) : "\\path";
+  const syntheticNodeImplicitFlags = isMatrixCommand(commandText) ? ["matrix"] : [];
   const command = normalizePathCommand(commandText);
 
   const context: PathItemContext = {
     command,
     syntheticNodeEmitted: false,
-    pendingNodeOptions: []
+    pendingNodeOptions: [],
+    syntheticNodeImplicitFlags
   };
 
   const items: PathItem[] = [];
@@ -58,7 +61,11 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
 
   if (context.command === "node" && !context.syntheticNodeEmitted && context.pendingNodeOptions.length > 0) {
     if (pendingNodeOptionsContainNodeContents(context.pendingNodeOptions, source)) {
-      items.push(mapSyntheticNodeItem(null, context.pendingNodeOptions, source, statementIndex, itemIndex));
+      items.push(
+        mapSyntheticNodeItem(null, context.pendingNodeOptions, source, statementIndex, itemIndex, {
+          implicitFlags: context.syntheticNodeImplicitFlags
+        })
+      );
       itemIndex += 1;
       context.syntheticNodeEmitted = true;
       context.pendingNodeOptions = [];
@@ -139,7 +146,9 @@ function mapPathItem(
   }
 
   if (actual.type.name === "Group" && context.command === "node" && !context.syntheticNodeEmitted) {
-    const synthetic = mapSyntheticNodeItem(actual, context.pendingNodeOptions, source, statementIndex, itemIndex);
+    const synthetic = mapSyntheticNodeItem(actual, context.pendingNodeOptions, source, statementIndex, itemIndex, {
+      implicitFlags: context.syntheticNodeImplicitFlags
+    });
     context.syntheticNodeEmitted = true;
     context.pendingNodeOptions = [];
     return synthetic;
@@ -167,11 +176,16 @@ function normalizePathCommand(commandText: string): PathCommand {
     case "shadedraw":
     case "useasboundingbox":
     case "node":
+    case "matrix":
     case "coordinate":
-      return normalized;
+      return normalized === "matrix" ? "node" : normalized;
     default:
       return "path";
   }
+}
+
+function isMatrixCommand(commandText: string): boolean {
+  return commandText.trim().replace(/^\\/, "").toLowerCase() === "matrix";
 }
 
 function isDirectPathItemNode(name: string): boolean {

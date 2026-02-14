@@ -8,8 +8,9 @@ declare module "mathjax" {
   type MathJaxRuntime = {
     tex2svg(tex: string, options: { display: boolean }): unknown;
     tex2svgPromise?: (tex: string, options: { display: boolean }) => Promise<unknown>;
-    startup: {
-      adaptor: MathJaxAdaptor;
+    startup?: {
+      adaptor?: MathJaxAdaptor;
+      promise?: Promise<unknown>;
     };
   };
 
@@ -20,3 +21,5 @@ declare module "mathjax" {
   const MathJax: MathJaxEntrypoint;
   export default MathJax;
 }
+
+declare module "mathjax/tex-svg.js";

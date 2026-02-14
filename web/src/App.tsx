@@ -6,6 +6,7 @@ import { basicSetup } from "codemirror";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
+import type { RenderDiagnostic } from "tikz-editor/render/index";
 import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import { tikzLanguage } from "./codemirror-tikz";
 import { TreeView } from "./TreeView";
@@ -62,6 +63,7 @@ export function App() {
   const viewRef = useRef<EditorView | null>(null);
   const appBodyRef = useRef<HTMLDivElement>(null);
   const renderRequestRef = useRef(0);
+  const parseDebounceTimerRef = useRef<number | null>(null);
   const dragRef = useRef<{
     left: PaneId;
     right: PaneId;
@@ -73,6 +75,7 @@ export function App() {
   const [parseResult, setParseResult] = useState<ParseTikzResult | null>(null);
   const [semanticResult, setSemanticResult] = useState<EvaluateTikzResult | null>(null);
   const [svgResult, setSvgResult] = useState<EmitSvgResult | null>(null);
+  const [renderDiagnostics, setRenderDiagnostics] = useState<RenderDiagnostic[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [source, setSource] = useState(defaultSource);
   const [paneVisibility, setPaneVisibility] = useState<Record<PaneId, boolean>>({
@@ -96,6 +99,7 @@ export function App() {
     void (async () => {
       try {
         const rendered = await renderTikzToSvgAsync(src, {
+          validateNodeText: false,
           parse: { recover: true },
           svg: { padding: 18 }
         });
@@ -105,6 +109,7 @@ export function App() {
         setParseResult(rendered.parse);
         setSemanticResult(rendered.semantic);
         setSvgResult(rendered.svg);
+        setRenderDiagnostics(rendered.renderDiagnostics);
         setParseError(null);
       } catch (error) {
         if (renderRequestRef.current !== requestId) {
@@ -113,10 +118,24 @@ export function App() {
         setParseResult(null);
         setSemanticResult(null);
         setSvgResult(null);
+        setRenderDiagnostics([]);
         setParseError(error instanceof Error ? error.message : String(error));
       }
     })();
   }, []);
+
+  const queueParse = useCallback(
+    (src: string) => {
+      if (parseDebounceTimerRef.current != null) {
+        window.clearTimeout(parseDebounceTimerRef.current);
+      }
+      parseDebounceTimerRef.current = window.setTimeout(() => {
+        parseDebounceTimerRef.current = null;
+        runParse(src);
+      }, 35);
+    },
+    [runParse]
+  );
 
   useEffect(() => {
     if (!editorRef.current) {
@@ -129,7 +148,7 @@ export function App() {
       }
       const nextSource = update.state.doc.toString();
       setSource(nextSource);
-      runParse(nextSource);
+      queueParse(nextSource);
     });
 
     const state = EditorState.create({
@@ -145,9 +164,13 @@ export function App() {
     runParse(defaultSource);
 
     return () => {
+      if (parseDebounceTimerRef.current != null) {
+        window.clearTimeout(parseDebounceTimerRef.current);
+        parseDebounceTimerRef.current = null;
+      }
       view.destroy();
     };
-  }, [runParse]);
+  }, [queueParse, runParse]);
 
   useEffect(() => {
     function onMouseMove(event: MouseEvent): void {
@@ -250,7 +273,9 @@ export function App() {
               {paneId === "ir" && (
                 <IrView parseResult={parseResult} semanticResult={semanticResult} parseError={parseError} />
               )}
-              {paneId === "svg" && <SvgView parseError={parseError} svgResult={svgResult} />}
+              {paneId === "svg" && (
+                <SvgView parseError={parseError} svgResult={svgResult} renderDiagnostics={renderDiagnostics} />
+              )}
             </section>
             {index < visiblePaneIds.length - 1 && (
               <div
@@ -362,10 +387,12 @@ function IrView({
 
 function SvgView({
   parseError,
-  svgResult
+  svgResult,
+  renderDiagnostics
 }: {
   parseError: string | null;
   svgResult: EmitSvgResult | null;
+  renderDiagnostics: RenderDiagnostic[];
 }) {
   if (parseError) {
     return <div className="ir-view ir-error">{parseError}</div>;
@@ -384,6 +411,16 @@ function SvgView({
         </span>
         <span>Emitter diagnostics: {svgResult.diagnostics.length}</span>
       </div>
+      {renderDiagnostics.length > 0 && (
+        <div className="svg-diagnostics">
+          {renderDiagnostics.map((diagnostic, index) => (
+            <div key={index} className={`svg-diagnostic ${diagnostic.severity}`}>
+              <code>{diagnostic.code}</code>
+              <span>{diagnostic.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="svg-canvas" dangerouslySetInnerHTML={{ __html: svgResult.svg }} />
     </div>
   );

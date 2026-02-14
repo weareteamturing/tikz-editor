@@ -14,6 +14,7 @@ export const FEATURE_IDS = [
   "path_cycle",
   "shape_rectangle",
   "shape_circle",
+  "matrix_node",
   "named_coordinates",
   "to_operation",
   "svg_operation",

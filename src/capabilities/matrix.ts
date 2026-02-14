@@ -111,6 +111,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["circle_shape"]
   },
+  matrix_node: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["matrix_basic"]
+  },
   named_coordinates: {
     parser: "stable",
     semantic: "partial",

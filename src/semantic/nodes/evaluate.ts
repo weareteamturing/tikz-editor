@@ -13,6 +13,7 @@ import {
   resolveNodeBoxPaintMode
 } from "./elements.js";
 import { resolveNodeLayout } from "./layout.js";
+import { evaluateMatrixNodeItem, resolveMatrixMode } from "./matrix.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
 import {
   computeTransformScale,
@@ -60,7 +61,6 @@ export function evaluateNodeItem(
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
   const transformScale = inheritedTransformScale * nodeOptionScale;
   const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
-  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
   const nodeShape = resolveNodeShape(effectiveNodeOptions);
   const anchor = resolveNodeAnchor(effectiveNodeOptions);
   const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, segment);
@@ -68,6 +68,31 @@ export function evaluateNodeItem(
   for (const code of resolvedPositioning.diagnostics) {
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
   }
+
+  const matrixMode = resolveMatrixMode(effectiveNodeOptions);
+  if (matrixMode.enabled) {
+    return evaluateMatrixNodeItem({
+      item,
+      statement,
+      context,
+      style,
+      markFeature,
+      pushDiagnostic,
+      forcedName,
+      matrixMode,
+      nodeShape,
+      nodeStyle,
+      effectiveNodeOptions,
+      effectiveNodeLocalOptions,
+      inheritedTransformScale,
+      resolvedPositioning,
+      fallbackAnchor: resolvedPositioning.anchorOverride ?? anchor,
+      evaluateNestedNode: (matrixCellItem) =>
+        evaluateNodeItem(matrixCellItem, statement, context, style, markFeature, pushDiagnostic, null)
+    });
+  }
+
+  const nodeLayout = resolveNodeLayout(item.text, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,

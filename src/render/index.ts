@@ -8,18 +8,28 @@ import { createMathJaxNodeTextEngine } from "../text/mathjax-engine.js";
 import type { NodeTextEngine } from "../text/types.js";
 
 let mathJaxEngineUnavailable = false;
+let mathJaxEngineUnavailableReason: string | null = null;
+let lastMathJaxWarning: string | null = null;
 
 export type RenderTikzOptions = {
   parse?: ParseTikzOptions;
   evaluate?: EvaluateOptions;
   svg?: EmitSvgOptions;
   textEngine?: NodeTextEngine | null;
+  validateNodeText?: boolean;
+};
+
+export type RenderDiagnostic = {
+  code: string;
+  message: string;
+  severity: "warning" | "error";
 };
 
 export type RenderTikzToSvgResult = {
   parse: ParseTikzResult;
   semantic: EvaluateTikzResult;
   svg: EmitSvgResult;
+  renderDiagnostics: RenderDiagnostic[];
 };
 
 export function renderTikzToSvg(source: string, opts: RenderTikzOptions = {}): RenderTikzToSvgResult {
@@ -30,19 +40,44 @@ export function renderTikzToSvg(source: string, opts: RenderTikzOptions = {}): R
   return {
     parse: parseResult,
     semantic: semanticResult,
-    svg: svgResult
+    svg: svgResult,
+    renderDiagnostics: []
   };
 }
 
 export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptions = {}): Promise<RenderTikzToSvgResult> {
+  const renderDiagnostics: RenderDiagnostic[] = [];
   const providedEngine = opts.textEngine ?? opts.evaluate?.textEngine ?? opts.svg?.textEngine ?? null;
   let textEngine = providedEngine;
-  if (!textEngine && !mathJaxEngineUnavailable) {
+  const browserRuntime = hasBrowserDomGlobals();
+  const useDefaultNodeTextValidator = opts.validateNodeText ?? true;
+  if (!textEngine && !browserRuntime && mathJaxEngineUnavailable) {
+    renderDiagnostics.push({
+      code: "mathjax-engine-unavailable",
+      message:
+        mathJaxEngineUnavailableReason ??
+        "MathJax text engine is unavailable in this runtime; using plain SVG text fallback.",
+      severity: "warning"
+    });
+  } else if (!textEngine && (!mathJaxEngineUnavailable || browserRuntime)) {
     try {
       textEngine = await createMathJaxNodeTextEngine();
-    } catch {
+      if (!browserRuntime) {
+        mathJaxEngineUnavailableReason = null;
+      }
+    } catch (error) {
+      const message = describeMathJaxFailure(error);
       textEngine = null;
-      mathJaxEngineUnavailable = true;
+      renderDiagnostics.push({
+        code: "mathjax-engine-unavailable",
+        message,
+        severity: "warning"
+      });
+      logMathJaxWarning(message);
+      if (!browserRuntime) {
+        mathJaxEngineUnavailable = true;
+        mathJaxEngineUnavailableReason = message;
+      }
     }
   }
 
@@ -50,7 +85,7 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
     ...(opts.parse ?? {}),
     nodeTextValidator:
       opts.parse?.nodeTextValidator ??
-      (textEngine
+      (useDefaultNodeTextValidator && textEngine
         ? ({ node }) => {
             return textEngine?.validate(node.text) ?? null;
           }
@@ -74,6 +109,31 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
   return {
     parse: parseResult,
     semantic: semanticResult,
-    svg: svgResult
+    svg: svgResult,
+    renderDiagnostics
   };
+}
+
+function hasBrowserDomGlobals(): boolean {
+  const candidate = globalThis as { window?: unknown; document?: unknown };
+  return candidate.window != null && candidate.document != null;
+}
+
+function describeMathJaxFailure(error: unknown): string {
+  const details = error instanceof Error ? error.message : String(error);
+  const normalizedDetails = details.trim();
+  if (!normalizedDetails) {
+    return "MathJax text engine initialization failed; falling back to plain SVG text rendering.";
+  }
+  return `MathJax text engine initialization failed; falling back to plain SVG text rendering. (${normalizedDetails})`;
+}
+
+function logMathJaxWarning(message: string): void {
+  if (lastMathJaxWarning === message) {
+    return;
+  }
+  lastMathJaxWarning = message;
+  if (typeof console !== "undefined" && typeof console.warn === "function") {
+    console.warn(`[tikz-editor] ${message}`);
+  }
 }
