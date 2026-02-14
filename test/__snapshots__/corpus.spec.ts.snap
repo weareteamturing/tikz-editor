@@ -32,8 +32,8 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "semanticErrorSnippets": 279,
     "semanticUnsupportedRate": 0.6488,
     "semanticUnsupportedSnippets": 1419,
-    "semanticWarningRate": 0.6534,
-    "semanticWarningSnippets": 1429,
+    "semanticWarningRate": 0.6529,
+    "semanticWarningSnippets": 1428,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2721,

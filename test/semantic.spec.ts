@@ -224,6 +224,29 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("accepts braced shift vectors in scope options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift={(0.2,0)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(5.6906, 3);
+        expect(move.to.y).toBeCloseTo(0, 3);
+      }
+    }
+  });
+
   it("expands foreach statements and attaches provenance metadata", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {0,1}

@@ -527,13 +527,14 @@ export function applyKvEntry(
     return { style, transform: multiplyMatrix(transform, translationMatrix(0, shift)), diagnostics: [] };
   }
   if (key === "shift") {
-    const vector = parseCoordinateLike(valueRaw);
+    const normalizedShift = normalizeOptionValue(valueRaw);
+    const vector = parseCoordinateLike(normalizedShift);
     if (!vector) {
       return { style, transform, diagnostics: [`invalid-shift:${valueRaw}`] };
     }
 
-    const x = parseLength(vector.x, "pt");
-    const y = parseLength(vector.y, "pt");
+    const x = parseLength(vector.x, "cm");
+    const y = parseLength(vector.y, "cm");
     if (x == null || y == null) {
       return { style, transform, diagnostics: [`invalid-shift:${valueRaw}`] };
     }

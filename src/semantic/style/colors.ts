@@ -61,26 +61,44 @@ export function clamp01(value: number): number {
 }
 
 function parseMixedColor(raw: string): string | null {
-  const match = raw.match(/^([a-z]+)!([0-9]{1,3})(?:!([a-z]+))?$/i);
-  if (!match) {
+  const parts = raw.split("!").map((part) => part.trim());
+  if (parts.length <= 1 || !parts[0]) {
     return null;
   }
 
-  const first = match[1].toLowerCase();
-  const second = (match[3] ?? "white").toLowerCase();
-  const pct = Number(match[2]);
-  if (!(first in COLOR_HEX) || !(second in COLOR_HEX) || !Number.isFinite(pct)) {
+  let current = toRgbColor(parts[0]);
+  if (!current) {
     return null;
   }
 
-  const t = clamp01(pct / 100);
-  const c1 = hexToRgb(COLOR_HEX[first]);
-  const c2 = hexToRgb(COLOR_HEX[second]);
-  return rgbToHex({
-    r: Math.round(c1.r * t + c2.r * (1 - t)),
-    g: Math.round(c1.g * t + c2.g * (1 - t)),
-    b: Math.round(c1.b * t + c2.b * (1 - t))
-  });
+  let cursor = 1;
+  while (cursor < parts.length) {
+    const percentageRaw = parts[cursor];
+    const percentage = Number(percentageRaw);
+    if (!percentageRaw || !Number.isFinite(percentage)) {
+      return null;
+    }
+    cursor += 1;
+
+    const mixColorName = parts[cursor] && parts[cursor].length > 0 ? parts[cursor] : "white";
+    if (parts[cursor] && parts[cursor].length > 0) {
+      cursor += 1;
+    }
+
+    const mixColor = toRgbColor(mixColorName);
+    if (!mixColor) {
+      return null;
+    }
+
+    const t = clamp01(percentage / 100);
+    current = {
+      r: current.r * t + mixColor.r * (1 - t),
+      g: current.g * t + mixColor.g * (1 - t),
+      b: current.b * t + mixColor.b * (1 - t)
+    };
+  }
+
+  return rgbToHex(current);
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -98,7 +116,7 @@ function rgbToHex(rgb: { r: number; g: number; b: number }): string {
   return (
     "#" +
     [rgb.r, rgb.g, rgb.b]
-      .map((component) => Math.max(0, Math.min(255, component)))
+      .map((component) => Math.round(Math.max(0, Math.min(255, component))))
       .map((component) => component.toString(16).padStart(2, "0"))
       .join("")
   );
