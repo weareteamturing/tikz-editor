@@ -1,4 +1,4 @@
-import type { SceneElement, SceneFigure, ScenePathCommand } from "../semantic/types.js";
+import type { ArrowMarker, ArrowTip, SceneElement, SceneFigure, ScenePath, ScenePathCommand } from "../semantic/types.js";
 import { computeViewBox } from "./viewbox.js";
 import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
 
@@ -8,8 +8,22 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
   const diagnostics: EmitSvgResult["diagnostics"] = [];
   const body: string[] = [];
-  let usesArrowMarker = false;
-  let usesBarMarker = false;
+  const markerIdBySignature = new Map<string, string>();
+  const markerDefById = new Map<string, string>();
+
+  const ensureMarkerDefinition = (marker: ArrowMarker): string => {
+    const signature = markerSignature(marker);
+    const existing = markerIdBySignature.get(signature);
+    if (existing) {
+      return existing;
+    }
+
+    const preferredId = preferredMarkerId(marker);
+    const id = preferredId && !markerDefById.has(preferredId) ? preferredId : `tikz-marker-${markerIdBySignature.size + 1}`;
+    markerIdBySignature.set(signature, id);
+    markerDefById.set(id, renderMarkerDefinition(id, marker));
+    return id;
+  };
 
   for (const element of scene.elements) {
     if (element.kind === "Path") {
@@ -29,21 +43,17 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         });
         continue;
       }
-      if (element.style.markerStart === "arrow" || element.style.markerEnd === "arrow") {
-        usesArrowMarker = true;
-      }
-      if (element.style.markerStart === "bar" || element.style.markerEnd === "bar") {
-        usesBarMarker = true;
-      }
+
+      const markerAttrs = resolvePathMarkers(element, ensureMarkerDefinition);
       if (shouldEmitDoubleStroke(element.style)) {
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance
         });
-        if (element.style.markerStart) {
-          outerAttrs.push(`marker-start="url(#tikz-${element.style.markerStart})"`);
+        if (markerAttrs.startId) {
+          outerAttrs.push(`marker-start="url(#${markerAttrs.startId})"`);
         }
-        if (element.style.markerEnd) {
-          outerAttrs.push(`marker-end="url(#tikz-${element.style.markerEnd})"`);
+        if (markerAttrs.endId) {
+          outerAttrs.push(`marker-end="url(#${markerAttrs.endId})"`);
         }
         body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
         const innerAttrs = styleAttributes(element.style, false, {
@@ -56,11 +66,11 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
       }
 
       const attrs = styleAttributes(element.style);
-      if (element.style.markerStart) {
-        attrs.push(`marker-start="url(#tikz-${element.style.markerStart})"`);
+      if (markerAttrs.startId) {
+        attrs.push(`marker-start="url(#${markerAttrs.startId})"`);
       }
-      if (element.style.markerEnd) {
-        attrs.push(`marker-end="url(#tikz-${element.style.markerEnd})"`);
+      if (markerAttrs.endId) {
+        attrs.push(`marker-end="url(#${markerAttrs.endId})"`);
       }
       body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
       continue;
@@ -135,17 +145,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }
 
-  const defsParts: string[] = [];
-  if (usesArrowMarker) {
-    defsParts.push(
-      `<marker id="tikz-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" /></marker>`
-    );
-  }
-  if (usesBarMarker) {
-    defsParts.push(
-      `<marker id="tikz-bar" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 5 0 L 5 10" stroke="currentColor" stroke-width="1.6" fill="none" /></marker>`
-    );
-  }
+  const defsParts = [...markerDefById.values()];
   const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
 
   const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
@@ -187,6 +187,200 @@ function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; heig
     chunks.push(`${command.kind} ${fmt(point.x)} ${fmt(point.y)}`);
   }
   return chunks.join(" ");
+}
+
+function markerSignature(marker: ArrowMarker): string {
+  return JSON.stringify(marker);
+}
+
+function preferredMarkerId(marker: ArrowMarker): string | null {
+  if (isDefaultArrowMarker(marker)) {
+    return "tikz-arrow";
+  }
+  if (isDefaultBarMarker(marker)) {
+    return "tikz-bar";
+  }
+  return null;
+}
+
+function isDefaultArrowMarker(marker: ArrowMarker): boolean {
+  const tip = marker.tips[0];
+  if (!tip || marker.tips.length !== 1) {
+    return false;
+  }
+  return (
+    tip.kind === "to" &&
+    !tip.open &&
+    !tip.round &&
+    tip.color == null &&
+    tip.fill == null &&
+    Math.abs(tip.length - 8) <= 1e-6 &&
+    Math.abs(tip.width - 6) <= 1e-6 &&
+    tip.lineWidth == null
+  );
+}
+
+function isDefaultBarMarker(marker: ArrowMarker): boolean {
+  const tip = marker.tips[0];
+  if (!tip || marker.tips.length !== 1) {
+    return false;
+  }
+  return (
+    tip.kind === "bar" &&
+    tip.open &&
+    !tip.round &&
+    tip.color == null &&
+    tip.fill === "none" &&
+    Math.abs(tip.length - 4) <= 1e-6 &&
+    Math.abs(tip.width - 8) <= 1e-6 &&
+    tip.lineWidth == null
+  );
+}
+
+function resolvePathMarkers(
+  path: ScenePath,
+  ensureMarkerDefinition: (marker: ArrowMarker) => string
+): { startId: string | null; endId: string | null } {
+  if (!shouldEmitPathMarkers(path)) {
+    return { startId: null, endId: null };
+  }
+
+  return {
+    startId: path.style.markerStart ? ensureMarkerDefinition(path.style.markerStart) : null,
+    endId: path.style.markerEnd ? ensureMarkerDefinition(path.style.markerEnd) : null
+  };
+}
+
+function shouldEmitPathMarkers(path: ScenePath): boolean {
+  if (!path.style.markerStart && !path.style.markerEnd) {
+    return false;
+  }
+
+  if (path.style.tipsMode === "never") {
+    return false;
+  }
+
+  if (path.commands.some((command) => command.kind === "Z")) {
+    return false;
+  }
+
+  const hasDrawableSegment = path.commands.some(
+    (command) => command.kind === "L" || command.kind === "C" || command.kind === "A"
+  );
+  if (!hasDrawableSegment && (path.style.tipsMode === "proper" || path.style.tipsMode === "on proper draw")) {
+    return false;
+  }
+
+  const drawEnabled = path.style.drawExplicit || (path.style.stroke != null && path.style.stroke !== "none");
+  if ((path.style.tipsMode === "on draw" || path.style.tipsMode === "on proper draw") && !drawEnabled) {
+    return false;
+  }
+
+  return true;
+}
+
+function renderMarkerDefinition(id: string, marker: ArrowMarker): string {
+  const shapes: string[] = [];
+  let offset = 0;
+  let minX = 0;
+  let maxX = 0;
+  let maxHalfWidth = 1;
+
+  for (const tip of marker.tips) {
+    const normalized = normalizeArrowTip(tip);
+    const tipX = -offset;
+    const baseX = tipX - normalized.length;
+    minX = Math.min(minX, baseX - 1);
+    maxX = Math.max(maxX, tipX + 1);
+    maxHalfWidth = Math.max(maxHalfWidth, normalized.width / 2 + 1);
+    shapes.push(renderArrowTipShape(normalized, baseX, tipX));
+    offset += normalized.length + 0.8;
+  }
+
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(2, maxHalfWidth * 2);
+  return (
+    `<marker id="${escapeAttr(id)}" viewBox="${fmt(minX)} ${fmt(-maxHalfWidth)} ${fmt(width)} ${fmt(height)}" ` +
+    `refX="0" refY="0" markerUnits="userSpaceOnUse" markerWidth="${fmt(width)}" markerHeight="${fmt(height)}" orient="auto-start-reverse">` +
+    shapes.join("") +
+    `</marker>`
+  );
+}
+
+function normalizeArrowTip(tip: ArrowTip): ArrowTip {
+  return {
+    ...tip,
+    length: Math.max(1, tip.length),
+    width: Math.max(1, tip.width)
+  };
+}
+
+function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string {
+  const halfWidth = tip.width / 2;
+  const color = tip.color ?? "context-stroke";
+  const strokeLinejoin = tip.round ? "round" : "miter";
+  const strokeLinecap = tip.round ? "round" : "butt";
+  const strokeWidth = tip.lineWidth ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? 1 : 0);
+  const fill = tip.fill ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? "none" : color);
+  const stroke = strokeWidth > 0 ? color : "none";
+
+  if (tip.kind === "bar") {
+    const x = (tipX + baseX) / 2;
+    return (
+      `<path d="M ${fmt(x)} ${fmt(-halfWidth)} L ${fmt(x)} ${fmt(halfWidth)}" ` +
+      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.6)}" ` +
+      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  if (tip.kind === "hooks") {
+    const controlX = tipX - tip.length * 0.55;
+    return (
+      `<path d="M ${fmt(tipX)} 0 Q ${fmt(controlX)} ${fmt(-halfWidth)} ${fmt(baseX)} ${fmt(-halfWidth)} ` +
+      `M ${fmt(tipX)} 0 Q ${fmt(controlX)} ${fmt(halfWidth)} ${fmt(baseX)} ${fmt(halfWidth)}" ` +
+      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.1)}" ` +
+      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  if (tip.kind === "implies") {
+    const midX = tipX - tip.length * 0.38;
+    return (
+      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(midX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(midX)} ${fmt(halfWidth)} L ${fmt(baseX)} ${fmt(halfWidth)} z" ` +
+      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />` +
+      `<path d="M ${fmt(baseX + tip.length * 0.35)} ${fmt(-halfWidth * 0.7)} L ${fmt(midX + tip.length * 0.35)} ${fmt(-halfWidth * 0.7)} L ${fmt(tipX + tip.length * 0.35)} 0 L ${fmt(midX + tip.length * 0.35)} ${fmt(halfWidth * 0.7)} L ${fmt(baseX + tip.length * 0.35)} ${fmt(halfWidth * 0.7)} z" ` +
+      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  if (tip.kind === "stealth") {
+    const insetX = baseX + tip.length * 0.3;
+    return (
+      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} L ${fmt(insetX)} 0 z" ` +
+      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  if (tip.kind === "latex") {
+    const neckX = baseX + tip.length * 0.12;
+    return (
+      `<path d="M ${fmt(neckX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(neckX)} ${fmt(halfWidth)} z" ` +
+      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  if (tip.kind === "triangle") {
+    return (
+      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} z" ` +
+      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+    );
+  }
+
+  const notchX = baseX + tip.length * 0.24;
+  return (
+    `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} L ${fmt(notchX)} 0 z" ` +
+    `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
+  );
 }
 
 function styleAttributes(

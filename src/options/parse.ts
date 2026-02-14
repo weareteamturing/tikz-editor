@@ -78,7 +78,7 @@ function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: numbe
     };
   }
 
-  if (/^(<-|->|<->|\|-\||[A-Za-z][A-Za-z0-9 -]*)$/.test(token)) {
+  if (/^(<-|->|<->|\|-\||[A-Za-z][A-Za-z0-9 -]*)$/.test(token) || looksLikeArrowSpecification(token)) {
     return {
       kind: "flag",
       key: token.trim().toLowerCase(),
@@ -92,6 +92,25 @@ function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: numbe
     span,
     raw: token
   };
+}
+
+function looksLikeArrowSpecification(token: string): boolean {
+  const trimmed = token.trim();
+  if (trimmed.length === 0 || !trimmed.includes("-")) {
+    return false;
+  }
+
+  if (findTopLevelSeparator(trimmed, "-") < 0) {
+    return false;
+  }
+
+  const hasArrowSyntax = /[<>\|\{\}\[\]]/.test(trimmed);
+  const hasKnownArrowName = /\b(stealth|latex|triangle|bar|hooks|to|implies|rightarrow)\b/i.test(trimmed);
+  if (!hasArrowSyntax && !hasKnownArrowName) {
+    return false;
+  }
+
+  return /^[A-Za-z0-9<>\-\|\{\}\[\].' ]+$/.test(trimmed);
 }
 
 function findOptionCloseIndex(raw: string): number {

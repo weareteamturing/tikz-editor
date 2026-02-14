@@ -5,6 +5,25 @@ export type Point = {
   y: number;
 };
 
+export type ArrowTipKind = "to" | "cm-rightarrow" | "stealth" | "latex" | "triangle" | "bar" | "hooks" | "implies";
+
+export type ArrowTip = {
+  kind: ArrowTipKind;
+  open: boolean;
+  round: boolean;
+  color: string | null;
+  fill: string | null;
+  length: number;
+  width: number;
+  lineWidth: number | null;
+};
+
+export type ArrowMarker = {
+  tips: ArrowTip[];
+};
+
+export type TipsMode = "true" | "proper" | "on draw" | "on proper draw" | "never";
+
 export type Bounds = {
   minX: number;
   minY: number;
@@ -101,8 +120,11 @@ export type ResolvedStyle = {
   dashOffset: number;
   lineCap: "butt" | "round" | "square";
   lineJoin: "miter" | "round" | "bevel";
-  markerStart: "arrow" | "bar" | null;
-  markerEnd: "arrow" | "bar" | null;
+  markerStart: ArrowMarker | null;
+  markerEnd: ArrowMarker | null;
+  arrowShorthandStart: ArrowMarker;
+  arrowShorthandEnd: ArrowMarker;
+  tipsMode: TipsMode;
   opacity: number;
   strokeOpacity: number;
   fillOpacity: number;

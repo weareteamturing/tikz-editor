@@ -1,7 +1,7 @@
 import type { PathCommand } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { Matrix2D, ResolvedStyle } from "../types.js";
+import type { ArrowMarker, ArrowTip, ArrowTipKind, Matrix2D, ResolvedStyle, TipsMode } from "../types.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 
@@ -155,6 +155,28 @@ const NON_STYLE_OPTION_FLAGS = new Set([
 const PT_PER_CM = parseLength("1cm", "cm") ?? 28.4527559055;
 export const DEFAULT_TEXT_FONT_SIZE = 9.96264;
 const DEFAULT_DOUBLE_DISTANCE = 0.6;
+const DEFAULT_ARROW_LENGTH = 8;
+const DEFAULT_ARROW_WIDTH = 6;
+
+const ARROW_NAME_ALIASES: Array<{ name: string; kind: ArrowTipKind }> = [
+  { name: "computer modern rightarrow", kind: "cm-rightarrow" },
+  { name: "classical tikz rightarrow", kind: "to" },
+  { name: "rightarrow", kind: "cm-rightarrow" },
+  { name: "straight barb", kind: "bar" },
+  { name: "tee barb", kind: "bar" },
+  { name: "arc barb", kind: "hooks" },
+  { name: "triangle cap", kind: "triangle" },
+  { name: "fast triangle", kind: "triangle" },
+  { name: "round cap", kind: "bar" },
+  { name: "bracket", kind: "bar" },
+  { name: "implies", kind: "implies" },
+  { name: "stealth", kind: "stealth" },
+  { name: "latex", kind: "latex" },
+  { name: "triangle", kind: "triangle" },
+  { name: "hooks", kind: "hooks" },
+  { name: "bar", kind: "bar" },
+  { name: "to", kind: "to" }
+].sort((left, right) => right.name.length - left.name.length);
 
 export type ResolvedContextDelta = {
   style: ResolvedStyle;
@@ -163,6 +185,7 @@ export type ResolvedContextDelta = {
 };
 
 export function defaultStyle(): ResolvedStyle {
+  const defaultTip = makeDefaultArrowMarker("to");
   return {
     stroke: "black",
     fill: null,
@@ -186,6 +209,9 @@ export function defaultStyle(): ResolvedStyle {
     lineJoin: "miter",
     markerStart: null,
     markerEnd: null,
+    arrowShorthandStart: cloneArrowMarker(defaultTip),
+    arrowShorthandEnd: cloneArrowMarker(defaultTip),
+    tipsMode: "on draw",
     opacity: 1,
     strokeOpacity: 1,
     fillOpacity: 1
@@ -269,11 +295,15 @@ function applyOptionEntry(
   transform: Matrix2D
 ): { style: ResolvedStyle; transform: Matrix2D; diagnostics: string[] } {
   if (entry.kind === "unknown") {
+    const parsedArrow = parseArrowSpecification(entry.raw, style);
+    if (parsedArrow) {
+      return { style: { ...style, markerStart: parsedArrow.start, markerEnd: parsedArrow.end }, transform, diagnostics: [] };
+    }
     return { style, transform, diagnostics: [] };
   }
 
   if (entry.kind === "flag") {
-    return applyFlagEntry(entry.key, style, transform);
+    return applyFlagEntry(entry.key, entry.raw, style, transform);
   }
 
   return applyKvEntry(entry.key, entry.valueRaw, style, transform);
@@ -281,6 +311,7 @@ function applyOptionEntry(
 
 function applyFlagEntry(
   key: string,
+  raw: string,
   style: ResolvedStyle,
   transform: Matrix2D
 ): { style: ResolvedStyle; transform: Matrix2D; diagnostics: string[] } {
@@ -317,17 +348,11 @@ function applyFlagEntry(
   if (key === "thin") {
     return { style: { ...style, lineWidth: 0.4 }, transform, diagnostics: [] };
   }
-  if (key === "->") {
-    return { style: { ...style, markerEnd: "arrow" }, transform, diagnostics: [] };
-  }
-  if (key === "<-") {
-    return { style: { ...style, markerStart: "arrow" }, transform, diagnostics: [] };
-  }
-  if (key === "<->") {
-    return { style: { ...style, markerStart: "arrow", markerEnd: "arrow" }, transform, diagnostics: [] };
-  }
-  if (key === "|-|") {
-    return { style: { ...style, markerStart: "bar", markerEnd: "bar" }, transform, diagnostics: [] };
+  if (key.includes("-") || raw.includes("-")) {
+    const parsedArrow = parseArrowSpecification(raw, style);
+    if (parsedArrow) {
+      return { style: { ...style, markerStart: parsedArrow.start, markerEnd: parsedArrow.end }, transform, diagnostics: [] };
+    }
   }
   if (key === "solid") {
     return { style: { ...style, dashArray: null, dashOffset: 0 }, transform, diagnostics: [] };
@@ -409,6 +434,35 @@ function applyKvEntry(
     }
 
     return { style: nextStyle, transform: nextTransform, diagnostics };
+  }
+
+  if (key === "arrows") {
+    const parsed = parseArrowSpecification(valueRaw, style);
+    if (!parsed) {
+      return { style, transform, diagnostics: [] };
+    }
+    return { style: { ...style, markerStart: parsed.start, markerEnd: parsed.end }, transform, diagnostics: [] };
+  }
+  if (key === ">") {
+    const parsed = parseArrowSideSpecification(valueRaw, "end", style);
+    if (!parsed) {
+      return { style, transform, diagnostics: [] };
+    }
+    return { style: { ...style, arrowShorthandEnd: parsed }, transform, diagnostics: [] };
+  }
+  if (key === "<") {
+    const parsed = parseArrowSideSpecification(valueRaw, "start", style);
+    if (!parsed) {
+      return { style, transform, diagnostics: [] };
+    }
+    return { style: { ...style, arrowShorthandStart: parsed }, transform, diagnostics: [] };
+  }
+  if (key === "tips") {
+    const parsed = parseTipsMode(valueRaw);
+    if (!parsed) {
+      return { style, transform, diagnostics: [`invalid-tips:${valueRaw}`] };
+    }
+    return { style: { ...style, tipsMode: parsed }, transform, diagnostics: [] };
   }
 
   if (key === "fill") {
@@ -756,6 +810,480 @@ function clamp01(value: number): number {
     return 1;
   }
   return value;
+}
+
+function parseTipsMode(raw: string): TipsMode | null {
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === "true" || normalized.length === 0) {
+    return "true";
+  }
+  if (normalized === "proper") {
+    return "proper";
+  }
+  if (normalized === "on draw") {
+    return "on draw";
+  }
+  if (normalized === "on proper draw") {
+    return "on proper draw";
+  }
+  if (normalized === "false" || normalized === "never") {
+    return "never";
+  }
+  return null;
+}
+
+function parseArrowSpecification(raw: string, style: ResolvedStyle): { start: ArrowMarker | null; end: ArrowMarker | null } | null {
+  const trimmed = stripEnclosingBraces(raw.trim());
+  if (!trimmed.includes("-")) {
+    return null;
+  }
+
+  const splitIndex = findTopLevelCharacter(trimmed, "-");
+  if (splitIndex < 0) {
+    return null;
+  }
+
+  const startRaw = trimmed.slice(0, splitIndex).trim();
+  const endRaw = trimmed.slice(splitIndex + 1).trim();
+  const start = parseArrowSideSpecification(startRaw, "start", style);
+  const end = parseArrowSideSpecification(endRaw, "end", style);
+
+  return {
+    start,
+    end
+  };
+}
+
+function parseArrowSideSpecification(raw: string, side: "start" | "end", style: ResolvedStyle): ArrowMarker | null {
+  const input = stripEnclosingBraces(raw.trim());
+  if (input.length === 0) {
+    return null;
+  }
+
+  const tips: ArrowTip[] = [];
+  let cursor = 0;
+  while (cursor < input.length) {
+    while (cursor < input.length && (/\s/.test(input[cursor] ?? "") || input[cursor] === ".")) {
+      cursor += 1;
+    }
+    if (cursor >= input.length) {
+      break;
+    }
+
+    const char = input[cursor];
+    if (char === "{") {
+      const group = readBalancedBlock(input, cursor, "{", "}");
+      if (!group) {
+        break;
+      }
+      const nested = parseArrowSideSpecification(group.content, side, style);
+      if (nested) {
+        tips.push(...nested.tips.map(cloneArrowTip));
+      }
+      cursor = group.nextIndex;
+      continue;
+    }
+
+    if (char === ">" || char === "<" || char === "|") {
+      cursor += 1;
+      const optionBlock = readOptionalBracketOptions(input, cursor);
+      cursor = optionBlock.nextIndex;
+      const baseTips = expandArrowSymbol(char, side, style);
+      for (const tip of baseTips) {
+        tips.push(applyArrowTipOptions(tip, optionBlock.optionsRaw));
+      }
+      continue;
+    }
+
+    const named = readArrowNamedTip(input, cursor);
+    if (!named) {
+      cursor += 1;
+      continue;
+    }
+    cursor = named.nextIndex;
+    const optionBlock = readOptionalBracketOptions(input, cursor);
+    cursor = optionBlock.nextIndex;
+    const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name)), optionBlock.optionsRaw);
+    tips.push(tip);
+  }
+
+  return tips.length > 0 ? { tips } : null;
+}
+
+function expandArrowSymbol(symbol: ">" | "<" | "|", side: "start" | "end", style: ResolvedStyle): ArrowTip[] {
+  if (symbol === "|") {
+    return [makeDefaultArrowTip("bar")];
+  }
+
+  if (symbol === "<") {
+    if (style.arrowShorthandStart.tips.length > 0) {
+      return style.arrowShorthandStart.tips.map(cloneArrowTip);
+    }
+    return [makeDefaultArrowTip(side === "start" ? "to" : "cm-rightarrow")];
+  }
+
+  if (style.arrowShorthandEnd.tips.length > 0) {
+    return style.arrowShorthandEnd.tips.map(cloneArrowTip);
+  }
+  return [makeDefaultArrowTip("to")];
+}
+
+function resolveArrowTipKind(rawName: string): ArrowTipKind {
+  const normalized = rawName.trim().toLowerCase();
+  for (const alias of ARROW_NAME_ALIASES) {
+    if (normalized === alias.name) {
+      return alias.kind;
+    }
+  }
+  if (normalized.includes("stealth")) {
+    return "stealth";
+  }
+  if (normalized.includes("latex")) {
+    return "latex";
+  }
+  if (normalized.includes("triangle")) {
+    return "triangle";
+  }
+  if (normalized.includes("hook")) {
+    return "hooks";
+  }
+  if (normalized.includes("bar") || normalized.includes("bracket")) {
+    return "bar";
+  }
+  if (normalized.includes("implies")) {
+    return "implies";
+  }
+  if (normalized.includes("rightarrow") || normalized === ">" || normalized === "<" || normalized.includes("to")) {
+    return "to";
+  }
+  return "to";
+}
+
+function makeDefaultArrowMarker(kind: ArrowTipKind): ArrowMarker {
+  return { tips: [makeDefaultArrowTip(kind)] };
+}
+
+function makeDefaultArrowTip(kind: ArrowTipKind): ArrowTip {
+  if (kind === "bar") {
+    return {
+      kind,
+      open: true,
+      round: false,
+      color: null,
+      fill: "none",
+      length: 4,
+      width: 8,
+      lineWidth: null
+    };
+  }
+  if (kind === "hooks") {
+    return {
+      kind,
+      open: true,
+      round: true,
+      color: null,
+      fill: "none",
+      length: 7,
+      width: 8,
+      lineWidth: null
+    };
+  }
+  if (kind === "triangle") {
+    return {
+      kind,
+      open: false,
+      round: false,
+      color: null,
+      fill: null,
+      length: 8,
+      width: 8,
+      lineWidth: null
+    };
+  }
+  if (kind === "implies") {
+    return {
+      kind,
+      open: false,
+      round: false,
+      color: null,
+      fill: null,
+      length: 9,
+      width: 7,
+      lineWidth: null
+    };
+  }
+  return {
+    kind,
+    open: false,
+    round: false,
+    color: null,
+    fill: null,
+    length: DEFAULT_ARROW_LENGTH,
+    width: DEFAULT_ARROW_WIDTH,
+    lineWidth: null
+  };
+}
+
+function cloneArrowMarker(marker: ArrowMarker): ArrowMarker {
+  return { tips: marker.tips.map(cloneArrowTip) };
+}
+
+function cloneArrowTip(tip: ArrowTip): ArrowTip {
+  return { ...tip };
+}
+
+function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null): ArrowTip {
+  if (!optionsRaw || optionsRaw.trim().length === 0) {
+    return base;
+  }
+
+  const options = parseOptionListRaw(`[${optionsRaw}]`);
+  let tip: ArrowTip = { ...base };
+
+  for (const entry of options.entries) {
+    if (entry.kind === "flag") {
+      const key = entry.key;
+      if (key === "open") {
+        tip = { ...tip, open: true, fill: "none" };
+        continue;
+      }
+      if (key === "round") {
+        tip = { ...tip, round: true };
+        continue;
+      }
+      if (key === "sharp") {
+        tip = { ...tip, round: false };
+        continue;
+      }
+      if (NAMED_COLORS.has(key)) {
+        tip = { ...tip, color: normalizeColor(key) };
+      }
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = entry.key;
+    if (key === "length") {
+      const length = parseArrowDimension(entry.valueRaw);
+      if (length != null && length >= 0) {
+        tip = { ...tip, length };
+      }
+      continue;
+    }
+    if (key === "width") {
+      const width = parseArrowDimension(entry.valueRaw);
+      if (width != null && width >= 0) {
+        tip = { ...tip, width };
+      }
+      continue;
+    }
+    if (key === "scale") {
+      const factor = parseArrowFactor(entry.valueRaw);
+      if (factor != null && factor >= 0) {
+        tip = { ...tip, length: tip.length * factor, width: tip.width * factor };
+      }
+      continue;
+    }
+    if (key === "scale length") {
+      const factor = parseArrowFactor(entry.valueRaw);
+      if (factor != null && factor >= 0) {
+        tip = { ...tip, length: tip.length * factor };
+      }
+      continue;
+    }
+    if (key === "scale width") {
+      const factor = parseArrowFactor(entry.valueRaw);
+      if (factor != null && factor >= 0) {
+        tip = { ...tip, width: tip.width * factor };
+      }
+      continue;
+    }
+    if (key === "line width") {
+      const width = parseArrowDimension(entry.valueRaw);
+      if (width != null && width >= 0) {
+        tip = { ...tip, lineWidth: width };
+      }
+      continue;
+    }
+    if (key === "color") {
+      tip = { ...tip, color: normalizeColor(entry.valueRaw) };
+      continue;
+    }
+    if (key === "fill") {
+      const fill = normalizeColor(entry.valueRaw);
+      tip = { ...tip, fill, open: fill === "none" ? true : tip.open };
+      continue;
+    }
+  }
+
+  return tip;
+}
+
+function parseArrowDimension(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const primaryToken = trimmed.split(/\s+/)[0];
+  const parsedLength = parseLength(primaryToken ?? trimmed, "pt");
+  if (parsedLength != null) {
+    return parsedLength;
+  }
+  const numeric = Number(primaryToken ?? trimmed);
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+  return null;
+}
+
+function parseArrowFactor(raw: string): number | null {
+  const primaryToken = raw.trim().split(/\s+/)[0];
+  if (!primaryToken) {
+    return null;
+  }
+  const parsed = Number(primaryToken);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function stripEnclosingBraces(raw: string): string {
+  const trimmed = raw.trim();
+  if (!(trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+    return trimmed;
+  }
+
+  const block = readBalancedBlock(trimmed, 0, "{", "}");
+  if (!block || block.nextIndex !== trimmed.length) {
+    return trimmed;
+  }
+  return block.content.trim();
+}
+
+function readOptionalBracketOptions(input: string, startIndex: number): { optionsRaw: string | null; nextIndex: number } {
+  let cursor = startIndex;
+  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+  if (input[cursor] !== "[") {
+    return { optionsRaw: null, nextIndex: cursor };
+  }
+  const block = readBalancedBlock(input, cursor, "[", "]");
+  if (!block) {
+    return { optionsRaw: null, nextIndex: cursor };
+  }
+  return { optionsRaw: block.content, nextIndex: block.nextIndex };
+}
+
+function readArrowNamedTip(input: string, startIndex: number): { name: string; nextIndex: number } | null {
+  const remainder = input.slice(startIndex);
+  const remainderLower = remainder.toLowerCase();
+
+  for (const alias of ARROW_NAME_ALIASES) {
+    if (!remainderLower.startsWith(alias.name)) {
+      continue;
+    }
+
+    const boundary = remainder[alias.name.length];
+    if (boundary && !/\s|[.[\]{}<>|]/.test(boundary)) {
+      continue;
+    }
+    return {
+      name: alias.name,
+      nextIndex: startIndex + alias.name.length
+    };
+  }
+
+  let cursor = startIndex;
+  while (cursor < input.length && !/\s|[.[\]{}<>|\-]/.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+  if (cursor === startIndex) {
+    return null;
+  }
+  return {
+    name: input.slice(startIndex, cursor),
+    nextIndex: cursor
+  };
+}
+
+function readBalancedBlock(
+  input: string,
+  startIndex: number,
+  open: string,
+  close: string
+): { content: string; nextIndex: number } | null {
+  if (input[startIndex] !== open) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = startIndex; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === open) {
+      depth += 1;
+      continue;
+    }
+    if (char === close) {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          content: input.slice(startIndex + 1, index),
+          nextIndex: index + 1
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function findTopLevelCharacter(input: string, character: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+    if (char === character && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function parseDashPattern(raw: string): number[] | null {

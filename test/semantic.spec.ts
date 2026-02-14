@@ -395,12 +395,41 @@ describe("semantic evaluator", () => {
     expect(topPath?.kind).toBe("Path");
     expect(bottomPath?.kind).toBe("Path");
     if (topPath?.kind === "Path" && bottomPath?.kind === "Path") {
-      expect(topPath.style.markerStart).toBe("bar");
-      expect(topPath.style.markerEnd).toBe("bar");
+      expect(topPath.style.markerStart?.tips.map((tip) => tip.kind)).toEqual(["bar"]);
+      expect(topPath.style.markerEnd?.tips.map((tip) => tip.kind)).toEqual(["bar"]);
       expect(topPath.style.dashArray).toEqual([20, 10]);
       expect(topPath.style.dashOffset).toBeCloseTo(0);
       expect(bottomPath.style.dashArray).toEqual([20, 10]);
       expect(bottomPath.style.dashOffset).toBeCloseTo(10);
+    }
+  });
+
+  it("supports arrows and >/< shorthand keys used in tikz arrow specs", () => {
+    const source = String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[arrows={-Latex[open,length=10pt]}] (0,0) -- (2,0);
+  \draw[>->] (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:arrows")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:>")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+
+    const explicitArrows = paths[0];
+    const shorthandArrows = paths[1];
+    expect(explicitArrows?.kind).toBe("Path");
+    expect(shorthandArrows?.kind).toBe("Path");
+    if (explicitArrows?.kind === "Path" && shorthandArrows?.kind === "Path") {
+      expect(explicitArrows.style.markerStart).toBeNull();
+      expect(explicitArrows.style.markerEnd?.tips[0]?.kind).toBe("latex");
+      expect(explicitArrows.style.markerEnd?.tips[0]?.open).toBe(true);
+      expect(explicitArrows.style.markerEnd?.tips[0]?.length).toBeCloseTo(10, 3);
+
+      expect(shorthandArrows.style.markerStart?.tips[0]?.kind).toBe("stealth");
+      expect(shorthandArrows.style.markerEnd?.tips[0]?.kind).toBe("stealth");
     }
   });
 

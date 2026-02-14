@@ -27,6 +27,14 @@ describe("options parser", () => {
     expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.key === "dashed")).toBe(true);
   });
 
+  it("classifies arrow shorthand specifications as flags", () => {
+    const parsed = parseOptionListRaw("[Stealth-Stealth, -{Latex[open]}, |<->|]");
+
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "Stealth-Stealth")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "-{Latex[open]}")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "|<->|")).toBe(true);
+  });
+
   it("keeps unknown tokens", () => {
     const parsed = parseOptionListRaw("[foo={a,b}, ???]");
 

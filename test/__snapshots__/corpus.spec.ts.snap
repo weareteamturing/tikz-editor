@@ -30,10 +30,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "semanticEmptySceneSnippets": 972,
     "semanticErrorRate": 0.1422,
     "semanticErrorSnippets": 311,
-    "semanticUnsupportedRate": 0.7371,
-    "semanticUnsupportedSnippets": 1612,
-    "semanticWarningRate": 0.738,
-    "semanticWarningSnippets": 1614,
+    "semanticUnsupportedRate": 0.7147,
+    "semanticUnsupportedSnippets": 1563,
+    "semanticWarningRate": 0.7156,
+    "semanticWarningSnippets": 1565,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2689,
@@ -171,10 +171,6 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 68,
     },
     {
-      "code": "unsupported-option-key:arrows",
-      "count": 68,
-    },
-    {
       "code": "unsupported-option-key:pattern",
       "count": 64,
     },
@@ -185,6 +181,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     {
       "code": "unsupported-option-key:pattern color",
       "count": 51,
+    },
+    {
+      "code": "unknown-named-coordinate:A",
+      "count": 49,
     },
   ],
   "topSemanticUnsupportedCodes": [
@@ -213,10 +213,6 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 70,
     },
     {
-      "code": "unsupported-option-key:arrows",
-      "count": 68,
-    },
-    {
       "code": "unsupported-option-key:pattern",
       "count": 64,
     },
@@ -233,8 +229,12 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 41,
     },
     {
-      "code": "unsupported-option-key:>",
-      "count": 33,
+      "code": "unsupported-coordinate-form:unknown",
+      "count": 29,
+    },
+    {
+      "code": "unsupported-path-operator",
+      "count": 27,
     },
   ],
   "topSemanticUnsupportedFiles": [
@@ -259,11 +259,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-library-circuits.tex",
     },
     {
-      "count": 68,
-      "filePath": "pgfmanual-en-tikz-arrows.tex",
-    },
-    {
-      "count": 53,
+      "count": 51,
       "filePath": "pgfmanual-en-library-shapes.tex",
     },
     {
@@ -277,6 +273,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     {
       "count": 37,
       "filePath": "pgfmanual-en-tikz-actions.tex",
+    },
+    {
+      "count": 31,
+      "filePath": "pgfmanual-en-tikz-plots.tex",
     },
   ],
   "topSvgDiagnosticCodes": [],

@@ -137,6 +137,35 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('id="tikz-bar"');
   });
 
+  it("emits arrow markers from arrows= specifications and > shorthand defaults", () => {
+    const source = String.raw`\begin{tikzpicture}[>=Stealth]
+  \draw[arrows={-Latex[open,length=10pt,color=blue]}] (0,0) -- (2,0);
+  \draw[>->] (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("marker-end=");
+    expect(emitted.svg).toContain("marker-start=");
+    expect(emitted.svg).toContain("<defs>");
+    expect(emitted.svg).toContain("tikz-marker-");
+    expect(emitted.svg).toContain('stroke="#0000ff"');
+  });
+
+  it("suppresses markers on closed paths and when tips=never", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[<->] (0,0) -- (1,0) -- cycle;
+  \draw[<->,tips=never] (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).not.toContain("marker-start=");
+    expect(emitted.svg).not.toContain("marker-end=");
+  });
+
   it("emits even-odd fill rule on compound fill paths", () => {
     const source = String.raw`\begin{tikzpicture}
   \fill[even odd rule] (0,0) circle (.5cm) (0.5,0) circle (.5cm);
