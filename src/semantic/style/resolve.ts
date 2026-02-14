@@ -176,7 +176,8 @@ const ARROW_NAME_ALIASES: Array<{ name: string; kind: ArrowTipKind }> = [
   { name: "hooks", kind: "hooks" },
   { name: "bar", kind: "bar" },
   { name: "to", kind: "to" }
-].sort((left, right) => right.name.length - left.name.length);
+];
+ARROW_NAME_ALIASES.sort((left, right) => right.name.length - left.name.length);
 
 export type ResolvedContextDelta = {
   style: ResolvedStyle;

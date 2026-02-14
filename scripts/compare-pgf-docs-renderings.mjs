@@ -5,6 +5,7 @@ import { basename, extname, isAbsolute, join, relative, resolve } from "node:pat
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { compareTikzRenderers, RendererComparisonError } from "./compare-tikz-renderers.mjs";
+import { ensureDistBuildFresh } from "./ensure-dist-build.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const defaultDocsRoot = join(repoRoot, "pgf-docs");
@@ -29,10 +30,7 @@ async function runCli() {
     const sourceRelativePath = relative(docsRoot, sourceFile);
     const sourceCode = readFileSync(sourceFile, "utf8");
 
-    const distEntry = join(repoRoot, "dist/index.js");
-    if (!existsSync(distEntry)) {
-      throw new Error("Build output missing at dist/index.js. Run `npm run build` first.");
-    }
+    const distEntry = ensureDistBuildFresh(repoRoot);
 
     const distModule = await import(pathToFileURL(distEntry).href);
     if (typeof distModule.extractTikzSnippetsFromSource !== "function") {

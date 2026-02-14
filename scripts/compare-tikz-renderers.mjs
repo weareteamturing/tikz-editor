@@ -5,6 +5,8 @@ import { basename, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { ensureDistBuildFresh } from "./ensure-dist-build.mjs";
+
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PDF_RASTER_DPI = 600;
 const DEFAULT_REFERENCE_MODE = "pdf-png";
@@ -74,10 +76,7 @@ export async function compareTikzRenderers(options = {}) {
 
   writeFileSync(join(runDir, "input.tikz"), input.code, "utf8");
 
-  const distEntry = join(repoRoot, "dist/index.js");
-  if (!existsSync(distEntry)) {
-    throwWithReport("Build output missing at dist/index.js. Run `npm run build` first.", reportPath, runDir, report);
-  }
+  const distEntry = ensureDistBuildFresh(repoRoot);
 
   const rendererModule = await import(pathToFileURL(distEntry).href);
   if (typeof rendererModule.renderTikzToSvg !== "function") {
