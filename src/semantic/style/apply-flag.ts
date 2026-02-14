@@ -1,0 +1,110 @@
+import { parseLength } from "../coords/parse-length.js";
+import type { Matrix2D, ResolvedStyle } from "../types.js";
+import { parseArrowSpecification } from "./arrows.js";
+import type { ApplyOutcome } from "./apply-types.js";
+import { COLOR_HEX, NAMED_COLORS, NON_STYLE_OPTION_FLAGS } from "./constants.js";
+
+export function applyFlagEntry(
+  key: string,
+  raw: string,
+  style: ResolvedStyle,
+  transform: Matrix2D
+): ApplyOutcome {
+  if (key === "draw") {
+    return { style: { ...style, stroke: style.stroke ?? "black", drawExplicit: true }, transform, diagnostics: [] };
+  }
+  if (key === "fill") {
+    return { style: { ...style, fill: style.fill ?? "black" }, transform, diagnostics: [] };
+  }
+  if (key === "shade") {
+    return { style: { ...style, fill: style.fill ?? "black", shadeEnabled: true }, transform, diagnostics: [] };
+  }
+  if (key === "rounded corners") {
+    return { style: { ...style, roundedCorners: parseLength("4pt", "pt") ?? 4 }, transform, diagnostics: [] };
+  }
+  if (key === "sharp corners") {
+    return { style: { ...style, roundedCorners: null }, transform, diagnostics: [] };
+  }
+  if (key === "ultra thin") {
+    return { style: { ...style, lineWidth: 0.1 }, transform, diagnostics: [] };
+  }
+  if (key === "very thin") {
+    return { style: { ...style, lineWidth: 0.2 }, transform, diagnostics: [] };
+  }
+  if (key === "thick") {
+    return { style: { ...style, lineWidth: 0.8 }, transform, diagnostics: [] };
+  }
+  if (key === "semithick") {
+    return { style: { ...style, lineWidth: 0.6 }, transform, diagnostics: [] };
+  }
+  if (key === "very thick") {
+    return { style: { ...style, lineWidth: 1.2 }, transform, diagnostics: [] };
+  }
+  if (key === "ultra thick") {
+    return { style: { ...style, lineWidth: 1.6 }, transform, diagnostics: [] };
+  }
+  if (key === "thin") {
+    return { style: { ...style, lineWidth: 0.4 }, transform, diagnostics: [] };
+  }
+  if (key.includes("-") || raw.includes("-")) {
+    const parsedArrow = parseArrowSpecification(raw, style);
+    if (parsedArrow) {
+      return { style: { ...style, markerStart: parsedArrow.start, markerEnd: parsedArrow.end }, transform, diagnostics: [] };
+    }
+  }
+  if (key === "solid") {
+    return { style: { ...style, dashArray: null, dashOffset: 0 }, transform, diagnostics: [] };
+  }
+  if (key === "double") {
+    return { style: { ...style, doubleStroke: true }, transform, diagnostics: [] };
+  }
+  if (key === "even odd rule") {
+    return { style: { ...style, fillRule: "evenodd" }, transform, diagnostics: [] };
+  }
+  if (key === "nonzero rule") {
+    return { style: { ...style, fillRule: "nonzero" }, transform, diagnostics: [] };
+  }
+  if (key === "dashed") {
+    return { style: { ...style, dashArray: [3, 3] }, transform, diagnostics: [] };
+  }
+  if (key === "densely dashed") {
+    return { style: { ...style, dashArray: [4, 2] }, transform, diagnostics: [] };
+  }
+  if (key === "loosely dashed") {
+    return { style: { ...style, dashArray: [6, 4] }, transform, diagnostics: [] };
+  }
+  if (key === "dotted") {
+    return { style: { ...style, dashArray: [1, 3] }, transform, diagnostics: [] };
+  }
+  if (key === "densely dotted") {
+    return { style: { ...style, dashArray: [1, 2] }, transform, diagnostics: [] };
+  }
+  if (key === "loosely dotted") {
+    return { style: { ...style, dashArray: [1, 4] }, transform, diagnostics: [] };
+  }
+  if (NAMED_COLORS.has(key)) {
+    return { style: { ...style, stroke: key, textColor: key }, transform, diagnostics: [] };
+  }
+  if (key === "help lines") {
+    return {
+      style: {
+        ...style,
+        stroke: COLOR_HEX.gray,
+        textColor: COLOR_HEX.gray,
+        lineWidth: 0.2
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+
+  if (NON_STYLE_OPTION_FLAGS.has(key)) {
+    return { style, transform, diagnostics: [] };
+  }
+
+  return {
+    style,
+    transform,
+    diagnostics: [`unsupported-option-flag:${key}`]
+  };
+}
