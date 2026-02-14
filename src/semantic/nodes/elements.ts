@@ -1,6 +1,7 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
-import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, SceneText } from "../types.js";
+import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
+import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export function makeCircleElement(
@@ -128,6 +129,34 @@ export function makeNodeBoxElement(
 ): ScenePath {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
+  const topLeft = { x: center.x - halfWidth, y: center.y - halfHeight };
+  const topRight = { x: center.x + halfWidth, y: center.y - halfHeight };
+  const bottomRight = { x: center.x + halfWidth, y: center.y + halfHeight };
+  const bottomLeft = { x: center.x - halfWidth, y: center.y + halfHeight };
+  const roundedCorners = style.roundedCorners;
+
+  let commands: ScenePathCommand[];
+  if (!roundedCorners || roundedCorners <= 0) {
+    commands = [
+      { kind: "M", to: topLeft },
+      { kind: "L", to: topRight },
+      { kind: "L", to: bottomRight },
+      { kind: "L", to: bottomLeft },
+      { kind: "Z" }
+    ];
+  } else {
+    commands = [{ kind: "M", to: topLeft }];
+    let previousSegmentRoundedCorners: number | null = null;
+    let current = topLeft;
+
+    for (const next of [topRight, bottomRight, bottomLeft, topLeft]) {
+      const appended = appendPathPoint(commands, "--", current, next, previousSegmentRoundedCorners, roundedCorners);
+      previousSegmentRoundedCorners = appended.nextRoundedCorners;
+      current = next;
+    }
+    roundClosedPathStartCorner(commands, bottomLeft, topLeft, roundedCorners);
+    commands.push({ kind: "Z" });
+  }
 
   return {
     kind: "Path",
@@ -135,13 +164,7 @@ export function makeNodeBoxElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
-    commands: [
-      { kind: "M", to: { x: center.x - halfWidth, y: center.y - halfHeight } },
-      { kind: "L", to: { x: center.x + halfWidth, y: center.y - halfHeight } },
-      { kind: "L", to: { x: center.x + halfWidth, y: center.y + halfHeight } },
-      { kind: "L", to: { x: center.x - halfWidth, y: center.y + halfHeight } },
-      { kind: "Z" }
-    ]
+    commands
   };
 }
 

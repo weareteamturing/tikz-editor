@@ -30,6 +30,7 @@ import { evaluatePathStatement } from "./path/evaluate.js";
 import { parseNodeDistance } from "./path/node-positioning.js";
 import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
 import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
+import { expandOptionListMacros } from "./style/macro-options.js";
 import { readBalancedBlock } from "./style/option-utils.js";
 import { identityMatrix } from "./transform.js";
 import type {
@@ -67,7 +68,12 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
     markFeature(featureUsage, "options_structured", "supported");
     const parent = currentFrame(context);
     const rootCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const rootDelta = resolveContextDelta(parent.style, parent.transform, [figure.options], rootCustomStyles);
+    const rootOptionLists = expandOptionListMacros(
+      [figure.options],
+      parent.macroBindings,
+      context.macroTraceCollector ?? undefined
+    );
+    const rootDelta = resolveContextDelta(parent.style, parent.transform, rootOptionLists, rootCustomStyles);
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists);
     pushFrame(context, {
       style: rootDelta.style,
@@ -137,11 +143,16 @@ function evaluateStatement(
     const parent = currentFrame(context);
     const baseStyle = { ...parent.style, ...commandDefaultStyle(statement.command, parent.style) };
     const optionLists = statement.options ? [statement.options] : [];
+    const expandedOptionLists = expandOptionListMacros(
+      optionLists,
+      parent.macroBindings,
+      context.macroTraceCollector ?? undefined
+    );
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(baseStyle, parent.transform, optionLists, scopedCustomStyles);
+    const resolved = resolveContextDelta(baseStyle, parent.transform, expandedOptionLists, scopedCustomStyles);
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
 
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
@@ -218,11 +229,16 @@ function evaluateStatement(
     markFeature(featureUsage, "scope_statement", "supported");
     const parent = currentFrame(context);
     const optionLists = statement.options ? [statement.options] : [];
+    const expandedOptionLists = expandOptionListMacros(
+      optionLists,
+      parent.macroBindings,
+      context.macroTraceCollector ?? undefined
+    );
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(parent.style, parent.transform, optionLists, scopedCustomStyles);
+    const resolved = resolveContextDelta(parent.style, parent.transform, expandedOptionLists, scopedCustomStyles);
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
     pushFrame(context, {
       style: resolved.style,
@@ -354,7 +370,8 @@ function applyOptionListsToCurrentFrame(
   sourceLabel: string
 ): void {
   const frame = currentFrame(context);
-  const resolved = resolveContextDelta(frame.style, frame.transform, optionLists, frame.customStyles);
+  const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
+  const resolved = resolveContextDelta(frame.style, frame.transform, expandedOptionLists, frame.customStyles);
   frame.style = resolved.style;
   frame.transform = resolved.transform;
 

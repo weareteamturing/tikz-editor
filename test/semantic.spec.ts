@@ -1094,6 +1094,27 @@ describe("semantic evaluator", () => {
     expect(nodeBoxes.every((nodeBox) => nodeBox.style.stroke == null)).toBe(true);
   });
 
+  it("applies rounded corners options to rectangle node boxes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node[draw,rounded corners=4pt] {rounded};
+  \draw (2,0) node[draw,sharp corners]       {sharp};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(2);
+
+    const rounded = nodeBoxes.find((nodeBox) => nodeBox.commands.some((command) => command.kind === "C"));
+    const sharp = nodeBoxes.find((nodeBox) => nodeBox.commands.every((command) => command.kind !== "C"));
+    expect(rounded).toBeDefined();
+    expect(sharp).toBeDefined();
+    expect(rounded?.commands.filter((command) => command.kind === "C").length ?? 0).toBeGreaterThanOrEqual(4);
+  });
+
   it("applies node-local scale options to text and box metrics", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[line width=5pt]
@@ -1694,6 +1715,20 @@ describe("semantic evaluator", () => {
       .map((element) => (element.kind === "Text" ? element.text : ""));
     expect(labels).toContain("left/R");
     expect(labels).toContain("right/R");
+  });
+
+  it("expands macros in shift option coordinates after foreach substitution", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \def\rulery{1}
+  \foreach \x/\xtext in {-0.6/\frac12, 0/1, 0.6/\frac32, 1.2/2}
+    \draw[shift={(\x,\rulery)}] (0pt,2.5pt) -- (0pt,-2.5pt) node[above=5.5pt] {$\strut\xtext$};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+    const labels = result.scene.elements.filter((element) => element.kind === "Text");
+    expect(labels).toHaveLength(4);
   });
 
   it("resolves custom style overwrite order left-to-right", () => {

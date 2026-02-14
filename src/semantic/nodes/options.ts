@@ -4,6 +4,7 @@ import type { SemanticContext } from "../context.js";
 import { currentAnchorForDirection, parseDirectionalKey } from "../path/node-positioning.js";
 import { resolveContextDelta } from "../style/resolve.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
+import { expandOptionListMacros } from "../style/macro-options.js";
 import type { ResolvedStyle } from "../types.js";
 import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
@@ -63,7 +64,8 @@ export function resolveNodeStyle(
   let resolvedStyle = { ...baseStyle };
   if (options) {
     const frame = context.stack[context.stack.length - 1];
-    const resolved = resolveContextDelta(baseStyle, frame.transform, [options], cloneCustomStyleRegistry(frame.customStyles));
+    const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+    const resolved = resolveContextDelta(baseStyle, frame.transform, expanded, cloneCustomStyleRegistry(frame.customStyles));
     resolvedStyle = resolved.style;
   }
 
@@ -89,7 +91,8 @@ export function resolveNodeOptionScale(
   }
 
   const frame = context.stack[context.stack.length - 1];
-  const resolved = resolveContextDelta(baseStyle, frame.transform, [options], cloneCustomStyleRegistry(frame.customStyles));
+  const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+  const resolved = resolveContextDelta(baseStyle, frame.transform, expanded, cloneCustomStyleRegistry(frame.customStyles));
   return computeRelativeTransformScale(frame.transform, resolved.transform);
 }
 
