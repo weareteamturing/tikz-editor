@@ -1,4 +1,4 @@
-import type { CoordinateItem, PathStatement } from "../../ast/types.js";
+import type { CoordinateItem, EdgeOperationItem, PathStatement, ToOperationItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
@@ -31,6 +31,11 @@ import { parseParabolaFromItems } from "./parabola.js";
 import { extractCircleShapeOptions, extractEllipseRadii, extractRoundedCorners } from "./shape-options.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { applyEdgeOperation, applyToOperation } from "./to-operation.js";
+import {
+  extractNodeAdornmentPlan,
+  extractToLikeOptionPlan,
+  materializeNodeAdornment
+} from "./label-quotes.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
 import { applyMatrixToVector } from "../transform.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
@@ -958,9 +963,27 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "Node") {
+      const adornmentPlan = extractNodeAdornmentPlan(item.options, {
+        quoteMode: frame.nodeQuotesMode,
+        labelPosition: frame.labelPosition,
+        pinPosition: frame.pinPosition,
+        labelDistancePt: frame.labelDistancePt,
+        pinDistancePt: frame.pinDistancePt,
+        pinEdgeRaw: frame.pinEdgeRaw
+      });
       const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
       const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
-      const nodeItem = trailingCoordinateRaw ? { ...item, name: undefined } : item;
+      const synthesizedMainNodeName =
+        adornmentPlan.adornments.length > 0 && !declaredNodeName
+          ? `adornment_main_${sanitizeGeneratedNodeName(statement.id)}_${index}`
+          : null;
+      const forcedMainNodeName = pendingNodeNameForNodeCommand ?? synthesizedMainNodeName ?? undefined;
+      const nodeBase = trailingCoordinateRaw ? { ...item, name: undefined } : item;
+      const nodeItem = {
+        ...nodeBase,
+        options: adornmentPlan.mainOptions,
+        optionsSpan: adornmentPlan.mainOptions?.span
+      };
       const resolvedNode = evaluateNodeItem(
         nodeItem,
         statement,
@@ -969,12 +992,87 @@ export function evaluatePathStatement(
         markFeature,
         pushDiagnostic,
         lastPlacementSegment,
-        pendingNodeNameForNodeCommand ?? undefined
+        forcedMainNodeName
       );
       pendingNodeNameForNodeCommand = null;
       pendingEdgeStartCoordinateRaw = declaredNodeName ? `(${declaredNodeName.trim()})` : null;
       behindNodeElements.push(...resolvedNode.behindElements);
       frontNodeElements.push(...resolvedNode.frontElements);
+
+      const mainNodeNameRaw = forcedMainNodeName ?? declaredNodeName;
+      if (mainNodeNameRaw) {
+        for (let adornmentIndex = 0; adornmentIndex < adornmentPlan.adornments.length; adornmentIndex += 1) {
+          const spec = adornmentPlan.adornments[adornmentIndex];
+          const materialized = materializeNodeAdornment({
+            spec,
+            context,
+            mainNodeNameRaw,
+            ownerId: item.id,
+            adornmentIndex
+          });
+          const resolvedAdornment = evaluateNodeItem(
+            materialized.node,
+            statement,
+            context,
+            style,
+            markFeature,
+            pushDiagnostic,
+            null,
+            materialized.node.name
+          );
+          behindNodeElements.push(...resolvedAdornment.behindElements);
+          frontNodeElements.push(...resolvedAdornment.frontElements);
+
+          if (spec.kind === "pin" && materialized.node.name && materialized.mainPoint) {
+            const pinEdgeItem: EdgeOperationItem = {
+              kind: "EdgeOperation",
+              id: `${item.id}:pin-edge:${adornmentIndex}`,
+              span: spec.span,
+              optionsSpan: undefined,
+              options: undefined,
+              nodes: undefined,
+              target: {
+                kind: "coordinate",
+                raw: `(${materialized.node.name})`
+              },
+              raw: `edge (${materialized.node.name})`
+            };
+
+            const pinEdgeOptionLists = [
+              parseStyleValueAsOptionList("help lines"),
+              materialized.pinEdgeOptions
+            ].filter((list): list is NonNullable<typeof list> => list != null);
+            const resolvedPinEdgeStyle = resolveContextDelta(
+              style,
+              frameTransform,
+              pinEdgeOptionLists,
+              frame.customStyles
+            );
+            for (const code of resolvedPinEdgeStyle.diagnostics) {
+              pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
+            }
+
+            const pinEdge = applyEdgeOperation(
+              pinEdgeItem,
+              context,
+              statement,
+              resolvedPinEdgeStyle.style,
+              markFeature,
+              pushDiagnostic,
+              materialized.mainPoint,
+              `(${materialized.mainNameRaw})`
+            );
+            if (pinEdge.activePath && hasDrawablePathSegments(pinEdge.activePath)) {
+              frontNodeElements.push(...pinEdge.behindNodeElements);
+              frontNodeElements.push(pinEdge.activePath);
+              frontNodeElements.push(...pinEdge.frontNodeElements);
+            } else {
+              frontNodeElements.push(...pinEdge.behindNodeElements, ...pinEdge.frontNodeElements);
+            }
+          }
+        }
+      }
+
       if (trailingCoordinateRaw) {
         const trailingCoordinate = evaluateRawCoordinate(trailingCoordinateRaw, context);
         if (trailingCoordinate.point) {
@@ -1020,8 +1118,16 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "ToOperation") {
+      const toPlan = extractToLikeOptionPlan(item);
+      const toItem: ToOperationItem =
+        toPlan.generatedNodes.length > 0
+          ? {
+              ...toPlan.item,
+              nodes: [...(toPlan.item.nodes ?? []), ...toPlan.generatedNodes]
+            }
+          : toPlan.item;
       const handled = applyToOperation(
-        item,
+        toItem,
         context,
         statement,
         style,
@@ -1044,6 +1150,14 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "EdgeOperation") {
+      const edgePlan = extractToLikeOptionPlan(item);
+      const edgeItem: EdgeOperationItem =
+        edgePlan.generatedNodes.length > 0
+          ? {
+              ...edgePlan.item,
+              nodes: [...(edgePlan.item.nodes ?? []), ...edgePlan.generatedNodes]
+            }
+          : edgePlan.item;
       if (!edgeOperationStart) {
         let coordinateRaw = pendingEdgeStartCoordinateRaw;
         if (!coordinateRaw && currentPointCoordinate) {
@@ -1065,7 +1179,7 @@ export function evaluatePathStatement(
       const edgeOptionLists = [
         everyEdgeOptions,
         drawEdgeOptions,
-        item.options
+        edgeItem.options
       ].filter((list): list is NonNullable<typeof list> => list != null);
       const resolvedEdgeStyle = resolveContextDelta(
         style,
@@ -1081,7 +1195,7 @@ export function evaluatePathStatement(
       }
 
       const handled = applyEdgeOperation(
-        item,
+        edgeItem,
         context,
         statement,
         resolvedEdgeStyle.style,
@@ -1157,4 +1271,9 @@ export function evaluatePathStatement(
   }
 
   return [...behindNodeElements, ...geometryElements, ...frontNodeElements];
+}
+
+function sanitizeGeneratedNodeName(raw: string): string {
+  const sanitized = raw.replace(/[^A-Za-z0-9_-]/g, "_");
+  return sanitized.length > 0 ? sanitized : "node";
 }

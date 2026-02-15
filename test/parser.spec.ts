@@ -773,6 +773,38 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses label/pin options and edge quotes syntax without hard parse errors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,"label" left,pin=45:P,label={[red]above:X}] at (0,0) {A};
+  \draw (0,0) edge["left","right"' near end] (2,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const firstPath = result.figure.body[0];
+    expect(firstPath?.kind).toBe("Path");
+    if (firstPath?.kind === "Path") {
+      const node = firstPath.items.find((item) => item.kind === "Node");
+      expect(node?.kind).toBe("Node");
+      if (node?.kind === "Node") {
+        expect(node.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "label")).toBe(true);
+        expect(node.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "pin")).toBe(true);
+        expect(node.options?.entries.some((entry) => entry.kind === "unknown" && entry.raw.trim().startsWith("\""))).toBe(true);
+      }
+    }
+
+    const secondPath = result.figure.body[1];
+    expect(secondPath?.kind).toBe("Path");
+    if (secondPath?.kind === "Path") {
+      const edge = secondPath.items.find((item) => item.kind === "EdgeOperation");
+      expect(edge?.kind).toBe("EdgeOperation");
+      if (edge?.kind === "EdgeOperation") {
+        expect(edge.options?.entries.some((entry) => entry.kind === "unknown" && entry.raw.trim().startsWith("\""))).toBe(true);
+      }
+    }
+  });
+
   it("recognizes action command aliases as path commands", () => {
     const source = String.raw`\begin{tikzpicture}
   \pattern (0,0) circle (1ex);

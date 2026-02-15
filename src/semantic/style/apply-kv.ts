@@ -626,6 +626,18 @@ export function applyKvEntry(
     return { style, transform: matrix, diagnostics: [] };
   }
 
+  if (
+    key === "label position" ||
+    key === "pin position" ||
+    key === "label distance" ||
+    key === "pin distance" ||
+    key === "pin edge" ||
+    key === "quotes mean label" ||
+    key === "quotes mean pin"
+  ) {
+    return { style, transform, diagnostics: [] };
+  }
+
   if (NON_STYLE_OPTION_KEYS.has(key)) {
     return { style, transform, diagnostics: [] };
   }

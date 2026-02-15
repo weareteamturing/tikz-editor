@@ -77,13 +77,13 @@ export function applyFlagEntry(
     return { style: { ...style, dashArray: [6, 4] }, transform, diagnostics: [] };
   }
   if (key === "dotted") {
-    return { style: { ...style, dashArray: [1, 3] }, transform, diagnostics: [] };
+    return { style: { ...style, dashArray: [style.lineWidth, 2] }, transform, diagnostics: [] };
   }
   if (key === "densely dotted") {
-    return { style: { ...style, dashArray: [1, 2] }, transform, diagnostics: [] };
+    return { style: { ...style, dashArray: [style.lineWidth, 1] }, transform, diagnostics: [] };
   }
   if (key === "loosely dotted") {
-    return { style: { ...style, dashArray: [1, 4] }, transform, diagnostics: [] };
+    return { style: { ...style, dashArray: [style.lineWidth, 4] }, transform, diagnostics: [] };
   }
   if (NAMED_COLORS.has(key) || normalizedColorCandidate !== key) {
     const normalizedColor = normalizedColorCandidate;
@@ -122,6 +122,17 @@ export function applyFlagEntry(
       transform,
       diagnostics: []
     };
+  }
+
+  if (
+    key === "auto" ||
+    key === "quotes mean label" ||
+    key === "quotes mean pin" ||
+    key === "every label quotes" ||
+    key === "every pin quotes" ||
+    key === "every edge quotes"
+  ) {
+    return { style, transform, diagnostics: [] };
   }
 
   if (NON_STYLE_OPTION_FLAGS.has(key)) {

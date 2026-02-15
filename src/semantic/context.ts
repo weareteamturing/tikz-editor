@@ -27,6 +27,8 @@ export type NodeDistanceSpec =
       horizontal: NodeDistanceValue;
     };
 
+export type NodeQuotesMode = "label" | "pin";
+
 export type NamedNodeGeometry = {
   shape:
     | "rectangle"
@@ -76,6 +78,12 @@ export type SemanticContextFrame = {
   nodeLayerMode: NodeLayerMode;
   onGrid: boolean;
   nodeDistance: NodeDistanceSpec;
+  nodeQuotesMode: NodeQuotesMode;
+  labelPosition: string;
+  pinPosition: string;
+  labelDistancePt: number;
+  pinDistancePt: number;
+  pinEdgeRaw: string | null;
   transformShape: boolean;
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
@@ -132,6 +140,12 @@ export function createSemanticContext(
           vertical: { kind: "dimension", value: defaultNodeDistance },
           horizontal: { kind: "dimension", value: defaultNodeDistance }
         },
+        nodeQuotesMode: "label",
+        labelPosition: "above",
+        pinPosition: "above",
+        labelDistancePt: 0,
+        pinDistancePt: 12.9,
+        pinEdgeRaw: null,
         transformShape: false,
         everyNodeStyles: [],
         everyRectangleNodeStyles: [],

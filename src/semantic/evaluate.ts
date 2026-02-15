@@ -25,7 +25,15 @@ import type {
 } from "../foreach/types.js";
 import { parseOptionListRaw } from "../options/parse.js";
 import type { OptionListAst } from "../options/types.js";
-import { createSemanticContext, currentFrame, popFrame, pushFrame, type NodeDistanceSpec } from "./context.js";
+import {
+  createSemanticContext,
+  currentFrame,
+  popFrame,
+  pushFrame,
+  type NodeDistanceSpec,
+  type NodeQuotesMode
+} from "./context.js";
+import { parseLength } from "./coords/parse-length.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
 import { applyNameIntersectionsDirective, collectPathIntersectionDirectives, registerNamedPath } from "./path/intersections.js";
 import { parseNodeDistance } from "./path/node-positioning.js";
@@ -88,6 +96,12 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       nodeLayerMode: rootMeta.nodeLayerMode,
       onGrid: rootMeta.onGrid,
       nodeDistance: rootMeta.nodeDistance,
+      nodeQuotesMode: rootMeta.nodeQuotesMode,
+      labelPosition: rootMeta.labelPosition,
+      pinPosition: rootMeta.pinPosition,
+      labelDistancePt: rootMeta.labelDistancePt,
+      pinDistancePt: rootMeta.pinDistancePt,
+      pinEdgeRaw: rootMeta.pinEdgeRaw,
       transformShape: rootMeta.transformShape,
       everyNodeStyles: rootMeta.everyNodeStyles,
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
@@ -216,6 +230,12 @@ function evaluateStatement(
       nodeLayerMode: frameMeta.nodeLayerMode,
       onGrid: frameMeta.onGrid,
       nodeDistance: frameMeta.nodeDistance,
+      nodeQuotesMode: frameMeta.nodeQuotesMode,
+      labelPosition: frameMeta.labelPosition,
+      pinPosition: frameMeta.pinPosition,
+      labelDistancePt: frameMeta.labelDistancePt,
+      pinDistancePt: frameMeta.pinDistancePt,
+      pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
@@ -314,6 +334,12 @@ function evaluateStatement(
       nodeLayerMode: frameMeta.nodeLayerMode,
       onGrid: frameMeta.onGrid,
       nodeDistance: frameMeta.nodeDistance,
+      nodeQuotesMode: frameMeta.nodeQuotesMode,
+      labelPosition: frameMeta.labelPosition,
+      pinPosition: frameMeta.pinPosition,
+      labelDistancePt: frameMeta.labelDistancePt,
+      pinDistancePt: frameMeta.pinDistancePt,
+      pinEdgeRaw: frameMeta.pinEdgeRaw,
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
@@ -468,6 +494,12 @@ function applyOptionListsToCurrentFrame(
   frame.nodeLayerMode = frameMeta.nodeLayerMode;
   frame.onGrid = frameMeta.onGrid;
   frame.nodeDistance = frameMeta.nodeDistance;
+  frame.nodeQuotesMode = frameMeta.nodeQuotesMode;
+  frame.labelPosition = frameMeta.labelPosition;
+  frame.pinPosition = frameMeta.pinPosition;
+  frame.labelDistancePt = frameMeta.labelDistancePt;
+  frame.pinDistancePt = frameMeta.pinDistancePt;
+  frame.pinEdgeRaw = frameMeta.pinEdgeRaw;
   frame.transformShape = frameMeta.transformShape;
   frame.everyNodeStyles = frameMeta.everyNodeStyles;
   frame.everyRectangleNodeStyles = frameMeta.everyRectangleNodeStyles;
@@ -1397,6 +1429,12 @@ function resolveFrameMeta(
     nodeLayerMode: "front" | "behind";
     onGrid: boolean;
     nodeDistance: NodeDistanceSpec;
+    nodeQuotesMode: NodeQuotesMode;
+    labelPosition: string;
+    pinPosition: string;
+    labelDistancePt: number;
+    pinDistancePt: number;
+    pinEdgeRaw: string | null;
     transformShape: boolean;
     everyNodeStyles: OptionListAst[];
     everyRectangleNodeStyles: OptionListAst[];
@@ -1425,6 +1463,12 @@ function resolveFrameMeta(
   nodeLayerMode: "front" | "behind";
   onGrid: boolean;
   nodeDistance: NodeDistanceSpec;
+  nodeQuotesMode: NodeQuotesMode;
+  labelPosition: string;
+  pinPosition: string;
+  labelDistancePt: number;
+  pinDistancePt: number;
+  pinEdgeRaw: string | null;
   transformShape: boolean;
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
@@ -1451,6 +1495,12 @@ function resolveFrameMeta(
   let nodeLayerMode = base.nodeLayerMode;
   let onGrid = base.onGrid;
   let nodeDistance = base.nodeDistance;
+  let nodeQuotesMode = base.nodeQuotesMode;
+  let labelPosition = base.labelPosition;
+  let pinPosition = base.pinPosition;
+  let labelDistancePt = base.labelDistancePt;
+  let pinDistancePt = base.pinDistancePt;
+  let pinEdgeRaw = base.pinEdgeRaw;
   let transformShape = base.transformShape;
   let everyNodeStyles = [...base.everyNodeStyles];
   let everyRectangleNodeStyles = [...base.everyRectangleNodeStyles];
@@ -1481,6 +1531,10 @@ function resolveFrameMeta(
           nodeLayerMode = "front";
         } else if (entry.key === "on grid") {
           onGrid = true;
+        } else if (entry.key === "quotes mean pin") {
+          nodeQuotesMode = "pin";
+        } else if (entry.key === "quotes mean label") {
+          nodeQuotesMode = "label";
         } else if (entry.key === "transform shape") {
           transformShape = true;
         }
@@ -1528,6 +1582,63 @@ function resolveFrameMeta(
         const parsed = parseNodeDistance(entry.valueRaw);
         if (parsed) {
           nodeDistance = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "label position") {
+        const normalized = normalizeLabelPinPosition(entry.valueRaw);
+        if (normalized.length > 0) {
+          labelPosition = normalized;
+        }
+        continue;
+      }
+
+      if (entry.key === "pin position") {
+        const normalized = normalizeLabelPinPosition(entry.valueRaw);
+        if (normalized.length > 0) {
+          pinPosition = normalized;
+        }
+        continue;
+      }
+
+      if (entry.key === "label distance") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null && Number.isFinite(parsed)) {
+          labelDistancePt = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "pin distance") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null && Number.isFinite(parsed)) {
+          pinDistancePt = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "pin edge") {
+        pinEdgeRaw = entry.valueRaw;
+        continue;
+      }
+
+      if (entry.key === "quotes mean pin") {
+        const parsed = parseBoolish(entry.valueRaw);
+        if (parsed == null || parsed) {
+          nodeQuotesMode = "pin";
+        } else {
+          nodeQuotesMode = "label";
+        }
+        continue;
+      }
+
+      if (entry.key === "quotes mean label") {
+        const parsed = parseBoolish(entry.valueRaw);
+        if (parsed == null || parsed) {
+          nodeQuotesMode = "label";
+        } else {
+          nodeQuotesMode = "pin";
         }
         continue;
       }
@@ -1814,6 +1925,12 @@ function resolveFrameMeta(
     nodeLayerMode,
     onGrid,
     nodeDistance,
+    nodeQuotesMode,
+    labelPosition,
+    pinPosition,
+    labelDistancePt,
+    pinDistancePt,
+    pinEdgeRaw,
     transformShape,
     everyNodeStyles,
     everyRectangleNodeStyles,
@@ -1854,6 +1971,10 @@ function stripWrappingBraces(raw: string): string {
     value = value.slice(1, -1).trim();
   }
   return value;
+}
+
+function normalizeLabelPinPosition(raw: string): string {
+  return stripWrappingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function isWrappedBySingleBracePair(raw: string): boolean {

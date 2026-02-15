@@ -1,9 +1,12 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
+import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import type { SemanticContext } from "../context.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { ResolvedStyle, SceneElement } from "../types.js";
+import type { Point, ResolvedStyle, SceneElement } from "../types.js";
+import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
+import { expandOptionListMacros } from "../style/macro-options.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
   applyNodeBoxPaintMode,
@@ -113,11 +116,12 @@ export function evaluateNodeItem(
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
   const transformScale = inheritedTransformScale * nodeOptionScale;
+  const placementNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
   const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
   const nodeShape = resolveNodeShape(effectiveNodeOptions);
-  const anchor = resolveNodeAnchor(effectiveNodeOptions);
-  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, effectiveNodeOptions, segment);
-  const resolvedPositioning = resolveNodePositioningTarget(effectiveNodeOptions, context, target);
+  const anchor = resolveAutoNodeAnchor(placementNodeOptions, segment) ?? resolveNodeAnchor(placementNodeOptions);
+  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, placementNodeOptions, segment);
+  const resolvedPositioning = resolveNodePositioningTarget(placementNodeOptions, context, target);
   for (const code of resolvedPositioning.diagnostics) {
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
   }
@@ -587,6 +591,195 @@ export function evaluateNodeItem(
     return { behindElements: nodeElements, frontElements: [] };
   }
   return { behindElements: [], frontElements: nodeElements };
+}
+
+function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementSegment | null): string | null {
+  if (!options || !segment) {
+    return null;
+  }
+
+  const hasExplicitAnchor = options.entries.some((entry) => entry.kind === "kv" && entry.key === "anchor");
+  if (hasExplicitAnchor) {
+    return null;
+  }
+
+  let autoSide: "left" | "right" | null = null;
+  let swap = false;
+
+  for (const entry of options.entries) {
+    if (entry.kind === "flag") {
+      if (entry.key === "auto") {
+        autoSide = "left";
+      } else if (entry.key === "swap") {
+        swap = !swap;
+      }
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    if (entry.key === "auto") {
+      const normalized = entry.valueRaw.trim().toLowerCase();
+      if (normalized === "right") {
+        autoSide = "right";
+      } else if (
+        normalized === "left" ||
+        normalized === "true" ||
+        normalized === "yes" ||
+        normalized === "on" ||
+        normalized === "1"
+      ) {
+        autoSide = "left";
+      } else if (
+        normalized === "false" ||
+        normalized === "no" ||
+        normalized === "off" ||
+        normalized === "0"
+      ) {
+        autoSide = null;
+      }
+      continue;
+    }
+
+    if (entry.key === "swap") {
+      const normalized = entry.valueRaw.trim().toLowerCase();
+      if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+        swap = true;
+      } else if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+        swap = false;
+      }
+    }
+  }
+
+  if (!autoSide) {
+    return null;
+  }
+
+  const tangent = segmentTangent(segment);
+  if (!tangent) {
+    return null;
+  }
+
+  let normal = {
+    x: -tangent.y,
+    y: tangent.x
+  };
+  if (autoSide === "right") {
+    normal = {
+      x: -normal.x,
+      y: -normal.y
+    };
+  }
+  if (swap) {
+    normal = {
+      x: -normal.x,
+      y: -normal.y
+    };
+  }
+
+  const anchorDirection = {
+    x: -normal.x,
+    y: -normal.y
+  };
+  return directionToAnchor(anchorDirection);
+}
+
+function expandNodePlacementOptions(options: OptionListAst | undefined, context: SemanticContext): OptionListAst | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const frame = context.stack[context.stack.length - 1];
+  const expandedLists = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+  const expandedEntries: OptionEntry[] = [];
+  const diagnostics: string[] = [];
+  walkOptionEntriesWithCustomStyles(
+    expandedLists,
+    cloneCustomStyleRegistry(frame.customStyles),
+    (entry) => {
+      expandedEntries.push(entry);
+    },
+    diagnostics
+  );
+  if (expandedEntries.length === 0) {
+    return options;
+  }
+
+  return {
+    span: options.span,
+    raw: options.raw,
+    entries: expandedEntries
+  };
+}
+
+function segmentTangent(segment: PlacementSegment): Point | null {
+  let tangent: Point;
+  if (segment.kind === "line") {
+    tangent = {
+      x: segment.to.x - segment.from.x,
+      y: segment.to.y - segment.from.y
+    };
+  } else if (segment.kind === "hv") {
+    tangent = {
+      x: segment.to.x - segment.bend.x,
+      y: segment.to.y - segment.bend.y
+    };
+  } else if (segment.kind === "cubic") {
+    tangent = {
+      x: segment.to.x - segment.c2.x,
+      y: segment.to.y - segment.c2.y
+    };
+    if (Math.hypot(tangent.x, tangent.y) <= 1e-9) {
+      tangent = {
+        x: segment.to.x - segment.from.x,
+        y: segment.to.y - segment.from.y
+      };
+    }
+  } else {
+    tangent = {
+      x: segment.to.x - segment.from.x,
+      y: segment.to.y - segment.from.y
+    };
+  }
+
+  const len = Math.hypot(tangent.x, tangent.y);
+  if (!Number.isFinite(len) || len <= 1e-9) {
+    return null;
+  }
+  return {
+    x: tangent.x / len,
+    y: tangent.y / len
+  };
+}
+
+function directionToAnchor(direction: Point): string {
+  const len = Math.hypot(direction.x, direction.y);
+  if (!Number.isFinite(len) || len <= 1e-9) {
+    return "center";
+  }
+  const x = direction.x / len;
+  const y = direction.y / len;
+
+  const absX = Math.abs(x);
+  const absY = Math.abs(y);
+  if (absX <= 0.35) {
+    return y >= 0 ? "north" : "south";
+  }
+  if (absY <= 0.35) {
+    return x >= 0 ? "east" : "west";
+  }
+  if (x >= 0 && y >= 0) {
+    return "north east";
+  }
+  if (x >= 0 && y < 0) {
+    return "south east";
+  }
+  if (x < 0 && y >= 0) {
+    return "north west";
+  }
+  return "south west";
 }
 
 function resolveTextColorAliases(text: string, colorAliases: Map<string, string>): string {

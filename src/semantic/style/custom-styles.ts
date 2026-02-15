@@ -77,7 +77,8 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
 ]);
 
 const BUILTIN_CUSTOM_STYLE_DEFINITIONS: Array<{ name: string; source: string }> = [
-  { name: "help lines", source: "color=gray,very thin" }
+  { name: "help lines", source: "color=gray,very thin" },
+  { name: "every edge quotes", source: "auto" }
 ];
 
 const BUILTIN_CUSTOM_STYLE_REGISTRY_ENTRIES: Array<[string, OptionListAst[]]> = BUILTIN_CUSTOM_STYLE_DEFINITIONS.flatMap(

@@ -333,6 +333,7 @@ OptionList {
 OptionPart {
   Comment |
   Group |
+  QuotedSvg |
   Coordinate |
   GroupPathOperator |
   PathKeyword |

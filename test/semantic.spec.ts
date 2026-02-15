@@ -204,7 +204,27 @@ describe("semantic evaluator", () => {
     if (path?.kind === "Path") {
       expect(path.style.stroke).toBe("black");
       expect(path.style.markerEnd).toBeTruthy();
-      expect(path.style.dashArray).toEqual([1, 3]);
+      expect(path.style.dashArray).toEqual([0.4, 2]);
+    }
+  });
+
+  it("uses current line width for dotted and densely dotted dash patterns", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[line width=2pt, dotted] (0,0) -- (1,0);
+  \draw[densely dotted] (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    const dottedPath = paths[0];
+    const denselyDottedPath = paths[1];
+    if (dottedPath?.kind === "Path") {
+      expect(dottedPath.style.dashArray).toEqual([2, 2]);
+    }
+    if (denselyDottedPath?.kind === "Path") {
+      expect(denselyDottedPath.style.dashArray).toEqual([0.4, 1]);
     }
   });
 
@@ -1495,6 +1515,149 @@ describe("semantic evaluator", () => {
     if (cText?.kind === "Text") {
       expect(cText.position.x).toBeCloseTo(56.9055, 3);
       expect(cText.position.y).toBeCloseTo(0, 3);
+    }
+  });
+
+  it("supports node label/pin options and node quotes syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,name=a,label=right:L,pin=above:P,"Q" left] at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:label")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:pin")).toBe(false);
+
+    const byText = new Map(
+      result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .map((element) => [element.text, element])
+    );
+    const a = byText.get("A");
+    const l = byText.get("L");
+    const p = byText.get("P");
+    const q = byText.get("Q");
+
+    expect(a).toBeDefined();
+    expect(l).toBeDefined();
+    expect(p).toBeDefined();
+    expect(q).toBeDefined();
+    if (a && l && p && q) {
+      expect(l.position.x).toBeGreaterThan(a.position.x);
+      expect(q.position.x).toBeLessThan(a.position.x);
+      expect(p.position.y).toBeGreaterThan(a.position.y);
+    }
+
+    const pinEdge = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-path:") && element.style.stroke === "#808080"
+    );
+    expect(pinEdge).toBeDefined();
+  });
+
+  it("supports edge label keys and edge quotes syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) to[edge label=A,edge label'=B] (2,0);
+  \draw (0,-1) edge["left","right"' near end] (2,-1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:edge label")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:edge label'")).toBe(false);
+
+    const labels = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && ["A", "B", "left", "right"].includes(element.text)
+    );
+    expect(labels.map((label) => label.text).sort()).toEqual(["A", "B", "left", "right"]);
+
+    const a = labels.find((label) => label.text === "A");
+    const b = labels.find((label) => label.text === "B");
+    const left = labels.find((label) => label.text === "left");
+    const right = labels.find((label) => label.text === "right");
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(left).toBeDefined();
+    expect(right).toBeDefined();
+    if (a && b && left && right) {
+      expect(a.position.y).toBeGreaterThan(b.position.y);
+      expect(left.position.y).toBeGreaterThan(right.position.y);
+    }
+  });
+
+  it("applies scoped defaults and style hooks for label/pin quotes", () => {
+    const source = String.raw`\begin{tikzpicture}[label position=right,label distance=4pt]
+  \tikzset{every label quotes/.style={text=red}}
+  \node["L"] (a) at (0,0) {A};
+  \begin{scope}[quotes mean pin,pin position=left,pin distance=3pt,pin edge={draw=blue}]
+    \tikzset{every pin quotes/.style={text=green}}
+    \node["P"] (b) at (2,0) {B};
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:quotes mean pin")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:pin edge")).toBe(false);
+
+    const byText = new Map(
+      result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .map((element) => [element.text, element])
+    );
+
+    const a = byText.get("A");
+    const b = byText.get("B");
+    const l = byText.get("L");
+    const p = byText.get("P");
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(l).toBeDefined();
+    expect(p).toBeDefined();
+    if (a && b && l && p) {
+      expect(l.position.x).toBeGreaterThan(a.position.x);
+      expect(p.position.x).toBeLessThan(b.position.x);
+      expect(l.style.textColor).toBe("#ff0000");
+      expect(p.style.textColor).toBe("#00ff00");
+    }
+
+    const pinEdge = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.style.stroke === "#0000ff"
+    );
+    expect(pinEdge).toBeDefined();
+  });
+
+  it("applies every edge quotes styles, preserves apostrophes, and expands edge node syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{every edge quotes/.style={auto=right,text=blue}}
+  \draw (0,0) edge["Q"] (2,0);
+  \draw (0,-1) edge["James'"] (2,-1);
+  \draw (0,-2) edge[edge node={node[above,text=red]{N}}] (2,-2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:edge node")).toBe(false);
+
+    const byText = new Map(
+      result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .map((element) => [element.text, element])
+    );
+    const q = byText.get("Q");
+    const james = byText.get("James'");
+    const n = byText.get("N");
+    expect(q).toBeDefined();
+    expect(james).toBeDefined();
+    expect(n).toBeDefined();
+    if (q && james && n) {
+      expect(q.position.y).toBeLessThan(0);
+      expect(q.style.textColor).toBe("#0000ff");
+      expect(james.style.textColor).toBe("#0000ff");
+      expect(n.style.textColor).toBe("#ff0000");
+      expect(n.position.y).toBeGreaterThan(-56.9055);
     }
   });
 
