@@ -1601,6 +1601,138 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports isosceles triangle shape with corner and side anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[isosceles triangle,draw,name=t] at (0,0) {T};
+  \node at (t.apex)        {A};
+  \node at (t.left corner) {L};
+  \node at (t.lower side)  {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
+    const apex = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const leftCorner = result.scene.elements.find((element) => element.kind === "Text" && element.text === "L");
+    const lowerSide = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    expect(center?.kind).toBe("Text");
+    expect(apex?.kind).toBe("Text");
+    expect(leftCorner?.kind).toBe("Text");
+    expect(lowerSide?.kind).toBe("Text");
+    if (center?.kind === "Text" && apex?.kind === "Text" && leftCorner?.kind === "Text" && lowerSide?.kind === "Text") {
+      expect(apex.position.y).toBeGreaterThan(center.position.y);
+      expect(leftCorner.position.x).toBeLessThan(center.position.x);
+      expect(lowerSide.position.y).toBeLessThan(center.position.y);
+    }
+  });
+
+  it("supports kite shape with vertex and side anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[kite,draw,kite vertex angles=90 and 45,name=k] at (0,0) {K};
+  \node at (k.upper vertex)     {U};
+  \node at (k.lower right side) {R};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "K");
+    const upper = result.scene.elements.find((element) => element.kind === "Text" && element.text === "U");
+    const rightSide = result.scene.elements.find((element) => element.kind === "Text" && element.text === "R");
+    expect(center?.kind).toBe("Text");
+    expect(upper?.kind).toBe("Text");
+    expect(rightSide?.kind).toBe("Text");
+    if (center?.kind === "Text" && upper?.kind === "Text" && rightSide?.kind === "Text") {
+      expect(upper.position.y).toBeGreaterThan(center.position.y);
+      expect(rightSide.position.x).toBeGreaterThan(center.position.x);
+    }
+  });
+
+  it("supports dart shape with tip and tail anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[dart,draw,dart tip angle=45,dart tail angle=135,name=d] at (0,0) {D};
+  \node at (d.tip)         {T};
+  \node at (d.tail center) {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
+    const tip = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
+    const tailCenter = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    expect(center?.kind).toBe("Text");
+    expect(tip?.kind).toBe("Text");
+    expect(tailCenter?.kind).toBe("Text");
+    if (center?.kind === "Text" && tip?.kind === "Text" && tailCenter?.kind === "Text") {
+      expect(tip.position.x).toBeGreaterThan(center.position.x);
+      expect(tailCenter.position.x).toBeLessThan(center.position.x);
+    }
+  });
+
+  it("supports circular sector shape with arc anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circular sector,draw,circular sector angle=80,name=c] at (0,0) {C};
+  \node at (c.sector center) {S};
+  \node at (c.arc center)    {A};
+  \node at (c.arc start)     {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const sectorCenter = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
+    const arcCenter = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const arcStart = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    expect(center?.kind).toBe("Text");
+    expect(sectorCenter?.kind).toBe("Text");
+    expect(arcCenter?.kind).toBe("Text");
+    expect(arcStart?.kind).toBe("Text");
+    if (
+      center?.kind === "Text" &&
+      sectorCenter?.kind === "Text" &&
+      arcCenter?.kind === "Text" &&
+      arcStart?.kind === "Text"
+    ) {
+      expect(sectorCenter.position.x).toBeGreaterThan(center.position.x);
+      expect(arcCenter.position.x).toBeLessThan(center.position.x);
+      expect(arcStart.position.y).toBeGreaterThan(center.position.y - 1);
+    }
+  });
+
+  it("supports cylinder shape with top, bottom, and shape-center anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[cylinder,draw,aspect=.5,name=y] at (0,0) {Y};
+  \node at (y.top)          {T};
+  \node at (y.bottom)       {B};
+  \node at (y.shape center) {S};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "Y");
+    const top = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
+    const bottom = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const shapeCenter = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
+    expect(center?.kind).toBe("Text");
+    expect(top?.kind).toBe("Text");
+    expect(bottom?.kind).toBe("Text");
+    expect(shapeCenter?.kind).toBe("Text");
+    if (center?.kind === "Text" && top?.kind === "Text" && bottom?.kind === "Text" && shapeCenter?.kind === "Text") {
+      expect(top.position.x).toBeGreaterThan(center.position.x);
+      expect(bottom.position.x).toBeLessThan(center.position.x);
+      expect(shapeCenter.position.x).toBeGreaterThan(center.position.x);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}
@@ -2306,6 +2438,45 @@ describe("semantic evaluator", () => {
     if (diamond && trapezium) {
       expect(diamond.style.doubleStroke).toBe(true);
       expect(trapezium.style.fill).toBe("#ff0000");
+    }
+  });
+
+  it("applies every-node style keys for isosceles triangle and cylinder nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every isosceles triangle node/.style={fill=blue},
+  every cylinder node/.style={double}
+]
+  \draw (0,0) node[isosceles triangle] {I};
+  \draw (2,0) node[cylinder] {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(2);
+
+    const byX = nodeBoxes
+      .map((path) => ({
+        path,
+        centerX:
+          path.commands
+            .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to.x] : []))
+            .reduce((sum, x) => sum + x, 0) /
+          Math.max(path.commands.filter((command) => command.kind === "M" || command.kind === "L").length, 1)
+      }))
+      .sort((left, right) => left.centerX - right.centerX);
+
+    const triangle = byX[0]?.path;
+    const cylinder = byX[1]?.path;
+    expect(triangle).toBeDefined();
+    expect(cylinder).toBeDefined();
+    if (triangle && cylinder) {
+      expect(triangle.style.fill).toBe("#0000ff");
+      expect(cylinder.style.doubleStroke).toBe(true);
     }
   });
 

@@ -93,7 +93,12 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: rootMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: rootMeta.everyDiamondNodeStyles,
-      everyTrapeziumNodeStyles: rootMeta.everyTrapeziumNodeStyles
+      everyTrapeziumNodeStyles: rootMeta.everyTrapeziumNodeStyles,
+      everyIsoscelesTriangleNodeStyles: rootMeta.everyIsoscelesTriangleNodeStyles,
+      everyKiteNodeStyles: rootMeta.everyKiteNodeStyles,
+      everyDartNodeStyles: rootMeta.everyDartNodeStyles,
+      everyCircularSectorNodeStyles: rootMeta.everyCircularSectorNodeStyles,
+      everyCylinderNodeStyles: rootMeta.everyCylinderNodeStyles
     });
     for (const code of rootDelta.diagnostics) {
       diagnostics.push({
@@ -207,7 +212,12 @@ function evaluateStatement(
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
-      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles
+      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles,
+      everyIsoscelesTriangleNodeStyles: frameMeta.everyIsoscelesTriangleNodeStyles,
+      everyKiteNodeStyles: frameMeta.everyKiteNodeStyles,
+      everyDartNodeStyles: frameMeta.everyDartNodeStyles,
+      everyCircularSectorNodeStyles: frameMeta.everyCircularSectorNodeStyles,
+      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles
     });
     const previousTraceCollector = context.macroTraceCollector;
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
@@ -291,7 +301,12 @@ function evaluateStatement(
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
       everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
       everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
-      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles
+      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles,
+      everyIsoscelesTriangleNodeStyles: frameMeta.everyIsoscelesTriangleNodeStyles,
+      everyKiteNodeStyles: frameMeta.everyKiteNodeStyles,
+      everyDartNodeStyles: frameMeta.everyDartNodeStyles,
+      everyCircularSectorNodeStyles: frameMeta.everyCircularSectorNodeStyles,
+      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles
     });
     for (const code of resolved.diagnostics) {
       diagnostics.push({
@@ -432,6 +447,11 @@ function applyOptionListsToCurrentFrame(
   frame.everyCircleNodeStyles = frameMeta.everyCircleNodeStyles;
   frame.everyDiamondNodeStyles = frameMeta.everyDiamondNodeStyles;
   frame.everyTrapeziumNodeStyles = frameMeta.everyTrapeziumNodeStyles;
+  frame.everyIsoscelesTriangleNodeStyles = frameMeta.everyIsoscelesTriangleNodeStyles;
+  frame.everyKiteNodeStyles = frameMeta.everyKiteNodeStyles;
+  frame.everyDartNodeStyles = frameMeta.everyDartNodeStyles;
+  frame.everyCircularSectorNodeStyles = frameMeta.everyCircularSectorNodeStyles;
+  frame.everyCylinderNodeStyles = frameMeta.everyCylinderNodeStyles;
 
   for (const code of resolved.diagnostics) {
     diagnostics.push({
@@ -1347,6 +1367,11 @@ function resolveFrameMeta(
     everyCircleNodeStyles: OptionListAst[];
     everyDiamondNodeStyles: OptionListAst[];
     everyTrapeziumNodeStyles: OptionListAst[];
+    everyIsoscelesTriangleNodeStyles: OptionListAst[];
+    everyKiteNodeStyles: OptionListAst[];
+    everyDartNodeStyles: OptionListAst[];
+    everyCircularSectorNodeStyles: OptionListAst[];
+    everyCylinderNodeStyles: OptionListAst[];
   },
   optionLists: OptionListAst[]
 ): {
@@ -1361,6 +1386,11 @@ function resolveFrameMeta(
   everyCircleNodeStyles: OptionListAst[];
   everyDiamondNodeStyles: OptionListAst[];
   everyTrapeziumNodeStyles: OptionListAst[];
+  everyIsoscelesTriangleNodeStyles: OptionListAst[];
+  everyKiteNodeStyles: OptionListAst[];
+  everyDartNodeStyles: OptionListAst[];
+  everyCircularSectorNodeStyles: OptionListAst[];
+  everyCylinderNodeStyles: OptionListAst[];
 } {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
@@ -1373,6 +1403,11 @@ function resolveFrameMeta(
   let everyCircleNodeStyles = [...base.everyCircleNodeStyles];
   let everyDiamondNodeStyles = [...base.everyDiamondNodeStyles];
   let everyTrapeziumNodeStyles = [...base.everyTrapeziumNodeStyles];
+  let everyIsoscelesTriangleNodeStyles = [...base.everyIsoscelesTriangleNodeStyles];
+  let everyKiteNodeStyles = [...base.everyKiteNodeStyles];
+  let everyDartNodeStyles = [...base.everyDartNodeStyles];
+  let everyCircularSectorNodeStyles = [...base.everyCircularSectorNodeStyles];
+  let everyCylinderNodeStyles = [...base.everyCylinderNodeStyles];
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1510,6 +1545,76 @@ function resolveFrameMeta(
         if (parsed) {
           everyTrapeziumNodeStyles = [...everyTrapeziumNodeStyles, parsed];
         }
+        continue;
+      }
+      if (entry.key === "every isosceles triangle node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyIsoscelesTriangleNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every isosceles triangle node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyIsoscelesTriangleNodeStyles = [...everyIsoscelesTriangleNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every kite node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyKiteNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every kite node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyKiteNodeStyles = [...everyKiteNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every dart node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDartNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every dart node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDartNodeStyles = [...everyDartNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every circular sector node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCircularSectorNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every circular sector node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCircularSectorNodeStyles = [...everyCircularSectorNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every cylinder node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCylinderNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every cylinder node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCylinderNodeStyles = [...everyCylinderNodeStyles, parsed];
+        }
       }
     }
   }
@@ -1525,7 +1630,12 @@ function resolveFrameMeta(
     everyRectangleNodeStyles,
     everyCircleNodeStyles,
     everyDiamondNodeStyles,
-    everyTrapeziumNodeStyles
+    everyTrapeziumNodeStyles,
+    everyIsoscelesTriangleNodeStyles,
+    everyKiteNodeStyles,
+    everyDartNodeStyles,
+    everyCircularSectorNodeStyles,
+    everyCylinderNodeStyles
   };
 }
 

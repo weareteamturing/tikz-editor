@@ -132,6 +132,41 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["semicircle_shape"]
   },
+  shape_isosceles_triangle: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["isosceles_triangle_shape"]
+  },
+  shape_kite: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["kite_shape"]
+  },
+  shape_dart: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["dart_shape"]
+  },
+  shape_circular_sector: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["circular_sector_shape"]
+  },
+  shape_cylinder: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["cylinder_shape"]
+  },
   shape_regular_polygon: {
     parser: "stable",
     semantic: "stable",

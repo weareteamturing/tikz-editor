@@ -31,7 +31,22 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every diamond node/.prefix style",
   "every trapezium node/.style",
   "every trapezium node/.append style",
-  "every trapezium node/.prefix style"
+  "every trapezium node/.prefix style",
+  "every isosceles triangle node/.style",
+  "every isosceles triangle node/.append style",
+  "every isosceles triangle node/.prefix style",
+  "every kite node/.style",
+  "every kite node/.append style",
+  "every kite node/.prefix style",
+  "every dart node/.style",
+  "every dart node/.append style",
+  "every dart node/.prefix style",
+  "every circular sector node/.style",
+  "every circular sector node/.append style",
+  "every circular sector node/.prefix style",
+  "every cylinder node/.style",
+  "every cylinder node/.append style",
+  "every cylinder node/.prefix style"
 ]);
 
 export function cloneCustomStyleRegistry(registry: CustomStyleRegistry): CustomStyleRegistry {

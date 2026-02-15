@@ -13,8 +13,13 @@ import {
   applyNodeBoxPaintMode,
   makeCircleElement,
   makeNodeBoxElement,
+  makeNodeCircularSectorElement,
+  makeNodeCylinderElement,
+  makeNodeDartElement,
   makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeIsoscelesTriangleElement,
+  makeNodeKiteElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeStarElement,
@@ -277,6 +282,99 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("shape_semicircle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "isosceles triangle") {
+      matrixNodeElements.push(
+        makeNodeIsoscelesTriangleElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.isoscelesTriangleApexAngle,
+          shapeGeometry.shapeBorderRotate,
+          shapeGeometry.isoscelesTriangleStretches,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_isosceles_triangle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "kite") {
+      matrixNodeElements.push(
+        makeNodeKiteElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.kiteUpperVertexAngle,
+          shapeGeometry.kiteLowerVertexAngle,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_kite", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "dart") {
+      matrixNodeElements.push(
+        makeNodeDartElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.dartTipAngle,
+          shapeGeometry.dartTailAngle,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_dart", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "circular sector") {
+      matrixNodeElements.push(
+        makeNodeCircularSectorElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.circularSectorAngle,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_circular_sector", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "cylinder") {
+      matrixNodeElements.push(
+        makeNodeCylinderElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.cylinderAspect,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_cylinder", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "regular polygon") {
       matrixNodeElements.push(

@@ -56,6 +56,21 @@ export const capabilityFixtures: Record<string, string> = {
   semicircle_shape: String.raw`\begin{tikzpicture}
   \node[semicircle,draw] at (0,0) {S};
 \end{tikzpicture}`,
+  isosceles_triangle_shape: String.raw`\begin{tikzpicture}
+  \node[isosceles triangle,draw,isosceles triangle apex angle=50] at (0,0) {I};
+\end{tikzpicture}`,
+  kite_shape: String.raw`\begin{tikzpicture}
+  \node[kite,draw,kite upper vertex angle=120,kite lower vertex angle=70] at (0,0) {K};
+\end{tikzpicture}`,
+  dart_shape: String.raw`\begin{tikzpicture}
+  \node[dart,draw,dart tip angle=45,dart tail angle=135] at (0,0) {D};
+\end{tikzpicture}`,
+  circular_sector_shape: String.raw`\begin{tikzpicture}
+  \node[circular sector,draw,circular sector angle=70] at (0,0) {C};
+\end{tikzpicture}`,
+  cylinder_shape: String.raw`\begin{tikzpicture}
+  \node[cylinder,draw,aspect=.6] at (0,0) {Y};
+\end{tikzpicture}`,
   regular_polygon_shape: String.raw`\begin{tikzpicture}
   \node[regular polygon,regular polygon sides=6,draw] at (0,0) {R};
 \end{tikzpicture}`,

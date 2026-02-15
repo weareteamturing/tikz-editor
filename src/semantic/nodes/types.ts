@@ -9,6 +9,11 @@ export type NodeShape =
   | "semicircle"
   | "regular polygon"
   | "star"
+  | "isosceles triangle"
+  | "kite"
+  | "dart"
+  | "circular sector"
+  | "cylinder"
   | "coordinate";
 export type NodeLayer = "front" | "behind";
 

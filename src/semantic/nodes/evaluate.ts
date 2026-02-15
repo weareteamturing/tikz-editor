@@ -9,8 +9,13 @@ import {
   applyNodeBoxPaintMode,
   makeCircleElement,
   makeNodeBoxElement,
+  makeNodeCircularSectorElement,
+  makeNodeCylinderElement,
+  makeNodeDartElement,
   makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeIsoscelesTriangleElement,
+  makeNodeKiteElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeStarElement,
@@ -57,7 +62,12 @@ export function evaluateNodeItem(
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
-    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+    everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+    everyKiteNodeStyles: frame.everyKiteNodeStyles,
+    everyDartNodeStyles: frame.everyDartNodeStyles,
+    everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles
   });
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
@@ -66,7 +76,12 @@ export function evaluateNodeItem(
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
-    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+    everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+    everyKiteNodeStyles: frame.everyKiteNodeStyles,
+    everyDartNodeStyles: frame.everyDartNodeStyles,
+    everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles
   });
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
@@ -195,6 +210,99 @@ export function evaluateNodeItem(
         )
       );
       markFeature("shape_semicircle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "isosceles triangle") {
+      nodeElements.push(
+        makeNodeIsoscelesTriangleElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.isoscelesTriangleApexAngle,
+          shapeGeometry.shapeBorderRotate,
+          shapeGeometry.isoscelesTriangleStretches,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_isosceles_triangle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "kite") {
+      nodeElements.push(
+        makeNodeKiteElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.kiteUpperVertexAngle,
+          shapeGeometry.kiteLowerVertexAngle,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_kite", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "dart") {
+      nodeElements.push(
+        makeNodeDartElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.dartTipAngle,
+          shapeGeometry.dartTailAngle,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_dart", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "circular sector") {
+      nodeElements.push(
+        makeNodeCircularSectorElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.circularSectorAngle,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_circular_sector", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "cylinder") {
+      nodeElements.push(
+        makeNodeCylinderElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.cylinderAspect,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_cylinder", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "regular polygon") {
       nodeElements.push(

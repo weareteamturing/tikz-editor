@@ -104,6 +104,11 @@ export function resolveEffectiveNodeOptions(params: {
   everyCircleNodeStyles: OptionListAst[];
   everyDiamondNodeStyles: OptionListAst[];
   everyTrapeziumNodeStyles: OptionListAst[];
+  everyIsoscelesTriangleNodeStyles: OptionListAst[];
+  everyKiteNodeStyles: OptionListAst[];
+  everyDartNodeStyles: OptionListAst[];
+  everyCircularSectorNodeStyles: OptionListAst[];
+  everyCylinderNodeStyles: OptionListAst[];
 }): OptionListAst | undefined {
   const base = mergeOptionLists([...params.everyNodeStyles, params.statementOptions, params.nodeOptions]);
   const shape = resolveNodeShape(base);
@@ -119,6 +124,11 @@ function resolveShapeStyleLists(
     everyCircleNodeStyles: OptionListAst[];
     everyDiamondNodeStyles: OptionListAst[];
     everyTrapeziumNodeStyles: OptionListAst[];
+    everyIsoscelesTriangleNodeStyles: OptionListAst[];
+    everyKiteNodeStyles: OptionListAst[];
+    everyDartNodeStyles: OptionListAst[];
+    everyCircularSectorNodeStyles: OptionListAst[];
+    everyCylinderNodeStyles: OptionListAst[];
   }
 ): OptionListAst[] {
   if (shape === "circle") {
@@ -132,6 +142,21 @@ function resolveShapeStyleLists(
   }
   if (shape === "trapezium") {
     return params.everyTrapeziumNodeStyles;
+  }
+  if (shape === "isosceles triangle") {
+    return params.everyIsoscelesTriangleNodeStyles;
+  }
+  if (shape === "kite") {
+    return params.everyKiteNodeStyles;
+  }
+  if (shape === "dart") {
+    return params.everyDartNodeStyles;
+  }
+  if (shape === "circular sector") {
+    return params.everyCircularSectorNodeStyles;
+  }
+  if (shape === "cylinder") {
+    return params.everyCylinderNodeStyles;
   }
   return [];
 }
@@ -199,6 +224,11 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         entry.key === "semicircle" ||
         entry.key === "regular polygon" ||
         entry.key === "star" ||
+        entry.key === "isosceles triangle" ||
+        entry.key === "kite" ||
+        entry.key === "dart" ||
+        entry.key === "circular sector" ||
+        entry.key === "cylinder" ||
         entry.key === "coordinate"
       ) {
         shape = entry.key;
@@ -216,6 +246,11 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         normalized === "semicircle" ||
         normalized === "regular polygon" ||
         normalized === "star" ||
+        normalized === "isosceles triangle" ||
+        normalized === "kite" ||
+        normalized === "dart" ||
+        normalized === "circular sector" ||
+        normalized === "cylinder" ||
         normalized === "coordinate"
       ) {
         shape = normalized;

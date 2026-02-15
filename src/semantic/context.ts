@@ -36,6 +36,11 @@ export type NamedNodeGeometry = {
     | "semicircle"
     | "regular polygon"
     | "star"
+    | "isosceles triangle"
+    | "kite"
+    | "dart"
+    | "circular sector"
+    | "cylinder"
     | "coordinate";
   center: Point;
   anchorHalfWidth: number;
@@ -67,6 +72,11 @@ export type SemanticContextFrame = {
   everyCircleNodeStyles: OptionListAst[];
   everyDiamondNodeStyles: OptionListAst[];
   everyTrapeziumNodeStyles: OptionListAst[];
+  everyIsoscelesTriangleNodeStyles: OptionListAst[];
+  everyKiteNodeStyles: OptionListAst[];
+  everyDartNodeStyles: OptionListAst[];
+  everyCircularSectorNodeStyles: OptionListAst[];
+  everyCylinderNodeStyles: OptionListAst[];
 };
 
 export type SemanticContext = {
@@ -108,7 +118,12 @@ export function createSemanticContext(
         everyRectangleNodeStyles: [],
         everyCircleNodeStyles: [],
         everyDiamondNodeStyles: [],
-        everyTrapeziumNodeStyles: []
+        everyTrapeziumNodeStyles: [],
+        everyIsoscelesTriangleNodeStyles: [],
+        everyKiteNodeStyles: [],
+        everyDartNodeStyles: [],
+        everyCircularSectorNodeStyles: [],
+        everyCylinderNodeStyles: []
       }
     ],
     namedCoordinates: new Map<string, Point>(),

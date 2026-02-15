@@ -2,7 +2,18 @@ import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
 import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
-import { makeDiamondPolygon, makeRegularPolygon, makeSemicircle, makeStar, makeTrapeziumPolygon } from "./shape-geometry.js";
+import {
+  makeCircularSector,
+  makeCylinder,
+  makeDartPolygon,
+  makeDiamondPolygon,
+  makeIsoscelesTrianglePolygon,
+  makeKitePolygon,
+  makeRegularPolygon,
+  makeSemicircle,
+  makeStar,
+  makeTrapeziumPolygon
+} from "./shape-geometry.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export function makeCircleElement(
@@ -242,6 +253,99 @@ export function makeNodeTrapeziumElement(
   return makeNodePolygonElement(sourceId, itemId, corners, style, span);
 }
 
+export function makeNodeIsoscelesTriangleElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  apexAngle: number,
+  rotation: number,
+  stretches: boolean,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const corners = makeIsoscelesTrianglePolygon(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    apexAngle,
+    rotation,
+    stretches
+  ).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeKiteElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  upperVertexAngle: number,
+  lowerVertexAngle: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const corners = makeKitePolygon(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    upperVertexAngle,
+    lowerVertexAngle,
+    rotation
+  ).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeDartElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  tipAngle: number,
+  tailAngle: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const corners = makeDartPolygon(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    tipAngle,
+    tailAngle,
+    rotation
+  ).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
 export function makeNodeSemicircleElement(
   sourceId: string,
   itemId: string,
@@ -271,6 +375,37 @@ export function makeNodeSemicircleElement(
   return makeNodePolygonElement(sourceId, itemId, corners, style, span);
 }
 
+export function makeNodeCircularSectorElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  sectorAngle: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const sector = makeCircularSector(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    sectorAngle,
+    rotation,
+    0
+  );
+  const corners = sector.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
 export function makeNodeRegularPolygonElement(
   sourceId: string,
   itemId: string,
@@ -294,6 +429,37 @@ export function makeNodeRegularPolygonElement(
     sides,
     rotation
   ).map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeCylinderElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  aspect: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const cylinder = makeCylinder(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    aspect,
+    rotation,
+    0
+  );
+  const corners = cylinder.polygon.map((point) => ({
     x: center.x + point.x,
     y: center.y + point.y
   }));

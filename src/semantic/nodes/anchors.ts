@@ -2,8 +2,13 @@ import type { OptionListAst } from "../../options/types.js";
 import type { SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
 import {
+  makeCircularSector,
+  makeCylinder,
+  makeDartPolygon,
   intersectRayWithPolygon,
   makeDiamondPolygon,
+  makeIsoscelesTrianglePolygon,
+  makeKitePolygon,
   makeRegularPolygon,
   makeSemicircle,
   makeStar,
@@ -120,6 +125,48 @@ export function nodeAnchorOffset(
     return trapeziumAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
   }
 
+  if (shape === "isosceles triangle") {
+    const polygon = makeIsoscelesTrianglePolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.isoscelesTriangleApexAngle,
+      shapeGeometry.shapeBorderRotate,
+      shapeGeometry.isoscelesTriangleStretches
+    );
+    const special = isoscelesTriangleSpecialAnchor(anchor, polygon);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "kite") {
+    const polygon = makeKitePolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.kiteUpperVertexAngle,
+      shapeGeometry.kiteLowerVertexAngle,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = kiteSpecialAnchor(anchor, polygon);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "dart") {
+    const polygon = makeDartPolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.dartTipAngle,
+      shapeGeometry.dartTailAngle,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = dartSpecialAnchor(anchor, polygon);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
   if (shape === "regular polygon") {
     const polygon = makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
     const special = regularPolygonSpecialAnchor(anchor, polygon);
@@ -160,6 +207,59 @@ export function nodeAnchorOffset(
       return semicircle.chordCenter;
     }
     return polygonShapeAnchorOffset(anchor, semicircle.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "circular sector") {
+    const sector = makeCircularSector(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.circularSectorAngle,
+      shapeGeometry.shapeBorderRotate,
+      0
+    );
+    if (anchor === "sector center") {
+      return sector.sectorCenter;
+    }
+    if (anchor === "arc start") {
+      return sector.arcStart;
+    }
+    if (anchor === "arc end") {
+      return sector.arcEnd;
+    }
+    if (anchor === "arc center") {
+      return sector.arcCenter;
+    }
+    return polygonShapeAnchorOffset(anchor, sector.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "cylinder") {
+    const cylinder = makeCylinder(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.cylinderAspect,
+      shapeGeometry.shapeBorderRotate,
+      0
+    );
+    if (anchor === "shape center") {
+      return cylinder.shapeCenter;
+    }
+    if (anchor === "before top") {
+      return cylinder.beforeTop;
+    }
+    if (anchor === "top") {
+      return cylinder.top;
+    }
+    if (anchor === "after top") {
+      return cylinder.afterTop;
+    }
+    if (anchor === "before bottom") {
+      return cylinder.beforeBottom;
+    }
+    if (anchor === "bottom") {
+      return cylinder.bottom;
+    }
+    if (anchor === "after bottom") {
+      return cylinder.afterBottom;
+    }
+    return polygonShapeAnchorOffset(anchor, cylinder.polygon, layout.baseLineY, layout.midLineY);
   }
 
   const hw = layout.anchorHalfWidth;
@@ -250,6 +350,104 @@ function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: numb
   }
 
   return polygonShapeAnchorOffset(anchor, polygon, baseLineY, midLineY);
+}
+
+function isoscelesTriangleSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+  const apex = polygon[0];
+  const leftCorner = polygon[1];
+  const rightCorner = polygon[2];
+  if (!apex || !leftCorner || !rightCorner) {
+    return null;
+  }
+
+  if (anchor === "apex") {
+    return apex;
+  }
+  if (anchor === "left corner") {
+    return leftCorner;
+  }
+  if (anchor === "right corner") {
+    return rightCorner;
+  }
+  if (anchor === "left side") {
+    return midpoint(apex, leftCorner);
+  }
+  if (anchor === "right side") {
+    return midpoint(apex, rightCorner);
+  }
+  if (anchor === "lower side") {
+    return midpoint(leftCorner, rightCorner);
+  }
+
+  return null;
+}
+
+function kiteSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+  const upper = polygon[0];
+  const left = polygon[1];
+  const lower = polygon[2];
+  const right = polygon[3];
+  if (!upper || !left || !lower || !right) {
+    return null;
+  }
+
+  if (anchor === "upper vertex") {
+    return upper;
+  }
+  if (anchor === "left vertex") {
+    return left;
+  }
+  if (anchor === "lower vertex") {
+    return lower;
+  }
+  if (anchor === "right vertex") {
+    return right;
+  }
+  if (anchor === "upper left side") {
+    return midpoint(upper, left);
+  }
+  if (anchor === "upper right side") {
+    return midpoint(upper, right);
+  }
+  if (anchor === "lower left side") {
+    return midpoint(lower, left);
+  }
+  if (anchor === "lower right side") {
+    return midpoint(lower, right);
+  }
+
+  return null;
+}
+
+function dartSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+  const tip = polygon[0];
+  const leftTail = polygon[1];
+  const tailCenter = polygon[2];
+  const rightTail = polygon[3];
+  if (!tip || !leftTail || !tailCenter || !rightTail) {
+    return null;
+  }
+
+  if (anchor === "tip") {
+    return tip;
+  }
+  if (anchor === "left tail") {
+    return leftTail;
+  }
+  if (anchor === "right tail") {
+    return rightTail;
+  }
+  if (anchor === "tail center") {
+    return tailCenter;
+  }
+  if (anchor === "left side") {
+    return midpoint(tip, leftTail);
+  }
+  if (anchor === "right side") {
+    return midpoint(tip, rightTail);
+  }
+
+  return null;
 }
 
 function regularPolygonSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
@@ -397,6 +595,36 @@ export function registerNamedNodeAnchors(
       ? makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect)
       : shape === "trapezium"
         ? makeTrapeziumAnchorPolygon(layout, shapeGeometry)
+        : shape === "isosceles triangle"
+          ? makeIsoscelesTrianglePolygon(
+              anchorSizingWithOuter(layout),
+              shapeGeometry.isoscelesTriangleApexAngle,
+              shapeGeometry.shapeBorderRotate,
+              shapeGeometry.isoscelesTriangleStretches
+            )
+          : shape === "kite"
+            ? makeKitePolygon(
+                anchorSizingWithOuter(layout),
+                shapeGeometry.kiteUpperVertexAngle,
+                shapeGeometry.kiteLowerVertexAngle,
+                shapeGeometry.shapeBorderRotate
+              )
+            : shape === "dart"
+              ? makeDartPolygon(
+                  anchorSizingWithOuter(layout),
+                  shapeGeometry.dartTipAngle,
+                  shapeGeometry.dartTailAngle,
+                  shapeGeometry.shapeBorderRotate
+                )
+              : shape === "circular sector"
+                ? makeCircularSector(
+                    anchorSizingWithOuter(layout),
+                    shapeGeometry.circularSectorAngle,
+                    shapeGeometry.shapeBorderRotate,
+                    0
+                  ).polygon
+                : shape === "cylinder"
+                  ? makeCylinder(anchorSizingWithOuter(layout), shapeGeometry.cylinderAspect, shapeGeometry.shapeBorderRotate, 0).polygon
         : shape === "regular polygon"
           ? makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate)
           : shape === "star"
@@ -456,11 +684,57 @@ export function registerNamedNodeAnchors(
     offsets["bottom side"] = nodeAnchorOffset(shape, layout, "bottom side", options);
   }
 
+  if (shape === "isosceles triangle") {
+    offsets.apex = nodeAnchorOffset(shape, layout, "apex", options);
+    offsets["left corner"] = nodeAnchorOffset(shape, layout, "left corner", options);
+    offsets["right corner"] = nodeAnchorOffset(shape, layout, "right corner", options);
+    offsets["left side"] = nodeAnchorOffset(shape, layout, "left side", options);
+    offsets["right side"] = nodeAnchorOffset(shape, layout, "right side", options);
+    offsets["lower side"] = nodeAnchorOffset(shape, layout, "lower side", options);
+  }
+
+  if (shape === "kite") {
+    offsets["upper vertex"] = nodeAnchorOffset(shape, layout, "upper vertex", options);
+    offsets["left vertex"] = nodeAnchorOffset(shape, layout, "left vertex", options);
+    offsets["lower vertex"] = nodeAnchorOffset(shape, layout, "lower vertex", options);
+    offsets["right vertex"] = nodeAnchorOffset(shape, layout, "right vertex", options);
+    offsets["upper left side"] = nodeAnchorOffset(shape, layout, "upper left side", options);
+    offsets["upper right side"] = nodeAnchorOffset(shape, layout, "upper right side", options);
+    offsets["lower left side"] = nodeAnchorOffset(shape, layout, "lower left side", options);
+    offsets["lower right side"] = nodeAnchorOffset(shape, layout, "lower right side", options);
+  }
+
+  if (shape === "dart") {
+    offsets.tip = nodeAnchorOffset(shape, layout, "tip", options);
+    offsets["tail center"] = nodeAnchorOffset(shape, layout, "tail center", options);
+    offsets["left tail"] = nodeAnchorOffset(shape, layout, "left tail", options);
+    offsets["right tail"] = nodeAnchorOffset(shape, layout, "right tail", options);
+    offsets["left side"] = nodeAnchorOffset(shape, layout, "left side", options);
+    offsets["right side"] = nodeAnchorOffset(shape, layout, "right side", options);
+  }
+
   if (shape === "semicircle") {
     offsets.apex = nodeAnchorOffset(shape, layout, "apex", options);
     offsets["arc start"] = nodeAnchorOffset(shape, layout, "arc start", options);
     offsets["arc end"] = nodeAnchorOffset(shape, layout, "arc end", options);
     offsets["chord center"] = nodeAnchorOffset(shape, layout, "chord center", options);
+  }
+
+  if (shape === "circular sector") {
+    offsets["sector center"] = nodeAnchorOffset(shape, layout, "sector center", options);
+    offsets["arc start"] = nodeAnchorOffset(shape, layout, "arc start", options);
+    offsets["arc end"] = nodeAnchorOffset(shape, layout, "arc end", options);
+    offsets["arc center"] = nodeAnchorOffset(shape, layout, "arc center", options);
+  }
+
+  if (shape === "cylinder") {
+    offsets["shape center"] = nodeAnchorOffset(shape, layout, "shape center", options);
+    offsets["before top"] = nodeAnchorOffset(shape, layout, "before top", options);
+    offsets.top = nodeAnchorOffset(shape, layout, "top", options);
+    offsets["after top"] = nodeAnchorOffset(shape, layout, "after top", options);
+    offsets["before bottom"] = nodeAnchorOffset(shape, layout, "before bottom", options);
+    offsets.bottom = nodeAnchorOffset(shape, layout, "bottom", options);
+    offsets["after bottom"] = nodeAnchorOffset(shape, layout, "after bottom", options);
   }
 
   if (shape === "regular polygon") {

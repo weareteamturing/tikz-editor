@@ -5,6 +5,14 @@ import { normalizeOptionValue } from "./utils.js";
 
 export type ShapeGeometryParams = {
   diamondAspect: number;
+  isoscelesTriangleApexAngle: number;
+  isoscelesTriangleStretches: boolean;
+  kiteUpperVertexAngle: number;
+  kiteLowerVertexAngle: number;
+  dartTipAngle: number;
+  dartTailAngle: number;
+  circularSectorAngle: number;
+  cylinderAspect: number;
   trapeziumLeftAngle: number;
   trapeziumRightAngle: number;
   shapeBorderRotate: number;
@@ -42,7 +50,35 @@ export type SemicircleGeometry = {
   polygon: Point[];
 };
 
+export type CircularSectorGeometry = {
+  sectorCenter: Point;
+  arcStart: Point;
+  arcEnd: Point;
+  arcCenter: Point;
+  radius: number;
+  rotation: number;
+  polygon: Point[];
+};
+
+export type CylinderGeometry = {
+  shapeCenter: Point;
+  beforeTop: Point;
+  top: Point;
+  afterTop: Point;
+  beforeBottom: Point;
+  bottom: Point;
+  afterBottom: Point;
+  polygon: Point[];
+};
+
 const DEFAULT_DIAMOND_ASPECT = 1;
+const DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE = 45;
+const DEFAULT_KITE_UPPER_VERTEX_ANGLE = 120;
+const DEFAULT_KITE_LOWER_VERTEX_ANGLE = 60;
+const DEFAULT_DART_TIP_ANGLE = 45;
+const DEFAULT_DART_TAIL_ANGLE = 135;
+const DEFAULT_CIRCULAR_SECTOR_ANGLE = 60;
+const DEFAULT_CYLINDER_ASPECT = 1;
 const DEFAULT_TRAPEZIUM_ANGLE = 60;
 const DEFAULT_SHAPE_BORDER_ROTATE = 0;
 const DEFAULT_REGULAR_POLYGON_SIDES = 5;
@@ -53,6 +89,14 @@ const EPSILON = 1e-9;
 
 export function resolveNodeShapeGeometryParams(options: OptionListAst | undefined): ShapeGeometryParams {
   let diamondAspect = DEFAULT_DIAMOND_ASPECT;
+  let isoscelesTriangleApexAngle = DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE;
+  let isoscelesTriangleStretches = false;
+  let kiteUpperVertexAngle = DEFAULT_KITE_UPPER_VERTEX_ANGLE;
+  let kiteLowerVertexAngle = DEFAULT_KITE_LOWER_VERTEX_ANGLE;
+  let dartTipAngle = DEFAULT_DART_TIP_ANGLE;
+  let dartTailAngle = DEFAULT_DART_TAIL_ANGLE;
+  let circularSectorAngle = DEFAULT_CIRCULAR_SECTOR_ANGLE;
+  let cylinderAspect = DEFAULT_CYLINDER_ASPECT;
   let trapeziumLeftAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let trapeziumRightAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let shapeBorderRotate = DEFAULT_SHAPE_BORDER_ROTATE;
@@ -67,6 +111,14 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   if (!options) {
     return {
       diamondAspect,
+      isoscelesTriangleApexAngle,
+      isoscelesTriangleStretches,
+      kiteUpperVertexAngle,
+      kiteLowerVertexAngle,
+      dartTipAngle,
+      dartTailAngle,
+      circularSectorAngle,
+      cylinderAspect,
       trapeziumLeftAngle,
       trapeziumRightAngle,
       shapeBorderRotate,
@@ -86,6 +138,8 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
         trapeziumStretches = true;
       } else if (entry.key === "trapezium stretches body") {
         trapeziumStretchesBody = true;
+      } else if (entry.key === "isosceles triangle stretches") {
+        isoscelesTriangleStretches = true;
       }
       continue;
     }
@@ -98,6 +152,72 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       const parsed = parseNumericOption(entry.valueRaw);
       if (parsed != null) {
         diamondAspect = normalizeAspect(parsed);
+        cylinderAspect = normalizeAspect(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "isosceles triangle apex angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        isoscelesTriangleApexAngle = normalizeAcuteAngle(parsed, DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "isosceles triangle stretches") {
+      const parsed = parseBoolishOption(entry.valueRaw);
+      if (parsed != null) {
+        isoscelesTriangleStretches = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "kite upper vertex angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        kiteUpperVertexAngle = normalizeAcuteAngle(parsed, DEFAULT_KITE_UPPER_VERTEX_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "kite lower vertex angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        kiteLowerVertexAngle = normalizeAcuteAngle(parsed, DEFAULT_KITE_LOWER_VERTEX_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "kite vertex angles") {
+      const parsed = parseKiteVertexAngles(entry.valueRaw);
+      if (parsed) {
+        kiteUpperVertexAngle = normalizeAcuteAngle(parsed.upper, DEFAULT_KITE_UPPER_VERTEX_ANGLE);
+        kiteLowerVertexAngle = normalizeAcuteAngle(parsed.lower, DEFAULT_KITE_LOWER_VERTEX_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "dart tip angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        dartTipAngle = normalizeAcuteAngle(parsed, DEFAULT_DART_TIP_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "dart tail angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        dartTailAngle = normalizeTailAngle(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "circular sector angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        circularSectorAngle = normalizeSectorAngle(parsed);
       }
       continue;
     }
@@ -188,6 +308,14 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
 
   return {
     diamondAspect,
+    isoscelesTriangleApexAngle,
+    isoscelesTriangleStretches,
+    kiteUpperVertexAngle,
+    kiteLowerVertexAngle,
+    dartTipAngle,
+    dartTailAngle,
+    circularSectorAngle,
+    cylinderAspect,
     trapeziumLeftAngle,
     trapeziumRightAngle,
     shapeBorderRotate,
@@ -213,6 +341,112 @@ export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect
     { x: 0, y: -verticalRadius },
     { x: -horizontalRadius, y: 0 }
   ];
+}
+
+export function makeIsoscelesTrianglePolygon(
+  sizing: CircularSizingInput,
+  apexAngleRaw: number,
+  rotation: number,
+  stretches: boolean
+): Point[] {
+  const apexAngle = normalizeAcuteAngle(apexAngleRaw, DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE);
+  const halfAngleRadians = toRadians(apexAngle / 2);
+  const tangent = Math.tan(halfAngleRadians);
+  const safeTangent = Number.isFinite(tangent) && Math.abs(tangent) > EPSILON ? Math.abs(tangent) : 1;
+  const targetHalfWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  const targetHalfHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+
+  let halfWidth = targetHalfWidth;
+  let halfHeight = targetHalfHeight;
+  if (!stretches) {
+    halfHeight = Math.max(targetHalfHeight, EPSILON);
+    halfWidth = halfHeight * safeTangent;
+    if (halfWidth + EPSILON < targetHalfWidth) {
+      halfWidth = targetHalfWidth;
+      halfHeight = halfWidth / safeTangent;
+    }
+    if (halfHeight + EPSILON < targetHalfHeight) {
+      halfHeight = targetHalfHeight;
+      halfWidth = halfHeight * safeTangent;
+    }
+  }
+
+  const polygon = [
+    { x: 0, y: halfHeight },
+    { x: -halfWidth, y: -halfHeight },
+    { x: halfWidth, y: -halfHeight }
+  ];
+  return rotatePolygon(polygon, rotation);
+}
+
+export function makeKitePolygon(
+  sizing: CircularSizingInput,
+  upperAngleRaw: number,
+  lowerAngleRaw: number,
+  rotation: number
+): Point[] {
+  const upperAngle = normalizeAcuteAngle(upperAngleRaw, DEFAULT_KITE_UPPER_VERTEX_ANGLE);
+  const lowerAngle = normalizeAcuteAngle(lowerAngleRaw, DEFAULT_KITE_LOWER_VERTEX_ANGLE);
+  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
+  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
+  const halfWidth = Math.max(targetWidth / 2, EPSILON);
+
+  const upperTan = Math.tan(toRadians(upperAngle / 2));
+  const lowerTan = Math.tan(toRadians(lowerAngle / 2));
+  const safeUpperTan = Number.isFinite(upperTan) && Math.abs(upperTan) > EPSILON ? Math.abs(upperTan) : 1;
+  const safeLowerTan = Number.isFinite(lowerTan) && Math.abs(lowerTan) > EPSILON ? Math.abs(lowerTan) : 1;
+  let topHeight = halfWidth / safeUpperTan;
+  let bottomHeight = halfWidth / safeLowerTan;
+
+  const totalHeight = topHeight + bottomHeight;
+  if (totalHeight + EPSILON < targetHeight) {
+    const scale = targetHeight / Math.max(totalHeight, EPSILON);
+    topHeight *= scale;
+    bottomHeight *= scale;
+  }
+
+  const polygon = [
+    { x: 0, y: topHeight },
+    { x: -halfWidth, y: 0 },
+    { x: 0, y: -bottomHeight },
+    { x: halfWidth, y: 0 }
+  ];
+  return rotatePolygon(polygon, rotation);
+}
+
+export function makeDartPolygon(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  tailAngleRaw: number,
+  rotation: number
+): Point[] {
+  const tipAngle = normalizeAcuteAngle(tipAngleRaw, DEFAULT_DART_TIP_ANGLE);
+  const tailAngle = normalizeTailAngle(tailAngleRaw);
+  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
+  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
+
+  let halfHeight = Math.max(targetHeight / 2, EPSILON);
+  let tipDistance = halfHeight / Math.max(Math.tan(toRadians(tipAngle / 2)), EPSILON);
+  let tailDistance = halfHeight / Math.max(Math.tan(toRadians(tailAngle / 2)), EPSILON);
+
+  if (tipDistance + EPSILON < targetWidth) {
+    const scale = targetWidth / Math.max(tipDistance, EPSILON);
+    halfHeight *= scale;
+    tipDistance = halfHeight / Math.max(Math.tan(toRadians(tipAngle / 2)), EPSILON);
+    tailDistance = halfHeight / Math.max(Math.tan(toRadians(tailAngle / 2)), EPSILON);
+  }
+
+  const leftX = -tipDistance / 2;
+  const tipX = tipDistance / 2;
+  const tailCenterX = Math.min(tipX - 1e-3, leftX + Math.max(0, tailDistance));
+
+  const polygon = [
+    { x: tipX, y: 0 },
+    { x: leftX, y: halfHeight },
+    { x: tailCenterX, y: 0 },
+    { x: leftX, y: -halfHeight }
+  ];
+  return rotatePolygon(polygon, rotation);
 }
 
 export function makeTrapeziumPolygon(
@@ -380,6 +614,97 @@ export function makeSemicircle(
   };
 }
 
+export function makeCircularSector(
+  sizing: CircularSizingInput,
+  sectorAngleRaw: number,
+  rotation: number,
+  outerSep: number,
+  sampleSteps = 48
+): CircularSectorGeometry {
+  const sectorAngle = normalizeSectorAngle(sectorAngleRaw);
+  const halfAngle = sectorAngle / 2;
+  const sineHalfAngle = Math.sin(toRadians(halfAngle));
+  const safeSine = Math.max(Math.abs(sineHalfAngle), 1e-3);
+  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
+  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
+  const baseRadius = Math.max(targetWidth, targetHeight / (2 * safeSine), EPSILON);
+  const safeOuterSep = Math.max(0, outerSep);
+  const radius = baseRadius + safeOuterSep;
+  const sectorCenterUnrotated = { x: radius / 2, y: 0 };
+  const arcCenterUnrotated = { x: sectorCenterUnrotated.x - radius, y: 0 };
+  const startAngle = 180 - halfAngle;
+  const endAngle = 180 + halfAngle;
+  const arcStartUnrotated = pointPolarOffset(startAngle, radius, sectorCenterUnrotated);
+  const arcEndUnrotated = pointPolarOffset(endAngle, radius, sectorCenterUnrotated);
+
+  const polygonUnrotated: Point[] = [sectorCenterUnrotated];
+  const steps = Math.max(8, sampleSteps);
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    polygonUnrotated.push(pointPolarOffset(startAngle + sectorAngle * t, radius, sectorCenterUnrotated));
+  }
+
+  return {
+    sectorCenter: rotatePoint(sectorCenterUnrotated, rotation),
+    arcStart: rotatePoint(arcStartUnrotated, rotation),
+    arcEnd: rotatePoint(arcEndUnrotated, rotation),
+    arcCenter: rotatePoint(arcCenterUnrotated, rotation),
+    radius,
+    rotation,
+    polygon: polygonUnrotated.map((point) => rotatePoint(point, rotation))
+  };
+}
+
+export function makeCylinder(
+  sizing: CircularSizingInput,
+  aspectRaw: number,
+  rotation: number,
+  outerSep: number,
+  sampleSteps = 24
+): CylinderGeometry {
+  const aspect = normalizeAspect(aspectRaw);
+  const totalLength = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumHeight));
+  const totalThickness = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumWidth));
+  const safeOuterSep = Math.max(0, outerSep);
+  const capRadiusY = totalThickness / 2 + safeOuterSep;
+  const capRadiusX = Math.max(EPSILON, (totalThickness / 2) * aspect + safeOuterSep);
+  const bodyHalfLength = Math.max(0, totalLength / 2 - capRadiusX);
+
+  const leftCenter = { x: -bodyHalfLength, y: 0 };
+  const rightCenter = { x: bodyHalfLength, y: 0 };
+  const beforeTopUnrotated = { x: rightCenter.x, y: capRadiusY };
+  const topUnrotated = { x: rightCenter.x + capRadiusX, y: 0 };
+  const afterTopUnrotated = { x: rightCenter.x, y: -capRadiusY };
+  const beforeBottomUnrotated = { x: leftCenter.x, y: -capRadiusY };
+  const bottomUnrotated = { x: leftCenter.x - capRadiusX, y: 0 };
+  const afterBottomUnrotated = { x: leftCenter.x, y: capRadiusY };
+  const shapeCenterUnrotated = { x: capRadiusX / 2, y: 0 };
+
+  const polygonUnrotated: Point[] = [];
+  const rightArcSteps = Math.max(8, sampleSteps);
+  const leftArcSteps = Math.max(8, sampleSteps);
+
+  for (let index = 0; index <= leftArcSteps; index += 1) {
+    const t = index / leftArcSteps;
+    polygonUnrotated.push(pointEllipsePolarOffset(90 + 180 * t, capRadiusX, capRadiusY, leftCenter));
+  }
+  for (let index = 0; index <= rightArcSteps; index += 1) {
+    const t = index / rightArcSteps;
+    polygonUnrotated.push(pointEllipsePolarOffset(-90 + 180 * t, capRadiusX, capRadiusY, rightCenter));
+  }
+
+  return {
+    shapeCenter: rotatePoint(shapeCenterUnrotated, rotation),
+    beforeTop: rotatePoint(beforeTopUnrotated, rotation),
+    top: rotatePoint(topUnrotated, rotation),
+    afterTop: rotatePoint(afterTopUnrotated, rotation),
+    beforeBottom: rotatePoint(beforeBottomUnrotated, rotation),
+    bottom: rotatePoint(bottomUnrotated, rotation),
+    afterBottom: rotatePoint(afterBottomUnrotated, rotation),
+    polygon: polygonUnrotated.map((point) => rotatePoint(point, rotation))
+  };
+}
+
 export function regularPolygonStartAngle(sidesRaw: number, rotation: number): number {
   const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
   if (sides % 2 === 1) {
@@ -473,6 +798,29 @@ function parseBoolishOption(raw: string): boolean | null {
   return null;
 }
 
+function parseKiteVertexAngles(raw: string): { upper: number; lower: number } | null {
+  const normalized = normalizeOptionValue(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const andMatch = normalized.match(/^(.+)\band\b(.+)$/i);
+  if (andMatch) {
+    const upper = parseNumericOption(andMatch[1] ?? "");
+    const lower = parseNumericOption(andMatch[2] ?? "");
+    if (upper == null || lower == null) {
+      return null;
+    }
+    return { upper, lower };
+  }
+
+  const single = parseNumericOption(normalized);
+  if (single == null) {
+    return null;
+  }
+  return { upper: single, lower: single };
+}
+
 function normalizeAspect(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_DIAMOND_ASPECT;
@@ -482,6 +830,39 @@ function normalizeAspect(value: number): number {
     return DEFAULT_DIAMOND_ASPECT;
   }
   return Math.min(10_000, magnitude);
+}
+
+function normalizeAcuteAngle(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  const normalized = ((value % 360) + 360) % 360;
+  if (normalized <= 1e-3 || normalized >= 179.999) {
+    return fallback;
+  }
+  return normalized;
+}
+
+function normalizeTailAngle(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_DART_TAIL_ANGLE;
+  }
+  const normalized = ((value % 360) + 360) % 360;
+  if (normalized <= 1e-3 || normalized >= 359.999) {
+    return DEFAULT_DART_TAIL_ANGLE;
+  }
+  return normalized;
+}
+
+function normalizeSectorAngle(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_CIRCULAR_SECTOR_ANGLE;
+  }
+  const normalized = Math.abs(value);
+  if (normalized <= 1e-3) {
+    return DEFAULT_CIRCULAR_SECTOR_ANGLE;
+  }
+  return Math.min(179.5, normalized);
 }
 
 function normalizeRatio(value: number): number {
@@ -514,10 +895,26 @@ function normalizeInteger(value: number, min: number, max: number, fallback: num
 }
 
 function pointPolar(degrees: number, radius: number): Point {
-  const radians = (degrees * Math.PI) / 180;
+  const radians = toRadians(degrees);
   return {
     x: radius * Math.cos(radians),
     y: radius * Math.sin(radians)
+  };
+}
+
+function pointPolarOffset(degrees: number, radius: number, center: Point): Point {
+  const point = pointPolar(degrees, radius);
+  return {
+    x: center.x + point.x,
+    y: center.y + point.y
+  };
+}
+
+function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: Point): Point {
+  const radians = toRadians(degrees);
+  return {
+    x: center.x + rx * Math.cos(radians),
+    y: center.y + ry * Math.sin(radians)
   };
 }
 
@@ -602,13 +999,24 @@ function resolveTrapeziumDimensions(
 }
 
 function rotatePoint(point: Point, degrees: number): Point {
-  const radians = (degrees * Math.PI) / 180;
+  const radians = toRadians(degrees);
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
   return {
     x: point.x * cosine - point.y * sine,
     y: point.x * sine + point.y * cosine
   };
+}
+
+function rotatePolygon(points: Point[], rotation: number): Point[] {
+  if (Math.abs(rotation) <= 1e-6) {
+    return points;
+  }
+  return points.map((point) => rotatePoint(point, rotation));
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
 }
 
 function intersectSegments(
