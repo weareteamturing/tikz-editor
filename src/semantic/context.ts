@@ -27,7 +27,16 @@ export type NodeDistanceSpec =
     };
 
 export type NamedNodeGeometry = {
-  shape: "rectangle" | "circle" | "ellipse" | "diamond" | "trapezium" | "coordinate";
+  shape:
+    | "rectangle"
+    | "circle"
+    | "ellipse"
+    | "diamond"
+    | "trapezium"
+    | "semicircle"
+    | "regular polygon"
+    | "star"
+    | "coordinate";
   center: Point;
   anchorHalfWidth: number;
   anchorHalfHeight: number;

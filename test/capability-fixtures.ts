@@ -53,6 +53,15 @@ export const capabilityFixtures: Record<string, string> = {
   trapezium_shape: String.raw`\begin{tikzpicture}
   \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45] at (0,0) {T};
 \end{tikzpicture}`,
+  semicircle_shape: String.raw`\begin{tikzpicture}
+  \node[semicircle,draw] at (0,0) {S};
+\end{tikzpicture}`,
+  regular_polygon_shape: String.raw`\begin{tikzpicture}
+  \node[regular polygon,regular polygon sides=6,draw] at (0,0) {R};
+\end{tikzpicture}`,
+  star_shape: String.raw`\begin{tikzpicture}
+  \node[star,star points=5,star point ratio=1.65,draw] at (0,0) {S};
+\end{tikzpicture}`,
   coordinate_operation: String.raw`\begin{tikzpicture}
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);

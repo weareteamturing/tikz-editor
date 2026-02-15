@@ -15,6 +15,9 @@ import {
   makeNodeBoxElement,
   makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeRegularPolygonElement,
+  makeNodeSemicircleElement,
+  makeNodeStarElement,
   makeNodeTrapeziumElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
@@ -257,6 +260,62 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("shape_trapezium", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "semicircle") {
+      matrixNodeElements.push(
+        makeNodeSemicircleElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_semicircle", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "regular polygon") {
+      matrixNodeElements.push(
+        makeNodeRegularPolygonElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.regularPolygonSides,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_regular_polygon", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "star") {
+      matrixNodeElements.push(
+        makeNodeStarElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.starPoints,
+          shapeGeometry.starPointRatio,
+          shapeGeometry.starPointHeightPt,
+          shapeGeometry.starUsesPointRatio,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_star", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle") {
       matrixNodeElements.push(

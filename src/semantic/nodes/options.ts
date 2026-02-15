@@ -196,6 +196,9 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         entry.key === "ellipse" ||
         entry.key === "diamond" ||
         entry.key === "trapezium" ||
+        entry.key === "semicircle" ||
+        entry.key === "regular polygon" ||
+        entry.key === "star" ||
         entry.key === "coordinate"
       ) {
         shape = entry.key;
@@ -210,6 +213,9 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         normalized === "ellipse" ||
         normalized === "diamond" ||
         normalized === "trapezium" ||
+        normalized === "semicircle" ||
+        normalized === "regular polygon" ||
+        normalized === "star" ||
         normalized === "coordinate"
       ) {
         shape = normalized;

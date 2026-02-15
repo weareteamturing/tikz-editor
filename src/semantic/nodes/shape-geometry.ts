@@ -1,5 +1,6 @@
-import type { OptionListAst } from "../../options/types.js";
+import { parseLength } from "../coords/parse-length.js";
 import type { Point } from "../types.js";
+import type { OptionListAst } from "../../options/types.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export type ShapeGeometryParams = {
@@ -9,6 +10,11 @@ export type ShapeGeometryParams = {
   shapeBorderRotate: number;
   trapeziumStretches: boolean;
   trapeziumStretchesBody: boolean;
+  regularPolygonSides: number;
+  starPoints: number;
+  starPointRatio: number;
+  starPointHeightPt: number;
+  starUsesPointRatio: boolean;
 };
 
 export type TrapeziumSizingInput = {
@@ -18,9 +24,31 @@ export type TrapeziumSizingInput = {
   minimumHeight: number;
 };
 
+export type CircularSizingInput = {
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+};
+
+export type SemicircleGeometry = {
+  center: Point;
+  radius: number;
+  rotation: number;
+  apex: Point;
+  arcStart: Point;
+  arcEnd: Point;
+  chordCenter: Point;
+  polygon: Point[];
+};
+
 const DEFAULT_DIAMOND_ASPECT = 1;
 const DEFAULT_TRAPEZIUM_ANGLE = 60;
 const DEFAULT_SHAPE_BORDER_ROTATE = 0;
+const DEFAULT_REGULAR_POLYGON_SIDES = 5;
+const DEFAULT_STAR_POINTS = 5;
+const DEFAULT_STAR_RATIO = 1.5;
+const DEFAULT_STAR_POINT_HEIGHT_PT = parseLength(".5cm", "pt") ?? 14.2264;
 const EPSILON = 1e-9;
 
 export function resolveNodeShapeGeometryParams(options: OptionListAst | undefined): ShapeGeometryParams {
@@ -30,6 +58,11 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   let shapeBorderRotate = DEFAULT_SHAPE_BORDER_ROTATE;
   let trapeziumStretches = false;
   let trapeziumStretchesBody = false;
+  let regularPolygonSides = DEFAULT_REGULAR_POLYGON_SIDES;
+  let starPoints = DEFAULT_STAR_POINTS;
+  let starPointRatio = DEFAULT_STAR_RATIO;
+  let starPointHeightPt = DEFAULT_STAR_POINT_HEIGHT_PT;
+  let starUsesPointRatio = true;
 
   if (!options) {
     return {
@@ -38,7 +71,12 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       trapeziumRightAngle,
       shapeBorderRotate,
       trapeziumStretches,
-      trapeziumStretchesBody
+      trapeziumStretchesBody,
+      regularPolygonSides,
+      starPoints,
+      starPointRatio,
+      starPointHeightPt,
+      starUsesPointRatio
     };
   }
 
@@ -90,7 +128,7 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       continue;
     }
 
-    if (entry.key === "shape border rotate") {
+    if (entry.key === "shape border rotate" || entry.key === "regular polygon rotate" || entry.key === "star rotate") {
       const parsed = parseNumericOption(entry.valueRaw);
       if (parsed != null) {
         shapeBorderRotate = parsed;
@@ -111,6 +149,40 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       if (parsed != null) {
         trapeziumStretchesBody = parsed;
       }
+      continue;
+    }
+
+    if (entry.key === "regular polygon sides") {
+      const parsed = parseIntegerOption(entry.valueRaw);
+      if (parsed != null) {
+        regularPolygonSides = normalizeInteger(parsed, 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
+      }
+      continue;
+    }
+
+    if (entry.key === "star points") {
+      const parsed = parseIntegerOption(entry.valueRaw);
+      if (parsed != null) {
+        starPoints = normalizeInteger(parsed, 2, 360, DEFAULT_STAR_POINTS);
+      }
+      continue;
+    }
+
+    if (entry.key === "star point ratio") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        starPointRatio = normalizeRatio(parsed);
+        starUsesPointRatio = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "star point height") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        starPointHeightPt = Math.max(0, parsedLength);
+        starUsesPointRatio = false;
+      }
     }
   }
 
@@ -120,7 +192,12 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     trapeziumRightAngle,
     shapeBorderRotate,
     trapeziumStretches,
-    trapeziumStretchesBody
+    trapeziumStretchesBody,
+    regularPolygonSides,
+    starPoints,
+    starPointRatio,
+    starPointHeightPt,
+    starUsesPointRatio
   };
 }
 
@@ -181,6 +258,134 @@ export function makeTrapeziumPolygon(
   }
 
   return polygon.map((point) => rotatePoint(point, rotation));
+}
+
+export function makeRegularPolygon(
+  sizing: CircularSizingInput,
+  sidesRaw: number,
+  rotation: number
+): Point[] {
+  const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
+  const diagonalHalf = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
+  const minRadius = Math.max(sizing.minimumWidth, sizing.minimumHeight) / 2;
+  const cosine = Math.cos(Math.PI / sides);
+  const circumRadius = cosine <= 1e-6 ? minRadius : Math.max(diagonalHalf / cosine, minRadius);
+  const startAngle = regularPolygonStartAngle(sides, rotation);
+
+  const vertices: Point[] = [];
+  const step = 360 / sides;
+  for (let index = 0; index < sides; index += 1) {
+    vertices.push(pointPolar(startAngle + index * step, circumRadius));
+  }
+  return vertices;
+}
+
+export function makeStar(
+  sizing: CircularSizingInput,
+  pointsRaw: number,
+  ratioRaw: number,
+  pointHeightPt: number,
+  useRatio: boolean,
+  rotation: number
+): { polygon: Point[]; outer: Point[]; inner: Point[] } {
+  const points = normalizeInteger(Math.round(pointsRaw), 2, 360, DEFAULT_STAR_POINTS);
+  const safeRatio = normalizeRatio(ratioRaw);
+  const innerBase = Math.hypot(sizing.naturalWidth / 2, sizing.naturalHeight / 2);
+  const safeHeight = Math.max(0, pointHeightPt);
+
+  let innerRadius = innerBase;
+  let outerRadius = useRatio ? innerRadius * safeRatio : innerRadius + safeHeight;
+
+  const minRadius = Math.max(sizing.minimumWidth, sizing.minimumHeight) / 2;
+  if (outerRadius < minRadius) {
+    outerRadius = minRadius;
+    innerRadius = useRatio ? outerRadius / safeRatio : Math.max(0, outerRadius - safeHeight);
+  }
+
+  const startAngle = 90 + rotation;
+  const step = 180 / points;
+  const polygon: Point[] = [];
+  const outer: Point[] = [];
+  const inner: Point[] = [];
+
+  for (let index = 0; index < points; index += 1) {
+    const outerAngle = startAngle + index * 2 * step;
+    const innerAngle = outerAngle + step;
+    const outerPoint = pointPolar(outerAngle, outerRadius);
+    const innerPoint = pointPolar(innerAngle, innerRadius);
+    outer.push(outerPoint);
+    inner.push(innerPoint);
+    polygon.push(outerPoint, innerPoint);
+  }
+
+  return { polygon, outer, inner };
+}
+
+export function makeSemicircle(
+  sizing: CircularSizingInput,
+  rotation: number,
+  outerSep: number,
+  sampleSteps = 48
+): SemicircleGeometry {
+  const safeNaturalWidth = Math.max(0, sizing.naturalWidth);
+  const safeNaturalHeight = Math.max(0, sizing.naturalHeight);
+  const safeMinimumWidth = Math.max(0, sizing.minimumWidth);
+  const safeMinimumHeight = Math.max(0, sizing.minimumHeight);
+
+  const halfWidth = safeNaturalWidth / 2;
+  const halfHeight = safeNaturalHeight / 2;
+  const defaultRadius = Math.hypot(halfWidth, 2 * halfHeight);
+  const radiusBase = Math.max(defaultRadius, safeMinimumWidth / 2, safeMinimumHeight);
+  const adjustment = 0.4 * (radiusBase - defaultRadius);
+  const centerY = -(adjustment + halfHeight);
+
+  const safeOuterSep = Math.max(0, outerSep);
+  const anchorRadius = radiusBase + safeOuterSep;
+  const chordY = centerY - safeOuterSep;
+
+  const centerUnrotated = { x: 0, y: centerY };
+  const apexUnrotated = { x: 0, y: centerY + anchorRadius };
+  const arcStartUnrotated = { x: anchorRadius, y: chordY };
+  const arcEndUnrotated = { x: -anchorRadius, y: chordY };
+  const chordCenterUnrotated = { x: 0, y: chordY };
+
+  const polygonUnrotated: Point[] = [];
+  const steps = Math.max(8, sampleSteps);
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const angle = t * Math.PI;
+    polygonUnrotated.push({
+      x: anchorRadius * Math.cos(angle),
+      y: centerY + anchorRadius * Math.sin(angle)
+    });
+  }
+  polygonUnrotated.push(arcEndUnrotated, arcStartUnrotated);
+
+  const center = rotatePoint(centerUnrotated, rotation);
+  const apex = rotatePoint(apexUnrotated, rotation);
+  const arcStart = rotatePoint(arcStartUnrotated, rotation);
+  const arcEnd = rotatePoint(arcEndUnrotated, rotation);
+  const chordCenter = rotatePoint(chordCenterUnrotated, rotation);
+  const polygon = polygonUnrotated.map((point) => rotatePoint(point, rotation));
+
+  return {
+    center,
+    radius: anchorRadius,
+    rotation,
+    apex,
+    arcStart,
+    arcEnd,
+    chordCenter,
+    polygon
+  };
+}
+
+export function regularPolygonStartAngle(sidesRaw: number, rotation: number): number {
+  const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
+  if (sides % 2 === 1) {
+    return 90 + rotation;
+  }
+  return 90 - 180 / sides + rotation;
 }
 
 export function intersectRayWithPolygon(reference: Point, direction: Point, polygon: Point[]): Point | null {
@@ -246,12 +451,23 @@ function parseNumericOption(raw: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseIntegerOption(raw: string): number | null {
+  const numeric = parseNumericOption(raw);
+  if (numeric == null) {
+    return null;
+  }
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return Math.round(numeric);
+}
+
 function parseBoolishOption(raw: string): boolean | null {
   const normalized = normalizeOptionValue(raw).toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "1") {
+  if (normalized === "true" || normalized === "yes" || normalized === "1" || normalized === "on") {
     return true;
   }
-  if (normalized === "false" || normalized === "no" || normalized === "0") {
+  if (normalized === "false" || normalized === "no" || normalized === "0" || normalized === "off") {
     return false;
   }
   return null;
@@ -268,12 +484,41 @@ function normalizeAspect(value: number): number {
   return Math.min(10_000, magnitude);
 }
 
+function normalizeRatio(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_STAR_RATIO;
+  }
+  const magnitude = Math.abs(value);
+  if (magnitude <= 1e-4) {
+    return DEFAULT_STAR_RATIO;
+  }
+  return Math.min(10_000, magnitude);
+}
+
 function normalizeAngle(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_TRAPEZIUM_ANGLE;
   }
   const normalized = ((value % 360) + 360) % 360;
   return normalized;
+}
+
+function normalizeInteger(value: number, min: number, max: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  if (value < min || value > max) {
+    return fallback;
+  }
+  return value;
+}
+
+function pointPolar(degrees: number, radius: number): Point {
+  const radians = (degrees * Math.PI) / 180;
+  return {
+    x: radius * Math.cos(radians),
+    y: radius * Math.sin(radians)
+  };
 }
 
 function cotDegrees(degrees: number): number {
@@ -311,6 +556,8 @@ function resolveTrapeziumDimensions(
   if (halfHeight + EPSILON < targetHalfHeight) {
     if (stretches || stretchesBody) {
       halfHeight = targetHalfHeight;
+      leftExtension = 2 * halfHeight * cotDegrees(leftAngle);
+      rightExtension = 2 * halfHeight * cotDegrees(rightAngle);
     } else {
       const scale = targetHalfHeight / Math.max(halfHeight, EPSILON);
       halfWidth *= scale;
@@ -354,13 +601,6 @@ function resolveTrapeziumDimensions(
   };
 }
 
-function clampFinite(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-  return Math.max(-1e6, Math.min(1e6, value));
-}
-
 function rotatePoint(point: Point, degrees: number): Point {
   const radians = (degrees * Math.PI) / 180;
   const cosine = Math.cos(radians);
@@ -402,6 +642,13 @@ function intersectSegments(
     },
     t: clampedFirstT
   };
+}
+
+function clampFinite(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(-1e6, Math.min(1e6, value));
 }
 
 function cross(left: Point, right: Point): number {

@@ -125,6 +125,27 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["trapezium_shape"]
   },
+  shape_semicircle: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["semicircle_shape"]
+  },
+  shape_regular_polygon: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["regular_polygon_shape"]
+  },
+  shape_star: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["star_shape"]
+  },
   matrix_node: {
     parser: "stable",
     semantic: "stable",

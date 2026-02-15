@@ -11,6 +11,9 @@ import {
   makeNodeBoxElement,
   makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeRegularPolygonElement,
+  makeNodeSemicircleElement,
+  makeNodeStarElement,
   makeNodeTrapeziumElement,
   makeTextElement,
   resolveNodeBoxPaintMode
@@ -175,6 +178,62 @@ export function evaluateNodeItem(
         )
       );
       markFeature("shape_trapezium", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "semicircle") {
+      nodeElements.push(
+        makeNodeSemicircleElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_semicircle", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "regular polygon") {
+      nodeElements.push(
+        makeNodeRegularPolygonElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.regularPolygonSides,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_regular_polygon", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "star") {
+      nodeElements.push(
+        makeNodeStarElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.starPoints,
+          shapeGeometry.starPointRatio,
+          shapeGeometry.starPointHeightPt,
+          shapeGeometry.starUsesPointRatio,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_star", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
       nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));

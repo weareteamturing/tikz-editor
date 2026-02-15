@@ -1524,6 +1524,83 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports semicircle shape with special anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[semicircle,draw,name=s] at (0,0) {S};
+  \node at (s.apex) {A};
+  \node at (s.arc start) {B};
+  \node at (s.arc end) {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
+    const apex = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const arcStart = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
+    const arcEnd = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+
+    expect(center?.kind).toBe("Text");
+    expect(apex?.kind).toBe("Text");
+    expect(arcStart?.kind).toBe("Text");
+    expect(arcEnd?.kind).toBe("Text");
+    if (center?.kind === "Text" && apex?.kind === "Text" && arcStart?.kind === "Text" && arcEnd?.kind === "Text") {
+      expect(apex.position.y).toBeGreaterThan(center.position.y);
+      expect(arcStart.position.x).toBeGreaterThan(center.position.x);
+      expect(arcEnd.position.x).toBeLessThan(center.position.x);
+    }
+  });
+
+  it("supports regular polygon shape with side/corner anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[regular polygon,regular polygon sides=6,shape border rotate=30,draw,name=p] at (0,0) {P};
+  \node at (p.corner 1) {C1};
+  \node at (p.side 1)   {S1};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P");
+    const corner = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C1");
+    const side = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S1");
+    expect(center?.kind).toBe("Text");
+    expect(corner?.kind).toBe("Text");
+    expect(side?.kind).toBe("Text");
+    if (center?.kind === "Text" && corner?.kind === "Text" && side?.kind === "Text") {
+      const cornerDistance = Math.hypot(corner.position.x - center.position.x, corner.position.y - center.position.y);
+      const sideDistance = Math.hypot(side.position.x - center.position.x, side.position.y - center.position.y);
+      expect(cornerDistance).toBeGreaterThan(sideDistance);
+    }
+  });
+
+  it("supports star shape with point anchors and height/ratio options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[star,star points=5,star point ratio=1.7,draw,name=a] at (0,0) {A};
+  \node[star,star points=5,star point height=.5cm,draw,name=b] at (4,0) {B};
+  \node at (a.outer point 1) {O};
+  \node at (a.inner point 1) {I};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
+    const outer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "O");
+    const inner = result.scene.elements.find((element) => element.kind === "Text" && element.text === "I");
+    expect(center?.kind).toBe("Text");
+    expect(outer?.kind).toBe("Text");
+    expect(inner?.kind).toBe("Text");
+    if (center?.kind === "Text" && outer?.kind === "Text" && inner?.kind === "Text") {
+      const outerDistance = Math.hypot(outer.position.x - center.position.x, outer.position.y - center.position.y);
+      const innerDistance = Math.hypot(inner.position.x - center.position.x, inner.position.y - center.position.y);
+      expect(outerDistance).toBeGreaterThan(innerDistance);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}

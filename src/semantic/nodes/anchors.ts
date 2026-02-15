@@ -4,6 +4,9 @@ import type { Point } from "../types.js";
 import {
   intersectRayWithPolygon,
   makeDiamondPolygon,
+  makeRegularPolygon,
+  makeSemicircle,
+  makeStar,
   makeTrapeziumPolygon,
   midpoint,
   resolveNodeShapeGeometryParams
@@ -113,20 +116,50 @@ export function nodeAnchorOffset(
   }
 
   if (shape === "trapezium") {
-    const polygon = makeTrapeziumPolygon(
-      {
-        naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
-        naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
-        minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
-        minimumHeight: layout.minimumHeight + layout.outerYSep * 2
-      },
-      shapeGeometry.trapeziumLeftAngle,
-      shapeGeometry.trapeziumRightAngle,
-      shapeGeometry.shapeBorderRotate,
-      shapeGeometry.trapeziumStretches,
-      shapeGeometry.trapeziumStretchesBody
-    );
+    const polygon = makeTrapeziumAnchorPolygon(layout, shapeGeometry);
     return trapeziumAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "regular polygon") {
+    const polygon = makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
+    const special = regularPolygonSpecialAnchor(anchor, polygon);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "star") {
+    const star = makeStar(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.starPoints,
+      shapeGeometry.starPointRatio,
+      shapeGeometry.starPointHeightPt,
+      shapeGeometry.starUsesPointRatio,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = starSpecialAnchor(anchor, star.outer, star.inner);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, star.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "semicircle") {
+    const semicircle = makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0);
+    if (anchor === "apex") {
+      return semicircle.apex;
+    }
+    if (anchor === "arc start") {
+      return semicircle.arcStart;
+    }
+    if (anchor === "arc end") {
+      return semicircle.arcEnd;
+    }
+    if (anchor === "chord center") {
+      return semicircle.chordCenter;
+    }
+    return polygonShapeAnchorOffset(anchor, semicircle.polygon, layout.baseLineY, layout.midLineY);
   }
 
   const hw = layout.anchorHalfWidth;
@@ -166,6 +199,25 @@ export function nodeAnchorOffset(
   }
 }
 
+function makeTrapeziumAnchorPolygon(
+  layout: NodeLayout,
+  shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
+): Point[] {
+  return makeTrapeziumPolygon(
+    {
+      naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
+      naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
+      minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
+      minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+    },
+    shapeGeometry.trapeziumLeftAngle,
+    shapeGeometry.trapeziumRightAngle,
+    shapeGeometry.shapeBorderRotate,
+    shapeGeometry.trapeziumStretches,
+    shapeGeometry.trapeziumStretchesBody
+  );
+}
+
 function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
   const bottomLeft = polygon[0] ?? { x: 0, y: 0 };
   const topLeft = polygon[1] ?? { x: 0, y: 0 };
@@ -198,6 +250,51 @@ function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: numb
   }
 
   return polygonShapeAnchorOffset(anchor, polygon, baseLineY, midLineY);
+}
+
+function regularPolygonSpecialAnchor(anchor: string, polygon: Point[]): Point | null {
+  const cornerMatch = anchor.match(/^corner\s+(\d+)$/);
+  if (cornerMatch) {
+    const index = Number(cornerMatch[1]);
+    if (Number.isFinite(index) && index >= 1) {
+      return polygon[(index - 1) % polygon.length] ?? null;
+    }
+  }
+
+  const sideMatch = anchor.match(/^side\s+(\d+)$/);
+  if (sideMatch) {
+    const index = Number(sideMatch[1]);
+    if (Number.isFinite(index) && index >= 1) {
+      const sideIndex = (index - 1) % polygon.length;
+      const from = polygon[sideIndex];
+      const to = polygon[(sideIndex + 1) % polygon.length];
+      if (from && to) {
+        return midpoint(from, to);
+      }
+    }
+  }
+
+  return null;
+}
+
+function starSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Point[]): Point | null {
+  const outerMatch = anchor.match(/^(?:outer\s+)?point\s+(\d+)$/);
+  if (outerMatch) {
+    const index = Number(outerMatch[1]);
+    if (Number.isFinite(index) && index >= 1) {
+      return outerPoints[(index - 1) % outerPoints.length] ?? null;
+    }
+  }
+
+  const innerMatch = anchor.match(/^inner\s+point\s+(\d+)$/);
+  if (innerMatch) {
+    const index = Number(innerMatch[1]);
+    if (Number.isFinite(index) && index >= 1) {
+      return innerPoints[(index - 1) % innerPoints.length] ?? null;
+    }
+  }
+
+  return null;
 }
 
 function polygonShapeAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
@@ -272,6 +369,20 @@ function ellipseDirectionalOffset(rx: number, ry: number, dx: number, dy: number
   };
 }
 
+function anchorSizingWithOuter(layout: NodeLayout): {
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+} {
+  return {
+    naturalWidth: layout.naturalWidth + layout.outerXSep * 2,
+    naturalHeight: layout.naturalHeight + layout.outerYSep * 2,
+    minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
+    minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+  };
+}
+
 export function registerNamedNodeAnchors(
   context: SemanticContext,
   name: string,
@@ -285,20 +396,21 @@ export function registerNamedNodeAnchors(
     shape === "diamond"
       ? makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect)
       : shape === "trapezium"
-        ? makeTrapeziumPolygon(
-            {
-              naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
-              naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
-              minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
-              minimumHeight: layout.minimumHeight + layout.outerYSep * 2
-            },
-            shapeGeometry.trapeziumLeftAngle,
-            shapeGeometry.trapeziumRightAngle,
-            shapeGeometry.shapeBorderRotate,
-            shapeGeometry.trapeziumStretches,
-            shapeGeometry.trapeziumStretchesBody
-          )
-        : undefined;
+        ? makeTrapeziumAnchorPolygon(layout, shapeGeometry)
+        : shape === "regular polygon"
+          ? makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate)
+          : shape === "star"
+            ? makeStar(
+                anchorSizingWithOuter(layout),
+                shapeGeometry.starPoints,
+                shapeGeometry.starPointRatio,
+                shapeGeometry.starPointHeightPt,
+                shapeGeometry.starUsesPointRatio,
+                shapeGeometry.shapeBorderRotate
+              ).polygon
+            : shape === "semicircle"
+              ? makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0).polygon
+              : undefined;
 
   context.namedNodeGeometries.set(name, {
     shape,
@@ -332,6 +444,7 @@ export function registerNamedNodeAnchors(
     "mid east": nodeAnchorOffset(shape, layout, "mid east", options),
     "mid west": nodeAnchorOffset(shape, layout, "mid west", options)
   };
+
   if (shape === "trapezium") {
     offsets["bottom left corner"] = nodeAnchorOffset(shape, layout, "bottom left corner", options);
     offsets["top left corner"] = nodeAnchorOffset(shape, layout, "top left corner", options);
@@ -341,6 +454,30 @@ export function registerNamedNodeAnchors(
     offsets["right side"] = nodeAnchorOffset(shape, layout, "right side", options);
     offsets["top side"] = nodeAnchorOffset(shape, layout, "top side", options);
     offsets["bottom side"] = nodeAnchorOffset(shape, layout, "bottom side", options);
+  }
+
+  if (shape === "semicircle") {
+    offsets.apex = nodeAnchorOffset(shape, layout, "apex", options);
+    offsets["arc start"] = nodeAnchorOffset(shape, layout, "arc start", options);
+    offsets["arc end"] = nodeAnchorOffset(shape, layout, "arc end", options);
+    offsets["chord center"] = nodeAnchorOffset(shape, layout, "chord center", options);
+  }
+
+  if (shape === "regular polygon") {
+    const sides = Math.max(3, shapeGeometry.regularPolygonSides);
+    for (let index = 1; index <= sides; index += 1) {
+      offsets[`corner ${index}`] = nodeAnchorOffset(shape, layout, `corner ${index}`, options);
+      offsets[`side ${index}`] = nodeAnchorOffset(shape, layout, `side ${index}`, options);
+    }
+  }
+
+  if (shape === "star") {
+    const points = Math.max(2, shapeGeometry.starPoints);
+    for (let index = 1; index <= points; index += 1) {
+      offsets[`point ${index}`] = nodeAnchorOffset(shape, layout, `point ${index}`, options);
+      offsets[`outer point ${index}`] = nodeAnchorOffset(shape, layout, `outer point ${index}`, options);
+      offsets[`inner point ${index}`] = nodeAnchorOffset(shape, layout, `inner point ${index}`, options);
+    }
   }
 
   for (const [anchor, offset] of Object.entries(offsets)) {
