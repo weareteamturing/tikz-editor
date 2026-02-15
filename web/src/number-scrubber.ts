@@ -63,7 +63,8 @@ const LENGTH_KEYS = new Set([
   "minimum height",
   "inner sep",
   "outer sep",
-  "node distance"
+  "node distance",
+  "rounded corners"
 ]);
 
 const ANGLE_KEYS = new Set([
@@ -93,7 +94,8 @@ const NON_NEGATIVE_KEYS = new Set([
   "minimum height",
   "inner sep",
   "outer sep",
-  "node distance"
+  "node distance",
+  "rounded corners"
 ]);
 
 export function numberScrubber(options: NumberScrubberOptions = {}): Extension {

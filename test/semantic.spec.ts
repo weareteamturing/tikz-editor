@@ -131,6 +131,177 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("evaluates perpendicular coordinate syntax with |- and -|", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path coordinate (a) at (1,2) coordinate (b) at (3,4);
+  \draw (a |- b) -- (a -| b);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const drawPath = paths.find((element) => element.kind === "Path" && element.style.stroke != null);
+    expect(drawPath?.kind).toBe("Path");
+    if (drawPath?.kind !== "Path") {
+      return;
+    }
+
+    const move = drawPath.commands[0];
+    const line = drawPath.commands.find((command) => command.kind === "L");
+    expect(move?.kind).toBe("M");
+    expect(line?.kind).toBe("L");
+    if (move?.kind === "M" && line?.kind === "L") {
+      expect(move.to.x).toBeCloseTo(28.4528, 3);
+      expect(move.to.y).toBeCloseTo(113.811, 3);
+      expect(line.to.x).toBeCloseTo(85.3583, 3);
+      expect(line.to.y).toBeCloseTo(56.9055, 3);
+    }
+  });
+
+  it("evaluates perpendicular coordinates when calc operands are wrapped in braces", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) at (0,1)    {A};
+  \node (B) at (1,1.5)  {B};
+  \node (C) at (2,0)    {C};
+  \node (D) at (2.5,-2) {D};
+  \node at ({$(A)!.5!(B)$} -| {$(C)!.5!(D)$}) {X};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-perpendicular-coordinate")).toBe(false);
+
+    const xLabel = result.scene.elements.find((element) => element.kind === "Text" && element.text === "X");
+    expect(xLabel?.kind).toBe("Text");
+    if (xLabel?.kind === "Text") {
+      expect(xLabel.position.x).toBeCloseTo(64.0187, 3);
+      expect(xLabel.position.y).toBeCloseTo(35.5659, 3);
+    }
+  });
+
+  it("evaluates intersection-of and intersection cs coordinates for line pairs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path coordinate (p) at (intersection cs:first line={(0,0)--(2,2)}, second line={(0,2)--(2,0)});
+  \draw (intersection of 0,0--2,2 and 0,2--2,0) -- (p);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:explicit")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-explicit-coordinate")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
+    expect(drawPath?.kind).toBe("Path");
+    if (drawPath?.kind !== "Path") {
+      return;
+    }
+
+    const move = drawPath.commands[0];
+    const line = drawPath.commands.find((command) => command.kind === "L");
+    expect(move?.kind).toBe("M");
+    expect(line?.kind).toBe("L");
+    if (move?.kind === "M" && line?.kind === "L") {
+      expect(move.to.x).toBeCloseTo(28.4528, 3);
+      expect(move.to.y).toBeCloseTo(28.4528, 3);
+      expect(line.to.x).toBeCloseTo(28.4528, 3);
+      expect(line.to.y).toBeCloseTo(28.4528, 3);
+    }
+  });
+
+  it("supports name path and name intersections with alias naming", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path [name path=upward line] (1,0) -- (1,1);
+  \path [name path=sloped line] (0,0) -- (30:1.5cm);
+  \draw [name intersections={of=upward line and sloped line, by=x}] (1,0) -- (x);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:name path")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:name intersections")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:x"))).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-path:"))).toBe(false);
+
+    const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
+    expect(drawPath?.kind).toBe("Path");
+    if (drawPath?.kind !== "Path") {
+      return;
+    }
+
+    const move = drawPath.commands[0];
+    const line = drawPath.commands.find((command) => command.kind === "L");
+    expect(move?.kind).toBe("M");
+    expect(line?.kind).toBe("L");
+    if (move?.kind === "M" && line?.kind === "L") {
+      expect(move.to.x).toBeCloseTo(28.4528, 3);
+      expect(move.to.y).toBeCloseTo(0, 3);
+      expect(line.to.x).toBeCloseTo(28.4528, 3);
+      expect(line.to.y).toBeCloseTo(16.427, 2);
+    }
+  });
+
+  it("registers default intersection-n coordinates from name intersections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path [name path=a] (0,0) -- (2,2);
+  \path [name path=b] (0,2) -- (2,0);
+  \draw [name intersections={of=a and b}] (intersection-1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:intersection-1"))).toBe(false);
+    const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
+    expect(drawPath?.kind).toBe("Path");
+    if (drawPath?.kind === "Path") {
+      const move = drawPath.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(28.4528, 3);
+        expect(move.to.y).toBeCloseTo(28.4528, 3);
+      }
+    }
+  });
+
+  it("orders cubic name intersections so by={a,b} assigns the center crossing to b", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw [name path=curve 1] (-2,-1) .. controls (8,-1) and (-8,1) .. (2,1);
+  \draw [name path=curve 2] (-1,-2) .. controls (-1,8) and (1,-8) .. (1,2);
+  \draw [name intersections={of=curve 1 and curve 2, by={a,b}}] (a) -- (b);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-path:"))).toBe(false);
+
+    const intersectionSegment = result.scene.elements.find(
+      (element) =>
+        element.kind === "Path" &&
+        element.style.stroke != null &&
+        element.commands.some((command) => command.kind === "L") &&
+        !element.commands.some((command) => command.kind === "C")
+    );
+    expect(intersectionSegment?.kind).toBe("Path");
+    if (intersectionSegment?.kind !== "Path") {
+      return;
+    }
+
+    const move = intersectionSegment.commands[0];
+    const line = intersectionSegment.commands.find((command) => command.kind === "L");
+    expect(move?.kind).toBe("M");
+    expect(line?.kind).toBe("L");
+    if (move?.kind === "M" && line?.kind === "L") {
+      expect(move.to.x).toBeCloseTo(-28.2, 1);
+      expect(move.to.y).toBeCloseTo(-28.2, 1);
+      expect(line.to.x).toBeCloseTo(0, 1);
+      expect(line.to.y).toBeCloseTo(0, 1);
+    }
+  });
+
   it("projects xyz coordinates onto 2d output and warns when z contributes", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0,1) -- (1,1,0);

@@ -13,42 +13,42 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   },
   "parse": {
     "failedHard": 0,
-    "parsedClean": 985,
-    "parsedWithRecovery": 1202,
-    "recoverableRate": 0.5496,
+    "parsedClean": 994,
+    "parsedWithRecovery": 1193,
+    "recoverableRate": 0.5455,
   },
   "sampleHardFailures": [],
   "semantic": {
     "elementTotals": {
       "circles": 336,
       "ellipses": 33,
-      "paths": 4474,
+      "paths": 4485,
       "texts": 2665,
-      "total": 7508,
+      "total": 7519,
     },
     "semanticEmptySceneRate": 0.4275,
     "semanticEmptySceneSnippets": 935,
-    "semanticErrorRate": 0.1262,
-    "semanticErrorSnippets": 276,
-    "semanticUnsupportedRate": 0.6479,
-    "semanticUnsupportedSnippets": 1417,
-    "semanticWarningRate": 0.652,
-    "semanticWarningSnippets": 1426,
+    "semanticErrorRate": 0.1225,
+    "semanticErrorSnippets": 268,
+    "semanticUnsupportedRate": 0.6443,
+    "semanticUnsupportedSnippets": 1409,
+    "semanticWarningRate": 0.6475,
+    "semanticWarningSnippets": 1416,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2721,
     "pathItemTotals": {
       "commentItemRate": 0.002,
       "commentItems": 28,
-      "coordinateItemRate": 0.4179,
+      "coordinateItemRate": 0.418,
       "coordinateItems": 5808,
       "coordinateOperationItemRate": 0.0052,
       "coordinateOperationItems": 72,
       "keywordItemRate": 0.2444,
-      "keywordItems": 3397,
+      "keywordItems": 3396,
       "letOperationItemRate": 0.0007,
       "letOperationItems": 10,
-      "nodeItemRate": 0.1112,
+      "nodeItemRate": 0.1113,
       "nodeItems": 1546,
       "optionItemRate": 0.1483,
       "optionItems": 2061,
@@ -56,7 +56,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "svgOperationItems": 2,
       "toOperationItemRate": 0.0078,
       "toOperationItems": 109,
-      "totalPathItems": 13897,
+      "totalPathItems": 13896,
       "unknownPathItemRate": 0.0622,
       "unknownPathItems": 864,
     },
@@ -80,11 +80,11 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topDiagnosticCodes": [
     {
       "code": "parse-error",
-      "count": 5335,
+      "count": 5264,
     },
     {
       "code": "missing-option-close",
-      "count": 319,
+      "count": 318,
     },
     {
       "code": "missing-group-close",
@@ -92,7 +92,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "malformed-coordinate",
-      "count": 46,
+      "count": 45,
     },
   ],
   "topRecoveryFiles": [
@@ -133,8 +133,8 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-tikz-plots.tex",
     },
     {
-      "count": 25,
-      "filePath": "pgfmanual-en-library-circuits.tex",
+      "count": 23,
+      "filePath": "pgfmanual-en-library-plot-handlers.tex",
     },
   ],
   "topSemanticDiagnosticCodes": [
@@ -148,7 +148,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "foreach-body-parse-error",
-      "count": 1125,
+      "count": 1108,
     },
     {
       "code": "invalid-coordinate-operation",
@@ -176,7 +176,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "unsupported-coordinate-form:explicit",
-      "count": 94,
+      "count": 92,
     },
     {
       "code": "unsupported-option-flag:decorate",
@@ -206,7 +206,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "unsupported-coordinate-form:explicit",
-      "count": 94,
+      "count": 92,
     },
     {
       "code": "unsupported-option-flag:decorate",
@@ -230,7 +230,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "unsupported-coordinate-form:unknown",
-      "count": 35,
+      "count": 34,
     },
     {
       "code": "unsupported-coordinate-z-component",

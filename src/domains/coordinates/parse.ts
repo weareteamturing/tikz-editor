@@ -102,6 +102,17 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
     return { x: core, y: "", form: "explicit", isWellFormed: true, optionsSpan, optionsRaw: extracted.optionsRaw };
   }
 
+  if (isIntersectionCoordinateExpression(core)) {
+    return {
+      x: core,
+      y: "",
+      form: "named",
+      isWellFormed: true,
+      optionsSpan,
+      optionsRaw: extracted.optionsRaw
+    };
+  }
+
   const commaParts = splitAllAtTopLevel(core, ",").map((part) => part.trim());
   if (commaParts.length === 2) {
     const [x, y] = commaParts;
@@ -151,6 +162,19 @@ export function parseCoordinate(raw: string): ParsedCoordinate & { optionsSpan?:
     optionsSpan,
     optionsRaw: extracted.optionsRaw
   };
+}
+
+function isIntersectionCoordinateExpression(core: string): boolean {
+  const normalized = unwrapOuterBraces(core.trim());
+  return /^intersection(?:\s+\d+)?\s+of\b/i.test(normalized);
+}
+
+function unwrapOuterBraces(raw: string): string {
+  let normalized = raw.trim();
+  while (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
 }
 
 type ExtractedOptions = {

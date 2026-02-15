@@ -452,6 +452,7 @@ Coordinate {
   Coordinate |
   OptionList |
   Group |
+  GroupPathOperator |
   PathKeyword |
   EscapedPercentCmd |
   EscapedDollarCmd |

@@ -1,7 +1,7 @@
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js";
-import type { Point, Matrix2D, ResolvedStyle } from "./types.js";
+import type { Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 
 export type NodeLayerMode = "front" | "behind";
@@ -55,6 +55,7 @@ export type SemanticContext = {
   stack: SemanticContextFrame[];
   namedCoordinates: Map<string, Point>;
   namedNodeGeometries: Map<string, NamedNodeGeometry>;
+  namedPaths: Map<string, SceneElement[]>;
   currentPoint: Point | null;
   pathStartPoint: Point | null;
   textEngine: NodeTextEngine | null;
@@ -92,6 +93,7 @@ export function createSemanticContext(
     ],
     namedCoordinates: new Map<string, Point>(),
     namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
+    namedPaths: new Map<string, SceneElement[]>(),
     currentPoint: null,
     pathStartPoint: null,
     textEngine,

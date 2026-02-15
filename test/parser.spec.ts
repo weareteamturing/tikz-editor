@@ -595,6 +595,32 @@ describe("parseTikz", () => {
     expect(forms).toContain("calc");
   });
 
+  it("parses perpendicular and intersection coordinate syntaxes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (a |- b) -- (intersection of 0,0--1,1 and 0,1--1,0)
+        -- (intersection cs:first line={(0,0)--(1,1)}, second line={(0,1)--(1,0)});
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const coordinates = statement.items.filter((item) => item.kind === "Coordinate");
+    expect(coordinates.length).toBe(3);
+    expect(coordinates.some((item) => item.kind === "Coordinate" && item.form === "named" && item.x.includes("|-"))).toBe(true);
+    expect(coordinates.some((item) => item.kind === "Coordinate" && item.form === "named" && item.x.includes("intersection of"))).toBe(
+      true
+    );
+    expect(
+      coordinates.some(
+        (item) => item.kind === "Coordinate" && item.form === "explicit" && item.x.toLowerCase().includes("intersection cs:")
+      )
+    ).toBe(true);
+  });
+
   it("parses node names with options and text in path syntax", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) node(a) [draw] {A}  (1,1) node(b) [draw] {B};

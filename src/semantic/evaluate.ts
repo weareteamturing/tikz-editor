@@ -27,6 +27,7 @@ import { parseOptionListRaw } from "../options/parse.js";
 import type { OptionListAst } from "../options/types.js";
 import { createSemanticContext, currentFrame, popFrame, pushFrame, type NodeDistanceSpec } from "./context.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
+import { applyNameIntersectionsDirective, collectPathIntersectionDirectives, registerNamedPath } from "./path/intersections.js";
 import { parseNodeDistance } from "./path/node-positioning.js";
 import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
 import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
@@ -175,6 +176,18 @@ function evaluateStatement(
     if (resolved.style.markerStart || resolved.style.markerEnd) {
       markFeature(featureUsage, "arrow_tips", "supported");
     }
+    const intersectionDirectives = collectPathIntersectionDirectives(resolved.expandedOptionLists);
+    if (intersectionDirectives.namedPathNames.length > 0 || intersectionDirectives.nameIntersections) {
+      markFeature(featureUsage, "named_coordinates", "supported");
+    }
+    for (const code of intersectionDirectives.diagnostics) {
+      diagnostics.push({
+        severity: "warning",
+        code,
+        message: `Path option issue: ${code}`,
+        span: statement.span
+      });
+    }
 
     pushFrame(context, {
       style: resolved.style,
@@ -196,6 +209,18 @@ function evaluateStatement(
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
     context.macroTraceCollector = statementMacroTrace;
     try {
+      if (intersectionDirectives.nameIntersections) {
+        const directiveDiagnostics = applyNameIntersectionsDirective(intersectionDirectives.nameIntersections, context);
+        for (const code of directiveDiagnostics) {
+          diagnostics.push({
+            severity: "warning",
+            code,
+            message: `Path intersection issue: ${code}`,
+            span: intersectionDirectives.nameIntersections.span
+          });
+        }
+      }
+
       const elements = evaluatePathStatement(
         statement,
         context,
@@ -210,6 +235,9 @@ function evaluateStatement(
           });
         }
       );
+      for (const name of intersectionDirectives.namedPathNames) {
+        registerNamedPath(name, elements, context);
+      }
       const originStack = extractStatementMacroOriginStack(statementMacroTrace);
       if (originStack.length > 0) {
         statementMacroAttribution.set(statement, originStack);

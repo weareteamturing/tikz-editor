@@ -13,6 +13,16 @@ export type EvaluatedCoordinate = {
   advancesCurrentPoint: boolean;
 };
 
+type ParsedExplicitCoordinate =
+  | { kind: "canvas"; x: string; y: string }
+  | { kind: "perpendicular"; horizontalLineThrough: string; verticalLineThrough: string }
+  | { kind: "intersection"; firstLine: ParsedLineSpec; secondLine: ParsedLineSpec; solution: number };
+
+type ParsedLineSpec = {
+  startRaw: string;
+  endRaw: string;
+};
+
 export function evaluateCoordinate(item: CoordinateItem, context: SemanticContext): EvaluatedCoordinate {
   const diagnostics: string[] = [];
   const frame = context.stack[context.stack.length - 1];
@@ -20,6 +30,26 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
 
   if (item.form === "named") {
     const rawName = expandCoordinateComponent(item.x.trim(), frame.macroBindings, traceCollector).trim();
+    const perpendicular = tryEvaluatePerpendicularCoordinate(rawName, context);
+    if (perpendicular) {
+      diagnostics.push(...perpendicular.diagnostics);
+      return {
+        point: perpendicular.point,
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
+    }
+
+    const intersection = tryEvaluateIntersectionCoordinate(rawName, context);
+    if (intersection) {
+      diagnostics.push(...intersection.diagnostics);
+      return {
+        point: intersection.point,
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
+    }
+
     const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
     const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
     if (!named) {
@@ -52,17 +82,63 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       diagnostics.push(`unsupported-coordinate-form:${item.form}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
+    if (parsed.kind === "canvas") {
+      const x = parseLength(parsed.x, "cm");
+      const y = parseLength(parsed.y, "cm");
+      if (x == null || y == null) {
+        diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
+        return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      }
 
-    const x = parseLength(parsed.x, "cm");
-    const y = parseLength(parsed.y, "cm");
-    if (x == null || y == null) {
+      const local = { x, y };
+      return {
+        point: applyMatrix(frame.transform, local),
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
+    }
+
+    if (parsed.kind === "perpendicular") {
+      const horizontal = evaluateRawCoordinate(parsed.horizontalLineThrough, context);
+      const vertical = evaluateRawCoordinate(parsed.verticalLineThrough, context);
+      diagnostics.push(...horizontal.diagnostics, ...vertical.diagnostics);
+      if (!horizontal.point || !vertical.point) {
+        diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
+        return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      }
+      return {
+        point: { x: vertical.point.x, y: horizontal.point.y },
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
+    }
+
+    const firstStart = evaluateRawCoordinate(parsed.firstLine.startRaw, context);
+    const firstEnd = evaluateRawCoordinate(parsed.firstLine.endRaw, context);
+    const secondStart = evaluateRawCoordinate(parsed.secondLine.startRaw, context);
+    const secondEnd = evaluateRawCoordinate(parsed.secondLine.endRaw, context);
+    diagnostics.push(...firstStart.diagnostics, ...firstEnd.diagnostics, ...secondStart.diagnostics, ...secondEnd.diagnostics);
+    if (!firstStart.point || !firstEnd.point || !secondStart.point || !secondEnd.point) {
       diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
       return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
-    const local = { x, y };
+    const intersection = intersectInfiniteLines(
+      { start: firstStart.point, end: firstEnd.point },
+      { start: secondStart.point, end: secondEnd.point }
+    );
+    if (!intersection) {
+      diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
+      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    }
+
+    if (parsed.solution !== 1) {
+      diagnostics.push(`invalid-intersection-solution:${parsed.solution}`);
+      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    }
+
     return {
-      point: applyMatrix(frame.transform, local),
+      point: intersection,
       diagnostics,
       advancesCurrentPoint: item.relativePrefix === "++"
     };
@@ -148,40 +224,66 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
   };
 }
 
-function parseExplicitCoordinate(raw: string): { x: string; y: string } | null {
+function parseExplicitCoordinate(raw: string): ParsedExplicitCoordinate | null {
   const trimmed = raw.trim();
-  const colon = trimmed.indexOf(":");
-  if (colon === -1) {
+  const csMatch = trimmed.match(/^(.+?)\s*cs\s*:\s*(.+)$/i);
+  if (!csMatch) {
     return null;
   }
 
-  const kvSegment = trimmed.slice(colon + 1).trim();
-  if (kvSegment.length === 0) {
-    return null;
+  const system = csMatch[1].trim().toLowerCase();
+  const kvValues = parseTopLevelKvPairs(csMatch[2]);
+  if (system === "perpendicular") {
+    const horizontalLineThrough = kvValues.get("horizontal line through");
+    const verticalLineThrough = kvValues.get("vertical line through");
+    if (!horizontalLineThrough || !verticalLineThrough) {
+      return null;
+    }
+    const horizontalRaw = normalizeInlineCoordinateRaw(horizontalLineThrough);
+    const verticalRaw = normalizeInlineCoordinateRaw(verticalLineThrough);
+    if (!horizontalRaw || !verticalRaw) {
+      return null;
+    }
+    return {
+      kind: "perpendicular",
+      horizontalLineThrough: horizontalRaw,
+      verticalLineThrough: verticalRaw
+    };
   }
 
-  const entries = splitAllAtTopLevel(kvSegment, ",").map((entry) => entry.trim());
-  let x: string | null = null;
-  let y: string | null = null;
+  if (system === "intersection") {
+    const firstLineRaw = kvValues.get("first line");
+    const secondLineRaw = kvValues.get("second line");
+    if (!firstLineRaw || !secondLineRaw) {
+      return null;
+    }
 
-  for (const entry of entries) {
-    const eq = entry.indexOf("=");
-    if (eq === -1) {
-      continue;
+    const firstLine = parseLineSpec(firstLineRaw);
+    const secondLine = parseLineSpec(secondLineRaw);
+    if (!firstLine || !secondLine) {
+      return null;
     }
-    const key = entry.slice(0, eq).trim().toLowerCase();
-    const value = entry.slice(eq + 1).trim();
-    if (key === "x") {
-      x = value;
-    } else if (key === "y") {
-      y = value;
-    }
+
+    const solutionRaw = kvValues.get("solution");
+    const solution = solutionRaw ? Number(unwrapOuterBraces(solutionRaw)) : 1;
+    return {
+      kind: "intersection",
+      firstLine,
+      secondLine,
+      solution: Number.isFinite(solution) ? Math.max(1, Math.floor(solution)) : 1
+    };
   }
 
+  const x = kvValues.get("x");
+  const y = kvValues.get("y");
   if (!x || !y) {
     return null;
   }
-  return { x, y };
+  return {
+    kind: "canvas",
+    x,
+    y
+  };
 }
 
 function evaluateCalcCoordinate(
@@ -327,6 +429,377 @@ function tryParseCalcInterpolation(term: string): { left: string; right: string;
   }
 
   return { left, right, factor };
+}
+
+function tryEvaluatePerpendicularCoordinate(
+  raw: string,
+  context: SemanticContext
+): { point: Point | null; diagnostics: string[] } | null {
+  const parsed = parsePerpendicularCoordinate(raw);
+  if (!parsed) {
+    return null;
+  }
+
+  const left = evaluateRawCoordinate(parsed.leftRaw, context);
+  const right = evaluateRawCoordinate(parsed.rightRaw, context);
+  const diagnostics = [...left.diagnostics, ...right.diagnostics];
+  if (!left.point || !right.point) {
+    diagnostics.push("invalid-perpendicular-coordinate");
+    return { point: null, diagnostics };
+  }
+
+  if (parsed.operator === "|-") {
+    return {
+      point: {
+        x: left.point.x,
+        y: right.point.y
+      },
+      diagnostics
+    };
+  }
+
+  return {
+    point: {
+      x: right.point.x,
+      y: left.point.y
+    },
+    diagnostics
+  };
+}
+
+function parsePerpendicularCoordinate(raw: string): { operator: "|-" | "-|"; leftRaw: string; rightRaw: string } | null {
+  const trimmed = raw.trim();
+  const candidates = [trimmed];
+  const unwrapped = unwrapOuterBraces(trimmed);
+  if (unwrapped !== trimmed) {
+    candidates.push(unwrapped);
+  }
+
+  for (const candidate of candidates) {
+    const split = splitAtTopLevelOperator(candidate, ["|-", "-|"]);
+    if (!split) {
+      continue;
+    }
+
+    const leftRaw = normalizeInlineCoordinateRaw(split.left);
+    const rightRaw = normalizeInlineCoordinateRaw(split.right);
+    if (!leftRaw || !rightRaw) {
+      continue;
+    }
+
+    return {
+      operator: split.operator as "|-" | "-|",
+      leftRaw,
+      rightRaw
+    };
+  }
+
+  return null;
+}
+
+function tryEvaluateIntersectionCoordinate(
+  raw: string,
+  context: SemanticContext
+): { point: Point | null; diagnostics: string[] } | null {
+  const trimmed = raw.trim();
+  const candidates = [trimmed];
+  const unwrapped = unwrapOuterBraces(trimmed);
+  if (unwrapped !== trimmed) {
+    candidates.push(unwrapped);
+  }
+
+  let prefixMatch: RegExpMatchArray | null = null;
+  for (const candidate of candidates) {
+    prefixMatch = candidate.match(/^intersection(?:\s+(\d+))?\s+of\s+(.+)$/i);
+    if (prefixMatch) {
+      break;
+    }
+  }
+  if (!prefixMatch) {
+    return null;
+  }
+
+  const diagnostics: string[] = [];
+  const solution = prefixMatch[1] ? Number(prefixMatch[1]) : 1;
+  const objectPair = splitAtTopLevelKeyword(prefixMatch[2], "and");
+  if (!objectPair) {
+    return { point: null, diagnostics: ["invalid-intersection-coordinate"] };
+  }
+
+  const firstLine = parseLineSpec(objectPair.left);
+  const secondLine = parseLineSpec(objectPair.right);
+  if (!firstLine || !secondLine) {
+    return { point: null, diagnostics: ["invalid-intersection-coordinate"] };
+  }
+
+  const firstStart = evaluateRawCoordinate(firstLine.startRaw, context);
+  const firstEnd = evaluateRawCoordinate(firstLine.endRaw, context);
+  const secondStart = evaluateRawCoordinate(secondLine.startRaw, context);
+  const secondEnd = evaluateRawCoordinate(secondLine.endRaw, context);
+  diagnostics.push(...firstStart.diagnostics, ...firstEnd.diagnostics, ...secondStart.diagnostics, ...secondEnd.diagnostics);
+
+  if (!firstStart.point || !firstEnd.point || !secondStart.point || !secondEnd.point) {
+    diagnostics.push("invalid-intersection-coordinate");
+    return { point: null, diagnostics };
+  }
+
+  if (!Number.isFinite(solution) || solution !== 1) {
+    diagnostics.push(`invalid-intersection-solution:${prefixMatch[1] ?? String(solution)}`);
+    return { point: null, diagnostics };
+  }
+
+  const point = intersectInfiniteLines(
+    { start: firstStart.point, end: firstEnd.point },
+    { start: secondStart.point, end: secondEnd.point }
+  );
+  if (!point) {
+    diagnostics.push("invalid-intersection-coordinate");
+    return { point: null, diagnostics };
+  }
+
+  return { point, diagnostics };
+}
+
+function parseLineSpec(raw: string): ParsedLineSpec | null {
+  const normalized = unwrapOuterBraces(raw.trim());
+  const split = splitAtTopLevelOperator(normalized, ["--"]);
+  if (!split) {
+    return null;
+  }
+
+  const startRaw = normalizeInlineCoordinateRaw(split.left);
+  const endRaw = normalizeInlineCoordinateRaw(split.right);
+  if (!startRaw || !endRaw) {
+    return null;
+  }
+
+  return { startRaw, endRaw };
+}
+
+function normalizeInlineCoordinateRaw(raw: string): string | null {
+  let normalized = raw.trim();
+  while (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized.startsWith("(") && normalized.endsWith(")")) {
+    return normalized;
+  }
+  return `(${normalized})`;
+}
+
+function parseTopLevelKvPairs(raw: string): Map<string, string> {
+  const pairs = new Map<string, string>();
+  const entries = splitAllAtTopLevel(raw, ",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  for (const entry of entries) {
+    const separator = findTopLevelEquals(entry);
+    if (separator === -1) {
+      continue;
+    }
+    const key = entry.slice(0, separator).trim().toLowerCase();
+    const value = entry.slice(separator + 1).trim();
+    if (key.length > 0) {
+      pairs.set(key, value);
+    }
+  }
+  return pairs;
+}
+
+function findTopLevelEquals(input: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (char === "=" && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function splitAtTopLevelOperator(
+  input: string,
+  operators: string[]
+): { left: string; right: string; operator: string } | null {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (parenDepth !== 0 || braceDepth !== 0 || bracketDepth !== 0) {
+      continue;
+    }
+
+    for (const operator of operators) {
+      if (input.startsWith(operator, i)) {
+        return {
+          left: input.slice(0, i).trim(),
+          right: input.slice(i + operator.length).trim(),
+          operator
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function splitAtTopLevelKeyword(input: string, keyword: string): { left: string; right: string } | null {
+  const needle = ` ${keyword} `;
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let i = 0; i <= input.length - needle.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      const candidate = input.slice(i, i + needle.length).toLowerCase();
+      if (candidate === needle) {
+        return {
+          left: input.slice(0, i).trim(),
+          right: input.slice(i + needle.length).trim()
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function unwrapOuterBraces(raw: string): string {
+  let normalized = raw.trim();
+  while (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
+function intersectInfiniteLines(
+  first: { start: Point; end: Point },
+  second: { start: Point; end: Point }
+): Point | null {
+  const firstDirection = {
+    x: first.end.x - first.start.x,
+    y: first.end.y - first.start.y
+  };
+  const secondDirection = {
+    x: second.end.x - second.start.x,
+    y: second.end.y - second.start.y
+  };
+  const denominator = cross(firstDirection, secondDirection);
+  if (Math.abs(denominator) <= 1e-9) {
+    return null;
+  }
+
+  const delta = {
+    x: second.start.x - first.start.x,
+    y: second.start.y - first.start.y
+  };
+  const t = cross(delta, secondDirection) / denominator;
+  return {
+    x: first.start.x + t * firstDirection.x,
+    y: first.start.y + t * firstDirection.y
+  };
+}
+
+function cross(left: Point, right: Point): number {
+  return left.x * right.y - left.y * right.x;
 }
 
 function scopedNameCandidates(name: string, prefix: string, suffix: string): string[] {

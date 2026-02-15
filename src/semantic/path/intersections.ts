@@ -1,0 +1,727 @@
+import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import type { Span } from "../../ast/types.js";
+import type { OptionListAst } from "../../options/types.js";
+import { currentFrame, type SemanticContext } from "../context.js";
+import { applyNameScope } from "../nodes/named-coordinates.js";
+import type { Point, SceneElement, SceneEllipse, ScenePath } from "../types.js";
+
+type SampledSegment = {
+  from: Point;
+  to: Point;
+  paramStart: number;
+  paramEnd: number;
+};
+
+type SampledPath = {
+  segments: SampledSegment[];
+  totalLength: number;
+  hasCubic: boolean;
+};
+
+type IntersectionPoint = {
+  point: Point;
+  firstParam: number;
+  secondParam: number;
+  discoveryOrder: number;
+};
+
+export type NameIntersectionsDirective = {
+  firstPathName: string;
+  secondPathName: string;
+  prefix: string;
+  byNames: string[];
+  sortBy?: string;
+  totalMacro?: string;
+  span: Span;
+};
+
+export type PathIntersectionDirectives = {
+  namedPathNames: string[];
+  nameIntersections?: NameIntersectionsDirective;
+  diagnostics: string[];
+};
+
+export function collectPathIntersectionDirectives(optionLists: OptionListAst[]): PathIntersectionDirectives {
+  const namedPathNames: string[] = [];
+  const diagnostics: string[] = [];
+  let nameIntersections: NameIntersectionsDirective | undefined;
+
+  for (const optionList of optionLists) {
+    for (const entry of optionList.entries) {
+      if (entry.kind !== "kv") {
+        continue;
+      }
+
+      if (entry.key === "name path" || entry.key === "name path global" || entry.key === "name path local") {
+        const pathName = normalizePathName(entry.valueRaw);
+        if (pathName.length > 0) {
+          namedPathNames.push(pathName);
+        }
+        continue;
+      }
+
+      if (entry.key !== "name intersections") {
+        continue;
+      }
+
+      const parsed = parseNameIntersectionsDirective(entry.valueRaw, entry.span);
+      diagnostics.push(...parsed.diagnostics);
+      if (parsed.directive) {
+        nameIntersections = parsed.directive;
+      }
+    }
+  }
+
+  return {
+    namedPathNames: Array.from(new Set(namedPathNames)),
+    nameIntersections,
+    diagnostics
+  };
+}
+
+export function applyNameIntersectionsDirective(directive: NameIntersectionsDirective, context: SemanticContext): string[] {
+  const diagnostics: string[] = [];
+  const firstLookup = resolveNamedPath(directive.firstPathName, context);
+  if (!firstLookup) {
+    diagnostics.push(`unknown-named-path:${directive.firstPathName}`);
+    return diagnostics;
+  }
+
+  const secondLookup = resolveNamedPath(directive.secondPathName, context);
+  if (!secondLookup) {
+    diagnostics.push(`unknown-named-path:${directive.secondPathName}`);
+    return diagnostics;
+  }
+
+  const firstSampled = sampleSceneElements(firstLookup.elements);
+  const secondSampled = sampleSceneElements(secondLookup.elements);
+  if (firstSampled.segments.length === 0 || secondSampled.segments.length === 0) {
+    if (directive.totalMacro) {
+      writeIntersectionTotalMacro(directive.totalMacro, 0, context);
+    }
+    return diagnostics;
+  }
+
+  const intersections = intersectSampledPaths(firstSampled, secondSampled);
+  sortIntersections(intersections, directive.sortBy, firstLookup.name, secondLookup.name, firstSampled.hasCubic, secondSampled.hasCubic);
+
+  for (let i = 0; i < intersections.length; i += 1) {
+    const point = intersections[i].point;
+    const generatedName = `${directive.prefix}-${i + 1}`;
+    context.namedCoordinates.set(applyNameScope(generatedName, context), point);
+  }
+
+  for (let i = 0; i < directive.byNames.length && i < intersections.length; i += 1) {
+    const alias = directive.byNames[i];
+    if (alias.length === 0) {
+      continue;
+    }
+    context.namedCoordinates.set(applyNameScope(alias, context), intersections[i].point);
+  }
+
+  if (directive.totalMacro) {
+    writeIntersectionTotalMacro(directive.totalMacro, intersections.length, context);
+  }
+
+  return diagnostics;
+}
+
+export function registerNamedPath(pathName: string, elements: SceneElement[], context: SemanticContext): boolean {
+  const normalizedName = normalizePathName(pathName);
+  if (normalizedName.length === 0) {
+    return false;
+  }
+
+  const scopedName = applyNameScope(normalizedName, context);
+  const geometryElements = elements.filter(isGeometricElement);
+  const existing = context.namedPaths.get(scopedName) ?? [];
+  context.namedPaths.set(scopedName, [...existing, ...geometryElements]);
+  return true;
+}
+
+function normalizePathName(raw: string): string {
+  let normalized = raw.trim();
+  while (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length >= 2) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
+function parseNameIntersectionsDirective(
+  raw: string,
+  span: Span
+): { directive: NameIntersectionsDirective | null; diagnostics: string[] } {
+  const diagnostics: string[] = [];
+  const normalized = unwrapOuterBraces(raw.trim());
+  if (normalized.length === 0) {
+    diagnostics.push("invalid-name-intersections");
+    return { directive: null, diagnostics };
+  }
+
+  const entries = splitAllAtTopLevel(normalized, ",").map((part) => part.trim()).filter((part) => part.length > 0);
+  let firstPathName: string | null = null;
+  let secondPathName: string | null = null;
+  let prefix = "intersection";
+  let sortBy: string | undefined;
+  let totalMacro: string | undefined;
+  let byNames: string[] = [];
+
+  for (const entry of entries) {
+    const separator = findTopLevelEquals(entry);
+    if (separator === -1) {
+      continue;
+    }
+
+    const key = entry.slice(0, separator).trim().toLowerCase();
+    const valueRaw = entry.slice(separator + 1).trim();
+    if (key === "of") {
+      const pair = splitAtTopLevelKeyword(valueRaw, "and");
+      if (!pair) {
+        diagnostics.push("invalid-name-intersections-of");
+      } else {
+        firstPathName = normalizePathName(pair.left);
+        secondPathName = normalizePathName(pair.right);
+      }
+      continue;
+    }
+
+    if (key === "name") {
+      const normalizedPrefix = normalizePathName(valueRaw);
+      if (normalizedPrefix.length > 0) {
+        prefix = normalizedPrefix;
+      }
+      continue;
+    }
+
+    if (key === "by") {
+      byNames = parseByList(valueRaw);
+      continue;
+    }
+
+    if (key === "sort by") {
+      const normalizedSortBy = normalizePathName(valueRaw);
+      if (normalizedSortBy.length > 0) {
+        sortBy = normalizedSortBy;
+      }
+      continue;
+    }
+
+    if (key === "total") {
+      const normalizedMacro = normalizeMacroToken(valueRaw);
+      if (normalizedMacro) {
+        totalMacro = normalizedMacro;
+      }
+    }
+  }
+
+  if (!firstPathName || !secondPathName) {
+    diagnostics.push("invalid-name-intersections-of");
+    return { directive: null, diagnostics };
+  }
+
+  return {
+    directive: {
+      firstPathName,
+      secondPathName,
+      prefix,
+      byNames,
+      sortBy,
+      totalMacro,
+      span
+    },
+    diagnostics
+  };
+}
+
+function parseByList(raw: string): string[] {
+  const normalized = unwrapOuterBraces(raw.trim());
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  const entries = splitAllAtTopLevel(normalized, ",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const names: string[] = [];
+
+  for (const entry of entries) {
+    let remainder = entry;
+    while (remainder.startsWith("[")) {
+      const bracket = findMatchingBracket(remainder, 0);
+      if (bracket === -1) {
+        break;
+      }
+      remainder = remainder.slice(bracket + 1).trim();
+    }
+
+    const normalizedName = normalizePathName(remainder);
+    if (normalizedName.length > 0) {
+      names.push(normalizedName);
+    }
+  }
+
+  return names;
+}
+
+function unwrapOuterBraces(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.length >= 2) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function findTopLevelEquals(input: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (char === "=" && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function splitAtTopLevelKeyword(input: string, keyword: string): { left: string; right: string } | null {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  const needle = ` ${keyword} `;
+
+  for (let i = 0; i <= input.length - needle.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      const candidate = input.slice(i, i + needle.length).toLowerCase();
+      if (candidate === needle) {
+        return {
+          left: input.slice(0, i).trim(),
+          right: input.slice(i + needle.length).trim()
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveNamedPath(rawName: string, context: SemanticContext): { name: string; elements: SceneElement[] } | null {
+  const normalized = normalizePathName(rawName);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const scoped = applyNameScope(normalized, context);
+  const candidates = scoped === normalized ? [normalized] : [scoped, normalized];
+  for (const candidate of candidates) {
+    const elements = context.namedPaths.get(candidate);
+    if (elements) {
+      return { name: candidate, elements };
+    }
+  }
+
+  return null;
+}
+
+function sampleSceneElements(elements: SceneElement[]): SampledPath {
+  const rawSegments: Array<{ from: Point; to: Point }> = [];
+  let hasCubic = false;
+
+  for (const element of elements) {
+    if (element.kind === "Path") {
+      hasCubic = hasCubic || pathHasCubicSegments(element);
+      rawSegments.push(...samplePathElementSegments(element));
+      continue;
+    }
+    if (element.kind === "Circle") {
+      rawSegments.push(...sampleCircleSegments(element.center, element.radius, 96));
+      continue;
+    }
+    if (element.kind === "Ellipse") {
+      rawSegments.push(...sampleEllipseSegments(element, 96));
+    }
+  }
+
+  const segments: SampledSegment[] = [];
+  let cumulative = 0;
+  for (const segment of rawSegments) {
+    const length = distance(segment.from, segment.to);
+    if (!Number.isFinite(length) || length <= 1e-9) {
+      continue;
+    }
+    segments.push({
+      from: segment.from,
+      to: segment.to,
+      paramStart: cumulative,
+      paramEnd: cumulative + length
+    });
+    cumulative += length;
+  }
+
+  return {
+    segments,
+    totalLength: cumulative,
+    hasCubic
+  };
+}
+
+function pathHasCubicSegments(path: ScenePath): boolean {
+  return path.commands.some((command) => command.kind === "C");
+}
+
+function samplePathElementSegments(path: ScenePath): Array<{ from: Point; to: Point }> {
+  const segments: Array<{ from: Point; to: Point }> = [];
+  let current: Point | null = null;
+  let subpathStart: Point | null = null;
+
+  for (const command of path.commands) {
+    if (command.kind === "M") {
+      current = command.to;
+      subpathStart = command.to;
+      continue;
+    }
+    if (command.kind === "L") {
+      if (current) {
+        segments.push({ from: current, to: command.to });
+      }
+      current = command.to;
+      continue;
+    }
+    if (command.kind === "C") {
+      if (!current) {
+        current = command.to;
+        continue;
+      }
+      let previous = current;
+      const steps = 24;
+      for (let i = 1; i <= steps; i += 1) {
+        const t = i / steps;
+        const next = cubicBezierPoint(current, command.c1, command.c2, command.to, t);
+        segments.push({ from: previous, to: next });
+        previous = next;
+      }
+      current = command.to;
+      continue;
+    }
+    if (command.kind === "A") {
+      if (current) {
+        segments.push({ from: current, to: command.to });
+      }
+      current = command.to;
+      continue;
+    }
+    if (command.kind === "Z") {
+      if (current && subpathStart) {
+        segments.push({ from: current, to: subpathStart });
+        current = subpathStart;
+      }
+    }
+  }
+
+  return segments;
+}
+
+function sampleCircleSegments(center: Point, radius: number, steps: number): Array<{ from: Point; to: Point }> {
+  if (!Number.isFinite(radius) || radius <= 1e-9) {
+    return [];
+  }
+
+  const segments: Array<{ from: Point; to: Point }> = [];
+  for (let i = 0; i < steps; i += 1) {
+    const start = (2 * Math.PI * i) / steps;
+    const end = (2 * Math.PI * (i + 1)) / steps;
+    const from = {
+      x: center.x + radius * Math.cos(start),
+      y: center.y + radius * Math.sin(start)
+    };
+    const to = {
+      x: center.x + radius * Math.cos(end),
+      y: center.y + radius * Math.sin(end)
+    };
+    segments.push({ from, to });
+  }
+  return segments;
+}
+
+function sampleEllipseSegments(ellipse: SceneEllipse, steps: number): Array<{ from: Point; to: Point }> {
+  if (!Number.isFinite(ellipse.rx) || !Number.isFinite(ellipse.ry) || ellipse.rx <= 1e-9 || ellipse.ry <= 1e-9) {
+    return [];
+  }
+
+  const rotationRadians = ((ellipse.rotation ?? 0) * Math.PI) / 180;
+  const cosRotation = Math.cos(rotationRadians);
+  const sinRotation = Math.sin(rotationRadians);
+
+  const segments: Array<{ from: Point; to: Point }> = [];
+  for (let i = 0; i < steps; i += 1) {
+    const start = (2 * Math.PI * i) / steps;
+    const end = (2 * Math.PI * (i + 1)) / steps;
+    const from = ellipsePoint(ellipse.center, ellipse.rx, ellipse.ry, cosRotation, sinRotation, start);
+    const to = ellipsePoint(ellipse.center, ellipse.rx, ellipse.ry, cosRotation, sinRotation, end);
+    segments.push({ from, to });
+  }
+  return segments;
+}
+
+function ellipsePoint(
+  center: Point,
+  rx: number,
+  ry: number,
+  cosRotation: number,
+  sinRotation: number,
+  angle: number
+): Point {
+  const ux = rx * Math.cos(angle);
+  const uy = ry * Math.sin(angle);
+  return {
+    x: center.x + ux * cosRotation - uy * sinRotation,
+    y: center.y + ux * sinRotation + uy * cosRotation
+  };
+}
+
+function cubicBezierPoint(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  const mt = 1 - t;
+  const mt2 = mt * mt;
+  const t2 = t * t;
+  return {
+    x: mt2 * mt * p0.x + 3 * mt2 * t * p1.x + 3 * mt * t2 * p2.x + t2 * t * p3.x,
+    y: mt2 * mt * p0.y + 3 * mt2 * t * p1.y + 3 * mt * t2 * p2.y + t2 * t * p3.y
+  };
+}
+
+function intersectSampledPaths(first: SampledPath, second: SampledPath): IntersectionPoint[] {
+  const intersections: IntersectionPoint[] = [];
+  const dedupeTolerance = 1e-3;
+
+  for (const firstSegment of first.segments) {
+    const firstSegmentLength = distance(firstSegment.from, firstSegment.to);
+    for (const secondSegment of second.segments) {
+      const secondSegmentLength = distance(secondSegment.from, secondSegment.to);
+      const intersection = intersectSegments(firstSegment.from, firstSegment.to, secondSegment.from, secondSegment.to);
+      if (!intersection) {
+        continue;
+      }
+
+      const firstParamAbsolute = firstSegment.paramStart + intersection.t * firstSegmentLength;
+      const secondParamAbsolute = secondSegment.paramStart + intersection.u * secondSegmentLength;
+      const firstParam = first.totalLength > 1e-9 ? firstParamAbsolute / first.totalLength : 0;
+      const secondParam = second.totalLength > 1e-9 ? secondParamAbsolute / second.totalLength : 0;
+      const existing = intersections.find((entry) => distance(entry.point, intersection.point) <= dedupeTolerance);
+      if (existing) {
+        existing.firstParam = Math.min(existing.firstParam, firstParam);
+        existing.secondParam = Math.min(existing.secondParam, secondParam);
+        continue;
+      }
+
+      intersections.push({
+        point: intersection.point,
+        firstParam,
+        secondParam,
+        discoveryOrder: intersections.length
+      });
+    }
+  }
+
+  return intersections;
+}
+
+function sortIntersections(
+  intersections: IntersectionPoint[],
+  sortBy: string | undefined,
+  firstPathName: string,
+  secondPathName: string,
+  firstHasCubic: boolean,
+  secondHasCubic: boolean
+): void {
+  if (intersections.length <= 1) {
+    return;
+  }
+
+  if (!sortBy) {
+    if (firstHasCubic && secondHasCubic) {
+      intersections.sort(
+        (left, right) =>
+          Math.abs(left.firstParam - left.secondParam) - Math.abs(right.firstParam - right.secondParam) ||
+          left.firstParam - right.firstParam ||
+          left.secondParam - right.secondParam ||
+          left.discoveryOrder - right.discoveryOrder
+      );
+      return;
+    }
+    intersections.sort((left, right) => left.discoveryOrder - right.discoveryOrder);
+    return;
+  }
+
+  const normalized = normalizePathName(sortBy);
+  const firstNormalized = normalizePathName(firstPathName);
+  const secondNormalized = normalizePathName(secondPathName);
+  if (normalized === firstNormalized) {
+    intersections.sort((left, right) => left.firstParam - right.firstParam || left.discoveryOrder - right.discoveryOrder);
+    return;
+  }
+
+  if (normalized === secondNormalized) {
+    intersections.sort((left, right) => left.secondParam - right.secondParam || left.discoveryOrder - right.discoveryOrder);
+    return;
+  }
+
+  intersections.sort((left, right) => left.discoveryOrder - right.discoveryOrder);
+}
+
+function intersectSegments(
+  p1: Point,
+  p2: Point,
+  q1: Point,
+  q2: Point
+): { point: Point; t: number; u: number } | null {
+  const r = { x: p2.x - p1.x, y: p2.y - p1.y };
+  const s = { x: q2.x - q1.x, y: q2.y - q1.y };
+  const denominator = cross(r, s);
+  if (Math.abs(denominator) <= 1e-9) {
+    return null;
+  }
+
+  const qp = { x: q1.x - p1.x, y: q1.y - p1.y };
+  const tRaw = cross(qp, s) / denominator;
+  const uRaw = cross(qp, r) / denominator;
+  if (tRaw < -1e-9 || tRaw > 1 + 1e-9 || uRaw < -1e-9 || uRaw > 1 + 1e-9) {
+    return null;
+  }
+
+  const t = Math.max(0, Math.min(1, tRaw));
+  const u = Math.max(0, Math.min(1, uRaw));
+  return {
+    point: {
+      x: p1.x + t * r.x,
+      y: p1.y + t * r.y
+    },
+    t,
+    u
+  };
+}
+
+function writeIntersectionTotalMacro(rawName: string, total: number, context: SemanticContext): void {
+  const normalized = normalizeMacroToken(rawName);
+  if (!normalized) {
+    return;
+  }
+
+  const frame = currentFrame(context);
+  frame.macroBindings.set(normalized, {
+    kind: "text",
+    value: String(total),
+    provenance: []
+  });
+}
+
+function normalizeMacroToken(raw: string): string | null {
+  const normalized = normalizePathName(raw);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const match = normalized.match(/^\\(?:[A-Za-z@]+|.)/);
+  if (!match) {
+    return null;
+  }
+  return match[0];
+}
+
+function findMatchingBracket(input: string, start: number): number {
+  if (input[start] !== "[") {
+    return -1;
+  }
+
+  let depth = 0;
+  for (let i = start; i < input.length; i += 1) {
+    const char = input[i];
+    if (char === "\\") {
+      i += 1;
+      continue;
+    }
+    if (char === "[") {
+      depth += 1;
+      continue;
+    }
+    if (char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+function isGeometricElement(element: SceneElement): boolean {
+  return element.kind === "Path" || element.kind === "Circle" || element.kind === "Ellipse";
+}
+
+function distance(a: Point, b: Point): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function cross(a: Point, b: Point): number {
+  return a.x * b.y - a.y * b.x;
+}
