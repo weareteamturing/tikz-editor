@@ -109,6 +109,10 @@ export function resolveEffectiveNodeOptions(params: {
   everyDartNodeStyles: OptionListAst[];
   everyCircularSectorNodeStyles: OptionListAst[];
   everyCylinderNodeStyles: OptionListAst[];
+  everyCloudNodeStyles: OptionListAst[];
+  everyStarburstNodeStyles: OptionListAst[];
+  everySignalNodeStyles: OptionListAst[];
+  everyTapeNodeStyles: OptionListAst[];
 }): OptionListAst | undefined {
   const base = mergeOptionLists([...params.everyNodeStyles, params.statementOptions, params.nodeOptions]);
   const shape = resolveNodeShape(base);
@@ -129,6 +133,10 @@ function resolveShapeStyleLists(
     everyDartNodeStyles: OptionListAst[];
     everyCircularSectorNodeStyles: OptionListAst[];
     everyCylinderNodeStyles: OptionListAst[];
+    everyCloudNodeStyles: OptionListAst[];
+    everyStarburstNodeStyles: OptionListAst[];
+    everySignalNodeStyles: OptionListAst[];
+    everyTapeNodeStyles: OptionListAst[];
   }
 ): OptionListAst[] {
   if (shape === "circle") {
@@ -157,6 +165,18 @@ function resolveShapeStyleLists(
   }
   if (shape === "cylinder") {
     return params.everyCylinderNodeStyles;
+  }
+  if (shape === "cloud") {
+    return params.everyCloudNodeStyles;
+  }
+  if (shape === "starburst") {
+    return params.everyStarburstNodeStyles;
+  }
+  if (shape === "signal") {
+    return params.everySignalNodeStyles;
+  }
+  if (shape === "tape") {
+    return params.everyTapeNodeStyles;
   }
   return [];
 }
@@ -229,6 +249,10 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         entry.key === "dart" ||
         entry.key === "circular sector" ||
         entry.key === "cylinder" ||
+        entry.key === "cloud" ||
+        entry.key === "starburst" ||
+        entry.key === "signal" ||
+        entry.key === "tape" ||
         entry.key === "coordinate"
       ) {
         shape = entry.key;
@@ -251,6 +275,10 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         normalized === "dart" ||
         normalized === "circular sector" ||
         normalized === "cylinder" ||
+        normalized === "cloud" ||
+        normalized === "starburst" ||
+        normalized === "signal" ||
+        normalized === "tape" ||
         normalized === "coordinate"
       ) {
         shape = normalized;

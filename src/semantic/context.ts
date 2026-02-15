@@ -41,6 +41,10 @@ export type NamedNodeGeometry = {
     | "dart"
     | "circular sector"
     | "cylinder"
+    | "cloud"
+    | "starburst"
+    | "signal"
+    | "tape"
     | "coordinate";
   center: Point;
   anchorHalfWidth: number;
@@ -77,6 +81,10 @@ export type SemanticContextFrame = {
   everyDartNodeStyles: OptionListAst[];
   everyCircularSectorNodeStyles: OptionListAst[];
   everyCylinderNodeStyles: OptionListAst[];
+  everyCloudNodeStyles: OptionListAst[];
+  everyStarburstNodeStyles: OptionListAst[];
+  everySignalNodeStyles: OptionListAst[];
+  everyTapeNodeStyles: OptionListAst[];
 };
 
 export type SemanticContext = {
@@ -123,7 +131,11 @@ export function createSemanticContext(
         everyKiteNodeStyles: [],
         everyDartNodeStyles: [],
         everyCircularSectorNodeStyles: [],
-        everyCylinderNodeStyles: []
+        everyCylinderNodeStyles: [],
+        everyCloudNodeStyles: [],
+        everyStarburstNodeStyles: [],
+        everySignalNodeStyles: [],
+        everyTapeNodeStyles: []
       }
     ],
     namedCoordinates: new Map<string, Point>(),

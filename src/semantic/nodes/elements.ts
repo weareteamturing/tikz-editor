@@ -4,6 +4,7 @@ import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js
 import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
 import {
   makeCircularSector,
+  makeCloud,
   makeCylinder,
   makeDartPolygon,
   makeDiamondPolygon,
@@ -11,7 +12,12 @@ import {
   makeKitePolygon,
   makeRegularPolygon,
   makeSemicircle,
+  makeSignal,
   makeStar,
+  makeStarburst,
+  makeTape,
+  type SignalDirection,
+  type TapeBendStyle,
   makeTrapeziumPolygon
 } from "./shape-geometry.js";
 import { normalizeOptionValue } from "./utils.js";
@@ -496,6 +502,140 @@ export function makeNodeStarElement(
     rotation
   );
   const corners = star.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeCloudElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  puffs: number,
+  puffArc: number,
+  aspect: number,
+  ignoresAspect: boolean,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const cloud = makeCloud(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    puffs,
+    puffArc,
+    aspect,
+    ignoresAspect,
+    rotation
+  );
+  const corners = cloud.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeStarburstElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  points: number,
+  pointHeightPt: number,
+  randomSeed: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const starburst = makeStarburst(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    points,
+    pointHeightPt,
+    randomSeed,
+    rotation
+  );
+  const corners = starburst.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeSignalElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  pointerAngle: number,
+  toSides: SignalDirection[],
+  fromSides: SignalDirection[],
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const signal = makeSignal(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    pointerAngle,
+    toSides,
+    fromSides
+  );
+  const corners = signal.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeTapeElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  bendTop: TapeBendStyle,
+  bendBottom: TapeBendStyle,
+  bendHeightPt: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const tape = makeTape(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    bendTop,
+    bendBottom,
+    bendHeightPt
+  );
+  const corners = tape.polygon.map((point) => ({
     x: center.x + point.x,
     y: center.y + point.y
   }));

@@ -98,7 +98,11 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       everyKiteNodeStyles: rootMeta.everyKiteNodeStyles,
       everyDartNodeStyles: rootMeta.everyDartNodeStyles,
       everyCircularSectorNodeStyles: rootMeta.everyCircularSectorNodeStyles,
-      everyCylinderNodeStyles: rootMeta.everyCylinderNodeStyles
+      everyCylinderNodeStyles: rootMeta.everyCylinderNodeStyles,
+      everyCloudNodeStyles: rootMeta.everyCloudNodeStyles,
+      everyStarburstNodeStyles: rootMeta.everyStarburstNodeStyles,
+      everySignalNodeStyles: rootMeta.everySignalNodeStyles,
+      everyTapeNodeStyles: rootMeta.everyTapeNodeStyles
     });
     for (const code of rootDelta.diagnostics) {
       diagnostics.push({
@@ -217,7 +221,11 @@ function evaluateStatement(
       everyKiteNodeStyles: frameMeta.everyKiteNodeStyles,
       everyDartNodeStyles: frameMeta.everyDartNodeStyles,
       everyCircularSectorNodeStyles: frameMeta.everyCircularSectorNodeStyles,
-      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles
+      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles,
+      everyCloudNodeStyles: frameMeta.everyCloudNodeStyles,
+      everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
+      everySignalNodeStyles: frameMeta.everySignalNodeStyles,
+      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles
     });
     const previousTraceCollector = context.macroTraceCollector;
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
@@ -306,7 +314,11 @@ function evaluateStatement(
       everyKiteNodeStyles: frameMeta.everyKiteNodeStyles,
       everyDartNodeStyles: frameMeta.everyDartNodeStyles,
       everyCircularSectorNodeStyles: frameMeta.everyCircularSectorNodeStyles,
-      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles
+      everyCylinderNodeStyles: frameMeta.everyCylinderNodeStyles,
+      everyCloudNodeStyles: frameMeta.everyCloudNodeStyles,
+      everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
+      everySignalNodeStyles: frameMeta.everySignalNodeStyles,
+      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles
     });
     for (const code of resolved.diagnostics) {
       diagnostics.push({
@@ -452,6 +464,10 @@ function applyOptionListsToCurrentFrame(
   frame.everyDartNodeStyles = frameMeta.everyDartNodeStyles;
   frame.everyCircularSectorNodeStyles = frameMeta.everyCircularSectorNodeStyles;
   frame.everyCylinderNodeStyles = frameMeta.everyCylinderNodeStyles;
+  frame.everyCloudNodeStyles = frameMeta.everyCloudNodeStyles;
+  frame.everyStarburstNodeStyles = frameMeta.everyStarburstNodeStyles;
+  frame.everySignalNodeStyles = frameMeta.everySignalNodeStyles;
+  frame.everyTapeNodeStyles = frameMeta.everyTapeNodeStyles;
 
   for (const code of resolved.diagnostics) {
     diagnostics.push({
@@ -1372,6 +1388,10 @@ function resolveFrameMeta(
     everyDartNodeStyles: OptionListAst[];
     everyCircularSectorNodeStyles: OptionListAst[];
     everyCylinderNodeStyles: OptionListAst[];
+    everyCloudNodeStyles: OptionListAst[];
+    everyStarburstNodeStyles: OptionListAst[];
+    everySignalNodeStyles: OptionListAst[];
+    everyTapeNodeStyles: OptionListAst[];
   },
   optionLists: OptionListAst[]
 ): {
@@ -1391,6 +1411,10 @@ function resolveFrameMeta(
   everyDartNodeStyles: OptionListAst[];
   everyCircularSectorNodeStyles: OptionListAst[];
   everyCylinderNodeStyles: OptionListAst[];
+  everyCloudNodeStyles: OptionListAst[];
+  everyStarburstNodeStyles: OptionListAst[];
+  everySignalNodeStyles: OptionListAst[];
+  everyTapeNodeStyles: OptionListAst[];
 } {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
@@ -1408,6 +1432,10 @@ function resolveFrameMeta(
   let everyDartNodeStyles = [...base.everyDartNodeStyles];
   let everyCircularSectorNodeStyles = [...base.everyCircularSectorNodeStyles];
   let everyCylinderNodeStyles = [...base.everyCylinderNodeStyles];
+  let everyCloudNodeStyles = [...base.everyCloudNodeStyles];
+  let everyStarburstNodeStyles = [...base.everyStarburstNodeStyles];
+  let everySignalNodeStyles = [...base.everySignalNodeStyles];
+  let everyTapeNodeStyles = [...base.everyTapeNodeStyles];
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1615,6 +1643,62 @@ function resolveFrameMeta(
         if (parsed) {
           everyCylinderNodeStyles = [...everyCylinderNodeStyles, parsed];
         }
+        continue;
+      }
+      if (entry.key === "every cloud node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCloudNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every cloud node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCloudNodeStyles = [...everyCloudNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every starburst node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyStarburstNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every starburst node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyStarburstNodeStyles = [...everyStarburstNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every signal node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everySignalNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every signal node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everySignalNodeStyles = [...everySignalNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every tape node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyTapeNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every tape node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyTapeNodeStyles = [...everyTapeNodeStyles, parsed];
+        }
       }
     }
   }
@@ -1635,7 +1719,11 @@ function resolveFrameMeta(
     everyKiteNodeStyles,
     everyDartNodeStyles,
     everyCircularSectorNodeStyles,
-    everyCylinderNodeStyles
+    everyCylinderNodeStyles,
+    everyCloudNodeStyles,
+    everyStarburstNodeStyles,
+    everySignalNodeStyles,
+    everyTapeNodeStyles
   };
 }
 

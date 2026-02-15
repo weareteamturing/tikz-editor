@@ -14,6 +14,7 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeCloudElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
   makeNodeDiamondElement,
@@ -22,7 +23,10 @@ import {
   makeNodeKiteElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
+  makeNodeSignalElement,
   makeNodeStarElement,
+  makeNodeStarburstElement,
+  makeNodeTapeElement,
   makeNodeTrapeziumElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
@@ -414,6 +418,85 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("shape_star", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "cloud") {
+      matrixNodeElements.push(
+        makeNodeCloudElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.cloudPuffs,
+          shapeGeometry.cloudPuffArc,
+          shapeGeometry.diamondAspect,
+          shapeGeometry.cloudIgnoresAspect,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_cloud", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "starburst") {
+      matrixNodeElements.push(
+        makeNodeStarburstElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.starburstPoints,
+          shapeGeometry.starburstPointHeightPt,
+          shapeGeometry.randomStarburstSeed,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_starburst", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "signal") {
+      matrixNodeElements.push(
+        makeNodeSignalElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.signalPointerAngle,
+          shapeGeometry.signalToSides,
+          shapeGeometry.signalFromSides,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_signal", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "tape") {
+      matrixNodeElements.push(
+        makeNodeTapeElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.tapeBendTop,
+          shapeGeometry.tapeBendBottom,
+          shapeGeometry.tapeBendHeightPt,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_tape", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle") {
       matrixNodeElements.push(

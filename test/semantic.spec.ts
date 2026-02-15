@@ -1733,6 +1733,86 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports cloud shape with puff anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[cloud,cloud puffs=9,cloud puff arc=140,draw,name=c] at (0,0) {C};
+  \node at (c.puff 1) {P1};
+  \node at (c.puff 4) {P4};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const puff1 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P1");
+    const puff4 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P4");
+    expect(center?.kind).toBe("Text");
+    expect(puff1?.kind).toBe("Text");
+    expect(puff4?.kind).toBe("Text");
+    if (center?.kind === "Text" && puff1?.kind === "Text" && puff4?.kind === "Text") {
+      const d1 = Math.hypot(puff1.position.x - center.position.x, puff1.position.y - center.position.y);
+      const d4 = Math.hypot(puff4.position.x - center.position.x, puff4.position.y - center.position.y);
+      expect(d1).toBeGreaterThan(5);
+      expect(d4).toBeGreaterThan(5);
+      expect(Math.abs(puff1.position.x - puff4.position.x) + Math.abs(puff1.position.y - puff4.position.y)).toBeGreaterThan(1);
+    }
+  });
+
+  it("supports starburst shape with outer and inner point anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[starburst,starburst points=11,starburst point height=5pt,random starburst=0,draw,name=s] at (0,0) {S};
+  \node at (s.outer point 1) {O};
+  \node at (s.inner point 1) {I};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
+    const outer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "O");
+    const inner = result.scene.elements.find((element) => element.kind === "Text" && element.text === "I");
+    expect(center?.kind).toBe("Text");
+    expect(outer?.kind).toBe("Text");
+    expect(inner?.kind).toBe("Text");
+    if (center?.kind === "Text" && outer?.kind === "Text" && inner?.kind === "Text") {
+      const outerDistance = Math.hypot(outer.position.x - center.position.x, outer.position.y - center.position.y);
+      const innerDistance = Math.hypot(inner.position.x - center.position.x, inner.position.y - center.position.y);
+      expect(outerDistance).toBeGreaterThan(innerDistance);
+    }
+  });
+
+  it("supports signal and tape symbol shapes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[signal,signal to=east and west,signal from=north and south,signal pointer angle=60,draw,name=g] at (0,0) {G};
+  \node at (g.east) {E};
+  \node at (g.west) {W};
+  \node[tape,tape bend top=out and in,tape bend bottom=none,tape bend height=8pt,draw,name=t] at (4,0) {T};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const g = result.scene.elements.find((element) => element.kind === "Text" && element.text === "G");
+    const east = result.scene.elements.find((element) => element.kind === "Text" && element.text === "E");
+    const west = result.scene.elements.find((element) => element.kind === "Text" && element.text === "W");
+    expect(g?.kind).toBe("Text");
+    expect(east?.kind).toBe("Text");
+    expect(west?.kind).toBe("Text");
+    if (g?.kind === "Text" && east?.kind === "Text" && west?.kind === "Text") {
+      expect(east.position.x).toBeGreaterThan(g.position.x);
+      expect(west.position.x).toBeLessThan(g.position.x);
+    }
+
+    const tapePath = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:") && element.commands.length > 30
+    );
+    expect(tapePath).toBeDefined();
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}
@@ -2477,6 +2557,55 @@ describe("semantic evaluator", () => {
     if (triangle && cylinder) {
       expect(triangle.style.fill).toBe("#0000ff");
       expect(cylinder.style.doubleStroke).toBe(true);
+    }
+  });
+
+  it("applies every-node style keys for cloud, starburst, signal, and tape nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every cloud node/.style={fill=green},
+  every starburst node/.style={double},
+  every signal node/.style={fill=red},
+  every tape node/.style={double}
+]
+  \draw (0,0) node[cloud] {C};
+  \draw (2,0) node[starburst] {B};
+  \draw (4,0) node[signal] {S};
+  \draw (6,0) node[tape] {T};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(4);
+
+    const byX = nodeBoxes
+      .map((path) => ({
+        path,
+        centerX:
+          path.commands
+            .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to.x] : []))
+            .reduce((sum, x) => sum + x, 0) /
+          Math.max(path.commands.filter((command) => command.kind === "M" || command.kind === "L").length, 1)
+      }))
+      .sort((left, right) => left.centerX - right.centerX);
+
+    const cloud = byX[0]?.path;
+    const starburst = byX[1]?.path;
+    const signal = byX[2]?.path;
+    const tape = byX[3]?.path;
+    expect(cloud).toBeDefined();
+    expect(starburst).toBeDefined();
+    expect(signal).toBeDefined();
+    expect(tape).toBeDefined();
+    if (cloud && starburst && signal && tape) {
+      expect(cloud.style.fill).toBe("#00ff00");
+      expect(starburst.style.doubleStroke).toBe(true);
+      expect(signal.style.fill).toBe("#ff0000");
+      expect(tape.style.doubleStroke).toBe(true);
     }
   });
 

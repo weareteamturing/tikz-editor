@@ -14,6 +14,10 @@ export type NodeShape =
   | "dart"
   | "circular sector"
   | "cylinder"
+  | "cloud"
+  | "starburst"
+  | "signal"
+  | "tape"
   | "coordinate";
 export type NodeLayer = "front" | "behind";
 

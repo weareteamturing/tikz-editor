@@ -30,10 +30,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "semanticEmptySceneSnippets": 926,
     "semanticErrorRate": 0.0914,
     "semanticErrorSnippets": 200,
-    "semanticUnsupportedRate": 0.6429,
-    "semanticUnsupportedSnippets": 1406,
-    "semanticWarningRate": 0.6461,
-    "semanticWarningSnippets": 1413,
+    "semanticUnsupportedRate": 0.6424,
+    "semanticUnsupportedSnippets": 1405,
+    "semanticWarningRate": 0.6456,
+    "semanticWarningSnippets": 1412,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.2725,
@@ -263,12 +263,12 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-base-animations.tex",
     },
     {
-      "count": 39,
-      "filePath": "pgfmanual-en-library-shapes.tex",
+      "count": 38,
+      "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
       "count": 38,
-      "filePath": "pgfmanual-en-base-transformations.tex",
+      "filePath": "pgfmanual-en-library-shapes.tex",
     },
     {
       "count": 31,

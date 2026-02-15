@@ -3,6 +3,7 @@ import type { SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
 import {
   makeCircularSector,
+  makeCloud,
   makeCylinder,
   makeDartPolygon,
   intersectRayWithPolygon,
@@ -11,7 +12,10 @@ import {
   makeKitePolygon,
   makeRegularPolygon,
   makeSemicircle,
+  makeSignal,
   makeStar,
+  makeStarburst,
+  makeTape,
   makeTrapeziumPolygon,
   midpoint,
   resolveNodeShapeGeometryParams
@@ -192,6 +196,57 @@ export function nodeAnchorOffset(
     return polygonShapeAnchorOffset(anchor, star.polygon, layout.baseLineY, layout.midLineY);
   }
 
+  if (shape === "cloud") {
+    const cloud = makeCloud(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.cloudPuffs,
+      shapeGeometry.cloudPuffArc,
+      shapeGeometry.diamondAspect,
+      shapeGeometry.cloudIgnoresAspect,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = cloudSpecialAnchor(anchor, cloud.puffs);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, cloud.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "starburst") {
+    const starburst = makeStarburst(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.starburstPoints,
+      shapeGeometry.starburstPointHeightPt,
+      shapeGeometry.randomStarburstSeed,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = starburstSpecialAnchor(anchor, starburst.outer, starburst.inner);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, starburst.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "signal") {
+    const signal = makeSignal(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.signalPointerAngle,
+      shapeGeometry.signalToSides,
+      shapeGeometry.signalFromSides
+    );
+    return polygonShapeAnchorOffset(anchor, signal.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "tape") {
+    const tape = makeTape(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.tapeBendTop,
+      shapeGeometry.tapeBendBottom,
+      shapeGeometry.tapeBendHeightPt
+    );
+    return polygonShapeAnchorOffset(anchor, tape.polygon, layout.baseLineY, layout.midLineY);
+  }
+
   if (shape === "semicircle") {
     const semicircle = makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0);
     if (anchor === "apex") {
@@ -316,6 +371,101 @@ function makeTrapeziumAnchorPolygon(
     shapeGeometry.trapeziumStretches,
     shapeGeometry.trapeziumStretchesBody
   );
+}
+
+function resolveAnchorPolygon(
+  shape: NodeShape,
+  layout: NodeLayout,
+  shapeGeometry: ReturnType<typeof resolveNodeShapeGeometryParams>
+): Point[] | undefined {
+  if (shape === "diamond") {
+    return makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect);
+  }
+  if (shape === "trapezium") {
+    return makeTrapeziumAnchorPolygon(layout, shapeGeometry);
+  }
+  if (shape === "isosceles triangle") {
+    return makeIsoscelesTrianglePolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.isoscelesTriangleApexAngle,
+      shapeGeometry.shapeBorderRotate,
+      shapeGeometry.isoscelesTriangleStretches
+    );
+  }
+  if (shape === "kite") {
+    return makeKitePolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.kiteUpperVertexAngle,
+      shapeGeometry.kiteLowerVertexAngle,
+      shapeGeometry.shapeBorderRotate
+    );
+  }
+  if (shape === "dart") {
+    return makeDartPolygon(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.dartTipAngle,
+      shapeGeometry.dartTailAngle,
+      shapeGeometry.shapeBorderRotate
+    );
+  }
+  if (shape === "circular sector") {
+    return makeCircularSector(anchorSizingWithOuter(layout), shapeGeometry.circularSectorAngle, shapeGeometry.shapeBorderRotate, 0).polygon;
+  }
+  if (shape === "cylinder") {
+    return makeCylinder(anchorSizingWithOuter(layout), shapeGeometry.cylinderAspect, shapeGeometry.shapeBorderRotate, 0).polygon;
+  }
+  if (shape === "regular polygon") {
+    return makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate);
+  }
+  if (shape === "star") {
+    return makeStar(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.starPoints,
+      shapeGeometry.starPointRatio,
+      shapeGeometry.starPointHeightPt,
+      shapeGeometry.starUsesPointRatio,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
+  if (shape === "semicircle") {
+    return makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0).polygon;
+  }
+  if (shape === "cloud") {
+    return makeCloud(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.cloudPuffs,
+      shapeGeometry.cloudPuffArc,
+      shapeGeometry.diamondAspect,
+      shapeGeometry.cloudIgnoresAspect,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
+  if (shape === "starburst") {
+    return makeStarburst(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.starburstPoints,
+      shapeGeometry.starburstPointHeightPt,
+      shapeGeometry.randomStarburstSeed,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
+  if (shape === "signal") {
+    return makeSignal(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.signalPointerAngle,
+      shapeGeometry.signalToSides,
+      shapeGeometry.signalFromSides
+    ).polygon;
+  }
+  if (shape === "tape") {
+    return makeTape(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.tapeBendTop,
+      shapeGeometry.tapeBendBottom,
+      shapeGeometry.tapeBendHeightPt
+    ).polygon;
+  }
+  return undefined;
 }
 
 function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
@@ -495,6 +645,22 @@ function starSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Po
   return null;
 }
 
+function cloudSpecialAnchor(anchor: string, puffs: Point[]): Point | null {
+  const match = anchor.match(/^puff\s+(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  const index = Number(match[1]);
+  if (!Number.isFinite(index) || index < 1) {
+    return null;
+  }
+  return puffs[(index - 1) % puffs.length] ?? null;
+}
+
+function starburstSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Point[]): Point | null {
+  return starSpecialAnchor(anchor, outerPoints, innerPoints);
+}
+
 function polygonShapeAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
   if (anchor === "center") {
     return { x: 0, y: 0 };
@@ -590,55 +756,7 @@ export function registerNamedNodeAnchors(
   options: OptionListAst | undefined = undefined
 ): void {
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
-  const anchorPolygon =
-    shape === "diamond"
-      ? makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect)
-      : shape === "trapezium"
-        ? makeTrapeziumAnchorPolygon(layout, shapeGeometry)
-        : shape === "isosceles triangle"
-          ? makeIsoscelesTrianglePolygon(
-              anchorSizingWithOuter(layout),
-              shapeGeometry.isoscelesTriangleApexAngle,
-              shapeGeometry.shapeBorderRotate,
-              shapeGeometry.isoscelesTriangleStretches
-            )
-          : shape === "kite"
-            ? makeKitePolygon(
-                anchorSizingWithOuter(layout),
-                shapeGeometry.kiteUpperVertexAngle,
-                shapeGeometry.kiteLowerVertexAngle,
-                shapeGeometry.shapeBorderRotate
-              )
-            : shape === "dart"
-              ? makeDartPolygon(
-                  anchorSizingWithOuter(layout),
-                  shapeGeometry.dartTipAngle,
-                  shapeGeometry.dartTailAngle,
-                  shapeGeometry.shapeBorderRotate
-                )
-              : shape === "circular sector"
-                ? makeCircularSector(
-                    anchorSizingWithOuter(layout),
-                    shapeGeometry.circularSectorAngle,
-                    shapeGeometry.shapeBorderRotate,
-                    0
-                  ).polygon
-                : shape === "cylinder"
-                  ? makeCylinder(anchorSizingWithOuter(layout), shapeGeometry.cylinderAspect, shapeGeometry.shapeBorderRotate, 0).polygon
-        : shape === "regular polygon"
-          ? makeRegularPolygon(anchorSizingWithOuter(layout), shapeGeometry.regularPolygonSides, shapeGeometry.shapeBorderRotate)
-          : shape === "star"
-            ? makeStar(
-                anchorSizingWithOuter(layout),
-                shapeGeometry.starPoints,
-                shapeGeometry.starPointRatio,
-                shapeGeometry.starPointHeightPt,
-                shapeGeometry.starUsesPointRatio,
-                shapeGeometry.shapeBorderRotate
-              ).polygon
-            : shape === "semicircle"
-              ? makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0).polygon
-              : undefined;
+  const anchorPolygon = resolveAnchorPolygon(shape, layout, shapeGeometry);
 
   context.namedNodeGeometries.set(name, {
     shape,
@@ -747,6 +865,22 @@ export function registerNamedNodeAnchors(
 
   if (shape === "star") {
     const points = Math.max(2, shapeGeometry.starPoints);
+    for (let index = 1; index <= points; index += 1) {
+      offsets[`point ${index}`] = nodeAnchorOffset(shape, layout, `point ${index}`, options);
+      offsets[`outer point ${index}`] = nodeAnchorOffset(shape, layout, `outer point ${index}`, options);
+      offsets[`inner point ${index}`] = nodeAnchorOffset(shape, layout, `inner point ${index}`, options);
+    }
+  }
+
+  if (shape === "cloud") {
+    const puffs = Math.max(2, shapeGeometry.cloudPuffs);
+    for (let index = 1; index <= puffs; index += 1) {
+      offsets[`puff ${index}`] = nodeAnchorOffset(shape, layout, `puff ${index}`, options);
+    }
+  }
+
+  if (shape === "starburst") {
+    const points = Math.max(2, shapeGeometry.starburstPoints);
     for (let index = 1; index <= points; index += 1) {
       offsets[`point ${index}`] = nodeAnchorOffset(shape, layout, `point ${index}`, options);
       offsets[`outer point ${index}`] = nodeAnchorOffset(shape, layout, `outer point ${index}`, options);

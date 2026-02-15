@@ -77,6 +77,18 @@ export const capabilityFixtures: Record<string, string> = {
   star_shape: String.raw`\begin{tikzpicture}
   \node[star,star points=5,star point ratio=1.65,draw] at (0,0) {S};
 \end{tikzpicture}`,
+  cloud_shape: String.raw`\begin{tikzpicture}
+  \node[cloud,cloud puffs=11,draw] at (0,0) {C};
+\end{tikzpicture}`,
+  starburst_shape: String.raw`\begin{tikzpicture}
+  \node[starburst,starburst points=13,starburst point height=4pt,draw] at (0,0) {B};
+\end{tikzpicture}`,
+  signal_shape: String.raw`\begin{tikzpicture}
+  \node[signal,signal to=east and west,signal from=north and south,draw] at (0,0) {G};
+\end{tikzpicture}`,
+  tape_shape: String.raw`\begin{tikzpicture}
+  \node[tape,tape bend top=out and in,tape bend bottom=in and out,draw] at (0,0) {T};
+\end{tikzpicture}`,
   coordinate_operation: String.raw`\begin{tikzpicture}
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);

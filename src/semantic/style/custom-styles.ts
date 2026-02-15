@@ -46,7 +46,19 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every circular sector node/.prefix style",
   "every cylinder node/.style",
   "every cylinder node/.append style",
-  "every cylinder node/.prefix style"
+  "every cylinder node/.prefix style",
+  "every cloud node/.style",
+  "every cloud node/.append style",
+  "every cloud node/.prefix style",
+  "every starburst node/.style",
+  "every starburst node/.append style",
+  "every starburst node/.prefix style",
+  "every signal node/.style",
+  "every signal node/.append style",
+  "every signal node/.prefix style",
+  "every tape node/.style",
+  "every tape node/.append style",
+  "every tape node/.prefix style"
 ]);
 
 export function cloneCustomStyleRegistry(registry: CustomStyleRegistry): CustomStyleRegistry {

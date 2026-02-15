@@ -13,6 +13,18 @@ export type ShapeGeometryParams = {
   dartTailAngle: number;
   circularSectorAngle: number;
   cylinderAspect: number;
+  cloudPuffs: number;
+  cloudPuffArc: number;
+  cloudIgnoresAspect: boolean;
+  starburstPoints: number;
+  starburstPointHeightPt: number;
+  randomStarburstSeed: number;
+  signalPointerAngle: number;
+  signalToSides: SignalDirection[];
+  signalFromSides: SignalDirection[];
+  tapeBendTop: TapeBendStyle;
+  tapeBendBottom: TapeBendStyle;
+  tapeBendHeightPt: number;
   trapeziumLeftAngle: number;
   trapeziumRightAngle: number;
   shapeBorderRotate: number;
@@ -38,6 +50,9 @@ export type CircularSizingInput = {
   minimumWidth: number;
   minimumHeight: number;
 };
+
+export type SignalDirection = "north" | "south" | "east" | "west";
+export type TapeBendStyle = "in and out" | "out and in" | "none";
 
 export type SemicircleGeometry = {
   center: Point;
@@ -71,6 +86,25 @@ export type CylinderGeometry = {
   polygon: Point[];
 };
 
+export type CloudGeometry = {
+  polygon: Point[];
+  puffs: Point[];
+};
+
+export type StarburstGeometry = {
+  polygon: Point[];
+  outer: Point[];
+  inner: Point[];
+};
+
+export type SignalGeometry = {
+  polygon: Point[];
+};
+
+export type TapeGeometry = {
+  polygon: Point[];
+};
+
 const DEFAULT_DIAMOND_ASPECT = 1;
 const DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE = 45;
 const DEFAULT_KITE_UPPER_VERTEX_ANGLE = 120;
@@ -79,6 +113,15 @@ const DEFAULT_DART_TIP_ANGLE = 45;
 const DEFAULT_DART_TAIL_ANGLE = 135;
 const DEFAULT_CIRCULAR_SECTOR_ANGLE = 60;
 const DEFAULT_CYLINDER_ASPECT = 1;
+const DEFAULT_CLOUD_PUFFS = 10;
+const DEFAULT_CLOUD_PUFF_ARC = 150;
+const DEFAULT_CLOUD_IGNORES_ASPECT = false;
+const DEFAULT_STARBURST_POINTS = 17;
+const DEFAULT_STARBURST_POINT_HEIGHT_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_RANDOM_STARBURST_SEED = 100;
+const DEFAULT_SIGNAL_POINTER_ANGLE = 90;
+const DEFAULT_TAPE_BEND_STYLE: TapeBendStyle = "in and out";
+const DEFAULT_TAPE_BEND_HEIGHT_PT = parseLength("5pt", "pt") ?? 5;
 const DEFAULT_TRAPEZIUM_ANGLE = 60;
 const DEFAULT_SHAPE_BORDER_ROTATE = 0;
 const DEFAULT_REGULAR_POLYGON_SIDES = 5;
@@ -97,6 +140,18 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   let dartTailAngle = DEFAULT_DART_TAIL_ANGLE;
   let circularSectorAngle = DEFAULT_CIRCULAR_SECTOR_ANGLE;
   let cylinderAspect = DEFAULT_CYLINDER_ASPECT;
+  let cloudPuffs = DEFAULT_CLOUD_PUFFS;
+  let cloudPuffArc = DEFAULT_CLOUD_PUFF_ARC;
+  let cloudIgnoresAspect = DEFAULT_CLOUD_IGNORES_ASPECT;
+  let starburstPoints = DEFAULT_STARBURST_POINTS;
+  let starburstPointHeightPt = DEFAULT_STARBURST_POINT_HEIGHT_PT;
+  let randomStarburstSeed = DEFAULT_RANDOM_STARBURST_SEED;
+  let signalPointerAngle = DEFAULT_SIGNAL_POINTER_ANGLE;
+  let signalToSides: SignalDirection[] = ["east"];
+  let signalFromSides: SignalDirection[] = [];
+  let tapeBendTop: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
+  let tapeBendBottom: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
+  let tapeBendHeightPt = DEFAULT_TAPE_BEND_HEIGHT_PT;
   let trapeziumLeftAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let trapeziumRightAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let shapeBorderRotate = DEFAULT_SHAPE_BORDER_ROTATE;
@@ -119,6 +174,18 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       dartTailAngle,
       circularSectorAngle,
       cylinderAspect,
+      cloudPuffs,
+      cloudPuffArc,
+      cloudIgnoresAspect,
+      starburstPoints,
+      starburstPointHeightPt,
+      randomStarburstSeed,
+      signalPointerAngle,
+      signalToSides,
+      signalFromSides,
+      tapeBendTop,
+      tapeBendBottom,
+      tapeBendHeightPt,
       trapeziumLeftAngle,
       trapeziumRightAngle,
       shapeBorderRotate,
@@ -140,6 +207,10 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
         trapeziumStretchesBody = true;
       } else if (entry.key === "isosceles triangle stretches") {
         isoscelesTriangleStretches = true;
+      } else if (entry.key === "cloud ignores aspect") {
+        cloudIgnoresAspect = true;
+      } else if (entry.key === "random starburst") {
+        randomStarburstSeed = Math.floor(Math.random() * 0x7fffffff) + 1;
       }
       continue;
     }
@@ -218,6 +289,97 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       const parsed = parseNumericOption(entry.valueRaw);
       if (parsed != null) {
         circularSectorAngle = normalizeSectorAngle(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "cloud puffs") {
+      const parsed = parseIntegerOption(entry.valueRaw);
+      if (parsed != null) {
+        cloudPuffs = normalizeInteger(parsed, 2, 360, DEFAULT_CLOUD_PUFFS);
+      }
+      continue;
+    }
+
+    if (entry.key === "cloud puff arc") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        cloudPuffArc = normalizeCloudPuffArc(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "cloud ignores aspect") {
+      const parsed = parseBoolishOption(entry.valueRaw);
+      if (parsed != null) {
+        cloudIgnoresAspect = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "starburst points") {
+      const parsed = parseIntegerOption(entry.valueRaw);
+      if (parsed != null) {
+        starburstPoints = normalizeInteger(parsed, 2, 360, DEFAULT_STARBURST_POINTS);
+      }
+      continue;
+    }
+
+    if (entry.key === "starburst point height") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        starburstPointHeightPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "random starburst") {
+      const parsed = parseRandomStarburstOption(entry.valueRaw);
+      if (parsed != null) {
+        randomStarburstSeed = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "signal pointer angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        signalPointerAngle = normalizeSignalPointerAngle(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "signal to") {
+      signalToSides = parseSignalDirectionSpec(entry.valueRaw);
+      continue;
+    }
+
+    if (entry.key === "signal from") {
+      signalFromSides = parseSignalDirectionSpec(entry.valueRaw);
+      continue;
+    }
+
+    if (entry.key === "tape bend top") {
+      tapeBendTop = parseTapeBendStyle(entry.valueRaw, DEFAULT_TAPE_BEND_STYLE);
+      continue;
+    }
+
+    if (entry.key === "tape bend bottom") {
+      tapeBendBottom = parseTapeBendStyle(entry.valueRaw, DEFAULT_TAPE_BEND_STYLE);
+      continue;
+    }
+
+    if (entry.key === "tape bend") {
+      const style = parseTapeBendStyle(entry.valueRaw, DEFAULT_TAPE_BEND_STYLE);
+      tapeBendTop = style;
+      tapeBendBottom = style;
+      continue;
+    }
+
+    if (entry.key === "tape bend height") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        tapeBendHeightPt = Math.max(0, parsedLength);
       }
       continue;
     }
@@ -316,6 +478,18 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     dartTailAngle,
     circularSectorAngle,
     cylinderAspect,
+    cloudPuffs,
+    cloudPuffArc,
+    cloudIgnoresAspect,
+    starburstPoints,
+    starburstPointHeightPt,
+    randomStarburstSeed,
+    signalPointerAngle,
+    signalToSides,
+    signalFromSides,
+    tapeBendTop,
+    tapeBendBottom,
+    tapeBendHeightPt,
     trapeziumLeftAngle,
     trapeziumRightAngle,
     shapeBorderRotate,
@@ -705,6 +879,171 @@ export function makeCylinder(
   };
 }
 
+export function makeCloud(
+  sizing: CircularSizingInput,
+  puffsRaw: number,
+  puffArcRaw: number,
+  aspectRaw: number,
+  ignoreAspect: boolean,
+  rotation: number
+): CloudGeometry {
+  const puffs = normalizeInteger(Math.round(puffsRaw), 2, 360, DEFAULT_CLOUD_PUFFS);
+  const puffArc = normalizeCloudPuffArc(puffArcRaw);
+  let rx = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  let ry = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const aspect = normalizeAspect(aspectRaw);
+  if (!ignoreAspect) {
+    if (rx + EPSILON < aspect * ry) {
+      rx = aspect * ry;
+    }
+    if (ry + EPSILON < rx / aspect) {
+      ry = rx / aspect;
+    }
+  }
+
+  const step = 360 / puffs;
+  const depth = Math.max(0, Math.min(rx, ry) * (0.12 + (puffArc / 180) * 0.2));
+  const valleyDepth = depth * 0.28;
+  const polygon: Point[] = [];
+  const peaks: Point[] = [];
+  for (let index = 0; index < puffs; index += 1) {
+    const peakAngle = 90 + rotation - index * step;
+    const valleyAngle = peakAngle - step / 2;
+    const peakBase = pointEllipsePolar(peakAngle, rx, ry);
+    const valleyBase = pointEllipsePolar(valleyAngle, rx, ry);
+    const peakNormal = ellipseOutwardUnit(peakBase, rx, ry);
+    const valleyNormal = ellipseOutwardUnit(valleyBase, rx, ry);
+    const peak = {
+      x: peakBase.x + peakNormal.x * depth,
+      y: peakBase.y + peakNormal.y * depth
+    };
+    const valley = {
+      x: valleyBase.x + valleyNormal.x * valleyDepth,
+      y: valleyBase.y + valleyNormal.y * valleyDepth
+    };
+    peaks.push(peak);
+    polygon.push(peak, valley);
+  }
+  return { polygon, puffs: peaks };
+}
+
+export function makeStarburst(
+  sizing: CircularSizingInput,
+  pointsRaw: number,
+  pointHeightPt: number,
+  randomSeedRaw: number,
+  rotation: number
+): StarburstGeometry {
+  const points = normalizeInteger(Math.round(pointsRaw), 2, 360, DEFAULT_STARBURST_POINTS);
+  const pointHeight = Math.max(0, pointHeightPt);
+  const targetWidth = Math.max(0, Math.max(sizing.naturalWidth, sizing.minimumWidth));
+  const targetHeight = Math.max(0, Math.max(sizing.naturalHeight, sizing.minimumHeight));
+  const innerRx = Math.max(EPSILON, targetWidth / 2 - pointHeight);
+  const innerRy = Math.max(EPSILON, targetHeight / 2 - pointHeight);
+  const step = 180 / points;
+  const rng = makeSeededRng(randomSeedRaw);
+  const polygon: Point[] = [];
+  const outer: Point[] = [];
+  const inner: Point[] = [];
+
+  for (let index = 0; index < points; index += 1) {
+    const outerAngle = 90 + rotation - index * 2 * step;
+    const innerAngle = outerAngle - step;
+    const outerScale = randomSeedRaw === 0 ? 1 : 0.25 + 0.75 * rng();
+    const delta = pointHeight * outerScale;
+    const outerPoint = pointEllipsePolar(outerAngle, innerRx + delta, innerRy + delta);
+    const innerPoint = pointEllipsePolar(innerAngle, innerRx, innerRy);
+    outer.push(outerPoint);
+    inner.push(innerPoint);
+    polygon.push(outerPoint, innerPoint);
+  }
+
+  return { polygon, outer, inner };
+}
+
+export function makeSignal(
+  sizing: CircularSizingInput,
+  pointerAngleRaw: number,
+  toSides: SignalDirection[],
+  fromSides: SignalDirection[]
+): SignalGeometry {
+  const pointerAngle = normalizeSignalPointerAngle(pointerAngleRaw);
+  const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const halfAngle = toRadians(pointerAngle / 2);
+  const cotHalf = Math.abs(1 / Math.max(Math.tan(halfAngle), 1e-3));
+  const horizontalDepth = halfHeight * cotHalf;
+  const verticalDepth = halfWidth * cotHalf;
+  const to = new Set<SignalDirection>(toSides);
+  const from = new Set<SignalDirection>(fromSides);
+
+  const north = {
+    x: 0,
+    y: halfHeight + (to.has("north") ? verticalDepth : 0)
+  };
+  const south = {
+    x: 0,
+    y: -halfHeight - (to.has("south") ? verticalDepth : 0)
+  };
+  const east = {
+    x: halfWidth + (to.has("east") ? horizontalDepth : 0),
+    y: 0
+  };
+  const west = {
+    x: -halfWidth - (to.has("west") ? horizontalDepth : 0),
+    y: 0
+  };
+  const northEast = {
+    x: halfWidth + (from.has("east") ? horizontalDepth : 0),
+    y: halfHeight + (from.has("north") ? verticalDepth : 0)
+  };
+  const southEast = {
+    x: halfWidth + (from.has("east") ? horizontalDepth : 0),
+    y: -halfHeight - (from.has("south") ? verticalDepth : 0)
+  };
+  const southWest = {
+    x: -halfWidth - (from.has("west") ? horizontalDepth : 0),
+    y: -halfHeight - (from.has("south") ? verticalDepth : 0)
+  };
+  const northWest = {
+    x: -halfWidth - (from.has("west") ? horizontalDepth : 0),
+    y: halfHeight + (from.has("north") ? verticalDepth : 0)
+  };
+
+  return {
+    polygon: [north, northEast, east, southEast, south, southWest, west, northWest]
+  };
+}
+
+export function makeTape(
+  sizing: CircularSizingInput,
+  bendTop: TapeBendStyle,
+  bendBottom: TapeBendStyle,
+  bendHeightPt: number
+): TapeGeometry {
+  const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const halfBend = Math.max(0, bendHeightPt) / 2;
+  const samples = 18;
+  const polygon: Point[] = [];
+
+  for (let index = 0; index <= samples; index += 1) {
+    const t = index / samples;
+    const x = -halfWidth + 2 * halfWidth * t;
+    const y = halfHeight + tapeEdgeOffset(t, bendTop, true, halfBend);
+    polygon.push({ x, y });
+  }
+
+  for (let index = 1; index <= samples; index += 1) {
+    const t = index / samples;
+    const x = halfWidth - 2 * halfWidth * t;
+    const y = -halfHeight + tapeEdgeOffset(t, bendBottom, false, halfBend);
+    polygon.push({ x, y });
+  }
+
+  return { polygon };
+}
+
 export function regularPolygonStartAngle(sidesRaw: number, rotation: number): number {
   const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
   if (sides % 2 === 1) {
@@ -821,6 +1160,59 @@ function parseKiteVertexAngles(raw: string): { upper: number; lower: number } | 
   return { upper: single, lower: single };
 }
 
+function parseRandomStarburstOption(raw: string): number | null {
+  const normalized = normalizeOptionValue(raw).trim().toLowerCase();
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized === "true" || normalized === "yes" || normalized === "1" || normalized === "on") {
+    return Math.floor(Math.random() * 0x7fffffff) + 1;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "0" || normalized === "off") {
+    return 0;
+  }
+  const numeric = parseNumericOption(normalized);
+  if (numeric == null) {
+    return null;
+  }
+  return Math.abs(Math.round(numeric));
+}
+
+function parseSignalDirectionSpec(raw: string): SignalDirection[] {
+  const normalized = normalizeOptionValue(raw).toLowerCase();
+  const tokens = normalized.split(/[^a-z]+/u).filter((token) => token.length > 0);
+  const set = new Set<SignalDirection>();
+  for (const token of tokens) {
+    if (token === "north" || token === "south") {
+      set.delete("east");
+      set.delete("west");
+      set.add(token);
+    } else if (token === "east" || token === "west") {
+      set.delete("north");
+      set.delete("south");
+      set.add(token);
+    }
+  }
+  return ["north", "south", "east", "west"].filter((direction) => set.has(direction));
+}
+
+function parseTapeBendStyle(raw: string, fallback: TapeBendStyle): TapeBendStyle {
+  const normalized = normalizeOptionValue(raw).toLowerCase().replace(/\s+/gu, " ").trim();
+  if (normalized === "in and out") {
+    return "in and out";
+  }
+  if (normalized === "out and in") {
+    return "out and in";
+  }
+  if (normalized === "none" || normalized === "false" || normalized === "off" || normalized === "0") {
+    return "none";
+  }
+  if (normalized === "true" || normalized === "on" || normalized === "1" || normalized === "yes") {
+    return fallback;
+  }
+  return fallback;
+}
+
 function normalizeAspect(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_DIAMOND_ASPECT;
@@ -863,6 +1255,28 @@ function normalizeSectorAngle(value: number): number {
     return DEFAULT_CIRCULAR_SECTOR_ANGLE;
   }
   return Math.min(179.5, normalized);
+}
+
+function normalizeCloudPuffArc(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_CLOUD_PUFF_ARC;
+  }
+  const normalized = Math.abs(value);
+  if (normalized <= 1e-3) {
+    return DEFAULT_CLOUD_PUFF_ARC;
+  }
+  return Math.max(10, Math.min(360, normalized));
+}
+
+function normalizeSignalPointerAngle(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_SIGNAL_POINTER_ANGLE;
+  }
+  const normalized = Math.abs(value);
+  if (normalized <= 1e-3) {
+    return DEFAULT_SIGNAL_POINTER_ANGLE;
+  }
+  return Math.max(1, Math.min(179, normalized));
 }
 
 function normalizeRatio(value: number): number {
@@ -910,12 +1324,56 @@ function pointPolarOffset(degrees: number, radius: number, center: Point): Point
   };
 }
 
+function pointEllipsePolar(degrees: number, rx: number, ry: number): Point {
+  const radians = toRadians(degrees);
+  return {
+    x: rx * Math.cos(radians),
+    y: ry * Math.sin(radians)
+  };
+}
+
+function ellipseOutwardUnit(point: Point, rx: number, ry: number): Point {
+  const gx = point.x / Math.max(rx * rx, EPSILON);
+  const gy = point.y / Math.max(ry * ry, EPSILON);
+  const norm = Math.hypot(gx, gy);
+  if (norm > EPSILON && Number.isFinite(norm)) {
+    return { x: gx / norm, y: gy / norm };
+  }
+  const radialNorm = Math.hypot(point.x, point.y);
+  if (radialNorm > EPSILON && Number.isFinite(radialNorm)) {
+    return { x: point.x / radialNorm, y: point.y / radialNorm };
+  }
+  return { x: 1, y: 0 };
+}
+
 function pointEllipsePolarOffset(degrees: number, rx: number, ry: number, center: Point): Point {
   const radians = toRadians(degrees);
   return {
     x: center.x + rx * Math.cos(radians),
     y: center.y + ry * Math.sin(radians)
   };
+}
+
+function makeSeededRng(seedRaw: number): () => number {
+  let state = Math.abs(Math.round(seedRaw)) >>> 0;
+  if (state === 0) {
+    state = 1;
+  }
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function tapeEdgeOffset(t: number, bend: TapeBendStyle, isTopEdge: boolean, halfBend: number): number {
+  if (bend === "none" || halfBend <= EPSILON) {
+    return 0;
+  }
+  let wave = Math.sin((t - 0.5) * Math.PI);
+  if (bend === "out and in") {
+    wave *= -1;
+  }
+  return wave * halfBend * (isTopEdge ? 1 : -1);
 }
 
 function cotDegrees(degrees: number): number {

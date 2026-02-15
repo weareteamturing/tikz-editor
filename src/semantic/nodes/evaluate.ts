@@ -10,6 +10,7 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeCloudElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
   makeNodeDiamondElement,
@@ -18,7 +19,10 @@ import {
   makeNodeKiteElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
+  makeNodeSignalElement,
   makeNodeStarElement,
+  makeNodeStarburstElement,
+  makeNodeTapeElement,
   makeNodeTrapeziumElement,
   makeTextElement,
   resolveNodeBoxPaintMode
@@ -67,7 +71,11 @@ export function evaluateNodeItem(
     everyKiteNodeStyles: frame.everyKiteNodeStyles,
     everyDartNodeStyles: frame.everyDartNodeStyles,
     everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
-    everyCylinderNodeStyles: frame.everyCylinderNodeStyles
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+    everyCloudNodeStyles: frame.everyCloudNodeStyles,
+    everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+    everySignalNodeStyles: frame.everySignalNodeStyles,
+    everyTapeNodeStyles: frame.everyTapeNodeStyles
   });
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
@@ -81,7 +89,11 @@ export function evaluateNodeItem(
     everyKiteNodeStyles: frame.everyKiteNodeStyles,
     everyDartNodeStyles: frame.everyDartNodeStyles,
     everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
-    everyCylinderNodeStyles: frame.everyCylinderNodeStyles
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+    everyCloudNodeStyles: frame.everyCloudNodeStyles,
+    everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+    everySignalNodeStyles: frame.everySignalNodeStyles,
+    everyTapeNodeStyles: frame.everyTapeNodeStyles
   });
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
@@ -342,6 +354,85 @@ export function evaluateNodeItem(
         )
       );
       markFeature("shape_star", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "cloud") {
+      nodeElements.push(
+        makeNodeCloudElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.cloudPuffs,
+          shapeGeometry.cloudPuffArc,
+          shapeGeometry.diamondAspect,
+          shapeGeometry.cloudIgnoresAspect,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_cloud", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "starburst") {
+      nodeElements.push(
+        makeNodeStarburstElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.starburstPoints,
+          shapeGeometry.starburstPointHeightPt,
+          shapeGeometry.randomStarburstSeed,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_starburst", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "signal") {
+      nodeElements.push(
+        makeNodeSignalElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.signalPointerAngle,
+          shapeGeometry.signalToSides,
+          shapeGeometry.signalFromSides,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_signal", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "tape") {
+      nodeElements.push(
+        makeNodeTapeElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.tapeBendTop,
+          shapeGeometry.tapeBendBottom,
+          shapeGeometry.tapeBendHeightPt,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_tape", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
       nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));

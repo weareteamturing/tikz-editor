@@ -181,6 +181,34 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["star_shape"]
   },
+  shape_cloud: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["cloud_shape"]
+  },
+  shape_starburst: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["starburst_shape"]
+  },
+  shape_signal: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["signal_shape"]
+  },
+  shape_tape: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["tape_shape"]
+  },
   matrix_node: {
     parser: "stable",
     semantic: "stable",
