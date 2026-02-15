@@ -111,6 +111,7 @@ export type PathItem =
   | PathOptionItem
   | PathKeywordItem
   | ToOperationItem
+  | EdgeOperationItem
   | SvgOperationItem
   | LetOperationItem
   | CoordinateOperationItem
@@ -199,6 +200,17 @@ export type PathForeachItem = {
 
 export type ToOperationItem = {
   kind: "ToOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  nodes?: NodeItem[];
+  target?: ToOperationTarget;
+  raw: string;
+};
+
+export type EdgeOperationItem = {
+  kind: "EdgeOperation";
   id: string;
   span: Span;
   optionsSpan?: Span;

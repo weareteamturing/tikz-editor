@@ -91,6 +91,7 @@ PathCommand {
 PathItem {
   PathForeachOperation |
   ToOperation |
+  EdgeOperation |
   SvgOperation |
   LetOperation |
   CoordinateOperation |
@@ -154,7 +155,6 @@ PathKeyword {
   BendKw |
   CycleKw |
   CircleKw |
-  EdgeKw |
   ControlsKw |
   AndKw |
   RectangleKw |
@@ -169,6 +169,10 @@ PathKeyword {
 
 ToOperation {
   ToKw OptionList? NodeItem* ToTarget
+}
+
+EdgeOperation {
+  EdgeKw OptionList? NodeItem* ToTarget
 }
 
 PathForeachOperation {
@@ -339,6 +343,7 @@ OptionPart {
   CommandName |
   NodeKw |
   ToKw |
+  EdgeKw |
   SvgKw |
   LetKw |
   InKw |

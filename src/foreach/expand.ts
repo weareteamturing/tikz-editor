@@ -1,6 +1,7 @@
 import {
   coordinateItemId,
   coordinateOperationItemId,
+  edgeOperationItemId,
   foreachStatementId,
   letOperationItemId,
   macroAliasStatementId,
@@ -536,6 +537,10 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
     }
     if (item.kind === "ToOperation") {
       item.id = toOperationItemId(statementIndex, itemIndex);
+      continue;
+    }
+    if (item.kind === "EdgeOperation") {
+      item.id = edgeOperationItemId(statementIndex, itemIndex);
       continue;
     }
     if (item.kind === "SvgOperation") {

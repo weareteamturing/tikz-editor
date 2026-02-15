@@ -29,9 +29,10 @@ import { parseCircleRadiusFromCoordinateRaw, parseCoordinateOperation, parseElli
 import { parseParabolaFromItems } from "./parabola.js";
 import { extractCircleShapeOptions, extractEllipseRadii, extractRoundedCorners } from "./shape-options.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
-import { applyToOperation } from "./to-operation.js";
+import { applyEdgeOperation, applyToOperation } from "./to-operation.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
 import { applyMatrixToVector } from "../transform.js";
+import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -136,6 +137,8 @@ export function evaluatePathStatement(
   let previousSegmentRoundedCorners: number | null = null;
   let currentPointLogical: Point | null = context.currentPoint;
   let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
+  let pendingEdgeStartCoordinateRaw: string | null = null;
+  let edgeOperationStart: { point: Point; coordinateRaw: string | null } | null = null;
   const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
   const setCurrentPoint = (
     point: Point | null,
@@ -157,7 +160,10 @@ export function evaluatePathStatement(
       (layer.style.fill != null && layer.style.fill !== "none")
   );
   const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none") || hasFilledShadowLayer;
-  const frameTransform = context.stack[context.stack.length - 1].transform;
+  const frame = context.stack[context.stack.length - 1];
+  const frameTransform = frame.transform;
+  const drawEdgeOptions = parseStyleValueAsOptionList("draw");
+  const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
 
   const emitCircleOrEllipse = (
     geometry: CircleOrEllipseGeometry,
@@ -190,6 +196,10 @@ export function evaluatePathStatement(
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
+    if (item.kind !== "EdgeOperation" && item.kind !== "PathComment") {
+      edgeOperationStart = null;
+      pendingEdgeStartCoordinateRaw = null;
+    }
 
     if (item.kind === "Coordinate") {
       if (pendingCircleCenter) {
@@ -744,9 +754,19 @@ export function evaluatePathStatement(
         );
       }
 
+      if (item.keyword === "edge") {
+        markFeature("edge_operation", "unsupported");
+        markFeature("keyword_edge", "unsupported");
+        pushDiagnostic(
+          "invalid-edge-operation",
+          "`edge` operation requires a target coordinate.",
+          item.span.from,
+          item.span.to
+        );
+      }
+
       if (
         item.keyword === "plot" ||
-        item.keyword === "edge" ||
         item.keyword === "bend"
       ) {
         pushDiagnostic(
@@ -818,6 +838,7 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "Node") {
+      const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
       const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
       const nodeItem = trailingCoordinateRaw ? { ...item, name: undefined } : item;
       const resolvedNode = evaluateNodeItem(
@@ -831,6 +852,7 @@ export function evaluatePathStatement(
         pendingNodeNameForNodeCommand ?? undefined
       );
       pendingNodeNameForNodeCommand = null;
+      pendingEdgeStartCoordinateRaw = declaredNodeName ? `(${declaredNodeName.trim()})` : null;
       behindNodeElements.push(...resolvedNode.behindElements);
       frontNodeElements.push(...resolvedNode.frontElements);
       if (trailingCoordinateRaw) {
@@ -898,6 +920,60 @@ export function evaluatePathStatement(
         previousSegmentRoundedCorners = handled.previousSegmentRoundedCorners;
       }
       setCurrentPoint(context.currentPoint);
+      continue;
+    }
+
+    if (item.kind === "EdgeOperation") {
+      if (!edgeOperationStart) {
+        let coordinateRaw = pendingEdgeStartCoordinateRaw;
+        if (!coordinateRaw && currentPointCoordinate && currentPointCoordinate.form === "named") {
+          coordinateRaw = `(${currentPointCoordinate.x.trim()})`;
+        }
+        if (!context.currentPoint) {
+          pushDiagnostic("edge-without-start", "`edge` operation requires a current point.", item.span.from, item.span.to);
+          continue;
+        }
+        edgeOperationStart = {
+          point: context.currentPoint,
+          coordinateRaw
+        };
+      }
+
+      const edgeOptionLists = [
+        everyEdgeOptions,
+        drawEdgeOptions,
+        item.options
+      ].filter((list): list is NonNullable<typeof list> => list != null);
+      const resolvedEdgeStyle = resolveContextDelta(
+        style,
+        frameTransform,
+        edgeOptionLists,
+        frame.customStyles
+      );
+      for (const code of resolvedEdgeStyle.diagnostics) {
+        if (code === "unsupported-option-flag:every edge") {
+          continue;
+        }
+        pushDiagnostic(code, `Edge option issue: ${code}`, item.span.from, item.span.to);
+      }
+
+      const handled = applyEdgeOperation(
+        item,
+        context,
+        statement,
+        resolvedEdgeStyle.style,
+        markFeature,
+        pushDiagnostic,
+        edgeOperationStart.point,
+        edgeOperationStart.coordinateRaw
+      );
+      if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
+        frontNodeElements.push(...handled.behindNodeElements);
+        frontNodeElements.push(handled.activePath);
+        frontNodeElements.push(...handled.frontNodeElements);
+      } else {
+        frontNodeElements.push(...handled.behindNodeElements, ...handled.frontNodeElements);
+      }
       continue;
     }
 

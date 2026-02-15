@@ -111,6 +111,9 @@ export const capabilityFixtures: Record<string, string> = {
   to_operation: String.raw`\begin{tikzpicture}
   \draw (0,0) to (1,1);
 \end{tikzpicture}`,
+  edge_operation: String.raw`\begin{tikzpicture}
+  \path (0,0) edge[->,dotted] (1,1);
+\end{tikzpicture}`,
   svg_operation: String.raw`\begin{tikzpicture}
   \draw (0,0) svg {h 10 v 10 h -10};
 \end{tikzpicture}`,

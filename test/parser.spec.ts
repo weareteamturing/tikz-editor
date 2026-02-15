@@ -729,9 +729,10 @@ describe("parseTikz", () => {
     expect(unknown).toHaveLength(0);
   });
 
-  it("parses to, svg, let, and coordinate operations with typed IR items", () => {
+  it("parses to, edge, svg, let, and coordinate operations with typed IR items", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) to [edge label=x, edge label'=y] node [above] {t} (3,2);
+  \path (0,0) edge [->] node [below] {e} (2,1);
   \filldraw [fill=red!20] (0,1) svg[scale=2] {h 10 v 10 h -10} -- cycle;
   \path let \p1 = (1,1), \p2 = (2,0) in (0,0) -- (\p2);
   \path coordinate (p1) at (1,0) coordinate (p2) at (2,1);
@@ -745,6 +746,7 @@ describe("parseTikz", () => {
       .flatMap((statement) => (statement.kind === "Path" ? statement.items : []));
 
     expect(items.some((item) => item.kind === "ToOperation")).toBe(true);
+    expect(items.some((item) => item.kind === "EdgeOperation")).toBe(true);
     expect(items.some((item) => item.kind === "SvgOperation")).toBe(true);
     expect(items.some((item) => item.kind === "LetOperation")).toBe(true);
     expect(items.filter((item) => item.kind === "CoordinateOperation").length).toBeGreaterThanOrEqual(2);

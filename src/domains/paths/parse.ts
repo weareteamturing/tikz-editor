@@ -10,6 +10,7 @@ import { mapUnknownPathItem } from "../../transform/unknown.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 import {
   mapCoordinateOperationItem,
+  mapEdgeOperationItem,
   mapLetOperationItem,
   mapPathForeachOperationItem,
   mapSvgOperationItem,
@@ -110,6 +111,10 @@ function mapPathItem(
     return mapToOperationItem(actual, source, statementIndex, itemIndex);
   }
 
+  if (actual.type.name === "EdgeOperation") {
+    return mapEdgeOperationItem(actual, source, statementIndex, itemIndex);
+  }
+
   if (actual.type.name === "PathForeachOperation") {
     return mapPathForeachOperationItem(actual, source, statementIndex, itemIndex);
   }
@@ -193,6 +198,7 @@ function isDirectPathItemNode(name: string): boolean {
     name === "Coordinate" ||
     name === "RelativeCoordinate" ||
     name === "ToOperation" ||
+    name === "EdgeOperation" ||
     name === "PathForeachOperation" ||
     name === "SvgOperation" ||
     name === "LetOperation" ||

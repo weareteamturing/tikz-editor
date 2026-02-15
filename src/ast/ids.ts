@@ -58,6 +58,10 @@ export function toOperationItemId(statementIndex: number, itemIndex: number): st
   return `to-operation:${statementIndex}:${itemIndex}`;
 }
 
+export function edgeOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `edge-operation:${statementIndex}:${itemIndex}`;
+}
+
 export function svgOperationItemId(statementIndex: number, itemIndex: number): string {
   return `svg-operation:${statementIndex}:${itemIndex}`;
 }

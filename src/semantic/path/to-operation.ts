@@ -1,10 +1,11 @@
-import type { ToOperationItem, PathStatement } from "../../ast/types.js";
+import type { EdgeOperationItem, ToOperationItem, PathStatement } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import {
   evaluateNodeItem,
   maybeResolveNamedCoordinateBorderPointFromRaw
 } from "../nodes/evaluate.js";
+import type { FeatureId } from "../../capabilities/feature-ids.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
 import { makePath } from "./elements.js";
@@ -27,17 +28,90 @@ export function applyToOperation(
   frontNodeElements: SceneElement[];
   previousSegmentRoundedCorners?: number | null;
 } {
+  return applyToLikeOperation(item, context, statement, style, activePath, previousSegmentRoundedCorners, markFeature, pushDiagnostic, {
+    operationKeyword: "to",
+    operationFeature: "to_operation",
+    keywordFeature: "keyword_to",
+    unsupportedDiagnostic: "unsupported-to-operation",
+    allowImplicitMoveToTargetWhenNoStart: true
+  });
+}
+
+export function applyEdgeOperation(
+  item: EdgeOperationItem,
+  context: SemanticContext,
+  statement: PathStatement,
+  style: ResolvedStyle,
+  markFeature: FeatureMarkFn,
+  pushDiagnostic: DiagnosticPushFn,
+  startPoint: Point | null,
+  startCoordinateRaw: string | null = null
+): {
+  activePath: ScenePath | null;
+  segment: PlacementSegment | null;
+  behindNodeElements: SceneElement[];
+  frontNodeElements: SceneElement[];
+  previousSegmentRoundedCorners?: number | null;
+} {
+  const savedCurrentPoint = context.currentPoint;
+  const savedPathStartPoint = context.pathStartPoint;
+  context.currentPoint = startPoint;
+  context.pathStartPoint = startPoint;
+
+  const handled = applyToLikeOperation(item, context, statement, style, null, null, markFeature, pushDiagnostic, {
+    operationKeyword: "edge",
+    operationFeature: "edge_operation",
+    keywordFeature: "keyword_edge",
+    unsupportedDiagnostic: "unsupported-edge-operation",
+    allowImplicitMoveToTargetWhenNoStart: false,
+    startCoordinateRaw
+  });
+
+  context.currentPoint = savedCurrentPoint;
+  context.pathStartPoint = savedPathStartPoint;
+  return handled;
+}
+
+function applyToLikeOperation(
+  item: ToOperationItem | EdgeOperationItem,
+  context: SemanticContext,
+  statement: PathStatement,
+  style: ResolvedStyle,
+  activePath: ScenePath | null,
+  previousSegmentRoundedCorners: number | null,
+  markFeature: FeatureMarkFn,
+  pushDiagnostic: DiagnosticPushFn,
+  config: {
+    operationKeyword: "to" | "edge";
+    operationFeature: FeatureId;
+    keywordFeature: FeatureId;
+    unsupportedDiagnostic: string;
+    allowImplicitMoveToTargetWhenNoStart: boolean;
+    startCoordinateRaw?: string | null;
+  }
+): {
+  activePath: ScenePath | null;
+  segment: PlacementSegment | null;
+  behindNodeElements: SceneElement[];
+  frontNodeElements: SceneElement[];
+  previousSegmentRoundedCorners?: number | null;
+} {
   const behindNodeElements: SceneElement[] = [];
   const frontNodeElements: SceneElement[] = [];
-  const target = item.target ?? parseToTarget(item.raw);
+  const target = item.target ?? parseToTarget(item.raw, config.operationKeyword);
   if (!target) {
-    markFeature("to_operation", "unsupported");
-    pushDiagnostic("unsupported-to-operation", "`to` operation target is not yet supported.", item.span.from, item.span.to);
+    markFeature(config.operationFeature, "unsupported");
+    pushDiagnostic(
+      config.unsupportedDiagnostic,
+      `\`${config.operationKeyword}\` operation target is not yet supported.`,
+      item.span.from,
+      item.span.to
+    );
     return { activePath, segment: null, behindNodeElements, frontNodeElements };
   }
 
-  markFeature("to_operation", "supported");
-  markFeature("keyword_to", "supported");
+  markFeature(config.operationFeature, "supported");
+  markFeature(config.keywordFeature, "supported");
   markFeature("path_operators_basic", "supported");
 
   if (target.kind === "cycle") {
@@ -70,19 +144,42 @@ export function applyToOperation(
 
   const evaluated = evaluateRawCoordinate(target.raw, context, target.relativePrefix);
   if (!evaluated.point) {
-    markFeature("to_operation", "unsupported");
+    markFeature(config.operationFeature, "unsupported");
     for (const code of evaluated.diagnostics) {
-      pushDiagnostic(code, `to-operation target issue: ${code}`, item.span.from, item.span.to);
+      pushDiagnostic(code, `${config.operationKeyword}-operation target issue: ${code}`, item.span.from, item.span.to);
     }
     return { activePath, segment: null, behindNodeElements, frontNodeElements };
   }
-  const resolvedTargetPoint = maybeResolveNamedCoordinateBorderPointFromRaw(target.raw, evaluated.point, context.currentPoint, context);
+
+  const startPoint = context.currentPoint;
+  if (!startPoint && !config.allowImplicitMoveToTargetWhenNoStart) {
+    markFeature(config.operationFeature, "unsupported");
+    pushDiagnostic(
+      config.unsupportedDiagnostic,
+      `\`${config.operationKeyword}\` operation requires a current point before the operation.`,
+      item.span.from,
+      item.span.to
+    );
+    return { activePath, segment: null, behindNodeElements, frontNodeElements };
+  }
+
+  const resolvedStartPoint =
+    startPoint && config.startCoordinateRaw
+      ? maybeResolveNamedCoordinateBorderPointFromRaw(config.startCoordinateRaw, startPoint, evaluated.point, context)
+      : startPoint;
+  const resolvedTargetPoint = maybeResolveNamedCoordinateBorderPointFromRaw(
+    target.raw,
+    evaluated.point,
+    resolvedStartPoint ?? startPoint,
+    context
+  );
 
   let path = activePath;
   if (!path) {
-    if (context.currentPoint) {
+    if (resolvedStartPoint) {
       path = makePath(statement.id, item.id, style, item.span);
-      path.commands.push({ kind: "M", to: context.currentPoint });
+      path.commands.push({ kind: "M", to: resolvedStartPoint });
+      context.pathStartPoint = resolvedStartPoint;
     } else {
       path = makePath(statement.id, item.id, style, item.span);
       path.commands.push({ kind: "M", to: resolvedTargetPoint });
@@ -99,7 +196,7 @@ export function applyToOperation(
     }
   }
 
-  const start = context.currentPoint;
+  const start = resolvedStartPoint;
   let segment: PlacementSegment | null = null;
   let nextRoundedCorners = previousSegmentRoundedCorners;
   const curved = extractToCurveOptions(item.options);
@@ -111,7 +208,7 @@ export function applyToOperation(
     const appended = appendPathPoint(
       path.commands,
       "--",
-      context.currentPoint,
+      start,
       resolvedTargetPoint,
       previousSegmentRoundedCorners,
       style.roundedCorners
@@ -137,12 +234,15 @@ export function applyToOperation(
   };
 }
 
-function parseToTarget(raw: string): { kind: "cycle" } | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } | null {
+function parseToTarget(
+  raw: string,
+  operationKeyword: "to" | "edge"
+): { kind: "cycle" } | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } | null {
   if (/\bcycle\b/i.test(raw)) {
     return { kind: "cycle" };
   }
 
-  const match = raw.match(/(to\b[\s\S]*?)(\+\+|\+)?(\([^\)]*\))\s*$/i);
+  const match = raw.match(new RegExp(`(${operationKeyword}\\\\b[\\\\s\\\\S]*?)(\\\\+\\\\+|\\\\+)?(\\([^\\)]*\\))\\s*$`, "i"));
   if (!match) {
     return null;
   }

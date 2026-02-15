@@ -90,7 +90,7 @@ function collectPathNodes(items: PathItem[], target: NodeItem[]): void {
       target.push(item);
       continue;
     }
-    if (item.kind === "ToOperation" && item.nodes) {
+    if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
       target.push(...item.nodes);
     }
   }

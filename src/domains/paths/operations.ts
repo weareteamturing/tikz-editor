@@ -2,6 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import {
   coordinateOperationItemId,
+  edgeOperationItemId,
   letOperationItemId,
   pathForeachItemId,
   svgOperationItemId,
@@ -9,6 +10,7 @@ import {
 } from "../../ast/ids.js";
 import type {
   CoordinateOperationItem,
+  EdgeOperationItem,
   LetOperationItem,
   NodeItem,
   PathForeachItem,
@@ -29,13 +31,49 @@ export function mapToOperationItem(
   statementIndex: number,
   itemIndex: number
 ): ToOperationItem {
+  return mapToLikeOperationItem("ToOperation", toOperationItemId(statementIndex, itemIndex), node, source, statementIndex, itemIndex);
+}
+
+export function mapEdgeOperationItem(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): EdgeOperationItem {
+  return mapToLikeOperationItem("EdgeOperation", edgeOperationItemId(statementIndex, itemIndex), node, source, statementIndex, itemIndex);
+}
+
+function mapToLikeOperationItem(
+  kind: "ToOperation",
+  id: string,
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): ToOperationItem;
+function mapToLikeOperationItem(
+  kind: "EdgeOperation",
+  id: string,
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): EdgeOperationItem;
+function mapToLikeOperationItem(
+  kind: "ToOperation" | "EdgeOperation",
+  id: string,
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): ToOperationItem | EdgeOperationItem {
   const optionsNode = findFirstChildByName(node, "OptionList");
   const target = mapToOperationTarget(node, source);
   const nodes = mapToOperationNodes(node, source, statementIndex, itemIndex);
 
   return {
-    kind: "ToOperation",
-    id: toOperationItemId(statementIndex, itemIndex),
+    kind,
+    id,
     span: { from: node.from, to: node.to },
     optionsSpan: toSpan(optionsNode),
     options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,

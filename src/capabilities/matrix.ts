@@ -265,6 +265,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["to_operation"]
   },
+  edge_operation: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["edge_operation"]
+  },
   svg_operation: {
     parser: "stable",
     semantic: "none",
@@ -306,6 +313,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     svg: "partial",
     edit: "none",
     fixtures: ["to_operation"]
+  },
+  keyword_edge: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["edge_operation"]
   },
   keyword_controls: {
     parser: "stable",

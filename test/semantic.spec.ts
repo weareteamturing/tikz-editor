@@ -82,13 +82,102 @@ describe("semantic evaluator", () => {
   it("emits explicit diagnostics for currently unsupported path keywords", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) plot (1,1);
-  \draw (0,0) edge (1,1);
+  \draw (0,0) bend (1,1);
 \end{tikzpicture}`;
     const parsed = parseTikz(source);
     const result = evaluateTikzFigure(parsed.figure, source);
 
     const unsupportedKeywordDiagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === "unsupported-path-keyword");
     expect(unsupportedKeywordDiagnostics.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("evaluates edge operations as separate paths that do not advance the main current point", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (a) at (0,0) {A};
+  \node (b) at (2,0) {B};
+  \node (c) at (1,1.5) {C};
+  \draw (a) edge (b) edge (c) -- (b);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-keyword")).toBe(false);
+
+    const linePaths = result.scene.elements.filter((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      return element.commands.length === 2 && element.commands[0]?.kind === "M" && element.commands[1]?.kind === "L";
+    });
+
+    expect(linePaths.length).toBe(3);
+    const startKeys = linePaths.map((element) => {
+      if (element.kind !== "Path") {
+        return "";
+      }
+      const start = element.commands[0];
+      if (start?.kind !== "M") {
+        return "";
+      }
+      return `${start.to.x.toFixed(3)}:${start.to.y.toFixed(3)}`;
+    });
+    const startFrequencies = new Map<string, number>();
+    for (const key of startKeys) {
+      startFrequencies.set(key, (startFrequencies.get(key) ?? 0) + 1);
+    }
+    expect(Math.max(...startFrequencies.values())).toBeGreaterThanOrEqual(2);
+  });
+
+  it("draws edge paths from \\path and applies local edge styling", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0,0) edge [->, dotted] (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.stroke).toBe("black");
+      expect(path.style.markerEnd).toBeTruthy();
+      expect(path.style.dashArray).toEqual([1, 3]);
+    }
+  });
+
+  it("applies every edge styles when configured on the path scope", () => {
+    const source = String.raw`\begin{tikzpicture}[every edge/.style={draw,red,dashed}]
+  \path (0,0) edge (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.stroke === "red" || path.style.stroke === "#ff0000").toBe(true);
+      expect(path.style.dashArray).toEqual([3, 3]);
+    }
+  });
+
+  it("starts an edge directly after a named node at that node's border", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (b) at (2,0) {B};
+  \path (0,0) node (c) {C} edge (b);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const c = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const edgePath = result.scene.elements.find((element) => element.kind === "Path");
+    expect(c?.kind).toBe("Text");
+    expect(edgePath?.kind).toBe("Path");
+    if (c?.kind === "Text" && edgePath?.kind === "Path") {
+      const start = edgePath.commands[0];
+      expect(start?.kind).toBe("M");
+      if (start?.kind === "M") {
+        expect(start.to.x).toBeGreaterThan(c.position.x);
+      }
+    }
   });
 
   it("supports sin/cos path keywords as cubic segments", () => {
