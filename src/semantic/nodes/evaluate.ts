@@ -20,10 +20,12 @@ import {
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeSignalElement,
+  makeNodeSingleArrowElement,
   makeNodeStarElement,
   makeNodeStarburstElement,
   makeNodeTapeElement,
   makeNodeTrapeziumElement,
+  makeNodeDoubleArrowElement,
   makeTextElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
@@ -75,7 +77,9 @@ export function evaluateNodeItem(
     everyCloudNodeStyles: frame.everyCloudNodeStyles,
     everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
     everySignalNodeStyles: frame.everySignalNodeStyles,
-    everyTapeNodeStyles: frame.everyTapeNodeStyles
+    everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+    everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
@@ -93,7 +97,9 @@ export function evaluateNodeItem(
     everyCloudNodeStyles: frame.everyCloudNodeStyles,
     everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
     everySignalNodeStyles: frame.everySignalNodeStyles,
-    everyTapeNodeStyles: frame.everyTapeNodeStyles
+    everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+    everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
@@ -433,6 +439,46 @@ export function evaluateNodeItem(
         )
       );
       markFeature("shape_tape", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "single arrow") {
+      nodeElements.push(
+        makeNodeSingleArrowElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.singleArrowTipAngle,
+          shapeGeometry.singleArrowHeadExtendPt,
+          shapeGeometry.singleArrowHeadIndentPt,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_single_arrow", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "double arrow") {
+      nodeElements.push(
+        makeNodeDoubleArrowElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.doubleArrowTipAngle,
+          shapeGeometry.doubleArrowHeadExtendPt,
+          shapeGeometry.doubleArrowHeadIndentPt,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_double_arrow", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
       nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));

@@ -209,6 +209,20 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["tape_shape"]
   },
+  shape_single_arrow: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["single_arrow_shape"]
+  },
+  shape_double_arrow: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["double_arrow_shape"]
+  },
   matrix_node: {
     parser: "stable",
     semantic: "stable",

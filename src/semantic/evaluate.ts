@@ -102,7 +102,9 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       everyCloudNodeStyles: rootMeta.everyCloudNodeStyles,
       everyStarburstNodeStyles: rootMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: rootMeta.everySignalNodeStyles,
-      everyTapeNodeStyles: rootMeta.everyTapeNodeStyles
+      everyTapeNodeStyles: rootMeta.everyTapeNodeStyles,
+      everySingleArrowNodeStyles: rootMeta.everySingleArrowNodeStyles,
+      everyDoubleArrowNodeStyles: rootMeta.everyDoubleArrowNodeStyles
     });
     for (const code of rootDelta.diagnostics) {
       diagnostics.push({
@@ -225,7 +227,9 @@ function evaluateStatement(
       everyCloudNodeStyles: frameMeta.everyCloudNodeStyles,
       everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: frameMeta.everySignalNodeStyles,
-      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles
+      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles,
+      everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
+      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
     });
     const previousTraceCollector = context.macroTraceCollector;
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
@@ -318,7 +322,9 @@ function evaluateStatement(
       everyCloudNodeStyles: frameMeta.everyCloudNodeStyles,
       everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: frameMeta.everySignalNodeStyles,
-      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles
+      everyTapeNodeStyles: frameMeta.everyTapeNodeStyles,
+      everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
+      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
     });
     for (const code of resolved.diagnostics) {
       diagnostics.push({
@@ -468,6 +474,8 @@ function applyOptionListsToCurrentFrame(
   frame.everyStarburstNodeStyles = frameMeta.everyStarburstNodeStyles;
   frame.everySignalNodeStyles = frameMeta.everySignalNodeStyles;
   frame.everyTapeNodeStyles = frameMeta.everyTapeNodeStyles;
+  frame.everySingleArrowNodeStyles = frameMeta.everySingleArrowNodeStyles;
+  frame.everyDoubleArrowNodeStyles = frameMeta.everyDoubleArrowNodeStyles;
 
   for (const code of resolved.diagnostics) {
     diagnostics.push({
@@ -1392,6 +1400,8 @@ function resolveFrameMeta(
     everyStarburstNodeStyles: OptionListAst[];
     everySignalNodeStyles: OptionListAst[];
     everyTapeNodeStyles: OptionListAst[];
+    everySingleArrowNodeStyles: OptionListAst[];
+    everyDoubleArrowNodeStyles: OptionListAst[];
   },
   optionLists: OptionListAst[]
 ): {
@@ -1415,6 +1425,8 @@ function resolveFrameMeta(
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everySingleArrowNodeStyles: OptionListAst[];
+  everyDoubleArrowNodeStyles: OptionListAst[];
 } {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
@@ -1436,6 +1448,8 @@ function resolveFrameMeta(
   let everyStarburstNodeStyles = [...base.everyStarburstNodeStyles];
   let everySignalNodeStyles = [...base.everySignalNodeStyles];
   let everyTapeNodeStyles = [...base.everyTapeNodeStyles];
+  let everySingleArrowNodeStyles = [...base.everySingleArrowNodeStyles];
+  let everyDoubleArrowNodeStyles = [...base.everyDoubleArrowNodeStyles];
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1699,6 +1713,34 @@ function resolveFrameMeta(
         if (parsed) {
           everyTapeNodeStyles = [...everyTapeNodeStyles, parsed];
         }
+        continue;
+      }
+      if (entry.key === "every single arrow node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everySingleArrowNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every single arrow node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everySingleArrowNodeStyles = [...everySingleArrowNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every double arrow node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDoubleArrowNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every double arrow node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDoubleArrowNodeStyles = [...everyDoubleArrowNodeStyles, parsed];
+        }
       }
     }
   }
@@ -1723,7 +1765,9 @@ function resolveFrameMeta(
     everyCloudNodeStyles,
     everyStarburstNodeStyles,
     everySignalNodeStyles,
-    everyTapeNodeStyles
+    everyTapeNodeStyles,
+    everySingleArrowNodeStyles,
+    everyDoubleArrowNodeStyles
   };
 }
 

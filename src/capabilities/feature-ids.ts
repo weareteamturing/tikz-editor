@@ -28,6 +28,8 @@ export const FEATURE_IDS = [
   "shape_starburst",
   "shape_signal",
   "shape_tape",
+  "shape_single_arrow",
+  "shape_double_arrow",
   "matrix_node",
   "named_coordinates",
   "to_operation",

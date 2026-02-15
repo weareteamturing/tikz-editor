@@ -5,6 +5,7 @@ import {
   makeCircularSector,
   makeCloud,
   makeCylinder,
+  makeDoubleArrow,
   makeDartPolygon,
   intersectRayWithPolygon,
   makeDiamondPolygon,
@@ -13,6 +14,7 @@ import {
   makeRegularPolygon,
   makeSemicircle,
   makeSignal,
+  makeSingleArrow,
   makeStar,
   makeStarburst,
   makeTape,
@@ -247,6 +249,36 @@ export function nodeAnchorOffset(
     return polygonShapeAnchorOffset(anchor, tape.polygon, layout.baseLineY, layout.midLineY);
   }
 
+  if (shape === "single arrow") {
+    const singleArrow = makeSingleArrow(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.singleArrowTipAngle,
+      shapeGeometry.singleArrowHeadExtendPt,
+      shapeGeometry.singleArrowHeadIndentPt,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = singleArrowSpecialAnchor(anchor, singleArrow);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, singleArrow.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "double arrow") {
+    const doubleArrow = makeDoubleArrow(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.doubleArrowTipAngle,
+      shapeGeometry.doubleArrowHeadExtendPt,
+      shapeGeometry.doubleArrowHeadIndentPt,
+      shapeGeometry.shapeBorderRotate
+    );
+    const special = doubleArrowSpecialAnchor(anchor, doubleArrow);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, doubleArrow.polygon, layout.baseLineY, layout.midLineY);
+  }
+
   if (shape === "semicircle") {
     const semicircle = makeSemicircle(anchorSizingWithOuter(layout), shapeGeometry.shapeBorderRotate, 0);
     if (anchor === "apex") {
@@ -465,6 +497,24 @@ function resolveAnchorPolygon(
       shapeGeometry.tapeBendHeightPt
     ).polygon;
   }
+  if (shape === "single arrow") {
+    return makeSingleArrow(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.singleArrowTipAngle,
+      shapeGeometry.singleArrowHeadExtendPt,
+      shapeGeometry.singleArrowHeadIndentPt,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
+  if (shape === "double arrow") {
+    return makeDoubleArrow(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.doubleArrowTipAngle,
+      shapeGeometry.doubleArrowHeadExtendPt,
+      shapeGeometry.doubleArrowHeadIndentPt,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
   return undefined;
 }
 
@@ -659,6 +709,74 @@ function cloudSpecialAnchor(anchor: string, puffs: Point[]): Point | null {
 
 function starburstSpecialAnchor(anchor: string, outerPoints: Point[], innerPoints: Point[]): Point | null {
   return starSpecialAnchor(anchor, outerPoints, innerPoints);
+}
+
+function singleArrowSpecialAnchor(
+  anchor: string,
+  geometry: ReturnType<typeof makeSingleArrow>
+): Point | null {
+  if (anchor === "tip") {
+    return geometry.tip;
+  }
+  if (anchor === "before tip") {
+    return geometry.beforeTip;
+  }
+  if (anchor === "after tip") {
+    return geometry.afterTip;
+  }
+  if (anchor === "before head") {
+    return geometry.beforeHead;
+  }
+  if (anchor === "after head") {
+    return geometry.afterHead;
+  }
+  if (anchor === "before tail") {
+    return geometry.beforeTail;
+  }
+  if (anchor === "after tail") {
+    return geometry.afterTail;
+  }
+  if (anchor === "tail") {
+    return geometry.tail;
+  }
+  return null;
+}
+
+function doubleArrowSpecialAnchor(
+  anchor: string,
+  geometry: ReturnType<typeof makeDoubleArrow>
+): Point | null {
+  if (anchor === "tip 1") {
+    return geometry.tip1;
+  }
+  if (anchor === "before tip 1") {
+    return geometry.beforeTip1;
+  }
+  if (anchor === "after tip 1") {
+    return geometry.afterTip1;
+  }
+  if (anchor === "before head 1") {
+    return geometry.beforeHead1;
+  }
+  if (anchor === "after head 1") {
+    return geometry.afterHead1;
+  }
+  if (anchor === "tip 2") {
+    return geometry.tip2;
+  }
+  if (anchor === "before tip 2") {
+    return geometry.beforeTip2;
+  }
+  if (anchor === "after tip 2") {
+    return geometry.afterTip2;
+  }
+  if (anchor === "before head 2") {
+    return geometry.beforeHead2;
+  }
+  if (anchor === "after head 2") {
+    return geometry.afterHead2;
+  }
+  return null;
 }
 
 function polygonShapeAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
@@ -886,6 +1004,30 @@ export function registerNamedNodeAnchors(
       offsets[`outer point ${index}`] = nodeAnchorOffset(shape, layout, `outer point ${index}`, options);
       offsets[`inner point ${index}`] = nodeAnchorOffset(shape, layout, `inner point ${index}`, options);
     }
+  }
+
+  if (shape === "single arrow") {
+    offsets.tip = nodeAnchorOffset(shape, layout, "tip", options);
+    offsets["before tip"] = nodeAnchorOffset(shape, layout, "before tip", options);
+    offsets["after tip"] = nodeAnchorOffset(shape, layout, "after tip", options);
+    offsets["before head"] = nodeAnchorOffset(shape, layout, "before head", options);
+    offsets["after head"] = nodeAnchorOffset(shape, layout, "after head", options);
+    offsets["before tail"] = nodeAnchorOffset(shape, layout, "before tail", options);
+    offsets["after tail"] = nodeAnchorOffset(shape, layout, "after tail", options);
+    offsets.tail = nodeAnchorOffset(shape, layout, "tail", options);
+  }
+
+  if (shape === "double arrow") {
+    offsets["tip 1"] = nodeAnchorOffset(shape, layout, "tip 1", options);
+    offsets["before tip 1"] = nodeAnchorOffset(shape, layout, "before tip 1", options);
+    offsets["after tip 1"] = nodeAnchorOffset(shape, layout, "after tip 1", options);
+    offsets["before head 1"] = nodeAnchorOffset(shape, layout, "before head 1", options);
+    offsets["after head 1"] = nodeAnchorOffset(shape, layout, "after head 1", options);
+    offsets["tip 2"] = nodeAnchorOffset(shape, layout, "tip 2", options);
+    offsets["before tip 2"] = nodeAnchorOffset(shape, layout, "before tip 2", options);
+    offsets["after tip 2"] = nodeAnchorOffset(shape, layout, "after tip 2", options);
+    offsets["before head 2"] = nodeAnchorOffset(shape, layout, "before head 2", options);
+    offsets["after head 2"] = nodeAnchorOffset(shape, layout, "after head 2", options);
   }
 
   for (const [anchor, offset] of Object.entries(offsets)) {

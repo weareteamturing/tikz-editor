@@ -25,6 +25,12 @@ export type ShapeGeometryParams = {
   tapeBendTop: TapeBendStyle;
   tapeBendBottom: TapeBendStyle;
   tapeBendHeightPt: number;
+  singleArrowTipAngle: number;
+  singleArrowHeadExtendPt: number;
+  singleArrowHeadIndentPt: number;
+  doubleArrowTipAngle: number;
+  doubleArrowHeadExtendPt: number;
+  doubleArrowHeadIndentPt: number;
   trapeziumLeftAngle: number;
   trapeziumRightAngle: number;
   shapeBorderRotate: number;
@@ -105,6 +111,32 @@ export type TapeGeometry = {
   polygon: Point[];
 };
 
+export type SingleArrowGeometry = {
+  polygon: Point[];
+  tip: Point;
+  beforeTip: Point;
+  afterTip: Point;
+  beforeHead: Point;
+  afterHead: Point;
+  beforeTail: Point;
+  afterTail: Point;
+  tail: Point;
+};
+
+export type DoubleArrowGeometry = {
+  polygon: Point[];
+  tip1: Point;
+  beforeTip1: Point;
+  afterTip1: Point;
+  beforeHead1: Point;
+  afterHead1: Point;
+  tip2: Point;
+  beforeTip2: Point;
+  afterTip2: Point;
+  beforeHead2: Point;
+  afterHead2: Point;
+};
+
 const DEFAULT_DIAMOND_ASPECT = 1;
 const DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE = 45;
 const DEFAULT_KITE_UPPER_VERTEX_ANGLE = 120;
@@ -122,6 +154,12 @@ const DEFAULT_RANDOM_STARBURST_SEED = 100;
 const DEFAULT_SIGNAL_POINTER_ANGLE = 90;
 const DEFAULT_TAPE_BEND_STYLE: TapeBendStyle = "in and out";
 const DEFAULT_TAPE_BEND_HEIGHT_PT = parseLength("5pt", "pt") ?? 5;
+const DEFAULT_SINGLE_ARROW_TIP_ANGLE = 90;
+const DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_SINGLE_ARROW_HEAD_INDENT_PT = 0;
+const DEFAULT_DOUBLE_ARROW_TIP_ANGLE = 90;
+const DEFAULT_DOUBLE_ARROW_HEAD_EXTEND_PT = parseLength(".5cm", "pt") ?? 14.2264;
+const DEFAULT_DOUBLE_ARROW_HEAD_INDENT_PT = 0;
 const DEFAULT_TRAPEZIUM_ANGLE = 60;
 const DEFAULT_SHAPE_BORDER_ROTATE = 0;
 const DEFAULT_REGULAR_POLYGON_SIDES = 5;
@@ -152,6 +190,12 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   let tapeBendTop: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
   let tapeBendBottom: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
   let tapeBendHeightPt = DEFAULT_TAPE_BEND_HEIGHT_PT;
+  let singleArrowTipAngle = DEFAULT_SINGLE_ARROW_TIP_ANGLE;
+  let singleArrowHeadExtendPt = DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT;
+  let singleArrowHeadIndentPt = DEFAULT_SINGLE_ARROW_HEAD_INDENT_PT;
+  let doubleArrowTipAngle = DEFAULT_DOUBLE_ARROW_TIP_ANGLE;
+  let doubleArrowHeadExtendPt = DEFAULT_DOUBLE_ARROW_HEAD_EXTEND_PT;
+  let doubleArrowHeadIndentPt = DEFAULT_DOUBLE_ARROW_HEAD_INDENT_PT;
   let trapeziumLeftAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let trapeziumRightAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let shapeBorderRotate = DEFAULT_SHAPE_BORDER_ROTATE;
@@ -186,6 +230,12 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       tapeBendTop,
       tapeBendBottom,
       tapeBendHeightPt,
+      singleArrowTipAngle,
+      singleArrowHeadExtendPt,
+      singleArrowHeadIndentPt,
+      doubleArrowTipAngle,
+      doubleArrowHeadExtendPt,
+      doubleArrowHeadIndentPt,
       trapeziumLeftAngle,
       trapeziumRightAngle,
       shapeBorderRotate,
@@ -384,6 +434,54 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       continue;
     }
 
+    if (entry.key === "single arrow tip angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        singleArrowTipAngle = normalizeArrowTipAngle(parsed, DEFAULT_SINGLE_ARROW_TIP_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "single arrow head extend") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        singleArrowHeadExtendPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "single arrow head indent") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        singleArrowHeadIndentPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "double arrow tip angle") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        doubleArrowTipAngle = normalizeArrowTipAngle(parsed, DEFAULT_DOUBLE_ARROW_TIP_ANGLE);
+      }
+      continue;
+    }
+
+    if (entry.key === "double arrow head extend") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        doubleArrowHeadExtendPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "double arrow head indent") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        doubleArrowHeadIndentPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
     if (entry.key === "trapezium angle") {
       const parsed = parseNumericOption(entry.valueRaw);
       if (parsed != null) {
@@ -490,6 +588,12 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     tapeBendTop,
     tapeBendBottom,
     tapeBendHeightPt,
+    singleArrowTipAngle,
+    singleArrowHeadExtendPt,
+    singleArrowHeadIndentPt,
+    doubleArrowTipAngle,
+    doubleArrowHeadExtendPt,
+    doubleArrowHeadIndentPt,
     trapeziumLeftAngle,
     trapeziumRightAngle,
     shapeBorderRotate,
@@ -1044,6 +1148,100 @@ export function makeTape(
   return { polygon };
 }
 
+export function makeSingleArrow(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  rotation: number
+): SingleArrowGeometry {
+  const arrow = resolveArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_SINGLE_ARROW_TIP_ANGLE);
+  const tipUnrotated = { x: arrow.bodyHalfLength + arrow.tipHalfLength, y: 0 };
+  const beforeTipUnrotated = { x: arrow.bodyHalfLength, y: arrow.headHalfHeight };
+  const beforeHeadUnrotated = { x: arrow.bodyHalfLength + arrow.headIndent, y: arrow.shaftHalfHeight };
+  const afterTailUnrotated = { x: -arrow.bodyHalfLength, y: arrow.shaftHalfHeight };
+  const beforeTailUnrotated = { x: afterTailUnrotated.x, y: -afterTailUnrotated.y };
+  const afterHeadUnrotated = { x: beforeHeadUnrotated.x, y: -beforeHeadUnrotated.y };
+  const afterTipUnrotated = { x: beforeTipUnrotated.x, y: -beforeTipUnrotated.y };
+  const tailUnrotated = { x: afterTailUnrotated.x, y: 0 };
+
+  const polygon = rotatePolygon(
+    [
+      tipUnrotated,
+      beforeTipUnrotated,
+      beforeHeadUnrotated,
+      afterTailUnrotated,
+      beforeTailUnrotated,
+      afterHeadUnrotated,
+      afterTipUnrotated
+    ],
+    rotation
+  );
+
+  return {
+    polygon,
+    tip: rotatePoint(tipUnrotated, rotation),
+    beforeTip: rotatePoint(beforeTipUnrotated, rotation),
+    afterTip: rotatePoint(afterTipUnrotated, rotation),
+    beforeHead: rotatePoint(beforeHeadUnrotated, rotation),
+    afterHead: rotatePoint(afterHeadUnrotated, rotation),
+    beforeTail: rotatePoint(beforeTailUnrotated, rotation),
+    afterTail: rotatePoint(afterTailUnrotated, rotation),
+    tail: rotatePoint(tailUnrotated, rotation)
+  };
+}
+
+export function makeDoubleArrow(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  rotation: number
+): DoubleArrowGeometry {
+  const arrow = resolveArrowCore(sizing, tipAngleRaw, headExtendPt, headIndentPt, DEFAULT_DOUBLE_ARROW_TIP_ANGLE);
+  const tip1Unrotated = { x: arrow.bodyHalfLength + arrow.tipHalfLength, y: 0 };
+  const beforeTip1Unrotated = { x: arrow.bodyHalfLength, y: arrow.headHalfHeight };
+  const beforeHead1Unrotated = { x: arrow.bodyHalfLength + arrow.headIndent, y: arrow.shaftHalfHeight };
+  const afterTip1Unrotated = { x: beforeTip1Unrotated.x, y: -beforeTip1Unrotated.y };
+  const afterHead1Unrotated = { x: beforeHead1Unrotated.x, y: -beforeHead1Unrotated.y };
+
+  const tip2Unrotated = { x: -tip1Unrotated.x, y: 0 };
+  const beforeTip2Unrotated = { x: -beforeTip1Unrotated.x, y: -beforeTip1Unrotated.y };
+  const beforeHead2Unrotated = { x: -beforeHead1Unrotated.x, y: -beforeHead1Unrotated.y };
+  const afterTip2Unrotated = { x: -beforeTip1Unrotated.x, y: beforeTip1Unrotated.y };
+  const afterHead2Unrotated = { x: -beforeHead1Unrotated.x, y: beforeHead1Unrotated.y };
+
+  const polygon = rotatePolygon(
+    [
+      tip1Unrotated,
+      beforeTip1Unrotated,
+      beforeHead1Unrotated,
+      afterHead2Unrotated,
+      afterTip2Unrotated,
+      tip2Unrotated,
+      beforeTip2Unrotated,
+      beforeHead2Unrotated,
+      afterHead1Unrotated,
+      afterTip1Unrotated
+    ],
+    rotation
+  );
+
+  return {
+    polygon,
+    tip1: rotatePoint(tip1Unrotated, rotation),
+    beforeTip1: rotatePoint(beforeTip1Unrotated, rotation),
+    afterTip1: rotatePoint(afterTip1Unrotated, rotation),
+    beforeHead1: rotatePoint(beforeHead1Unrotated, rotation),
+    afterHead1: rotatePoint(afterHead1Unrotated, rotation),
+    tip2: rotatePoint(tip2Unrotated, rotation),
+    beforeTip2: rotatePoint(beforeTip2Unrotated, rotation),
+    afterTip2: rotatePoint(afterTip2Unrotated, rotation),
+    beforeHead2: rotatePoint(beforeHead2Unrotated, rotation),
+    afterHead2: rotatePoint(afterHead2Unrotated, rotation)
+  };
+}
+
 export function regularPolygonStartAngle(sidesRaw: number, rotation: number): number {
   const sides = normalizeInteger(Math.round(sidesRaw), 3, 360, DEFAULT_REGULAR_POLYGON_SIDES);
   if (sides % 2 === 1) {
@@ -1279,6 +1477,17 @@ function normalizeSignalPointerAngle(value: number): number {
   return Math.max(1, Math.min(179, normalized));
 }
 
+function normalizeArrowTipAngle(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  const normalized = Math.abs(value);
+  if (normalized <= 1e-3) {
+    return fallback;
+  }
+  return Math.max(1, Math.min(179, normalized));
+}
+
 function normalizeRatio(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_STAR_RATIO;
@@ -1306,6 +1515,40 @@ function normalizeInteger(value: number, min: number, max: number, fallback: num
     return fallback;
   }
   return value;
+}
+
+function resolveArrowCore(
+  sizing: CircularSizingInput,
+  tipAngleRaw: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  fallbackTipAngle: number
+): {
+  bodyHalfLength: number;
+  shaftHalfHeight: number;
+  headHalfHeight: number;
+  tipHalfLength: number;
+  headIndent: number;
+} {
+  const tipAngle = normalizeArrowTipAngle(tipAngleRaw, fallbackTipAngle);
+  const halfAngle = toRadians(tipAngle / 2);
+  const tangent = Math.tan(halfAngle);
+  const safeTangent = Number.isFinite(tangent) && Math.abs(tangent) > EPSILON ? Math.abs(tangent) : 1;
+
+  // Arrow shapes interpret "minimum width" as shaft thickness and "minimum height" as tip-to-tail span.
+  const shaftHalfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumWidth) / 2);
+  const bodyHalfLength = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumHeight) / 2);
+  const headHalfHeight = shaftHalfHeight + Math.max(0, headExtendPt);
+  const tipHalfLength = Math.max(EPSILON, headHalfHeight / safeTangent);
+  const headIndent = Math.min(Math.max(0, headIndentPt), Math.max(0, tipHalfLength - EPSILON));
+
+  return {
+    bodyHalfLength,
+    shaftHalfHeight,
+    headHalfHeight,
+    tipHalfLength,
+    headIndent
+  };
 }
 
 function pointPolar(degrees: number, radius: number): Point {

@@ -6,6 +6,7 @@ import {
   makeCircularSector,
   makeCloud,
   makeCylinder,
+  makeDoubleArrow,
   makeDartPolygon,
   makeDiamondPolygon,
   makeIsoscelesTrianglePolygon,
@@ -13,6 +14,7 @@ import {
   makeRegularPolygon,
   makeSemicircle,
   makeSignal,
+  makeSingleArrow,
   makeStar,
   makeStarburst,
   makeTape,
@@ -636,6 +638,74 @@ export function makeNodeTapeElement(
     bendHeightPt
   );
   const corners = tape.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeSingleArrowElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  tipAngle: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const arrow = makeSingleArrow(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    tipAngle,
+    headExtendPt,
+    headIndentPt,
+    rotation
+  );
+  const corners = arrow.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeDoubleArrowElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  tipAngle: number,
+  headExtendPt: number,
+  headIndentPt: number,
+  rotation: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const arrow = makeDoubleArrow(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    tipAngle,
+    headExtendPt,
+    headIndentPt,
+    rotation
+  );
+  const corners = arrow.polygon.map((point) => ({
     x: center.x + point.x,
     y: center.y + point.y
   }));

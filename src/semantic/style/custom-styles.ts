@@ -58,7 +58,13 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every signal node/.prefix style",
   "every tape node/.style",
   "every tape node/.append style",
-  "every tape node/.prefix style"
+  "every tape node/.prefix style",
+  "every single arrow node/.style",
+  "every single arrow node/.append style",
+  "every single arrow node/.prefix style",
+  "every double arrow node/.style",
+  "every double arrow node/.append style",
+  "every double arrow node/.prefix style"
 ]);
 
 export function cloneCustomStyleRegistry(registry: CustomStyleRegistry): CustomStyleRegistry {

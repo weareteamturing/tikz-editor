@@ -1813,6 +1813,67 @@ describe("semantic evaluator", () => {
     expect(tapePath).toBeDefined();
   });
 
+  it("supports single and double arrow shapes with named arrow anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[single arrow,single arrow tip angle=60,single arrow head extend=5pt,draw,name=s] at (0,0) {S};
+  \node at (s.tip)         {ST};
+  \node at (s.before head) {SB};
+  \node at (s.tail)        {SL};
+
+  \node[double arrow,double arrow tip angle=70,double arrow head indent=2pt,draw,name=d] at (4,0) {D};
+  \node at (d.tip 1)         {D1};
+  \node at (d.tip 2)         {D2};
+  \node at (d.before head 1) {DH1};
+  \node at (d.before head 2) {DH2};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const single = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
+    const singleTip = result.scene.elements.find((element) => element.kind === "Text" && element.text === "ST");
+    const singleBeforeHead = result.scene.elements.find((element) => element.kind === "Text" && element.text === "SB");
+    const singleTail = result.scene.elements.find((element) => element.kind === "Text" && element.text === "SL");
+    expect(single?.kind).toBe("Text");
+    expect(singleTip?.kind).toBe("Text");
+    expect(singleBeforeHead?.kind).toBe("Text");
+    expect(singleTail?.kind).toBe("Text");
+    if (
+      single?.kind === "Text" &&
+      singleTip?.kind === "Text" &&
+      singleBeforeHead?.kind === "Text" &&
+      singleTail?.kind === "Text"
+    ) {
+      expect(singleTip.position.x).toBeGreaterThan(single.position.x);
+      expect(singleBeforeHead.position.x).toBeGreaterThan(single.position.x);
+      expect(singleTail.position.x).toBeLessThan(single.position.x);
+    }
+
+    const double = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
+    const doubleTip1 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D1");
+    const doubleTip2 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D2");
+    const doubleBeforeHead1 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "DH1");
+    const doubleBeforeHead2 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "DH2");
+    expect(double?.kind).toBe("Text");
+    expect(doubleTip1?.kind).toBe("Text");
+    expect(doubleTip2?.kind).toBe("Text");
+    expect(doubleBeforeHead1?.kind).toBe("Text");
+    expect(doubleBeforeHead2?.kind).toBe("Text");
+    if (
+      double?.kind === "Text" &&
+      doubleTip1?.kind === "Text" &&
+      doubleTip2?.kind === "Text" &&
+      doubleBeforeHead1?.kind === "Text" &&
+      doubleBeforeHead2?.kind === "Text"
+    ) {
+      expect(doubleTip1.position.x).toBeGreaterThan(double.position.x);
+      expect(doubleTip2.position.x).toBeLessThan(double.position.x);
+      expect(doubleBeforeHead1.position.x).toBeGreaterThan(double.position.x);
+      expect(doubleBeforeHead2.position.x).toBeLessThan(double.position.x);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}
@@ -2606,6 +2667,45 @@ describe("semantic evaluator", () => {
       expect(starburst.style.doubleStroke).toBe(true);
       expect(signal.style.fill).toBe("#ff0000");
       expect(tape.style.doubleStroke).toBe(true);
+    }
+  });
+
+  it("applies every-node style keys for single and double arrow nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every single arrow node/.style={fill=blue},
+  every double arrow node/.style={double}
+]
+  \draw (0,0) node[single arrow] {S};
+  \draw (2,0) node[double arrow] {D};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(2);
+
+    const byX = nodeBoxes
+      .map((path) => ({
+        path,
+        centerX:
+          path.commands
+            .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to.x] : []))
+            .reduce((sum, x) => sum + x, 0) /
+          Math.max(path.commands.filter((command) => command.kind === "M" || command.kind === "L").length, 1)
+      }))
+      .sort((left, right) => left.centerX - right.centerX);
+
+    const singleArrow = byX[0]?.path;
+    const doubleArrow = byX[1]?.path;
+    expect(singleArrow).toBeDefined();
+    expect(doubleArrow).toBeDefined();
+    if (singleArrow && doubleArrow) {
+      expect(singleArrow.style.fill).toBe("#0000ff");
+      expect(doubleArrow.style.doubleStroke).toBe(true);
     }
   });
 

@@ -90,6 +90,12 @@ export const NON_STYLE_OPTION_KEYS = new Set([
   "tape bend top",
   "tape bend bottom",
   "tape bend height",
+  "single arrow tip angle",
+  "single arrow head extend",
+  "single arrow head indent",
+  "double arrow tip angle",
+  "double arrow head extend",
+  "double arrow head indent",
   "regular polygon sides",
   "regular polygon rotate",
   "star points",
@@ -163,6 +169,10 @@ export const NON_STYLE_OPTION_KEYS = new Set([
   "every signal node/.append style",
   "every tape node/.style",
   "every tape node/.append style",
+  "every single arrow node/.style",
+  "every single arrow node/.append style",
+  "every double arrow node/.style",
+  "every double arrow node/.append style",
   "transform shape"
 ]);
 
@@ -186,6 +196,8 @@ export const NON_STYLE_OPTION_FLAGS = new Set([
   "starburst",
   "signal",
   "tape",
+  "single arrow",
+  "double arrow",
   "cloud ignores aspect",
   "random starburst",
   "isosceles triangle stretches",

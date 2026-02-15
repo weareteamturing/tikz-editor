@@ -113,6 +113,8 @@ export function resolveEffectiveNodeOptions(params: {
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everySingleArrowNodeStyles: OptionListAst[];
+  everyDoubleArrowNodeStyles: OptionListAst[];
 }): OptionListAst | undefined {
   const base = mergeOptionLists([...params.everyNodeStyles, params.statementOptions, params.nodeOptions]);
   const shape = resolveNodeShape(base);
@@ -137,6 +139,8 @@ function resolveShapeStyleLists(
     everyStarburstNodeStyles: OptionListAst[];
     everySignalNodeStyles: OptionListAst[];
     everyTapeNodeStyles: OptionListAst[];
+    everySingleArrowNodeStyles: OptionListAst[];
+    everyDoubleArrowNodeStyles: OptionListAst[];
   }
 ): OptionListAst[] {
   if (shape === "circle") {
@@ -177,6 +181,12 @@ function resolveShapeStyleLists(
   }
   if (shape === "tape") {
     return params.everyTapeNodeStyles;
+  }
+  if (shape === "single arrow") {
+    return params.everySingleArrowNodeStyles;
+  }
+  if (shape === "double arrow") {
+    return params.everyDoubleArrowNodeStyles;
   }
   return [];
 }
@@ -253,6 +263,8 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         entry.key === "starburst" ||
         entry.key === "signal" ||
         entry.key === "tape" ||
+        entry.key === "single arrow" ||
+        entry.key === "double arrow" ||
         entry.key === "coordinate"
       ) {
         shape = entry.key;
@@ -279,6 +291,8 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         normalized === "starburst" ||
         normalized === "signal" ||
         normalized === "tape" ||
+        normalized === "single arrow" ||
+        normalized === "double arrow" ||
         normalized === "coordinate"
       ) {
         shape = normalized;

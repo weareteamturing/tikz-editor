@@ -45,6 +45,8 @@ export type NamedNodeGeometry = {
     | "starburst"
     | "signal"
     | "tape"
+    | "single arrow"
+    | "double arrow"
     | "coordinate";
   center: Point;
   anchorHalfWidth: number;
@@ -85,6 +87,8 @@ export type SemanticContextFrame = {
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everySingleArrowNodeStyles: OptionListAst[];
+  everyDoubleArrowNodeStyles: OptionListAst[];
 };
 
 export type SemanticContext = {
@@ -135,7 +139,9 @@ export function createSemanticContext(
         everyCloudNodeStyles: [],
         everyStarburstNodeStyles: [],
         everySignalNodeStyles: [],
-        everyTapeNodeStyles: []
+        everyTapeNodeStyles: [],
+        everySingleArrowNodeStyles: [],
+        everyDoubleArrowNodeStyles: []
       }
     ],
     namedCoordinates: new Map<string, Point>(),

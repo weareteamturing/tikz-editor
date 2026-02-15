@@ -89,6 +89,12 @@ export const capabilityFixtures: Record<string, string> = {
   tape_shape: String.raw`\begin{tikzpicture}
   \node[tape,tape bend top=out and in,tape bend bottom=in and out,draw] at (0,0) {T};
 \end{tikzpicture}`,
+  single_arrow_shape: String.raw`\begin{tikzpicture}
+  \node[single arrow,single arrow tip angle=60,single arrow head extend=4pt,draw] at (0,0) {A};
+\end{tikzpicture}`,
+  double_arrow_shape: String.raw`\begin{tikzpicture}
+  \node[double arrow,double arrow tip angle=60,double arrow head indent=2pt,draw] at (0,0) {D};
+\end{tikzpicture}`,
   coordinate_operation: String.raw`\begin{tikzpicture}
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);

@@ -24,10 +24,12 @@ import {
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeSignalElement,
+  makeNodeSingleArrowElement,
   makeNodeStarElement,
   makeNodeStarburstElement,
   makeNodeTapeElement,
   makeNodeTrapeziumElement,
+  makeNodeDoubleArrowElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
 import { resolveNodeLayout } from "./layout.js";
@@ -497,6 +499,46 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("shape_tape", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "single arrow") {
+      matrixNodeElements.push(
+        makeNodeSingleArrowElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.singleArrowTipAngle,
+          shapeGeometry.singleArrowHeadExtendPt,
+          shapeGeometry.singleArrowHeadIndentPt,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_single_arrow", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "double arrow") {
+      matrixNodeElements.push(
+        makeNodeDoubleArrowElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.doubleArrowTipAngle,
+          shapeGeometry.doubleArrowHeadExtendPt,
+          shapeGeometry.doubleArrowHeadIndentPt,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_double_arrow", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle") {
       matrixNodeElements.push(

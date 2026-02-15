@@ -18,6 +18,8 @@ export type NodeShape =
   | "starburst"
   | "signal"
   | "tape"
+  | "single arrow"
+  | "double arrow"
   | "coordinate";
 export type NodeLayer = "front" | "behind";
 
