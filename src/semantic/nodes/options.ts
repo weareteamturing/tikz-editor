@@ -169,14 +169,28 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
   let shape: NodeShape = "rectangle";
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
-      if (entry.key === "circle" || entry.key === "rectangle" || entry.key === "ellipse" || entry.key === "coordinate") {
+      if (
+        entry.key === "circle" ||
+        entry.key === "rectangle" ||
+        entry.key === "ellipse" ||
+        entry.key === "diamond" ||
+        entry.key === "trapezium" ||
+        entry.key === "coordinate"
+      ) {
         shape = entry.key;
       }
       continue;
     }
     if (entry.kind === "kv" && entry.key === "shape") {
       const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
-      if (normalized === "circle" || normalized === "rectangle" || normalized === "ellipse" || normalized === "coordinate") {
+      if (
+        normalized === "circle" ||
+        normalized === "rectangle" ||
+        normalized === "ellipse" ||
+        normalized === "diamond" ||
+        normalized === "trapezium" ||
+        normalized === "coordinate"
+      ) {
         shape = normalized;
       }
     }

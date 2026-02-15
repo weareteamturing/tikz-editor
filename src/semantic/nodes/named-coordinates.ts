@@ -1,7 +1,12 @@
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { CoordinateItem, PathItem } from "../../ast/types.js";
-import type { SemanticContext } from "../context.js";
+import type { NamedNodeGeometry, SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
+import {
+  intersectRayWithPolygon,
+  makeDiamondPolygon,
+  makeTrapeziumPolygon
+} from "./shape-geometry.js";
 
 export function collectScopedNodeNames(name: string | undefined, aliases: string[] | undefined, context: SemanticContext): string[] {
   const names = [name, ...(aliases ?? [])].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
@@ -116,13 +121,7 @@ function maybeResolveNamedNodeBorderPoint(
   return borderPoint ?? fallbackPoint;
 }
 
-function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): {
-  shape: "rectangle" | "circle" | "ellipse" | "coordinate";
-  center: Point;
-  anchorHalfWidth: number;
-  anchorHalfHeight: number;
-  anchorRadius: number;
-} | null {
+function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): NamedNodeGeometry | null {
   const scoped = applyNameScope(rawName, context);
   const candidates = scoped === rawName ? [rawName] : [scoped, rawName];
   for (const candidate of candidates) {
@@ -135,13 +134,7 @@ function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): {
 }
 
 function intersectNodeBorder(
-  geometry: {
-    shape: "rectangle" | "circle" | "ellipse" | "coordinate";
-    center: Point;
-    anchorHalfWidth: number;
-    anchorHalfHeight: number;
-    anchorRadius: number;
-  },
+  geometry: NamedNodeGeometry,
   fromPoint: Point
 ): Point | null {
   const dx = fromPoint.x - geometry.center.x;
@@ -189,6 +182,40 @@ function intersectNodeBorder(
     return {
       x: geometry.center.x + dx * scale,
       y: geometry.center.y + dy * scale
+    };
+  }
+
+  if (geometry.shape === "diamond") {
+    const polygon = geometry.anchorPolygon ?? makeDiamondPolygon(
+      geometry.anchorHalfWidth,
+      geometry.anchorHalfHeight,
+      geometry.diamondAspect ?? 1
+    );
+    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, polygon);
+    if (!border) {
+      return null;
+    }
+    return {
+      x: geometry.center.x + border.x,
+      y: geometry.center.y + border.y
+    };
+  }
+
+  if (geometry.shape === "trapezium") {
+    const polygon = geometry.anchorPolygon ?? makeTrapeziumPolygon(
+      geometry.anchorHalfWidth,
+      geometry.anchorHalfHeight,
+      geometry.trapeziumLeftAngle ?? 60,
+      geometry.trapeziumRightAngle ?? 60,
+      geometry.shapeBorderRotate ?? 0
+    );
+    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, polygon);
+    if (!border) {
+      return null;
+    }
+    return {
+      x: geometry.center.x + border.x,
+      y: geometry.center.y + border.y
     };
   }
 

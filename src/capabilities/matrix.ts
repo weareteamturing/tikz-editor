@@ -111,6 +111,20 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["circle_shape"]
   },
+  shape_diamond: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["diamond_shape"]
+  },
+  shape_trapezium: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["trapezium_shape"]
+  },
   matrix_node: {
     parser: "stable",
     semantic: "stable",

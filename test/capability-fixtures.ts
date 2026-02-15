@@ -47,6 +47,12 @@ export const capabilityFixtures: Record<string, string> = {
   circle_shape: String.raw`\begin{tikzpicture}
   \draw (0,0) circle [radius=1cm];
 \end{tikzpicture}`,
+  diamond_shape: String.raw`\begin{tikzpicture}
+  \node[diamond,draw] at (0,0) {D};
+\end{tikzpicture}`,
+  trapezium_shape: String.raw`\begin{tikzpicture}
+  \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45] at (0,0) {T};
+\end{tikzpicture}`,
   coordinate_operation: String.raw`\begin{tikzpicture}
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);

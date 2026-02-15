@@ -1372,6 +1372,56 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports diamond-shaped nodes with aspect control and named anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[diamond,draw,aspect=2,name=d] at (0,0) {D};
+  \draw (d.east) -- +(8pt,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
+    const diamond = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    expect(text?.kind).toBe("Text");
+    expect(diamond?.kind).toBe("Path");
+
+    if (diamond?.kind === "Path") {
+      const points = diamond.commands
+        .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to] : []));
+      expect(points).toHaveLength(4);
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const width = Math.max(...xs) - Math.min(...xs);
+      const height = Math.max(...ys) - Math.min(...ys);
+      expect(width).toBeGreaterThan(height);
+    }
+  });
+
+  it("supports trapezium-shaped nodes with angle keys and side anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45,name=t] at (0,0) {T};
+  \draw (t.top side) -- +(0,8pt);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const trapezium = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    expect(trapezium?.kind).toBe("Path");
+    if (trapezium?.kind === "Path") {
+      const points = trapezium.commands
+        .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to] : []));
+      expect(points).toHaveLength(4);
+      const [bottomLeft, topLeft, topRight, bottomRight] = points;
+      const topWidth = topRight.x - topLeft.x;
+      const bottomWidth = bottomRight.x - bottomLeft.x;
+      expect(bottomWidth).toBeGreaterThan(topWidth);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}

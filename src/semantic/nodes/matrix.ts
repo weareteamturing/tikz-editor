@@ -13,7 +13,9 @@ import {
   applyNodeBoxPaintMode,
   makeCircleElement,
   makeNodeBoxElement,
+  makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeTrapeziumElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
 import { resolveNodeLayout } from "./layout.js";
@@ -23,6 +25,7 @@ import {
   resolveNodeOptionScale,
   resolveNodeStyle
 } from "./options.js";
+import { resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import type { NodeLayout, NodeShape } from "./types.js";
 
 type MatrixSpacingSpec = {
@@ -184,11 +187,18 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
 
   const matrixLayout = makeMatrixLayout(contentWidth, contentHeight);
   const matrixAnchor = params.matrixMode.matrixAnchor ?? params.fallbackAnchor;
-  const matrixCenter = placeNodeCenter(params.resolvedPositioning.anchorPoint, params.nodeShape, matrixLayout, matrixAnchor);
+  const shapeGeometry = resolveNodeShapeGeometryParams(params.effectiveNodeOptions);
+  const matrixCenter = placeNodeCenter(
+    params.resolvedPositioning.anchorPoint,
+    params.nodeShape,
+    matrixLayout,
+    matrixAnchor,
+    params.effectiveNodeOptions
+  );
   const scopedMatrixNames = collectScopedNodeNames(params.forcedName ?? params.item.name, params.item.aliases, params.context);
 
   for (const name of scopedMatrixNames) {
-    registerNamedNodeAnchors(params.context, name, matrixCenter, params.nodeShape, matrixLayout);
+    registerNamedNodeAnchors(params.context, name, matrixCenter, params.nodeShape, matrixLayout, params.effectiveNodeOptions);
   }
 
   const matrixNodeElements: SceneElement[] = [];
@@ -212,6 +222,38 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("keyword_ellipse", "supported");
+    } else if (params.nodeShape === "diamond") {
+      matrixNodeElements.push(
+        makeNodeDiamondElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          shapeGeometry.diamondAspect,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_diamond", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "trapezium") {
+      matrixNodeElements.push(
+        makeNodeTrapeziumElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.visualWidth,
+          matrixLayout.visualHeight,
+          shapeGeometry.trapeziumLeftAngle,
+          shapeGeometry.trapeziumRightAngle,
+          shapeGeometry.shapeBorderRotate,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_trapezium", "supported");
+      params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle") {
       matrixNodeElements.push(
         makeNodeBoxElement(

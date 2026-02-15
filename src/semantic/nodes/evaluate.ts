@@ -9,7 +9,9 @@ import {
   applyNodeBoxPaintMode,
   makeCircleElement,
   makeNodeBoxElement,
+  makeNodeDiamondElement,
   makeNodeEllipseElement,
+  makeNodeTrapeziumElement,
   makeTextElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
@@ -26,6 +28,7 @@ import {
   resolveNodeStyle,
   withDefaultNodePosition
 } from "./options.js";
+import { resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 
 export function evaluateNodeItem(
@@ -100,16 +103,18 @@ export function evaluateNodeItem(
   }
 
   const nodeLayout = resolveNodeLayout(resolvedNodeText, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const shapeGeometry = resolveNodeShapeGeometryParams(effectiveNodeOptions);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
     nodeLayout,
-    resolvedPositioning.anchorOverride ?? anchor
+    resolvedPositioning.anchorOverride ?? anchor,
+    effectiveNodeOptions
   );
   const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, effectiveNodeOptions);
   }
 
   const nodeElements: SceneElement[] = [];
@@ -131,6 +136,38 @@ export function evaluateNodeItem(
     } else if (nodeShape === "ellipse") {
       nodeElements.push(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("keyword_ellipse", "supported");
+    } else if (nodeShape === "diamond") {
+      nodeElements.push(
+        makeNodeDiamondElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          shapeGeometry.diamondAspect,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_diamond", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "trapezium") {
+      nodeElements.push(
+        makeNodeTrapeziumElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.visualWidth,
+          nodeLayout.visualHeight,
+          shapeGeometry.trapeziumLeftAngle,
+          shapeGeometry.trapeziumRightAngle,
+          shapeGeometry.shapeBorderRotate,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_trapezium", "supported");
+      markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
       nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("shape_rectangle", "supported");

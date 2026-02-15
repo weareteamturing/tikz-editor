@@ -1,6 +1,6 @@
 import type { NodeTextRenderInfo } from "../../text/types.js";
 
-export type NodeShape = "rectangle" | "circle" | "ellipse" | "coordinate";
+export type NodeShape = "rectangle" | "circle" | "ellipse" | "diamond" | "trapezium" | "coordinate";
 export type NodeLayer = "front" | "behind";
 
 export type NodeLayout = {

@@ -27,11 +27,16 @@ export type NodeDistanceSpec =
     };
 
 export type NamedNodeGeometry = {
-  shape: "rectangle" | "circle" | "ellipse" | "coordinate";
+  shape: "rectangle" | "circle" | "ellipse" | "diamond" | "trapezium" | "coordinate";
   center: Point;
   anchorHalfWidth: number;
   anchorHalfHeight: number;
   anchorRadius: number;
+  diamondAspect?: number;
+  trapeziumLeftAngle?: number;
+  trapeziumRightAngle?: number;
+  shapeBorderRotate?: number;
+  anchorPolygon?: Point[];
 };
 
 export type SemanticContextFrame = {
