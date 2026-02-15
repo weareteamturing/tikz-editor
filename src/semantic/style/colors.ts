@@ -1,10 +1,6 @@
 import { COLOR_HEX, NAMED_COLORS } from "./constants.js";
 import { normalizeOptionValue } from "./option-utils.js";
 
-const EXTENDED_COLOR_HEX: Record<string, string> = {
-  lightgray: "#bfbfbf"
-};
-
 export function normalizeColor(raw: string, opts: { currentColor?: string | null } = {}): string {
   const normalized = raw.trim().toLowerCase();
   const currentColor = resolveCurrentColor(opts.currentColor);
@@ -16,9 +12,6 @@ export function normalizeColor(raw: string, opts: { currentColor?: string | null
   }
   if (NAMED_COLORS.has(normalized)) {
     return COLOR_HEX[normalized] ?? normalized;
-  }
-  if (normalized in EXTENDED_COLOR_HEX) {
-    return EXTENDED_COLOR_HEX[normalized];
   }
   if (normalized.startsWith("#")) {
     return normalized;
@@ -54,9 +47,6 @@ function toRgbColor(color: string): { r: number; g: number; b: number } | null {
   const normalized = color.trim().toLowerCase();
   if (normalized in COLOR_HEX) {
     return hexToRgb(COLOR_HEX[normalized]);
-  }
-  if (normalized in EXTENDED_COLOR_HEX) {
-    return hexToRgb(EXTENDED_COLOR_HEX[normalized]);
   }
   if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
     return hexToRgb(normalized);
@@ -129,9 +119,6 @@ function resolveCurrentColor(color: string | null | undefined): string | null {
   }
   if (normalized in COLOR_HEX) {
     return COLOR_HEX[normalized];
-  }
-  if (normalized in EXTENDED_COLOR_HEX) {
-    return EXTENDED_COLOR_HEX[normalized];
   }
   if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
     return normalized;
