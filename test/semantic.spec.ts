@@ -737,6 +737,22 @@ describe("semantic evaluator", () => {
     expect(horizontal.length).toBe(3);
   });
 
+  it("starts grid at the origin when no current point exists yet", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[help lines] grid (3,2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "grid-without-start")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const vertical = paths.filter((path) => path.id.includes("scene-grid-x:"));
+    const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
+    expect(vertical.length).toBe(4);
+    expect(horizontal.length).toBe(3);
+  });
+
   it("applies rounded corners across cycle closure", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) [rounded corners=10pt] -- (1,1) -- (2,1)
@@ -1793,6 +1809,19 @@ describe("semantic evaluator", () => {
       expect(aText.position.x).toBeGreaterThan(xText.position.x);
       expect(yText.position.x).toBeGreaterThan(aText.position.x);
     }
+  });
+
+  it("ignores standalone \\usetikzlibrary commands without emitting unsupported-statement diagnostics", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \usetikzlibrary {shadows,shapes.symbols}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(parsed.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-statement")).toBe(false);
+    expect(result.scene.elements.some((element) => element.kind === "Path")).toBe(true);
   });
 
   it("applies custom styles defined via \\tikzset, \\tikzstyle, and \\pgfkeys", () => {

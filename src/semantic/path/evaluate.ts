@@ -616,14 +616,14 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "grid") {
+        const gridStart = context.currentPoint ?? { x: 0, y: 0 };
         if (!context.currentPoint) {
-          pushDiagnostic("grid-without-start", "Grid keyword requires a current point.", item.span.from, item.span.to);
-          continue;
+          setCurrentPoint(gridStart);
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
         previousSegmentRoundedCorners = null;
         pendingGrid = {
-          from: context.currentPoint,
+          from: gridStart,
           stepX: DEFAULT_GRID_STEP,
           stepY: DEFAULT_GRID_STEP
         };

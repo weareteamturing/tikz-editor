@@ -137,6 +137,40 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone \\usetikzlibrary commands with or without spacing before groups", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \usetikzlibrary{shapes.geometric}
+  \usetikzlibrary {shadows,shapes.symbols}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(3);
+    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[1]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[2]?.kind).toBe("Path");
+    if (result.figure.body[0]?.kind === "UnknownStatement") {
+      expect(result.figure.body[0].raw).toContain("\\usetikzlibrary");
+    }
+    if (result.figure.body[1]?.kind === "UnknownStatement") {
+      expect(result.figure.body[1].raw).toContain("\\usetikzlibrary");
+    }
+  });
+
+  it("accepts \\usetikzlibrary preamble commands before tikzpicture without parse errors", () => {
+    const source = String.raw`\usetikzlibrary{shapes.geometric}
+\usetikzlibrary {shadows,shapes.symbols}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(1);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+  });
+
   it("does not tokenize `inner` as standalone `in` within option keys", () => {
     const source = String.raw`\begin{tikzpicture}
   \node [draw, inner sep=5pt] at (0,0) {Hi};

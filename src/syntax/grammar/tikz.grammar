@@ -1,4 +1,4 @@
-@top TikzFile { TikzEnvironment | TikzInline }
+@top TikzFile { BodyItem* (TikzEnvironment | TikzInline) | BodyItem* }
 
 @skip { space }
 
@@ -22,6 +22,7 @@ Statement {
   PathStatement |
   FontSizeStatement |
   StyleDefinitionStatement |
+  TikzLibraryStatement |
   ColorletStatement |
   MacroDefinitionStatement |
   MacroAliasStatement |
@@ -238,6 +239,10 @@ PgfkeysStatement {
 
 ColorletStatement {
   ColorletCmd Group Group
+}
+
+TikzLibraryStatement {
+  UseTikzLibraryCmd Group
 }
 
 MacroDefinitionStatement {
@@ -570,6 +575,7 @@ StrayToken {
     NodeCmd,
     CoordinateCmd,
     PgfkeysCmd,
+    UseTikzLibraryCmd,
     MatrixRowSepCmd,
     EscapedAmpersandCmd,
     EscapedPercentCmd,
@@ -635,6 +641,7 @@ StrayToken {
   NewCommandCmd { "\\newcommand" }
   RenewCommandCmd { "\\renewcommand" }
   PgfkeysCmd { "\\pgfkeys" }
+  UseTikzLibraryCmd { "\\usetikzlibrary" }
   MatrixRowSepCmd { "\\\\" }
   EscapedAmpersandCmd { "\\&" }
   EscapedPercentCmd { "\\%" }

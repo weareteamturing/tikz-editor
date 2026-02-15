@@ -365,6 +365,10 @@ function applyStandaloneCommandStatement(
     }
   }
 
+  if (parseUseTikzLibraryCommand(raw)) {
+    return true;
+  }
+
   const tikzSetOptions = parseTikzSetOptionLists(raw);
   if (tikzSetOptions) {
     applyOptionListsToCurrentFrame(tikzSetOptions, context, diagnostics, span, "\\tikzset");
@@ -659,6 +663,10 @@ function parseTikzSetOptionLists(raw: string): OptionListAst[] | null {
     return null;
   }
   return [parseOptionListRaw(content)];
+}
+
+function parseUseTikzLibraryCommand(raw: string): boolean {
+  return parseBracedCommandContent(raw, "\\usetikzlibrary") != null;
 }
 
 function parsePgfkeysOptionLists(raw: string): OptionListAst[] | null {
