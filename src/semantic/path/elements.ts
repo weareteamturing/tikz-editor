@@ -1,4 +1,6 @@
 import type { Point, ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../types.js";
+import type { Matrix2D } from "../types.js";
+import { applyMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 
 export function makePath(sourceId: string, itemId: string, style: ResolvedStyle, span: { from: number; to: number }): ScenePath {
@@ -29,26 +31,30 @@ export function appendRectangleSubpath(
   commands: ScenePathCommand[],
   from: Point,
   to: Point,
-  roundedCorners: number | null = null
+  roundedCorners: number | null = null,
+  transform?: Matrix2D
 ): void {
-  const topRight = { x: to.x, y: from.y };
-  const bottomLeft = { x: from.x, y: to.y };
+  const corners = resolveRectangleCorners(from, to, transform);
+  const start = corners[0];
+  const topRight = corners[1];
+  const opposite = corners[2];
+  const bottomLeft = corners[3];
 
   if (!roundedCorners || roundedCorners <= 0) {
-    commands.push({ kind: "M", to: from });
+    commands.push({ kind: "M", to: start });
     commands.push({ kind: "L", to: topRight });
-    commands.push({ kind: "L", to });
+    commands.push({ kind: "L", to: opposite });
     commands.push({ kind: "L", to: bottomLeft });
     commands.push({ kind: "Z" });
     return;
   }
 
-  commands.push({ kind: "M", to: from });
+  commands.push({ kind: "M", to: start });
   let previousSegmentRoundedCorners: number | null = null;
   previousSegmentRoundedCorners = appendPathPoint(
     commands,
     "--",
-    from,
+    start,
     topRight,
     previousSegmentRoundedCorners,
     roundedCorners
@@ -57,20 +63,20 @@ export function appendRectangleSubpath(
     commands,
     "--",
     topRight,
-    to,
+    opposite,
     previousSegmentRoundedCorners,
     roundedCorners
   ).nextRoundedCorners;
   previousSegmentRoundedCorners = appendPathPoint(
     commands,
     "--",
-    to,
+    opposite,
     bottomLeft,
     previousSegmentRoundedCorners,
     roundedCorners
   ).nextRoundedCorners;
-  appendPathPoint(commands, "--", bottomLeft, from, previousSegmentRoundedCorners, roundedCorners);
-  roundClosedPathStartCorner(commands, bottomLeft, from, roundedCorners);
+  appendPathPoint(commands, "--", bottomLeft, start, previousSegmentRoundedCorners, roundedCorners);
+  roundClosedPathStartCorner(commands, bottomLeft, start, roundedCorners);
   commands.push({ kind: "Z" });
 }
 
@@ -134,10 +140,11 @@ export function makeRectangleElement(
   to: Point,
   style: ResolvedStyle,
   span: { from: number; to: number },
-  roundedCorners: number | null = style.roundedCorners
+  roundedCorners: number | null = style.roundedCorners,
+  transform?: Matrix2D
 ): ScenePath {
   const commands: ScenePathCommand[] = [];
-  appendRectangleSubpath(commands, from, to, roundedCorners);
+  appendRectangleSubpath(commands, from, to, roundedCorners, transform);
 
   return {
     kind: "Path",
@@ -146,6 +153,41 @@ export function makeRectangleElement(
     sourceSpan: span,
     style: { ...style },
     commands
+  };
+}
+
+function resolveRectangleCorners(from: Point, to: Point, transform?: Matrix2D): [Point, Point, Point, Point] {
+  if (!transform) {
+    return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
+  }
+
+  const localFrom = applyInverseMatrix(transform, from);
+  const localTo = applyInverseMatrix(transform, to);
+  if (!localFrom || !localTo) {
+    return [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }];
+  }
+
+  const localTopRight = { x: localTo.x, y: localFrom.y };
+  const localBottomLeft = { x: localFrom.x, y: localTo.y };
+  return [
+    applyMatrix(transform, localFrom),
+    applyMatrix(transform, localTopRight),
+    applyMatrix(transform, localTo),
+    applyMatrix(transform, localBottomLeft)
+  ];
+}
+
+function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
+  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+  if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-12) {
+    return null;
+  }
+
+  const translatedX = point.x - matrix.e;
+  const translatedY = point.y - matrix.f;
+  return {
+    x: (matrix.d * translatedX - matrix.c * translatedY) / determinant,
+    y: (-matrix.b * translatedX + matrix.a * translatedY) / determinant
   };
 }
 

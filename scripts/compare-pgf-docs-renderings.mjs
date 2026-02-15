@@ -224,7 +224,7 @@ function parseArgs(argv) {
       i += 1;
       continue;
     }
-    if (arg === "--only") {
+    if (arg === "--only" || arg === "--figures") {
       parsed.only = parseOnlySelection(argv[i + 1] ?? "");
       i += 1;
       continue;
@@ -274,6 +274,7 @@ function printUsage() {
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-paths.tex --kind tikzpicture
   node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book
   node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book --max 25
+  node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book --figures 9,11,14,17,28,31
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg-png
 
@@ -284,6 +285,7 @@ Defaults:
   --source-file ${defaultSourceFile} (pgf-docs mode only)
   --out-dir mode-specific default under ${join(repoRoot, "artifacts")}
   --reference-mode ${defaultReferenceMode}
+  --only/--figures takes comma-separated # indices from the gallery cards (supports ranges like 10-14)
   source-file resolution:
     pgf-docs mode: resolved under --docs-root
     book modes: resolved under --examples-root/<mode>

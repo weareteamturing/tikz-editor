@@ -1,5 +1,5 @@
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { Matrix2D, ResolvedStyle } from "../types.js";
+import type { Matrix2D, Point, ResolvedStyle } from "../types.js";
 import { parseArrowSpecification } from "./arrows.js";
 import { applyFlagEntry } from "./apply-flag.js";
 import type { ApplyOutcome } from "./apply-types.js";
@@ -17,11 +17,14 @@ export type ResolvedContextDelta = {
   expandedOptionLists: OptionListAst[];
 };
 
+export type CoordinateResolver = (raw: string) => Point | null;
+
 export function resolveContextDelta(
   baseStyle: ResolvedStyle,
   baseTransform: Matrix2D,
   optionLists: OptionListAst[],
-  customStyles: CustomStyleRegistry = new Map()
+  customStyles: CustomStyleRegistry = new Map(),
+  resolveCoordinate?: CoordinateResolver
 ): ResolvedContextDelta {
   const diagnostics: string[] = [];
   let style = { ...baseStyle };
@@ -33,7 +36,7 @@ export function resolveContextDelta(
     customStyles,
     (entry) => {
       expandedEntries.push(entry);
-      const outcome = applyOptionEntry(entry, style, transform);
+      const outcome = applyOptionEntry(entry, style, transform, resolveCoordinate);
       style = outcome.style;
       transform = outcome.transform;
       diagnostics.push(...outcome.diagnostics);
@@ -49,7 +52,8 @@ export function resolveContextDelta(
 function applyOptionEntry(
   entry: OptionEntry,
   style: ResolvedStyle,
-  transform: Matrix2D
+  transform: Matrix2D,
+  resolveCoordinate?: CoordinateResolver
 ): ApplyOutcome {
   if (entry.kind === "unknown") {
     const parsedArrow = parseArrowSpecification(entry.raw, style);
@@ -66,7 +70,7 @@ function applyOptionEntry(
       const diagnostics: string[] = [];
       for (const list of style.everyShadowStyles) {
         for (const nestedEntry of list.entries) {
-          const outcome = applyOptionEntry(nestedEntry, nextStyle, nextTransform);
+          const outcome = applyOptionEntry(nestedEntry, nextStyle, nextTransform, resolveCoordinate);
           nextStyle = outcome.style;
           nextTransform = outcome.transform;
           diagnostics.push(...outcome.diagnostics);
@@ -83,13 +87,13 @@ function applyOptionEntry(
       entry.key === "circular drop shadow" ||
       entry.key === "circular glow"
     ) {
-      return applyKvEntry(entry.key, "", style, transform, applyOptionEntry);
+      return applyKvEntry(entry.key, "", style, transform, applyOptionEntry, resolveCoordinate);
     }
 
     return applyFlagEntry(entry.key, entry.raw, style, transform);
   }
 
-  return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry);
+  return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry, resolveCoordinate);
 }
 
 function buildExpandedOptionLists(optionLists: OptionListAst[], entries: OptionEntry[]): OptionListAst[] {

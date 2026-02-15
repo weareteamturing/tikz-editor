@@ -125,6 +125,70 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("uses logical `+` coordinates as centers for subsequent circle keywords", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[radius=2pt] (0,0) circle +(1,0) circle +(0,1) circle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const circles = result.scene.elements.filter((element) => element.kind === "Circle");
+    expect(circles).toHaveLength(3);
+    if (circles.every((element) => element.kind === "Circle")) {
+      const centers = circles.map((element) => element.center);
+      const uniqueCenters = new Set(centers.map((center) => `${center.x.toFixed(3)}:${center.y.toFixed(3)}`));
+      expect(uniqueCenters.size).toBe(3);
+    }
+  });
+
+  it("captures coordinate operations from logical `+` points", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (0.5,0.5) coordinate (A) +(40:3.5) coordinate (B) +(10:3.5) coordinate (C);
+  \draw (B) -- (A) -- (C);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:B")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:C")).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const points = path.commands
+        .filter((command) => command.kind === "M" || command.kind === "L")
+        .map((command) => (command.kind === "M" || command.kind === "L" ? command.to : null))
+        .filter((point): point is { x: number; y: number } => point != null);
+      const uniquePoints = new Set(points.map((point) => `${point.x.toFixed(3)}:${point.y.toFixed(3)}`));
+      expect(uniquePoints.size).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("captures coordinate[pos=...] points along the previous segment", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- coordinate[pos=0.25] (A) coordinate[pos=0.75] (B) (4,0);
+  \draw (A) -- (B);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    const points = result.scene.elements
+      .filter((element) => element.kind === "Path")
+      .flatMap((element) =>
+        element.kind === "Path"
+          ? element.commands
+              .filter((command) => command.kind === "M" || command.kind === "L")
+              .map((command) => (command.kind === "M" || command.kind === "L" ? command.to : null))
+          : []
+      )
+      .filter((point): point is { x: number; y: number } => point != null);
+
+    const hasQuarterPoint = points.some((point) => Math.abs(point.x - 28.4528) <= 1e-3 && Math.abs(point.y) <= 1e-3);
+    const hasThreeQuarterPoint = points.some((point) => Math.abs(point.x - 85.3583) <= 1e-3 && Math.abs(point.y) <= 1e-3);
+    expect(hasQuarterPoint).toBe(true);
+    expect(hasThreeQuarterPoint).toBe(true);
+  });
+
   it("supports `[turn]` polar coordinates using the previous segment direction", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- +(1,0) -- ([turn]90:1) -- ([turn]90:1);
@@ -260,6 +324,33 @@ describe("semantic evaluator", () => {
       expect(start?.kind).toBe("M");
       if (start?.kind === "M") {
         expect(start.to.x).toBeGreaterThan(c.position.x);
+      }
+    }
+  });
+
+  it("starts standalone node-command edges from the node without requiring an existing current point", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={circle,draw}]
+  \node (A) at (0,0) {A};
+  \node (B) at (1,0) {B} edge (A);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "edge-without-start")).toBe(false);
+    const edgePath = result.scene.elements.find((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      return element.commands.length === 2 && element.commands[0]?.kind === "M" && element.commands[1]?.kind === "L";
+    });
+    expect(edgePath?.kind).toBe("Path");
+    if (edgePath?.kind === "Path") {
+      const start = edgePath.commands[0];
+      const end = edgePath.commands[1];
+      expect(start?.kind).toBe("M");
+      expect(end?.kind).toBe("L");
+      if (start?.kind === "M" && end?.kind === "L") {
+        expect(start.to.x).toBeGreaterThan(end.to.x);
       }
     }
   });
@@ -617,6 +708,88 @@ describe("semantic evaluator", () => {
       if (move?.kind === "M") {
         expect(move.to.x).toBeCloseTo(5.6906, 3);
         expect(move.to.y).toBeCloseTo(0, 3);
+      }
+    }
+  });
+
+  it("accepts named coordinates in shift scope options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path (1,2) coordinate (tip);
+  \begin{scope}[shift=(tip)]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands.find((command) => command.kind === "M");
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(28.4528, 3);
+        expect(move.to.y).toBeCloseTo(56.9055, 3);
+      }
+    }
+  });
+
+  it("renders rotated scope grids with non-axis-aligned segments", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift={(1,1)},rotate=10]
+    \draw[help lines] grid(1,1);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    const gridPaths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(gridPaths.length).toBeGreaterThanOrEqual(4);
+
+    const hasDiagonalSegment = gridPaths.some((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const move = element.commands[0];
+      const line = element.commands.find((command) => command.kind === "L");
+      if (move?.kind !== "M" || line?.kind !== "L") {
+        return false;
+      }
+      const dx = line.to.x - move.to.x;
+      const dy = line.to.y - move.to.y;
+      return Math.abs(dx) > 1e-6 && Math.abs(dy) > 1e-6;
+    });
+
+    expect(hasDiagonalSegment).toBe(true);
+  });
+
+  it("renders rotated scope rectangles as transformed quadrilaterals", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift={(1,1)},rotate=10]
+    \draw (0,0) rectangle (0.5,0.5);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind !== "Path") {
+      return;
+    }
+
+    const firstLine = path.commands.find((command) => command.kind === "L");
+    expect(firstLine?.kind).toBe("L");
+    if (firstLine?.kind === "L") {
+      const move = path.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        const dx = firstLine.to.x - move.to.x;
+        const dy = firstLine.to.y - move.to.y;
+        expect(Math.abs(dx) > 1e-6 && Math.abs(dy) > 1e-6).toBe(true);
       }
     }
   });
@@ -1416,6 +1589,26 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports to-operation bend left/right curve shorthands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) to[bend right=45] (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-to-operation")).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(cubic?.kind).toBe("C");
+      if (cubic?.kind === "C") {
+        expect(cubic.c1.y).toBeLessThan(0);
+        expect(cubic.c2.y).toBeLessThan(0);
+      }
+    }
+  });
+
   it("falls back with diagnostics for unsupported curve pattern variants", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) .. (2,0);
@@ -1490,6 +1683,33 @@ describe("semantic evaluator", () => {
     expect(text?.kind).toBe("Text");
     if (text?.kind === "Text") {
       expect(text.position.x).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves numeric node anchors like node.45 and node.225", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,draw,minimum size=1cm,name=n] at (0,0) {A};
+  \draw (n.45) -- (n.225);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:n.45")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:n.225")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const start = path.commands[0];
+      const end = path.commands[1];
+      expect(start?.kind).toBe("M");
+      expect(end?.kind).toBe("L");
+      if (start?.kind === "M" && end?.kind === "L") {
+        expect(start.to.x).toBeGreaterThan(0);
+        expect(start.to.y).toBeGreaterThan(0);
+        expect(end.to.x).toBeLessThan(0);
+        expect(end.to.y).toBeLessThan(0);
+      }
     }
   });
 

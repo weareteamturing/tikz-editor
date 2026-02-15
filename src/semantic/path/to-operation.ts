@@ -199,7 +199,7 @@ function applyToLikeOperation(
   const start = resolvedStartPoint;
   let segment: PlacementSegment | null = null;
   let nextRoundedCorners = previousSegmentRoundedCorners;
-  const curved = extractToCurveOptions(item.options);
+  const curved = start ? extractToCurveOptions(item.options, start, resolvedTargetPoint) : null;
   if (start && curved) {
     segment = appendToCurve(path.commands, start, resolvedTargetPoint, curved);
     nextRoundedCorners = style.roundedCorners;
@@ -256,7 +256,9 @@ function parseToTarget(
 }
 
 function extractToCurveOptions(
-  options: ToOperationItem["options"]
+  options: ToOperationItem["options"],
+  from: Point,
+  to: Point
 ): {
   out: number;
   in: number;
@@ -272,8 +274,21 @@ function extractToCurveOptions(
   let looseness: number | null = null;
   let outLooseness: number | null = null;
   let inLooseness: number | null = null;
+  let bendDirection: "left" | "right" | null = null;
+  let bendAngle = 30;
 
   for (const entry of options.entries) {
+    if (entry.kind === "flag") {
+      if (entry.key === "bend left") {
+        bendDirection = "left";
+        bendAngle = 30;
+      } else if (entry.key === "bend right") {
+        bendDirection = "right";
+        bendAngle = 30;
+      }
+      continue;
+    }
+
     if (entry.kind !== "kv") {
       continue;
     }
@@ -315,7 +330,26 @@ function extractToCurveOptions(
       if (Number.isFinite(parsed) && parsed >= 0) {
         inLooseness = parsed;
       }
+      continue;
     }
+
+    if (entry.key === "bend left" || entry.key === "bend right") {
+      const normalized = normalizeOptionValue(entry.valueRaw);
+      const parsed = normalized.length === 0 ? 30 : Number(normalized);
+      bendDirection = entry.key === "bend left" ? "left" : "right";
+      if (Number.isFinite(parsed)) {
+        bendAngle = parsed;
+      } else {
+        bendAngle = 30;
+      }
+    }
+  }
+
+  if ((out == null || inAngle == null) && bendDirection) {
+    const baseHeading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
+    const sign = bendDirection === "left" ? 1 : -1;
+    out = baseHeading + sign * bendAngle;
+    inAngle = baseHeading + 180 - sign * bendAngle;
   }
 
   if (out == null || inAngle == null) {

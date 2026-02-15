@@ -5,6 +5,7 @@ import {
   SHADOW_INHERIT_FILL,
   SHADOW_INHERIT_STROKE,
   type Matrix2D,
+  type Point,
   type ResolvedStyle,
   type ShadowFadeKind,
   type ShadowLayer,
@@ -16,7 +17,6 @@ import { DEFAULT_TEXT_FONT_SIZE, NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./cons
 import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName } from "./colors.js";
 import { parseDashPattern, parseDashValue } from "./dash.js";
 import { normalizeOptionValue, parseAxisVector, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
-
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle): string {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   return normalizeColor(valueRaw, { currentColor });
@@ -27,7 +27,8 @@ export function applyKvEntry(
   valueRaw: string,
   style: ResolvedStyle,
   transform: Matrix2D,
-  applyOptionEntry: ApplyEntryFn
+  applyOptionEntry: ApplyEntryFn,
+  resolveCoordinate?: (raw: string) => Point | null
 ): ApplyOutcome {
   if (key === "every path/.style" || key === "every path/.append style") {
     const nested = parseStyleValueAsOptionList(valueRaw);
@@ -562,16 +563,26 @@ export function applyKvEntry(
   if (key === "shift") {
     const normalizedShift = normalizeOptionValue(valueRaw);
     const vector = parseCoordinateLike(normalizedShift);
-    if (!vector) {
-      return { style, transform, diagnostics: [`invalid-shift:${valueRaw}`] };
+    if (vector) {
+      const x = parseLength(vector.x, "cm");
+      const y = parseLength(vector.y, "cm");
+      if (x != null && y != null) {
+        return { style, transform: multiplyMatrix(transform, translationMatrix(x, y)), diagnostics: [] };
+      }
     }
 
-    const x = parseLength(vector.x, "cm");
-    const y = parseLength(vector.y, "cm");
-    if (x == null || y == null) {
-      return { style, transform, diagnostics: [`invalid-shift:${valueRaw}`] };
+    if (resolveCoordinate) {
+      const resolved = resolveCoordinate(normalizedShift);
+      if (resolved) {
+        return {
+          style,
+          transform: multiplyMatrix(transform, translationMatrix(resolved.x, resolved.y)),
+          diagnostics: []
+        };
+      }
     }
-    return { style, transform: multiplyMatrix(transform, translationMatrix(x, y)), diagnostics: [] };
+
+    return { style, transform, diagnostics: [`invalid-shift:${valueRaw}`] };
   }
   if (key === "scale") {
     const factor = Number(valueRaw);

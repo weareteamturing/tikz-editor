@@ -28,6 +28,19 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain('stroke-dasharray="3 3"');
   });
 
+  it("mirrors rotated ellipse arc angles when emitting SVG path data", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill (0,0) ellipse[x radius=1, y radius=2, rotate=45];
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    const arcMatch = result.svg.svg.match(/A [^ ]+ [^ ]+ ([^ ]+) 0 [01] [^ ]+ [^ ]+/);
+    expect(arcMatch).not.toBeNull();
+    if (arcMatch) {
+      expect(Number(arcMatch[1])).toBeLessThan(0);
+    }
+  });
+
   it("keeps recoverable flow on partial input", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,

@@ -35,7 +35,7 @@ export function resolveNodeTargetPoint(
   return context.currentPoint ?? { x: 0, y: 0 };
 }
 
-function resolveNodePositionFraction(options: PathOptionItem["options"] | undefined): number | null {
+export function resolveNodePositionFraction(options: PathOptionItem["options"] | undefined): number | null {
   if (!options) {
     return null;
   }
@@ -75,7 +75,7 @@ function resolveNodePositionFraction(options: PathOptionItem["options"] | undefi
   return clamp(value, 0, 1);
 }
 
-function pointAtPlacementSegment(segment: PlacementSegment, t: number): Point {
+export function pointAtPlacementSegment(segment: PlacementSegment, t: number): Point {
   const clamped = clamp(t, 0, 1);
   if (segment.kind === "line") {
     return interpolate(segment.from, segment.to, clamped);

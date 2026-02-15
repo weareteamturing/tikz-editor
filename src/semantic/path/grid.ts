@@ -1,7 +1,7 @@
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { PathOptionItem } from "../../ast/types.js";
-import { applyMatrixToVector } from "../transform.js";
-import type { Point, ResolvedStyle, ScenePath } from "../types.js";
+import { applyMatrix, applyMatrixToVector } from "../transform.js";
+import type { Matrix2D, Point, ResolvedStyle, ScenePath } from "../types.js";
 import type { DiagnosticPushFn } from "./types.js";
 import type { SemanticContext } from "../context.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
@@ -140,8 +140,16 @@ export function makeGridElements(
   stepX: number,
   stepY: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  transform?: Matrix2D
 ): ScenePath[] {
+  if (transform) {
+    const affine = makeAffineGridElements(sourceId, itemId, from, to, stepX, stepY, style, span, transform);
+    if (affine) {
+      return affine;
+    }
+  }
+
   const minX = Math.min(from.x, to.x);
   const maxX = Math.max(from.x, to.x);
   const minY = Math.min(from.y, to.y);
@@ -181,4 +189,89 @@ export function makeGridElements(
     }
   }
   return paths;
+}
+
+function makeAffineGridElements(
+  sourceId: string,
+  itemId: string,
+  from: Point,
+  to: Point,
+  stepX: number,
+  stepY: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number },
+  transform: Matrix2D
+): ScenePath[] | null {
+  const localFrom = applyInverseMatrix(transform, from);
+  const localTo = applyInverseMatrix(transform, to);
+  if (!localFrom || !localTo) {
+    return null;
+  }
+
+  const minLocalX = Math.min(localFrom.x, localTo.x);
+  const maxLocalX = Math.max(localFrom.x, localTo.x);
+  const minLocalY = Math.min(localFrom.y, localTo.y);
+  const maxLocalY = Math.max(localFrom.y, localTo.y);
+
+  const spacingX = stepX >= 0 ? stepX : DEFAULT_GRID_STEP;
+  const spacingY = stepY >= 0 ? stepY : DEFAULT_GRID_STEP;
+  const axisX = applyMatrixToVector(transform, { x: 1, y: 0 });
+  const axisY = applyMatrixToVector(transform, { x: 0, y: 1 });
+  const axisXScale = Math.hypot(axisX.x, axisX.y);
+  const axisYScale = Math.hypot(axisY.x, axisY.y);
+  const localStepX = axisXScale > 1e-9 ? spacingX / axisXScale : spacingX;
+  const localStepY = axisYScale > 1e-9 ? spacingY / axisYScale : spacingY;
+
+  const paths: ScenePath[] = [];
+  if (localStepX > 1e-9) {
+    for (let x = minLocalX; x <= maxLocalX + 1e-6; x += localStepX) {
+      const fromPoint = applyMatrix(transform, { x, y: minLocalY });
+      const toPoint = applyMatrix(transform, { x, y: maxLocalY });
+      paths.push({
+        kind: "Path",
+        id: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
+        sourceId,
+        sourceSpan: span,
+        style: { ...style },
+        commands: [
+          { kind: "M", to: fromPoint },
+          { kind: "L", to: toPoint }
+        ]
+      });
+    }
+  }
+
+  if (localStepY > 1e-9) {
+    for (let y = minLocalY; y <= maxLocalY + 1e-6; y += localStepY) {
+      const fromPoint = applyMatrix(transform, { x: minLocalX, y });
+      const toPoint = applyMatrix(transform, { x: maxLocalX, y });
+      paths.push({
+        kind: "Path",
+        id: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
+        sourceId,
+        sourceSpan: span,
+        style: { ...style },
+        commands: [
+          { kind: "M", to: fromPoint },
+          { kind: "L", to: toPoint }
+        ]
+      });
+    }
+  }
+
+  return paths;
+}
+
+function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
+  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+  if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-12) {
+    return null;
+  }
+
+  const translatedX = point.x - matrix.e;
+  const translatedY = point.y - matrix.f;
+  return {
+    x: (matrix.d * translatedX - matrix.c * translatedY) / determinant,
+    y: (-matrix.b * translatedX + matrix.a * translatedY) / determinant
+  };
 }

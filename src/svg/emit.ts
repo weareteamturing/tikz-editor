@@ -389,7 +389,8 @@ function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; heig
       const to = toSvgPoint(command.to, viewBox);
       const sweep = command.sweep ? 0 : 1;
       chunks.push(
-        `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${sweep} ${fmt(to.x)} ${fmt(to.y)}`
+        // Path points are mirrored into SVG space (`toSvgPoint`), so arc rotation must be mirrored too.
+        `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(-command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${sweep} ${fmt(to.x)} ${fmt(to.y)}`
       );
       continue;
     }

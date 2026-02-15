@@ -7,6 +7,7 @@ import {
   maybeResolveTrailingCoordinateFromNodeName,
   shouldCaptureStandaloneNodeNameCoordinate
 } from "../nodes/evaluate.js";
+import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
@@ -37,7 +38,7 @@ import {
   materializeNodeAdornment
 } from "./label-quotes.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
-import { applyMatrixToVector } from "../transform.js";
+import { applyMatrix, applyMatrixToVector } from "../transform.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 
 type EllipseGeometry = {
@@ -248,6 +249,7 @@ export function evaluatePathStatement(
   let pendingArc: { from: Point } | null = null;
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
+  let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
   let pendingNodeNameForNodeCommand: string | null = null;
   let lastPlacementSegment: PlacementSegment | null = null;
   let previousSegmentRoundedCorners: number | null = null;
@@ -255,7 +257,11 @@ export function evaluatePathStatement(
   let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
   let pendingEdgeStartCoordinateRaw: string | null = null;
   let edgeOperationStart: { point: Point; coordinateRaw: string | null } | null = null;
+  let hasPathCurrentPoint = false;
+  const frame = context.stack[context.stack.length - 1];
+  const frameTransform = frame.transform;
   const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
+  const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
   const setCurrentPoint = (
     point: Point | null,
     logicalPoint: Point | null = point,
@@ -269,6 +275,17 @@ export function evaluatePathStatement(
     }
     currentPointLogical = logicalPoint ?? point;
     currentPointCoordinate = coordinate;
+    hasPathCurrentPoint = true;
+  };
+  const flushPendingSegmentPlacements = (segment: PlacementSegment | null): void => {
+    if (!segment || pendingSegmentPlacements.length === 0) {
+      return;
+    }
+    for (const pending of pendingSegmentPlacements) {
+      const point = pointAtPlacementSegment(segment, pending.fraction);
+      context.namedCoordinates.set(applyNameScope(pending.name, context), point);
+    }
+    pendingSegmentPlacements = [];
   };
   const hasFilledShadowLayer = style.shadowLayers.some(
     (layer) =>
@@ -276,8 +293,6 @@ export function evaluatePathStatement(
       (layer.style.fill != null && layer.style.fill !== "none")
   );
   const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none") || hasFilledShadowLayer;
-  const frame = context.stack[context.stack.length - 1];
-  const frameTransform = frame.transform;
   const drawEdgeOptions = parseStyleValueAsOptionList("draw");
   const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
 
@@ -427,7 +442,17 @@ export function evaluatePathStatement(
         markFeature("keyword_grid", "supported");
         markFeature("svg_path", "supported");
         geometryElements.push(
-          ...makeGridElements(statement.id, item.id, pendingGrid.from, evaluated.point, pendingGrid.stepX, pendingGrid.stepY, style, item.span)
+          ...makeGridElements(
+            statement.id,
+            item.id,
+            pendingGrid.from,
+            evaluated.point,
+            pendingGrid.stepX,
+            pendingGrid.stepY,
+            style,
+            item.span,
+            frameTransform
+          )
         );
         setCurrentPoint(evaluated.point, evaluated.point, {
           form: item.form,
@@ -441,10 +466,19 @@ export function evaluatePathStatement(
         markFeature("shape_rectangle", "supported");
         if (shouldCompoundFilledSubpaths) {
           activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point, activeRoundedCorners);
+          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point, activeRoundedCorners, frameTransform);
         } else {
           geometryElements.push(
-            makeRectangleElement(statement.id, item.id, pendingRectangleFrom, evaluated.point, style, item.span, activeRoundedCorners)
+            makeRectangleElement(
+              statement.id,
+              item.id,
+              pendingRectangleFrom,
+              evaluated.point,
+              style,
+              item.span,
+              activeRoundedCorners,
+              frameTransform
+            )
           );
         }
         markFeature("svg_path", "supported");
@@ -474,6 +508,12 @@ export function evaluatePathStatement(
         ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.point, sourceLogicalPoint, context)
         : evaluated.point;
       const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.point;
+      if (!hasOperatorSegment && pendingSegmentPlacements.length > 0) {
+        for (const pending of pendingSegmentPlacements) {
+          context.namedCoordinates.set(applyNameScope(pending.name, context), evaluated.point);
+        }
+        pendingSegmentPlacements = [];
+      }
 
       if (!activePath) {
         activePath = makePath(statement.id, item.id, style, statement.span);
@@ -488,6 +528,7 @@ export function evaluatePathStatement(
             activeRoundedCorners
           );
           lastPlacementSegment = appended.segment;
+          flushPendingSegmentPlacements(appended.segment);
           previousSegmentRoundedCorners = appended.nextRoundedCorners;
           context.pathStartPoint = pathSourcePoint;
         } else {
@@ -526,6 +567,7 @@ export function evaluatePathStatement(
           activeRoundedCorners
         );
         lastPlacementSegment = appended.segment;
+        flushPendingSegmentPlacements(appended.segment);
         previousSegmentRoundedCorners = appended.nextRoundedCorners;
       } else {
         activePath.commands.push({ kind: "M", to: pathTargetPoint });
@@ -691,22 +733,24 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "rectangle") {
-        const rectangleStart = context.currentPoint ?? { x: 0, y: 0 };
-        if (!context.currentPoint) {
-          setCurrentPoint(rectangleStart);
+        const rectangleStart = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        const effectiveRectangleStart = hasPathCurrentPoint ? rectangleStart : defaultPathOrigin;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(effectiveRectangleStart);
         }
         if (!shouldCompoundFilledSubpaths) {
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingRectangleFrom = rectangleStart;
+        pendingRectangleFrom = effectiveRectangleStart;
         lastPlacementSegment = null;
         markFeature("shape_rectangle", "supported");
         continue;
       }
 
       if (item.keyword === "circle") {
-        if (!context.currentPoint) {
+        const circleCenter = currentPointLogical ?? context.currentPoint;
+        if (!circleCenter) {
           pushDiagnostic("circle-without-center", "Circle operator requires a current point.", item.span.from, item.span.to);
           continue;
         }
@@ -714,7 +758,7 @@ export function evaluatePathStatement(
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingCircleCenter = context.currentPoint;
+        pendingCircleCenter = circleCenter;
         pendingCircleRadius = null;
         pendingCircleRadii = null;
         pendingCircleRotation = 0;
@@ -724,7 +768,8 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "ellipse") {
-        if (!context.currentPoint) {
+        const ellipseCenter = currentPointLogical ?? context.currentPoint;
+        if (!ellipseCenter) {
           pushDiagnostic("ellipse-without-center", "Ellipse keyword requires a current point.", item.span.from, item.span.to);
           continue;
         }
@@ -732,7 +777,7 @@ export function evaluatePathStatement(
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingEllipseCenter = context.currentPoint;
+        pendingEllipseCenter = ellipseCenter;
         pendingEllipseRadii = null;
         lastPlacementSegment = null;
         markFeature("keyword_ellipse", "supported");
@@ -740,25 +785,27 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "arc") {
-        if (!context.currentPoint) {
+        const arcStart = currentPointLogical ?? context.currentPoint;
+        if (!arcStart) {
           pushDiagnostic("arc-without-start", "Arc keyword requires a current point.", item.span.from, item.span.to);
           continue;
         }
-        pendingArc = { from: context.currentPoint };
+        pendingArc = { from: arcStart };
         lastPlacementSegment = null;
         markFeature("keyword_arc", "supported");
         continue;
       }
 
       if (item.keyword === "grid") {
-        const gridStart = context.currentPoint ?? { x: 0, y: 0 };
-        if (!context.currentPoint) {
-          setCurrentPoint(gridStart);
+        const gridStart = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        const effectiveGridStart = hasPathCurrentPoint ? gridStart : defaultPathOrigin;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(effectiveGridStart);
         }
         activePath = flushDrawableActivePath(geometryElements, activePath);
         previousSegmentRoundedCorners = null;
         pendingGrid = {
-          from: gridStart,
+          from: effectiveGridStart,
           stepX: resolveDefaultGridStep(frameTransform, "x"),
           stepY: resolveDefaultGridStep(frameTransform, "y")
         };
@@ -1046,7 +1093,8 @@ export function evaluatePathStatement(
               style,
               frameTransform,
               pinEdgeOptionLists,
-              frame.customStyles
+              frame.customStyles,
+              (raw) => evaluateRawCoordinate(raw, context).point
             );
             for (const code of resolvedPinEdgeStyle.diagnostics) {
               pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
@@ -1103,15 +1151,28 @@ export function evaluatePathStatement(
       const nextCoordinate = statement.items[index + 2];
       if (nextItem?.kind === "PathKeyword" && nextItem.keyword === "at" && nextCoordinate?.kind === "Coordinate") {
         pendingNamedCoordinate = { name: parsedName };
-      } else if (context.currentPoint) {
-        context.namedCoordinates.set(applyNameScope(parsedName, context), context.currentPoint);
       } else {
-        pushDiagnostic(
-          "invalid-coordinate-operation",
-          "Coordinate operation requires `at (...)` or an existing current point.",
-          item.span.from,
-          item.span.to
-        );
+        const placementFraction = resolveNodePositionFraction(item.options);
+        if (placementFraction != null && currentOperator) {
+          pendingSegmentPlacements.push({ name: parsedName, fraction: placementFraction });
+          markFeature("named_coordinates", "supported");
+          continue;
+        }
+
+        const capturePoint =
+          placementFraction != null && lastPlacementSegment
+            ? pointAtPlacementSegment(lastPlacementSegment, placementFraction)
+            : currentPointLogical ?? context.currentPoint;
+        if (capturePoint) {
+          context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
+        } else {
+          pushDiagnostic(
+            "invalid-coordinate-operation",
+            "Coordinate operation requires `at (...)` or an existing current point.",
+            item.span.from,
+            item.span.to
+          );
+        }
       }
       markFeature("named_coordinates", "supported");
       continue;
@@ -1166,12 +1227,22 @@ export function evaluatePathStatement(
             coordinateRaw = `(${namedCoordinate.x.trim()})`;
           }
         }
-        if (!context.currentPoint) {
+        let startPoint = context.currentPoint;
+        if (!startPoint && coordinateRaw) {
+          const resolvedStart = evaluateRawCoordinate(coordinateRaw, context);
+          for (const code of resolvedStart.diagnostics) {
+            pushDiagnostic(code, `Edge start issue: ${code}`, item.span.from, item.span.to);
+          }
+          if (resolvedStart.point) {
+            startPoint = resolvedStart.point;
+          }
+        }
+        if (!startPoint) {
           pushDiagnostic("edge-without-start", "`edge` operation requires a current point.", item.span.from, item.span.to);
           continue;
         }
         edgeOperationStart = {
-          point: context.currentPoint,
+          point: startPoint,
           coordinateRaw
         };
       }
@@ -1185,7 +1256,8 @@ export function evaluatePathStatement(
         style,
         frameTransform,
         edgeOptionLists,
-        frame.customStyles
+        frame.customStyles,
+        (raw) => evaluateRawCoordinate(raw, context).point
       );
       for (const code of resolvedEdgeStyle.diagnostics) {
         if (code === "unsupported-option-flag:every edge") {

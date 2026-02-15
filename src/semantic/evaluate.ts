@@ -33,6 +33,7 @@ import {
   type NodeDistanceSpec,
   type NodeQuotesMode
 } from "./context.js";
+import { evaluateRawCoordinate } from "./coords/evaluate.js";
 import { parseLength } from "./coords/parse-length.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
 import { applyNameIntersectionsDirective, collectPathIntersectionDirectives, registerNamedPath } from "./path/intersections.js";
@@ -83,7 +84,9 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       parent.macroBindings,
       context.macroTraceCollector ?? undefined
     );
-    const rootDelta = resolveContextDelta(parent.style, parent.transform, rootOptionLists, rootCustomStyles);
+    const rootDelta = resolveContextDelta(parent.style, parent.transform, rootOptionLists, rootCustomStyles, (raw) =>
+      evaluateRawCoordinate(raw, context).point
+    );
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists);
     pushFrame(context, {
       style: rootDelta.style,
@@ -185,7 +188,9 @@ function evaluateStatement(
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(baseStyle, parent.transform, expandedOptionLists, scopedCustomStyles);
+    const resolved = resolveContextDelta(baseStyle, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
+      evaluateRawCoordinate(raw, context).point
+    );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
 
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
@@ -321,7 +326,9 @@ function evaluateStatement(
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(parent.style, parent.transform, expandedOptionLists, scopedCustomStyles);
+    const resolved = resolveContextDelta(parent.style, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
+      evaluateRawCoordinate(raw, context).point
+    );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
     pushFrame(context, {
       style: resolved.style,
@@ -484,7 +491,9 @@ function applyOptionListsToCurrentFrame(
 ): void {
   const frame = currentFrame(context);
   const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
-  const resolved = resolveContextDelta(frame.style, frame.transform, expandedOptionLists, frame.customStyles);
+  const resolved = resolveContextDelta(frame.style, frame.transform, expandedOptionLists, frame.customStyles, (raw) =>
+    evaluateRawCoordinate(raw, context).point
+  );
   frame.style = resolved.style;
   frame.transform = resolved.transform;
 

@@ -2,10 +2,11 @@ import type { CoordinateItem } from "../../ast/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings, type MacroBinding } from "../../macros/index.js";
-import type { SemanticContext } from "../context.js";
+import type { NamedNodeGeometry, SemanticContext } from "../context.js";
 import type { Point } from "../types.js";
 import { applyMatrix, applyMatrixToVector } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
+import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 
 export type EvaluatedCoordinate = {
   point: Point | null;
@@ -52,15 +53,25 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
 
     const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
     const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
-    if (!named) {
-      diagnostics.push(`unknown-named-coordinate:${rawName}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    if (named) {
+      return {
+        point: named,
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
     }
-    return {
-      point: named,
-      diagnostics,
-      advancesCurrentPoint: item.relativePrefix === "++"
-    };
+
+    const numericNodeAnchor = tryResolveNumericNodeAnchor(rawName, context, frame.namePrefix, frame.nameSuffix);
+    if (numericNodeAnchor) {
+      return {
+        point: numericNodeAnchor,
+        diagnostics,
+        advancesCurrentPoint: item.relativePrefix === "++"
+      };
+    }
+
+    diagnostics.push(`unknown-named-coordinate:${rawName}`);
+    return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
   }
 
   if (item.form === "calc") {
@@ -284,6 +295,134 @@ function parseExplicitCoordinate(raw: string): ParsedExplicitCoordinate | null {
     x,
     y
   };
+}
+
+function tryResolveNumericNodeAnchor(
+  rawName: string,
+  context: SemanticContext,
+  prefix: string,
+  suffix: string
+): Point | null {
+  const parsed = parseNumericNodeAnchor(rawName);
+  if (!parsed) {
+    return null;
+  }
+
+  const geometry =
+    scopedNameCandidates(parsed.baseName, prefix, suffix)
+      .map((candidate) => context.namedNodeGeometries.get(candidate))
+      .find((candidate): candidate is NamedNodeGeometry => candidate != null) ?? null;
+  if (!geometry) {
+    return null;
+  }
+
+  return resolveNumericAnchorPoint(geometry, parsed.degrees);
+}
+
+function parseNumericNodeAnchor(rawName: string): { baseName: string; degrees: number } | null {
+  const trimmed = rawName.trim();
+  const dot = trimmed.lastIndexOf(".");
+  if (dot <= 0 || dot >= trimmed.length - 1) {
+    return null;
+  }
+
+  const baseName = trimmed.slice(0, dot).trim();
+  const anchorRaw = trimmed.slice(dot + 1).trim();
+  if (baseName.length === 0 || anchorRaw.length === 0) {
+    return null;
+  }
+
+  const degrees = Number(anchorRaw);
+  if (!Number.isFinite(degrees)) {
+    return null;
+  }
+
+  return {
+    baseName,
+    degrees: normalizeDegrees(degrees)
+  };
+}
+
+function normalizeDegrees(value: number): number {
+  let normalized = value % 360;
+  if (normalized < 0) {
+    normalized += 360;
+  }
+  return normalized;
+}
+
+function resolveNumericAnchorPoint(geometry: NamedNodeGeometry, degrees: number): Point | null {
+  const radians = (degrees * Math.PI) / 180;
+  const direction = {
+    x: Math.cos(radians),
+    y: Math.sin(radians)
+  };
+  return intersectNamedGeometryBorder(geometry, direction);
+}
+
+function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Point): Point | null {
+  const dx = direction.x;
+  const dy = direction.y;
+  const len = Math.hypot(dx, dy);
+  if (!Number.isFinite(len) || len <= 1e-9) {
+    return geometry.center;
+  }
+
+  if (geometry.shape === "coordinate") {
+    return geometry.center;
+  }
+
+  if (geometry.shape === "circle") {
+    const radius = geometry.anchorRadius;
+    if (!Number.isFinite(radius) || radius <= 1e-9) {
+      return geometry.center;
+    }
+    return {
+      x: geometry.center.x + (dx / len) * radius,
+      y: geometry.center.y + (dy / len) * radius
+    };
+  }
+
+  if (geometry.shape === "rectangle") {
+    const hw = geometry.anchorHalfWidth;
+    const hh = geometry.anchorHalfHeight;
+    if (!Number.isFinite(hw) || !Number.isFinite(hh) || hw <= 1e-9 || hh <= 1e-9) {
+      return geometry.center;
+    }
+    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    return {
+      x: geometry.center.x + dx * scale,
+      y: geometry.center.y + dy * scale
+    };
+  }
+
+  if (geometry.shape === "ellipse") {
+    const rx = geometry.anchorHalfWidth;
+    const ry = geometry.anchorHalfHeight;
+    if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
+      return geometry.center;
+    }
+    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    if (!Number.isFinite(scale)) {
+      return geometry.center;
+    }
+    return {
+      x: geometry.center.x + dx * scale,
+      y: geometry.center.y + dy * scale
+    };
+  }
+
+  if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
+    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
+    if (border) {
+      return {
+        x: geometry.center.x + border.x,
+        y: geometry.center.y + border.y
+      };
+    }
+  }
+
+  return geometry.center;
 }
 
 function evaluateCalcCoordinate(
