@@ -76,6 +76,28 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every double arrow node/.prefix style"
 ]);
 
+const BUILTIN_CUSTOM_STYLE_DEFINITIONS: Array<{ name: string; source: string }> = [
+  { name: "help lines", source: "color=gray,very thin" }
+];
+
+const BUILTIN_CUSTOM_STYLE_REGISTRY_ENTRIES: Array<[string, OptionListAst[]]> = BUILTIN_CUSTOM_STYLE_DEFINITIONS.flatMap(
+  ({ name, source }) => {
+    const parsed = parseStyleValueAsOptionList(source);
+    if (!parsed) {
+      return [];
+    }
+    return [[normalizeCustomStyleName(name), [parsed]]];
+  }
+);
+
+export function createDefaultCustomStyleRegistry(): CustomStyleRegistry {
+  const registry: CustomStyleRegistry = new Map();
+  for (const [name, lists] of BUILTIN_CUSTOM_STYLE_REGISTRY_ENTRIES) {
+    registry.set(name, [...lists]);
+  }
+  return registry;
+}
+
 export function cloneCustomStyleRegistry(registry: CustomStyleRegistry): CustomStyleRegistry {
   const cloned: CustomStyleRegistry = new Map();
   for (const [name, entries] of registry.entries()) {

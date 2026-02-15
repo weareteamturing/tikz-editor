@@ -18,6 +18,16 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain("<text");
   });
 
+  it("keeps help lines color when appending dashed style", () => {
+    const source = String.raw`\begin{tikzpicture}[help lines/.append style={dashed}]
+  \draw[help lines] grid(3,2);
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.svg.svg).toContain('stroke="#808080"');
+    expect(result.svg.svg).toContain('stroke-dasharray="3 3"');
+  });
+
   it("keeps recoverable flow on partial input", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,

@@ -2484,6 +2484,22 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("keeps help lines defaults when appending dashed style", () => {
+    const source = String.raw`\begin{tikzpicture}[help lines/.append style={dashed}]
+  \draw[help lines] grid(3,2);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const gridPath = result.scene.elements.find((element) => element.kind === "Path" && element.id.includes("scene-grid-"));
+    expect(gridPath?.kind).toBe("Path");
+    if (gridPath?.kind === "Path") {
+      expect(gridPath.style.stroke).toBe("#808080");
+      expect(gridPath.style.lineWidth).toBeCloseTo(0.2, 6);
+      expect(gridPath.style.dashArray).toEqual([3, 3]);
+    }
+  });
+
   it("applies \\def macro bindings to coordinate expressions", () => {
     const source = String.raw`\begin{tikzpicture}
   \def\x{3}

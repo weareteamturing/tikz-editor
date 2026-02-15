@@ -3,6 +3,7 @@ import type { NodeTextEngine } from "../text/types.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js";
 import type { Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
+import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -119,7 +120,7 @@ export function createSemanticContext(
       {
         style: initialStyle,
         transform: initialTransform,
-        customStyles: new Map(),
+        customStyles: createDefaultCustomStyleRegistry(),
         colorAliases: new Map(),
         macroBindings: new Map(),
         namePrefix: "",
