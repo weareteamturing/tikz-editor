@@ -8,6 +8,12 @@ export type NodeLayout = {
   textBlockWidth: number;
   textBlockHeight: number;
   textRenderInfo: NodeTextRenderInfo;
+  naturalWidth: number;
+  naturalHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
+  outerXSep: number;
+  outerYSep: number;
   visualWidth: number;
   visualHeight: number;
   visualRadius: number;

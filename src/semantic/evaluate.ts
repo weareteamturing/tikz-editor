@@ -91,7 +91,9 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       transformShape: rootMeta.transformShape,
       everyNodeStyles: rootMeta.everyNodeStyles,
       everyRectangleNodeStyles: rootMeta.everyRectangleNodeStyles,
-      everyCircleNodeStyles: rootMeta.everyCircleNodeStyles
+      everyCircleNodeStyles: rootMeta.everyCircleNodeStyles,
+      everyDiamondNodeStyles: rootMeta.everyDiamondNodeStyles,
+      everyTrapeziumNodeStyles: rootMeta.everyTrapeziumNodeStyles
     });
     for (const code of rootDelta.diagnostics) {
       diagnostics.push({
@@ -203,7 +205,9 @@ function evaluateStatement(
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
-      everyCircleNodeStyles: frameMeta.everyCircleNodeStyles
+      everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
+      everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
+      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles
     });
     const previousTraceCollector = context.macroTraceCollector;
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
@@ -285,7 +289,9 @@ function evaluateStatement(
       transformShape: frameMeta.transformShape,
       everyNodeStyles: frameMeta.everyNodeStyles,
       everyRectangleNodeStyles: frameMeta.everyRectangleNodeStyles,
-      everyCircleNodeStyles: frameMeta.everyCircleNodeStyles
+      everyCircleNodeStyles: frameMeta.everyCircleNodeStyles,
+      everyDiamondNodeStyles: frameMeta.everyDiamondNodeStyles,
+      everyTrapeziumNodeStyles: frameMeta.everyTrapeziumNodeStyles
     });
     for (const code of resolved.diagnostics) {
       diagnostics.push({
@@ -420,6 +426,8 @@ function applyOptionListsToCurrentFrame(
   frame.everyNodeStyles = frameMeta.everyNodeStyles;
   frame.everyRectangleNodeStyles = frameMeta.everyRectangleNodeStyles;
   frame.everyCircleNodeStyles = frameMeta.everyCircleNodeStyles;
+  frame.everyDiamondNodeStyles = frameMeta.everyDiamondNodeStyles;
+  frame.everyTrapeziumNodeStyles = frameMeta.everyTrapeziumNodeStyles;
 
   for (const code of resolved.diagnostics) {
     diagnostics.push({
@@ -1329,6 +1337,8 @@ function resolveFrameMeta(
     everyNodeStyles: OptionListAst[];
     everyRectangleNodeStyles: OptionListAst[];
     everyCircleNodeStyles: OptionListAst[];
+    everyDiamondNodeStyles: OptionListAst[];
+    everyTrapeziumNodeStyles: OptionListAst[];
   },
   optionLists: OptionListAst[]
 ): {
@@ -1341,6 +1351,8 @@ function resolveFrameMeta(
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
   everyCircleNodeStyles: OptionListAst[];
+  everyDiamondNodeStyles: OptionListAst[];
+  everyTrapeziumNodeStyles: OptionListAst[];
 } {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
@@ -1351,6 +1363,8 @@ function resolveFrameMeta(
   let everyNodeStyles = [...base.everyNodeStyles];
   let everyRectangleNodeStyles = [...base.everyRectangleNodeStyles];
   let everyCircleNodeStyles = [...base.everyCircleNodeStyles];
+  let everyDiamondNodeStyles = [...base.everyDiamondNodeStyles];
+  let everyTrapeziumNodeStyles = [...base.everyTrapeziumNodeStyles];
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1460,6 +1474,34 @@ function resolveFrameMeta(
         if (parsed) {
           everyCircleNodeStyles = [...everyCircleNodeStyles, parsed];
         }
+        continue;
+      }
+      if (entry.key === "every diamond node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDiamondNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every diamond node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyDiamondNodeStyles = [...everyDiamondNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every trapezium node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyTrapeziumNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every trapezium node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyTrapeziumNodeStyles = [...everyTrapeziumNodeStyles, parsed];
+        }
       }
     }
   }
@@ -1473,7 +1515,9 @@ function resolveFrameMeta(
     transformShape,
     everyNodeStyles,
     everyRectangleNodeStyles,
-    everyCircleNodeStyles
+    everyCircleNodeStyles,
+    everyDiamondNodeStyles,
+    everyTrapeziumNodeStyles
   };
 }
 

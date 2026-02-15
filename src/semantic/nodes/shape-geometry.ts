@@ -7,6 +7,15 @@ export type ShapeGeometryParams = {
   trapeziumLeftAngle: number;
   trapeziumRightAngle: number;
   shapeBorderRotate: number;
+  trapeziumStretches: boolean;
+  trapeziumStretchesBody: boolean;
+};
+
+export type TrapeziumSizingInput = {
+  naturalHalfWidth: number;
+  naturalHalfHeight: number;
+  minimumWidth: number;
+  minimumHeight: number;
 };
 
 const DEFAULT_DIAMOND_ASPECT = 1;
@@ -19,17 +28,30 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   let trapeziumLeftAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let trapeziumRightAngle = DEFAULT_TRAPEZIUM_ANGLE;
   let shapeBorderRotate = DEFAULT_SHAPE_BORDER_ROTATE;
+  let trapeziumStretches = false;
+  let trapeziumStretchesBody = false;
 
   if (!options) {
     return {
       diamondAspect,
       trapeziumLeftAngle,
       trapeziumRightAngle,
-      shapeBorderRotate
+      shapeBorderRotate,
+      trapeziumStretches,
+      trapeziumStretchesBody
     };
   }
 
   for (const entry of options.entries) {
+    if (entry.kind === "flag") {
+      if (entry.key === "trapezium stretches") {
+        trapeziumStretches = true;
+      } else if (entry.key === "trapezium stretches body") {
+        trapeziumStretchesBody = true;
+      }
+      continue;
+    }
+
     if (entry.kind !== "kv") {
       continue;
     }
@@ -73,6 +95,22 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       if (parsed != null) {
         shapeBorderRotate = parsed;
       }
+      continue;
+    }
+
+    if (entry.key === "trapezium stretches") {
+      const parsed = parseBoolishOption(entry.valueRaw);
+      if (parsed != null) {
+        trapeziumStretches = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "trapezium stretches body") {
+      const parsed = parseBoolishOption(entry.valueRaw);
+      if (parsed != null) {
+        trapeziumStretchesBody = parsed;
+      }
     }
   }
 
@@ -80,7 +118,9 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     diamondAspect,
     trapeziumLeftAngle,
     trapeziumRightAngle,
-    shapeBorderRotate
+    shapeBorderRotate,
+    trapeziumStretches,
+    trapeziumStretchesBody
   };
 }
 
@@ -99,33 +139,40 @@ export function makeDiamondPolygon(halfWidth: number, halfHeight: number, aspect
 }
 
 export function makeTrapeziumPolygon(
-  halfWidth: number,
-  halfHeight: number,
+  sizing: TrapeziumSizingInput,
   leftAngle: number,
   rightAngle: number,
-  rotation: number
+  rotation: number,
+  stretches: boolean,
+  stretchesBody: boolean
 ): Point[] {
-  const safeHalfWidth = Math.max(0, halfWidth);
-  const safeHalfHeight = Math.max(0, halfHeight);
-  const leftExtension = 2 * safeHalfHeight * cotDegrees(leftAngle);
-  const rightExtension = 2 * safeHalfHeight * cotDegrees(rightAngle);
+  const resolved = resolveTrapeziumDimensions(
+    sizing.naturalHalfWidth,
+    sizing.naturalHalfHeight,
+    sizing.minimumWidth,
+    sizing.minimumHeight,
+    leftAngle,
+    rightAngle,
+    stretches,
+    stretchesBody
+  );
 
   const polygon = [
     {
-      x: -safeHalfWidth - Math.max(leftExtension, 0),
-      y: -safeHalfHeight
+      x: -resolved.halfWidth - Math.max(resolved.leftExtension, 0),
+      y: -resolved.halfHeight
     },
     {
-      x: -safeHalfWidth + Math.min(leftExtension, 0),
-      y: safeHalfHeight
+      x: -resolved.halfWidth + Math.min(resolved.leftExtension, 0),
+      y: resolved.halfHeight
     },
     {
-      x: safeHalfWidth - Math.min(rightExtension, 0),
-      y: safeHalfHeight
+      x: resolved.halfWidth - Math.min(resolved.rightExtension, 0),
+      y: resolved.halfHeight
     },
     {
-      x: safeHalfWidth + Math.max(rightExtension, 0),
-      y: -safeHalfHeight
+      x: resolved.halfWidth + Math.max(resolved.rightExtension, 0),
+      y: -resolved.halfHeight
     }
   ];
 
@@ -199,6 +246,17 @@ function parseNumericOption(raw: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseBoolishOption(raw: string): boolean | null {
+  const normalized = normalizeOptionValue(raw).toLowerCase();
+  if (normalized === "true" || normalized === "yes" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "0") {
+    return false;
+  }
+  return null;
+}
+
 function normalizeAspect(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_DIAMOND_ASPECT;
@@ -226,6 +284,81 @@ function cotDegrees(degrees: number): number {
     return cosine >= 0 ? 1e6 : -1e6;
   }
   return cosine / sine;
+}
+
+function resolveTrapeziumDimensions(
+  naturalHalfWidth: number,
+  naturalHalfHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  leftAngle: number,
+  rightAngle: number,
+  stretches: boolean,
+  stretchesBody: boolean
+): {
+  halfWidth: number;
+  halfHeight: number;
+  leftExtension: number;
+  rightExtension: number;
+} {
+  let halfWidth = Math.max(0, naturalHalfWidth);
+  let halfHeight = Math.max(0, naturalHalfHeight);
+  const targetHalfHeight = Math.max(0, minimumHeight / 2);
+  const targetWidth = Math.max(0, minimumWidth);
+  let leftExtension = 2 * halfHeight * cotDegrees(leftAngle);
+  let rightExtension = 2 * halfHeight * cotDegrees(rightAngle);
+
+  if (halfHeight + EPSILON < targetHalfHeight) {
+    if (stretches || stretchesBody) {
+      halfHeight = targetHalfHeight;
+    } else {
+      const scale = targetHalfHeight / Math.max(halfHeight, EPSILON);
+      halfWidth *= scale;
+      halfHeight = targetHalfHeight;
+      leftExtension *= scale;
+      rightExtension *= scale;
+    }
+  }
+
+  let totalWidth = 2 * halfWidth + Math.abs(leftExtension) + Math.abs(rightExtension);
+  if (totalWidth + EPSILON < targetWidth) {
+    if (stretchesBody) {
+      const remainder = targetWidth - totalWidth;
+      halfWidth += remainder / 2;
+    } else {
+      const scale = targetWidth / Math.max(totalWidth, EPSILON);
+      halfWidth *= scale;
+      leftExtension *= scale;
+      rightExtension *= scale;
+      if (!stretches) {
+        halfHeight *= scale;
+      }
+    }
+    totalWidth = 2 * halfWidth + Math.abs(leftExtension) + Math.abs(rightExtension);
+  }
+
+  if (!Number.isFinite(totalWidth)) {
+    return {
+      halfWidth: Math.max(0, naturalHalfWidth),
+      halfHeight: Math.max(0, naturalHalfHeight),
+      leftExtension: 0,
+      rightExtension: 0
+    };
+  }
+
+  return {
+    halfWidth: Math.max(0, halfWidth),
+    halfHeight: Math.max(0, halfHeight),
+    leftExtension: clampFinite(leftExtension),
+    rightExtension: clampFinite(rightExtension)
+  };
+}
+
+function clampFinite(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(-1e6, Math.min(1e6, value));
 }
 
 function rotatePoint(point: Point, degrees: number): Point {

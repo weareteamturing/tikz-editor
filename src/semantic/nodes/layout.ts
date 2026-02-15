@@ -131,8 +131,10 @@ export function resolveNodeLayout(
   const resolvedMinWidth = Math.max(minWidth, minSize ?? minWidth);
   const resolvedMinHeight = Math.max(minHeight, minSize ?? minHeight);
   const measuredTextWidth = measuredText ? textNaturalWidth : textWidth != null ? Math.max(textNaturalWidth, textWidth) : textNaturalWidth;
-  const visualWidth = Math.max(measuredTextWidth + innerXSep * 2, resolvedMinWidth);
-  const visualHeight = Math.max(textNaturalHeight + innerYSep * 2, resolvedMinHeight);
+  const naturalWidth = measuredTextWidth + innerXSep * 2;
+  const naturalHeight = textNaturalHeight + innerYSep * 2;
+  const visualWidth = Math.max(naturalWidth, resolvedMinWidth);
+  const visualHeight = Math.max(naturalHeight, resolvedMinHeight);
   const resolvedOuterX = outerXSep ?? outerSep;
   const resolvedOuterY = outerYSep ?? outerSep;
 
@@ -141,6 +143,12 @@ export function resolveNodeLayout(
     textBlockWidth: measuredTextWidth,
     textBlockHeight: textNaturalHeight,
     textRenderInfo,
+    naturalWidth,
+    naturalHeight,
+    minimumWidth: resolvedMinWidth,
+    minimumHeight: resolvedMinHeight,
+    outerXSep: resolvedOuterX,
+    outerYSep: resolvedOuterY,
     visualWidth,
     visualHeight,
     visualRadius: Math.max(visualWidth, visualHeight) / 2,

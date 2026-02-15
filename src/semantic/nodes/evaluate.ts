@@ -52,14 +52,18 @@ export function evaluateNodeItem(
     nodeOptions,
     everyNodeStyles: frame.everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
-    everyCircleNodeStyles: frame.everyCircleNodeStyles
+    everyCircleNodeStyles: frame.everyCircleNodeStyles,
+    everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles
   });
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
     nodeOptions,
     everyNodeStyles: frame.everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
-    everyCircleNodeStyles: frame.everyCircleNodeStyles
+    everyCircleNodeStyles: frame.everyCircleNodeStyles,
+    everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles
   });
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
@@ -157,11 +161,15 @@ export function evaluateNodeItem(
           statement.id,
           item.id,
           center,
-          nodeLayout.visualWidth,
-          nodeLayout.visualHeight,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
           shapeGeometry.trapeziumLeftAngle,
           shapeGeometry.trapeziumRightAngle,
           shapeGeometry.shapeBorderRotate,
+          shapeGeometry.trapeziumStretches,
+          shapeGeometry.trapeziumStretchesBody,
           nodeBoxStyle,
           item.span
         )

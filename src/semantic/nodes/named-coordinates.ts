@@ -203,11 +203,17 @@ function intersectNodeBorder(
 
   if (geometry.shape === "trapezium") {
     const polygon = geometry.anchorPolygon ?? makeTrapeziumPolygon(
-      geometry.anchorHalfWidth,
-      geometry.anchorHalfHeight,
+      {
+        naturalHalfWidth: geometry.anchorHalfWidth,
+        naturalHalfHeight: geometry.anchorHalfHeight,
+        minimumWidth: geometry.anchorHalfWidth * 2,
+        minimumHeight: geometry.anchorHalfHeight * 2
+      },
       geometry.trapeziumLeftAngle ?? 60,
       geometry.trapeziumRightAngle ?? 60,
-      geometry.shapeBorderRotate ?? 0
+      geometry.shapeBorderRotate ?? 0,
+      geometry.trapeziumStretches ?? false,
+      geometry.trapeziumStretchesBody ?? false
     );
     const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, polygon);
     if (!border) {

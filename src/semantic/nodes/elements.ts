@@ -211,15 +211,31 @@ export function makeNodeTrapeziumElement(
   sourceId: string,
   itemId: string,
   center: Point,
-  width: number,
-  height: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
   leftAngle: number,
   rightAngle: number,
   rotation: number,
+  stretches: boolean,
+  stretchesBody: boolean,
   style: ResolvedStyle,
   span: { from: number; to: number }
 ): ScenePath {
-  const corners = makeTrapeziumPolygon(width / 2, height / 2, leftAngle, rightAngle, rotation).map((point) => ({
+  const corners = makeTrapeziumPolygon(
+    {
+      naturalHalfWidth: naturalWidth / 2,
+      naturalHalfHeight: naturalHeight / 2,
+      minimumWidth,
+      minimumHeight
+    },
+    leftAngle,
+    rightAngle,
+    rotation,
+    stretches,
+    stretchesBody
+  ).map((point) => ({
     x: center.x + point.x,
     y: center.y + point.y
   }));

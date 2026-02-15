@@ -102,17 +102,38 @@ export function resolveEffectiveNodeOptions(params: {
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
   everyCircleNodeStyles: OptionListAst[];
+  everyDiamondNodeStyles: OptionListAst[];
+  everyTrapeziumNodeStyles: OptionListAst[];
 }): OptionListAst | undefined {
   const base = mergeOptionLists([...params.everyNodeStyles, params.statementOptions, params.nodeOptions]);
   const shape = resolveNodeShape(base);
-  const shapeStyles =
-    shape === "circle"
-      ? params.everyCircleNodeStyles
-      : shape === "rectangle"
-        ? params.everyRectangleNodeStyles
-        : [];
+  const shapeStyles = resolveShapeStyleLists(shape, params);
 
   return mergeOptionLists([...params.everyNodeStyles, ...shapeStyles, params.statementOptions, params.nodeOptions]);
+}
+
+function resolveShapeStyleLists(
+  shape: NodeShape,
+  params: {
+    everyRectangleNodeStyles: OptionListAst[];
+    everyCircleNodeStyles: OptionListAst[];
+    everyDiamondNodeStyles: OptionListAst[];
+    everyTrapeziumNodeStyles: OptionListAst[];
+  }
+): OptionListAst[] {
+  if (shape === "circle") {
+    return params.everyCircleNodeStyles;
+  }
+  if (shape === "rectangle") {
+    return params.everyRectangleNodeStyles;
+  }
+  if (shape === "diamond") {
+    return params.everyDiamondNodeStyles;
+  }
+  if (shape === "trapezium") {
+    return params.everyTrapeziumNodeStyles;
+  }
+  return [];
 }
 
 function mergeOptionLists(lists: Array<OptionListAst | undefined>): OptionListAst | undefined {

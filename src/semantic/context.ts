@@ -36,6 +36,8 @@ export type NamedNodeGeometry = {
   trapeziumLeftAngle?: number;
   trapeziumRightAngle?: number;
   shapeBorderRotate?: number;
+  trapeziumStretches?: boolean;
+  trapeziumStretchesBody?: boolean;
   anchorPolygon?: Point[];
 };
 
@@ -54,6 +56,8 @@ export type SemanticContextFrame = {
   everyNodeStyles: OptionListAst[];
   everyRectangleNodeStyles: OptionListAst[];
   everyCircleNodeStyles: OptionListAst[];
+  everyDiamondNodeStyles: OptionListAst[];
+  everyTrapeziumNodeStyles: OptionListAst[];
 };
 
 export type SemanticContext = {
@@ -93,7 +97,9 @@ export function createSemanticContext(
         transformShape: false,
         everyNodeStyles: [],
         everyRectangleNodeStyles: [],
-        everyCircleNodeStyles: []
+        everyCircleNodeStyles: [],
+        everyDiamondNodeStyles: [],
+        everyTrapeziumNodeStyles: []
       }
     ],
     namedCoordinates: new Map<string, Point>(),

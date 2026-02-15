@@ -111,6 +111,10 @@ export const NON_STYLE_OPTION_KEYS = new Set([
   "every rectangle node/.append style",
   "every circle node/.style",
   "every circle node/.append style",
+  "every diamond node/.style",
+  "every diamond node/.append style",
+  "every trapezium node/.style",
+  "every trapezium node/.append style",
   "transform shape"
 ]);
 
@@ -122,6 +126,8 @@ export const NON_STYLE_OPTION_FLAGS = new Set([
   "rectangle",
   "diamond",
   "trapezium",
+  "trapezium stretches",
+  "trapezium stretches body",
   "coordinate",
   "above",
   "below",

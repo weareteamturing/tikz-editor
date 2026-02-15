@@ -1422,6 +1422,92 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies trapezium stretch keys to minimum-size geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45,minimum width=3cm] at (0,0)  {A};
+  \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45,minimum width=3cm,trapezium stretches] at (4,0) {B};
+  \node[trapezium,draw,trapezium left angle=75,trapezium right angle=45,minimum width=3cm,trapezium stretches body] at (8,0) {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const trapezia = result.scene.elements
+      .filter(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.id.startsWith("scene-node-box:")
+      )
+      .map((path) => {
+        const points = path.commands
+          .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to] : []));
+        const [bottomLeft, topLeft, topRight, bottomRight] = points;
+        return {
+          centerX: points.reduce((sum, point) => sum + point.x, 0) / Math.max(points.length, 1),
+          topWidth: topRight && topLeft ? topRight.x - topLeft.x : 0,
+          bottomWidth: bottomRight && bottomLeft ? bottomRight.x - bottomLeft.x : 0,
+          height:
+            points.length > 0
+              ? Math.max(...points.map((point) => point.y)) - Math.min(...points.map((point) => point.y))
+              : 0
+        };
+      })
+      .sort((left, right) => left.centerX - right.centerX);
+
+    expect(trapezia).toHaveLength(3);
+    const [defaultShape, stretchesShape, stretchesBodyShape] = trapezia;
+    const defaultDiff = defaultShape.bottomWidth - defaultShape.topWidth;
+    const stretchesDiff = stretchesShape.bottomWidth - stretchesShape.topWidth;
+    const stretchesBodyDiff = stretchesBodyShape.bottomWidth - stretchesBodyShape.topWidth;
+
+    expect(defaultShape.height).toBeGreaterThan(stretchesShape.height);
+    expect(stretchesDiff).toBeGreaterThan(stretchesBodyDiff);
+    expect(defaultDiff).toBeCloseTo(stretchesDiff, 3);
+  });
+
+  it("rotates trapezium top-side anchor and keeps base-east distinct from east", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[trapezium,draw,name=a] at (0,0) {CenterA};
+  \node[trapezium,draw,name=b,shape border rotate=90] at (4,0) {CenterB};
+  \node at (a.top side) {TopA};
+  \node at (b.top side) {TopB};
+  \node at (b.east) {EastB};
+  \node at (b.base east) {BaseEastB};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const centerA = result.scene.elements.find((element) => element.kind === "Text" && element.text === "CenterA");
+    const centerB = result.scene.elements.find((element) => element.kind === "Text" && element.text === "CenterB");
+    const topA = result.scene.elements.find((element) => element.kind === "Text" && element.text === "TopA");
+    const topB = result.scene.elements.find((element) => element.kind === "Text" && element.text === "TopB");
+    const eastB = result.scene.elements.find((element) => element.kind === "Text" && element.text === "EastB");
+    const baseEastB = result.scene.elements.find((element) => element.kind === "Text" && element.text === "BaseEastB");
+
+    expect(centerA?.kind).toBe("Text");
+    expect(centerB?.kind).toBe("Text");
+    expect(topA?.kind).toBe("Text");
+    expect(topB?.kind).toBe("Text");
+    expect(eastB?.kind).toBe("Text");
+    expect(baseEastB?.kind).toBe("Text");
+
+    if (
+      centerA?.kind === "Text" &&
+      centerB?.kind === "Text" &&
+      topA?.kind === "Text" &&
+      topB?.kind === "Text" &&
+      eastB?.kind === "Text" &&
+      baseEastB?.kind === "Text"
+    ) {
+      const topADx = Math.abs(topA.position.x - centerA.position.x);
+      const topADy = Math.abs(topA.position.y - centerA.position.y);
+      const topBDx = Math.abs(topB.position.x - centerB.position.x);
+      const topBDy = Math.abs(topB.position.y - centerB.position.y);
+
+      expect(topADy).toBeGreaterThan(topADx);
+      expect(topBDx).toBeGreaterThan(topBDy);
+      expect(Math.abs(baseEastB.position.y - eastB.position.y)).toBeGreaterThan(0.5);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}
@@ -2075,6 +2161,45 @@ describe("semantic evaluator", () => {
     expect(circle?.kind).toBe("Circle");
     if (circle?.kind === "Circle") {
       expect(circle.style.doubleStroke).toBe(true);
+    }
+  });
+
+  it("applies every-node style keys for diamond and trapezium nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every diamond node/.style={double},
+  every trapezium node/.style={fill=red}
+]
+  \draw (0,0) node[diamond]   {D};
+  \draw (2,0) node[trapezium] {T};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(2);
+
+    const byX = nodeBoxes
+      .map((path) => ({
+        path,
+        centerX:
+          path.commands
+            .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to.x] : []))
+            .reduce((sum, x) => sum + x, 0) /
+          Math.max(path.commands.filter((command) => command.kind === "M" || command.kind === "L").length, 1)
+      }))
+      .sort((left, right) => left.centerX - right.centerX);
+
+    const diamond = byX[0]?.path;
+    const trapezium = byX[1]?.path;
+    expect(diamond).toBeDefined();
+    expect(trapezium).toBeDefined();
+    if (diamond && trapezium) {
+      expect(diamond.style.doubleStroke).toBe(true);
+      expect(trapezium.style.fill).toBe("#ff0000");
     }
   });
 

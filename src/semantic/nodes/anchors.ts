@@ -114,11 +114,17 @@ export function nodeAnchorOffset(
 
   if (shape === "trapezium") {
     const polygon = makeTrapeziumPolygon(
-      layout.anchorHalfWidth,
-      layout.anchorHalfHeight,
+      {
+        naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
+        naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
+        minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
+        minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+      },
       shapeGeometry.trapeziumLeftAngle,
       shapeGeometry.trapeziumRightAngle,
-      shapeGeometry.shapeBorderRotate
+      shapeGeometry.shapeBorderRotate,
+      shapeGeometry.trapeziumStretches,
+      shapeGeometry.trapeziumStretchesBody
     );
     return trapeziumAnchorOffset(anchor, polygon, layout.baseLineY, layout.midLineY);
   }
@@ -280,11 +286,17 @@ export function registerNamedNodeAnchors(
       ? makeDiamondPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight, shapeGeometry.diamondAspect)
       : shape === "trapezium"
         ? makeTrapeziumPolygon(
-            layout.anchorHalfWidth,
-            layout.anchorHalfHeight,
+            {
+              naturalHalfWidth: layout.naturalWidth / 2 + layout.outerXSep,
+              naturalHalfHeight: layout.naturalHeight / 2 + layout.outerYSep,
+              minimumWidth: layout.minimumWidth + layout.outerXSep * 2,
+              minimumHeight: layout.minimumHeight + layout.outerYSep * 2
+            },
             shapeGeometry.trapeziumLeftAngle,
             shapeGeometry.trapeziumRightAngle,
-            shapeGeometry.shapeBorderRotate
+            shapeGeometry.shapeBorderRotate,
+            shapeGeometry.trapeziumStretches,
+            shapeGeometry.trapeziumStretchesBody
           )
         : undefined;
 
@@ -298,6 +310,8 @@ export function registerNamedNodeAnchors(
     trapeziumLeftAngle: shapeGeometry.trapeziumLeftAngle,
     trapeziumRightAngle: shapeGeometry.trapeziumRightAngle,
     shapeBorderRotate: shapeGeometry.shapeBorderRotate,
+    trapeziumStretches: shapeGeometry.trapeziumStretches,
+    trapeziumStretchesBody: shapeGeometry.trapeziumStretchesBody,
     anchorPolygon
   });
 

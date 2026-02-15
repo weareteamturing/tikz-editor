@@ -25,7 +25,13 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every rectangle node/.prefix style",
   "every circle node/.style",
   "every circle node/.append style",
-  "every circle node/.prefix style"
+  "every circle node/.prefix style",
+  "every diamond node/.style",
+  "every diamond node/.append style",
+  "every diamond node/.prefix style",
+  "every trapezium node/.style",
+  "every trapezium node/.append style",
+  "every trapezium node/.prefix style"
 ]);
 
 export function cloneCustomStyleRegistry(registry: CustomStyleRegistry): CustomStyleRegistry {
