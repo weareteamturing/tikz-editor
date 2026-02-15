@@ -12,10 +12,15 @@ import {
 } from "../types.js";
 import { parseArrowSideSpecification, parseArrowSpecification, parseTipsMode } from "./arrows.js";
 import type { ApplyEntryFn, ApplyOutcome } from "./apply-types.js";
-import { NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./constants.js";
+import { DEFAULT_TEXT_FONT_SIZE, NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./constants.js";
 import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName } from "./colors.js";
 import { parseDashPattern, parseDashValue } from "./dash.js";
 import { normalizeOptionValue, parseAxisVector, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
+
+function normalizeOptionColor(valueRaw: string, style: ResolvedStyle): string {
+  const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
+  return normalizeColor(valueRaw, { currentColor });
+}
 
 export function applyKvEntry(
   key: string,
@@ -185,7 +190,7 @@ export function applyKvEntry(
     return { style: { ...style, shadingAngle: angle, shadeEnabled: true }, transform, diagnostics: [] };
   }
   if (key === "top color") {
-    const topColor = normalizeColor(valueRaw);
+    const topColor = normalizeOptionColor(valueRaw, style);
     const middleColor = mixNormalizedColors(topColor, style.axisBottomColor, 0.5) ?? style.axisMiddleColor;
     return {
       style: {
@@ -201,7 +206,7 @@ export function applyKvEntry(
     };
   }
   if (key === "bottom color") {
-    const bottomColor = normalizeColor(valueRaw);
+    const bottomColor = normalizeOptionColor(valueRaw, style);
     const middleColor = mixNormalizedColors(style.axisTopColor, bottomColor, 0.5) ?? style.axisMiddleColor;
     return {
       style: {
@@ -222,14 +227,14 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "axis",
-        axisMiddleColor: normalizeColor(valueRaw)
+        axisMiddleColor: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
     };
   }
   if (key === "left color") {
-    const topColor = normalizeColor(valueRaw);
+    const topColor = normalizeOptionColor(valueRaw, style);
     const middleColor = mixNormalizedColors(topColor, style.axisBottomColor, 0.5) ?? style.axisMiddleColor;
     return {
       style: {
@@ -245,7 +250,7 @@ export function applyKvEntry(
     };
   }
   if (key === "right color") {
-    const bottomColor = normalizeColor(valueRaw);
+    const bottomColor = normalizeOptionColor(valueRaw, style);
     const middleColor = mixNormalizedColors(style.axisTopColor, bottomColor, 0.5) ?? style.axisMiddleColor;
     return {
       style: {
@@ -266,7 +271,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "ball",
-        ballColor: normalizeColor(valueRaw)
+        ballColor: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -278,7 +283,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "radial",
-        radialInnerColor: normalizeColor(valueRaw)
+        radialInnerColor: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -290,7 +295,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "radial",
-        radialOuterColor: normalizeColor(valueRaw)
+        radialOuterColor: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -302,7 +307,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "bilinear interpolation",
-        bilinearLowerLeft: normalizeColor(valueRaw)
+        bilinearLowerLeft: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -314,7 +319,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "bilinear interpolation",
-        bilinearLowerRight: normalizeColor(valueRaw)
+        bilinearLowerRight: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -326,7 +331,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "bilinear interpolation",
-        bilinearUpperLeft: normalizeColor(valueRaw)
+        bilinearUpperLeft: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -338,7 +343,7 @@ export function applyKvEntry(
         ...style,
         shadeEnabled: true,
         shading: "bilinear interpolation",
-        bilinearUpperRight: normalizeColor(valueRaw)
+        bilinearUpperRight: normalizeOptionColor(valueRaw, style)
       },
       transform,
       diagnostics: []
@@ -346,13 +351,13 @@ export function applyKvEntry(
   }
 
   if (key === "fill") {
-    return { style: { ...style, fill: normalizeColor(valueRaw) }, transform, diagnostics: [] };
+    return { style: { ...style, fill: normalizeOptionColor(valueRaw, style) }, transform, diagnostics: [] };
   }
   if (key === "draw") {
     if (valueRaw.trim().toLowerCase() === "none") {
       return { style: { ...style, stroke: null, drawExplicit: false }, transform, diagnostics: [] };
     }
-    return { style: { ...style, stroke: normalizeColor(valueRaw), drawExplicit: true }, transform, diagnostics: [] };
+    return { style: { ...style, stroke: normalizeOptionColor(valueRaw, style), drawExplicit: true }, transform, diagnostics: [] };
   }
   if (key === "color") {
     if (valueRaw.trim().toLowerCase() === "none") {
@@ -367,7 +372,7 @@ export function applyKvEntry(
         diagnostics: []
       };
     }
-    const normalizedColor = normalizeColor(valueRaw);
+    const normalizedColor = normalizeOptionColor(valueRaw, style);
     return {
       style: {
         ...style,
@@ -380,7 +385,7 @@ export function applyKvEntry(
     };
   }
   if (key === "text") {
-    return { style: { ...style, textColor: normalizeColor(valueRaw) }, transform, diagnostics: [] };
+    return { style: { ...style, textColor: normalizeOptionColor(valueRaw, style) }, transform, diagnostics: [] };
   }
   if (key === "text opacity") {
     const value = Number(valueRaw);
@@ -424,7 +429,17 @@ export function applyKvEntry(
     if (!parsed) {
       return { style, transform, diagnostics: [] };
     }
-    return { style: { ...style, ...parsed }, transform, diagnostics: [] };
+    return {
+      style: {
+        ...style,
+        fontStyle: parsed.fontStyle ?? "normal",
+        fontWeight: parsed.fontWeight ?? "normal",
+        fontFamily: parsed.fontFamily ?? "serif",
+        fontSize: parsed.fontSize ?? DEFAULT_TEXT_FONT_SIZE
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "radius") {
     const radius = parseLength(valueRaw, "cm");

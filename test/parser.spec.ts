@@ -221,6 +221,21 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses grouped style payloads containing <= and >= punctuation", () => {
+    const source = String.raw`\begin{tikzpicture}[
+    arw/.style={thick,shorten >=1mm,shorten <=1mm,->}]
+  \draw[arw] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "missing-option-close")).toBe(false);
+    const styleEntry = result.figure.options?.entries.find(
+      (entry) => entry.kind === "kv" && entry.key === "arw/.style"
+    );
+    expect(styleEntry?.kind).toBe("kv");
+  });
+
   it("parses standalone style-definition commands without requiring semicolons", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{highlight/.style={draw=red}}

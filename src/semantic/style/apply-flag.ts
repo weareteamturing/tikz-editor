@@ -11,6 +11,8 @@ export function applyFlagEntry(
   style: ResolvedStyle,
   transform: Matrix2D
 ): ApplyOutcome {
+  const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
+  const normalizedColorCandidate = normalizeColor(key, { currentColor });
   if (key === "draw") {
     return { style: { ...style, stroke: style.stroke ?? "black", drawExplicit: true }, transform, diagnostics: [] };
   }
@@ -83,8 +85,8 @@ export function applyFlagEntry(
   if (key === "loosely dotted") {
     return { style: { ...style, dashArray: [1, 4] }, transform, diagnostics: [] };
   }
-  if (NAMED_COLORS.has(key)) {
-    const normalizedColor = normalizeColor(key);
+  if (NAMED_COLORS.has(key) || normalizedColorCandidate !== key) {
+    const normalizedColor = normalizedColorCandidate;
     return {
       style: {
         ...style,
@@ -97,7 +99,7 @@ export function applyFlagEntry(
     };
   }
   if (key.includes("!") || key.startsWith("#")) {
-    const normalizedColor = normalizeColor(key);
+    const normalizedColor = normalizedColorCandidate;
     return {
       style: {
         ...style,

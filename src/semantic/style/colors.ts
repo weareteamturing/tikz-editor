@@ -1,18 +1,29 @@
 import { COLOR_HEX, NAMED_COLORS } from "./constants.js";
 import { normalizeOptionValue } from "./option-utils.js";
 
-export function normalizeColor(raw: string): string {
+const EXTENDED_COLOR_HEX: Record<string, string> = {
+  lightgray: "#bfbfbf"
+};
+
+export function normalizeColor(raw: string, opts: { currentColor?: string | null } = {}): string {
   const normalized = raw.trim().toLowerCase();
+  const currentColor = resolveCurrentColor(opts.currentColor);
   if (normalized === "none") {
     return "none";
+  }
+  if (normalized === ".") {
+    return currentColor ?? "black";
   }
   if (NAMED_COLORS.has(normalized)) {
     return COLOR_HEX[normalized] ?? normalized;
   }
+  if (normalized in EXTENDED_COLOR_HEX) {
+    return EXTENDED_COLOR_HEX[normalized];
+  }
   if (normalized.startsWith("#")) {
     return normalized;
   }
-  const mixed = parseMixedColor(normalized);
+  const mixed = parseMixedColor(normalized, currentColor);
   if (mixed) {
     return mixed;
   }
@@ -44,6 +55,9 @@ function toRgbColor(color: string): { r: number; g: number; b: number } | null {
   if (normalized in COLOR_HEX) {
     return hexToRgb(COLOR_HEX[normalized]);
   }
+  if (normalized in EXTENDED_COLOR_HEX) {
+    return hexToRgb(EXTENDED_COLOR_HEX[normalized]);
+  }
   if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
     return hexToRgb(normalized);
   }
@@ -60,13 +74,13 @@ export function clamp01(value: number): number {
   return value;
 }
 
-function parseMixedColor(raw: string): string | null {
+function parseMixedColor(raw: string, currentColor: string | null): string | null {
   const parts = raw.split("!").map((part) => part.trim());
   if (parts.length <= 1 || !parts[0]) {
     return null;
   }
 
-  let current = toRgbColor(parts[0]);
+  let current = toRgbColor(resolveRelativeColorReference(parts[0], currentColor, "black"));
   if (!current) {
     return null;
   }
@@ -85,7 +99,7 @@ function parseMixedColor(raw: string): string | null {
       cursor += 1;
     }
 
-    const mixColor = toRgbColor(mixColorName);
+    const mixColor = toRgbColor(resolveRelativeColorReference(mixColorName, currentColor, "white"));
     if (!mixColor) {
       return null;
     }
@@ -99,6 +113,30 @@ function parseMixedColor(raw: string): string | null {
   }
 
   return rgbToHex(current);
+}
+
+function resolveRelativeColorReference(token: string, currentColor: string | null, fallback: string): string {
+  return token === "." ? currentColor ?? fallback : token;
+}
+
+function resolveCurrentColor(color: string | null | undefined): string | null {
+  if (!color) {
+    return null;
+  }
+  const normalized = color.trim().toLowerCase();
+  if (normalized.length === 0 || normalized === "." || normalized === "none") {
+    return null;
+  }
+  if (normalized in COLOR_HEX) {
+    return COLOR_HEX[normalized];
+  }
+  if (normalized in EXTENDED_COLOR_HEX) {
+    return EXTENDED_COLOR_HEX[normalized];
+  }
+  if (/^#[0-9a-f]{3}$/i.test(normalized) || /^#[0-9a-f]{6}$/i.test(normalized)) {
+    return normalized;
+  }
+  return parseMixedColor(normalized, null) ?? normalized;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {

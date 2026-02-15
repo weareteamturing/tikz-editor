@@ -1685,7 +1685,8 @@ function parseSignalDirectionSpec(raw: string): SignalDirection[] {
       set.add(token);
     }
   }
-  return ["north", "south", "east", "west"].filter((direction) => set.has(direction));
+  const orderedDirections: SignalDirection[] = ["north", "south", "east", "west"];
+  return orderedDirections.filter((direction) => set.has(direction));
 }
 
 function parseTapeBendStyle(raw: string, fallback: TapeBendStyle): TapeBendStyle {

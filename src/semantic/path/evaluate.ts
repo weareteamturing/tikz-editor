@@ -8,6 +8,7 @@ import {
   shouldCaptureStandaloneNodeNameCoordinate
 } from "../nodes/evaluate.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
+import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import { appendArcCommand, extractArcParameters, parseArcShorthand } from "./arc.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
@@ -109,6 +110,116 @@ function normalizeDegrees(degrees: number): number {
   return Math.abs(normalized) <= 1e-9 ? 0 : normalized;
 }
 
+function inferSegmentEndHeadingDegrees(segment: PlacementSegment | null): number {
+  if (!segment) {
+    return 0;
+  }
+
+  let direction: Point | null = null;
+  if (segment.kind === "line") {
+    direction = {
+      x: segment.to.x - segment.from.x,
+      y: segment.to.y - segment.from.y
+    };
+  } else if (segment.kind === "hv") {
+    direction = {
+      x: segment.to.x - segment.bend.x,
+      y: segment.to.y - segment.bend.y
+    };
+  } else if (segment.kind === "cubic") {
+    direction = {
+      x: segment.to.x - segment.c2.x,
+      y: segment.to.y - segment.c2.y
+    };
+    if (Math.hypot(direction.x, direction.y) <= 1e-9) {
+      direction = {
+        x: segment.to.x - segment.from.x,
+        y: segment.to.y - segment.from.y
+      };
+    }
+  } else if (segment.kind === "arc") {
+    direction = {
+      x: segment.to.x - segment.from.x,
+      y: segment.to.y - segment.from.y
+    };
+  }
+
+  if (!direction || Math.hypot(direction.x, direction.y) <= 1e-9) {
+    return 0;
+  }
+  return (Math.atan2(direction.y, direction.x) * 180) / Math.PI;
+}
+
+function evaluateTurnCoordinate(
+  item: CoordinateItem,
+  currentPoint: Point | null,
+  transform: { a: number; b: number; c: number; d: number },
+  lastPlacementSegment: PlacementSegment | null
+): { point: Point | null; diagnostics: string[]; advancesCurrentPoint: boolean } | null {
+  const hasTurnOption = item.options?.entries.some(
+    (entry) =>
+      (entry.kind === "flag" && entry.key === "turn") ||
+      (entry.kind === "kv" && entry.key === "turn")
+  );
+  if (!hasTurnOption) {
+    return null;
+  }
+
+  if (item.form !== "polar") {
+    return {
+      point: null,
+      diagnostics: [`invalid-turn-coordinate:${item.raw}`],
+      advancesCurrentPoint: true
+    };
+  }
+
+  if (!currentPoint) {
+    return {
+      point: null,
+      diagnostics: ["turn-coordinate-without-current-point"],
+      advancesCurrentPoint: true
+    };
+  }
+
+  const angleQuantity = parseQuantityExpression(item.x.trim());
+  const radius = parseLength(item.y, "cm");
+  if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
+    return {
+      point: null,
+      diagnostics: [`invalid-polar-coordinate:${item.raw}`],
+      advancesCurrentPoint: true
+    };
+  }
+
+  const heading = inferSegmentEndHeadingDegrees(lastPlacementSegment);
+  const absoluteAngle = heading + angleQuantity.value;
+  const radians = (absoluteAngle * Math.PI) / 180;
+  const localVector = {
+    x: radius * Math.cos(radians),
+    y: radius * Math.sin(radians)
+  };
+  const delta = applyMatrixToVector(transform, localVector);
+
+  return {
+    point: {
+      x: currentPoint.x + delta.x,
+      y: currentPoint.y + delta.y
+    },
+    diagnostics: [],
+    advancesCurrentPoint: true
+  };
+}
+
+function resolveDefaultGridStep(transform: { a: number; b: number; c: number; d: number }, axis: "x" | "y"): number {
+  const oneCoordinateUnit = parseLength("1", "cm") ?? DEFAULT_GRID_STEP;
+  const vector =
+    axis === "x"
+      ? applyMatrixToVector(transform, { x: oneCoordinateUnit, y: 0 })
+      : applyMatrixToVector(transform, { x: 0, y: oneCoordinateUnit });
+  const magnitude = Math.hypot(vector.x, vector.y);
+  return Number.isFinite(magnitude) && magnitude > 1e-9 ? magnitude : DEFAULT_GRID_STEP;
+}
+
 export function evaluatePathStatement(
   statement: PathStatement,
   context: SemanticContext,
@@ -202,6 +313,10 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "Coordinate") {
+      if (statement.command === "node" && item.raw.trim() === "()") {
+        continue;
+      }
+
       if (pendingCircleCenter) {
         const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
         if (radius != null) {
@@ -288,7 +403,9 @@ export function evaluatePathStatement(
         }
       }
 
-      const evaluated = evaluateCoordinate(item, context);
+      const evaluated =
+        evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
+        evaluateCoordinate(item, context);
       for (const code of evaluated.diagnostics) {
         pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, item.span.from, item.span.to);
       }
@@ -415,6 +532,8 @@ export function evaluatePathStatement(
       const shouldAdvancePoint = item.relativePrefix ? item.relativePrefix === "++" : true;
       if (shouldAdvancePoint) {
         setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
+      } else if (context.currentPoint) {
+        setCurrentPoint(context.currentPoint, advancedPoint, currentPointCoordinate);
       }
       if (!context.currentPoint) {
         setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
@@ -533,8 +652,9 @@ export function evaluatePathStatement(
 
       if (item.keyword === "cycle") {
         if (activePath) {
-          if (context.currentPoint && context.pathStartPoint) {
-            const closingFrom = context.currentPoint;
+          const logicalCurrentPoint = currentPointLogical ?? context.currentPoint;
+          if (logicalCurrentPoint && context.pathStartPoint) {
+            const closingFrom = logicalCurrentPoint;
             const pathStart = context.pathStartPoint;
             const operator: "--" | "-|" | "|-" = currentOperator ?? "--";
             const appended = appendPathPoint(
@@ -566,15 +686,15 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "rectangle") {
+        const rectangleStart = context.currentPoint ?? { x: 0, y: 0 };
         if (!context.currentPoint) {
-          pushDiagnostic("rectangle-without-start", "Rectangle operator requires a current point.", item.span.from, item.span.to);
-          continue;
+          setCurrentPoint(rectangleStart);
         }
         if (!shouldCompoundFilledSubpaths) {
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingRectangleFrom = context.currentPoint;
+        pendingRectangleFrom = rectangleStart;
         lastPlacementSegment = null;
         markFeature("shape_rectangle", "supported");
         continue;
@@ -634,8 +754,8 @@ export function evaluatePathStatement(
         previousSegmentRoundedCorners = null;
         pendingGrid = {
           from: gridStart,
-          stepX: DEFAULT_GRID_STEP,
-          stepY: DEFAULT_GRID_STEP
+          stepX: resolveDefaultGridStep(frameTransform, "x"),
+          stepY: resolveDefaultGridStep(frameTransform, "y")
         };
         lastPlacementSegment = null;
         continue;
@@ -926,8 +1046,11 @@ export function evaluatePathStatement(
     if (item.kind === "EdgeOperation") {
       if (!edgeOperationStart) {
         let coordinateRaw = pendingEdgeStartCoordinateRaw;
-        if (!coordinateRaw && currentPointCoordinate && currentPointCoordinate.form === "named") {
-          coordinateRaw = `(${currentPointCoordinate.x.trim()})`;
+        if (!coordinateRaw && currentPointCoordinate) {
+          const namedCoordinate = currentPointCoordinate as { form: string; x: string };
+          if (namedCoordinate.form === "named") {
+            coordinateRaw = `(${namedCoordinate.x.trim()})`;
+          }
         }
         if (!context.currentPoint) {
           pushDiagnostic("edge-without-start", "`edge` operation requires a current point.", item.span.from, item.span.to);

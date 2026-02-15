@@ -64,6 +64,36 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports lightgray named color flags", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [lightgray] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:lightgray")).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.fill).toBe("#bfbfbf");
+    }
+  });
+
+  it("resolves `. !` xcolor mixes against the current color", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \filldraw[violet,fill=.!50] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.style.stroke).toBe("#800080");
+      expect(path.style.fill).toBe("#c080c0");
+    }
+  });
+
   it("supports relative and polar coordinates", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- ++(1,0) -- +(90:1cm);
@@ -76,6 +106,40 @@ describe("semantic evaluator", () => {
     expect(path?.kind).toBe("Path");
     if (path?.kind === "Path") {
       expect(path.commands.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("keeps `+` relative bases while advancing the drawn path cursor", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) +(0:1) -- +(90:1) -- +(180:1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const moves = path.commands.filter((command) => command.kind === "M");
+      const originMoves = moves.filter((command) => Math.hypot(command.to.x, command.to.y) <= 1e-6);
+      expect(originMoves).toHaveLength(1);
+    }
+  });
+
+  it("supports `[turn]` polar coordinates using the previous segment direction", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- +(1,0) -- ([turn]90:1) -- ([turn]90:1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-turn-coordinate"))).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const lines = path.commands.filter((command) => command.kind === "L");
+      expect(lines).toHaveLength(3);
+      const uniqueTargets = new Set(lines.map((command) => `${command.to.x.toFixed(3)}:${command.to.y.toFixed(3)}`));
+      expect(uniqueTargets.size).toBe(3);
     }
   });
 
@@ -840,6 +904,52 @@ describe("semantic evaluator", () => {
     const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
     expect(vertical.length).toBe(4);
     expect(horizontal.length).toBe(3);
+  });
+
+  it("scales default grid spacing with transformed coordinate systems", () => {
+    const source = String.raw`\begin{tikzpicture}[scale=0.2]
+  \draw (0,0) grid (10,10);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const vertical = paths.filter((path) => path.id.includes("scene-grid-x:"));
+    const horizontal = paths.filter((path) => path.id.includes("scene-grid-y:"));
+    expect(vertical.length).toBe(11);
+    expect(horizontal.length).toBe(11);
+  });
+
+  it("uses (0,0) as the default start for rectangle operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=orange] rectangle (3,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "rectangle-without-start")).toBe(false);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(0, 6);
+        expect(move.to.y).toBeCloseTo(0, 6);
+      }
+    }
+  });
+
+  it("ignores empty node-name coordinates for node commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node () at (0,0) {Hi};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:unknown")).toBe(false);
+    const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "Hi");
+    expect(text?.kind).toBe("Text");
   });
 
   it("applies rounded corners across cycle closure", () => {
@@ -3057,6 +3167,24 @@ describe("semantic evaluator", () => {
       expect(small.style.fontSize).toBeCloseTo(base.style.fontSize * 0.8, 3);
       expect(large.style.fontSize).toBeCloseTo(base.style.fontSize * 1.44, 3);
       expect(large.style.fontStyle).toBe("italic");
+    }
+  });
+
+  it("lets later `font=` assignments override earlier style-provided font commands", () => {
+    const source = String.raw`\begin{tikzpicture}[nd/.style={font=\bfseries}]
+  \node at (0,0) {base};
+  \node[nd,font=\footnotesize] at (1,0) {override};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const base = result.scene.elements.find((element) => element.kind === "Text" && element.text === "base");
+    const override = result.scene.elements.find((element) => element.kind === "Text" && element.text === "override");
+    expect(base?.kind).toBe("Text");
+    expect(override?.kind).toBe("Text");
+    if (base?.kind === "Text" && override?.kind === "Text") {
+      expect(override.style.fontWeight).toBe("normal");
+      expect(override.style.fontSize).toBeCloseTo(base.style.fontSize * 0.8, 3);
     }
   });
 
