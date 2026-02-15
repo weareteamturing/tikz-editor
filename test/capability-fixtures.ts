@@ -89,6 +89,15 @@ export const capabilityFixtures: Record<string, string> = {
   tape_shape: String.raw`\begin{tikzpicture}
   \node[tape,tape bend top=out and in,tape bend bottom=in and out,draw] at (0,0) {T};
 \end{tikzpicture}`,
+  rectangle_callout_shape: String.raw`\begin{tikzpicture}
+  \node[rectangle callout,callout relative pointer={(1cm,-6mm)},draw] at (0,0) {R};
+\end{tikzpicture}`,
+  ellipse_callout_shape: String.raw`\begin{tikzpicture}
+  \node[ellipse callout,callout relative pointer={(1cm,-6mm)},callout pointer arc=20,draw] at (0,0) {E};
+\end{tikzpicture}`,
+  cloud_callout_shape: String.raw`\begin{tikzpicture}
+  \node[cloud callout,cloud puffs=11,callout relative pointer={(315:2cm)},callout pointer segments=3,draw] at (0,0) {C};
+\end{tikzpicture}`,
   single_arrow_shape: String.raw`\begin{tikzpicture}
   \node[single arrow,single arrow tip angle=60,single arrow head extend=4pt,draw] at (0,0) {A};
 \end{tikzpicture}`,

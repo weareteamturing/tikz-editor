@@ -7,10 +7,12 @@ import {
   makeCylinder,
   makeDoubleArrow,
   makeDartPolygon,
+  makeEllipseCallout,
   intersectRayWithPolygon,
   makeDiamondPolygon,
   makeIsoscelesTrianglePolygon,
   makeKitePolygon,
+  makeRectangleCallout,
   makeRegularPolygon,
   makeSemicircle,
   makeSignal,
@@ -19,7 +21,9 @@ import {
   makeStarburst,
   makeTape,
   makeTrapeziumPolygon,
+  makeCloudCallout,
   midpoint,
+  resolveCalloutPointerOffset,
   resolveNodeShapeGeometryParams
 } from "./shape-geometry.js";
 import type { NodeLayout, NodeShape } from "./types.js";
@@ -247,6 +251,62 @@ export function nodeAnchorOffset(
       shapeGeometry.tapeBendHeightPt
     );
     return polygonShapeAnchorOffset(anchor, tape.polygon, layout.baseLineY, layout.midLineY);
+  }
+
+  if (shape === "rectangle callout") {
+    const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
+    const callout = makeRectangleCallout(
+      anchorSizingWithOuter(layout),
+      pointerOffset,
+      shapeGeometry.calloutPointerWidthPt,
+      shapeGeometry.calloutPointerIsAbsolute,
+      shapeGeometry.calloutPointerShortenPt
+    );
+    if (anchor === "pointer") {
+      return callout.pointerAnchor;
+    }
+    return nodeAnchorOffset("rectangle", layout, anchor, options);
+  }
+
+  if (shape === "ellipse callout") {
+    const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
+    const callout = makeEllipseCallout(
+      anchorSizingWithOuter(layout),
+      pointerOffset,
+      shapeGeometry.calloutPointerArc,
+      shapeGeometry.calloutPointerIsAbsolute,
+      shapeGeometry.calloutPointerShortenPt
+    );
+    if (anchor === "pointer") {
+      return callout.pointerAnchor;
+    }
+    return nodeAnchorOffset("ellipse", layout, anchor, options);
+  }
+
+  if (shape === "cloud callout") {
+    const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, null, null);
+    const callout = makeCloudCallout(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.cloudPuffs,
+      shapeGeometry.cloudPuffArc,
+      shapeGeometry.diamondAspect,
+      shapeGeometry.cloudIgnoresAspect,
+      shapeGeometry.shapeBorderRotate,
+      pointerOffset,
+      shapeGeometry.calloutPointerStartSizeRaw,
+      shapeGeometry.calloutPointerEndSizeRaw,
+      shapeGeometry.calloutPointerSegments,
+      shapeGeometry.calloutPointerIsAbsolute,
+      shapeGeometry.calloutPointerShortenPt
+    );
+    if (anchor === "pointer") {
+      return callout.pointerAnchor;
+    }
+    const special = cloudSpecialAnchor(anchor, callout.puffs);
+    if (special) {
+      return special;
+    }
+    return polygonShapeAnchorOffset(anchor, callout.polygon, layout.baseLineY, layout.midLineY);
   }
 
   if (shape === "single arrow") {
@@ -497,6 +557,27 @@ function resolveAnchorPolygon(
       shapeGeometry.tapeBendHeightPt
     ).polygon;
   }
+  if (shape === "rectangle callout") {
+    return [
+      { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+      { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+      { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
+      { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+    ];
+  }
+  if (shape === "ellipse callout") {
+    return makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
+  }
+  if (shape === "cloud callout") {
+    return makeCloud(
+      anchorSizingWithOuter(layout),
+      shapeGeometry.cloudPuffs,
+      shapeGeometry.cloudPuffArc,
+      shapeGeometry.diamondAspect,
+      shapeGeometry.cloudIgnoresAspect,
+      shapeGeometry.shapeBorderRotate
+    ).polygon;
+  }
   if (shape === "single arrow") {
     return makeSingleArrow(
       anchorSizingWithOuter(layout),
@@ -516,6 +597,19 @@ function resolveAnchorPolygon(
     ).polygon;
   }
   return undefined;
+}
+
+function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): Point[] {
+  const points: Point[] = [];
+  const count = Math.max(8, steps);
+  for (let index = 0; index < count; index += 1) {
+    const angle = (2 * Math.PI * index) / count;
+    points.push({
+      x: rx * Math.cos(angle),
+      y: ry * Math.sin(angle)
+    });
+  }
+  return points;
 }
 
 function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
@@ -1003,6 +1097,54 @@ export function registerNamedNodeAnchors(
       offsets[`point ${index}`] = nodeAnchorOffset(shape, layout, `point ${index}`, options);
       offsets[`outer point ${index}`] = nodeAnchorOffset(shape, layout, `outer point ${index}`, options);
       offsets[`inner point ${index}`] = nodeAnchorOffset(shape, layout, `inner point ${index}`, options);
+    }
+  }
+
+  if (shape === "rectangle callout" || shape === "ellipse callout") {
+    offsets.pointer = nodeAnchorOffset(shape, layout, "pointer", options);
+  }
+
+  if (shape === "cloud callout") {
+    offsets.pointer = nodeAnchorOffset(shape, layout, "pointer", options);
+    const puffs = Math.max(2, shapeGeometry.cloudPuffs);
+    for (let index = 1; index <= puffs; index += 1) {
+      offsets[`puff ${index}`] = nodeAnchorOffset(shape, layout, `puff ${index}`, options);
+    }
+  }
+
+  if ((shape === "rectangle callout" || shape === "ellipse callout" || shape === "cloud callout") && shapeGeometry.calloutPointerIsAbsolute) {
+    const pointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
+    if (shape === "rectangle callout") {
+      offsets.pointer = makeRectangleCallout(
+        anchorSizingWithOuter(layout),
+        pointerOffset,
+        shapeGeometry.calloutPointerWidthPt,
+        true,
+        shapeGeometry.calloutPointerShortenPt
+      ).pointerAnchor;
+    } else if (shape === "ellipse callout") {
+      offsets.pointer = makeEllipseCallout(
+        anchorSizingWithOuter(layout),
+        pointerOffset,
+        shapeGeometry.calloutPointerArc,
+        true,
+        shapeGeometry.calloutPointerShortenPt
+      ).pointerAnchor;
+    } else {
+      offsets.pointer = makeCloudCallout(
+        anchorSizingWithOuter(layout),
+        shapeGeometry.cloudPuffs,
+        shapeGeometry.cloudPuffArc,
+        shapeGeometry.diamondAspect,
+        shapeGeometry.cloudIgnoresAspect,
+        shapeGeometry.shapeBorderRotate,
+        pointerOffset,
+        shapeGeometry.calloutPointerStartSizeRaw,
+        shapeGeometry.calloutPointerEndSizeRaw,
+        shapeGeometry.calloutPointerSegments,
+        true,
+        shapeGeometry.calloutPointerShortenPt
+      ).pointerAnchor;
     }
   }
 

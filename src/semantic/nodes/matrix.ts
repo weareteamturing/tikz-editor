@@ -14,13 +14,16 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeCloudCalloutElement,
   makeNodeCloudElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
   makeNodeDiamondElement,
+  makeNodeEllipseCalloutElement,
   makeNodeEllipseElement,
   makeNodeIsoscelesTriangleElement,
   makeNodeKiteElement,
+  makeNodeRectangleCalloutElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeSignalElement,
@@ -39,7 +42,7 @@ import {
   resolveNodeOptionScale,
   resolveNodeStyle
 } from "./options.js";
-import { resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import type { NodeLayout, NodeShape } from "./types.js";
 
 type MatrixSpacingSpec = {
@@ -219,6 +222,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const matrixBoxPaintMode = resolveNodeBoxPaintMode(params.effectiveNodeLocalOptions);
   if (matrixBoxPaintMode.draw || matrixBoxPaintMode.fill || params.nodeStyle.shadowLayers.length > 0) {
     const matrixBoxStyle = applyNodeBoxPaintMode(params.nodeStyle, matrixBoxPaintMode);
+    const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, params.context, matrixCenter);
     if (params.nodeShape === "circle") {
       matrixNodeElements.push(makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span));
       params.markFeature("shape_circle", "supported");
@@ -499,6 +503,73 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       );
       params.markFeature("shape_tape", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "rectangle callout") {
+      matrixNodeElements.push(
+        makeNodeRectangleCalloutElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerWidthPt,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_rectangle_callout", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "ellipse callout") {
+      matrixNodeElements.push(
+        makeNodeEllipseCalloutElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerArc,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_ellipse_callout", "supported");
+      params.markFeature("svg_path", "supported");
+    } else if (params.nodeShape === "cloud callout") {
+      matrixNodeElements.push(
+        makeNodeCloudCalloutElement(
+          params.statement.id,
+          params.item.id,
+          matrixCenter,
+          matrixLayout.naturalWidth,
+          matrixLayout.naturalHeight,
+          matrixLayout.minimumWidth,
+          matrixLayout.minimumHeight,
+          shapeGeometry.cloudPuffs,
+          shapeGeometry.cloudPuffArc,
+          shapeGeometry.diamondAspect,
+          shapeGeometry.cloudIgnoresAspect,
+          shapeGeometry.shapeBorderRotate,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerStartSizeRaw,
+          shapeGeometry.calloutPointerEndSizeRaw,
+          shapeGeometry.calloutPointerSegments,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          matrixBoxStyle,
+          params.item.span
+        )
+      );
+      params.markFeature("shape_cloud_callout", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "single arrow") {
       matrixNodeElements.push(

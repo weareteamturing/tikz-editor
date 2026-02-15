@@ -18,6 +18,9 @@ export type NodeShape =
   | "starburst"
   | "signal"
   | "tape"
+  | "rectangle callout"
+  | "ellipse callout"
+  | "cloud callout"
   | "single arrow"
   | "double arrow"
   | "coordinate";

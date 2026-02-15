@@ -103,6 +103,9 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       everyStarburstNodeStyles: rootMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: rootMeta.everySignalNodeStyles,
       everyTapeNodeStyles: rootMeta.everyTapeNodeStyles,
+      everyRectangleCalloutNodeStyles: rootMeta.everyRectangleCalloutNodeStyles,
+      everyEllipseCalloutNodeStyles: rootMeta.everyEllipseCalloutNodeStyles,
+      everyCloudCalloutNodeStyles: rootMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: rootMeta.everySingleArrowNodeStyles,
       everyDoubleArrowNodeStyles: rootMeta.everyDoubleArrowNodeStyles
     });
@@ -228,6 +231,9 @@ function evaluateStatement(
       everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: frameMeta.everySignalNodeStyles,
       everyTapeNodeStyles: frameMeta.everyTapeNodeStyles,
+      everyRectangleCalloutNodeStyles: frameMeta.everyRectangleCalloutNodeStyles,
+      everyEllipseCalloutNodeStyles: frameMeta.everyEllipseCalloutNodeStyles,
+      everyCloudCalloutNodeStyles: frameMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
       everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
     });
@@ -323,6 +329,9 @@ function evaluateStatement(
       everyStarburstNodeStyles: frameMeta.everyStarburstNodeStyles,
       everySignalNodeStyles: frameMeta.everySignalNodeStyles,
       everyTapeNodeStyles: frameMeta.everyTapeNodeStyles,
+      everyRectangleCalloutNodeStyles: frameMeta.everyRectangleCalloutNodeStyles,
+      everyEllipseCalloutNodeStyles: frameMeta.everyEllipseCalloutNodeStyles,
+      everyCloudCalloutNodeStyles: frameMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
       everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
     });
@@ -474,6 +483,9 @@ function applyOptionListsToCurrentFrame(
   frame.everyStarburstNodeStyles = frameMeta.everyStarburstNodeStyles;
   frame.everySignalNodeStyles = frameMeta.everySignalNodeStyles;
   frame.everyTapeNodeStyles = frameMeta.everyTapeNodeStyles;
+  frame.everyRectangleCalloutNodeStyles = frameMeta.everyRectangleCalloutNodeStyles;
+  frame.everyEllipseCalloutNodeStyles = frameMeta.everyEllipseCalloutNodeStyles;
+  frame.everyCloudCalloutNodeStyles = frameMeta.everyCloudCalloutNodeStyles;
   frame.everySingleArrowNodeStyles = frameMeta.everySingleArrowNodeStyles;
   frame.everyDoubleArrowNodeStyles = frameMeta.everyDoubleArrowNodeStyles;
 
@@ -1400,6 +1412,9 @@ function resolveFrameMeta(
     everyStarburstNodeStyles: OptionListAst[];
     everySignalNodeStyles: OptionListAst[];
     everyTapeNodeStyles: OptionListAst[];
+    everyRectangleCalloutNodeStyles: OptionListAst[];
+    everyEllipseCalloutNodeStyles: OptionListAst[];
+    everyCloudCalloutNodeStyles: OptionListAst[];
     everySingleArrowNodeStyles: OptionListAst[];
     everyDoubleArrowNodeStyles: OptionListAst[];
   },
@@ -1425,6 +1440,9 @@ function resolveFrameMeta(
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everyRectangleCalloutNodeStyles: OptionListAst[];
+  everyEllipseCalloutNodeStyles: OptionListAst[];
+  everyCloudCalloutNodeStyles: OptionListAst[];
   everySingleArrowNodeStyles: OptionListAst[];
   everyDoubleArrowNodeStyles: OptionListAst[];
 } {
@@ -1448,6 +1466,9 @@ function resolveFrameMeta(
   let everyStarburstNodeStyles = [...base.everyStarburstNodeStyles];
   let everySignalNodeStyles = [...base.everySignalNodeStyles];
   let everyTapeNodeStyles = [...base.everyTapeNodeStyles];
+  let everyRectangleCalloutNodeStyles = [...base.everyRectangleCalloutNodeStyles];
+  let everyEllipseCalloutNodeStyles = [...base.everyEllipseCalloutNodeStyles];
+  let everyCloudCalloutNodeStyles = [...base.everyCloudCalloutNodeStyles];
   let everySingleArrowNodeStyles = [...base.everySingleArrowNodeStyles];
   let everyDoubleArrowNodeStyles = [...base.everyDoubleArrowNodeStyles];
 
@@ -1715,6 +1736,48 @@ function resolveFrameMeta(
         }
         continue;
       }
+      if (entry.key === "every rectangle callout node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyRectangleCalloutNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every rectangle callout node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyRectangleCalloutNodeStyles = [...everyRectangleCalloutNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every ellipse callout node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyEllipseCalloutNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every ellipse callout node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyEllipseCalloutNodeStyles = [...everyEllipseCalloutNodeStyles, parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every cloud callout node/.style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCloudCalloutNodeStyles = [parsed];
+        }
+        continue;
+      }
+      if (entry.key === "every cloud callout node/.append style") {
+        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
+        if (parsed) {
+          everyCloudCalloutNodeStyles = [...everyCloudCalloutNodeStyles, parsed];
+        }
+        continue;
+      }
       if (entry.key === "every single arrow node/.style") {
         const parsed = parseStyleValueAsOptionList(entry.valueRaw);
         if (parsed) {
@@ -1766,6 +1829,9 @@ function resolveFrameMeta(
     everyStarburstNodeStyles,
     everySignalNodeStyles,
     everyTapeNodeStyles,
+    everyRectangleCalloutNodeStyles,
+    everyEllipseCalloutNodeStyles,
+    everyCloudCalloutNodeStyles,
     everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles
   };

@@ -4,13 +4,16 @@ import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js
 import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
 import {
   makeCircularSector,
+  makeCloudCallout,
   makeCloud,
   makeCylinder,
   makeDoubleArrow,
   makeDartPolygon,
   makeDiamondPolygon,
+  makeEllipseCallout,
   makeIsoscelesTrianglePolygon,
   makeKitePolygon,
+  makeRectangleCallout,
   makeRegularPolygon,
   makeSemicircle,
   makeSignal,
@@ -644,6 +647,126 @@ export function makeNodeTapeElement(
   return makeNodePolygonElement(sourceId, itemId, corners, style, span);
 }
 
+export function makeNodeRectangleCalloutElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  pointerOffset: Point,
+  pointerWidthPt: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const callout = makeRectangleCallout(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    pointerOffset,
+    pointerWidthPt,
+    pointerIsAbsolute,
+    pointerShortenPt
+  );
+  const corners = callout.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeEllipseCalloutElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  pointerOffset: Point,
+  pointerArc: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const callout = makeEllipseCallout(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    pointerOffset,
+    pointerArc,
+    pointerIsAbsolute,
+    pointerShortenPt
+  );
+  const corners = callout.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+}
+
+export function makeNodeCloudCalloutElement(
+  sourceId: string,
+  itemId: string,
+  center: Point,
+  naturalWidth: number,
+  naturalHeight: number,
+  minimumWidth: number,
+  minimumHeight: number,
+  puffs: number,
+  puffArc: number,
+  aspect: number,
+  ignoresAspect: boolean,
+  rotation: number,
+  pointerOffset: Point,
+  pointerStartSizeRaw: string,
+  pointerEndSizeRaw: string,
+  pointerSegments: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number,
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const callout = makeCloudCallout(
+    {
+      naturalWidth,
+      naturalHeight,
+      minimumWidth,
+      minimumHeight
+    },
+    puffs,
+    puffArc,
+    aspect,
+    ignoresAspect,
+    rotation,
+    pointerOffset,
+    pointerStartSizeRaw,
+    pointerEndSizeRaw,
+    pointerSegments,
+    pointerIsAbsolute,
+    pointerShortenPt
+  );
+  const cloudPolygon = callout.polygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  const pointerPolygon = callout.pointerPolygon.map((point) => ({
+    x: center.x + point.x,
+    y: center.y + point.y
+  }));
+  return makeNodeMultiPolygonElement(sourceId, itemId, [cloudPolygon, pointerPolygon], style, span);
+}
+
 export function makeNodeSingleArrowElement(
   sourceId: string,
   itemId: string,
@@ -725,6 +848,40 @@ function makeNodePolygonElement(
     commands.push({ kind: "L", to: corners[index] });
   }
   commands.push({ kind: "Z" });
+  return {
+    kind: "Path",
+    id: `scene-node-box:${sourceId}:${itemId}`,
+    sourceId,
+    sourceSpan: span,
+    style: { ...style },
+    commands
+  };
+}
+
+function makeNodeMultiPolygonElement(
+  sourceId: string,
+  itemId: string,
+  polygons: Point[][],
+  style: ResolvedStyle,
+  span: { from: number; to: number }
+): ScenePath {
+  const commands: ScenePathCommand[] = [];
+  for (const polygon of polygons) {
+    const first = polygon[0];
+    if (!first) {
+      continue;
+    }
+    commands.push({ kind: "M", to: first });
+    for (let index = 1; index < polygon.length; index += 1) {
+      commands.push({ kind: "L", to: polygon[index] });
+    }
+    commands.push({ kind: "Z" });
+  }
+
+  if (commands.length === 0) {
+    commands.push({ kind: "M", to: { x: 0, y: 0 } }, { kind: "Z" });
+  }
+
   return {
     kind: "Path",
     id: `scene-node-box:${sourceId}:${itemId}`,

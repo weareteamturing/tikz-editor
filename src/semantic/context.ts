@@ -45,6 +45,9 @@ export type NamedNodeGeometry = {
     | "starburst"
     | "signal"
     | "tape"
+    | "rectangle callout"
+    | "ellipse callout"
+    | "cloud callout"
     | "single arrow"
     | "double arrow"
     | "coordinate";
@@ -87,6 +90,9 @@ export type SemanticContextFrame = {
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everyRectangleCalloutNodeStyles: OptionListAst[];
+  everyEllipseCalloutNodeStyles: OptionListAst[];
+  everyCloudCalloutNodeStyles: OptionListAst[];
   everySingleArrowNodeStyles: OptionListAst[];
   everyDoubleArrowNodeStyles: OptionListAst[];
 };
@@ -140,6 +146,9 @@ export function createSemanticContext(
         everyStarburstNodeStyles: [],
         everySignalNodeStyles: [],
         everyTapeNodeStyles: [],
+        everyRectangleCalloutNodeStyles: [],
+        everyEllipseCalloutNodeStyles: [],
+        everyCloudCalloutNodeStyles: [],
         everySingleArrowNodeStyles: [],
         everyDoubleArrowNodeStyles: []
       }

@@ -1874,6 +1874,91 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("supports rectangle, ellipse, and cloud callout shapes with pointer anchors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[rectangle callout,callout relative pointer={(5mm,-4mm)},draw,name=r] at (0,0) {R};
+  \node at (r.pointer) {RP};
+  \node at (r.east) {RE};
+
+  \node[ellipse callout,callout relative pointer={(315:6mm)},callout pointer arc=25,draw,name=e] at (3,0) {E};
+  \node at (e.pointer) {EP};
+  \node at (e.south) {ES};
+
+  \node[cloud callout,cloud puffs=9,callout relative pointer={(300:7mm)},callout pointer segments=3,draw,name=c] at (6,0) {C};
+  \node at (c.pointer) {CP};
+  \node at (c.puff 1) {P1};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const rectangle = result.scene.elements.find((element) => element.kind === "Text" && element.text === "R");
+    const rectanglePointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "RP");
+    const rectangleEast = result.scene.elements.find((element) => element.kind === "Text" && element.text === "RE");
+    expect(rectangle?.kind).toBe("Text");
+    expect(rectanglePointer?.kind).toBe("Text");
+    expect(rectangleEast?.kind).toBe("Text");
+    if (rectangle?.kind === "Text" && rectanglePointer?.kind === "Text" && rectangleEast?.kind === "Text") {
+      const pointerDistance = Math.hypot(
+        rectanglePointer.position.x - rectangle.position.x,
+        rectanglePointer.position.y - rectangle.position.y
+      );
+      const eastDistance = Math.hypot(rectangleEast.position.x - rectangle.position.x, rectangleEast.position.y - rectangle.position.y);
+      expect(pointerDistance).toBeGreaterThan(eastDistance);
+      expect(rectanglePointer.position.y).toBeLessThan(rectangle.position.y);
+    }
+
+    const ellipse = result.scene.elements.find((element) => element.kind === "Text" && element.text === "E");
+    const ellipsePointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "EP");
+    const ellipseSouth = result.scene.elements.find((element) => element.kind === "Text" && element.text === "ES");
+    expect(ellipse?.kind).toBe("Text");
+    expect(ellipsePointer?.kind).toBe("Text");
+    expect(ellipseSouth?.kind).toBe("Text");
+    if (ellipse?.kind === "Text" && ellipsePointer?.kind === "Text" && ellipseSouth?.kind === "Text") {
+      const pointerDistance = Math.hypot(ellipsePointer.position.x - ellipse.position.x, ellipsePointer.position.y - ellipse.position.y);
+      const southDistance = Math.hypot(ellipseSouth.position.x - ellipse.position.x, ellipseSouth.position.y - ellipse.position.y);
+      expect(pointerDistance).toBeGreaterThan(southDistance);
+      expect(ellipsePointer.position.y).toBeLessThan(ellipse.position.y);
+    }
+
+    const cloud = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
+    const cloudPointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "CP");
+    const cloudPuff = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P1");
+    expect(cloud?.kind).toBe("Text");
+    expect(cloudPointer?.kind).toBe("Text");
+    expect(cloudPuff?.kind).toBe("Text");
+    if (cloud?.kind === "Text" && cloudPointer?.kind === "Text" && cloudPuff?.kind === "Text") {
+      expect(cloudPointer.position.y).toBeLessThan(cloud.position.y);
+      const puffDistance = Math.hypot(cloudPuff.position.x - cloud.position.x, cloudPuff.position.y - cloud.position.y);
+      expect(puffDistance).toBeGreaterThan(5);
+    }
+  });
+
+  it("supports absolute callout pointers and pointer shortening", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[rectangle callout,callout absolute pointer={(3,0)},draw,name=a] at (0,0) {A};
+  \node[rectangle callout,callout absolute pointer={(3,0)},callout pointer shorten=10pt,draw,name=b] at (0,-2) {B};
+  \node at (a.pointer) {AP};
+  \node at (b.pointer) {BP};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const absolutePointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "AP");
+    const shortenedPointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "BP");
+    expect(absolutePointer?.kind).toBe("Text");
+    expect(shortenedPointer?.kind).toBe("Text");
+    if (absolutePointer?.kind === "Text" && shortenedPointer?.kind === "Text") {
+      expect(absolutePointer.position.x).toBeCloseTo(85.3583, 1);
+      expect(absolutePointer.position.y).toBeCloseTo(0, 1);
+      expect(shortenedPointer.position.x).toBeLessThan(absolutePointer.position.x);
+      expect(shortenedPointer.position.y).toBeLessThan(absolutePointer.position.y);
+    }
+  });
+
   it("recovers trailing coordinates after node-contents nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \path (0,0) node [red]                    {A}
@@ -2706,6 +2791,50 @@ describe("semantic evaluator", () => {
     if (singleArrow && doubleArrow) {
       expect(singleArrow.style.fill).toBe("#0000ff");
       expect(doubleArrow.style.doubleStroke).toBe(true);
+    }
+  });
+
+  it("applies every-node style keys for rectangle, ellipse, and cloud callout nodes", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every node/.style={draw},
+  every rectangle callout node/.style={fill=yellow},
+  every ellipse callout node/.style={double},
+  every cloud callout node/.style={fill=red}
+]
+  \draw (0,0) node[rectangle callout] {R};
+  \draw (2,0) node[ellipse callout] {E};
+  \draw (4,0) node[cloud callout] {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const nodeBoxes = result.scene.elements.filter(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(nodeBoxes).toHaveLength(3);
+
+    const byX = nodeBoxes
+      .map((path) => ({
+        path,
+        centerX:
+          path.commands
+            .flatMap((command) => (command.kind === "M" || command.kind === "L" ? [command.to.x] : []))
+            .reduce((sum, x) => sum + x, 0) /
+          Math.max(path.commands.filter((command) => command.kind === "M" || command.kind === "L").length, 1)
+      }))
+      .sort((left, right) => left.centerX - right.centerX);
+
+    const rectangleCallout = byX[0]?.path;
+    const ellipseCallout = byX[1]?.path;
+    const cloudCallout = byX[2]?.path;
+    expect(rectangleCallout).toBeDefined();
+    expect(ellipseCallout).toBeDefined();
+    expect(cloudCallout).toBeDefined();
+    if (rectangleCallout && ellipseCallout && cloudCallout) {
+      expect(rectangleCallout.style.fill).toBe("#ffff00");
+      expect(ellipseCallout.style.doubleStroke).toBe(true);
+      expect(cloudCallout.style.fill).toBe("#ff0000");
     }
   });
 

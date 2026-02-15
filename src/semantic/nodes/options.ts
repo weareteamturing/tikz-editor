@@ -113,6 +113,9 @@ export function resolveEffectiveNodeOptions(params: {
   everyStarburstNodeStyles: OptionListAst[];
   everySignalNodeStyles: OptionListAst[];
   everyTapeNodeStyles: OptionListAst[];
+  everyRectangleCalloutNodeStyles: OptionListAst[];
+  everyEllipseCalloutNodeStyles: OptionListAst[];
+  everyCloudCalloutNodeStyles: OptionListAst[];
   everySingleArrowNodeStyles: OptionListAst[];
   everyDoubleArrowNodeStyles: OptionListAst[];
 }): OptionListAst | undefined {
@@ -139,6 +142,9 @@ function resolveShapeStyleLists(
     everyStarburstNodeStyles: OptionListAst[];
     everySignalNodeStyles: OptionListAst[];
     everyTapeNodeStyles: OptionListAst[];
+    everyRectangleCalloutNodeStyles: OptionListAst[];
+    everyEllipseCalloutNodeStyles: OptionListAst[];
+    everyCloudCalloutNodeStyles: OptionListAst[];
     everySingleArrowNodeStyles: OptionListAst[];
     everyDoubleArrowNodeStyles: OptionListAst[];
   }
@@ -181,6 +187,15 @@ function resolveShapeStyleLists(
   }
   if (shape === "tape") {
     return params.everyTapeNodeStyles;
+  }
+  if (shape === "rectangle callout") {
+    return params.everyRectangleCalloutNodeStyles;
+  }
+  if (shape === "ellipse callout") {
+    return params.everyEllipseCalloutNodeStyles;
+  }
+  if (shape === "cloud callout") {
+    return params.everyCloudCalloutNodeStyles;
   }
   if (shape === "single arrow") {
     return params.everySingleArrowNodeStyles;
@@ -263,6 +278,9 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         entry.key === "starburst" ||
         entry.key === "signal" ||
         entry.key === "tape" ||
+        entry.key === "rectangle callout" ||
+        entry.key === "ellipse callout" ||
+        entry.key === "cloud callout" ||
         entry.key === "single arrow" ||
         entry.key === "double arrow" ||
         entry.key === "coordinate"
@@ -291,6 +309,9 @@ export function resolveNodeShape(options: PathOptionItem["options"] | undefined)
         normalized === "starburst" ||
         normalized === "signal" ||
         normalized === "tape" ||
+        normalized === "rectangle callout" ||
+        normalized === "ellipse callout" ||
+        normalized === "cloud callout" ||
         normalized === "single arrow" ||
         normalized === "double arrow" ||
         normalized === "coordinate"

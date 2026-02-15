@@ -1,6 +1,9 @@
 import { parseLength } from "../coords/parse-length.js";
 import type { Point } from "../types.js";
 import type { OptionListAst } from "../../options/types.js";
+import { parseCoordinate } from "../../domains/coordinates/parse.js";
+import { evaluateRawCoordinate } from "../coords/evaluate.js";
+import type { SemanticContext } from "../context.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export type ShapeGeometryParams = {
@@ -25,6 +28,15 @@ export type ShapeGeometryParams = {
   tapeBendTop: TapeBendStyle;
   tapeBendBottom: TapeBendStyle;
   tapeBendHeightPt: number;
+  calloutPointerIsAbsolute: boolean;
+  calloutRelativePointerRaw: string;
+  calloutAbsolutePointerRaw: string | null;
+  calloutPointerShortenPt: number;
+  calloutPointerWidthPt: number;
+  calloutPointerArc: number;
+  calloutPointerStartSizeRaw: string;
+  calloutPointerEndSizeRaw: string;
+  calloutPointerSegments: number;
   singleArrowTipAngle: number;
   singleArrowHeadExtendPt: number;
   singleArrowHeadIndentPt: number;
@@ -111,6 +123,26 @@ export type TapeGeometry = {
   polygon: Point[];
 };
 
+export type RectangleCalloutGeometry = {
+  polygon: Point[];
+  pointer: Point;
+  pointerAnchor: Point;
+};
+
+export type EllipseCalloutGeometry = {
+  polygon: Point[];
+  pointer: Point;
+  pointerAnchor: Point;
+};
+
+export type CloudCalloutGeometry = {
+  polygon: Point[];
+  pointerPolygon: Point[];
+  pointer: Point;
+  pointerAnchor: Point;
+  puffs: Point[];
+};
+
 export type SingleArrowGeometry = {
   polygon: Point[];
   tip: Point;
@@ -154,6 +186,13 @@ const DEFAULT_RANDOM_STARBURST_SEED = 100;
 const DEFAULT_SIGNAL_POINTER_ANGLE = 90;
 const DEFAULT_TAPE_BEND_STYLE: TapeBendStyle = "in and out";
 const DEFAULT_TAPE_BEND_HEIGHT_PT = parseLength("5pt", "pt") ?? 5;
+const DEFAULT_CALLOUT_RELATIVE_POINTER_RAW = "(315:.5cm)";
+const DEFAULT_CALLOUT_POINTER_SHORTEN_PT = 0;
+const DEFAULT_CALLOUT_POINTER_WIDTH_PT = parseLength(".25cm", "pt") ?? 7.1132;
+const DEFAULT_CALLOUT_POINTER_ARC = 15;
+const DEFAULT_CALLOUT_POINTER_START_SIZE_RAW = ".2 of callout";
+const DEFAULT_CALLOUT_POINTER_END_SIZE_RAW = ".1 of callout";
+const DEFAULT_CALLOUT_POINTER_SEGMENTS = 2;
 const DEFAULT_SINGLE_ARROW_TIP_ANGLE = 90;
 const DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT = parseLength(".5cm", "pt") ?? 14.2264;
 const DEFAULT_SINGLE_ARROW_HEAD_INDENT_PT = 0;
@@ -190,6 +229,15 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
   let tapeBendTop: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
   let tapeBendBottom: TapeBendStyle = DEFAULT_TAPE_BEND_STYLE;
   let tapeBendHeightPt = DEFAULT_TAPE_BEND_HEIGHT_PT;
+  let calloutPointerIsAbsolute = false;
+  let calloutRelativePointerRaw = DEFAULT_CALLOUT_RELATIVE_POINTER_RAW;
+  let calloutAbsolutePointerRaw: string | null = null;
+  let calloutPointerShortenPt = DEFAULT_CALLOUT_POINTER_SHORTEN_PT;
+  let calloutPointerWidthPt = DEFAULT_CALLOUT_POINTER_WIDTH_PT;
+  let calloutPointerArc = DEFAULT_CALLOUT_POINTER_ARC;
+  let calloutPointerStartSizeRaw = DEFAULT_CALLOUT_POINTER_START_SIZE_RAW;
+  let calloutPointerEndSizeRaw = DEFAULT_CALLOUT_POINTER_END_SIZE_RAW;
+  let calloutPointerSegments = DEFAULT_CALLOUT_POINTER_SEGMENTS;
   let singleArrowTipAngle = DEFAULT_SINGLE_ARROW_TIP_ANGLE;
   let singleArrowHeadExtendPt = DEFAULT_SINGLE_ARROW_HEAD_EXTEND_PT;
   let singleArrowHeadIndentPt = DEFAULT_SINGLE_ARROW_HEAD_INDENT_PT;
@@ -230,6 +278,15 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       tapeBendTop,
       tapeBendBottom,
       tapeBendHeightPt,
+      calloutPointerIsAbsolute,
+      calloutRelativePointerRaw,
+      calloutAbsolutePointerRaw,
+      calloutPointerShortenPt,
+      calloutPointerWidthPt,
+      calloutPointerArc,
+      calloutPointerStartSizeRaw,
+      calloutPointerEndSizeRaw,
+      calloutPointerSegments,
       singleArrowTipAngle,
       singleArrowHeadExtendPt,
       singleArrowHeadIndentPt,
@@ -434,6 +491,72 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       continue;
     }
 
+    if (entry.key === "callout relative pointer") {
+      const normalized = normalizeOptionValue(entry.valueRaw);
+      if (normalized.length > 0) {
+        calloutPointerIsAbsolute = false;
+        calloutRelativePointerRaw = normalized;
+      }
+      continue;
+    }
+
+    if (entry.key === "callout absolute pointer") {
+      const normalized = normalizeOptionValue(entry.valueRaw);
+      if (normalized.length > 0) {
+        calloutPointerIsAbsolute = true;
+        calloutAbsolutePointerRaw = normalized;
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer shorten") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        calloutPointerShortenPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer width") {
+      const parsedLength = parseLength(entry.valueRaw, "pt");
+      if (parsedLength != null && Number.isFinite(parsedLength)) {
+        calloutPointerWidthPt = Math.max(0, parsedLength);
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer arc") {
+      const parsed = parseNumericOption(entry.valueRaw);
+      if (parsed != null) {
+        calloutPointerArc = normalizeCalloutPointerArc(parsed);
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer start size") {
+      const normalized = normalizeOptionValue(entry.valueRaw);
+      if (normalized.length > 0) {
+        calloutPointerStartSizeRaw = normalized;
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer end size") {
+      const normalized = normalizeOptionValue(entry.valueRaw);
+      if (normalized.length > 0) {
+        calloutPointerEndSizeRaw = normalized;
+      }
+      continue;
+    }
+
+    if (entry.key === "callout pointer segments") {
+      const parsed = parseIntegerOption(entry.valueRaw);
+      if (parsed != null) {
+        calloutPointerSegments = normalizeInteger(parsed, 1, 128, DEFAULT_CALLOUT_POINTER_SEGMENTS);
+      }
+      continue;
+    }
+
     if (entry.key === "single arrow tip angle") {
       const parsed = parseNumericOption(entry.valueRaw);
       if (parsed != null) {
@@ -588,6 +711,15 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     tapeBendTop,
     tapeBendBottom,
     tapeBendHeightPt,
+    calloutPointerIsAbsolute,
+    calloutRelativePointerRaw,
+    calloutAbsolutePointerRaw,
+    calloutPointerShortenPt,
+    calloutPointerWidthPt,
+    calloutPointerArc,
+    calloutPointerStartSizeRaw,
+    calloutPointerEndSizeRaw,
+    calloutPointerSegments,
     singleArrowTipAngle,
     singleArrowHeadExtendPt,
     singleArrowHeadIndentPt,
@@ -1148,6 +1280,168 @@ export function makeTape(
   return { polygon };
 }
 
+export function resolveCalloutPointerOffset(
+  shapeGeometry: Pick<
+    ShapeGeometryParams,
+    "calloutPointerIsAbsolute" | "calloutRelativePointerRaw" | "calloutAbsolutePointerRaw" | "calloutPointerShortenPt"
+  >,
+  context: SemanticContext | null,
+  center: Point | null
+): Point {
+  let pointer =
+    parseCalloutCoordinateVector(shapeGeometry.calloutRelativePointerRaw) ??
+    parseCalloutCoordinateVector(DEFAULT_CALLOUT_RELATIVE_POINTER_RAW) ?? { x: 0, y: 0 };
+
+  if (shapeGeometry.calloutPointerIsAbsolute && shapeGeometry.calloutAbsolutePointerRaw && context && center) {
+    const evaluated = evaluateRawCoordinate(ensureCoordinateRaw(shapeGeometry.calloutAbsolutePointerRaw), context);
+    if (evaluated.point) {
+      pointer = {
+        x: evaluated.point.x - center.x,
+        y: evaluated.point.y - center.y
+      };
+    }
+  }
+
+  return pointer;
+}
+
+export function makeRectangleCallout(
+  sizing: CircularSizingInput,
+  pointerOffset: Point,
+  pointerWidthPt: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number
+): RectangleCalloutGeometry {
+  const halfWidth = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  const halfHeight = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: halfWidth, y: 0 };
+  const relativeSide = rectanglePointerSide(relativePointer, halfWidth, halfHeight);
+  const relativeBorder = rectangleBorderPoint(relativePointer, halfWidth, halfHeight, relativeSide);
+  let pointer = pointerIsAbsolute
+    ? relativePointer
+    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+  pointer = shortenCalloutPointer(pointer, pointerShortenPt);
+  if (Math.hypot(pointer.x, pointer.y) <= EPSILON) {
+    pointer = { x: halfWidth, y: 0 };
+  }
+  const pointerWidth = Math.max(0, pointerWidthPt);
+
+  const side = rectanglePointerSide(pointer, halfWidth, halfHeight);
+  const border = rectangleBorderPoint(pointer, halfWidth, halfHeight, side);
+  const halfBase = pointerWidth / 2;
+
+  const topLeft = { x: -halfWidth, y: halfHeight };
+  const topRight = { x: halfWidth, y: halfHeight };
+  const bottomRight = { x: halfWidth, y: -halfHeight };
+  const bottomLeft = { x: -halfWidth, y: -halfHeight };
+
+  let polygon: Point[];
+  if (side === "east") {
+    const top = clamp(border.y + halfBase, -halfHeight, halfHeight);
+    const bottom = clamp(border.y - halfBase, -halfHeight, halfHeight);
+    const baseTop = { x: halfWidth, y: top };
+    const baseBottom = { x: halfWidth, y: bottom };
+    polygon = [topLeft, topRight, baseTop, pointer, baseBottom, bottomRight, bottomLeft];
+  } else if (side === "west") {
+    const top = clamp(border.y + halfBase, -halfHeight, halfHeight);
+    const bottom = clamp(border.y - halfBase, -halfHeight, halfHeight);
+    const baseTop = { x: -halfWidth, y: top };
+    const baseBottom = { x: -halfWidth, y: bottom };
+    polygon = [topLeft, topRight, bottomRight, bottomLeft, baseBottom, pointer, baseTop];
+  } else if (side === "north") {
+    const left = clamp(border.x - halfBase, -halfWidth, halfWidth);
+    const right = clamp(border.x + halfBase, -halfWidth, halfWidth);
+    const baseLeft = { x: left, y: halfHeight };
+    const baseRight = { x: right, y: halfHeight };
+    polygon = [topLeft, baseLeft, pointer, baseRight, topRight, bottomRight, bottomLeft];
+  } else {
+    const left = clamp(border.x - halfBase, -halfWidth, halfWidth);
+    const right = clamp(border.x + halfBase, -halfWidth, halfWidth);
+    const baseLeft = { x: left, y: -halfHeight };
+    const baseRight = { x: right, y: -halfHeight };
+    polygon = [topLeft, topRight, bottomRight, baseRight, pointer, baseLeft, bottomLeft];
+  }
+
+  return {
+    polygon,
+    pointer,
+    pointerAnchor: pointer
+  };
+}
+
+export function makeEllipseCallout(
+  sizing: CircularSizingInput,
+  pointerOffset: Point,
+  pointerArcRaw: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number,
+  sampleSteps = 64
+): EllipseCalloutGeometry {
+  const rx = Math.max(EPSILON, Math.max(sizing.naturalWidth, sizing.minimumWidth) / 2);
+  const ry = Math.max(EPSILON, Math.max(sizing.naturalHeight, sizing.minimumHeight) / 2);
+  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: rx, y: 0 };
+  const relativeBorder = ellipseBorderPoint(relativePointer, rx, ry);
+  let pointer = pointerIsAbsolute
+    ? relativePointer
+    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+  pointer = shortenCalloutPointer(pointer, pointerShortenPt);
+  if (Math.hypot(pointer.x, pointer.y) <= EPSILON) {
+    pointer = { x: rx, y: 0 };
+  }
+
+  const pointerBorder = ellipseBorderPoint(pointer, rx, ry);
+  const pointerAngle = Math.atan2(pointerBorder.y / Math.max(ry, EPSILON), pointerBorder.x / Math.max(rx, EPSILON));
+  const pointerArc = normalizeCalloutPointerArc(pointerArcRaw);
+  const halfArc = toRadians(pointerArc / 2);
+  const beforeAngle = pointerAngle + halfArc;
+  const afterAngle = pointerAngle - halfArc;
+
+  const arcPoints = sampleEllipseArc(afterAngle, beforeAngle, rx, ry, sampleSteps);
+  return {
+    polygon: [pointer, ...arcPoints],
+    pointer,
+    pointerAnchor: pointer
+  };
+}
+
+export function makeCloudCallout(
+  sizing: CircularSizingInput,
+  puffsRaw: number,
+  puffArcRaw: number,
+  aspectRaw: number,
+  ignoreAspect: boolean,
+  rotation: number,
+  pointerOffset: Point,
+  startSizeRaw: string,
+  endSizeRaw: string,
+  segmentsRaw: number,
+  pointerIsAbsolute: boolean,
+  pointerShortenPt: number
+): CloudCalloutGeometry {
+  const cloud = makeCloud(sizing, puffsRaw, puffArcRaw, aspectRaw, ignoreAspect, rotation);
+  const relativePointer = Math.hypot(pointerOffset.x, pointerOffset.y) > EPSILON ? pointerOffset : { x: 0, y: 0 };
+  const relativeBorder = intersectRayWithPolygon({ x: 0, y: 0 }, relativePointer, cloud.polygon) ?? { x: 0, y: 0 };
+  let pointer = pointerIsAbsolute
+    ? relativePointer
+    : resolveRelativeCalloutPointer(relativePointer, relativeBorder);
+  pointer = shortenCalloutPointer(pointer, pointerShortenPt);
+  const border = intersectRayWithPolygon({ x: 0, y: 0 }, pointer, cloud.polygon) ?? { x: 0, y: 0 };
+
+  const { width: calloutWidth, height: calloutHeight } = polygonSize(cloud.polygon);
+  const startSize = resolveCloudCalloutPointerSize(startSizeRaw, calloutWidth, calloutHeight, 0.2);
+  const endSize = resolveCloudCalloutPointerSize(endSizeRaw, calloutWidth, calloutHeight, 0.1);
+  const segmentCount = normalizeInteger(Math.round(segmentsRaw), 1, 128, DEFAULT_CALLOUT_POINTER_SEGMENTS);
+  const pointerPolygon = makeCloudCalloutPointerPolygon(border, pointer, startSize, endSize, segmentCount);
+
+  return {
+    polygon: cloud.polygon,
+    pointerPolygon,
+    pointer,
+    pointerAnchor: pointer,
+    puffs: cloud.puffs
+  };
+}
+
 export function makeSingleArrow(
   sizing: CircularSizingInput,
   tipAngleRaw: number,
@@ -1411,6 +1705,39 @@ function parseTapeBendStyle(raw: string, fallback: TapeBendStyle): TapeBendStyle
   return fallback;
 }
 
+function parseCalloutCoordinateVector(raw: string): Point | null {
+  const coordinate = parseCoordinate(ensureCoordinateRaw(raw));
+  if (coordinate.form === "cartesian") {
+    const x = parseLength(coordinate.x, "cm");
+    const y = parseLength(coordinate.y, "cm");
+    if (x == null || y == null) {
+      return null;
+    }
+    return { x, y };
+  }
+  if (coordinate.form === "polar") {
+    const angle = parseNumericOption(coordinate.x);
+    const radius = parseLength(coordinate.y, "cm");
+    if (angle == null || radius == null) {
+      return null;
+    }
+    const radians = toRadians(angle);
+    return {
+      x: radius * Math.cos(radians),
+      y: radius * Math.sin(radians)
+    };
+  }
+  return null;
+}
+
+function ensureCoordinateRaw(raw: string): string {
+  const normalized = normalizeOptionValue(raw).trim();
+  if (normalized.startsWith("(") && normalized.endsWith(")")) {
+    return normalized;
+  }
+  return `(${normalized})`;
+}
+
 function normalizeAspect(value: number): number {
   if (!Number.isFinite(value)) {
     return DEFAULT_DIAMOND_ASPECT;
@@ -1475,6 +1802,17 @@ function normalizeSignalPointerAngle(value: number): number {
     return DEFAULT_SIGNAL_POINTER_ANGLE;
   }
   return Math.max(1, Math.min(179, normalized));
+}
+
+function normalizeCalloutPointerArc(value: number): number {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_CALLOUT_POINTER_ARC;
+  }
+  const normalized = Math.abs(value);
+  if (normalized <= 1e-3) {
+    return DEFAULT_CALLOUT_POINTER_ARC;
+  }
+  return Math.max(1, Math.min(180, normalized));
 }
 
 function normalizeArrowTipAngle(value: number, fallback: number): number {
@@ -1549,6 +1887,205 @@ function resolveArrowCore(
     tipHalfLength,
     headIndent
   };
+}
+
+function rectanglePointerSide(pointer: Point, halfWidth: number, halfHeight: number): "east" | "west" | "north" | "south" {
+  const rx = halfWidth > EPSILON ? Math.abs(pointer.x) / halfWidth : Number.POSITIVE_INFINITY;
+  const ry = halfHeight > EPSILON ? Math.abs(pointer.y) / halfHeight : Number.POSITIVE_INFINITY;
+  if (rx >= ry) {
+    return pointer.x >= 0 ? "east" : "west";
+  }
+  return pointer.y >= 0 ? "north" : "south";
+}
+
+function rectangleBorderPoint(
+  pointer: Point,
+  halfWidth: number,
+  halfHeight: number,
+  side: "east" | "west" | "north" | "south"
+): Point {
+  if (side === "east" || side === "west") {
+    const x = side === "east" ? halfWidth : -halfWidth;
+    const yScale = Math.abs(pointer.x) > EPSILON ? x / pointer.x : 0;
+    return {
+      x,
+      y: clamp(pointer.y * yScale, -halfHeight, halfHeight)
+    };
+  }
+
+  const y = side === "north" ? halfHeight : -halfHeight;
+  const xScale = Math.abs(pointer.y) > EPSILON ? y / pointer.y : 0;
+  return {
+    x: clamp(pointer.x * xScale, -halfWidth, halfWidth),
+    y
+  };
+}
+
+function ellipseBorderPoint(pointer: Point, rx: number, ry: number): Point {
+  const px = pointer.x;
+  const py = pointer.y;
+  const norm = Math.hypot(px / Math.max(rx, EPSILON), py / Math.max(ry, EPSILON));
+  if (!Number.isFinite(norm) || norm <= EPSILON) {
+    return { x: rx, y: 0 };
+  }
+  const scale = 1 / norm;
+  return {
+    x: px * scale,
+    y: py * scale
+  };
+}
+
+function resolveRelativeCalloutPointer(relativePointer: Point, borderPoint: Point): Point {
+  const length = Math.hypot(relativePointer.x, relativePointer.y);
+  if (length <= EPSILON) {
+    return borderPoint;
+  }
+  const angle = Math.atan2(borderPoint.y, borderPoint.x);
+  return {
+    x: borderPoint.x + Math.cos(angle) * length,
+    y: borderPoint.y + Math.sin(angle) * length
+  };
+}
+
+function shortenCalloutPointer(pointer: Point, shortenPt: number): Point {
+  const distance = Math.hypot(pointer.x, pointer.y);
+  if (distance <= EPSILON || shortenPt <= 0) {
+    return pointer;
+  }
+  const remaining = Math.max(0, distance - shortenPt);
+  const scale = remaining / distance;
+  return {
+    x: pointer.x * scale,
+    y: pointer.y * scale
+  };
+}
+
+function sampleEllipseArc(startRadians: number, endRadians: number, rx: number, ry: number, steps: number): Point[] {
+  const tau = 2 * Math.PI;
+  const normalizedStart = ((startRadians % tau) + tau) % tau;
+  const normalizedEnd = ((endRadians % tau) + tau) % tau;
+  let sweep = normalizedEnd - normalizedStart;
+  if (sweep < 0) {
+    sweep += tau;
+  }
+
+  const count = Math.max(8, steps);
+  const points: Point[] = [];
+  for (let index = 0; index <= count; index += 1) {
+    const t = index / count;
+    const angle = normalizedStart + sweep * t;
+    points.push({
+      x: rx * Math.cos(angle),
+      y: ry * Math.sin(angle)
+    });
+  }
+  return points;
+}
+
+function polygonSize(points: Point[]): { width: number; height: number } {
+  if (points.length === 0) {
+    return { width: 0, height: 0 };
+  }
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return {
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys)
+  };
+}
+
+function resolveCloudCalloutPointerSize(
+  raw: string,
+  calloutWidth: number,
+  calloutHeight: number,
+  fallbackFraction: number
+): { xDiameter: number; yDiameter: number } {
+  const normalized = normalizeOptionValue(raw).toLowerCase().trim();
+  const fallback = {
+    xDiameter: Math.max(EPSILON, calloutWidth * fallbackFraction),
+    yDiameter: Math.max(EPSILON, calloutHeight * fallbackFraction)
+  };
+
+  const ofIndex = normalized.indexOf("of callout");
+  if (ofIndex >= 0) {
+    const ratioRaw = normalized.slice(0, ofIndex).trim();
+    const ratio = parseNumericOption(ratioRaw);
+    if (ratio != null && Number.isFinite(ratio) && ratio > 0) {
+      return {
+        xDiameter: Math.max(EPSILON, calloutWidth * ratio),
+        yDiameter: Math.max(EPSILON, calloutHeight * ratio)
+      };
+    }
+  }
+
+  const andMatch = normalized.match(/^(.+)\band\b(.+)$/i);
+  if (andMatch) {
+    const xDiameter = parseLength(andMatch[1]?.trim() ?? "", "pt");
+    const yDiameter = parseLength(andMatch[2]?.trim() ?? "", "pt");
+    if (xDiameter != null && yDiameter != null && xDiameter > 0 && yDiameter > 0) {
+      return { xDiameter, yDiameter };
+    }
+  }
+
+  const diameter = parseLength(normalized, "pt");
+  if (diameter != null && diameter > 0) {
+    return {
+      xDiameter: diameter,
+      yDiameter: diameter
+    };
+  }
+
+  return fallback;
+}
+
+function makeCloudCalloutPointerPolygon(
+  borderPoint: Point,
+  pointer: Point,
+  startSize: { xDiameter: number; yDiameter: number },
+  endSize: { xDiameter: number; yDiameter: number },
+  segments: number
+): Point[] {
+  const direction = {
+    x: pointer.x - borderPoint.x,
+    y: pointer.y - borderPoint.y
+  };
+  const length = Math.hypot(direction.x, direction.y);
+  if (length <= EPSILON) {
+    return [pointer];
+  }
+
+  const ux = direction.x / length;
+  const uy = direction.y / length;
+  const nx = -uy;
+  const ny = ux;
+  const segmentCount = Math.max(1, segments);
+  const left: Point[] = [];
+  const right: Point[] = [];
+
+  for (let index = 0; index <= segmentCount; index += 1) {
+    const t = index / segmentCount;
+    const center = {
+      x: borderPoint.x + direction.x * t,
+      y: borderPoint.y + direction.y * t
+    };
+    const diameterX = lerp(startSize.xDiameter, endSize.xDiameter, t);
+    const diameterY = lerp(startSize.yDiameter, endSize.yDiameter, t);
+    const halfWidth = Math.max(EPSILON, (diameterX + diameterY) / 4);
+    left.push({
+      x: center.x + nx * halfWidth,
+      y: center.y + ny * halfWidth
+    });
+    right.push({
+      x: center.x - nx * halfWidth,
+      y: center.y - ny * halfWidth
+    });
+  }
+
+  return [...left, ...right.reverse()];
+}
+
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
 }
 
 function pointPolar(degrees: number, radius: number): Point {
@@ -1758,6 +2295,10 @@ function clampFinite(value: number): number {
     return 0;
   }
   return Math.max(-1e6, Math.min(1e6, value));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 function cross(left: Point, right: Point): number {

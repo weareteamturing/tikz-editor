@@ -10,13 +10,16 @@ import {
   makeCircleElement,
   makeNodeBoxElement,
   makeNodeCircularSectorElement,
+  makeNodeCloudCalloutElement,
   makeNodeCloudElement,
   makeNodeCylinderElement,
   makeNodeDartElement,
   makeNodeDiamondElement,
+  makeNodeEllipseCalloutElement,
   makeNodeEllipseElement,
   makeNodeIsoscelesTriangleElement,
   makeNodeKiteElement,
+  makeNodeRectangleCalloutElement,
   makeNodeRegularPolygonElement,
   makeNodeSemicircleElement,
   makeNodeSignalElement,
@@ -42,7 +45,7 @@ import {
   resolveNodeStyle,
   withDefaultNodePosition
 } from "./options.js";
-import { resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 
 export function evaluateNodeItem(
@@ -78,6 +81,9 @@ export function evaluateNodeItem(
     everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
     everySignalNodeStyles: frame.everySignalNodeStyles,
     everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+    everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+    everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
     everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
@@ -98,6 +104,9 @@ export function evaluateNodeItem(
     everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
     everySignalNodeStyles: frame.everySignalNodeStyles,
     everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+    everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+    everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
     everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
@@ -169,6 +178,7 @@ export function evaluateNodeItem(
   };
   if (resolvedPaintMode.draw || resolvedPaintMode.fill || nodeStyle.shadowLayers.length > 0) {
     const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, resolvedPaintMode);
+    const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
     if (nodeShape === "circle") {
       nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
@@ -439,6 +449,73 @@ export function evaluateNodeItem(
         )
       );
       markFeature("shape_tape", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "rectangle callout") {
+      nodeElements.push(
+        makeNodeRectangleCalloutElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerWidthPt,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_rectangle_callout", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "ellipse callout") {
+      nodeElements.push(
+        makeNodeEllipseCalloutElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerArc,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_ellipse_callout", "supported");
+      markFeature("svg_path", "supported");
+    } else if (nodeShape === "cloud callout") {
+      nodeElements.push(
+        makeNodeCloudCalloutElement(
+          statement.id,
+          item.id,
+          center,
+          nodeLayout.naturalWidth,
+          nodeLayout.naturalHeight,
+          nodeLayout.minimumWidth,
+          nodeLayout.minimumHeight,
+          shapeGeometry.cloudPuffs,
+          shapeGeometry.cloudPuffArc,
+          shapeGeometry.diamondAspect,
+          shapeGeometry.cloudIgnoresAspect,
+          shapeGeometry.shapeBorderRotate,
+          calloutPointerOffset,
+          shapeGeometry.calloutPointerStartSizeRaw,
+          shapeGeometry.calloutPointerEndSizeRaw,
+          shapeGeometry.calloutPointerSegments,
+          shapeGeometry.calloutPointerIsAbsolute,
+          shapeGeometry.calloutPointerShortenPt,
+          nodeBoxStyle,
+          item.span
+        )
+      );
+      markFeature("shape_cloud_callout", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "single arrow") {
       nodeElements.push(

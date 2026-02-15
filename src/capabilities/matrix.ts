@@ -209,6 +209,27 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["tape_shape"]
   },
+  shape_rectangle_callout: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["rectangle_callout_shape"]
+  },
+  shape_ellipse_callout: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["ellipse_callout_shape"]
+  },
+  shape_cloud_callout: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["cloud_callout_shape"]
+  },
   shape_single_arrow: {
     parser: "stable",
     semantic: "stable",
