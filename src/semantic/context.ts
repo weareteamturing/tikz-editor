@@ -38,6 +38,7 @@ export type SemanticContextFrame = {
   style: ResolvedStyle;
   transform: Matrix2D;
   customStyles: CustomStyleRegistry;
+  colorAliases: Map<string, string>;
   macroBindings: Map<string, MacroBinding>;
   namePrefix: string;
   nameSuffix: string;
@@ -72,6 +73,7 @@ export function createSemanticContext(
         style: initialStyle,
         transform: initialTransform,
         customStyles: new Map(),
+        colorAliases: new Map(),
         macroBindings: new Map(),
         namePrefix: "",
         nameSuffix: "",

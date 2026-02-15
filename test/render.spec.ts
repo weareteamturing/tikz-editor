@@ -80,6 +80,32 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain("\\textit");
   });
 
+  it("wraps MathJax text with family and weight commands from font options", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[font=\sffamily\bfseries] at (0,0) {Hello};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg).toContain("\\textbf{\\textsf{");
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
+  it("resolves colorlet aliases before MathJax text rendering", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \colorlet{mycolor}{blue}
+  \node at (0,0) {\textcolor{mycolor}{this}};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toContain(String.raw`\textcolor{blue}{this}`);
+    }
+  });
+
   it("renders foreach \\textsf labels through MathJax in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \label in {1,2,3}

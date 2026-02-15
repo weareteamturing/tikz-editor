@@ -69,9 +69,17 @@ async function initializeEngine(): Promise<NodeTextEngine> {
       }
 
       try {
-        const tex = buildWrappedTeX(text, null, "normal");
+        const tex = buildWrappedTeX(text, null, {
+          fontStyle: "normal",
+          fontWeight: "normal",
+          fontFamily: "serif"
+        });
         const node = runtime.tex2svg(tex, { display: false });
-        const defaultMeasureKey = measurementKey(text, null, "normal");
+        const defaultMeasureKey = measurementKey(text, null, {
+          fontStyle: "normal",
+          fontWeight: "normal",
+          fontFamily: "serif"
+        });
         if (!cache.has(defaultMeasureKey)) {
           const entry = buildCacheEntry(defaultMeasureKey, node, runtime.startup?.adaptor ?? null);
           if (entry) {
@@ -92,12 +100,20 @@ async function initializeEngine(): Promise<NodeTextEngine> {
     measure(request: NodeTextMeasureRequest): NodeTextMetrics | null {
       const scale = computeFontScale(request.fontSizePt);
       const normalizedWidth = request.textWidthPt == null ? null : request.textWidthPt / scale;
-      const cacheKey = measurementKey(request.text, normalizedWidth, request.fontStyle);
+      const cacheKey = measurementKey(request.text, normalizedWidth, {
+        fontStyle: request.fontStyle,
+        fontWeight: request.fontWeight,
+        fontFamily: request.fontFamily
+      });
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
       if (!entry) {
         try {
-          const tex = buildWrappedTeX(request.text, normalizedWidth, request.fontStyle);
+          const tex = buildWrappedTeX(request.text, normalizedWidth, {
+            fontStyle: request.fontStyle,
+            fontWeight: request.fontWeight,
+            fontFamily: request.fontFamily
+          });
           const node = runtime.tex2svg(tex, { display: false });
           entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
           if (!entry) {
@@ -171,10 +187,11 @@ function hasBrowserDomGlobals(): boolean {
 function createMathJaxConfig(): Record<string, unknown> {
   return {
     loader: {
-      load: ["input/tex", "output/svg"]
+      load: ["input/tex", "output/svg", "[tex]/color"]
     },
     tex: {
       packages: {
+        "[+]": ["color"],
         "[-]": ["noundefined"]
       },
       formatError: (_jax: unknown, err: Error) => {
@@ -240,7 +257,8 @@ function configureBrowserMathJaxGlobal(): void {
   const existingTexPackages = isRecord(existingTex.packages) ? existingTex.packages : {};
   const existingSvgLinebreaks = isRecord(existingSvg.linebreaks) ? existingSvg.linebreaks : {};
 
-  const loaderLoad = uniqueStrings([...toStringArray(existingLoader.load), "input/tex", "output/svg"]);
+  const loaderLoad = uniqueStrings([...toStringArray(existingLoader.load), "input/tex", "output/svg", "[tex]/color"]);
+  const enabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[+]"]), "color"]);
   const disabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[-]"]), "noundefined"]);
 
   globals.MathJax = {
@@ -253,6 +271,7 @@ function configureBrowserMathJaxGlobal(): void {
       ...existingTex,
       packages: {
         ...existingTexPackages,
+        "[+]": enabledPackages,
         "[-]": disabledPackages
       },
       formatError: (_jax: unknown, err: Error) => {
@@ -599,16 +618,45 @@ type BrowserDocumentLike = {
   head?: { appendChild?: (node: unknown) => unknown } | null;
 };
 
-function measurementKey(text: string, textWidthPt: number | null, fontStyle: "normal" | "italic"): string {
+function measurementKey(
+  text: string,
+  textWidthPt: number | null,
+  font: {
+    fontStyle: "normal" | "italic";
+    fontWeight: "normal" | "bold";
+    fontFamily: "serif" | "sans" | "monospace";
+  }
+): string {
   return JSON.stringify({
     text,
     textWidthPt: textWidthPt == null ? null : formatPt(textWidthPt),
-    fontStyle
+    fontStyle: font.fontStyle,
+    fontWeight: font.fontWeight,
+    fontFamily: font.fontFamily
   });
 }
 
-function buildWrappedTeX(text: string, textWidthPt: number | null, fontStyle: "normal" | "italic"): string {
-  const styledText = fontStyle === "italic" ? `\\textit{${text}}` : text;
+function buildWrappedTeX(
+  text: string,
+  textWidthPt: number | null,
+  font: {
+    fontStyle: "normal" | "italic";
+    fontWeight: "normal" | "bold";
+    fontFamily: "serif" | "sans" | "monospace";
+  }
+): string {
+  let styledText = text;
+  if (font.fontFamily === "sans") {
+    styledText = `\\textsf{${styledText}}`;
+  } else if (font.fontFamily === "monospace") {
+    styledText = `\\texttt{${styledText}}`;
+  }
+  if (font.fontWeight === "bold") {
+    styledText = `\\textbf{${styledText}}`;
+  }
+  if (font.fontStyle === "italic") {
+    styledText = `\\textit{${styledText}}`;
+  }
   if (textWidthPt == null) {
     return `\\mbox{${styledText}}`;
   }

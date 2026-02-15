@@ -23,6 +23,8 @@ export function defaultStyle(): ResolvedStyle {
     textOpacity: 1,
     fontSize: DEFAULT_TEXT_FONT_SIZE,
     fontStyle: "normal",
+    fontWeight: "normal",
+    fontFamily: "serif",
     doubleStroke: false,
     doubleDistance: DEFAULT_DOUBLE_DISTANCE,
     textAlign: "center",

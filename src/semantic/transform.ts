@@ -22,7 +22,7 @@ export function applyMatrix(matrix: Matrix2D, point: Point): Point {
   };
 }
 
-export function applyMatrixToVector(matrix: Matrix2D, point: Point): Point {
+export function applyMatrixToVector(matrix: Pick<Matrix2D, "a" | "b" | "c" | "d">, point: Point): Point {
   return {
     x: matrix.a * point.x + matrix.c * point.y,
     y: matrix.b * point.x + matrix.d * point.y
@@ -43,4 +43,3 @@ export function rotationMatrix(degrees: number): Matrix2D {
   const sin = Math.sin(radians);
   return { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 };
 }
-

@@ -169,6 +169,8 @@ export type ResolvedStyle = {
   textOpacity: number;
   fontSize: number;
   fontStyle: "normal" | "italic";
+  fontWeight: "normal" | "bold";
+  fontFamily: "serif" | "sans" | "monospace";
   doubleStroke: boolean;
   doubleDistance: number;
   textAlign: "left" | "flush left" | "right" | "flush right" | "center" | "flush center" | "justify" | "none";

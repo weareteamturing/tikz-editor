@@ -1,4 +1,5 @@
 import type { Point, ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../types.js";
+import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 
 export function makePath(sourceId: string, itemId: string, style: ResolvedStyle, span: { from: number; to: number }): ScenePath {
   return {
@@ -24,11 +25,52 @@ export function ensurePathForSubpath(
   return makePath(sourceId, itemId, style, span);
 }
 
-export function appendRectangleSubpath(commands: ScenePathCommand[], from: Point, to: Point): void {
+export function appendRectangleSubpath(
+  commands: ScenePathCommand[],
+  from: Point,
+  to: Point,
+  roundedCorners: number | null = null
+): void {
+  const topRight = { x: to.x, y: from.y };
+  const bottomLeft = { x: from.x, y: to.y };
+
+  if (!roundedCorners || roundedCorners <= 0) {
+    commands.push({ kind: "M", to: from });
+    commands.push({ kind: "L", to: topRight });
+    commands.push({ kind: "L", to });
+    commands.push({ kind: "L", to: bottomLeft });
+    commands.push({ kind: "Z" });
+    return;
+  }
+
   commands.push({ kind: "M", to: from });
-  commands.push({ kind: "L", to: { x: to.x, y: from.y } });
-  commands.push({ kind: "L", to });
-  commands.push({ kind: "L", to: { x: from.x, y: to.y } });
+  let previousSegmentRoundedCorners: number | null = null;
+  previousSegmentRoundedCorners = appendPathPoint(
+    commands,
+    "--",
+    from,
+    topRight,
+    previousSegmentRoundedCorners,
+    roundedCorners
+  ).nextRoundedCorners;
+  previousSegmentRoundedCorners = appendPathPoint(
+    commands,
+    "--",
+    topRight,
+    to,
+    previousSegmentRoundedCorners,
+    roundedCorners
+  ).nextRoundedCorners;
+  previousSegmentRoundedCorners = appendPathPoint(
+    commands,
+    "--",
+    to,
+    bottomLeft,
+    previousSegmentRoundedCorners,
+    roundedCorners
+  ).nextRoundedCorners;
+  appendPathPoint(commands, "--", bottomLeft, from, previousSegmentRoundedCorners, roundedCorners);
+  roundClosedPathStartCorner(commands, bottomLeft, from, roundedCorners);
   commands.push({ kind: "Z" });
 }
 
@@ -37,8 +79,12 @@ export function appendCircleSubpath(commands: ScenePathCommand[], center: Point,
 }
 
 export function appendEllipseSubpath(commands: ScenePathCommand[], center: Point, rx: number, ry: number, rotation: number): void {
-  const start = { x: center.x + rx, y: center.y };
-  const opposite = { x: center.x - rx, y: center.y };
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const axis = { x: rx * cos, y: rx * sin };
+  const start = { x: center.x + axis.x, y: center.y + axis.y };
+  const opposite = { x: center.x - axis.x, y: center.y - axis.y };
 
   commands.push({ kind: "M", to: start });
   commands.push({
@@ -87,21 +133,19 @@ export function makeRectangleElement(
   from: Point,
   to: Point,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  roundedCorners: number | null = style.roundedCorners
 ): ScenePath {
+  const commands: ScenePathCommand[] = [];
+  appendRectangleSubpath(commands, from, to, roundedCorners);
+
   return {
     kind: "Path",
     id: `scene-rectangle:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
     style: { ...style },
-    commands: [
-      { kind: "M", to: from },
-      { kind: "L", to: { x: to.x, y: from.y } },
-      { kind: "L", to: to },
-      { kind: "L", to: { x: from.x, y: to.y } },
-      { kind: "Z" }
-    ]
+    commands
   };
 }
 

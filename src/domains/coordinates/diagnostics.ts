@@ -11,6 +11,9 @@ export function collectCoordinateDiagnostics(root: SyntaxNode, source: string, d
     }
 
     const raw = source.slice(node.from, node.to);
+    if (raw.trim() === "()" && isEmptyNodeNameCoordinate(node, source)) {
+      return;
+    }
     if (!parseCoordinate(raw).isWellFormed) {
       diagnostics.push({
         severity: "warning",
@@ -20,4 +23,19 @@ export function collectCoordinateDiagnostics(root: SyntaxNode, source: string, d
       });
     }
   });
+}
+
+function isEmptyNodeNameCoordinate(node: SyntaxNode, source: string): boolean {
+  for (let current: SyntaxNode | null = node.parent; current; current = current.parent) {
+    if (current.type.name === "NodeName") {
+      return true;
+    }
+    if (current.type.name === "PathStatement" || current.type.name === "Statement") {
+      break;
+    }
+  }
+
+  const lookbehind = source.slice(Math.max(0, node.from - 48), node.from);
+  const lookahead = source.slice(node.to, Math.min(source.length, node.to + 48));
+  return /\bnode\s*$/.test(lookbehind) && /^\s*(?:\[|at\b|\{)/.test(lookahead);
 }

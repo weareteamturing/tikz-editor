@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -8,6 +8,9 @@ import { compareTikzRenderers, RendererComparisonError } from "./compare-tikz-re
 import { ensureDistBuildFresh } from "./ensure-dist-build.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const defaultExamplesRoot = join(repoRoot, "examples");
+const corpusModes = new Set(["pgf-docs", "kottwitz-book", "kolda-book"]);
+const bookModes = new Set(["kottwitz-book", "kolda-book"]);
 const defaultDocsRoot = join(repoRoot, "pgf-docs");
 const defaultSourceFile = "pgfmanual-en-tikz-paths.tex";
 const defaultReferenceMode = "pdf-png";
@@ -25,11 +28,6 @@ async function runCli() {
       process.exit(0);
     }
 
-    const docsRoot = resolve(args.docsRoot ?? defaultDocsRoot);
-    const sourceFile = resolveSourceFile(docsRoot, args.sourceFile ?? defaultSourceFile);
-    const sourceRelativePath = relative(docsRoot, sourceFile);
-    const sourceCode = readFileSync(sourceFile, "utf8");
-
     const distEntry = ensureDistBuildFresh(repoRoot);
 
     const distModule = await import(pathToFileURL(distEntry).href);
@@ -37,9 +35,8 @@ async function runCli() {
       throw new Error("extractTikzSnippetsFromSource export not found in dist/index.js.");
     }
 
-    let snippets = distModule.extractTikzSnippetsFromSource(sourceCode, sourceRelativePath);
-    snippets = recoverInlineTikzCodeExamples(snippets, sourceCode);
-    snippets = attachCodeExampleLatexContext(snippets, sourceCode);
+    const source = loadSnippetsForMode(args, distModule);
+    let snippets = source.snippets;
     if (args.kind !== "all") {
       snippets = snippets.filter((snippet) => snippet.kind === args.kind);
     }
@@ -58,8 +55,8 @@ async function runCli() {
       throw new Error("No snippets matched the selected filters.");
     }
 
-    const outRoot = resolve(args.outDir ?? join(repoRoot, "artifacts", "renderer-compare-docs"));
-    const batchName = sanitizeName(args.name ?? basename(sourceFile, extname(sourceFile)));
+    const outRoot = resolve(args.outDir ?? source.defaultOutDir);
+    const batchName = sanitizeName(args.name ?? source.defaultBatchName);
     const batchDir = join(outRoot, `${batchName}-${timestampSlug()}`);
     mkdirSync(batchDir, { recursive: true });
 
@@ -125,9 +122,11 @@ async function runCli() {
 
     const manifest = {
       generatedAt: new Date().toISOString(),
-      docsRoot,
-      sourceFile,
-      sourceRelativePath,
+      mode: source.mode,
+      docsRoot: source.mode === "pgf-docs" ? source.manifestSource.rootDir : null,
+      sourceFile: source.manifestSource.sourceFile ?? null,
+      sourceRelativePath: source.manifestSource.sourceRelativePath ?? null,
+      source: source.manifestSource,
       filters: {
         kind: args.kind,
         includeIncomplete: args.includeIncomplete,
@@ -170,8 +169,10 @@ async function runCli() {
 
 function parseArgs(argv) {
   const parsed = {
+    mode: "pgf-docs",
     docsRoot: null,
-    sourceFile: defaultSourceFile,
+    examplesRoot: null,
+    sourceFile: null,
     outDir: null,
     name: null,
     only: null,
@@ -191,6 +192,20 @@ function parseArgs(argv) {
     }
     if (arg === "--docs-root") {
       parsed.docsRoot = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--examples-root") {
+      parsed.examplesRoot = argv[i + 1] ?? null;
+      i += 1;
+      continue;
+    }
+    if (arg === "--mode") {
+      const mode = argv[i + 1] ?? "";
+      if (!corpusModes.has(mode)) {
+        throw new Error(`--mode must be one of: ${[...corpusModes].join(", ")}.`);
+      }
+      parsed.mode = mode;
       i += 1;
       continue;
     }
@@ -257,14 +272,22 @@ function printUsage() {
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-paths.tex --max 25
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-actions.tex --only 6,7,8,10,13,14
   node scripts/compare-pgf-docs-renderings.mjs --source-file pgfmanual-en-tikz-paths.tex --kind tikzpicture
+  node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book
+  node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book --max 25
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg
   node scripts/compare-pgf-docs-renderings.mjs --reference-mode dvisvgm-svg-png
 
 Defaults:
+  --mode pgf-docs
   --docs-root ${defaultDocsRoot}
-  --source-file ${defaultSourceFile}
-  --out-dir ${join(repoRoot, "artifacts", "renderer-compare-docs")}
+  --examples-root ${defaultExamplesRoot}
+  --source-file ${defaultSourceFile} (pgf-docs mode only)
+  --out-dir mode-specific default under ${join(repoRoot, "artifacts")}
   --reference-mode ${defaultReferenceMode}
+  source-file resolution:
+    pgf-docs mode: resolved under --docs-root
+    book modes: resolved under --examples-root/<mode>
+    book modes without --source-file: scan all .tex files recursively
   skips incomplete snippets unless --include-incomplete is set
   continues on per-snippet errors unless --stop-on-error is set
 
@@ -286,6 +309,169 @@ function resolveSourceFile(docsRoot, sourceFile) {
     throw new Error(`Source file not found: ${resolved}`);
   }
   return resolved;
+}
+
+function loadSnippetsForMode(args, distModule) {
+  if (args.mode === "pgf-docs") {
+    return loadPgfDocsSnippets(args, distModule);
+  }
+  if (bookModes.has(args.mode)) {
+    return loadBookSnippets(args, distModule, args.mode);
+  }
+  throw new Error(`Unsupported --mode value: ${args.mode}`);
+}
+
+function loadPgfDocsSnippets(args, distModule) {
+  const docsRoot = resolve(args.docsRoot ?? defaultDocsRoot);
+  const sourceFile = resolveSourceFile(docsRoot, args.sourceFile ?? defaultSourceFile);
+  const sourceRelativePath = relative(docsRoot, sourceFile);
+  const sourceCode = readFileSync(sourceFile, "utf8");
+
+  let snippets = distModule.extractTikzSnippetsFromSource(sourceCode, sourceRelativePath);
+  snippets = recoverInlineTikzCodeExamples(snippets, sourceCode);
+  snippets = attachCodeExampleLatexContext(snippets, sourceCode);
+
+  return {
+    mode: "pgf-docs",
+    snippets,
+    defaultOutDir: join(repoRoot, "artifacts", "renderer-compare-docs"),
+    defaultBatchName: basename(sourceFile, extname(sourceFile)),
+    manifestSource: {
+      rootDir: docsRoot,
+      sourceFile,
+      sourceRelativePath,
+      label: sourceRelativePath
+    }
+  };
+}
+
+function loadBookSnippets(args, distModule, mode) {
+  const examplesRoot = resolve(args.examplesRoot ?? defaultExamplesRoot);
+  const bookRoot = resolveBookRoot(examplesRoot, mode);
+  const sourceFile = args.sourceFile ? resolveSourceFile(bookRoot, args.sourceFile) : null;
+  const texFiles = sourceFile ? [sourceFile] : collectTexFiles(bookRoot);
+
+  const snippets = [];
+  for (const texFile of texFiles) {
+    const sourceCode = readFileSync(texFile, "utf8");
+    const sourceRelativePath = toPosix(relative(bookRoot, texFile));
+    const snippetPath = `${mode}/${sourceRelativePath}`;
+    let fileSnippets = distModule.extractTikzSnippetsFromSource(sourceCode, snippetPath);
+    fileSnippets = attachLatexDocumentContext(fileSnippets, sourceCode, { keepOnlyBodySnippets: true });
+    snippets.push(...fileSnippets);
+  }
+
+  snippets.sort((a, b) => {
+    if (a.filePath !== b.filePath) {
+      return a.filePath.localeCompare(b.filePath);
+    }
+    return a.span.from - b.span.from;
+  });
+
+  const sourceRelativePath = sourceFile ? toPosix(relative(bookRoot, sourceFile)) : null;
+
+  return {
+    mode,
+    snippets,
+    defaultOutDir: join(repoRoot, "artifacts", `renderer-compare-${mode}`),
+    defaultBatchName: sourceFile ? basename(sourceFile, extname(sourceFile)) : mode,
+    manifestSource: {
+      rootDir: bookRoot,
+      sourceFile,
+      sourceRelativePath,
+      label: sourceFile ? `${mode}/${sourceRelativePath}` : `${mode}/**/*.tex`
+    }
+  };
+}
+
+function resolveBookRoot(examplesRoot, mode) {
+  const root = resolve(join(examplesRoot, mode));
+  if (!existsSync(root)) {
+    throw new Error(`Book root not found for mode "${mode}": ${root}`);
+  }
+  return root;
+}
+
+function collectTexFiles(rootDir) {
+  const files = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    const entries = readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+
+      const fullPath = join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith(".tex")) {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  files.sort((a, b) => a.localeCompare(b));
+  return files;
+}
+
+function attachLatexDocumentContext(snippets, sourceCode, options = {}) {
+  const context = extractLatexDocumentContext(sourceCode);
+  if (!context) {
+    return snippets;
+  }
+
+  return snippets
+    .filter((snippet) => {
+      if (options.keepOnlyBodySnippets !== true) {
+        return true;
+      }
+      return snippet.span.from >= context.bodyStart && snippet.span.from < context.bodyEnd;
+    })
+    .map((snippet) => {
+      const latexPreamble = context.preamble.trim();
+      const latexPrepend = extractTikzsetSetupBeforeSnippet(sourceCode, context.bodyStart, snippet.span.from).trim();
+
+      if (latexPreamble.length === 0 && latexPrepend.length === 0) {
+        return snippet;
+      }
+
+      return {
+        ...snippet,
+        latexPreamble: latexPreamble.length > 0 ? latexPreamble : null,
+        latexPrepend: latexPrepend.length > 0 ? latexPrepend : null
+      };
+    });
+}
+
+function extractLatexDocumentContext(source) {
+  const beginDocumentToken = "\\begin{document}";
+  const endDocumentToken = "\\end{document}";
+  const beginDocument = source.indexOf(beginDocumentToken);
+
+  if (beginDocument === -1) {
+    return null;
+  }
+
+  const bodyStart = beginDocument + beginDocumentToken.length;
+  const endDocument = source.indexOf(endDocumentToken, bodyStart);
+  const bodyEnd = endDocument === -1 ? source.length : endDocument;
+  const preambleRaw = source.slice(0, beginDocument);
+  const preamble = stripDocumentclass(preambleRaw);
+
+  return {
+    preamble,
+    bodyStart,
+    bodyEnd
+  };
+}
+
+function stripDocumentclass(preamble) {
+  const lines = preamble.split(/\r?\n/);
+  const filtered = lines.filter((line) => !line.includes("\\documentclass"));
+  return filtered.join("\n").trim();
 }
 
 function createSnippetRunName(index, snippet) {
@@ -807,7 +993,10 @@ function buildEntry(params) {
 function renderHtmlPage(manifest) {
   const summary = manifest.totals;
   const generatedAt = manifest.generatedAt;
-  const escapedSource = escapeHtml(manifest.sourceRelativePath);
+  const mode = manifest.mode ?? "pgf-docs";
+  const modeLabel = corpusModeLabel(mode);
+  const sourceLabel = manifest?.source?.label ?? manifest?.source?.sourceRelativePath ?? "(multiple files)";
+  const escapedSource = escapeHtml(sourceLabel);
   const referenceMode = escapeHtml(manifest.filters.referenceMode ?? defaultReferenceMode);
   const cards = manifest.entries.map((entry) => renderEntryCard(entry)).join("\n");
 
@@ -816,7 +1005,7 @@ function renderHtmlPage(manifest) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PGF Docs Renderer Comparison</title>
+  <title>${escapeHtml(modeLabel)} Renderer Comparison</title>
   <style>
     :root {
       color-scheme: light;
@@ -922,8 +1111,9 @@ function renderHtmlPage(manifest) {
 </head>
 <body>
   <header>
-    <h1>PGF Docs Renderer Comparison</h1>
+    <h1>${escapeHtml(modeLabel)} Renderer Comparison</h1>
     <p class="summary">
+      Mode: <code>${escapeHtml(mode)}</code><br>
       Source: <code>${escapedSource}</code><br>
       Generated: ${escapeHtml(generatedAt)}<br>
       Reference mode: <code>${referenceMode}</code><br>
@@ -991,6 +1181,19 @@ function sanitizeName(input) {
 
 function timestampSlug() {
   return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function corpusModeLabel(mode) {
+  if (mode === "pgf-docs") {
+    return "PGF Docs";
+  }
+  if (mode === "kottwitz-book") {
+    return "Kottwitz Book";
+  }
+  if (mode === "kolda-book") {
+    return "Kolda Book";
+  }
+  return "TikZ Corpus";
 }
 
 function escapeHtml(input) {

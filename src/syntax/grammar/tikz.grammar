@@ -22,6 +22,7 @@ Statement {
   PathStatement |
   FontSizeStatement |
   StyleDefinitionStatement |
+  ColorletStatement |
   MacroDefinitionStatement |
   MacroAliasStatement |
   MacroCommandDefinitionStatement |
@@ -235,6 +236,10 @@ PgfkeysStatement {
   PgfkeysCmd StylePayload
 }
 
+ColorletStatement {
+  ColorletCmd Group Group
+}
+
 MacroDefinitionStatement {
   DefCmd CommandName Group
 }
@@ -363,6 +368,7 @@ StylePayload {
 }
 
 GroupPart {
+  Comment |
   NodeItem |
   Group |
   Coordinate |
@@ -540,6 +546,7 @@ StrayToken {
     TikzSetCmd,
     TikzStyleCmd,
     DefCmd,
+    ColorletCmd,
     LetDefCmd,
     NewCommandCmd,
     RenewCommandCmd,
@@ -622,6 +629,7 @@ StrayToken {
   TikzSetCmd { "\\tikzset" }
   TikzStyleCmd { "\\tikzstyle" }
   DefCmd { "\\def" }
+  ColorletCmd { "\\colorlet" }
   LetDefCmd { "\\let" }
   NewCommandCmd { "\\newcommand" }
   RenewCommandCmd { "\\renewcommand" }
@@ -638,7 +646,7 @@ StrayToken {
   ToKw { "to" }
   SvgKw { "svg" }
   LetKw { "let" }
-  InKw { "in" }
+  InKw { "in" ![-A-Za-z0-9_:@] }
   CoordinateKw { "coordinate" }
   EdgeKw { "edge" }
   ControlsKw { "controls" }

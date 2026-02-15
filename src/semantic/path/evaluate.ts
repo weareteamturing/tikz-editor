@@ -31,6 +31,82 @@ import { extractCircleShapeOptions, extractEllipseRadii, extractRoundedCorners }
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { applyToOperation } from "./to-operation.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
+import { applyMatrixToVector } from "../transform.js";
+
+type EllipseGeometry = {
+  rx: number;
+  ry: number;
+  rotation: number;
+};
+
+type CircleOrEllipseGeometry =
+  | {
+      kind: "circle";
+      radius: number;
+    }
+  | ({
+      kind: "ellipse";
+    } & EllipseGeometry);
+
+function transformCircleGeometry(
+  radius: number,
+  transform: { a: number; b: number; c: number; d: number }
+): CircleOrEllipseGeometry {
+  const transformed = transformEllipseGeometry(radius, radius, 0, transform);
+  const tolerance = Math.max(transformed.rx, transformed.ry) * 1e-6;
+  if (Math.abs(transformed.rx - transformed.ry) <= tolerance) {
+    return { kind: "circle", radius: (transformed.rx + transformed.ry) / 2 };
+  }
+  return { kind: "ellipse", ...transformed };
+}
+
+function transformEllipseGeometry(
+  rx: number,
+  ry: number,
+  rotation: number,
+  transform: { a: number; b: number; c: number; d: number }
+): EllipseGeometry {
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+
+  const axisX = { x: rx * cos, y: rx * sin };
+  const axisY = { x: -ry * sin, y: ry * cos };
+  const transformedAxisX = applyMatrixToVector(transform, axisX);
+  const transformedAxisY = applyMatrixToVector(transform, axisY);
+
+  const s11 = transformedAxisX.x * transformedAxisX.x + transformedAxisY.x * transformedAxisY.x;
+  const s12 = transformedAxisX.x * transformedAxisX.y + transformedAxisY.x * transformedAxisY.y;
+  const s22 = transformedAxisX.y * transformedAxisX.y + transformedAxisY.y * transformedAxisY.y;
+
+  const traceHalf = (s11 + s22) / 2;
+  const discriminant = Math.sqrt(Math.max(0, traceHalf * traceHalf - (s11 * s22 - s12 * s12)));
+  const lambda1 = Math.max(0, traceHalf + discriminant);
+  const lambda2 = Math.max(0, traceHalf - discriminant);
+  const major = Math.sqrt(lambda1);
+  const minor = Math.sqrt(lambda2);
+
+  if (!Number.isFinite(major) || !Number.isFinite(minor) || major <= 1e-9 || minor <= 1e-9) {
+    return { rx, ry, rotation };
+  }
+
+  const rotationRadians = Math.abs(lambda1 - lambda2) <= 1e-9 ? 0 : 0.5 * Math.atan2(2 * s12, s11 - s22);
+  return {
+    rx: major,
+    ry: minor,
+    rotation: normalizeDegrees((rotationRadians * 180) / Math.PI)
+  };
+}
+
+function normalizeDegrees(degrees: number): number {
+  let normalized = degrees % 360;
+  if (normalized <= -180) {
+    normalized += 360;
+  } else if (normalized > 180) {
+    normalized -= 360;
+  }
+  return Math.abs(normalized) <= 1e-9 ? 0 : normalized;
+}
 
 export function evaluatePathStatement(
   statement: PathStatement,
@@ -81,6 +157,36 @@ export function evaluatePathStatement(
       (layer.style.fill != null && layer.style.fill !== "none")
   );
   const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none") || hasFilledShadowLayer;
+  const frameTransform = context.stack[context.stack.length - 1].transform;
+
+  const emitCircleOrEllipse = (
+    geometry: CircleOrEllipseGeometry,
+    center: Point,
+    itemId: string,
+    span: { from: number; to: number }
+  ): void => {
+    if (geometry.kind === "circle") {
+      markFeature("shape_circle", "supported");
+      if (shouldCompoundFilledSubpaths) {
+        activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, span);
+        appendCircleSubpath(activePath.commands, center, geometry.radius);
+        markFeature("svg_path", "supported");
+      } else {
+        markFeature("svg_circle", "supported");
+        geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, span));
+      }
+      return;
+    }
+
+    markFeature("keyword_ellipse", "supported");
+    if (shouldCompoundFilledSubpaths) {
+      activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, span);
+      appendEllipseSubpath(activePath.commands, center, geometry.rx, geometry.ry, geometry.rotation);
+      markFeature("svg_path", "supported");
+      return;
+    }
+    geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, span, geometry.rotation));
+  };
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
@@ -89,15 +195,7 @@ export function evaluatePathStatement(
       if (pendingCircleCenter) {
         const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
         if (radius != null) {
-          markFeature("shape_circle", "supported");
-          if (shouldCompoundFilledSubpaths) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendCircleSubpath(activePath.commands, pendingCircleCenter, radius);
-            markFeature("svg_path", "supported");
-          } else {
-            markFeature("svg_circle", "supported");
-            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, radius, style, item.span));
-          }
+          emitCircleOrEllipse(transformCircleGeometry(radius, frameTransform), pendingCircleCenter, item.id, item.span);
           pendingCircleCenter = null;
           pendingCircleRadius = null;
           pendingCircleRadii = null;
@@ -107,30 +205,18 @@ export function evaluatePathStatement(
 
         const fallbackRadius = pendingCircleRadius ?? style.radius;
         if (fallbackRadius != null) {
-          markFeature("shape_circle", "supported");
-          if (shouldCompoundFilledSubpaths) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
-            markFeature("svg_path", "supported");
-          } else {
-            markFeature("svg_circle", "supported");
-            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
-          }
+          emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, item.id, item.span);
         } else {
           const fallbackRadii = pendingCircleRadii ?? {
             rx: style.xRadius ?? DEFAULT_GRID_STEP,
             ry: style.yRadius ?? DEFAULT_GRID_STEP
           };
-          markFeature("keyword_ellipse", "supported");
-          if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
-            markFeature("svg_path", "supported");
-          } else {
-            geometryElements.push(
-              makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
-            );
-          }
+          emitCircleOrEllipse(
+            { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+            pendingCircleCenter,
+            item.id,
+            item.span
+          );
         }
         pendingCircleCenter = null;
         pendingCircleRadius = null;
@@ -142,13 +228,14 @@ export function evaluatePathStatement(
       if (pendingEllipseCenter) {
         const parsedRadii = parseEllipseRadiiFromCoordinateRaw(item.raw);
         if (parsedRadii) {
+          const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
           markFeature("keyword_ellipse", "supported");
           if (shouldCompoundFilledSubpaths) {
             activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendEllipseSubpath(activePath.commands, pendingEllipseCenter, parsedRadii.rx, parsedRadii.ry, 0);
+            appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
             markFeature("svg_path", "supported");
           } else {
-            geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, parsedRadii.rx, parsedRadii.ry, style, item.span));
+            geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, item.span, geometry.rotation));
           }
           pendingEllipseCenter = null;
           pendingEllipseRadii = null;
@@ -165,7 +252,7 @@ export function evaluatePathStatement(
             path = makePath(statement.id, item.id, style, item.span);
             path.commands.push({ kind: "M", to: pendingArc.from });
           }
-          const appended = appendArcCommand(path.commands, pendingArc.from, shorthand);
+          const appended = appendArcCommand(path.commands, pendingArc.from, shorthand, frameTransform);
           activePath = path;
           setCurrentPoint(appended.endpoint);
           lastPlacementSegment = appended.segment;
@@ -222,9 +309,11 @@ export function evaluatePathStatement(
         markFeature("shape_rectangle", "supported");
         if (shouldCompoundFilledSubpaths) {
           activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point);
+          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point, activeRoundedCorners);
         } else {
-          geometryElements.push(makeRectangleElement(statement.id, item.id, pendingRectangleFrom, evaluated.point, style, item.span));
+          geometryElements.push(
+            makeRectangleElement(statement.id, item.id, pendingRectangleFrom, evaluated.point, style, item.span, activeRoundedCorners)
+          );
         }
         markFeature("svg_path", "supported");
         pendingRectangleFrom = null;
@@ -328,30 +417,18 @@ export function evaluatePathStatement(
       if (pendingCircleCenter) {
         const fallbackRadius = pendingCircleRadius ?? style.radius;
         if (fallbackRadius != null) {
-          markFeature("shape_circle", "supported");
-          if (shouldCompoundFilledSubpaths) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
-            markFeature("svg_path", "supported");
-          } else {
-            markFeature("svg_circle", "supported");
-            geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, item.span));
-          }
+          emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, item.id, item.span);
         } else {
           const fallbackRadii = pendingCircleRadii ?? {
             rx: style.xRadius ?? DEFAULT_GRID_STEP,
             ry: style.yRadius ?? DEFAULT_GRID_STEP
           };
-          markFeature("keyword_ellipse", "supported");
-          if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-            appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
-            markFeature("svg_path", "supported");
-          } else {
-            geometryElements.push(
-              makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, item.span, pendingCircleRotation)
-            );
-          }
+          emitCircleOrEllipse(
+            { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+            pendingCircleCenter,
+            item.id,
+            item.span
+          );
         }
         pendingCircleCenter = null;
         pendingCircleRadius = null;
@@ -710,7 +787,7 @@ export function evaluatePathStatement(
             path = makePath(statement.id, item.id, style, item.span);
             path.commands.push({ kind: "M", to: pendingArc.from });
           }
-          const appended = appendArcCommand(path.commands, pendingArc.from, arcParams);
+          const appended = appendArcCommand(path.commands, pendingArc.from, arcParams, frameTransform);
           activePath = path;
           setCurrentPoint(appended.endpoint);
           lastPlacementSegment = appended.segment;
@@ -840,30 +917,18 @@ export function evaluatePathStatement(
   if (pendingCircleCenter) {
     const fallbackRadius = pendingCircleRadius ?? style.radius;
     if (fallbackRadius != null) {
-      markFeature("shape_circle", "supported");
-      if (shouldCompoundFilledSubpaths) {
-        activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
-        appendCircleSubpath(activePath.commands, pendingCircleCenter, fallbackRadius);
-        markFeature("svg_path", "supported");
-      } else {
-        markFeature("svg_circle", "supported");
-        geometryElements.push(makeCircleElement(statement.id, pendingCircleCenter, fallbackRadius, style, statement.span));
-      }
+      emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, statement.id, statement.span);
     } else {
       const fallbackRadii = pendingCircleRadii ?? {
         rx: style.xRadius ?? DEFAULT_GRID_STEP,
         ry: style.yRadius ?? DEFAULT_GRID_STEP
       };
-      markFeature("keyword_ellipse", "supported");
-      if (shouldCompoundFilledSubpaths && Math.abs(pendingCircleRotation) <= 1e-6) {
-        activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
-        appendEllipseSubpath(activePath.commands, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, 0);
-        markFeature("svg_path", "supported");
-      } else {
-        geometryElements.push(
-          makeEllipseElement(statement.id, pendingCircleCenter, fallbackRadii.rx, fallbackRadii.ry, style, statement.span, pendingCircleRotation)
-        );
-      }
+      emitCircleOrEllipse(
+        { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+        pendingCircleCenter,
+        statement.id,
+        statement.span
+      );
     }
     lastPlacementSegment = null;
   }
@@ -873,12 +938,13 @@ export function evaluatePathStatement(
       rx: DEFAULT_GRID_STEP,
       ry: DEFAULT_GRID_STEP
     };
+    const geometry = transformEllipseGeometry(radii.rx, radii.ry, 0, frameTransform);
     if (shouldCompoundFilledSubpaths) {
       activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
-      appendEllipseSubpath(activePath.commands, pendingEllipseCenter, radii.rx, radii.ry, 0);
+      appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
       markFeature("svg_path", "supported");
     } else {
-      geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, radii.rx, radii.ry, style, statement.span));
+      geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statement.span, geometry.rotation));
     }
     lastPlacementSegment = null;
   }

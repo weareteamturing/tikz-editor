@@ -24,23 +24,55 @@ export function parseStyleValueAsOptionList(valueRaw: string): OptionListAst | n
 }
 
 const FONT_STYLE_BY_COMMAND: Record<string, ResolvedStyle["fontStyle"]> = {
+  "\\it": "italic",
   "\\itshape": "italic",
+  "\\sl": "italic",
   "\\slshape": "italic",
+  "\\up": "normal",
   "\\upshape": "normal",
   "\\normalfont": "normal",
   "\\pgfutil@font@itshape": "italic",
   "\\pgfutil@font@normalfont": "normal"
 };
 
+const FONT_WEIGHT_BY_COMMAND: Record<string, ResolvedStyle["fontWeight"]> = {
+  "\\bf": "bold",
+  "\\bfseries": "bold",
+  "\\md": "normal",
+  "\\mdseries": "normal",
+  "\\normalfont": "normal",
+  "\\pgfutil@font@bfseries": "bold",
+  "\\pgfutil@font@mdseries": "normal",
+  "\\pgfutil@font@normalfont": "normal"
+};
+
+const FONT_FAMILY_BY_COMMAND: Record<string, ResolvedStyle["fontFamily"]> = {
+  "\\rm": "serif",
+  "\\rmfamily": "serif",
+  "\\sf": "sans",
+  "\\sffamily": "sans",
+  "\\tt": "monospace",
+  "\\ttfamily": "monospace",
+  "\\normalfont": "serif",
+  "\\pgfutil@font@rmfamily": "serif",
+  "\\pgfutil@font@sffamily": "sans",
+  "\\pgfutil@font@ttfamily": "monospace",
+  "\\pgfutil@font@normalfont": "serif"
+};
+
 const CONTROL_SEQUENCE_PATTERN = /\\[A-Za-z@]+/g;
 
-export function parseFontStyle(raw: string): Partial<Pick<ResolvedStyle, "fontStyle" | "fontSize">> | null {
+export function parseFontStyle(
+  raw: string
+): Partial<Pick<ResolvedStyle, "fontStyle" | "fontWeight" | "fontFamily" | "fontSize">> | null {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
     return null;
   }
 
   let fontStyle: ResolvedStyle["fontStyle"] | undefined;
+  let fontWeight: ResolvedStyle["fontWeight"] | undefined;
+  let fontFamily: ResolvedStyle["fontFamily"] | undefined;
   let fontSize: number | undefined;
 
   const commands = extractControlSequences(trimmed);
@@ -48,6 +80,16 @@ export function parseFontStyle(raw: string): Partial<Pick<ResolvedStyle, "fontSt
     const mappedStyle = FONT_STYLE_BY_COMMAND[command.name];
     if (mappedStyle) {
       fontStyle = mappedStyle;
+    }
+
+    const mappedWeight = FONT_WEIGHT_BY_COMMAND[command.name];
+    if (mappedWeight) {
+      fontWeight = mappedWeight;
+    }
+
+    const mappedFamily = FONT_FAMILY_BY_COMMAND[command.name];
+    if (mappedFamily) {
+      fontFamily = mappedFamily;
     }
 
     const mappedScale = FONT_SIZE_COMMAND_FACTORS[command.name];
@@ -66,9 +108,15 @@ export function parseFontStyle(raw: string): Partial<Pick<ResolvedStyle, "fontSt
     }
   }
 
-  const parsed: Partial<Pick<ResolvedStyle, "fontStyle" | "fontSize">> = {};
+  const parsed: Partial<Pick<ResolvedStyle, "fontStyle" | "fontWeight" | "fontFamily" | "fontSize">> = {};
   if (fontStyle) {
     parsed.fontStyle = fontStyle;
+  }
+  if (fontWeight) {
+    parsed.fontWeight = fontWeight;
+  }
+  if (fontFamily) {
+    parsed.fontFamily = fontFamily;
   }
   if (fontSize != null) {
     parsed.fontSize = fontSize;

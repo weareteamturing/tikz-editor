@@ -531,6 +531,27 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies transform rotation to arc ellipse axes", () => {
+    const source = String.raw`\begin{tikzpicture}[rotate=30]
+  \draw (1,0) arc [start angle=0, end angle=90, x radius=1cm, y radius=.5cm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const arc = path.commands.find((command) => command.kind === "A");
+      expect(arc?.kind).toBe("A");
+      if (arc?.kind === "A") {
+        const normalizedRotation = ((arc.xAxisRotation % 180) + 180) % 180;
+        expect(normalizedRotation).toBeCloseTo(30, 3);
+        expect(arc.rx).toBeCloseTo(28.4528, 3);
+        expect(arc.ry).toBeCloseTo(14.2264, 3);
+      }
+    }
+  });
+
   it("interprets unitless grid steps in axis units under transformed x vectors", () => {
     const source = String.raw`\begin{tikzpicture}[x=.5cm]
   \draw (0,0) grid [step=1] (3,2);
@@ -1875,6 +1896,64 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("scales circle radii with the active transform so polar spokes still reach the boundary", () => {
+    const source = String.raw`\begin{tikzpicture}[transform shape, scale=0.9]
+    \draw [thick] (0,0) circle (5);
+    \foreach \x in {45,135,225,-45}
+      \draw [thick] (\x:0) -- (\x:5);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const circle = result.scene.elements.find((element) => element.kind === "Circle");
+    expect(circle?.kind).toBe("Circle");
+
+    const endpoints = result.scene.elements
+      .filter((element) => element.kind === "Path")
+      .flatMap((element) =>
+        element.commands.flatMap((command) => (command.kind === "L" ? [command.to] : []))
+      );
+    expect(endpoints).toHaveLength(4);
+
+    if (circle?.kind === "Circle") {
+      for (const endpoint of endpoints) {
+        const radialDistance = Math.hypot(endpoint.x - circle.center.x, endpoint.y - circle.center.y);
+        expect(radialDistance).toBeCloseTo(circle.radius, 3);
+      }
+    }
+  });
+
+  it("applies transform rotation to ellipse geometry", () => {
+    const source = String.raw`\begin{tikzpicture}[rotate=30]
+  \draw (0,0) ellipse [x radius=2cm, y radius=1cm];
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const ellipse = result.scene.elements.find((element) => element.kind === "Ellipse");
+    expect(ellipse?.kind).toBe("Ellipse");
+    if (ellipse?.kind === "Ellipse") {
+      const normalized = ((ellipse.rotation ?? 0) % 180 + 180) % 180;
+      expect(normalized).toBeCloseTo(30, 3);
+      expect(ellipse.rx).toBeGreaterThan(ellipse.ry);
+    }
+  });
+
+  it("maps circles to ellipses under non-uniform scaling transforms", () => {
+    const source = String.raw`\begin{tikzpicture}[xscale=2, yscale=1]
+  \draw (0,0) circle (1cm);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const ellipse = result.scene.elements.find((element) => element.kind === "Ellipse");
+    expect(ellipse?.kind).toBe("Ellipse");
+    if (ellipse?.kind === "Ellipse") {
+      expect(ellipse.rx).toBeGreaterThan(ellipse.ry * 1.9);
+      expect(ellipse.rotation ?? 0).toBeCloseTo(0, 3);
+    }
+  });
+
   it("supports node font option for italic text", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[node font=\itshape] (1,0) -- +(1,1) node[above] {italic};
@@ -1931,5 +2010,128 @@ describe("semantic evaluator", () => {
       expect(alias.style.fontStyle).toBe("italic");
       expect(custom.style.fontSize).toBeCloseTo(6, 3);
     }
+  });
+
+  it("supports weight/family font commands and mixed command sequences in font options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {base};
+  \node[font=\sffamily] at (0,1) {sans};
+  \node[font=\bf] at (0,2) {bf};
+  \node[font=\bfseries] at (0,3) {bfseries};
+  \node[font=\sffamily\bfseries] at (0,4) {sansbold};
+  \node[font=\small\bf] at (0,5) {smallbold};
+  \node[font=\ttfamily\mdseries\upshape] at (0,6) {mono};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const byText = new Map(
+      result.scene.elements
+        .filter((element) => element.kind === "Text")
+        .map((element) => [element.text, element] as const)
+    );
+
+    const base = byText.get("base");
+    const sans = byText.get("sans");
+    const bf = byText.get("bf");
+    const bfseries = byText.get("bfseries");
+    const sansbold = byText.get("sansbold");
+    const smallbold = byText.get("smallbold");
+    const mono = byText.get("mono");
+
+    expect(base?.kind).toBe("Text");
+    expect(sans?.kind).toBe("Text");
+    expect(bf?.kind).toBe("Text");
+    expect(bfseries?.kind).toBe("Text");
+    expect(sansbold?.kind).toBe("Text");
+    expect(smallbold?.kind).toBe("Text");
+    expect(mono?.kind).toBe("Text");
+    if (
+      base?.kind === "Text" &&
+      sans?.kind === "Text" &&
+      bf?.kind === "Text" &&
+      bfseries?.kind === "Text" &&
+      sansbold?.kind === "Text" &&
+      smallbold?.kind === "Text" &&
+      mono?.kind === "Text"
+    ) {
+      expect(sans.style.fontFamily).toBe("sans");
+      expect(bf.style.fontWeight).toBe("bold");
+      expect(bfseries.style.fontWeight).toBe("bold");
+      expect(sansbold.style.fontFamily).toBe("sans");
+      expect(sansbold.style.fontWeight).toBe("bold");
+      expect(smallbold.style.fontWeight).toBe("bold");
+      expect(smallbold.style.fontSize).toBeCloseTo(base.style.fontSize * 0.9, 3);
+      expect(mono.style.fontFamily).toBe("monospace");
+      expect(mono.style.fontWeight).toBe("normal");
+      expect(mono.style.fontStyle).toBe("normal");
+    }
+  });
+
+  it("applies colorlet aliases to both style options and node text colors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \colorlet{mycolor}{blue}
+  \fill[mycolor] (0,0) rectangle (1,1);
+  \node at (0, -1) {My favorite color is \textcolor{mycolor}{this}!};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:mycolor")).toBe(false);
+
+    const filledPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.fill != null);
+    expect(filledPath?.kind).toBe("Path");
+    if (filledPath?.kind === "Path") {
+      expect(filledPath.style.fill).toBe("#0000ff");
+    }
+
+    const label = result.scene.elements.find((element) => element.kind === "Text" && element.text.includes("favorite color"));
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toContain(String.raw`\textcolor{blue}{this}`);
+    }
+  });
+
+  it("applies dimensionless rounded corners values to rectangle path geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rounded corners=0.5] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-rounded-corners"))).toBe(false);
+    const rectangle = result.scene.elements.find((element) => element.kind === "Path");
+    expect(rectangle?.kind).toBe("Path");
+    if (rectangle?.kind === "Path") {
+      expect(rectangle.commands.some((command) => command.kind === "C")).toBe(true);
+    }
+  });
+
+  it("accepts comments in tikzset styles and foreach headers", () => {
+    const styleSource = String.raw`\begin{tikzpicture}[box/.style={rectangle,
+  % this comment should not break style parsing
+  draw=red}]
+  \node [box] {test};
+\end{tikzpicture}`;
+    const styleParsed = parseTikz(styleSource);
+    const styleResult = evaluateTikzFigure(styleParsed.figure, styleSource);
+    expect(styleParsed.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const styledBox = styleResult.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    expect(styledBox?.kind).toBe("Path");
+    if (styledBox?.kind === "Path") {
+      expect(styledBox.style.stroke).toBe("#ff0000");
+    }
+
+    const foreachSource = String.raw`\begin{tikzpicture}
+  \foreach \x [count=\i, % in-comment token should be ignored
+               var=\v] in {1,2}
+    \node at (\x,0) {\v};
+\end{tikzpicture}`;
+    const foreachParsed = parseTikz(foreachSource);
+    const foreachResult = evaluateTikzFigure(foreachParsed.figure, foreachSource);
+    expect(foreachParsed.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(foreachResult.diagnostics.some((diagnostic) => diagnostic.code === "foreach-body-parse-error")).toBe(false);
+    const textLabels = foreachResult.scene.elements.filter((element) => element.kind === "Text");
+    expect(textLabels).toHaveLength(2);
   });
 });

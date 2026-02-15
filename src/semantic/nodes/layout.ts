@@ -106,6 +106,8 @@ export function resolveNodeLayout(
     text,
     textWidthPt: textWidth,
     fontStyle: style.fontStyle,
+    fontWeight: style.fontWeight,
+    fontFamily: style.fontFamily,
     fontSizePt: style.fontSize
   });
 

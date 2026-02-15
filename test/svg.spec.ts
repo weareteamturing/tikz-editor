@@ -506,4 +506,18 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('font-size="14.3462"');
     expect(emitted.svg).toContain('font-style="italic"');
   });
+
+  it("emits font family and weight attributes for extended font commands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[font=\sffamily\bfseries] at (0,0) {sans bold};
+  \node[font=\ttfamily\mdseries\upshape] at (1,0) {mono normal};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('font-family="CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"');
+    expect(emitted.svg).toContain('font-weight="700"');
+    expect(emitted.svg).toContain('font-family="Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"');
+  });
 });

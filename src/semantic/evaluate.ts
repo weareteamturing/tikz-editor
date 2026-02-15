@@ -80,6 +80,7 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       style: rootDelta.style,
       transform: rootDelta.transform,
       customStyles: rootCustomStyles,
+      colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),
       namePrefix: rootMeta.namePrefix,
       nameSuffix: rootMeta.nameSuffix,
@@ -179,6 +180,7 @@ function evaluateStatement(
       style: resolved.style,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
+      colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
@@ -245,6 +247,7 @@ function evaluateStatement(
       style: resolved.style,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
+      colorAliases: new Map(parent.colorAliases),
       macroBindings: new Map(parent.macroBindings),
       namePrefix: frameMeta.namePrefix,
       nameSuffix: frameMeta.nameSuffix,
@@ -337,6 +340,22 @@ function applyStandaloneCommandStatement(
   const pgfkeysOptions = parsePgfkeysOptionLists(raw);
   if (pgfkeysOptions) {
     applyOptionListsToCurrentFrame(pgfkeysOptions, context, diagnostics, span, "\\pgfkeys");
+    return true;
+  }
+
+  const colorlet = parseColorletDefinition(raw);
+  if (colorlet) {
+    const frame = currentFrame(context);
+    const expandedValue = expandMacroBindings(colorlet.valueRaw, frame.macroBindings, {
+      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+      trace: context.macroTraceCollector ?? undefined
+    });
+    frame.colorAliases.set(colorlet.name, expandedValue);
+
+    const optionList = parseStyleValueAsOptionList(expandedValue);
+    if (optionList) {
+      applyCustomStyleDefinition(frame.customStyles, colorlet.name, "style", optionList);
+    }
     return true;
   }
 
@@ -614,6 +633,42 @@ function parsePgfkeysOptionLists(raw: string): OptionListAst[] | null {
   return [normalizePgfkeysOptionList(parseOptionListRaw(content))];
 }
 
+function parseColorletDefinition(raw: string): { name: string; valueRaw: string } | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  if (!stripped.startsWith("\\colorlet")) {
+    return null;
+  }
+
+  let cursor = "\\colorlet".length;
+  cursor = skipWhitespace(stripped, cursor);
+  const nameBlock = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!nameBlock) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, nameBlock.nextIndex);
+  const valueBlock = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!valueBlock) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, valueBlock.nextIndex);
+  if (cursor !== stripped.length) {
+    return null;
+  }
+
+  const normalizedName = normalizeColorAliasName(nameBlock.content);
+  const valueRaw = valueBlock.content.trim();
+  if (!normalizedName || valueRaw.length === 0) {
+    return null;
+  }
+
+  return {
+    name: normalizedName,
+    valueRaw
+  };
+}
+
 function parseLegacyTikzStyleDefinition(raw: string): {
   styleName: string;
   kind: "style" | "append";
@@ -769,6 +824,14 @@ function normalizePgfkeysOptionList(list: OptionListAst): OptionListAst {
 
 function stripOptionalTrailingSemicolon(raw: string): string {
   return raw.endsWith(";") ? raw.slice(0, -1).trim() : raw;
+}
+
+function normalizeColorAliasName(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed.toLowerCase();
 }
 
 function skipWhitespace(input: string, start: number): number {

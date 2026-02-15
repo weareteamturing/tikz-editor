@@ -4,6 +4,7 @@ import type { DiagnosticPushFn, ArcParameters, PlacementSegment } from "./types.
 import { coordinateInner, toRadians } from "./shared.js";
 import { parseLength } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, ScenePathCommand } from "../types.js";
+import { applyMatrixToVector } from "../transform.js";
 
 export function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPushFn, style: ResolvedStyle): ArcParameters | null {
   let startAngle: number | null = null;
@@ -113,42 +114,109 @@ export function parseArcShorthand(raw: string): ArcParameters | null {
 export function appendArcCommand(
   commands: ScenePathCommand[],
   from: Point,
-  params: ArcParameters
+  params: ArcParameters,
+  transform: { a: number; b: number; c: number; d: number } = { a: 1, b: 0, c: 0, d: 1 }
 ): { endpoint: Point; segment: PlacementSegment } {
-  const endpoint = arcEndpoint(from, params);
+  const geometry = computeArcGeometry(from, params, transform);
   commands.push({
     kind: "A",
-    rx: Math.abs(params.rx),
-    ry: Math.abs(params.ry),
-    xAxisRotation: 0,
+    rx: geometry.rx,
+    ry: geometry.ry,
+    xAxisRotation: geometry.xAxisRotation,
     largeArc: Math.abs(params.endAngle - params.startAngle) > 180,
-    sweep: params.endAngle >= params.startAngle,
-    to: endpoint
+    sweep: geometry.sweep,
+    to: geometry.endpoint
   });
   return {
-    endpoint,
+    endpoint: geometry.endpoint,
     segment: {
       kind: "arc",
       from,
-      to: endpoint,
+      to: geometry.endpoint,
       params
     }
   };
 }
 
-function arcEndpoint(from: Point, params: ArcParameters): Point {
-  const center = arcCenter(from, params);
+function computeArcGeometry(
+  from: Point,
+  params: ArcParameters,
+  transform: { a: number; b: number; c: number; d: number }
+): {
+  endpoint: Point;
+  rx: number;
+  ry: number;
+  xAxisRotation: number;
+  sweep: boolean;
+} {
+  const startRadians = toRadians(params.startAngle);
   const endRadians = toRadians(params.endAngle);
+
+  const localStart = {
+    x: params.rx * Math.cos(startRadians),
+    y: params.ry * Math.sin(startRadians)
+  };
+  const localEnd = {
+    x: params.rx * Math.cos(endRadians),
+    y: params.ry * Math.sin(endRadians)
+  };
+  const transformedStart = applyMatrixToVector(transform, localStart);
+  const transformedEnd = applyMatrixToVector(transform, localEnd);
+
+  const center = {
+    x: from.x - transformedStart.x,
+    y: from.y - transformedStart.y
+  };
+  const endpoint = {
+    x: center.x + transformedEnd.x,
+    y: center.y + transformedEnd.y
+  };
+
+  const basisX = applyMatrixToVector(transform, { x: params.rx, y: 0 });
+  const basisY = applyMatrixToVector(transform, { x: 0, y: params.ry });
+  const ellipse = ellipseGeometryFromBasis(basisX, basisY);
+  const delta = params.endAngle - params.startAngle;
+  const baseSweep = delta >= 0;
+  const determinant = transform.a * transform.d - transform.b * transform.c;
+
   return {
-    x: center.x + params.rx * Math.cos(endRadians),
-    y: center.y + params.ry * Math.sin(endRadians)
+    endpoint,
+    rx: ellipse.rx,
+    ry: ellipse.ry,
+    xAxisRotation: ellipse.rotation,
+    sweep: determinant < 0 ? !baseSweep : baseSweep
   };
 }
 
-function arcCenter(from: Point, params: ArcParameters): Point {
-  const startRadians = toRadians(params.startAngle);
+function ellipseGeometryFromBasis(
+  basisX: { x: number; y: number },
+  basisY: { x: number; y: number }
+): { rx: number; ry: number; rotation: number } {
+  const s11 = basisX.x * basisX.x + basisY.x * basisY.x;
+  const s12 = basisX.x * basisX.y + basisY.x * basisY.y;
+  const s22 = basisX.y * basisX.y + basisY.y * basisY.y;
+
+  const traceHalf = (s11 + s22) / 2;
+  const discriminant = Math.sqrt(Math.max(0, traceHalf * traceHalf - (s11 * s22 - s12 * s12)));
+  const lambda1 = Math.max(0, traceHalf + discriminant);
+  const lambda2 = Math.max(0, traceHalf - discriminant);
+  const major = Math.sqrt(lambda1);
+  const minor = Math.sqrt(lambda2);
+  const rotationRadians = Math.abs(lambda1 - lambda2) <= 1e-9 ? 0 : 0.5 * Math.atan2(2 * s12, s11 - s22);
+
   return {
-    x: from.x - params.rx * Math.cos(startRadians),
-    y: from.y - params.ry * Math.sin(startRadians)
+    rx: Number.isFinite(major) && major > 1e-9 ? major : Math.hypot(basisX.x, basisX.y),
+    ry: Number.isFinite(minor) && minor > 1e-9 ? minor : Math.hypot(basisY.x, basisY.y),
+    rotation: normalizeDegrees((rotationRadians * 180) / Math.PI)
   };
+}
+
+function normalizeDegrees(degrees: number): number {
+  let normalized = degrees % 360;
+  if (normalized <= -180) {
+    normalized += 360;
+  } else if (normalized > 180) {
+    normalized -= 360;
+  }
+  return Math.abs(normalized) <= 1e-9 ? 0 : normalized;
 }

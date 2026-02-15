@@ -122,6 +122,71 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone colorlet commands without requiring semicolons", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \colorlet{mycolor}{blue}
+  \fill[mycolor] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(2);
+    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
+    if (result.figure.body[0]?.kind === "UnknownStatement") {
+      expect(result.figure.body[0].raw).toContain("\\colorlet");
+    }
+  });
+
+  it("does not tokenize `inner` as standalone `in` within option keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [draw, inner sep=5pt] at (0,0) {Hi};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const inTokens: string[] = [];
+    result.tree.iterate({
+      enter(node) {
+        if (node.name === "InKw") {
+          inTokens.push(source.slice(node.from, node.to));
+        }
+      }
+    });
+    expect(inTokens).toHaveLength(0);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "inner sep")).toBe(true);
+    }
+  });
+
+  it("ignores empty node names when checking malformed coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node () at (0,0) {Hi};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "malformed-coordinate")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.name).toBeUndefined();
+    }
+  });
+
   it("parses standalone style-definition commands without requiring semicolons", () => {
     const source = String.raw`\begin{tikzpicture}
   \tikzset{highlight/.style={draw=red}}
@@ -674,6 +739,25 @@ describe("parseTikz", () => {
       expect(foreach.bodyRaw.length).toBeGreaterThan(0);
       expect(foreach.variablesRaw).toContain("\\lw");
       expect(foreach.listRaw).toContain("0.5");
+    }
+  });
+
+  it("parses foreach headers when comments contain the word `in`", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x [count=\i, % in comments should be ignored
+               var=\v] in {1,2}
+    \node at (\x,0) {\v};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const foreach = result.figure.body.find((statement) => statement.kind === "Foreach");
+    expect(foreach?.kind).toBe("Foreach");
+    if (foreach?.kind === "Foreach") {
+      expect(foreach.variablesRaw).toContain("\\x");
+      expect(foreach.listRaw).toContain("1,2");
+      expect(foreach.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "count")).toBe(true);
+      expect(foreach.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "var")).toBe(true);
     }
   });
 

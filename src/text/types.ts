@@ -1,4 +1,6 @@
 export type NodeTextFontStyle = "normal" | "italic";
+export type NodeTextFontWeight = "normal" | "bold";
+export type NodeTextFontFamily = "serif" | "sans" | "monospace";
 
 export type NodeTextValidationIssue = {
   code?: string;
@@ -9,6 +11,8 @@ export type NodeTextMeasureRequest = {
   text: string;
   textWidthPt: number | null;
   fontStyle: NodeTextFontStyle;
+  fontWeight: NodeTextFontWeight;
+  fontFamily: NodeTextFontFamily;
   fontSizePt: number;
 };
 

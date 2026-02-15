@@ -55,6 +55,10 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }
 
+  if (node.type.name === "ColorletStatement") {
+    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
   if (node.type.name === "MacroDefinitionStatement") {
     return mapMacroDefinitionStatement(node, source, state);
   }

@@ -74,6 +74,7 @@ export function evaluateNodeItem(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
+  const resolvedNodeText = resolveTextColorAliases(expandedNodeText, frame.colorAliases);
 
   const matrixMode = resolveMatrixMode(effectiveNodeOptions);
   if (matrixMode.enabled) {
@@ -98,7 +99,7 @@ export function evaluateNodeItem(
     });
   }
 
-  const nodeLayout = resolveNodeLayout(expandedNodeText, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const nodeLayout = resolveNodeLayout(resolvedNodeText, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
@@ -112,9 +113,17 @@ export function evaluateNodeItem(
   }
 
   const nodeElements: SceneElement[] = [];
-  const boxPaintMode = resolveNodeBoxPaintMode(effectiveNodeLocalOptions);
-  if (boxPaintMode.draw || boxPaintMode.fill || nodeStyle.shadowLayers.length > 0) {
-    const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, boxPaintMode);
+  const explicitPaintMode = resolveNodeBoxPaintMode(effectiveNodeLocalOptions);
+  const resolvedPaintMode = {
+    draw:
+      explicitPaintMode.draw ||
+      (!style.drawExplicit && nodeStyle.drawExplicit && nodeStyle.stroke != null && nodeStyle.stroke !== "none"),
+    fill:
+      explicitPaintMode.fill ||
+      ((style.fill == null || style.fill === "none") && nodeStyle.fill != null && nodeStyle.fill !== "none")
+  };
+  if (resolvedPaintMode.draw || resolvedPaintMode.fill || nodeStyle.shadowLayers.length > 0) {
+    const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, resolvedPaintMode);
     if (nodeShape === "circle") {
       nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
@@ -152,6 +161,64 @@ export function evaluateNodeItem(
     return { behindElements: nodeElements, frontElements: [] };
   }
   return { behindElements: [], frontElements: nodeElements };
+}
+
+function resolveTextColorAliases(text: string, colorAliases: Map<string, string>): string {
+  if (colorAliases.size === 0 || text.length === 0) {
+    return text;
+  }
+
+  let resolved = replaceColorCommandAliases(text, "\\textcolor", colorAliases);
+  resolved = replaceColorCommandAliases(resolved, "\\color", colorAliases);
+  return resolved;
+}
+
+function replaceColorCommandAliases(text: string, command: "\\textcolor" | "\\color", colorAliases: Map<string, string>): string {
+  const escapedCommand = command.replace("\\", "\\\\");
+  const pattern = new RegExp(`${escapedCommand}(\\s*\\[[^\\]]*\\])?\\s*\\{([^{}]+)\\}`, "g");
+  return text.replace(pattern, (fullMatch: string, modelPart = "", rawColorName = "") => {
+    const resolved = resolveColorAlias(rawColorName, colorAliases);
+    if (!resolved) {
+      return fullMatch;
+    }
+    return `${command}${modelPart}{${resolved}}`;
+  });
+}
+
+function resolveColorAlias(rawColorName: string, colorAliases: Map<string, string>): string | null {
+  const initialKey = normalizeColorAliasKey(rawColorName);
+  if (!initialKey) {
+    return null;
+  }
+
+  let resolved = colorAliases.get(initialKey);
+  if (!resolved) {
+    return null;
+  }
+
+  const seen = new Set<string>([initialKey]);
+  while (true) {
+    const nextKey = normalizeColorAliasKey(resolved);
+    if (!nextKey || seen.has(nextKey)) {
+      break;
+    }
+    const nextResolved = colorAliases.get(nextKey);
+    if (!nextResolved) {
+      break;
+    }
+    seen.add(nextKey);
+    resolved = nextResolved;
+  }
+
+  return resolved;
+}
+
+function normalizeColorAliasKey(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed;
 }
 
 export {

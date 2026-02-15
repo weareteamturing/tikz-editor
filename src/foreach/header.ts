@@ -31,7 +31,8 @@ export function parseForeachHeaderRaw(raw: string): ParsedForeachHeaderRaw {
     };
   }
 
-  const inIndex = findTopLevelInKeyword(headerRaw);
+  const maskedHeaderRaw = maskLineCommentsPreservingLength(headerRaw);
+  const inIndex = findTopLevelInKeyword(maskedHeaderRaw);
   if (inIndex < 0) {
     const left = removeTopLevelOptionLists(headerRaw);
     return {
@@ -116,7 +117,7 @@ function findTopLevelInKeyword(raw: string): number {
 }
 
 function isWordBoundary(value: string): boolean {
-  return value.length === 0 || /\s/.test(value);
+  return value.length === 0 || !/[A-Za-z0-9_@]/.test(value);
 }
 
 function removeTopLevelOptionLists(raw: string): {
@@ -124,6 +125,7 @@ function removeTopLevelOptionLists(raw: string): {
   firstOptionRaw?: string;
   firstOptionSpan?: Span;
 } {
+  const masked = maskLineCommentsPreservingLength(raw);
   let variablesBuilder = "";
   let firstOptionRaw: string | undefined;
   let firstOptionSpan: Span | undefined;
@@ -133,12 +135,12 @@ function removeTopLevelOptionLists(raw: string): {
   let braceDepth = 0;
 
   while (index < raw.length) {
-    const char = raw[index];
+    const char = masked[index];
 
     if (char === "\\") {
       variablesBuilder += char;
       if (index + 1 < raw.length) {
-        variablesBuilder += raw[index + 1];
+        variablesBuilder += masked[index + 1];
       }
       index += 2;
       continue;
@@ -170,7 +172,7 @@ function removeTopLevelOptionLists(raw: string): {
     }
 
     if (char === "[" && parenDepth === 0 && braceDepth === 0) {
-      const optionEnd = findMatchingBracket(raw, index);
+      const optionEnd = findMatchingBracket(masked, index);
       if (optionEnd < 0) {
         variablesBuilder += char;
         index += 1;
@@ -219,4 +221,32 @@ function findMatchingBracket(raw: string, from: number): number {
   }
 
   return -1;
+}
+
+function maskLineCommentsPreservingLength(input: string): string {
+  let masked = "";
+  let inComment = false;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (inComment) {
+      if (char === "\n" || char === "\r") {
+        inComment = false;
+        masked += char;
+      } else {
+        masked += " ";
+      }
+      continue;
+    }
+
+    if (char === "%" && input[index - 1] !== "\\") {
+      inComment = true;
+      masked += " ";
+      continue;
+    }
+
+    masked += char;
+  }
+
+  return masked;
 }

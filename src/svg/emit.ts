@@ -1364,8 +1364,17 @@ function styleAttributes(
     const textColor = textStyle.textColor ?? "#000000";
     attrs.push(`fill="${escapeAttr(textColor)}"`);
     attrs.push(`fill-opacity="${fmt(textStyle.textOpacity ?? textStyle.strokeOpacity)}"`);
-    attrs.push(`font-family="CMU Serif, Latin Modern Roman, Times New Roman, serif"`);
+    if (textStyle.fontFamily === "sans") {
+      attrs.push(`font-family="CMU Sans Serif, Latin Modern Sans, Helvetica, Arial, sans-serif"`);
+    } else if (textStyle.fontFamily === "monospace") {
+      attrs.push(`font-family="Latin Modern Mono, CMU Typewriter Text, Courier New, monospace"`);
+    } else {
+      attrs.push(`font-family="CMU Serif, Latin Modern Roman, Times New Roman, serif"`);
+    }
     attrs.push(`font-size="${fmt(textStyle.fontSize)}"`);
+    if (textStyle.fontWeight === "bold") {
+      attrs.push(`font-weight="700"`);
+    }
     if (textStyle.fontStyle === "italic") {
       attrs.push(`font-style="italic"`);
     }
