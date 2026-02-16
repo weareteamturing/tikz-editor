@@ -339,6 +339,8 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     const position = toSvgPoint(element.position, viewBox);
     const textBlockWidth = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
     const textBlockHeight = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
+    const rotation = element.rotation ?? 0;
+    const hasRotation = Math.abs(rotation) > 1e-6;
     if (element.textRenderInfo?.mode === "mathjax") {
       const rendered = opts.textEngine?.renderFromCache(element.textRenderInfo.cacheKey) ?? null;
       if (!rendered) {
@@ -352,14 +354,20 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         const x = position.x - textBlockWidth / 2;
         const y = position.y - textBlockHeight / 2;
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
-        body.push(
-          `<svg data-source-id="${escapeAttr(element.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`
-        );
+        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
+        if (hasRotation) {
+          body.push(`<g transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})">${renderedSvg}</g>`);
+        } else {
+          body.push(renderedSvg);
+        }
         continue;
       }
     }
     const textX = alignedTextAnchorX(position.x, textBlockWidth, element.style.textAlign);
     const attrs = styleAttributes(element.style, true);
+    if (hasRotation) {
+      attrs.push(`transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})"`);
+    }
     const textBody = encodeTextBody(element.text, textX, position.y);
     body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }

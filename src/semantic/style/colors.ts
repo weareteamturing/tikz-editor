@@ -16,6 +16,10 @@ export function normalizeColor(raw: string, opts: { currentColor?: string | null
   if (normalized.startsWith("#")) {
     return normalized;
   }
+  const modelColor = parseXcolorModelColor(normalized);
+  if (modelColor) {
+    return modelColor;
+  }
   const mixed = parseMixedColor(normalized, currentColor);
   if (mixed) {
     return mixed;
@@ -103,6 +107,87 @@ function parseMixedColor(raw: string, currentColor: string | null): string | nul
   }
 
   return rgbToHex(current);
+}
+
+function parseXcolorModelColor(raw: string): string | null {
+  const unwrapped = unwrapSingleBracePair(raw);
+  const rgbBodyMatch = unwrapped.match(/^rgb(?:\s*,\s*255)?\s*:\s*(.+)$/i);
+  if (!rgbBodyMatch) {
+    return null;
+  }
+
+  const components = parseNamedRgbComponents(rgbBodyMatch[1] ?? "");
+  if (!components) {
+    return null;
+  }
+
+  const max = Math.max(components.r, components.g, components.b);
+  const scale = max > 1 ? 255 : 1;
+  return rgbToHex({
+    r: (components.r / scale) * 255,
+    g: (components.g / scale) * 255,
+    b: (components.b / scale) * 255
+  });
+}
+
+function parseNamedRgbComponents(raw: string): { r: number; g: number; b: number } | null {
+  const values = new Map<string, number>();
+  const entries = raw
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  for (const entry of entries) {
+    const match = entry.match(/^([a-z]+)\s*,\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))$/i);
+    if (!match) {
+      return null;
+    }
+    const channel = match[1].toLowerCase();
+    const value = Number(match[2]);
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+    values.set(channel, value);
+  }
+
+  const r = values.get("red");
+  const g = values.get("green");
+  const b = values.get("blue");
+  if (r == null || g == null || b == null) {
+    return null;
+  }
+  return { r, g, b };
+}
+
+function unwrapSingleBracePair(raw: string): string {
+  const trimmed = raw.trim();
+  if (!(trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+    return trimmed;
+  }
+
+  let depth = 0;
+  for (let index = 0; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && index !== trimmed.length - 1) {
+        return trimmed;
+      }
+      if (depth < 0) {
+        return trimmed;
+      }
+    }
+  }
+
+  return depth === 0 ? trimmed.slice(1, -1).trim() : trimmed;
 }
 
 function resolveRelativeColorReference(token: string, currentColor: string | null, fallback: string): string {

@@ -51,6 +51,13 @@ export function nodeAnchorOffset(
   const anchor = anchorRaw.trim().toLowerCase().replaceAll("_", " ");
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
 
+  if (anchor === "text") {
+    return {
+      x: -layout.textBlockWidth / 2,
+      y: layout.baseLineY
+    };
+  }
+
   if (shape === "coordinate") {
     return { x: 0, y: 0 };
   }
@@ -76,11 +83,29 @@ export function nodeAnchorOffset(
       case "south west":
         return { x: -d, y: -d };
       case "base":
+        return { x: 0, y: layout.baseLineY };
       case "base east":
+        return {
+          x: circleHorizontalOffsetAtY(r, layout.baseLineY, 1),
+          y: layout.baseLineY
+        };
       case "base west":
+        return {
+          x: circleHorizontalOffsetAtY(r, layout.baseLineY, -1),
+          y: layout.baseLineY
+        };
       case "mid":
+        return { x: 0, y: layout.midLineY };
       case "mid east":
+        return {
+          x: circleHorizontalOffsetAtY(r, layout.midLineY, 1),
+          y: layout.midLineY
+        };
       case "mid west":
+        return {
+          x: circleHorizontalOffsetAtY(r, layout.midLineY, -1),
+          y: layout.midLineY
+        };
       case "center":
       default:
         return { x: 0, y: 0 };
@@ -100,13 +125,13 @@ export function nodeAnchorOffset(
       case "west":
         return { x: -rx, y: 0 };
       case "north east":
-        return ellipseDirectionalOffset(rx, ry, 1, 1);
+        return ellipseCompassOffset(rx, ry, 1, 1);
       case "north west":
-        return ellipseDirectionalOffset(rx, ry, -1, 1);
+        return ellipseCompassOffset(rx, ry, -1, 1);
       case "south east":
-        return ellipseDirectionalOffset(rx, ry, 1, -1);
+        return ellipseCompassOffset(rx, ry, 1, -1);
       case "south west":
-        return ellipseDirectionalOffset(rx, ry, -1, -1);
+        return ellipseCompassOffset(rx, ry, -1, -1);
       case "base east":
         return { x: rx, y: layout.baseLineY };
       case "base west":
@@ -934,15 +959,25 @@ function anchorDirection(anchor: string): Point | null {
   }
 }
 
-function ellipseDirectionalOffset(rx: number, ry: number, dx: number, dy: number): Point {
-  const norm = Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
-  if (!Number.isFinite(norm) || norm <= 1e-9) {
+function ellipseCompassOffset(rx: number, ry: number, xSign: -1 | 1, ySign: -1 | 1): Point {
+  if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
     return { x: 0, y: 0 };
   }
+  const factor = Math.SQRT1_2;
   return {
-    x: dx / norm,
-    y: dy / norm
+    x: xSign * rx * factor,
+    y: ySign * ry * factor
   };
+}
+
+function circleHorizontalOffsetAtY(radius: number, y: number, direction: -1 | 1): number {
+  if (!Number.isFinite(radius) || radius <= 1e-9) {
+    return 0;
+  }
+
+  const clampedY = Math.max(-radius, Math.min(radius, y));
+  const xMagnitude = Math.sqrt(Math.max(0, radius * radius - clampedY * clampedY));
+  return direction < 0 ? -xMagnitude : xMagnitude;
 }
 
 function anchorSizingWithOuter(layout: NodeLayout): {
@@ -987,6 +1022,7 @@ export function registerNamedNodeAnchors(
 
   const offsets: Record<string, Point> = {
     center: nodeAnchorOffset(shape, layout, "center", options),
+    text: nodeAnchorOffset(shape, layout, "text", options),
     base: nodeAnchorOffset(shape, layout, "base", options),
     north: nodeAnchorOffset(shape, layout, "north", options),
     south: nodeAnchorOffset(shape, layout, "south", options),

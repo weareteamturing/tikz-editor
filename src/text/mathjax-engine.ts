@@ -34,11 +34,69 @@ type CachedRenderEntry = {
   midLineYPt: number;
 };
 
+type TextFontOptions = {
+  fontStyle: "normal" | "italic";
+  fontWeight: "normal" | "bold";
+  fontFamily: "serif" | "sans" | "monospace";
+};
+
+type FontSwitchRule = {
+  pattern: RegExp;
+  apply: (font: TextFontOptions) => void;
+};
+
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
 const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";
 const SCRIPT_LOADED_MARKER = "__tikzMathJaxLoaded";
 const SCRIPT_ERROR_MARKER = "__tikzMathJaxLoadError";
+
+const FONT_SWITCH_RULES: FontSwitchRule[] = [
+  {
+    pattern: /\\(?:sffamily|pgfutil@font@sffamily)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontFamily = "sans";
+    }
+  },
+  {
+    pattern: /\\(?:ttfamily|pgfutil@font@ttfamily)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontFamily = "monospace";
+    }
+  },
+  {
+    pattern: /\\(?:rmfamily|pgfutil@font@rmfamily|normalfont)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontFamily = "serif";
+      font.fontStyle = "normal";
+      font.fontWeight = "normal";
+    }
+  },
+  {
+    pattern: /\\(?:bfseries|pgfutil@font@bfseries)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontWeight = "bold";
+    }
+  },
+  {
+    pattern: /\\(?:mdseries|pgfutil@font@mdseries)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontWeight = "normal";
+    }
+  },
+  {
+    pattern: /\\(?:itshape|slshape|pgfutil@font@itshape|pgfutil@font@slshape)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontStyle = "italic";
+    }
+  },
+  {
+    pattern: /\\(?:upshape|pgfutil@font@upshape)(?=(?:[^A-Za-z@]|$))/g,
+    apply: (font) => {
+      font.fontStyle = "normal";
+    }
+  }
+];
 
 let sharedEnginePromise: Promise<NodeTextEngine> | null = null;
 let browserRuntimePromise: Promise<MathJaxRuntime> | null = null;
@@ -69,17 +127,14 @@ async function initializeEngine(): Promise<NodeTextEngine> {
       }
 
       try {
-        const tex = buildWrappedTeX(text, null, {
+        const prepared = normalizeMathJaxTextInput(text, {
           fontStyle: "normal",
           fontWeight: "normal",
           fontFamily: "serif"
         });
+        const tex = buildWrappedTeX(prepared.text, null, prepared.font);
         const node = runtime.tex2svg(tex, { display: false });
-        const defaultMeasureKey = measurementKey(text, null, {
-          fontStyle: "normal",
-          fontWeight: "normal",
-          fontFamily: "serif"
-        });
+        const defaultMeasureKey = measurementKey(prepared.text, null, prepared.font);
         if (!cache.has(defaultMeasureKey)) {
           const entry = buildCacheEntry(defaultMeasureKey, node, runtime.startup?.adaptor ?? null);
           if (entry) {
@@ -100,20 +155,17 @@ async function initializeEngine(): Promise<NodeTextEngine> {
     measure(request: NodeTextMeasureRequest): NodeTextMetrics | null {
       const scale = computeFontScale(request.fontSizePt);
       const normalizedWidth = request.textWidthPt == null ? null : request.textWidthPt / scale;
-      const cacheKey = measurementKey(request.text, normalizedWidth, {
+      const prepared = normalizeMathJaxTextInput(request.text, {
         fontStyle: request.fontStyle,
         fontWeight: request.fontWeight,
         fontFamily: request.fontFamily
       });
+      const cacheKey = measurementKey(prepared.text, normalizedWidth, prepared.font);
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
       if (!entry) {
         try {
-          const tex = buildWrappedTeX(request.text, normalizedWidth, {
-            fontStyle: request.fontStyle,
-            fontWeight: request.fontWeight,
-            fontFamily: request.fontFamily
-          });
+          const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font);
           const node = runtime.tex2svg(tex, { display: false });
           entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
           if (!entry) {
@@ -621,11 +673,7 @@ type BrowserDocumentLike = {
 function measurementKey(
   text: string,
   textWidthPt: number | null,
-  font: {
-    fontStyle: "normal" | "italic";
-    fontWeight: "normal" | "bold";
-    fontFamily: "serif" | "sans" | "monospace";
-  }
+  font: TextFontOptions
 ): string {
   return JSON.stringify({
     text,
@@ -639,11 +687,7 @@ function measurementKey(
 function buildWrappedTeX(
   text: string,
   textWidthPt: number | null,
-  font: {
-    fontStyle: "normal" | "italic";
-    fontWeight: "normal" | "bold";
-    fontFamily: "serif" | "sans" | "monospace";
-  }
+  font: TextFontOptions
 ): string {
   let styledText = text;
   if (font.fontFamily === "sans") {
@@ -661,6 +705,26 @@ function buildWrappedTeX(
     return `\\mbox{${styledText}}`;
   }
   return `\\parbox{${formatPt(textWidthPt)}pt}{${styledText}}`;
+}
+
+function normalizeMathJaxTextInput(
+  text: string,
+  font: TextFontOptions
+): { text: string; font: TextFontOptions } {
+  const resolvedFont: TextFontOptions = { ...font };
+  let resolvedText = text;
+
+  for (const rule of FONT_SWITCH_RULES) {
+    resolvedText = resolvedText.replace(rule.pattern, () => {
+      rule.apply(resolvedFont);
+      return "";
+    });
+  }
+
+  return {
+    text: resolvedText,
+    font: resolvedFont
+  };
 }
 
 function formatPt(value: number): string {
@@ -698,6 +762,16 @@ function parseViewBox(raw: string | null): NodeTextRenderPayload["viewBox"] | nu
 }
 
 function sanitizeErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = error instanceof Error ? error.message : String(error);
+  if (message === "[object Object]" && isRecord(error)) {
+    try {
+      const serialized = JSON.stringify(error);
+      if (typeof serialized === "string" && serialized !== "{}") {
+        message = serialized;
+      }
+    } catch {
+      // Keep the fallback message.
+    }
+  }
   return message.replace(/\s+/g, " ").trim() || "Invalid TeX in node text.";
 }

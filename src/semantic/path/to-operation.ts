@@ -3,7 +3,8 @@ import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import {
   evaluateNodeItem,
-  maybeResolveNamedCoordinateBorderPointFromRaw
+  maybeResolveNamedCoordinateBorderPointFromRaw,
+  maybeResolveNamedCoordinateBorderPointFromRawAlongAngle
 } from "../nodes/evaluate.js";
 import type { FeatureId } from "../../capabilities/feature-ids.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
@@ -20,7 +21,8 @@ export function applyToOperation(
   activePath: ScenePath | null,
   previousSegmentRoundedCorners: number | null,
   markFeature: FeatureMarkFn,
-  pushDiagnostic: DiagnosticPushFn
+  pushDiagnostic: DiagnosticPushFn,
+  startCoordinateRaw: string | null = null
 ): {
   activePath: ScenePath | null;
   segment: PlacementSegment | null;
@@ -33,7 +35,8 @@ export function applyToOperation(
     operationFeature: "to_operation",
     keywordFeature: "keyword_to",
     unsupportedDiagnostic: "unsupported-to-operation",
-    allowImplicitMoveToTargetWhenNoStart: true
+    allowImplicitMoveToTargetWhenNoStart: true,
+    startCoordinateRaw
   });
 }
 
@@ -173,18 +176,32 @@ function applyToLikeOperation(
     resolvedStartPoint ?? startPoint,
     context
   );
+  let effectiveStartPoint = resolvedStartPoint ?? startPoint;
+  let effectiveTargetPoint = resolvedTargetPoint;
+  const curved = effectiveStartPoint ? extractToCurveOptions(item.options, effectiveStartPoint, effectiveTargetPoint) : null;
+  if (effectiveStartPoint && curved) {
+    if (config.startCoordinateRaw) {
+      effectiveStartPoint = maybeResolveNamedCoordinateBorderPointFromRawAlongAngle(
+        config.startCoordinateRaw,
+        effectiveStartPoint,
+        curved.out,
+        context
+      );
+    }
+    effectiveTargetPoint = maybeResolveNamedCoordinateBorderPointFromRawAlongAngle(target.raw, effectiveTargetPoint, curved.in, context);
+  }
 
   let path = activePath;
   if (!path) {
-    if (resolvedStartPoint) {
+    if (effectiveStartPoint) {
       path = makePath(statement.id, item.id, style, item.span);
-      path.commands.push({ kind: "M", to: resolvedStartPoint });
-      context.pathStartPoint = resolvedStartPoint;
+      path.commands.push({ kind: "M", to: effectiveStartPoint });
+      context.pathStartPoint = effectiveStartPoint;
     } else {
       path = makePath(statement.id, item.id, style, item.span);
-      path.commands.push({ kind: "M", to: resolvedTargetPoint });
-      context.pathStartPoint = resolvedTargetPoint;
-      context.currentPoint = resolvedTargetPoint;
+      path.commands.push({ kind: "M", to: effectiveTargetPoint });
+      context.pathStartPoint = effectiveTargetPoint;
+      context.currentPoint = effectiveTargetPoint;
       markFeature("svg_path", "supported");
       return {
         activePath: path,
@@ -196,12 +213,11 @@ function applyToLikeOperation(
     }
   }
 
-  const start = resolvedStartPoint;
+  const start = effectiveStartPoint;
   let segment: PlacementSegment | null = null;
   let nextRoundedCorners = previousSegmentRoundedCorners;
-  const curved = start ? extractToCurveOptions(item.options, start, resolvedTargetPoint) : null;
   if (start && curved) {
-    segment = appendToCurve(path.commands, start, resolvedTargetPoint, curved);
+    segment = appendToCurve(path.commands, start, effectiveTargetPoint, curved);
     nextRoundedCorners = style.roundedCorners;
     markFeature("path_operator_curves", "supported");
   } else {
@@ -209,14 +225,14 @@ function applyToLikeOperation(
       path.commands,
       "--",
       start,
-      resolvedTargetPoint,
+      effectiveTargetPoint,
       previousSegmentRoundedCorners,
       style.roundedCorners
     );
     segment = appended.segment;
     nextRoundedCorners = appended.nextRoundedCorners;
   }
-  context.currentPoint = resolvedTargetPoint;
+  context.currentPoint = effectiveTargetPoint;
 
   for (const node of item.nodes ?? []) {
     const resolvedNode = evaluateNodeItem(node, statement, context, style, markFeature, pushDiagnostic, segment, undefined, 0.5);

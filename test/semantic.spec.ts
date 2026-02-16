@@ -1686,6 +1686,56 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("keeps circle base and mid anchors distinct from center", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,draw,minimum size=2cm,name=n] at (0,0) {Text};
+  \node at (n.center) {C};
+  \node at (n.base) {B};
+  \node at (n.mid) {M};
+  \node at (n.base east) {E};
+  \node at (n.base west) {W};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+
+    const byLabel = new Map<string, Extract<(typeof result.scene.elements)[number], { kind: "Text" }>>();
+    for (const element of result.scene.elements) {
+      if (element.kind === "Text") {
+        byLabel.set(element.text, element);
+      }
+    }
+
+    const center = byLabel.get("C");
+    const base = byLabel.get("B");
+    const mid = byLabel.get("M");
+    const baseEast = byLabel.get("E");
+    const baseWest = byLabel.get("W");
+
+    expect(center?.kind).toBe("Text");
+    expect(base?.kind).toBe("Text");
+    expect(mid?.kind).toBe("Text");
+    expect(baseEast?.kind).toBe("Text");
+    expect(baseWest?.kind).toBe("Text");
+
+    if (
+      center?.kind === "Text" &&
+      base?.kind === "Text" &&
+      mid?.kind === "Text" &&
+      baseEast?.kind === "Text" &&
+      baseWest?.kind === "Text"
+    ) {
+      expect(base.position.y).toBeLessThan(center.position.y);
+      expect(mid.position.y).toBeLessThan(center.position.y);
+      expect(base.position.y).toBeLessThan(mid.position.y);
+      expect(baseEast.position.y).toBeCloseTo(base.position.y, 3);
+      expect(baseWest.position.y).toBeCloseTo(base.position.y, 3);
+      expect(baseEast.position.x).toBeGreaterThan(center.position.x);
+      expect(baseWest.position.x).toBeLessThan(center.position.x);
+    }
+  });
+
   it("resolves numeric node anchors like node.45 and node.225", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[circle,draw,minimum size=1cm,name=n] at (0,0) {A};

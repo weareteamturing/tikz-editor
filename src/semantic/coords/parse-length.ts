@@ -274,11 +274,20 @@ function tokenizeQuantityExpression(input: string): Token[] | null {
         return null;
       }
 
-      const unitStart = index;
-      while (index < input.length && /[A-Za-z]/.test(input[index])) {
-        index += 1;
+      let unitCursor = index;
+      while (unitCursor < input.length && /\s/.test(input[unitCursor])) {
+        unitCursor += 1;
       }
-      const unitRaw = input.slice(unitStart, index);
+
+      const unitStart = unitCursor;
+      while (unitCursor < input.length && /[A-Za-z]/.test(input[unitCursor])) {
+        unitCursor += 1;
+      }
+
+      const unitRaw = input.slice(unitStart, unitCursor);
+      if (unitRaw.length > 0) {
+        index = unitCursor;
+      }
       tokens.push({
         kind: "number",
         value,

@@ -114,6 +114,18 @@ describe("render pipeline", () => {
     expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
   });
 
+  it("normalizes legacy family switches inside node text for MathJax validation", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {{\sffamily\Large node n}};
+  \node[draw] at (1,0) {\phantom{\sffamily\Large node n}};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    expect(result.svg.svg).not.toContain(String.raw`\sffamily`);
+  });
+
   it("resolves colorlet aliases before MathJax text rendering", async () => {
     const source = String.raw`\begin{tikzpicture}
   \colorlet{mycolor}{blue}

@@ -93,6 +93,19 @@ export function maybeResolveNamedCoordinateBorderPointFromRaw(
   return maybeResolveNamedNodeBorderPoint(parsed.x, fallbackPoint, fromPoint, context);
 }
 
+export function maybeResolveNamedCoordinateBorderPointFromRawAlongAngle(
+  rawCoordinate: string,
+  fallbackPoint: Point,
+  angleDegrees: number,
+  context: SemanticContext
+): Point {
+  const parsed = parseCoordinate(rawCoordinate);
+  if (parsed.form !== "named") {
+    return fallbackPoint;
+  }
+  return maybeResolveNamedNodeBorderPointAlongAngle(parsed.x, fallbackPoint, angleDegrees, context);
+}
+
 function maybeResolveNamedNodeBorderPoint(
   rawName: string,
   fallbackPoint: Point,
@@ -114,6 +127,31 @@ function maybeResolveNamedNodeBorderPoint(
   }
 
   const borderPoint = intersectNodeBorder(geometry, fromPoint);
+  return borderPoint ?? fallbackPoint;
+}
+
+function maybeResolveNamedNodeBorderPointAlongAngle(
+  rawName: string,
+  fallbackPoint: Point,
+  angleDegrees: number,
+  context: SemanticContext
+): Point {
+  const trimmed = rawName.trim();
+  if (trimmed.length === 0 || trimmed.includes(".")) {
+    return fallbackPoint;
+  }
+
+  const geometry = resolveNamedNodeGeometry(trimmed, context);
+  if (!geometry || geometry.shape === "coordinate") {
+    return fallbackPoint;
+  }
+
+  const radians = (angleDegrees * Math.PI) / 180;
+  const probePoint = {
+    x: geometry.center.x + Math.cos(radians),
+    y: geometry.center.y + Math.sin(radians)
+  };
+  const borderPoint = intersectNodeBorder(geometry, probePoint);
   return borderPoint ?? fallbackPoint;
 }
 

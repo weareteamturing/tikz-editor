@@ -23,6 +23,22 @@ export function resolveNodeTargetPoint(
     }
   }
 
+  let optionAtRaw: string | null = null;
+  for (const entry of options?.entries ?? []) {
+    if (entry.kind === "kv" && entry.key === "at") {
+      optionAtRaw = normalizeOptionValue(entry.valueRaw);
+    }
+  }
+  if (optionAtRaw && optionAtRaw.length > 0) {
+    const evaluated = evaluateRawCoordinate(optionAtRaw, context);
+    if (evaluated.point) {
+      return evaluated.point;
+    }
+    for (const code of evaluated.diagnostics) {
+      pushDiagnostic(code, `Node placement issue: ${code}`, span.from, span.to);
+    }
+  }
+
   const pos = resolveNodePositionFraction(options);
   if (pos != null && segment) {
     return pointAtPlacementSegment(segment, pos);

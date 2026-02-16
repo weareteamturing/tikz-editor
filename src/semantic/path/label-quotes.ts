@@ -89,6 +89,25 @@ const DIRECTION_TO_DEGREES: Record<string, number> = {
   "south east": 315
 };
 
+const DIRECTION_TO_ANCHOR: Record<string, string> = {
+  right: "east",
+  "above right": "north east",
+  above: "north",
+  "above left": "north west",
+  left: "west",
+  "below left": "south west",
+  below: "south",
+  "below right": "south east",
+  east: "east",
+  "north east": "north east",
+  north: "north",
+  "north west": "north west",
+  west: "west",
+  "south west": "south west",
+  south: "south",
+  "south east": "south east"
+};
+
 type RunningAdornmentDefaults = {
   quoteMode: QuotesMode;
   labelPosition: string;
@@ -273,7 +292,11 @@ export function materializeNodeAdornment(params: {
   if (parsedAngle.kind !== "center") {
     const radians = (parsedAngle.degrees * Math.PI) / 180;
     const direction = { x: Math.cos(radians), y: Math.sin(radians) };
-    const borderPoint = parsedAngle.borderPoint ?? intersectNodeBorder(mainGeometry, direction) ?? center;
+    const borderPoint =
+      parsedAngle.borderPoint ??
+      resolveNamedBorderPointByAngle(mainNodeNameRaw, parsedAngle.degrees, context) ??
+      intersectNodeBorder(mainGeometry, direction) ??
+      center;
     target = {
       x: borderPoint.x + direction.x * spec.distancePt,
       y: borderPoint.y + direction.y * spec.distancePt
@@ -288,7 +311,7 @@ export function materializeNodeAdornment(params: {
     entries.push(kvEntry("anchor", anchor, spec.span));
   }
   if (!hasOptionKey(entries, "at")) {
-    entries.push(kvEntry("at", `(${formatPt(target.x)},${formatPt(target.y)})`, spec.span));
+    entries.push(kvEntry("at", `(${formatPt(target.x)}pt,${formatPt(target.y)}pt)`, spec.span));
   }
   if (resolvedName && !hasOptionKey(entries, "name")) {
     entries.push(kvEntry("name", resolvedName, spec.span));
@@ -425,7 +448,9 @@ function parseAdornmentValue(
     return null;
   }
 
-  const parsedOptions = optionsRaw.length > 0 ? parseGeneratedOptions(optionsRaw, span) : undefined;
+  const styleFlag = kind === "label" ? "every label" : "every pin";
+  const optionsWithStyle = optionsRaw.length > 0 ? `${styleFlag},${optionsRaw}` : styleFlag;
+  const parsedOptions = parseGeneratedOptions(optionsWithStyle, span);
   const cleanedOptions = sanitizeAdornmentOptions(parsedOptions);
   const distancePt = resolveAdornmentDistance(cleanedOptions, kind, defaults);
   const pinEdgeRaw = kind === "pin" ? resolvePinEdgeRaw(cleanedOptions, defaults.pinEdgeRaw) : null;
@@ -770,6 +795,13 @@ function parseAdornmentAngle(
 
   const mapped = DIRECTION_TO_DEGREES[normalized];
   if (mapped != null) {
+    const mappedAnchor = DIRECTION_TO_ANCHOR[normalized];
+    if (mappedAnchor) {
+      const anchorPoint = resolveNamedPoint(`${mainNodeNameRaw}.${mappedAnchor}`, context);
+      if (anchorPoint) {
+        return { kind: "angle", degrees: mapped, borderPoint: anchorPoint };
+      }
+    }
     return { kind: "angle", degrees: mapped };
   }
 
@@ -868,6 +900,14 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Poin
   }
 
   return geometry.center;
+}
+
+function resolveNamedBorderPointByAngle(mainNodeNameRaw: string, angleDegrees: number, context: SemanticContext): Point | null {
+  const normalized = normalizeDegrees(angleDegrees);
+  const octant = Math.round(normalized / 45) % 8;
+  const anchorByOctant = ["east", "north east", "north", "north west", "west", "south west", "south", "south east"];
+  const anchor = anchorByOctant[octant];
+  return resolveNamedPoint(`${mainNodeNameRaw}.${anchor}`, context);
 }
 
 function anchorFacingAway(degrees: number): string {

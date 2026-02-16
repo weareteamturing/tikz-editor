@@ -162,6 +162,7 @@ PathKeyword {
   ArcKw |
   GridKw |
   PlotKw |
+  CoordinatesKw |
   ParabolaKw |
   SinKw |
   CosKw
@@ -380,7 +381,6 @@ StylePayload {
 
 GroupPart {
   Comment |
-  NodeItem |
   Group |
   Coordinate |
   OptionList |
@@ -391,6 +391,7 @@ GroupPart {
   EscapedDollarCmd |
   PathKeyword |
   KnownCommand |
+  NodeKw |
   CommandName |
   ToKw |
   SvgKw |
@@ -596,6 +597,7 @@ StrayToken {
     SvgKw,
     LetKw,
     InKw,
+    CoordinatesKw,
     CoordinateKw,
     EdgeKw,
     ControlsKw,
@@ -672,6 +674,7 @@ StrayToken {
   ArcKw { "arc" }
   GridKw { "grid" }
   PlotKw { "plot" }
+  CoordinatesKw { "coordinates" }
   ParabolaKw { "parabola" }
   SinKw { "sin" }
   CosKw { "cos" }

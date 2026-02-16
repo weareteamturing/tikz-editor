@@ -1012,8 +1012,13 @@ function computeBounds(elements: SceneElement[]): Bounds | undefined {
     const lineCount = Math.max(1, element.text.split("\n").length);
     const textHeight = element.textBlockHeight ?? lineCount * element.style.fontSize * 1.15;
     const textWidth = element.textBlockWidth ?? estimateTextWidth(element.text, element.style.fontSize);
-    points.push({ x: element.position.x - textWidth / 2, y: element.position.y - textHeight / 2 });
-    points.push({ x: element.position.x + textWidth / 2, y: element.position.y + textHeight / 2 });
+    const halfWidth = textWidth / 2;
+    const halfHeight = textHeight / 2;
+    const rotation = (element.rotation ?? 0) * (Math.PI / 180);
+    const extentX = Math.abs(Math.cos(rotation)) * halfWidth + Math.abs(Math.sin(rotation)) * halfHeight;
+    const extentY = Math.abs(Math.sin(rotation)) * halfWidth + Math.abs(Math.cos(rotation)) * halfHeight;
+    points.push({ x: element.position.x - extentX, y: element.position.y - extentY });
+    points.push({ x: element.position.x + extentX, y: element.position.y + extentY });
   }
 
   if (points.length === 0) {

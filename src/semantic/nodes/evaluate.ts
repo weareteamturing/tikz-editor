@@ -114,14 +114,15 @@ export function evaluateNodeItem(
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
   const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
-  const nodeOptionScale = resolveNodeOptionScale(effectiveNodeLocalOptions, style, context);
+  const expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
+  const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
+  const nodeOptionScale = resolveNodeOptionScale(expandedNodeLocalOptions, style, context);
   const transformScale = inheritedTransformScale * nodeOptionScale;
-  const placementNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
-  const nodeStyle = resolveNodeStyle(effectiveNodeOptions, style, context, transformScale);
-  const nodeShape = resolveNodeShape(effectiveNodeOptions);
-  const anchor = resolveAutoNodeAnchor(placementNodeOptions, segment) ?? resolveNodeAnchor(placementNodeOptions);
-  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, placementNodeOptions, segment);
-  const resolvedPositioning = resolveNodePositioningTarget(placementNodeOptions, context, target);
+  const nodeStyle = resolveNodeStyle(expandedNodeOptions, style, context, transformScale);
+  const nodeShape = resolveNodeShape(expandedNodeOptions);
+  const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
+  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, expandedNodeOptions, segment);
+  const resolvedPositioning = resolveNodePositioningTarget(expandedNodeOptions, context, target);
   for (const code of resolvedPositioning.diagnostics) {
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
   }
@@ -155,23 +156,24 @@ export function evaluateNodeItem(
     });
   }
 
-  const nodeLayout = resolveNodeLayout(resolvedNodeText, effectiveNodeOptions, nodeStyle, transformScale, context.textEngine);
-  const shapeGeometry = resolveNodeShapeGeometryParams(effectiveNodeOptions);
+  const nodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
+  const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
     nodeLayout,
     resolvedPositioning.anchorOverride ?? anchor,
-    effectiveNodeOptions
+    expandedNodeOptions
   );
   const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, effectiveNodeOptions);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions);
   }
 
   const nodeElements: SceneElement[] = [];
-  const explicitPaintMode = resolveNodeBoxPaintMode(effectiveNodeLocalOptions);
+  const explicitPaintMode = resolveNodeBoxPaintMode(expandedNodeLocalOptions);
   const resolvedPaintMode = {
     draw:
       explicitPaintMode.draw ||
@@ -580,13 +582,14 @@ export function evaluateNodeItem(
         normalizedText,
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
-        nodeLayout.textRenderInfo
+        nodeLayout.textRenderInfo,
+        slopedRotation ?? undefined
       )
     );
     markFeature("svg_text", "supported");
   }
 
-  const layer = resolveNodeLayer(effectiveNodeOptions, context);
+  const layer = resolveNodeLayer(expandedNodeOptions, context);
   if (layer === "behind") {
     return { behindElements: nodeElements, frontElements: [] };
   }
@@ -684,6 +687,35 @@ function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementS
     y: -normal.y
   };
   return directionToAnchor(anchorDirection);
+}
+
+function resolveSlopedNodeRotation(options: NodeItem["options"], segment: PlacementSegment | null): number | null {
+  if (!options || !segment) {
+    return null;
+  }
+
+  let sloped = false;
+  for (const entry of options.entries) {
+    if (entry.kind === "flag" && entry.key === "sloped") {
+      sloped = true;
+      continue;
+    }
+    if (entry.kind === "kv" && entry.key === "sloped") {
+      const normalized = entry.valueRaw.trim().toLowerCase();
+      sloped = normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1";
+    }
+  }
+
+  if (!sloped) {
+    return null;
+  }
+
+  const tangent = segmentTangent(segment);
+  if (!tangent) {
+    return null;
+  }
+
+  return (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
 }
 
 function expandNodePlacementOptions(options: OptionListAst | undefined, context: SemanticContext): OptionListAst | undefined {
@@ -844,6 +876,7 @@ export {
   applyNameScope,
   maybeResolveNamedCoordinateBorderPoint,
   maybeResolveNamedCoordinateBorderPointFromRaw,
+  maybeResolveNamedCoordinateBorderPointFromRawAlongAngle,
   maybeResolveTrailingCoordinateFromNodeName,
   shouldCaptureStandaloneNodeNameCoordinate
 } from "./named-coordinates.js";

@@ -90,7 +90,17 @@ export async function compareTikzRenderers(options = {}) {
     );
   }
 
-  const rendered = await (renderAsync ?? renderSync)(input.code, { parse: { recover: true } });
+  const rendererCode = injectRendererContext(input.code, {
+    preamble: options.latexPreamble ?? "",
+    pre: options.latexPrepend ?? ""
+  });
+  if (rendererCode !== input.code) {
+    const rendererInputPath = join(runDir, "input-renderer.tikz");
+    writeFileSync(rendererInputPath, rendererCode, "utf8");
+    report.outputs.rendererInput = rendererInputPath;
+  }
+
+  const rendered = await (renderAsync ?? renderSync)(rendererCode, { parse: { recover: true } });
   report.renderer.parseDiagnostics = rendered.parse.diagnostics;
   report.renderer.semanticDiagnostics = rendered.semantic.diagnostics;
   report.renderer.svgDiagnostics = rendered.svg.diagnostics;
@@ -386,6 +396,60 @@ function wrapTikzForStandalone(code, referenceMode, latexContext = {}) {
   return lines.join("\n");
 }
 
+function injectRendererContext(code, latexContext = {}) {
+  const preamble = sanitizeRendererPreamble(latexContext.preamble);
+  const pre = normalizeLatexInjection(latexContext.pre);
+  const injections = [preamble, pre].filter((part) => part.length > 0).join("\n");
+  if (injections.length === 0) {
+    return code;
+  }
+
+  const beginToken = "\\begin{tikzpicture}";
+  const beginIndex = code.indexOf(beginToken);
+  if (beginIndex === -1) {
+    return `${injections}\n${code}`;
+  }
+
+  let insertionPoint = beginIndex + beginToken.length;
+  while (insertionPoint < code.length && /\s/u.test(code[insertionPoint] ?? "")) {
+    insertionPoint += 1;
+  }
+  if ((code[insertionPoint] ?? "") === "[") {
+    const optionsEnd = findBalancedBracketEnd(code, insertionPoint, "[", "]");
+    if (optionsEnd != null) {
+      insertionPoint = optionsEnd;
+    }
+  }
+
+  return `${code.slice(0, insertionPoint)}\n${injections}\n${code.slice(insertionPoint)}`;
+}
+
+function findBalancedBracketEnd(source, start, openChar, closeChar) {
+  if (source[start] !== openChar) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === openChar) {
+      depth += 1;
+      continue;
+    }
+    if (char === closeChar) {
+      depth -= 1;
+      if (depth === 0) {
+        return index + 1;
+      }
+    }
+  }
+  return null;
+}
+
 function normalizeLatexInjection(value) {
   if (value == null) {
     return "";
@@ -393,6 +457,32 @@ function normalizeLatexInjection(value) {
 
   const normalized = String(value).trim();
   return normalized.length > 0 ? normalized : "";
+}
+
+function sanitizeRendererPreamble(value) {
+  const normalized = normalizeLatexInjection(value);
+  if (normalized.length === 0) {
+    return "";
+  }
+
+  const kept = normalized
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) {
+        return false;
+      }
+      if (trimmed.startsWith("%")) {
+        return false;
+      }
+      if (trimmed.startsWith("\\usepackage") || trimmed.startsWith("\\RequirePackage")) {
+        return false;
+      }
+      return true;
+    });
+
+  return kept.join("\n");
 }
 
 function compileLatex(texPath, cwd, tools) {

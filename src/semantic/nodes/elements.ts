@@ -54,7 +54,8 @@ export function makeTextElement(
   text: string,
   textBlockWidth?: number,
   textBlockHeight?: number,
-  textRenderInfo?: NodeTextRenderInfo
+  textRenderInfo?: NodeTextRenderInfo,
+  rotation?: number
 ): SceneText {
   return {
     kind: "Text",
@@ -66,7 +67,8 @@ export function makeTextElement(
     text,
     textBlockWidth,
     textBlockHeight,
-    textRenderInfo
+    textRenderInfo,
+    rotation
   };
 }
 

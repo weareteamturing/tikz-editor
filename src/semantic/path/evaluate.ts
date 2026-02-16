@@ -248,6 +248,7 @@ export function evaluatePathStatement(
   let pendingEllipseRadii: { rx: number; ry: number } | null = null;
   let pendingArc: { from: Point } | null = null;
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
+  let pendingPlot: { mark: string | null; expectsCoordinates: boolean } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
   let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
   let pendingNodeNameForNodeCommand: string | null = null;
@@ -295,6 +296,106 @@ export function evaluatePathStatement(
   const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none") || hasFilledShadowLayer;
   const drawEdgeOptions = parseStyleValueAsOptionList("draw");
   const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
+  const resolvePlotMark = (options: { entries: Array<{ kind: string; key?: string; valueRaw?: string }> } | undefined): string | null => {
+    if (!options) {
+      return null;
+    }
+    for (const entry of options.entries) {
+      if (entry.kind !== "kv" || entry.key !== "mark") {
+        continue;
+      }
+      const raw = (entry.valueRaw ?? "").trim();
+      if (raw.length === 0) {
+        continue;
+      }
+      return raw;
+    }
+    return null;
+  };
+  const extractPlotCoordinateEntries = (rawGroup: string): Array<{ raw: string; relativePrefix?: "+" | "++" }> => {
+    const trimmed = rawGroup.trim();
+    const content =
+      trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.length >= 2 ? trimmed.slice(1, -1).trim() : trimmed;
+    const entries: Array<{ raw: string; relativePrefix?: "+" | "++" }> = [];
+    let index = 0;
+
+    while (index < content.length) {
+      while (index < content.length && (/\s/.test(content[index]) || content[index] === ",")) {
+        index += 1;
+      }
+      if (index >= content.length) {
+        break;
+      }
+
+      let relativePrefix: "+" | "++" | undefined;
+      if (content.startsWith("++", index)) {
+        relativePrefix = "++";
+        index += 2;
+      } else if (content[index] === "+") {
+        relativePrefix = "+";
+        index += 1;
+      }
+      while (index < content.length && /\s/.test(content[index])) {
+        index += 1;
+      }
+
+      if (content[index] !== "(") {
+        index += 1;
+        continue;
+      }
+
+      const coordinateStart = index;
+      let depth = 0;
+      while (index < content.length) {
+        const char = content[index];
+        if (char === "\\") {
+          index += 2;
+          continue;
+        }
+        if (char === "(") {
+          depth += 1;
+          index += 1;
+          continue;
+        }
+        if (char === ")") {
+          depth -= 1;
+          index += 1;
+          if (depth === 0) {
+            const raw = content.slice(coordinateStart, index).trim();
+            if (raw.length > 0) {
+              entries.push({ raw, relativePrefix });
+            }
+            break;
+          }
+          continue;
+        }
+        index += 1;
+      }
+    }
+
+    return entries;
+  };
+  const appendPlotXMarks = (commands: ScenePath["commands"], points: Point[]): void => {
+    const halfSize = parseLength("1.5pt", "pt") ?? 1.5;
+    for (const point of points) {
+      commands.push({
+        kind: "M",
+        to: { x: point.x - halfSize, y: point.y - halfSize }
+      });
+      commands.push({
+        kind: "L",
+        to: { x: point.x + halfSize, y: point.y + halfSize }
+      });
+      commands.push({
+        kind: "M",
+        to: { x: point.x - halfSize, y: point.y + halfSize }
+      });
+      commands.push({
+        kind: "L",
+        to: { x: point.x + halfSize, y: point.y - halfSize }
+      });
+    }
+  };
 
   const emitCircleOrEllipse = (
     geometry: CircleOrEllipseGeometry,
@@ -749,16 +850,16 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "circle") {
-        const circleCenter = currentPointLogical ?? context.currentPoint;
-        if (!circleCenter) {
-          pushDiagnostic("circle-without-center", "Circle operator requires a current point.", item.span.from, item.span.to);
-          continue;
+        const circleCenter = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        const effectiveCircleCenter = hasPathCurrentPoint ? circleCenter : defaultPathOrigin;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(effectiveCircleCenter);
         }
         if (!shouldCompoundFilledSubpaths) {
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingCircleCenter = circleCenter;
+        pendingCircleCenter = effectiveCircleCenter;
         pendingCircleRadius = null;
         pendingCircleRadii = null;
         pendingCircleRotation = 0;
@@ -768,16 +869,16 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "ellipse") {
-        const ellipseCenter = currentPointLogical ?? context.currentPoint;
-        if (!ellipseCenter) {
-          pushDiagnostic("ellipse-without-center", "Ellipse keyword requires a current point.", item.span.from, item.span.to);
-          continue;
+        const ellipseCenter = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        const effectiveEllipseCenter = hasPathCurrentPoint ? ellipseCenter : defaultPathOrigin;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(effectiveEllipseCenter);
         }
         if (!shouldCompoundFilledSubpaths) {
           activePath = flushDrawableActivePath(geometryElements, activePath);
         }
         previousSegmentRoundedCorners = null;
-        pendingEllipseCenter = ellipseCenter;
+        pendingEllipseCenter = effectiveEllipseCenter;
         pendingEllipseRadii = null;
         lastPlacementSegment = null;
         markFeature("keyword_ellipse", "supported");
@@ -785,12 +886,12 @@ export function evaluatePathStatement(
       }
 
       if (item.keyword === "arc") {
-        const arcStart = currentPointLogical ?? context.currentPoint;
-        if (!arcStart) {
-          pushDiagnostic("arc-without-start", "Arc keyword requires a current point.", item.span.from, item.span.to);
-          continue;
+        const arcStart = currentPointLogical ?? context.currentPoint ?? defaultPathOrigin;
+        const effectiveArcStart = hasPathCurrentPoint ? arcStart : defaultPathOrigin;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(effectiveArcStart);
         }
-        pendingArc = { from: arcStart };
+        pendingArc = { from: effectiveArcStart };
         lastPlacementSegment = null;
         markFeature("keyword_arc", "supported");
         continue;
@@ -810,6 +911,29 @@ export function evaluatePathStatement(
           stepY: resolveDefaultGridStep(frameTransform, "y")
         };
         lastPlacementSegment = null;
+        continue;
+      }
+
+      if (item.keyword === "plot") {
+        activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
+        lastPlacementSegment = null;
+        pendingPlot = { mark: null, expectsCoordinates: false };
+        currentOperator = null;
+        continue;
+      }
+
+      if (item.keyword === "coordinates") {
+        if (pendingPlot) {
+          pendingPlot.expectsCoordinates = true;
+          continue;
+        }
+        pushDiagnostic(
+          "unsupported-path-keyword",
+          "Path keyword `coordinates` is currently implemented only after `plot`.",
+          item.span.from,
+          item.span.to
+        );
         continue;
       }
 
@@ -937,10 +1061,7 @@ export function evaluatePathStatement(
         );
       }
 
-      if (
-        item.keyword === "plot" ||
-        item.keyword === "bend"
-      ) {
+      if (item.keyword === "bend") {
         pushDiagnostic(
           "unsupported-path-keyword",
           `Path keyword \`${item.keyword}\` is parsed but not semantically implemented yet.`,
@@ -999,6 +1120,13 @@ export function evaluatePathStatement(
           if (parsed.stepY != null && parsed.stepY >= 0) {
             pendingGrid.stepY = parsed.stepY;
           }
+        }
+      }
+
+      if (pendingPlot) {
+        const plotMark = resolvePlotMark(item.options);
+        if (plotMark) {
+          pendingPlot.mark = plotMark;
         }
       }
 
@@ -1178,6 +1306,88 @@ export function evaluatePathStatement(
       continue;
     }
 
+    if (item.kind === "UnknownPathItem") {
+      if (pendingPlot?.expectsCoordinates) {
+        const coordinateEntries = extractPlotCoordinateEntries(item.raw);
+        if (coordinateEntries.length === 0) {
+          pushDiagnostic(
+            "invalid-plot-coordinates",
+            "Plot coordinates require at least one coordinate entry.",
+            item.span.from,
+            item.span.to
+          );
+          pendingPlot = null;
+          continue;
+        }
+
+        const savedCurrentPoint = context.currentPoint;
+        let iterationCurrentPoint = context.currentPoint;
+        const points: Point[] = [];
+        const plotMark = pendingPlot.mark;
+        for (const entry of coordinateEntries) {
+          context.currentPoint = iterationCurrentPoint;
+          const evaluated = evaluateRawCoordinate(entry.raw, context, entry.relativePrefix);
+          for (const code of evaluated.diagnostics) {
+            pushDiagnostic(code, `Plot coordinate issue: ${code}`, item.span.from, item.span.to);
+          }
+          if (!evaluated.point) {
+            continue;
+          }
+
+          points.push(evaluated.point);
+          if (evaluated.advancesCurrentPoint || iterationCurrentPoint == null) {
+            iterationCurrentPoint = evaluated.point;
+          }
+        }
+        context.currentPoint = savedCurrentPoint;
+        pendingPlot = null;
+
+        if (points.length === 0) {
+          continue;
+        }
+
+        activePath = flushDrawableActivePath(geometryElements, activePath);
+
+        if (points.length >= 2) {
+          const plotPath = makePath(statement.id, item.id, style, item.span);
+          plotPath.commands.push({ kind: "M", to: points[0] });
+          for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+            plotPath.commands.push({ kind: "L", to: points[pointIndex] });
+          }
+          geometryElements.push(plotPath);
+          markFeature("svg_path", "supported");
+          lastPlacementSegment = {
+            kind: "line",
+            from: points[points.length - 2],
+            to: points[points.length - 1]
+          };
+          previousSegmentRoundedCorners = activeRoundedCorners;
+        } else {
+          lastPlacementSegment = null;
+          previousSegmentRoundedCorners = null;
+        }
+
+        if ((plotMark ?? "").trim().toLowerCase() === "x") {
+          const markerPathStyle: ResolvedStyle = {
+            ...style,
+            fill: "none"
+          };
+          const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, item.span);
+          appendPlotXMarks(markerPath.commands, points);
+          if (hasDrawablePathSegments(markerPath)) {
+            geometryElements.push(markerPath);
+            markFeature("svg_path", "supported");
+          }
+        }
+
+        const finalPoint = points[points.length - 1];
+        setCurrentPoint(finalPoint);
+        context.pathStartPoint = points[0];
+        currentOperator = null;
+      }
+      continue;
+    }
+
     if (item.kind === "ToOperation") {
       const toPlan = extractToLikeOptionPlan(item);
       const toItem: ToOperationItem =
@@ -1187,6 +1397,13 @@ export function evaluatePathStatement(
               nodes: [...(toPlan.item.nodes ?? []), ...toPlan.generatedNodes]
             }
           : toPlan.item;
+      let toStartCoordinateRaw: string | null = null;
+      if (currentPointCoordinate) {
+        const namedCoordinate = currentPointCoordinate as { form: string; x: string };
+        if (namedCoordinate.form === "named") {
+          toStartCoordinateRaw = `(${namedCoordinate.x.trim()})`;
+        }
+      }
       const handled = applyToOperation(
         toItem,
         context,
@@ -1195,7 +1412,8 @@ export function evaluatePathStatement(
         activePath,
         previousSegmentRoundedCorners,
         markFeature,
-        pushDiagnostic
+        pushDiagnostic,
+        toStartCoordinateRaw
       );
       activePath = handled.activePath;
       if (handled.segment) {

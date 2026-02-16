@@ -108,6 +108,7 @@ export type SceneText = {
   textBlockWidth?: number;
   textBlockHeight?: number;
   textRenderInfo?: NodeTextRenderInfo;
+  rotation?: number;
 };
 
 export type ForeachOriginFrame = {

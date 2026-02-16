@@ -17,6 +17,7 @@ export const PATH_KEYWORDS = new Set([
   "arc",
   "grid",
   "plot",
+  "coordinates",
   "parabola",
   "sin",
   "cos"
