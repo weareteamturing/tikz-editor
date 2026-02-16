@@ -818,11 +818,15 @@ export function evaluatePathStatement(
             roundClosedPathStartCorner(activePath.commands, closingFrom, pathStart, activeRoundedCorners);
           }
           activePath.commands.push({ kind: "Z" });
-          if (hasDrawablePathSegments(activePath)) {
-            geometryElements.push(activePath);
+          if (shouldCompoundFilledSubpaths) {
+            previousSegmentRoundedCorners = null;
+          } else {
+            if (hasDrawablePathSegments(activePath)) {
+              geometryElements.push(activePath);
+            }
+            activePath = null;
+            previousSegmentRoundedCorners = null;
           }
-          activePath = null;
-          previousSegmentRoundedCorners = null;
           markFeature("path_cycle", "supported");
         }
         if (context.pathStartPoint) {
@@ -1159,6 +1163,7 @@ export function evaluatePathStatement(
         options: adornmentPlan.mainOptions,
         optionsSpan: adornmentPlan.mainOptions?.span
       };
+      const standaloneNodeDefaultTarget = statement.command === "node" && !hasPathCurrentPoint ? defaultPathOrigin : undefined;
       const resolvedNode = evaluateNodeItem(
         nodeItem,
         statement,
@@ -1167,7 +1172,9 @@ export function evaluatePathStatement(
         markFeature,
         pushDiagnostic,
         lastPlacementSegment,
-        forcedMainNodeName
+        forcedMainNodeName,
+        undefined,
+        standaloneNodeDefaultTarget
       );
       pendingNodeNameForNodeCommand = null;
       pendingEdgeStartCoordinateRaw = declaredNodeName ? `(${declaredNodeName.trim()})` : null;

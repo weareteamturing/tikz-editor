@@ -214,6 +214,9 @@ function applyToLikeOperation(
   }
 
   const start = effectiveStartPoint;
+  if (start && path && alignPathToStart(path.commands, start)) {
+    context.pathStartPoint = start;
+  }
   let segment: PlacementSegment | null = null;
   let nextRoundedCorners = previousSegmentRoundedCorners;
   if (start && curved) {
@@ -419,4 +422,30 @@ function appendToCurve(
     c2,
     to
   };
+}
+
+function alignPathToStart(commands: ScenePathCommand[], start: Point): boolean {
+  const lastPoint = commandEndpoint(commands[commands.length - 1]);
+  if (lastPoint && Math.hypot(lastPoint.x - start.x, lastPoint.y - start.y) <= 1e-6) {
+    return false;
+  }
+
+  const first = commands[0];
+  if (commands.length === 1 && first?.kind === "M") {
+    first.to = start;
+    return true;
+  }
+
+  commands.push({ kind: "M", to: start });
+  return true;
+}
+
+function commandEndpoint(command: ScenePathCommand | undefined): Point | null {
+  if (!command) {
+    return null;
+  }
+  if (command.kind === "M" || command.kind === "L" || command.kind === "C" || command.kind === "A") {
+    return command.to;
+  }
+  return null;
 }

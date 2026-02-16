@@ -33,9 +33,11 @@ export function placeNodeCenter(
   shape: NodeShape,
   layout: NodeLayout,
   anchor: string,
-  options: OptionListAst | undefined = undefined
+  options: OptionListAst | undefined = undefined,
+  anchorRotation = 0
 ): Point {
-  const offset = nodeAnchorOffset(shape, layout, anchor, options);
+  const rawOffset = nodeAnchorOffset(shape, layout, anchor, options);
+  const offset = Math.abs(anchorRotation) > 1e-6 ? rotatePoint(rawOffset, anchorRotation) : rawOffset;
   return {
     x: target.x - offset.x,
     y: target.y - offset.y
@@ -978,6 +980,16 @@ function circleHorizontalOffsetAtY(radius: number, y: number, direction: -1 | 1)
   const clampedY = Math.max(-radius, Math.min(radius, y));
   const xMagnitude = Math.sqrt(Math.max(0, radius * radius - clampedY * clampedY));
   return direction < 0 ? -xMagnitude : xMagnitude;
+}
+
+function rotatePoint(point: Point, degrees: number): Point {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos
+  };
 }
 
 function anchorSizingWithOuter(layout: NodeLayout): {

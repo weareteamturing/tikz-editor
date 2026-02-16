@@ -35,7 +35,7 @@ import {
   makeTextElement,
   resolveNodeBoxPaintMode
 } from "./elements.js";
-import { resolveNodeLayout } from "./layout.js";
+import { adjustNodeLayoutForShape, resolveNodeLayout } from "./layout.js";
 import { evaluateMatrixNodeItem, resolveMatrixMode } from "./matrix.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
 import {
@@ -50,6 +50,7 @@ import {
 } from "./options.js";
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import { resolveNodeTargetPoint } from "./placement.js";
+import { normalizeOptionValue } from "./utils.js";
 
 export function evaluateNodeItem(
   item: NodeItem,
@@ -60,7 +61,8 @@ export function evaluateNodeItem(
   pushDiagnostic: DiagnosticPushFn,
   segment: PlacementSegment | null,
   forcedName?: string,
-  defaultPositionFraction?: number
+  defaultPositionFraction?: number,
+  defaultTargetPoint?: Point
 ): {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
@@ -121,7 +123,7 @@ export function evaluateNodeItem(
   const nodeStyle = resolveNodeStyle(expandedNodeOptions, style, context, transformScale);
   const nodeShape = resolveNodeShape(expandedNodeOptions);
   const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
-  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, expandedNodeOptions, segment);
+  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, expandedNodeOptions, segment, defaultTargetPoint);
   const resolvedPositioning = resolveNodePositioningTarget(expandedNodeOptions, context, target);
   for (const code of resolvedPositioning.diagnostics) {
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);
@@ -156,15 +158,22 @@ export function evaluateNodeItem(
     });
   }
 
-  const nodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
+  const optionRotation = resolveNodeOptionRotation(expandedNodeOptions);
+  const textRotation =
+    optionRotation != null && slopedRotation != null
+      ? optionRotation + slopedRotation
+      : (optionRotation ?? slopedRotation ?? undefined);
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
     nodeLayout,
     resolvedPositioning.anchorOverride ?? anchor,
-    expandedNodeOptions
+    expandedNodeOptions,
+    slopedRotation ?? 0
   );
   const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
 
@@ -583,7 +592,7 @@ export function evaluateNodeItem(
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
         nodeLayout.textRenderInfo,
-        slopedRotation ?? undefined
+        textRotation
       )
     );
     markFeature("svg_text", "supported");
@@ -608,6 +617,7 @@ function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementS
 
   let autoSide: "left" | "right" | null = null;
   let swap = false;
+  const sloped = hasSlopedOption(options);
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
@@ -660,6 +670,41 @@ function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementS
     return null;
   }
 
+  if (sloped) {
+    const tangent = segmentTangent(segment);
+    if (!tangent) {
+      return null;
+    }
+
+    let normal = {
+      x: -tangent.y,
+      y: tangent.x
+    };
+    if (autoSide === "right") {
+      normal = {
+        x: -normal.x,
+        y: -normal.y
+      };
+    }
+    if (swap) {
+      normal = {
+        x: -normal.x,
+        y: -normal.y
+      };
+    }
+
+    const slopedRotation =
+      resolveSlopedNodeRotation(options, segment) ??
+      (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
+    const theta = (slopedRotation * Math.PI) / 180;
+    const northDirection = {
+      x: -Math.sin(theta),
+      y: Math.cos(theta)
+    };
+    const dot = normal.x * northDirection.x + normal.y * northDirection.y;
+    return dot >= 0 ? "south" : "north";
+  }
+
   const tangent = segmentTangent(segment);
   if (!tangent) {
     return null;
@@ -694,19 +739,7 @@ function resolveSlopedNodeRotation(options: NodeItem["options"], segment: Placem
     return null;
   }
 
-  let sloped = false;
-  for (const entry of options.entries) {
-    if (entry.kind === "flag" && entry.key === "sloped") {
-      sloped = true;
-      continue;
-    }
-    if (entry.kind === "kv" && entry.key === "sloped") {
-      const normalized = entry.valueRaw.trim().toLowerCase();
-      sloped = normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1";
-    }
-  }
-
-  if (!sloped) {
+  if (!hasSlopedOption(options)) {
     return null;
   }
 
@@ -715,7 +748,81 @@ function resolveSlopedNodeRotation(options: NodeItem["options"], segment: Placem
     return null;
   }
 
-  return (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
+  let rotation = (Math.atan2(tangent.y, tangent.x) * 180) / Math.PI;
+  if (!allowsUpsideDown(options)) {
+    if (rotation > 90) {
+      rotation -= 180;
+    } else if (rotation <= -90) {
+      rotation += 180;
+    }
+  }
+  return rotation;
+}
+
+function hasSlopedOption(options: NodeItem["options"]): boolean {
+  if (!options) {
+    return false;
+  }
+
+  let sloped = false;
+  for (const entry of options.entries) {
+    if (entry.kind === "flag" && entry.key === "sloped") {
+      sloped = true;
+      continue;
+    }
+    if (entry.kind !== "kv" || entry.key !== "sloped") {
+      continue;
+    }
+    const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
+    sloped = normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1";
+  }
+
+  return sloped;
+}
+
+function resolveNodeOptionRotation(options: NodeItem["options"]): number | null {
+  if (!options) {
+    return null;
+  }
+
+  let rotation: number | null = null;
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "rotate") {
+      continue;
+    }
+    const parsed = Number(normalizeOptionValue(entry.valueRaw));
+    if (Number.isFinite(parsed)) {
+      rotation = parsed;
+    }
+  }
+  return rotation;
+}
+
+function allowsUpsideDown(options: NodeItem["options"]): boolean {
+  if (!options) {
+    return false;
+  }
+
+  let allow = false;
+  for (const entry of options.entries) {
+    if (entry.kind === "flag" && entry.key === "allow upside down") {
+      allow = true;
+      continue;
+    }
+    if (entry.kind !== "kv" || entry.key !== "allow upside down") {
+      continue;
+    }
+    const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
+    if (normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+      allow = true;
+      continue;
+    }
+    if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+      allow = false;
+    }
+  }
+
+  return allow;
 }
 
 function expandNodePlacementOptions(options: OptionListAst | undefined, context: SemanticContext): OptionListAst | undefined {

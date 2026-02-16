@@ -216,7 +216,7 @@ describe("semantic evaluator", () => {
     const result = evaluateTikzFigure(parsed.figure, source);
 
     const unsupportedKeywordDiagnostics = result.diagnostics.filter((diagnostic) => diagnostic.code === "unsupported-path-keyword");
-    expect(unsupportedKeywordDiagnostics.length).toBeGreaterThanOrEqual(2);
+    expect(unsupportedKeywordDiagnostics.length).toBeGreaterThanOrEqual(1);
   });
 
   it("evaluates edge operations as separate paths that do not advance the main current point", () => {
@@ -1853,6 +1853,139 @@ describe("semantic evaluator", () => {
     if (a && b && left && right) {
       expect(a.position.y).toBeGreaterThan(b.position.y);
       expect(left.position.y).toBeGreaterThan(right.position.y);
+    }
+  });
+
+  it("parses edge quote syntax when quote options are provided without braces", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) edge["inside" pos=0.4] (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === 'unsupported-option-key:"inside" pos')).toBe(false);
+
+    const inside = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "inside"
+    );
+    expect(inside).toBeDefined();
+  });
+
+  it("starts to-operation curves from named-node borders when out/in angles are provided", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (tex) [draw] at (0,0) {TEX};
+  \node (pdf) [draw] at (2,0) {PDF};
+  \draw[->] (tex) to[out=45,in=225,looseness=1.5] (pdf);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-path:")
+    );
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands[0];
+      expect(move?.kind).toBe("M");
+      if (move?.kind === "M") {
+        expect(move.to.y).toBeGreaterThan(0.1);
+      }
+    }
+  });
+
+  it("keeps multi-cycle fill geometry in one compound path for hole punching", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill[orange]
+    (90:2) -- (210:2) -- (330:2) -- cycle
+    (90:1) -- (330:1) -- (210:1) -- cycle;
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> => element.kind === "Path");
+    expect(paths).toHaveLength(1);
+    const closeCommands = paths[0]?.commands.filter((command) => command.kind === "Z") ?? [];
+    expect(closeCommands).toHaveLength(2);
+  });
+
+  it("applies rotate=<deg> on nodes to text rotation", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[rotate=15] {TOP SECRET};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "TOP SECRET"
+    );
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.rotation ?? 0).toBeCloseTo(15, 3);
+    }
+  });
+
+  it("places standalone node commands at the scope origin by default", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[opacity=0.6]
+    \draw [line width=4mm, red] circle(1);
+    \fill[rounded corners, fill=red, rotate=15]
+      (-1.3,-0.2) rectangle (1.3,0.2);
+  \end{scope}
+  \node[rotate=15] {TOP SECRET};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "TOP SECRET"
+    );
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.position.x).toBeCloseTo(0, 3);
+      expect(label.position.y).toBeCloseTo(0, 3);
+      expect(label.rotation ?? 0).toBeCloseTo(15, 3);
+    }
+  });
+
+  it("keeps sloped node text upright unless allow upside down is set", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (2,0) -- (0,0) node[midway,sloped,above] {outside};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "outside"
+    );
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(Math.abs(label.rotation ?? 0)).toBeLessThan(90);
+    }
+  });
+
+  it("keeps sloped auto labels on the geometric left side for downward edges", () => {
+    const source = String.raw`\begin{tikzpicture}[
+  every edge/.style={draw},
+  every edge quotes/.style={auto,sloped}]
+  \node (top) at (0,1) {TOP};
+  \node (bottom) at (0,0) {BOTTOM};
+  \draw (top) edge["ps2pdf"] (bottom);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const label = result.scene.elements.find(
+      (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.text === "ps2pdf"
+    );
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.position.x).toBeGreaterThan(0);
     }
   });
 

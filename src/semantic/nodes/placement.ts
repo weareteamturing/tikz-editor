@@ -11,7 +11,8 @@ export function resolveNodeTargetPoint(
   span: { from: number; to: number },
   pushDiagnostic: DiagnosticPushFn,
   options: PathOptionItem["options"] | undefined,
-  segment: PlacementSegment | null
+  segment: PlacementSegment | null,
+  defaultPoint?: Point
 ): Point {
   if (item.atRaw) {
     const evaluated = evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix);
@@ -48,7 +49,7 @@ export function resolveNodeTargetPoint(
     return pointAtSegmentEnd(segment);
   }
 
-  return context.currentPoint ?? { x: 0, y: 0 };
+  return defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
 }
 
 export function resolveNodePositionFraction(options: PathOptionItem["options"] | undefined): number | null {

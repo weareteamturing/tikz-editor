@@ -378,18 +378,16 @@ export function extractToLikeOptionPlan<T extends ToOperationItem | EdgeOperatio
       }
     }
 
-    if (entry.kind === "unknown") {
-      const quote = parseQuoteToken(entry.raw);
-      if (quote) {
-        const quoteOptions = composeQuoteOptions(quote.optionsRaw, quote.hasApostrophe);
-        const optionsRaw = quoteOptions.length > 0 ? `every edge quotes,${quoteOptions}` : "every edge quotes";
-        const nodeOptions = parseGeneratedOptions(optionsRaw, entry.span);
-        generatedNodes.push(
-          makeSyntheticOperationNode(item.id, generatedIndex, stripWrappingBraces(quote.text), nodeOptions, entry.span, entry.raw)
-        );
-        generatedIndex += 1;
-        continue;
-      }
+    const quote = parseQuoteToken(entry.raw);
+    if (quote) {
+      const quoteOptions = composeQuoteOptions(quote.optionsRaw, quote.hasApostrophe);
+      const optionsRaw = quoteOptions.length > 0 ? `every edge quotes,${quoteOptions}` : "every edge quotes";
+      const nodeOptions = parseGeneratedOptions(optionsRaw, entry.span);
+      generatedNodes.push(
+        makeSyntheticOperationNode(item.id, generatedIndex, stripWrappingBraces(quote.text), nodeOptions, entry.span, entry.raw)
+      );
+      generatedIndex += 1;
+      continue;
     }
 
     keptEntries.push(entry);

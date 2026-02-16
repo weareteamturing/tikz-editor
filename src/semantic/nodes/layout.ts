@@ -2,7 +2,7 @@ import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../../text/types.js";
 import { parseLength } from "../coords/parse-length.js";
 import type { ResolvedStyle } from "../types.js";
-import type { NodeLayout } from "./types.js";
+import type { NodeLayout, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export function resolveNodeLayout(
@@ -158,6 +158,53 @@ export function resolveNodeLayout(
     baseLineY,
     midLineY
   };
+}
+
+export function adjustNodeLayoutForShape(layout: NodeLayout, shape: NodeShape): NodeLayout {
+  if (shape === "ellipse") {
+    const naturalHalfWidth = layout.naturalWidth / 2;
+    const naturalHalfHeight = layout.naturalHeight / 2;
+    const minimumHalfWidth = layout.minimumWidth / 2;
+    const minimumHalfHeight = layout.minimumHeight / 2;
+
+    const drawHalfWidth = Math.max(naturalHalfWidth * Math.SQRT2, minimumHalfWidth);
+    const drawHalfHeight = Math.max(naturalHalfHeight * Math.SQRT2, minimumHalfHeight);
+    const anchorHalfWidth = drawHalfWidth + layout.outerXSep;
+    const anchorHalfHeight = drawHalfHeight + layout.outerYSep;
+
+    return {
+      ...layout,
+      visualWidth: drawHalfWidth * 2,
+      visualHeight: drawHalfHeight * 2,
+      visualRadius: Math.max(drawHalfWidth, drawHalfHeight),
+      anchorHalfWidth,
+      anchorHalfHeight,
+      anchorRadius: Math.max(anchorHalfWidth, anchorHalfHeight)
+    };
+  }
+
+  if (shape === "circle") {
+    const naturalHalfWidth = layout.naturalWidth / 2;
+    const naturalHalfHeight = layout.naturalHeight / 2;
+    const minimumHalfWidth = layout.minimumWidth / 2;
+    const minimumHalfHeight = layout.minimumHeight / 2;
+
+    const drawRadius = Math.max(Math.hypot(naturalHalfWidth, naturalHalfHeight), minimumHalfWidth, minimumHalfHeight);
+    const outerSep = Math.max(layout.outerXSep, layout.outerYSep);
+    const anchorRadius = drawRadius + outerSep;
+
+    return {
+      ...layout,
+      visualWidth: drawRadius * 2,
+      visualHeight: drawRadius * 2,
+      visualRadius: drawRadius,
+      anchorHalfWidth: anchorRadius,
+      anchorHalfHeight: anchorRadius,
+      anchorRadius
+    };
+  }
+
+  return layout;
 }
 
 function splitNodeLines(text: string): string[] {
