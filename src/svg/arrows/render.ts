@@ -197,16 +197,25 @@ function resolveTipPaint(
   lineJoin: "miter" | "round" | "bevel";
 } {
   const color = tip.color ?? markerColor;
-  const fillDefault = tip.open || tip.kind === "bar" || tip.kind === "hooks" || tip.kind === "cm-rightarrow" ? "none" : color;
+  const strokeOnlyKinds = new Set([
+    "bar",
+    "hooks",
+    "cm-rightarrow",
+    "straight-barb",
+    "arc-barb",
+    "tee-barb",
+    "rays"
+  ]);
+  const fillDefault = tip.open || strokeOnlyKinds.has(tip.kind) ? "none" : color;
   const fill = tip.fill ?? fillDefault;
 
-  const explicitStrokeOnly = tip.kind === "bar" || tip.kind === "hooks" || tip.kind === "cm-rightarrow";
+  const explicitStrokeOnly = strokeOnlyKinds.has(tip.kind);
   const shouldStroke = explicitStrokeOnly || tip.open || tip.lineWidth > 0;
   const stroke = shouldStroke ? color : "none";
   const fallbackWidth = Number.isFinite(contextLineWidth) && contextLineWidth > 0 ? contextLineWidth : 0.4;
   const strokeWidth = stroke === "none" ? 0 : Math.max(tip.lineWidth, fallbackWidth);
 
-  const rounded = tip.round || tip.kind === "cm-rightarrow" || tip.kind === "hooks";
+  const rounded = tip.round || tip.kind === "cm-rightarrow" || tip.kind === "hooks" || tip.kind === "circle" || tip.kind === "round-cap";
   return {
     stroke,
     fill,

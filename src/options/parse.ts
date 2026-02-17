@@ -109,12 +109,15 @@ function looksLikeArrowSpecification(token: string): boolean {
   }
 
   const hasArrowSyntax = /[<>\|\{\}\[\]]/.test(trimmed);
-  const hasKnownArrowName = /\b(stealth|latex|triangle|bar|hooks|to|implies|rightarrow)\b/i.test(trimmed);
+  const hasKnownArrowName =
+    /\b(stealth|latex|triangle|bar|hooks|to|implies|rightarrow|kite|square|circle|rays|bracket|parenthesis|diamond|rectangle|ellipse|cap|arc\s+barb|tee\s+barb|straight\s+barb)\b/i.test(
+      trimmed
+    );
   if (!hasArrowSyntax && !hasKnownArrowName) {
     return false;
   }
 
-  return /^[A-Za-z0-9<>\-\|\{\}\[\].' ]+$/.test(trimmed);
+  return /^[A-Za-z0-9<>\-\|\{\}\[\].'=,:!# ]+$/.test(trimmed);
 }
 
 function looksLikeColorSpecification(token: string): boolean {

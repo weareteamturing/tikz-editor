@@ -1485,6 +1485,45 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("recognizes additional arrows.meta tip names and aliases from pgf source", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[-{Straight Barb[]}] (0,0) -- (2,0);
+  \draw[-{Arc Barb[]}] (0,1) -- (2,1);
+  \draw[-{Tee Barb[]}] (0,2) -- (2,2);
+  \draw[-{Kite[]}] (0,3) -- (2,3);
+  \draw[-{Square[]}] (0,4) -- (2,4);
+  \draw[-{Circle[]}] (0,5) -- (2,5);
+  \draw[-{Rays[n=6]}] (0,6) -- (2,6);
+  \draw[-{Bracket[] Parenthesis[] Diamond[] Rectangle[] Ellipse[]}] (0,7) -- (2,7);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+
+    expect(paths.length).toBeGreaterThanOrEqual(8);
+
+    const expectedKinds = ["straight-barb", "arc-barb", "tee-barb", "kite", "square", "circle", "rays"] as const;
+    for (let index = 0; index < expectedKinds.length; index += 1) {
+      const path = paths[index];
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.markerEnd?.tips[0]?.kind).toBe(expectedKinds[index]);
+      }
+    }
+
+    const raysPath = paths[6];
+    expect(raysPath?.kind).toBe("Path");
+    if (raysPath?.kind === "Path") {
+      expect(raysPath.style.markerEnd?.tips[0]?.rayCount).toBe(6);
+    }
+
+    const aliasPath = paths[7];
+    expect(aliasPath?.kind).toBe("Path");
+    if (aliasPath?.kind === "Path") {
+      expect(aliasPath.style.markerEnd?.tips.map((tip) => tip.kind)).toEqual(["tee-barb", "arc-barb", "kite", "square", "circle"]);
+    }
+  });
+
   it("uses computer modern rightarrow as the default > tip in arrows.meta-style specs", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[->]        (0,0)   -- (1,0);

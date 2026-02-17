@@ -31,10 +31,31 @@ function buildRawTipPaths(tip: NormalizedArrowTip): ScenePathCommand[][] {
   }
 
   if (tip.kind === "hooks") {
-    const controlX = tip.length * 0.45;
+    const arcFactor = Math.max(0.25, Math.min(2, (tip.arc ?? 180) / 180));
+    const controlX = tip.length * 0.45 * arcFactor;
     const upper = quadraticAsCubic(moveTo(tip.length, 0), controlX, halfWidth, 0, halfWidth);
     const lower = quadraticAsCubic(moveTo(tip.length, 0), controlX, -halfWidth, 0, -halfWidth);
     return [upper, lower];
+  }
+
+  if (tip.kind === "straight-barb") {
+    return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth)]];
+  }
+
+  if (tip.kind === "arc-barb") {
+    const arcFactor = Math.max(0.25, Math.min(2, (tip.arc ?? 180) / 180));
+    const controlX = tip.length * (0.3 + 0.35 * arcFactor);
+    return [[moveTo(0, halfWidth), cubicTo(controlX, halfWidth, controlX, -halfWidth, 0, -halfWidth)]];
+  }
+
+  if (tip.kind === "tee-barb") {
+    const inset = Math.max(0, Math.min(tip.length, tip.inset ?? tip.length * 0.5));
+    const backX = -inset;
+    return [
+      [moveTo(0, -halfWidth), lineTo(0, halfWidth)],
+      [moveTo(backX, halfWidth), lineTo(tip.length, halfWidth)],
+      [moveTo(backX, -halfWidth), lineTo(tip.length, -halfWidth)]
+    ];
   }
 
   if (tip.kind === "implies") {
@@ -81,6 +102,44 @@ function buildRawTipPaths(tip: NormalizedArrowTip): ScenePathCommand[][] {
 
   if (tip.kind === "triangle") {
     return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), close()]];
+  }
+
+  if (tip.kind === "triangle-cap") {
+    return [[moveTo(0, halfWidth), lineTo(tip.length, 0), lineTo(0, -halfWidth), close()]];
+  }
+
+  if (tip.kind === "kite") {
+    const inset = Math.max(0, Math.min(tip.length - 1e-3, tip.inset ?? tip.length * 0.25));
+    return [[moveTo(tip.length, 0), lineTo(inset, halfWidth), lineTo(0, 0), lineTo(inset, -halfWidth), close()]];
+  }
+
+  if (tip.kind === "square" || tip.kind === "butt-cap") {
+    return [[moveTo(0, halfWidth), lineTo(tip.length, halfWidth), lineTo(tip.length, -halfWidth), lineTo(0, -halfWidth), close()]];
+  }
+
+  if (tip.kind === "circle" || tip.kind === "round-cap") {
+    const rx = Math.max(0.01, tip.length / 2);
+    const cx = rx;
+    return [
+      [
+        moveTo(cx + rx, 0),
+        arcTo(rx, halfWidth, 0, false, true, cx - rx, 0),
+        arcTo(rx, halfWidth, 0, false, true, cx + rx, 0),
+        close()
+      ]
+    ];
+  }
+
+  if (tip.kind === "rays") {
+    const rayCount = Math.max(1, Math.round(tip.rayCount ?? 4));
+    const rays: ScenePathCommand[][] = [];
+    for (let i = 0; i < rayCount; i += 1) {
+      const angle = -Math.PI / 2 + ((i + 0.5) * Math.PI) / rayCount;
+      const x = tip.length * Math.cos(angle);
+      const y = halfWidth * Math.sin(angle);
+      rays.push([moveTo(0, 0), lineTo(x, y)]);
+    }
+    return rays;
   }
 
   if (tip.kind === "to") {
@@ -148,6 +207,18 @@ function cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, 
     kind: "C",
     c1: { x: c1x, y: c1y },
     c2: { x: c2x, y: c2y },
+    to: { x, y }
+  };
+}
+
+function arcTo(rx: number, ry: number, xAxisRotation: number, largeArc: boolean, sweep: boolean, x: number, y: number): ScenePathCommand {
+  return {
+    kind: "A",
+    rx,
+    ry,
+    xAxisRotation,
+    largeArc,
+    sweep,
     to: { x, y }
   };
 }

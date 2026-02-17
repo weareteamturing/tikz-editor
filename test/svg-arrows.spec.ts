@@ -87,4 +87,19 @@ describe("svg arrow geometry", () => {
     expect(svg).toContain('data-source-id="path:0" data-arrow-tip-kind="stealth" data-arrow-side="end" data-arrow-index="0" data-arrow-bend="true"');
     expect(svg).toContain('data-source-id="path:1" data-arrow-tip-kind="stealth" data-arrow-side="end" data-arrow-index="0" data-arrow-bend="false"');
   });
+
+  it("emits geometry metadata for additional arrows.meta tip families", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[-{Kite[] Square[] Circle[] Rays[n=6]}] (0,0) -- (2,0);
+  \draw[-{Bracket[] Parenthesis[]}] (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const svg = renderSvg(source);
+
+    expect(svg).toContain('data-arrow-tip-kind="kite"');
+    expect(svg).toContain('data-arrow-tip-kind="square"');
+    expect(svg).toContain('data-arrow-tip-kind="circle"');
+    expect(svg).toContain('data-arrow-tip-kind="rays"');
+    expect(svg).toContain('data-arrow-tip-kind="tee-barb"');
+    expect(svg).toContain('data-arrow-tip-kind="arc-barb"');
+  });
 });

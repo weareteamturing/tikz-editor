@@ -16,6 +16,10 @@ const DEFAULT_GEOMETRIC_LENGTH_BASE_PT = 3;
 const DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR = 4.5;
 const DEFAULT_GEOMETRIC_WIDTH_FACTOR = 0.75;
 const DEFAULT_STEALTH_INSET_FACTOR = 0.325;
+const DEFAULT_KITE_LENGTH_BASE_PT = 3.6;
+const DEFAULT_KITE_LENGTH_LINE_FACTOR = 5.4;
+const DEFAULT_KITE_WIDTH_FACTOR = 0.5;
+const DEFAULT_KITE_INSET_FACTOR = 0.25;
 
 export function parseTipsMode(raw: string): TipsMode | null {
   const normalized = raw.trim().toLowerCase();
@@ -180,13 +184,43 @@ function resolveArrowTipKind(rawName: string): ArrowTipKind {
   if (normalized.includes("latex")) {
     return "latex";
   }
+  if (normalized.includes("kite") || normalized.includes("diamond")) {
+    return "kite";
+  }
+  if (normalized.includes("square") || normalized.includes("rectangle")) {
+    return "square";
+  }
+  if (normalized.includes("circle") || normalized.includes("ellipse")) {
+    return "circle";
+  }
+  if (normalized.includes("rays") || normalized.includes("ray")) {
+    return "rays";
+  }
+  if (normalized.includes("parenthesis") || normalized.includes("arc barb")) {
+    return "arc-barb";
+  }
+  if (normalized.includes("bracket") || normalized.includes("tee barb")) {
+    return "tee-barb";
+  }
+  if (normalized.includes("butt cap")) {
+    return "butt-cap";
+  }
+  if (normalized.includes("round cap") || normalized.includes("fast round")) {
+    return "round-cap";
+  }
+  if (normalized.includes("triangle cap") || normalized.includes("fast triangle")) {
+    return "triangle-cap";
+  }
   if (normalized.includes("triangle")) {
     return "triangle";
+  }
+  if (normalized.includes("straight barb")) {
+    return "straight-barb";
   }
   if (normalized.includes("hook")) {
     return "hooks";
   }
-  if (normalized.includes("bar") || normalized.includes("bracket")) {
+  if (normalized.includes("bar")) {
     return "bar";
   }
   if (normalized.includes("implies")) {
@@ -228,7 +262,9 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       width: Math.max(1, nominalWidth - baseLineWidth),
       inset: null,
       sep: 0,
-      lineWidth: baseLineWidth
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
     };
   }
 
@@ -239,6 +275,11 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
   if (kind === "stealth") {
     const nominalLength = DEFAULT_GEOMETRIC_LENGTH_BASE_PT + DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR * baseLineWidth;
     return buildStealthTip(nominalLength, null, null, baseLineWidth);
+  }
+
+  if (kind === "kite") {
+    const nominalLength = DEFAULT_KITE_LENGTH_BASE_PT + DEFAULT_KITE_LENGTH_LINE_FACTOR * baseLineWidth;
+    return buildKiteTip(nominalLength, null, null, baseLineWidth);
   }
 
   if (kind === "bar") {
@@ -255,7 +296,9 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       width: 8,
       inset: null,
       sep: 0,
-      lineWidth: baseLineWidth
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
     };
   }
 
@@ -273,7 +316,155 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       width: 8,
       inset: null,
       sep: 0,
-      lineWidth: baseLineWidth
+      lineWidth: baseLineWidth,
+      arc: 180,
+      rayCount: null
+    };
+  }
+
+  if (kind === "straight-barb") {
+    const nominalLength = 1.5 + 2 * baseLineWidth;
+    return {
+      kind,
+      open: true,
+      round: true,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: "none",
+      length: Math.max(1, nominalLength),
+      width: Math.max(1, nominalLength * 1.8),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
+    };
+  }
+
+  if (kind === "arc-barb") {
+    const nominalLength = 1.5 + 2 * baseLineWidth;
+    return {
+      kind,
+      open: true,
+      round: true,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: "none",
+      length: Math.max(1, nominalLength),
+      width: Math.max(1, nominalLength * 1.4),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: 180,
+      rayCount: null
+    };
+  }
+
+  if (kind === "tee-barb") {
+    const nominalLength = 1.5 + 2 * baseLineWidth;
+    return {
+      kind,
+      open: true,
+      round: false,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: "none",
+      length: Math.max(1, nominalLength),
+      width: Math.max(1, 3 + 4 * baseLineWidth),
+      inset: Math.max(0, nominalLength * 0.5),
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
+    };
+  }
+
+  if (kind === "square") {
+    const nominalLength = 2.12132 + 2.828427 * baseLineWidth;
+    return {
+      kind,
+      open: false,
+      round: false,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: null,
+      length: Math.max(0.01, nominalLength),
+      width: Math.max(0.01, nominalLength),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
+    };
+  }
+
+  if (kind === "circle") {
+    const nominalLength = 2.39365 + 3.191538 * baseLineWidth;
+    return {
+      kind,
+      open: false,
+      round: true,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: null,
+      length: Math.max(0.01, nominalLength),
+      width: Math.max(0.01, nominalLength),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
+    };
+  }
+
+  if (kind === "rays") {
+    const nominalLength = 3 + 4 * baseLineWidth;
+    return {
+      kind,
+      open: true,
+      round: true,
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: "none",
+      length: Math.max(1, nominalLength),
+      width: Math.max(1, nominalLength),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: 4
+    };
+  }
+
+  if (kind === "round-cap" || kind === "butt-cap" || kind === "triangle-cap") {
+    return {
+      kind,
+      open: false,
+      round: kind === "round-cap",
+      reversed: false,
+      bend: false,
+      afterLineEnd: false,
+      color: null,
+      fill: null,
+      length: Math.max(0.01, 0.5 * baseLineWidth),
+      width: Math.max(0.01, baseLineWidth),
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
     };
   }
 
@@ -291,7 +482,9 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       width: 8,
       inset: null,
       sep: 0,
-      lineWidth: baseLineWidth
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
     };
   }
 
@@ -309,7 +502,9 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       width: 7,
       inset: null,
       sep: 0,
-      lineWidth: baseLineWidth
+      lineWidth: baseLineWidth,
+      arc: null,
+      rayCount: null
     };
   }
 
@@ -326,7 +521,9 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
     width: DEFAULT_ARROW_WIDTH,
     inset: null,
     sep: 0,
-    lineWidth: baseLineWidth
+    lineWidth: baseLineWidth,
+    arc: null,
+    rayCount: null
   };
 }
 
@@ -367,7 +564,9 @@ function buildLatexTip(nominalLength: number, nominalWidth: number | null, reque
     width: Math.max(1, 2 * halfWidth),
     inset: null,
     sep: 0,
-    lineWidth
+    lineWidth,
+    arc: null,
+    rayCount: null
   };
 }
 
@@ -398,7 +597,40 @@ function buildStealthTip(
     width,
     inset,
     sep: 0,
-    lineWidth
+    lineWidth,
+    arc: null,
+    rayCount: null
+  };
+}
+
+function buildKiteTip(
+  nominalLength: number,
+  nominalWidth: number | null,
+  nominalInset: number | null,
+  requestedLineWidth: number
+): ArrowTip {
+  const length = Math.max(1, nominalLength);
+  const width = Math.max(1, nominalWidth ?? length * DEFAULT_KITE_WIDTH_FACTOR);
+  const inset = Math.max(0, nominalInset ?? length * DEFAULT_KITE_INSET_FACTOR);
+  const maxLineWidth = Math.min(0.4 * length, 0.4 * width);
+  const lineWidth = Math.max(0, Math.min(normalizeArrowLineWidth(requestedLineWidth), maxLineWidth));
+
+  return {
+    kind: "kite",
+    open: false,
+    round: false,
+    reversed: false,
+    bend: false,
+    afterLineEnd: false,
+    color: null,
+    fill: null,
+    length,
+    width,
+    inset: Math.min(length - EPSILON, inset),
+    sep: 0,
+    lineWidth,
+    arc: null,
+    rayCount: null
   };
 }
 
@@ -422,6 +654,7 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
   let width = tip.width;
   let sep = tip.sep;
   let lineWidth = tip.lineWidth ?? normalizedContextLineWidth;
+  let inset = tip.inset ?? 0;
 
   // Geometric tips use nominal values and recompute miter-corrected dimensions.
   let nominalLength = DEFAULT_GEOMETRIC_LENGTH_BASE_PT + DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR * normalizedContextLineWidth;
@@ -429,7 +662,7 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
   let nominalInset = nominalLength * DEFAULT_STEALTH_INSET_FACTOR;
   let widthExplicit = false;
   let insetExplicit = false;
-  const isGeometricMetaTip = tip.kind === "stealth" || tip.kind === "latex";
+  const isGeometricMetaTip = tip.kind === "stealth" || tip.kind === "latex" || tip.kind === "kite";
   if (!isGeometricMetaTip) {
     nominalLength = length;
     nominalWidth = width;
@@ -500,8 +733,26 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
     if (key === "inset" || key === "inset'") {
       const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
       if (parsed != null && parsed >= 0) {
-        nominalInset = parsed;
-        insetExplicit = true;
+        if (isGeometricMetaTip) {
+          nominalInset = parsed;
+          insetExplicit = true;
+        } else {
+          inset = parsed;
+        }
+      }
+      continue;
+    }
+    if (key === "arc") {
+      const parsed = parseArrowFactor(entry.valueRaw);
+      if (parsed != null && Number.isFinite(parsed)) {
+        tip = { ...tip, arc: parsed };
+      }
+      continue;
+    }
+    if (key === "n") {
+      const parsed = parseArrowFactor(entry.valueRaw);
+      if (parsed != null && parsed >= 1) {
+        tip = { ...tip, rayCount: Math.max(1, Math.round(parsed)) };
       }
       continue;
     }
@@ -515,6 +766,7 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
         } else {
           length *= factor;
           width *= factor;
+          inset *= factor;
         }
       }
       continue;
@@ -526,6 +778,7 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
           nominalLength *= factor;
         } else {
           length *= factor;
+          inset *= factor;
         }
       }
       continue;
@@ -584,6 +837,15 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
         inset: stealth.inset,
         lineWidth: stealth.lineWidth
       };
+    } else if (tip.kind === "kite") {
+      const kite = buildKiteTip(nominalLength, nominalWidth, nominalInset, lineWidth);
+      tip = {
+        ...tip,
+        length: kite.length,
+        width: kite.width,
+        inset: kite.inset,
+        lineWidth: kite.lineWidth
+      };
     } else {
       const latex = buildLatexTip(nominalLength, nominalWidth, lineWidth);
       tip = {
@@ -598,6 +860,7 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, context
       ...tip,
       length: Math.max(0, length),
       width: Math.max(0, width),
+      inset: tip.inset == null && inset <= EPSILON ? null : Math.max(0, inset),
       lineWidth: Math.max(0, lineWidth)
     };
   }

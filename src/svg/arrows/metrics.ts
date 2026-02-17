@@ -126,6 +126,21 @@ export function buildArrowTipMetrics(tip: NormalizedArrowTip, contextLineWidth: 
     return metrics;
   }
 
+  if (tip.kind === "kite") {
+    let metrics: ArrowTipMetrics = {
+      tipEnd: tip.length,
+      backEnd: 0,
+      lineEnd: Math.max(0, tip.inset ?? 0.25 * tip.length),
+      visualTipEnd: tip.length,
+      visualBackEnd: Math.max(0, tip.inset ?? 0),
+      sep: tip.sep
+    };
+    if (tip.reversed) {
+      metrics = reverseMetrics(metrics);
+    }
+    return metrics;
+  }
+
   if (tip.kind === "cm-rightarrow") {
     let metrics: ArrowTipMetrics = {
       tipEnd: tip.length,
@@ -156,7 +171,7 @@ export function buildArrowTipMetrics(tip: NormalizedArrowTip, contextLineWidth: 
     return metrics;
   }
 
-  if (tip.kind === "hooks") {
+  if (tip.kind === "hooks" || tip.kind === "straight-barb" || tip.kind === "arc-barb") {
     let metrics: ArrowTipMetrics = {
       tipEnd: tip.length,
       backEnd: 0,
@@ -171,11 +186,56 @@ export function buildArrowTipMetrics(tip: NormalizedArrowTip, contextLineWidth: 
     return metrics;
   }
 
-  if (tip.kind === "triangle") {
+  if (tip.kind === "tee-barb") {
+    let metrics: ArrowTipMetrics = {
+      tipEnd: Math.max(tip.length, tip.inset ?? 0),
+      backEnd: Math.min(0, -(tip.inset ?? 0)),
+      lineEnd: 0,
+      visualTipEnd: Math.max(tip.length, tip.inset ?? 0),
+      visualBackEnd: Math.min(0, -(tip.inset ?? 0)),
+      sep: tip.sep
+    };
+    if (tip.reversed) {
+      metrics = reverseMetrics(metrics);
+    }
+    return metrics;
+  }
+
+  if (tip.kind === "triangle" || tip.kind === "triangle-cap") {
     let metrics: ArrowTipMetrics = {
       tipEnd: tip.length,
       backEnd: 0,
       lineEnd: 0.1 * tip.length,
+      visualTipEnd: tip.length,
+      visualBackEnd: 0,
+      sep: tip.sep
+    };
+    if (tip.reversed) {
+      metrics = reverseMetrics(metrics);
+    }
+    return metrics;
+  }
+
+  if (tip.kind === "square" || tip.kind === "circle" || tip.kind === "round-cap" || tip.kind === "butt-cap") {
+    let metrics: ArrowTipMetrics = {
+      tipEnd: tip.length,
+      backEnd: 0,
+      lineEnd: 0,
+      visualTipEnd: tip.length,
+      visualBackEnd: 0,
+      sep: tip.sep
+    };
+    if (tip.reversed) {
+      metrics = reverseMetrics(metrics);
+    }
+    return metrics;
+  }
+
+  if (tip.kind === "rays") {
+    let metrics: ArrowTipMetrics = {
+      tipEnd: tip.length,
+      backEnd: 0,
+      lineEnd: 0.5 * tip.length,
       visualTipEnd: tip.length,
       visualBackEnd: 0,
       sep: tip.sep

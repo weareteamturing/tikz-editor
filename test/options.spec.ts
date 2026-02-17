@@ -35,6 +35,14 @@ describe("options parser", () => {
     expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "|<->|")).toBe(true);
   });
 
+  it("classifies extended arrows.meta names as arrow flags", () => {
+    const parsed = parseOptionListRaw("[Kite-Square, -{Rays[n=8]}, Bracket-Parenthesis]");
+
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "Kite-Square")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "-{Rays[n=8]}")).toBe(true);
+    expect(parsed.entries.some((entry) => entry.kind === "flag" && entry.raw.trim() === "Bracket-Parenthesis")).toBe(true);
+  });
+
   it("classifies xcolor-style mix expressions as flags", () => {
     const parsed = parseOptionListRaw("[green!50!white, red!20, #00ff00]");
 

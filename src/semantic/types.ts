@@ -11,7 +11,25 @@ export type Point = {
   y: number;
 };
 
-export type ArrowTipKind = "to" | "cm-rightarrow" | "stealth" | "latex" | "triangle" | "bar" | "hooks" | "implies";
+export type ArrowTipKind =
+  | "to"
+  | "cm-rightarrow"
+  | "stealth"
+  | "latex"
+  | "triangle"
+  | "bar"
+  | "hooks"
+  | "implies"
+  | "straight-barb"
+  | "arc-barb"
+  | "tee-barb"
+  | "kite"
+  | "square"
+  | "circle"
+  | "rays"
+  | "round-cap"
+  | "butt-cap"
+  | "triangle-cap";
 
 export type ArrowTip = {
   kind: ArrowTipKind;
@@ -27,6 +45,8 @@ export type ArrowTip = {
   inset: number | null;
   sep: number;
   lineWidth: number | null;
+  arc: number | null;
+  rayCount: number | null;
 };
 
 export type ArrowMarker = {
