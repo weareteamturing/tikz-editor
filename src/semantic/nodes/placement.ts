@@ -1,12 +1,13 @@
-import type { PathItem, PathOptionItem } from "../../ast/types.js";
+import type { PathItem, PathOptionItem, Span } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
+import { createEditHandle } from "../edit-handles.js";
 import type { DiagnosticPushFn, PlacementSegment } from "../path/types.js";
 import type { Point } from "../types.js";
 import { arcCenter, clamp, interpolate, normalizeOptionValue, toRadians } from "./utils.js";
 
 export function resolveNodeTargetPoint(
-  item: PathItem & { kind: "Node"; atRaw?: string; atRelativePrefix?: "+" | "++" },
+  item: PathItem & { kind: "Node"; atRaw?: string; atSpan?: Span; atRelativePrefix?: "+" | "++" },
   context: SemanticContext,
   span: { from: number; to: number },
   pushDiagnostic: DiagnosticPushFn,
@@ -16,8 +17,11 @@ export function resolveNodeTargetPoint(
 ): Point {
   if (item.atRaw) {
     const evaluated = evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix);
-    if (evaluated.point) {
-      return evaluated.point;
+    if (evaluated.world) {
+      const handleSpan = item.atSpan ?? span;
+      const handle = createEditHandle(evaluated, handleSpan, "node-position", context);
+      if (handle) context.editHandles.push(handle);
+      return evaluated.world;
     }
     for (const code of evaluated.diagnostics) {
       pushDiagnostic(code, `Node placement issue: ${code}`, span.from, span.to);
@@ -25,15 +29,20 @@ export function resolveNodeTargetPoint(
   }
 
   let optionAtRaw: string | null = null;
+  let optionAtSpan: Span | null = null;
   for (const entry of options?.entries ?? []) {
     if (entry.kind === "kv" && entry.key === "at") {
       optionAtRaw = normalizeOptionValue(entry.valueRaw);
+      optionAtSpan = entry.span;
     }
   }
   if (optionAtRaw && optionAtRaw.length > 0) {
     const evaluated = evaluateRawCoordinate(optionAtRaw, context);
-    if (evaluated.point) {
-      return evaluated.point;
+    if (evaluated.world) {
+      const handleSpan = optionAtSpan ?? span;
+      const handle = createEditHandle(evaluated, handleSpan, "node-position", context);
+      if (handle) context.editHandles.push(handle);
+      return evaluated.world;
     }
     for (const code of evaluated.diagnostics) {
       pushDiagnostic(code, `Node placement issue: ${code}`, span.from, span.to);

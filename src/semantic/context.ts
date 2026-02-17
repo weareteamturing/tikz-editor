@@ -1,7 +1,7 @@
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine } from "../text/types.js";
 import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js";
-import type { Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
+import type { EditHandle, Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 
@@ -115,6 +115,7 @@ export type SemanticContext = {
   pathStartPoint: Point | null;
   textEngine: NodeTextEngine | null;
   macroTraceCollector: MacroExpansionTraceEvent[] | null;
+  editHandles: EditHandle[];
 };
 
 export function createSemanticContext(
@@ -174,7 +175,8 @@ export function createSemanticContext(
     currentPoint: null,
     pathStartPoint: null,
     textEngine,
-    macroTraceCollector: null
+    macroTraceCollector: null,
+    editHandles: []
   };
 }
 

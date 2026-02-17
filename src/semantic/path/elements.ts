@@ -1,6 +1,6 @@
 import type { Point, ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../types.js";
 import type { Matrix2D } from "../types.js";
-import { applyMatrix } from "../transform.js";
+import { applyMatrix, inverseMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 
 export function makePath(sourceId: string, itemId: string, style: ResolvedStyle, span: { from: number; to: number }): ScenePath {
@@ -178,17 +178,11 @@ function resolveRectangleCorners(from: Point, to: Point, transform?: Matrix2D): 
 }
 
 function applyInverseMatrix(matrix: Matrix2D, point: Point): Point | null {
-  const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
-  if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-12) {
+  const inv = inverseMatrix(matrix);
+  if (!inv) {
     return null;
   }
-
-  const translatedX = point.x - matrix.e;
-  const translatedY = point.y - matrix.f;
-  return {
-    x: (matrix.d * translatedX - matrix.c * translatedY) / determinant,
-    y: (-matrix.b * translatedX + matrix.a * translatedY) / determinant
-  };
+  return applyMatrix(inv, point);
 }
 
 export function makeCircleElement(

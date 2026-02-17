@@ -1,4 +1,4 @@
-import type { Span } from "../ast/types.js";
+import type { CoordinateForm, Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
@@ -248,4 +248,19 @@ export type EvaluateOptions = {
   defaultLengthUnit?: "cm" | "pt";
   maxForeachExpansions?: number;
   textEngine?: NodeTextEngine | null;
+};
+
+export type { CoordinateForm };
+
+export type EditHandle = {
+  id: string;
+  kind: "node-position" | "path-point";
+  world: Point;
+  local?: Point;
+  transform: Matrix2D;
+  sourceSpan: Span;
+  coordinateForm: CoordinateForm;
+  relativePrefix?: "+" | "++";
+  relativeBaseWorld?: Point;
+  rewriteMode: "direct" | "delta" | "unsupported";
 };

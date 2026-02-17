@@ -372,7 +372,7 @@ function resolveReferencePoint(
 
   const evaluated = evaluateRawCoordinate(lookupRaw, context);
   diagnostics.push(...evaluated.diagnostics);
-  return { point: evaluated.point, usesBareNodeName, diagnostics };
+  return { point: evaluated.world, usesBareNodeName, diagnostics };
 }
 
 function shiftVectorForDirection(direction: PositioningDirection, shift: NodeDistanceSpec, transform: Matrix2D): Point {

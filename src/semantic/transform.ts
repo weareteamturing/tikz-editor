@@ -43,3 +43,18 @@ export function rotationMatrix(degrees: number): Matrix2D {
   const sin = Math.sin(radians);
   return { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 };
 }
+
+export function inverseMatrix(matrix: Matrix2D): Matrix2D | null {
+  const det = matrix.a * matrix.d - matrix.b * matrix.c;
+  if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) {
+    return null;
+  }
+  return {
+    a: matrix.d / det,
+    b: -matrix.b / det,
+    c: -matrix.c / det,
+    d: matrix.a / det,
+    e: (matrix.c * matrix.f - matrix.d * matrix.e) / det,
+    f: (matrix.b * matrix.e - matrix.a * matrix.f) / det
+  };
+}

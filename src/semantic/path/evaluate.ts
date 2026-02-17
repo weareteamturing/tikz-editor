@@ -1,4 +1,4 @@
-import type { CoordinateItem, EdgeOperationItem, PathStatement, ToOperationItem } from "../../ast/types.js";
+import type { CoordinateForm, CoordinateItem, EdgeOperationItem, PathStatement, ToOperationItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
@@ -9,6 +9,7 @@ import {
 } from "../nodes/evaluate.js";
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
+import type { EvaluatedCoordinate } from "../coords/evaluate.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import { appendArcCommand, extractArcParameters, parseArcShorthand } from "./arc.js";
@@ -38,7 +39,8 @@ import {
   materializeNodeAdornment
 } from "./label-quotes.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
-import { applyMatrix, applyMatrixToVector } from "../transform.js";
+import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
+import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 
 type EllipseGeometry = {
@@ -159,9 +161,9 @@ function inferSegmentEndHeadingDegrees(segment: PlacementSegment | null): number
 function evaluateTurnCoordinate(
   item: CoordinateItem,
   currentPoint: Point | null,
-  transform: { a: number; b: number; c: number; d: number },
+  transform: { a: number; b: number; c: number; d: number; e: number; f: number },
   lastPlacementSegment: PlacementSegment | null
-): { point: Point | null; diagnostics: string[]; advancesCurrentPoint: boolean } | null {
+): EvaluatedCoordinate | null {
   const hasTurnOption = item.options?.entries.some(
     (entry) =>
       (entry.kind === "flag" && entry.key === "turn") ||
@@ -171,9 +173,13 @@ function evaluateTurnCoordinate(
     return null;
   }
 
+  const polarForm: CoordinateForm = "polar";
   if (item.form !== "polar") {
     return {
-      point: null,
+      world: null,
+      local: undefined,
+      transform: identityMatrix(),
+      coordinateForm: polarForm,
       diagnostics: [`invalid-turn-coordinate:${item.raw}`],
       advancesCurrentPoint: true
     };
@@ -181,7 +187,10 @@ function evaluateTurnCoordinate(
 
   if (!currentPoint) {
     return {
-      point: null,
+      world: null,
+      local: undefined,
+      transform: identityMatrix(),
+      coordinateForm: polarForm,
       diagnostics: ["turn-coordinate-without-current-point"],
       advancesCurrentPoint: true
     };
@@ -191,7 +200,10 @@ function evaluateTurnCoordinate(
   const radius = parseLength(item.y, "cm");
   if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
     return {
-      point: null,
+      world: null,
+      local: undefined,
+      transform: identityMatrix(),
+      coordinateForm: polarForm,
       diagnostics: [`invalid-polar-coordinate:${item.raw}`],
       advancesCurrentPoint: true
     };
@@ -207,10 +219,14 @@ function evaluateTurnCoordinate(
   const delta = applyMatrixToVector(transform, localVector);
 
   return {
-    point: {
+    world: {
       x: currentPoint.x + delta.x,
       y: currentPoint.y + delta.y
     },
+    local: localVector,
+    transform,
+    coordinateForm: polarForm,
+    relativePrefix: item.relativePrefix,
     diagnostics: [],
     advancesCurrentPoint: true
   };
@@ -527,15 +543,18 @@ export function evaluatePathStatement(
       const evaluated =
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);
+      const handleKind = statement.command === "node" ? "node-position" : "path-point";
+      const handle = createEditHandle(evaluated, item.span, handleKind, context);
+      if (handle) context.editHandles.push(handle);
       for (const code of evaluated.diagnostics) {
         pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, item.span.from, item.span.to);
       }
-      if (!evaluated.point) {
+      if (!evaluated.world) {
         continue;
       }
 
       if (pendingNamedCoordinate) {
-        context.namedCoordinates.set(applyNameScope(pendingNamedCoordinate.name, context), evaluated.point);
+        context.namedCoordinates.set(applyNameScope(pendingNamedCoordinate.name, context), evaluated.world);
         pendingNamedCoordinate = null;
       }
 
@@ -547,7 +566,7 @@ export function evaluatePathStatement(
             statement.id,
             item.id,
             pendingGrid.from,
-            evaluated.point,
+            evaluated.world,
             pendingGrid.stepX,
             pendingGrid.stepY,
             style,
@@ -555,7 +574,7 @@ export function evaluatePathStatement(
             frameTransform
           )
         );
-        setCurrentPoint(evaluated.point, evaluated.point, {
+        setCurrentPoint(evaluated.world, evaluated.world, {
           form: item.form,
           x: item.x
         });
@@ -567,14 +586,14 @@ export function evaluatePathStatement(
         markFeature("shape_rectangle", "supported");
         if (shouldCompoundFilledSubpaths) {
           activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
-          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.point, activeRoundedCorners, frameTransform);
+          appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.world, activeRoundedCorners, frameTransform);
         } else {
           geometryElements.push(
             makeRectangleElement(
               statement.id,
               item.id,
               pendingRectangleFrom,
-              evaluated.point,
+              evaluated.world,
               style,
               item.span,
               activeRoundedCorners,
@@ -584,12 +603,12 @@ export function evaluatePathStatement(
         }
         markFeature("svg_path", "supported");
         pendingRectangleFrom = null;
-        setCurrentPoint(evaluated.point, evaluated.point, {
+        setCurrentPoint(evaluated.world, evaluated.world, {
           form: item.form,
           x: item.x
         });
         if (!context.pathStartPoint) {
-          context.pathStartPoint = evaluated.point;
+          context.pathStartPoint = evaluated.world;
         }
         continue;
       }
@@ -602,16 +621,16 @@ export function evaluatePathStatement(
       const hasOperatorSegment = currentOperator != null && context.currentPoint != null && sourceLogicalPoint != null;
       const pathSourcePoint = hasOperatorSegment
         ? currentPointCoordinate
-          ? maybeResolveNamedCoordinateBorderPoint(currentPointCoordinate, sourceLogicalPoint, evaluated.point, context)
+          ? maybeResolveNamedCoordinateBorderPoint(currentPointCoordinate, sourceLogicalPoint, evaluated.world, context)
           : sourceLogicalPoint
         : null;
       const pathTargetPoint = hasOperatorSegment
-        ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.point, sourceLogicalPoint, context)
-        : evaluated.point;
-      const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.point;
+        ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.world, sourceLogicalPoint, context)
+        : evaluated.world;
+      const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.world;
       if (!hasOperatorSegment && pendingSegmentPlacements.length > 0) {
         for (const pending of pendingSegmentPlacements) {
-          context.namedCoordinates.set(applyNameScope(pending.name, context), evaluated.point);
+          context.namedCoordinates.set(applyNameScope(pending.name, context), evaluated.world);
         }
         pendingSegmentPlacements = [];
       }
@@ -679,12 +698,12 @@ export function evaluatePathStatement(
 
       const shouldAdvancePoint = item.relativePrefix ? item.relativePrefix === "++" : true;
       if (shouldAdvancePoint) {
-        setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
+        setCurrentPoint(advancedPoint, evaluated.world, coordinateRef);
       } else if (context.currentPoint) {
         setCurrentPoint(context.currentPoint, advancedPoint, currentPointCoordinate);
       }
       if (!context.currentPoint) {
-        setCurrentPoint(advancedPoint, evaluated.point, coordinateRef);
+        setCurrentPoint(advancedPoint, evaluated.world, coordinateRef);
       }
       currentOperator = null;
       continue;
@@ -1001,7 +1020,7 @@ export function evaluatePathStatement(
         for (const code of evaluatedTarget.diagnostics) {
           pushDiagnostic(code, `${item.keyword} target issue: ${code}`, targetItem.span.from, targetItem.span.to);
         }
-        if (!evaluatedTarget.point) {
+        if (!evaluatedTarget.world) {
           index += 1;
           continue;
         }
@@ -1015,7 +1034,7 @@ export function evaluatePathStatement(
         }
 
         const from = context.currentPoint;
-        const to = maybeResolveNamedCoordinateBorderPoint(targetItem, evaluatedTarget.point, from, context);
+        const to = maybeResolveNamedCoordinateBorderPoint(targetItem, evaluatedTarget.world, from, context);
         const segment = appendSinCosSegment(path.commands, from, to, item.keyword);
         activePath = path;
         lastPlacementSegment = segment;
@@ -1024,12 +1043,12 @@ export function evaluatePathStatement(
         markFeature("svg_path", "supported");
 
         if (evaluatedTarget.advancesCurrentPoint) {
-          setCurrentPoint(to, evaluatedTarget.point, {
+          setCurrentPoint(to, evaluatedTarget.world, {
             form: targetItem.form,
             x: targetItem.x
           });
         } else if (!context.currentPoint) {
-          setCurrentPoint(to, evaluatedTarget.point, {
+          setCurrentPoint(to, evaluatedTarget.world, {
             form: targetItem.form,
             x: targetItem.x
           });
@@ -1229,7 +1248,7 @@ export function evaluatePathStatement(
               frameTransform,
               pinEdgeOptionLists,
               frame.customStyles,
-              (raw) => evaluateRawCoordinate(raw, context).point
+              (raw) => evaluateRawCoordinate(raw, context).world
             );
             for (const code of resolvedPinEdgeStyle.diagnostics) {
               pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
@@ -1258,12 +1277,12 @@ export function evaluatePathStatement(
 
       if (trailingCoordinateRaw) {
         const trailingCoordinate = evaluateRawCoordinate(trailingCoordinateRaw, context);
-        if (trailingCoordinate.point) {
+        if (trailingCoordinate.world) {
           if (activePath) {
-            activePath.commands.push({ kind: "M", to: trailingCoordinate.point });
+            activePath.commands.push({ kind: "M", to: trailingCoordinate.world });
           }
-          setCurrentPoint(trailingCoordinate.point);
-          context.pathStartPoint = trailingCoordinate.point;
+          setCurrentPoint(trailingCoordinate.world);
+          context.pathStartPoint = trailingCoordinate.world;
           lastPlacementSegment = null;
           previousSegmentRoundedCorners = null;
         } else {
@@ -1337,13 +1356,13 @@ export function evaluatePathStatement(
           for (const code of evaluated.diagnostics) {
             pushDiagnostic(code, `Plot coordinate issue: ${code}`, item.span.from, item.span.to);
           }
-          if (!evaluated.point) {
+          if (!evaluated.world) {
             continue;
           }
 
-          points.push(evaluated.point);
+          points.push(evaluated.world);
           if (evaluated.advancesCurrentPoint || iterationCurrentPoint == null) {
-            iterationCurrentPoint = evaluated.point;
+            iterationCurrentPoint = evaluated.world;
           }
         }
         context.currentPoint = savedCurrentPoint;
@@ -1458,8 +1477,8 @@ export function evaluatePathStatement(
           for (const code of resolvedStart.diagnostics) {
             pushDiagnostic(code, `Edge start issue: ${code}`, item.span.from, item.span.to);
           }
-          if (resolvedStart.point) {
-            startPoint = resolvedStart.point;
+          if (resolvedStart.world) {
+            startPoint = resolvedStart.world;
           }
         }
         if (!startPoint) {
@@ -1482,7 +1501,7 @@ export function evaluatePathStatement(
         frameTransform,
         edgeOptionLists,
         frame.customStyles,
-        (raw) => evaluateRawCoordinate(raw, context).point
+        (raw) => evaluateRawCoordinate(raw, context).world
       );
       for (const code of resolvedEdgeStyle.diagnostics) {
         if (code === "unsupported-option-flag:every edge") {

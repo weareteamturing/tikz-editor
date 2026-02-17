@@ -38,13 +38,13 @@ export function parseBezierFromItems(
     return null;
   }
   const control1Eval = evaluateCoordinate(control1Item, context);
-  if (!control1Eval.point) {
+  if (!control1Eval.world) {
     return null;
   }
   cursor += 1;
 
   let usedAnd = false;
-  let control2 = control1Eval.point;
+  let control2 = control1Eval.world;
 
   const maybeAnd = items[cursor];
   if (maybeAnd && maybeAnd.kind === "PathKeyword" && maybeAnd.keyword === "and") {
@@ -55,10 +55,10 @@ export function parseBezierFromItems(
       return null;
     }
     const control2Eval = evaluateCoordinate(control2Item, context);
-    if (!control2Eval.point) {
+    if (!control2Eval.world) {
       return null;
     }
-    control2 = control2Eval.point;
+    control2 = control2Eval.world;
     cursor += 1;
   }
 
@@ -76,7 +76,7 @@ export function parseBezierFromItems(
   if (targetItem.kind === "PathKeyword" && targetItem.keyword === "cycle") {
     return {
       consumedIndex: cursor,
-      control1: control1Eval.point,
+      control1: control1Eval.world,
       control2,
       endPoint: context.pathStartPoint,
       endAdvancesCurrentPoint: true,
@@ -92,9 +92,9 @@ export function parseBezierFromItems(
 
   return {
     consumedIndex: cursor,
-    control1: control1Eval.point,
+    control1: control1Eval.world,
     control2,
-    endPoint: targetEval.point,
+    endPoint: targetEval.world,
     endAdvancesCurrentPoint: targetEval.advancesCurrentPoint,
     endClosesPath: false,
     usedAnd

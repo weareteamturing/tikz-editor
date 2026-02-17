@@ -46,7 +46,7 @@ export function parseParabolaFromItems(
   let endPoint: Point | null = null;
   if (targetItem?.kind === "Coordinate") {
     const evaluated = evaluateCoordinate(targetItem, context);
-    endPoint = evaluated.point;
+    endPoint = evaluated.world;
   } else if (targetItem?.kind === "PathKeyword" && targetItem.keyword === "cycle") {
     endPoint = context.pathStartPoint;
   }
@@ -178,14 +178,14 @@ function evaluateParabolaBendCoordinate(
   relativePrefix?: "+" | "++"
 ): Point | null {
   if (!relativePrefix) {
-    return evaluateRawCoordinate(raw, context).point;
+    return evaluateRawCoordinate(raw, context).world;
   }
 
   const originalCurrent = context.currentPoint;
   context.currentPoint = savedPoint;
   const evaluated = evaluateRawCoordinate(raw, context, relativePrefix);
   context.currentPoint = originalCurrent;
-  return evaluated.point;
+  return evaluated.world;
 }
 
 function buildParabolaCommands(start: Point, toBend: Point, toEnd: Point): ScenePathCommand[] {

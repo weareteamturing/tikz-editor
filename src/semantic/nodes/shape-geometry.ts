@@ -1294,10 +1294,10 @@ export function resolveCalloutPointerOffset(
 
   if (shapeGeometry.calloutPointerIsAbsolute && shapeGeometry.calloutAbsolutePointerRaw && context && center) {
     const evaluated = evaluateRawCoordinate(ensureCoordinateRaw(shapeGeometry.calloutAbsolutePointerRaw), context);
-    if (evaluated.point) {
+    if (evaluated.world) {
       pointer = {
-        x: evaluated.point.x - center.x,
-        y: evaluated.point.y - center.y
+        x: evaluated.world.x - center.x,
+        y: evaluated.world.y - center.y
       };
     }
   }

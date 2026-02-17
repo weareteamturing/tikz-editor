@@ -12,6 +12,7 @@ import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.
 import { makePath } from "./elements.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { normalizeOptionValue, toRadians } from "./shared.js";
+import { createEditHandle } from "../edit-handles.js";
 
 export function applyToOperation(
   item: ToOperationItem,
@@ -146,12 +147,18 @@ function applyToLikeOperation(
   }
 
   const evaluated = evaluateRawCoordinate(target.raw, context, target.relativePrefix);
-  if (!evaluated.point) {
+  if (!evaluated.world) {
     markFeature(config.operationFeature, "unsupported");
     for (const code of evaluated.diagnostics) {
       pushDiagnostic(code, `${config.operationKeyword}-operation target issue: ${code}`, item.span.from, item.span.to);
     }
     return { activePath, segment: null, behindNodeElements, frontNodeElements };
+  }
+
+  const targetSpan = target.kind === "coordinate" ? (target.span ?? item.span) : item.span;
+  const handle = createEditHandle(evaluated, targetSpan, "path-point", context);
+  if (handle) {
+    context.editHandles.push(handle);
   }
 
   const startPoint = context.currentPoint;
@@ -168,11 +175,11 @@ function applyToLikeOperation(
 
   const resolvedStartPoint =
     startPoint && config.startCoordinateRaw
-      ? maybeResolveNamedCoordinateBorderPointFromRaw(config.startCoordinateRaw, startPoint, evaluated.point, context)
+      ? maybeResolveNamedCoordinateBorderPointFromRaw(config.startCoordinateRaw, startPoint, evaluated.world, context)
       : startPoint;
   const resolvedTargetPoint = maybeResolveNamedCoordinateBorderPointFromRaw(
     target.raw,
-    evaluated.point,
+    evaluated.world,
     resolvedStartPoint ?? startPoint,
     context
   );
@@ -256,7 +263,7 @@ function applyToLikeOperation(
 function parseToTarget(
   raw: string,
   operationKeyword: "to" | "edge"
-): { kind: "cycle" } | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } | null {
+): { kind: "cycle"; span?: { from: number; to: number } } | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++"; span?: { from: number; to: number } } | null {
   if (/\bcycle\b/i.test(raw)) {
     return { kind: "cycle" };
   }

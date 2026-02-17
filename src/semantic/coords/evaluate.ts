@@ -1,15 +1,19 @@
-import type { CoordinateItem } from "../../ast/types.js";
+import type { CoordinateForm, CoordinateItem } from "../../ast/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings, type MacroBinding } from "../../macros/index.js";
 import type { NamedNodeGeometry, SemanticContext } from "../context.js";
-import type { Point } from "../types.js";
-import { applyMatrix, applyMatrixToVector } from "../transform.js";
+import type { Matrix2D, Point } from "../types.js";
+import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 
 export type EvaluatedCoordinate = {
-  point: Point | null;
+  world: Point | null;       // renamed from `point`
+  local?: Point | null;      // pre-transform value
+  transform: Matrix2D;       // the transform in effect
+  coordinateForm: CoordinateForm;
+  relativePrefix?: "+" | "++";
   diagnostics: string[];
   advancesCurrentPoint: boolean;
 };
@@ -35,7 +39,10 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     if (perpendicular) {
       diagnostics.push(...perpendicular.diagnostics);
       return {
-        point: perpendicular.point,
+        world: perpendicular.point,
+        local: undefined,
+        transform: identityMatrix(),
+        coordinateForm: "named",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
@@ -45,7 +52,10 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     if (intersection) {
       diagnostics.push(...intersection.diagnostics);
       return {
-        point: intersection.point,
+        world: intersection.point,
+        local: undefined,
+        transform: identityMatrix(),
+        coordinateForm: "named",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
@@ -55,7 +65,10 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
     if (named) {
       return {
-        point: named,
+        world: named,
+        local: undefined,
+        transform: identityMatrix(),
+        coordinateForm: "named",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
@@ -64,14 +77,17 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const numericNodeAnchor = tryResolveNumericNodeAnchor(rawName, context, frame.namePrefix, frame.nameSuffix);
     if (numericNodeAnchor) {
       return {
-        point: numericNodeAnchor,
+        world: numericNodeAnchor,
+        local: undefined,
+        transform: identityMatrix(),
+        coordinateForm: "named",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
     }
 
     diagnostics.push(`unknown-named-coordinate:${rawName}`);
-    return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "named", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
   }
 
   if (item.form === "calc") {
@@ -81,7 +97,10 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       frame.transform
     );
     return {
-      point: evaluatedCalc.point,
+      world: evaluatedCalc.point,
+      local: undefined,
+      transform: identityMatrix(),
+      coordinateForm: "calc",
       diagnostics: evaluatedCalc.diagnostics,
       advancesCurrentPoint: item.relativePrefix === "++"
     };
@@ -91,19 +110,22 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const parsed = parseExplicitCoordinate(expandCoordinateComponent(item.x, frame.macroBindings, traceCollector));
     if (!parsed) {
       diagnostics.push(`unsupported-coordinate-form:${item.form}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
     if (parsed.kind === "canvas") {
       const x = parseLength(parsed.x, "cm");
       const y = parseLength(parsed.y, "cm");
       if (x == null || y == null) {
         diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-        return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+        return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
       }
 
-      const local = { x, y };
+      const localPt = { x, y };
       return {
-        point: applyMatrix(frame.transform, local),
+        world: applyMatrix(frame.transform, localPt),
+        local: localPt,
+        transform: frame.transform,
+        coordinateForm: "explicit",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
@@ -113,12 +135,15 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
       const horizontal = evaluateRawCoordinate(parsed.horizontalLineThrough, context);
       const vertical = evaluateRawCoordinate(parsed.verticalLineThrough, context);
       diagnostics.push(...horizontal.diagnostics, ...vertical.diagnostics);
-      if (!horizontal.point || !vertical.point) {
+      if (!horizontal.world || !vertical.world) {
         diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-        return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+        return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
       }
       return {
-        point: { x: vertical.point.x, y: horizontal.point.y },
+        world: { x: vertical.world.x, y: horizontal.world.y },
+        local: undefined,
+        transform: identityMatrix(),
+        coordinateForm: "explicit",
         diagnostics,
         advancesCurrentPoint: item.relativePrefix === "++"
       };
@@ -129,27 +154,30 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const secondStart = evaluateRawCoordinate(parsed.secondLine.startRaw, context);
     const secondEnd = evaluateRawCoordinate(parsed.secondLine.endRaw, context);
     diagnostics.push(...firstStart.diagnostics, ...firstEnd.diagnostics, ...secondStart.diagnostics, ...secondEnd.diagnostics);
-    if (!firstStart.point || !firstEnd.point || !secondStart.point || !secondEnd.point) {
+    if (!firstStart.world || !firstEnd.world || !secondStart.world || !secondEnd.world) {
       diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     const intersection = intersectInfiniteLines(
-      { start: firstStart.point, end: firstEnd.point },
-      { start: secondStart.point, end: secondEnd.point }
+      { start: firstStart.world, end: firstEnd.world },
+      { start: secondStart.world, end: secondEnd.world }
     );
     if (!intersection) {
       diagnostics.push(`invalid-explicit-coordinate:${item.raw}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     if (parsed.solution !== 1) {
       diagnostics.push(`invalid-intersection-solution:${parsed.solution}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "explicit", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     return {
-      point: intersection,
+      world: intersection,
+      local: undefined,
+      transform: identityMatrix(),
+      coordinateForm: "explicit",
       diagnostics,
       advancesCurrentPoint: item.relativePrefix === "++"
     };
@@ -161,7 +189,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const z = item.z ? parseLength(expandCoordinateComponent(item.z, frame.macroBindings, traceCollector), "cm") : 0;
     if (x == null || y == null || z == null) {
       diagnostics.push(`invalid-xyz-coordinate:${item.raw}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "xyz", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     if (Math.abs(z) > 1e-9) {
@@ -169,7 +197,10 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     }
 
     return {
-      point: applyMatrix(frame.transform, { x, y }),
+      world: applyMatrix(frame.transform, { x, y }),
+      local: { x, y },
+      transform: frame.transform,
+      coordinateForm: "xyz",
       diagnostics,
       advancesCurrentPoint: item.relativePrefix === "++"
     };
@@ -177,7 +208,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
 
   if (item.form === "unknown") {
     diagnostics.push(`unsupported-coordinate-form:${item.form}`);
-    return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "unknown", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
   }
 
   let localPoint: Point | null = null;
@@ -187,7 +218,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const radius = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
     if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
       diagnostics.push(`invalid-polar-coordinate:${item.raw}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "polar", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     const angle = angleQuantity.value;
@@ -201,35 +232,46 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     const y = parseLength(expandCoordinateComponent(item.y, frame.macroBindings, traceCollector), "cm");
     if (x == null || y == null) {
       diagnostics.push(`invalid-cartesian-coordinate:${item.raw}`);
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: "cartesian", diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
 
     localPoint = { x, y };
   }
 
   if (!localPoint) {
-    return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+    const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
+    return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: form, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
   }
 
   if (item.relativePrefix) {
     const current = context.currentPoint;
     if (!current) {
       diagnostics.push("relative-coordinate-without-current-point");
-      return { point: null, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
+      const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
+      return { world: null, local: undefined, transform: identityMatrix(), coordinateForm: form, relativePrefix: item.relativePrefix, diagnostics, advancesCurrentPoint: item.relativePrefix === "++" };
     }
     const delta = applyMatrixToVector(frame.transform, localPoint);
+    const form: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
     return {
-      point: {
+      world: {
         x: current.x + delta.x,
         y: current.y + delta.y
       },
+      local: localPoint,
+      transform: frame.transform,
+      coordinateForm: form,
+      relativePrefix: item.relativePrefix,
       diagnostics,
       advancesCurrentPoint: item.relativePrefix === "++"
     };
   }
 
+  const coordinateForm: CoordinateForm = item.form === "polar" ? "polar" : "cartesian";
   return {
-    point: applyMatrix(frame.transform, localPoint),
+    world: applyMatrix(frame.transform, localPoint),
+    local: localPoint,
+    transform: frame.transform,
+    coordinateForm,
     diagnostics,
     advancesCurrentPoint: true
   };
@@ -534,13 +576,13 @@ function evaluateCalcTerm(term: string, context: SemanticContext): { point: Poin
     const left = evaluateRawCoordinate(interpolation.left, context);
     const right = evaluateRawCoordinate(interpolation.right, context);
     diagnostics.push(...left.diagnostics, ...right.diagnostics);
-    if (!left.point || !right.point) {
+    if (!left.world || !right.world) {
       return { point: null, diagnostics };
     }
     return {
       point: {
-        x: left.point.x + interpolation.factor * (right.point.x - left.point.x),
-        y: left.point.y + interpolation.factor * (right.point.y - left.point.y)
+        x: left.world.x + interpolation.factor * (right.world.x - left.world.x),
+        y: left.world.y + interpolation.factor * (right.world.y - left.world.y)
       },
       diagnostics
     };
@@ -548,7 +590,7 @@ function evaluateCalcTerm(term: string, context: SemanticContext): { point: Poin
 
   const evaluated = evaluateRawCoordinate(term, context);
   diagnostics.push(...evaluated.diagnostics);
-  return { point: evaluated.point, diagnostics };
+  return { point: evaluated.world, diagnostics };
 }
 
 function tryParseCalcInterpolation(term: string): { left: string; right: string; factor: number } | null {
@@ -582,7 +624,7 @@ function tryEvaluatePerpendicularCoordinate(
   const left = evaluateRawCoordinate(parsed.leftRaw, context);
   const right = evaluateRawCoordinate(parsed.rightRaw, context);
   const diagnostics = [...left.diagnostics, ...right.diagnostics];
-  if (!left.point || !right.point) {
+  if (!left.world || !right.world) {
     diagnostics.push("invalid-perpendicular-coordinate");
     return { point: null, diagnostics };
   }
@@ -590,8 +632,8 @@ function tryEvaluatePerpendicularCoordinate(
   if (parsed.operator === "|-") {
     return {
       point: {
-        x: left.point.x,
-        y: right.point.y
+        x: left.world.x,
+        y: right.world.y
       },
       diagnostics
     };
@@ -599,8 +641,8 @@ function tryEvaluatePerpendicularCoordinate(
 
   return {
     point: {
-      x: right.point.x,
-      y: left.point.y
+      x: right.world.x,
+      y: left.world.y
     },
     diagnostics
   };
@@ -677,7 +719,7 @@ function tryEvaluateIntersectionCoordinate(
   const secondEnd = evaluateRawCoordinate(secondLine.endRaw, context);
   diagnostics.push(...firstStart.diagnostics, ...firstEnd.diagnostics, ...secondStart.diagnostics, ...secondEnd.diagnostics);
 
-  if (!firstStart.point || !firstEnd.point || !secondStart.point || !secondEnd.point) {
+  if (!firstStart.world || !firstEnd.world || !secondStart.world || !secondEnd.world) {
     diagnostics.push("invalid-intersection-coordinate");
     return { point: null, diagnostics };
   }
@@ -688,8 +730,8 @@ function tryEvaluateIntersectionCoordinate(
   }
 
   const point = intersectInfiniteLines(
-    { start: firstStart.point, end: firstEnd.point },
-    { start: secondStart.point, end: secondEnd.point }
+    { start: firstStart.world, end: firstEnd.world },
+    { start: secondStart.world, end: secondEnd.world }
   );
   if (!point) {
     diagnostics.push("invalid-intersection-coordinate");

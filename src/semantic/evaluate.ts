@@ -46,6 +46,7 @@ import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { identityMatrix } from "./transform.js";
 import type {
   Bounds,
+  EditHandle,
   EvaluateOptions,
   FeatureUsage,
   FeatureUsageState,
@@ -58,6 +59,7 @@ export type EvaluateTikzResult = {
   scene: SceneFigure;
   diagnostics: Diagnostic[];
   featureUsage: FeatureUsage;
+  editHandles: EditHandle[];
 };
 
 export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
@@ -85,7 +87,7 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       context.macroTraceCollector ?? undefined
     );
     const rootDelta = resolveContextDelta(parent.style, parent.transform, rootOptionLists, rootCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).point
+      evaluateRawCoordinate(raw, context).world
     );
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists);
     pushFrame(context, {
@@ -163,7 +165,8 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       bounds: computeBounds(elements)
     },
     diagnostics,
-    featureUsage
+    featureUsage,
+    editHandles: context.editHandles
   };
 }
 
@@ -189,7 +192,7 @@ function evaluateStatement(
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
     const resolved = resolveContextDelta(baseStyle, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).point
+      evaluateRawCoordinate(raw, context).world
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
 
@@ -327,7 +330,7 @@ function evaluateStatement(
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
     const resolved = resolveContextDelta(parent.style, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).point
+      evaluateRawCoordinate(raw, context).world
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
     pushFrame(context, {
@@ -492,7 +495,7 @@ function applyOptionListsToCurrentFrame(
   const frame = currentFrame(context);
   const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
   const resolved = resolveContextDelta(frame.style, frame.transform, expandedOptionLists, frame.customStyles, (raw) =>
-    evaluateRawCoordinate(raw, context).point
+    evaluateRawCoordinate(raw, context).world
   );
   frame.style = resolved.style;
   frame.transform = resolved.transform;
