@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { deleteLine, indentLess, indentMore } from "@codemirror/commands";
 import { EditorView, Decoration, DecorationSet, hoverTooltip, keymap } from "@codemirror/view";
@@ -14,6 +14,23 @@ import { numberScrubber } from "./number-scrubber";
 import { TreeView } from "./TreeView";
 
 type PaneId = "editor" | "tree" | "ir" | "svg";
+type SourceSpan = { from: number; to: number };
+type EditHandle = EvaluateTikzResult["editHandles"][number];
+type Point2D = { x: number; y: number };
+type DraggableNodeHandle = EditHandle & {
+  kind: "node-position";
+  rewriteMode: "direct";
+  coordinateForm: "cartesian";
+};
+type DragState = {
+  pointerId: number;
+  handleId: string;
+  sourceSpan: SourceSpan;
+  baseSource: string;
+  startWorld: Point2D;
+  pointerStartWorld: Point2D;
+  currentWorld: Point2D;
+};
 
 const PANE_ORDER: PaneId[] = ["editor", "tree", "ir", "svg"];
 const PANE_LABELS: Record<PaneId, string> = {
@@ -63,6 +80,19 @@ type EditorDiagnostic = {
 const MAX_EDITOR_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DECORATION_DEBOUNCE_MS = 120;
+const CM_PER_TEX_POINT = 2.54 / 72.27;
+const INITIAL_PANE_VISIBILITY: Record<PaneId, boolean> = {
+  editor: true,
+  tree: false,
+  ir: false,
+  svg: true
+};
+const BASE_PANE_SIZES: Record<PaneId, number> = {
+  editor: 30,
+  tree: 22,
+  ir: 24,
+  svg: 24
+};
 
 const playgroundKeymap = Prec.highest(
   keymap.of([
@@ -203,18 +233,10 @@ export function App() {
   const [renderDiagnostics, setRenderDiagnostics] = useState<RenderDiagnostic[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [source, setSource] = useState(defaultSource);
-  const [paneVisibility, setPaneVisibility] = useState<Record<PaneId, boolean>>({
-    editor: true,
-    tree: true,
-    ir: true,
-    svg: true
-  });
-  const [paneSizes, setPaneSizes] = useState<Record<PaneId, number>>({
-    editor: 30,
-    tree: 22,
-    ir: 24,
-    svg: 24
-  });
+  const [paneVisibility, setPaneVisibility] = useState<Record<PaneId, boolean>>(INITIAL_PANE_VISIBILITY);
+  const [paneSizes, setPaneSizes] = useState<Record<PaneId, number>>(() =>
+    normalizePaneSizes(BASE_PANE_SIZES, INITIAL_PANE_VISIBILITY)
+  );
 
   const visiblePaneIds = PANE_ORDER.filter((paneId) => paneVisibility[paneId]);
 
@@ -473,6 +495,21 @@ export function App() {
     [paneSizes]
   );
 
+  const replaceSourceText = useCallback((nextSource: string) => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+
+    if (view.state.doc.toString() === nextSource) {
+      return;
+    }
+
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: nextSource }
+    });
+  }, []);
+
   return (
     <div className="app">
       <header className="app-header">
@@ -501,7 +538,14 @@ export function App() {
                 <IrView parseResult={parseResult} semanticResult={semanticResult} parseError={parseError} onHover={handleHover} />
               )}
               {paneId === "svg" && (
-                <SvgView parseError={parseError} svgResult={svgResult} renderDiagnostics={renderDiagnostics} />
+                <SvgView
+                  parseError={parseError}
+                  svgResult={svgResult}
+                  semanticResult={semanticResult}
+                  source={source}
+                  renderDiagnostics={renderDiagnostics}
+                  onReplaceSource={replaceSourceText}
+                />
               )}
             </section>
             {index < visiblePaneIds.length - 1 && (
@@ -726,12 +770,189 @@ function clamp(value: number, min: number, max: number): number {
 function SvgView({
   parseError,
   svgResult,
-  renderDiagnostics
+  semanticResult,
+  source,
+  renderDiagnostics,
+  onReplaceSource
 }: {
   parseError: string | null;
   svgResult: EmitSvgResult | null;
+  semanticResult: EvaluateTikzResult | null;
+  source: string;
   renderDiagnostics: RenderDiagnostic[];
+  onReplaceSource: (nextSource: string) => void;
 }) {
+  const overlaySvgRef = useRef<SVGSVGElement>(null);
+  const dragSnapshotHandlesRef = useRef<DraggableNodeHandle[] | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const pendingLiveSourceRef = useRef<string | null>(null);
+  const liveUpdateFrameRef = useRef<number | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  const draggableHandles = useMemo(() => {
+    const handles = semanticResult?.editHandles ?? [];
+    return handles.filter((handle): handle is DraggableNodeHandle => {
+      if (handle.kind !== "node-position") {
+        return false;
+      }
+      if (handle.rewriteMode !== "direct" || handle.coordinateForm !== "cartesian") {
+        return false;
+      }
+      return isSimpleCoordinateSpan(source, handle.sourceSpan);
+    });
+  }, [semanticResult, source]);
+
+  const handlesForRendering = dragState ? dragSnapshotHandlesRef.current ?? draggableHandles : draggableHandles;
+
+  const flushPendingLiveSource = useCallback(() => {
+    if (liveUpdateFrameRef.current != null) {
+      window.cancelAnimationFrame(liveUpdateFrameRef.current);
+      liveUpdateFrameRef.current = null;
+    }
+    const pending = pendingLiveSourceRef.current;
+    pendingLiveSourceRef.current = null;
+    if (pending != null) {
+      onReplaceSource(pending);
+    }
+  }, [onReplaceSource]);
+
+  const queueLiveSourceUpdate = useCallback(
+    (nextSource: string) => {
+      pendingLiveSourceRef.current = nextSource;
+      if (liveUpdateFrameRef.current != null) {
+        return;
+      }
+      liveUpdateFrameRef.current = window.requestAnimationFrame(() => {
+        liveUpdateFrameRef.current = null;
+        const pending = pendingLiveSourceRef.current;
+        pendingLiveSourceRef.current = null;
+        if (pending != null) {
+          onReplaceSource(pending);
+        }
+      });
+    },
+    [onReplaceSource]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (liveUpdateFrameRef.current != null) {
+        window.cancelAnimationFrame(liveUpdateFrameRef.current);
+        liveUpdateFrameRef.current = null;
+      }
+      pendingLiveSourceRef.current = null;
+      dragSnapshotHandlesRef.current = null;
+      dragStateRef.current = null;
+    };
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<SVGCircleElement>, handle: DraggableNodeHandle) => {
+      if (!svgResult) {
+        return;
+      }
+
+      const pointerWorld = pointerEventToWorldOnSvg(event, overlaySvgRef.current, svgResult.viewBox);
+      if (!pointerWorld) {
+        return;
+      }
+
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragSnapshotHandlesRef.current = draggableHandles;
+      const nextState: DragState = {
+        pointerId: event.pointerId,
+        handleId: handle.id,
+        sourceSpan: handle.sourceSpan,
+        baseSource: source,
+        startWorld: { ...handle.world },
+        pointerStartWorld: pointerWorld,
+        currentWorld: { ...handle.world }
+      };
+      dragStateRef.current = nextState;
+      setDragState(nextState);
+    },
+    [draggableHandles, source, svgResult]
+  );
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
+      if (!svgResult) {
+        return;
+      }
+
+      const pointerWorld = pointerEventToWorldOnSvg(event, overlaySvgRef.current, svgResult.viewBox);
+      if (!pointerWorld) {
+        return;
+      }
+
+      const previous = dragStateRef.current;
+      if (!previous || previous.handleId !== handleId || previous.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const delta = {
+        x: pointerWorld.x - previous.pointerStartWorld.x,
+        y: pointerWorld.y - previous.pointerStartWorld.y
+      };
+
+      const nextState: DragState = {
+        ...previous,
+        currentWorld: {
+          x: previous.startWorld.x + delta.x,
+          y: previous.startWorld.y + delta.y
+        }
+      };
+      dragStateRef.current = nextState;
+      setDragState(nextState);
+      queueLiveSourceUpdate(
+        replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(nextState.currentWorld))
+      );
+    },
+    [queueLiveSourceUpdate, svgResult]
+  );
+
+  const handlePointerUp = useCallback(
+    (event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
+      const target = event.currentTarget;
+      const pointerId = event.pointerId;
+      if (target?.hasPointerCapture(pointerId)) {
+        target.releasePointerCapture(pointerId);
+      }
+
+      const previous = dragStateRef.current;
+      if (!previous || previous.handleId !== handleId || previous.pointerId !== pointerId) {
+        return;
+      }
+
+      flushPendingLiveSource();
+      onReplaceSource(
+        replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(previous.currentWorld))
+      );
+      dragSnapshotHandlesRef.current = null;
+      dragStateRef.current = null;
+      setDragState(null);
+    },
+    [flushPendingLiveSource, onReplaceSource]
+  );
+
+  const handlePointerCancel = useCallback((event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
+    const target = event.currentTarget;
+    const pointerId = event.pointerId;
+    if (target?.hasPointerCapture(pointerId)) {
+      target.releasePointerCapture(pointerId);
+    }
+
+    const previous = dragStateRef.current;
+    if (!previous || previous.handleId !== handleId || previous.pointerId !== pointerId) {
+      return;
+    }
+    flushPendingLiveSource();
+    dragSnapshotHandlesRef.current = null;
+    dragStateRef.current = null;
+    setDragState(null);
+  }, [flushPendingLiveSource]);
+
   if (parseError) {
     return <div className="ir-view ir-error">{parseError}</div>;
   }
@@ -747,6 +968,7 @@ function SvgView({
           viewBox: {svgResult.viewBox.x.toFixed(1)} {svgResult.viewBox.y.toFixed(1)} {svgResult.viewBox.width.toFixed(1)}{" "}
           {svgResult.viewBox.height.toFixed(1)}
         </span>
+        <span>Node handles: {draggableHandles.length}</span>
         <span>Emitter diagnostics: {svgResult.diagnostics.length}</span>
       </div>
       {renderDiagnostics.length > 0 && (
@@ -759,7 +981,105 @@ function SvgView({
           ))}
         </div>
       )}
-      <div className="svg-canvas" dangerouslySetInnerHTML={{ __html: svgResult.svg }} />
+      <div className="svg-canvas">
+        <div className="svg-stage">
+          <div className="svg-content" dangerouslySetInnerHTML={{ __html: svgResult.svg }} />
+          <svg
+            ref={overlaySvgRef}
+            className="svg-overlay-svg"
+            viewBox={`${svgResult.viewBox.x} ${svgResult.viewBox.y} ${svgResult.viewBox.width} ${svgResult.viewBox.height}`}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden
+          >
+            {handlesForRendering.map((handle) => {
+              const world = dragState?.handleId === handle.id ? dragState.currentWorld : handle.world;
+              const overlayPoint = worldToSvgPoint(world, svgResult.viewBox);
+              return (
+                <circle
+                  key={handle.id}
+                  className={`svg-overlay-handle ${dragState?.handleId === handle.id ? "is-dragging" : ""}`}
+                  cx={overlayPoint.x}
+                  cy={overlayPoint.y}
+                  r={2.4}
+                  onPointerDown={(event) => handlePointerDown(event, handle)}
+                  onPointerMove={(event) => handlePointerMove(event, handle.id)}
+                  onPointerUp={(event) => handlePointerUp(event, handle.id)}
+                  onPointerCancel={(event) => handlePointerCancel(event, handle.id)}
+                >
+                  <title>Drag to move node and rewrite TikZ coordinate</title>
+                </circle>
+              );
+            })}
+          </svg>
+        </div>
+      </div>
     </div>
   );
+}
+
+function isSimpleCoordinateSpan(source: string, span: SourceSpan): boolean {
+  if (span.from < 0 || span.to > source.length || span.from >= span.to) {
+    return false;
+  }
+  const raw = source.slice(span.from, span.to).trim();
+  return /^\(\s*[+-]?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*[+-]?(?:\d+(?:\.\d+)?|\.\d+)\s*\)$/.test(raw);
+}
+
+function pointerEventToWorldOnSvg(
+  event: Pick<ReactPointerEvent<Element>, "clientX" | "clientY">,
+  svg: SVGSVGElement | null,
+  viewBox: EmitSvgResult["viewBox"]
+): Point2D | null {
+  if (!svg) {
+    return null;
+  }
+  const screenCtm = svg.getScreenCTM();
+  if (!screenCtm) {
+    return null;
+  }
+  const inverse = screenCtm.inverse();
+  if (!inverse) {
+    return null;
+  }
+  const projected = new DOMPoint(event.clientX, event.clientY).matrixTransform(inverse);
+  return {
+    x: projected.x,
+    y: svgYToWorldY(projected.y, viewBox)
+  };
+}
+
+function worldToSvgPoint(world: Point2D, viewBox: EmitSvgResult["viewBox"]): Point2D {
+  return {
+    x: world.x,
+    y: worldYToSvgY(world.y, viewBox)
+  };
+}
+
+function worldYToSvgY(worldY: number, viewBox: EmitSvgResult["viewBox"]): number {
+  return viewBox.y + viewBox.height - (worldY - viewBox.y);
+}
+
+function svgYToWorldY(svgY: number, viewBox: EmitSvgResult["viewBox"]): number {
+  return viewBox.y + viewBox.height - (svgY - viewBox.y);
+}
+
+function formatCoordinateForSource(world: Point2D): string {
+  const x = world.x * CM_PER_TEX_POINT;
+  const y = world.y * CM_PER_TEX_POINT;
+  return `(${formatCoordinateComponent(x)},${formatCoordinateComponent(y)})`;
+}
+
+function replaceSpanInSource(source: string, span: SourceSpan, replacement: string): string {
+  const from = clamp(span.from, 0, source.length);
+  const to = clamp(span.to, from, source.length);
+  return `${source.slice(0, from)}${replacement}${source.slice(to)}`;
+}
+
+function formatCoordinateComponent(value: number): string {
+  const rounded = Math.round(value * 1000) / 1000;
+  const normalized = Math.abs(rounded) < 1e-9 ? 0 : rounded;
+  if (Number.isInteger(normalized)) {
+    return String(normalized);
+  }
+  return normalized.toFixed(3).replace(/\.?0+$/, "");
 }
