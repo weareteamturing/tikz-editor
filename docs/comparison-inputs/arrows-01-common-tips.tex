@@ -1,0 +1,11 @@
+% Inspired by pgfmanual-en-tikz-arrows.tex arrow configuration examples.
+\usetikzlibrary{arrows.meta}
+
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \draw[-{Latex[length=5mm]}] (0,2.4) -- (5.4,2.4);
+  \draw[-{Stealth[length=4mm]}] (0,1.8) -- (5.4,1.8);
+  \draw[-{Latex[open,length=4mm]}] (0,1.2) -- (5.4,1.2);
+  \draw[{Stealth[length=4mm]}-{Latex[length=4mm]}] (0,0.6) -- (5.4,0.6);
+  \draw[line width=1.2pt,-{Stealth[length=2mm 4]}] (0,0) -- (5.4,0);
+  \draw[draw=red,-{Stealth[color=blue,length=4mm]}] (0,-0.6) -- (5.4,-0.6);
+\end{tikzpicture}

@@ -25,7 +25,8 @@ Foreach constructs (`\foreach`, path `foreach`, and `node foreach`) are expanded
 3. `npm run build` builds the parser package.
 4. `cd /Users/dominik/GitHub/tikz-editor/web && npm run build` builds the playground.
 5. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest. Use `--reference-mode pdf-png` (default), `--reference-mode dvisvgm-svg`, or `--reference-mode dvisvgm-svg-png`.
-6. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It also supports `--reference-mode pdf-png|dvisvgm-svg|dvisvgm-svg-png`.
+6. `npm run compare:arrows` regenerates renderer-vs-TeX comparisons for all files under `docs/comparison-inputs/` and writes `artifacts/renderer-compare/arrow-comparison-manifest.json`. Add `-- --with-timestamp` to keep historical run directories.
+7. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It also supports `--reference-mode pdf-png|dvisvgm-svg|dvisvgm-svg-png`.
 
 Comparison outputs are written under `artifacts/renderer-compare/<run>-<timestamp>/`:
 1. `ours.svg` and `ours.png`

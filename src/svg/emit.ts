@@ -724,11 +724,15 @@ function isDefaultArrowMarker(marker: ArrowMarker): boolean {
     tip.kind === "to" &&
     !tip.open &&
     !tip.round &&
+    !tip.reversed &&
+    !tip.bend &&
     tip.color == null &&
     tip.fill == null &&
     Math.abs(tip.length - 8) <= 1e-6 &&
     Math.abs(tip.width - 6) <= 1e-6 &&
-    tip.lineWidth == null
+    Math.abs(tip.sep) <= 1e-6 &&
+    tip.lineWidth != null &&
+    Math.abs(tip.lineWidth - 0.4) <= 1e-6
   );
 }
 
@@ -741,11 +745,15 @@ function isDefaultBarMarker(marker: ArrowMarker): boolean {
     tip.kind === "bar" &&
     tip.open &&
     !tip.round &&
+    !tip.reversed &&
+    !tip.bend &&
     tip.color == null &&
     tip.fill === "none" &&
     Math.abs(tip.length - 4) <= 1e-6 &&
     Math.abs(tip.width - 8) <= 1e-6 &&
-    tip.lineWidth == null
+    Math.abs(tip.sep) <= 1e-6 &&
+    tip.lineWidth != null &&
+    Math.abs(tip.lineWidth - 0.4) <= 1e-6
   );
 }
 
@@ -829,10 +837,7 @@ function markerWithContextLineWidth(marker: ArrowMarker, lineWidth: number): Arr
       if (tip.lineWidth != null) {
         return { ...tip };
       }
-      if (tip.kind === "cm-rightarrow") {
-        return { ...tip, lineWidth: fallback };
-      }
-      return { ...tip };
+      return { ...tip, lineWidth: fallback };
     })
   };
 }
@@ -942,59 +947,73 @@ function markerShorteningLength(marker: ArrowMarker): number {
   if (marker.tips.length === 0) {
     return 0;
   }
-  let length = 0;
-  for (const tip of marker.tips) {
-    length += tipShorteningLength(tip, "end");
+  const frontTip = marker.tips[marker.tips.length - 1];
+  if (!frontTip) {
+    return 0;
   }
-  if (marker.tips.length > 1) {
-    length += (marker.tips.length - 1) * 0.8;
-  }
-  return length;
+  return tipShorteningLength(frontTip, "end") + Math.max(0, frontTip.sep);
 }
 
 function markerStartShorteningLength(marker: ArrowMarker): number {
   if (marker.tips.length === 0) {
     return 0;
   }
-  let length = 0;
-  for (const tip of marker.tips) {
-    length += tipShorteningLength(tip, "start");
+  const frontTip = marker.tips[marker.tips.length - 1];
+  if (!frontTip) {
+    return 0;
   }
-  if (marker.tips.length > 1) {
-    length += (marker.tips.length - 1) * 0.8;
-  }
-  return length;
+  return tipShorteningLength(frontTip, "start") + Math.max(0, frontTip.sep);
 }
 
 function tipShorteningLength(tip: ArrowTip, side: "start" | "end"): number {
+  const effectiveSide = tip.reversed ? (side === "start" ? "end" : "start") : side;
+  const canonicalReversed = side === "start" ? !tip.reversed : tip.reversed;
   const length = Math.max(1, tip.length);
+  const lineWidth = tip.lineWidth != null && tip.lineWidth > 0 ? tip.lineWidth : 0.4;
 
   if (tip.kind === "cm-rightarrow") {
-    if (side === "start") {
+    if (effectiveSide === "start") {
       return length;
     }
-    return tip.lineWidth != null && tip.lineWidth > 0 ? tip.lineWidth : 0.4;
+    return lineWidth;
   }
   if (tip.kind === "hooks" || tip.kind === "bar") {
     return 0;
   }
   if (tip.kind === "stealth") {
-    return side === "start" ? length * 0.18 : length * 0.88;
+    const width = Math.max(1, tip.width);
+    const slope = length / Math.max(1e-6, width);
+    const frontMiter = 0.5 * Math.sqrt(1 + 4 * slope * slope) * lineWidth;
+    if (canonicalReversed) {
+      // pgflibraryarrows.meta.code.tex: reversed Stealth line-end (non-harpoon, no inner line).
+      return Math.max(0, frontMiter + 0.25 * lineWidth);
+    }
+    const inset = Math.max(0, tip.inset ?? length * 0.325);
+    const insetSlope = inset / Math.max(1e-6, width);
+    const insetMiter = 0.5 * Math.sqrt(1 + 4 * insetSlope * insetSlope) * lineWidth;
+    const lineEnd = inset + insetMiter;
+    return Math.max(0, length - lineEnd);
   }
   if (tip.kind === "latex") {
-    return side === "start" ? length * 0.2 : length * 0.85;
+    if (canonicalReversed) {
+      // pgflibraryarrows.meta.code.tex: reversed Latex line-end (single line case).
+      const slope = length / Math.max(1e-6, Math.max(1, tip.width));
+      const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lineWidth;
+      return Math.max(0, 0.5 * frontMiter + 0.5 * lineWidth);
+    }
+    return Math.max(0, length - 0.5 * lineWidth);
   }
   if (tip.kind === "triangle") {
-    return side === "start" ? length * 0.2 : length * 0.9;
+    return effectiveSide === "start" ? length * 0.2 : length * 0.9;
   }
   if (tip.kind === "implies") {
-    return side === "start" ? length * 0.25 : length * 0.9;
+    return effectiveSide === "start" ? length * 0.25 : length * 0.9;
   }
   if (tip.kind === "to") {
-    return side === "start" ? length * 0.2 : length * 0.85;
+    return effectiveSide === "start" ? length * 0.2 : length * 0.85;
   }
 
-  return side === "start" ? length * 0.2 : length * 0.8;
+  return effectiveSide === "start" ? length * 0.2 : length * 0.8;
 }
 
 function applyStartShortening(commands: ScenePathCommand[], firstSegmentIndex: number, requested: number): void {
@@ -1017,7 +1036,7 @@ function applyStartShortening(commands: ScenePathCommand[], firstSegmentIndex: n
     return;
   }
 
-  const delta = Math.min(requested, tangentLength * 0.45);
+  const delta = Math.min(requested, tangentLength * 0.98);
   if (delta <= 1e-6) {
     return;
   }
@@ -1055,7 +1074,7 @@ function applyEndShortening(commands: ScenePathCommand[], lastSegmentIndex: numb
     return;
   }
 
-  const delta = Math.min(requested, tangentLength * 0.45);
+  const delta = Math.min(requested, tangentLength * 0.98);
   if (delta <= 1e-6) {
     return;
   }
@@ -1175,20 +1194,21 @@ function lengthOfVector(vector: { x: number; y: number }): number {
 
 function renderMarkerDefinition(id: string, marker: ArrowMarker): string {
   const shapes: string[] = [];
-  let offset = 0;
+  const normalizedTips = marker.tips.map(normalizeArrowTip);
+  const totalLength = normalizedTips.reduce((sum, tip) => sum + tip.length + tip.sep, 0);
+  let cursorX = -totalLength;
   let minX = 0;
   let maxX = 0;
   let maxHalfWidth = 1;
 
-  for (const tip of marker.tips) {
-    const normalized = normalizeArrowTip(tip);
-    const tipX = -offset;
-    const baseX = tipX - normalized.length;
+  for (const normalized of normalizedTips) {
+    const baseX = cursorX;
+    const tipX = baseX + normalized.length;
     minX = Math.min(minX, baseX - 1);
     maxX = Math.max(maxX, tipX + 1);
     maxHalfWidth = Math.max(maxHalfWidth, normalized.width / 2 + 1);
     shapes.push(renderArrowTipShape(normalized, baseX, tipX));
-    offset += normalized.length + 0.8;
+    cursorX = tipX + normalized.sep;
   }
 
   const width = Math.max(1, maxX - minX);
@@ -1205,7 +1225,8 @@ function normalizeArrowTip(tip: ArrowTip): ArrowTip {
   return {
     ...tip,
     length: Math.max(1, tip.length),
-    width: Math.max(1, tip.width)
+    width: Math.max(1, tip.width),
+    sep: Math.max(0, tip.sep)
   };
 }
 
@@ -1214,26 +1235,34 @@ function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string
   const color = tip.color ?? "context-stroke";
   const strokeLinejoin = tip.round ? "round" : "miter";
   const strokeLinecap = tip.round ? "round" : "butt";
-  const strokeWidth = tip.lineWidth ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? 1 : 0);
+  const strokeWidth = tip.lineWidth ?? 0;
   const fill = tip.fill ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? "none" : color);
   const stroke = strokeWidth > 0 ? color : "none";
+  const tailX = tip.reversed ? tipX : baseX;
+  const pointX = tip.reversed ? baseX : tipX;
+  const span = pointX - tailX;
+  const lerpX = (t: number): number => tailX + span * t;
+  const atDistance = (distance: number): number => {
+    const ratio = distance / Math.max(1e-6, tip.length);
+    return tailX + span * ratio;
+  };
 
   if (tip.kind === "cm-rightarrow") {
-    const c1x = tipX - tip.length * 0.81731;
-    const c2x = tipX - tip.length * 0.41019;
+    const c1x = lerpX(0.18269);
+    const c2x = lerpX(0.58981);
     const c1y = halfWidth * 0.4;
     const c2y = halfWidth * 0.116666;
     return (
-      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} ` +
-      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(tipX)} 0 ` +
-      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(baseX)} ${fmt(halfWidth)}" ` +
+      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} ` +
+      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(pointX)} 0 ` +
+      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(tailX)} ${fmt(halfWidth)}" ` +
       `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1)}" ` +
       `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
   if (tip.kind === "bar") {
-    const x = (tipX + baseX) / 2;
+    const x = (tailX + pointX) / 2;
     return (
       `<path d="M ${fmt(x)} ${fmt(-halfWidth)} L ${fmt(x)} ${fmt(halfWidth)}" ` +
       `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.6)}" ` +
@@ -1242,51 +1271,98 @@ function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string
   }
 
   if (tip.kind === "hooks") {
-    const controlX = tipX - tip.length * 0.55;
+    const controlX = lerpX(0.45);
     return (
-      `<path d="M ${fmt(tipX)} 0 Q ${fmt(controlX)} ${fmt(-halfWidth)} ${fmt(baseX)} ${fmt(-halfWidth)} ` +
-      `M ${fmt(tipX)} 0 Q ${fmt(controlX)} ${fmt(halfWidth)} ${fmt(baseX)} ${fmt(halfWidth)}" ` +
+      `<path d="M ${fmt(pointX)} 0 Q ${fmt(controlX)} ${fmt(-halfWidth)} ${fmt(tailX)} ${fmt(-halfWidth)} ` +
+      `M ${fmt(pointX)} 0 Q ${fmt(controlX)} ${fmt(halfWidth)} ${fmt(tailX)} ${fmt(halfWidth)}" ` +
       `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.1)}" ` +
       `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
   if (tip.kind === "implies") {
-    const midX = tipX - tip.length * 0.38;
+    const midX = lerpX(0.62);
+    const innerTailX = lerpX(0.35);
+    const innerMidX = lerpX(0.727);
+    const innerPointX = lerpX(0.97);
     return (
-      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(midX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(midX)} ${fmt(halfWidth)} L ${fmt(baseX)} ${fmt(halfWidth)} z" ` +
+      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(midX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(midX)} ${fmt(halfWidth)} L ${fmt(tailX)} ${fmt(halfWidth)} z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />` +
-      `<path d="M ${fmt(baseX + tip.length * 0.35)} ${fmt(-halfWidth * 0.7)} L ${fmt(midX + tip.length * 0.35)} ${fmt(-halfWidth * 0.7)} L ${fmt(tipX + tip.length * 0.35)} 0 L ${fmt(midX + tip.length * 0.35)} ${fmt(halfWidth * 0.7)} L ${fmt(baseX + tip.length * 0.35)} ${fmt(halfWidth * 0.7)} z" ` +
+      `<path d="M ${fmt(innerTailX)} ${fmt(-halfWidth * 0.7)} L ${fmt(innerMidX)} ${fmt(-halfWidth * 0.7)} L ${fmt(innerPointX)} 0 L ${fmt(innerMidX)} ${fmt(halfWidth * 0.7)} L ${fmt(innerTailX)} ${fmt(halfWidth * 0.7)} z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
   if (tip.kind === "stealth") {
-    const insetX = baseX + tip.length * 0.329;
+    const nominalLength = Math.max(1, tip.length);
+    const nominalWidth = Math.max(1, tip.width);
+    const nominalInset = Math.max(0, tip.inset ?? nominalLength * 0.325);
+    const lw = Math.max(0, strokeWidth);
+
+    const frontSlope = nominalLength / Math.max(1e-6, nominalWidth);
+    const frontMiter = 0.5 * Math.sqrt(1 + 4 * frontSlope * frontSlope) * lw;
+
+    const halfNominalWidth = 0.5 * nominalWidth;
+    const angleTop = Math.atan2(nominalLength, Math.max(1e-6, halfNominalWidth));
+    const angleInset = Math.atan2(nominalInset, Math.max(1e-6, halfNominalWidth));
+    const halfDelta = 0.5 * (angleTop - angleInset);
+    const backMiterLength = 0.5 * (1 / Math.max(1e-6, Math.tan(halfDelta))) * lw;
+    const bisector = angleInset + halfDelta;
+    const backMiterX = Math.sin(bisector) * backMiterLength;
+    const topMiterY = Math.cos(bisector) * backMiterLength;
+
+    const insetSlope = nominalInset / Math.max(1e-6, nominalWidth);
+    const insetMiter = 0.5 * Math.sqrt(1 + 4 * insetSlope * insetSlope) * lw;
+    const adjustedInset = nominalInset + insetMiter;
+
+    const tipVertexX = atDistance(Math.max(0, nominalLength - frontMiter));
+    const topBackX = atDistance(Math.max(0, backMiterX));
+    const insetX = atDistance(Math.max(0, adjustedInset));
+    const innerHalfWidth = Math.max(0.1, halfNominalWidth - topMiterY);
     return (
-      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} L ${fmt(insetX)} 0 z" ` +
+      `<path d="M ${fmt(tipVertexX)} 0 L ${fmt(topBackX)} ${fmt(-innerHalfWidth)} L ${fmt(insetX)} 0 L ${fmt(topBackX)} ${fmt(innerHalfWidth)} z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
   if (tip.kind === "latex") {
-    const neckX = baseX + tip.length * 0.12;
+    const nominalLength = Math.max(1, tip.length);
+    const nominalWidth = Math.max(1, tip.width);
+    const lw = Math.max(0, strokeWidth);
+    const axisSign = tip.reversed ? -1 : 1;
+    const tailShift = axisSign * 0.5 * lw;
+    const tail = tailX + tailShift;
+
+    const slope = nominalLength / Math.max(1e-6, nominalWidth);
+    const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lw;
+    const innerLength = Math.max(0.1, nominalLength - 0.5 * frontMiter - 0.5 * lw);
+    const halfBackWidth = nominalWidth / 2;
+
+    const atDistanceFromTail = (distance: number): number => tail + axisSign * distance;
+    const tipVertexX = atDistanceFromTail(innerLength);
+    const c1x = atDistanceFromTail(0.877192 * innerLength);
+    const c2x = atDistanceFromTail(0.337381 * innerLength);
+    const c1y = 0.077922 * halfBackWidth;
+    const c2y = 0.51948 * halfBackWidth;
     return (
-      `<path d="M ${fmt(neckX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(neckX)} ${fmt(halfWidth)} z" ` +
+      `<path d="M ${fmt(tipVertexX)} 0 ` +
+      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(tail)} ${fmt(-halfBackWidth)} ` +
+      `L ${fmt(tail)} ${fmt(halfBackWidth)} ` +
+      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(tipVertexX)} 0 z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
   if (tip.kind === "triangle") {
     return (
-      `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} z" ` +
+      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(tailX)} ${fmt(halfWidth)} z" ` +
       `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
     );
   }
 
-  const notchX = baseX + tip.length * 0.24;
+  const notchX = lerpX(0.24);
   return (
-    `<path d="M ${fmt(baseX)} ${fmt(-halfWidth)} L ${fmt(tipX)} 0 L ${fmt(baseX)} ${fmt(halfWidth)} L ${fmt(notchX)} 0 z" ` +
+    `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(tailX)} ${fmt(halfWidth)} L ${fmt(notchX)} 0 z" ` +
     `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
   );
 }

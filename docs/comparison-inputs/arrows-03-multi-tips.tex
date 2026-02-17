@@ -1,0 +1,10 @@
+% Inspired by pgfmanual-en-tikz-arrows.tex arrow tip sequence and sep examples.
+\usetikzlibrary{arrows.meta}
+
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \draw[-{Latex[length=4mm] Stealth[length=3mm]}] (0,0) -- (5.4,0);
+  \draw[-{Stealth[sep,length=4mm] Stealth[length=3mm]}] (0,-0.9) -- (5.4,-0.9);
+  \draw[-{>[sep=1pt]>[sep=2pt]>}] (0,-1.8) -- (5.4,-1.8);
+  \draw[-{Stealth[] . Stealth[] Stealth[]}] (0,-2.7) -- (5.4,-2.7);
+  \draw[{Latex[length=3.5mm] Latex[sep,length=3mm]}-{Stealth[length=3.5mm] Stealth[sep,length=3mm]}] (0,-3.6) -- (5.4,-3.6);
+\end{tikzpicture}

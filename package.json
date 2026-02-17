@@ -14,6 +14,7 @@
     "test:corpus": "npm run generate:grammar && vitest run test/corpus.spec.ts",
     "parse:corpus": "npm run test:corpus",
     "compare:renderers": "node scripts/compare-tikz-renderers.mjs",
+    "compare:arrows": "node scripts/compare-arrow-fixtures.mjs",
     "compare:pgf-docs": "node scripts/compare-pgf-docs-renderings.mjs",
     "compare:kottwitz-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book",
     "compare:kolda-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book",

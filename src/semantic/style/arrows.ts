@@ -5,6 +5,18 @@ import { ARROW_NAME_ALIASES, DEFAULT_ARROW_LENGTH, DEFAULT_ARROW_WIDTH, NAMED_CO
 import { normalizeColor } from "./colors.js";
 import { findTopLevelCharacter, readBalancedBlock, readOptionalBracketOptions, stripEnclosingBraces } from "./option-utils.js";
 
+const EPSILON = 1e-6;
+
+// From /pgf/arrow keys/sep default in pgfcorearrows.code.tex.
+const DEFAULT_SEP_BASE_PT = 0.88;
+const DEFAULT_SEP_LINE_FACTOR = 0.3;
+
+// From Latex/Stealth defaults in pgflibraryarrows.meta.code.tex.
+const DEFAULT_GEOMETRIC_LENGTH_BASE_PT = 3;
+const DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR = 4.5;
+const DEFAULT_GEOMETRIC_WIDTH_FACTOR = 0.75;
+const DEFAULT_STEALTH_INSET_FACTOR = 0.325;
+
 export function parseTipsMode(raw: string): TipsMode | null {
   const normalized = raw.trim().toLowerCase();
   if (normalized === "true" || normalized.length === 0) {
@@ -69,11 +81,23 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
       if (!group) {
         break;
       }
-      const nested = parseArrowSideSpecification(group.content, side, style);
+      // Handle translation/reversal at this level only.
+      const nested = parseArrowSideSpecification(group.content, "end", style);
       if (nested) {
         tips.push(...nested.tips.map(cloneArrowTip));
       }
       cursor = group.nextIndex;
+      continue;
+    }
+
+    if (char === "_") {
+      cursor += 1;
+      if (tips.length > 0) {
+        const last = tips[tips.length - 1];
+        if (last) {
+          tips[tips.length - 1] = { ...last, sep: parseDefaultArrowSep(style.lineWidth) };
+        }
+      }
       continue;
     }
 
@@ -83,7 +107,7 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
       cursor = optionBlock.nextIndex;
       const baseTips = expandArrowSymbol(char, side, style);
       for (const tip of baseTips) {
-        tips.push(applyArrowTipOptions(tip, optionBlock.optionsRaw));
+        tips.push(applyArrowTipOptions(tip, optionBlock.optionsRaw, style.lineWidth));
       }
       continue;
     }
@@ -96,16 +120,23 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
     cursor = named.nextIndex;
     const optionBlock = readOptionalBracketOptions(input, cursor);
     cursor = optionBlock.nextIndex;
-    const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name), style.lineWidth), optionBlock.optionsRaw);
+    const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name), style.lineWidth), optionBlock.optionsRaw, style.lineWidth);
     tips.push(tip);
   }
 
-  return tips.length > 0 ? { tips } : null;
+  if (tips.length === 0) {
+    return null;
+  }
+
+  if (side === "start") {
+    tips.reverse();
+  }
+  return { tips };
 }
 
 function expandArrowSymbol(symbol: ">" | "<" | "|", _side: "start" | "end", style: ResolvedStyle): ArrowTip[] {
   if (symbol === "|") {
-    return [makeDefaultArrowTip("bar")];
+    return [makeDefaultArrowTip("bar", style.lineWidth)];
   }
 
   if (symbol === "<") {
@@ -173,93 +204,92 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       kind,
       open: true,
       round: true,
+      reversed: false,
+      bend: false,
       color: null,
       fill: "none",
       length: Math.max(1, nominalLength - baseLineWidth),
       width: Math.max(1, nominalWidth - baseLineWidth),
+      inset: null,
+      sep: 0,
       lineWidth: baseLineWidth
     };
   }
+
+  if (kind === "latex") {
+    return buildLatexTip(DEFAULT_GEOMETRIC_LENGTH_BASE_PT + DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR * baseLineWidth, null, baseLineWidth);
+  }
+
+  if (kind === "stealth") {
+    const nominalLength = DEFAULT_GEOMETRIC_LENGTH_BASE_PT + DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR * baseLineWidth;
+    return buildStealthTip(nominalLength, null, null, baseLineWidth);
+  }
+
   if (kind === "bar") {
     return {
       kind,
       open: true,
       round: false,
+      reversed: false,
+      bend: false,
       color: null,
       fill: "none",
       length: 4,
       width: 8,
-      lineWidth: null
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth
     };
   }
+
   if (kind === "hooks") {
     return {
       kind,
       open: true,
       round: true,
+      reversed: false,
+      bend: false,
       color: null,
       fill: "none",
       length: 7,
       width: 8,
-      lineWidth: null
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth
     };
   }
+
   if (kind === "triangle") {
     return {
       kind,
       open: false,
       round: false,
+      reversed: false,
+      bend: false,
       color: null,
       fill: null,
       length: 8,
       width: 8,
-      lineWidth: null
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth
     };
   }
+
   if (kind === "implies") {
     return {
       kind,
       open: false,
       round: false,
+      reversed: false,
+      bend: false,
       color: null,
       fill: null,
       length: 9,
       width: 7,
-      lineWidth: null
-    };
-  }
-
-  if (kind === "stealth") {
-    // Based on pgflibraryarrows.meta.code.tex (Stealth defaults + setup code, no harpoon, no roundjoin).
-    const nominalLength = 3 + 4.5 * baseLineWidth;
-    const nominalWidth = 0.75 * nominalLength;
-    const nominalInset = 0.325 * nominalLength;
-    const effectiveLineWidth = Math.min(baseLineWidth, 0.25 * Math.max(0, nominalLength - nominalInset));
-
-    const frontSlope = nominalLength / Math.max(1e-6, nominalWidth);
-    const frontMiter = 0.5 * Math.sqrt(1 + 4 * frontSlope * frontSlope) * effectiveLineWidth;
-
-    const halfWidth = 0.5 * nominalWidth;
-    const angleTop = Math.atan2(nominalLength, Math.max(1e-6, halfWidth));
-    const angleInset = Math.atan2(nominalInset, Math.max(1e-6, halfWidth));
-    const halfDelta = 0.5 * (angleTop - angleInset);
-    const backMiterLength = 0.5 * (1 / Math.max(1e-6, Math.tan(halfDelta))) * effectiveLineWidth;
-    const bisector = angleInset + halfDelta;
-    const backMiterX = Math.sin(bisector) * backMiterLength;
-    const topMiterY = Math.cos(bisector) * backMiterLength;
-
-    const innerLength = nominalLength - frontMiter - backMiterX;
-    const innerHalfWidth = halfWidth - topMiterY;
-
-    return {
-      kind,
-      open: false,
-      round: false,
-      color: null,
-      fill: null,
-      length: Math.max(1, innerLength),
-      width: Math.max(1, 2 * innerHalfWidth),
-      lineWidth: null
+      inset: null,
+      sep: 0,
+      lineWidth: baseLineWidth
     };
   }
 
@@ -267,16 +297,86 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
     kind,
     open: false,
     round: false,
+    reversed: false,
+    bend: false,
     color: null,
     fill: null,
     length: DEFAULT_ARROW_LENGTH,
     width: DEFAULT_ARROW_WIDTH,
-    lineWidth: null
+    inset: null,
+    sep: 0,
+    lineWidth: baseLineWidth
   };
 }
 
 function normalizeArrowLineWidth(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0.4;
+}
+
+function buildLatexTip(nominalLength: number, nominalWidth: number | null, requestedLineWidth: number): ArrowTip {
+  const length = Math.max(1, nominalLength);
+  const width = Math.max(1, nominalWidth ?? length * DEFAULT_GEOMETRIC_WIDTH_FACTOR);
+  // Cap line width at one fifth of the length.
+  const lineWidth = Math.max(0, Math.min(normalizeArrowLineWidth(requestedLineWidth), 0.2 * length));
+
+  const slope = length / Math.max(EPSILON, width);
+  const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lineWidth;
+  const innerLength = length - 0.5 * frontMiter - 0.5 * lineWidth;
+
+  // Back-tip miter approximation from pgflibraryarrows.meta.code.tex.
+  // Note: the normalization uses the nominal length, not the inner length.
+  const x0 = 0.3 * length;
+  const y0 = 0.2333333 * width;
+  const scale = 1 / Math.max(EPSILON, Math.hypot(x0, y0));
+  const nx = x0 * scale;
+  const ny = y0 * scale;
+  const ratio = (ny + 1) / Math.max(EPSILON, nx);
+  const halfWidth = 0.5 * width - 0.5 * ratio * lineWidth;
+
+  return {
+    kind: "latex",
+    open: false,
+    round: false,
+    reversed: false,
+    bend: false,
+    color: null,
+    fill: null,
+    length: Math.max(1, length),
+    width: Math.max(1, 2 * halfWidth),
+    inset: null,
+    sep: 0,
+    lineWidth
+  };
+}
+
+function buildStealthTip(
+  nominalLength: number,
+  nominalWidth: number | null,
+  nominalInset: number | null,
+  requestedLineWidth: number
+): ArrowTip {
+  const length = Math.max(1, nominalLength);
+  const width = Math.max(1, nominalWidth ?? length * DEFAULT_GEOMETRIC_WIDTH_FACTOR);
+  const inset = Math.max(0, nominalInset ?? length * DEFAULT_STEALTH_INSET_FACTOR);
+
+  // Cap line width at one quarter of distance from inset to tip.
+  const maxLineWidth = 0.25 * Math.max(0, length - inset);
+  const lineWidth = Math.max(0, Math.min(normalizeArrowLineWidth(requestedLineWidth), maxLineWidth));
+
+  return {
+    kind: "stealth",
+    open: false,
+    round: false,
+    reversed: false,
+    bend: false,
+    color: null,
+    fill: null,
+    length,
+    width,
+    inset,
+    sep: 0,
+    lineWidth
+  };
 }
 
 export function cloneArrowMarker(marker: ArrowMarker): ArrowMarker {
@@ -287,13 +387,30 @@ function cloneArrowTip(tip: ArrowTip): ArrowTip {
   return { ...tip };
 }
 
-function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null): ArrowTip {
+function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null, contextLineWidth: number): ArrowTip {
   if (!optionsRaw || optionsRaw.trim().length === 0) {
     return base;
   }
 
+  const normalizedContextLineWidth = normalizeArrowLineWidth(contextLineWidth);
   const options = parseOptionListRaw(`[${optionsRaw}]`);
   let tip: ArrowTip = { ...base };
+  let length = tip.length;
+  let width = tip.width;
+  let sep = tip.sep;
+  let lineWidth = tip.lineWidth ?? normalizedContextLineWidth;
+
+  // Geometric tips use nominal values and recompute miter-corrected dimensions.
+  let nominalLength = DEFAULT_GEOMETRIC_LENGTH_BASE_PT + DEFAULT_GEOMETRIC_LENGTH_LINE_FACTOR * normalizedContextLineWidth;
+  let nominalWidth = nominalLength * DEFAULT_GEOMETRIC_WIDTH_FACTOR;
+  let nominalInset = nominalLength * DEFAULT_STEALTH_INSET_FACTOR;
+  let widthExplicit = false;
+  let insetExplicit = false;
+  const isGeometricMetaTip = tip.kind === "stealth" || tip.kind === "latex";
+  if (!isGeometricMetaTip) {
+    nominalLength = length;
+    nominalWidth = width;
+  }
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
@@ -310,8 +427,21 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null): ArrowT
         tip = { ...tip, round: false };
         continue;
       }
-      if (NAMED_COLORS.has(key)) {
+      if (key === "reversed") {
+        tip = { ...tip, reversed: !tip.reversed };
+        continue;
+      }
+      if (key === "bend" || key === "flex") {
+        tip = { ...tip, bend: true };
+        continue;
+      }
+      if (key === "sep") {
+        sep = parseDefaultArrowSep(normalizedContextLineWidth);
+        continue;
+      }
+      if (NAMED_COLORS.has(key) || key.includes("!") || key.startsWith("#")) {
         tip = { ...tip, color: normalizeColor(key) };
+        continue;
       }
       continue;
     }
@@ -322,44 +452,84 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null): ArrowT
 
     const key = entry.key;
     if (key === "length") {
-      const length = parseArrowDimension(entry.valueRaw);
-      if (length != null && length >= 0) {
-        tip = { ...tip, length };
+      const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
+      if (parsed != null && parsed >= 0) {
+        if (isGeometricMetaTip) {
+          nominalLength = parsed;
+        } else {
+          length = parsed;
+        }
       }
       continue;
     }
-    if (key === "width") {
-      const width = parseArrowDimension(entry.valueRaw);
-      if (width != null && width >= 0) {
-        tip = { ...tip, width };
+    if (key === "width" || key === "width'") {
+      const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
+      if (parsed != null && parsed >= 0) {
+        if (isGeometricMetaTip) {
+          nominalWidth = parsed;
+          widthExplicit = true;
+        } else {
+          width = parsed;
+        }
+      }
+      continue;
+    }
+    if (key === "inset" || key === "inset'") {
+      const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
+      if (parsed != null && parsed >= 0) {
+        nominalInset = parsed;
+        insetExplicit = true;
       }
       continue;
     }
     if (key === "scale") {
       const factor = parseArrowFactor(entry.valueRaw);
       if (factor != null && factor >= 0) {
-        tip = { ...tip, length: tip.length * factor, width: tip.width * factor };
+        if (isGeometricMetaTip) {
+          nominalLength *= factor;
+          nominalWidth *= factor;
+          nominalInset *= factor;
+        } else {
+          length *= factor;
+          width *= factor;
+        }
       }
       continue;
     }
     if (key === "scale length") {
       const factor = parseArrowFactor(entry.valueRaw);
       if (factor != null && factor >= 0) {
-        tip = { ...tip, length: tip.length * factor };
+        if (isGeometricMetaTip) {
+          nominalLength *= factor;
+        } else {
+          length *= factor;
+        }
       }
       continue;
     }
     if (key === "scale width") {
       const factor = parseArrowFactor(entry.valueRaw);
       if (factor != null && factor >= 0) {
-        tip = { ...tip, width: tip.width * factor };
+        if (isGeometricMetaTip) {
+          nominalWidth *= factor;
+          widthExplicit = true;
+        } else {
+          width *= factor;
+        }
       }
       continue;
     }
-    if (key === "line width") {
-      const width = parseArrowDimension(entry.valueRaw);
-      if (width != null && width >= 0) {
-        tip = { ...tip, lineWidth: width };
+    if (key === "line width" || key === "line width'") {
+      const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
+      if (parsed != null && parsed >= 0) {
+        lineWidth = parsed;
+      }
+      continue;
+    }
+    if (key === "sep") {
+      const parsed = parseArrowDimension(entry.valueRaw, normalizedContextLineWidth);
+      if (parsed != null && parsed >= 0) {
+        sep = parsed;
       }
       continue;
     }
@@ -374,24 +544,83 @@ function applyArrowTipOptions(base: ArrowTip, optionsRaw: string | null): ArrowT
     }
   }
 
-  return tip;
+  if (isGeometricMetaTip) {
+    if (!widthExplicit) {
+      nominalWidth = nominalLength * DEFAULT_GEOMETRIC_WIDTH_FACTOR;
+    }
+    if (!insetExplicit) {
+      nominalInset = nominalLength * DEFAULT_STEALTH_INSET_FACTOR;
+    }
+
+    if (tip.kind === "stealth") {
+      const stealth = buildStealthTip(nominalLength, nominalWidth, nominalInset, lineWidth);
+      tip = {
+        ...tip,
+        length: stealth.length,
+        width: stealth.width,
+        inset: stealth.inset,
+        lineWidth: stealth.lineWidth
+      };
+    } else {
+      const latex = buildLatexTip(nominalLength, nominalWidth, lineWidth);
+      tip = {
+        ...tip,
+        length: latex.length,
+        width: latex.width,
+        lineWidth: latex.lineWidth
+      };
+    }
+  } else {
+    tip = {
+      ...tip,
+      length: Math.max(0, length),
+      width: Math.max(0, width),
+      lineWidth: Math.max(0, lineWidth)
+    };
+  }
+
+  if (tip.open && tip.fill !== "none") {
+    tip = { ...tip, fill: "none" };
+  }
+
+  return {
+    ...tip,
+    sep: Math.max(0, sep)
+  };
 }
 
-function parseArrowDimension(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
+function parseArrowDimension(raw: string, contextLineWidth: number): number | null {
+  const parsed = parseArrowDimensionSpec(raw);
+  if (!parsed) {
     return null;
   }
-  const primaryToken = trimmed.split(/\s+/)[0];
-  const parsedLength = parseLength(primaryToken ?? trimmed, "pt");
-  if (parsedLength != null) {
-    return parsedLength;
+  return parsed.base + parsed.lineFactor * contextLineWidth;
+}
+
+function parseArrowDimensionSpec(raw: string): { base: number; lineFactor: number } | null {
+  const tokens = raw
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+  if (tokens.length === 0) {
+    return null;
   }
-  const numeric = Number(primaryToken ?? trimmed);
-  if (Number.isFinite(numeric)) {
-    return numeric;
+
+  const base = parseLength(tokens[0] ?? "", "pt");
+  if (base == null) {
+    return null;
   }
-  return null;
+  const lineFactor = tokens.length >= 2 ? parseArrowNumber(tokens[1]) ?? 0 : 0;
+  return { base, lineFactor };
+}
+
+function parseArrowNumber(raw: string | undefined): number | null {
+  if (!raw) {
+    return null;
+  }
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseArrowFactor(raw: string): number | null {
@@ -401,6 +630,10 @@ function parseArrowFactor(raw: string): number | null {
   }
   const parsed = Number(primaryToken);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseDefaultArrowSep(lineWidth: number): number {
+  return DEFAULT_SEP_BASE_PT + DEFAULT_SEP_LINE_FACTOR * normalizeArrowLineWidth(lineWidth);
 }
 
 function readArrowNamedTip(input: string, startIndex: number): { name: string; nextIndex: number } | null {

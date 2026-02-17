@@ -1508,6 +1508,48 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("parses reversed/sep arrow options and reverses multi-tip start specifications", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[-{Stealth[reversed,sep=2pt,length=5mm]}] (0,0) -- (2,0);
+  \draw[{Latex[length=4pt] Stealth[length=2pt]}-] (0,1) -- (2,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+
+    const first = paths[0];
+    const second = paths[1];
+    expect(first?.kind).toBe("Path");
+    expect(second?.kind).toBe("Path");
+    if (first?.kind === "Path" && second?.kind === "Path") {
+      expect(first.style.markerEnd?.tips[0]?.kind).toBe("stealth");
+      expect(first.style.markerEnd?.tips[0]?.reversed).toBe(true);
+      expect(first.style.markerEnd?.tips[0]?.sep).toBeCloseTo(2, 3);
+      expect(second.style.markerStart?.tips.map((tip) => tip.kind)).toEqual(["stealth", "latex"]);
+    }
+  });
+
+  it("recomputes Stealth inset when geometric dimensions are overridden", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[line width=1.2pt,-{Stealth[length=2mm 4]}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const tip = path.style.markerEnd?.tips[0];
+      expect(tip?.kind).toBe("stealth");
+      expect(tip?.length).toBeCloseTo(10.4906, 3);
+      expect(tip?.width).toBeCloseTo(7.8679, 3);
+      expect(tip?.inset).toBeCloseTo(3.4094, 3);
+      expect(tip?.lineWidth).toBeCloseTo(1.2, 3);
+    }
+  });
+
   it("treats double distance as enabling a double stroke", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[thin,double distance=2pt] (0,0) arc (180:90:1cm);

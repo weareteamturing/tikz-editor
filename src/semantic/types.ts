@@ -17,10 +17,14 @@ export type ArrowTip = {
   kind: ArrowTipKind;
   open: boolean;
   round: boolean;
+  reversed: boolean;
+  bend: boolean;
   color: string | null;
   fill: string | null;
   length: number;
   width: number;
+  inset: number | null;
+  sep: number;
   lineWidth: number | null;
 };
 
