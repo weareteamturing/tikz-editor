@@ -66,9 +66,10 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
   }
 
   const tips: ArrowTip[] = [];
+  let afterLineEnd = false;
   let cursor = 0;
   while (cursor < input.length) {
-    while (cursor < input.length && (/\s/.test(input[cursor] ?? "") || input[cursor] === ".")) {
+    while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
       cursor += 1;
     }
     if (cursor >= input.length) {
@@ -76,6 +77,12 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
     }
 
     const char = input[cursor];
+    if (char === ".") {
+      afterLineEnd = true;
+      cursor += 1;
+      continue;
+    }
+
     if (char === "{") {
       const group = readBalancedBlock(input, cursor, "{", "}");
       if (!group) {
@@ -84,7 +91,12 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
       // Handle translation/reversal at this level only.
       const nested = parseArrowSideSpecification(group.content, "end", style);
       if (nested) {
-        tips.push(...nested.tips.map(cloneArrowTip));
+        tips.push(
+          ...nested.tips.map((tip) => ({
+            ...cloneArrowTip(tip),
+            afterLineEnd: afterLineEnd || tip.afterLineEnd
+          }))
+        );
       }
       cursor = group.nextIndex;
       continue;
@@ -107,7 +119,10 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
       cursor = optionBlock.nextIndex;
       const baseTips = expandArrowSymbol(char, side, style);
       for (const tip of baseTips) {
-        tips.push(applyArrowTipOptions(tip, optionBlock.optionsRaw, style.lineWidth));
+        tips.push({
+          ...applyArrowTipOptions(tip, optionBlock.optionsRaw, style.lineWidth),
+          afterLineEnd
+        });
       }
       continue;
     }
@@ -121,7 +136,7 @@ export function parseArrowSideSpecification(raw: string, side: "start" | "end", 
     const optionBlock = readOptionalBracketOptions(input, cursor);
     cursor = optionBlock.nextIndex;
     const tip = applyArrowTipOptions(makeDefaultArrowTip(resolveArrowTipKind(named.name), style.lineWidth), optionBlock.optionsRaw, style.lineWidth);
-    tips.push(tip);
+    tips.push({ ...tip, afterLineEnd });
   }
 
   if (tips.length === 0) {
@@ -206,6 +221,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       round: true,
       reversed: false,
       bend: false,
+      afterLineEnd: false,
       color: null,
       fill: "none",
       length: Math.max(1, nominalLength - baseLineWidth),
@@ -232,6 +248,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       round: false,
       reversed: false,
       bend: false,
+      afterLineEnd: false,
       color: null,
       fill: "none",
       length: 4,
@@ -249,6 +266,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       round: true,
       reversed: false,
       bend: false,
+      afterLineEnd: false,
       color: null,
       fill: "none",
       length: 7,
@@ -266,6 +284,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       round: false,
       reversed: false,
       bend: false,
+      afterLineEnd: false,
       color: null,
       fill: null,
       length: 8,
@@ -283,6 +302,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
       round: false,
       reversed: false,
       bend: false,
+      afterLineEnd: false,
       color: null,
       fill: null,
       length: 9,
@@ -299,6 +319,7 @@ function makeDefaultArrowTip(kind: ArrowTipKind, lineWidth = 0.4): ArrowTip {
     round: false,
     reversed: false,
     bend: false,
+    afterLineEnd: false,
     color: null,
     fill: null,
     length: DEFAULT_ARROW_LENGTH,
@@ -339,6 +360,7 @@ function buildLatexTip(nominalLength: number, nominalWidth: number | null, reque
     round: false,
     reversed: false,
     bend: false,
+    afterLineEnd: false,
     color: null,
     fill: null,
     length: Math.max(1, length),
@@ -369,6 +391,7 @@ function buildStealthTip(
     round: false,
     reversed: false,
     bend: false,
+    afterLineEnd: false,
     color: null,
     fill: null,
     length,

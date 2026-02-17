@@ -157,7 +157,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).not.toContain("vector-effect=");
   });
 
-  it("emits dash offsets and bar markers for |-| paths", () => {
+  it("emits dash offsets and explicit bar tip paths for |-| paths", () => {
     const source = String.raw`\begin{tikzpicture}[|-|,dash pattern=on 4pt off 2pt]
   \draw[dash phase=2pt] (0,0) -- (2,0);
 \end{tikzpicture}`;
@@ -167,12 +167,10 @@ describe("svg emitter", () => {
 
     expect(emitted.svg).toContain('stroke-dasharray="4 2"');
     expect(emitted.svg).toContain('stroke-dashoffset="2"');
-    const markerStartMatch = emitted.svg.match(/marker-start="url\(#([^"]+)\)"/);
-    const markerEndMatch = emitted.svg.match(/marker-end="url\(#([^"]+)\)"/);
-    expect(markerStartMatch?.[1]).toBeTruthy();
-    expect(markerEndMatch?.[1]).toBeTruthy();
-    expect(markerStartMatch?.[1]).toBe(markerEndMatch?.[1]);
-    expect(emitted.svg).toContain(`id="${markerStartMatch?.[1]}"`);
+    const barTipPaths = emitted.svg.match(/data-arrow-tip-kind="bar"/g) ?? [];
+    expect(barTipPaths.length).toBe(2);
+    expect(emitted.svg).not.toContain("marker-start=");
+    expect(emitted.svg).not.toContain("marker-end=");
   });
 
   it("emits SVG gradients for axis/radial/ball shading options", () => {
@@ -251,7 +249,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain(" Z M ");
   });
 
-  it("emits arrow markers from arrows= specifications and > shorthand defaults", () => {
+  it("emits explicit arrow tip paths from arrows= specifications and > shorthand defaults", () => {
     const source = String.raw`\begin{tikzpicture}[>=Stealth]
   \draw[arrows={-Latex[open,length=10pt,color=blue]}] (0,0) -- (2,0);
   \draw[>->] (0,1) -- (2,1);
@@ -260,10 +258,14 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(emitted.svg).toContain("marker-end=");
-    expect(emitted.svg).toContain("marker-start=");
-    expect(emitted.svg).toContain("<defs>");
-    expect(emitted.svg).toContain("tikz-marker-");
+    expect(emitted.svg).toContain('data-arrow-tip-kind="latex"');
+    expect(emitted.svg).toContain('data-arrow-tip-kind="stealth"');
+    expect(emitted.svg).toContain('data-arrow-side="start"');
+    expect(emitted.svg).toContain('data-arrow-side="end"');
+    expect(emitted.svg).toContain('data-arrow-bend="false"');
+    expect(emitted.svg).not.toContain("<marker");
+    expect(emitted.svg).not.toContain("marker-start=");
+    expect(emitted.svg).not.toContain("marker-end=");
     expect(emitted.svg).toContain('stroke="#0000ff"');
   });
 
@@ -285,10 +287,12 @@ describe("svg emitter", () => {
     const startX = Number(secondPath[1]);
     const endX = Number(secondPath[2]);
     expect(endX - startX).toBeGreaterThan(20);
-    expect(emitted.svg).toContain("C");
+    expect(emitted.svg).toContain('data-arrow-tip-kind="cm-rightarrow"');
+    expect(emitted.svg).toContain('data-arrow-tip-kind="stealth"');
+    expect(emitted.svg).toContain('data-arrow-index="0"');
   });
 
-  it("suppresses markers on closed paths and when tips=never", () => {
+  it("suppresses tip geometry on closed paths and when tips=never", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[<->] (0,0) -- (1,0) -- cycle;
   \draw[<->,tips=never] (0,1) -- (1,1);
@@ -297,8 +301,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(emitted.svg).not.toContain("marker-start=");
-    expect(emitted.svg).not.toContain("marker-end=");
+    expect(emitted.svg).not.toContain("data-arrow-tip-kind=");
   });
 
   it("applies tips only to the last open subpath", () => {
@@ -309,15 +312,14 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    const pathTags = emitted.svg.match(/<path data-source-id="[^"]+" [^>]+>/g) ?? [];
-    expect(pathTags.length).toBe(3);
-    expect(pathTags[0]).not.toContain("marker-start=");
-    expect(pathTags[0]).not.toContain("marker-end=");
-    expect(pathTags[1]).not.toContain("marker-start=");
-    expect(pathTags[1]).not.toContain("marker-end=");
-    expect(pathTags[2]).toContain("marker-start=");
-    expect(pathTags[2]).toContain("marker-end=");
-    expect(pathTags[2]).toContain('stroke="none"');
+    const tipPaths = emitted.svg.match(/data-arrow-tip-kind="[^"]+"/g) ?? [];
+    const source0TipPaths = emitted.svg.match(/data-source-id="path:0" data-arrow-tip-kind=/g) ?? [];
+    const startTips = emitted.svg.match(/data-arrow-side="start"/g) ?? [];
+    const endTips = emitted.svg.match(/data-arrow-side="end"/g) ?? [];
+    expect(tipPaths.length).toBe(2);
+    expect(source0TipPaths.length).toBe(2);
+    expect(startTips.length).toBe(1);
+    expect(endTips.length).toBe(1);
   });
 
   it("shortens path geometry to accommodate arrow tips", () => {
@@ -328,7 +330,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    const linePath = emitted.svg.match(/d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
+    const linePath = emitted.svg.match(/data-source-id="path:0" d="M ([0-9.\-]+) [0-9.\-]+ L ([0-9.\-]+) [0-9.\-]+"/);
     expect(linePath).not.toBeNull();
     if (!linePath) {
       return;

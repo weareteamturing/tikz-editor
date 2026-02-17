@@ -19,6 +19,7 @@ export type ArrowTip = {
   round: boolean;
   reversed: boolean;
   bend: boolean;
+  afterLineEnd: boolean;
   color: string | null;
   fill: string | null;
   length: number;

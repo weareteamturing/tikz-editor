@@ -1531,6 +1531,24 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("preserves dot separators as afterLineEnd semantics for subsequent tips", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[-{Stealth[length=4pt] . Latex[length=5pt] . Stealth[length=3pt]}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const tips = path.style.markerEnd?.tips ?? [];
+      expect(tips.length).toBe(3);
+      expect(tips[0]?.afterLineEnd).toBe(false);
+      expect(tips[1]?.afterLineEnd).toBe(true);
+      expect(tips[2]?.afterLineEnd).toBe(true);
+    }
+  });
+
   it("recomputes Stealth inset when geometric dimensions are overridden", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[line width=1.2pt,-{Stealth[length=2mm 4]}] (0,0) -- (2,0);

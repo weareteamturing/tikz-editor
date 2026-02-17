@@ -91,8 +91,10 @@ describe("capability matrix guards", () => {
           expect(svg).toContain("<svg");
         }
         if (featureId === "arrow_tips") {
-          expect(svg).toContain("marker-end=");
-          expect(svg).toContain("<defs>");
+          expect(svg).toContain("data-arrow-tip-kind=");
+          expect(svg).toContain("<path");
+          expect(svg).not.toContain("marker-end=");
+          expect(svg).not.toContain("marker-start=");
         }
       }
     }

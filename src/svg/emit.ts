@@ -1,15 +1,14 @@
 import type {
-  ArrowMarker,
-  ArrowTip,
   ResolvedStyle,
   SceneElement,
   SceneFigure,
-  ScenePath,
   ScenePathCommand,
   ShadowLayer
 } from "../semantic/types.js";
 import { COLOR_HEX } from "../semantic/style/constants.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
+import { renderPathWithArrows } from "./arrows/render.js";
+import type { RenderedArrowTipPath } from "./arrows/types.js";
 import { computeViewBox } from "./viewbox.js";
 import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
 
@@ -56,26 +55,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
   const diagnostics: EmitSvgResult["diagnostics"] = [];
   const body: string[] = [];
-  const markerIdBySignature = new Map<string, string>();
-  const markerDefById = new Map<string, string>();
   const gradientIdBySignature = new Map<string, string>();
   const gradientDefById = new Map<string, string>();
   const shadowMaskDefById = new Map<string, string>();
   const unsupportedShadingNames = new Set<string>();
-
-  const ensureMarkerDefinition = (marker: ArrowMarker): string => {
-    const signature = markerSignature(marker);
-    const existing = markerIdBySignature.get(signature);
-    if (existing) {
-      return existing;
-    }
-
-    const preferredId = preferredMarkerId(marker);
-    const id = preferredId && !markerDefById.has(preferredId) ? preferredId : `tikz-marker-${markerIdBySignature.size + 1}`;
-    markerIdBySignature.set(signature, id);
-    markerDefById.set(id, renderMarkerDefinition(id, marker));
-    return id;
-  };
 
   const ensureGradientDefinition = (signature: string, kind: string, buildDef: (id: string) => string): string => {
     const existing = gradientIdBySignature.get(signature);
@@ -161,73 +144,57 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         continue;
       }
 
-      const parts = buildPathRenderParts(element, ensureMarkerDefinition);
-      const pathBounds = computePathBounds(element.commands, viewBox);
-      for (const part of parts) {
-        const d = encodePathData(part.commands, viewBox);
+      const renderedPath = renderPathWithArrows(element);
+      const shaftHasDrawableSegment = hasDrawablePathCommands(renderedPath.shaftCommands);
+      if (shaftHasDrawableSegment) {
+        const d = encodePathData(renderedPath.shaftCommands, viewBox);
+        if (d.length > 0) {
+          const pathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+          emitShadowPathPart({
+            body,
+            sourceId: element.sourceId,
+            d,
+            bounds: pathBounds,
+            shadowLayers: element.style.shadowLayers,
+            baseStyle: element.style,
+            resolveShadingFill,
+            ensureCircularShadowMaskDefinition
+          });
+
+          if (shouldEmitDoubleStroke(element.style)) {
+            const outerFill = resolveShadingFill(element.style, element.sourceId);
+            const outerAttrs = styleAttributes(element.style, false, {
+              lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
+              fill: outerFill ?? undefined
+            });
+            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
+            const innerAttrs = styleAttributes(element.style, false, {
+              stroke: "#ffffff",
+              fill: "none",
+              lineWidth: element.style.doubleDistance
+            });
+            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`);
+          } else {
+            const shadingFill = resolveShadingFill(element.style, element.sourceId);
+            const attrs = styleAttributes(element.style, false, {
+              fill: shadingFill ?? undefined
+            });
+            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
+          }
+        }
+      }
+
+      for (const tipPath of renderedPath.tipPaths) {
+        const d = encodePathData(tipPath.commands, viewBox);
         if (d.length === 0) {
           continue;
         }
-
-        if (part.markerOnly) {
-          const markerAttrs = styleAttributes(element.style, false, {
-            stroke: "none",
-            fill: "none"
-          });
-          if (part.markerStartId) {
-            markerAttrs.push(`marker-start="url(#${part.markerStartId})"`);
-          }
-          if (part.markerEndId) {
-            markerAttrs.push(`marker-end="url(#${part.markerEndId})"`);
-          }
-          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${markerAttrs.join(" ")} />`);
-          continue;
-        }
-
-        emitShadowPathPart({
-          body,
-          sourceId: element.sourceId,
-          d,
-          bounds: pathBounds,
-          shadowLayers: element.style.shadowLayers,
-          baseStyle: element.style,
-          resolveShadingFill,
-          ensureCircularShadowMaskDefinition
-        });
-
-        if (shouldEmitDoubleStroke(element.style)) {
-          const outerFill = resolveShadingFill(element.style, element.sourceId);
-          const outerAttrs = styleAttributes(element.style, false, {
-            lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
-            fill: outerFill ?? undefined
-          });
-          if (part.markerStartId) {
-            outerAttrs.push(`marker-start="url(#${part.markerStartId})"`);
-          }
-          if (part.markerEndId) {
-            outerAttrs.push(`marker-end="url(#${part.markerEndId})"`);
-          }
-          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
-          const innerAttrs = styleAttributes(element.style, false, {
-            stroke: "#ffffff",
-            fill: "none",
-            lineWidth: element.style.doubleDistance
-          });
-          body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`);
-          continue;
-        }
-
-        const shadingFill = resolveShadingFill(element.style, element.sourceId);
-        const attrs = styleAttributes(element.style, false, {
-          fill: shadingFill ?? undefined
-        });
-        if (part.markerStartId) {
-          attrs.push(`marker-start="url(#${part.markerStartId})"`);
-        }
-        if (part.markerEndId) {
-          attrs.push(`marker-end="url(#${part.markerEndId})"`);
-        }
-        body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
+        const attrs = arrowTipAttributes(element.style, tipPath);
+        body.push(
+          `<path data-source-id="${escapeAttr(element.sourceId)}" data-arrow-tip-kind="${escapeAttr(tipPath.tipKind)}" ` +
+            `data-arrow-side="${tipPath.side}" data-arrow-index="${tipPath.index}" data-arrow-bend="${tipPath.bend ? "true" : "false"}" ` +
+            `d="${escapeAttr(d)}" ${attrs.join(" ")} />`
+        );
       }
       continue;
     }
@@ -372,7 +339,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
     body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
   }
 
-  const defsParts = [...markerDefById.values(), ...gradientDefById.values(), ...shadowMaskDefById.values()];
+  const defsParts = [...gradientDefById.values(), ...shadowMaskDefById.values()];
   const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
 
   const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
@@ -701,670 +668,16 @@ function resolveShadowLayerStyle(layerStyle: ShadowRenderableStyle, baseStyle: R
   };
 }
 
-function markerSignature(marker: ArrowMarker): string {
-  return JSON.stringify(marker);
-}
-
-function preferredMarkerId(marker: ArrowMarker): string | null {
-  if (isDefaultArrowMarker(marker)) {
-    return "tikz-arrow";
-  }
-  if (isDefaultBarMarker(marker)) {
-    return "tikz-bar";
-  }
-  return null;
-}
-
-function isDefaultArrowMarker(marker: ArrowMarker): boolean {
-  const tip = marker.tips[0];
-  if (!tip || marker.tips.length !== 1) {
-    return false;
-  }
-  return (
-    tip.kind === "to" &&
-    !tip.open &&
-    !tip.round &&
-    !tip.reversed &&
-    !tip.bend &&
-    tip.color == null &&
-    tip.fill == null &&
-    Math.abs(tip.length - 8) <= 1e-6 &&
-    Math.abs(tip.width - 6) <= 1e-6 &&
-    Math.abs(tip.sep) <= 1e-6 &&
-    tip.lineWidth != null &&
-    Math.abs(tip.lineWidth - 0.4) <= 1e-6
-  );
-}
-
-function isDefaultBarMarker(marker: ArrowMarker): boolean {
-  const tip = marker.tips[0];
-  if (!tip || marker.tips.length !== 1) {
-    return false;
-  }
-  return (
-    tip.kind === "bar" &&
-    tip.open &&
-    !tip.round &&
-    !tip.reversed &&
-    !tip.bend &&
-    tip.color == null &&
-    tip.fill === "none" &&
-    Math.abs(tip.length - 4) <= 1e-6 &&
-    Math.abs(tip.width - 8) <= 1e-6 &&
-    Math.abs(tip.sep) <= 1e-6 &&
-    tip.lineWidth != null &&
-    Math.abs(tip.lineWidth - 0.4) <= 1e-6
-  );
-}
-
-type PathRenderPart = {
-  commands: ScenePathCommand[];
-  markerStartId: string | null;
-  markerEndId: string | null;
-  markerOnly: boolean;
-};
-
-function buildPathRenderParts(path: ScenePath, ensureMarkerDefinition: (marker: ArrowMarker) => string): PathRenderPart[] {
-  const subpaths = splitPathIntoSubpaths(path.commands);
-  if (subpaths.length === 0) {
-    return [];
-  }
-
-  const markerStart = path.style.markerStart ? markerWithContextLineWidth(path.style.markerStart, path.style.lineWidth) : null;
-  const markerEnd = path.style.markerEnd ? markerWithContextLineWidth(path.style.markerEnd, path.style.lineWidth) : null;
-  const markerColor = path.style.stroke && path.style.stroke !== "none" ? path.style.stroke : "#000000";
-  const markerStartForPath = markerStart ? markerWithResolvedColors(markerStart, markerColor) : null;
-  const markerEndForPath = markerEnd ? markerWithResolvedColors(markerEnd, markerColor) : null;
-  const markerAttrs = resolvePathMarkers(path, subpaths, markerStartForPath, markerEndForPath, ensureMarkerDefinition);
-  if (!markerAttrs.startId && !markerAttrs.endId) {
-    return [{ commands: path.commands, markerStartId: null, markerEndId: null, markerOnly: false }];
-  }
-
-  const leadingSubpaths = subpaths.slice(0, -1);
-  const leadingCommands = flattenSubpaths(leadingSubpaths);
-  const lastSubpath = subpaths[subpaths.length - 1] ?? [];
-  const shortenedLastSubpath = shortenSubpathForMarkers(lastSubpath, markerStart, markerEnd);
-
-  const parts: PathRenderPart[] = [];
-  if (leadingCommands.length > 0 && hasDrawablePathCommands(leadingCommands)) {
-    parts.push({
-      commands: leadingCommands,
-      markerStartId: null,
-      markerEndId: null,
-      markerOnly: false
-    });
-  }
-  if (hasDrawablePathCommands(shortenedLastSubpath)) {
-    parts.push({
-      commands: shortenedLastSubpath,
-      markerStartId: null,
-      markerEndId: null,
-      markerOnly: false
-    });
-  }
-  if (hasDrawablePathCommands(lastSubpath)) {
-    parts.push({
-      commands: lastSubpath.map(clonePathCommand),
-      markerStartId: markerAttrs.startId,
-      markerEndId: markerAttrs.endId,
-      markerOnly: true
-    });
-  }
-  return parts;
-}
-
-function resolvePathMarkers(
-  path: ScenePath,
-  subpaths: ScenePathCommand[][],
-  markerStart: ArrowMarker | null,
-  markerEnd: ArrowMarker | null,
-  ensureMarkerDefinition: (marker: ArrowMarker) => string
-): { startId: string | null; endId: string | null } {
-  if (!shouldEmitPathMarkers(path, subpaths)) {
-    return { startId: null, endId: null };
-  }
-
-  return {
-    startId: markerStart ? ensureMarkerDefinition(markerStart) : null,
-    endId: markerEnd ? ensureMarkerDefinition(markerEnd) : null
-  };
-}
-
-function markerWithContextLineWidth(marker: ArrowMarker, lineWidth: number): ArrowMarker {
-  const fallback = Number.isFinite(lineWidth) && lineWidth > 0 ? lineWidth : 0.4;
-  return {
-    tips: marker.tips.map((tip) => {
-      if (tip.lineWidth != null) {
-        return { ...tip };
-      }
-      return { ...tip, lineWidth: fallback };
-    })
-  };
-}
-
-function markerWithResolvedColors(marker: ArrowMarker, color: string): ArrowMarker {
-  return {
-    tips: marker.tips.map((tip) => {
-      if (tip.color != null) {
-        return { ...tip };
-      }
-      return { ...tip, color };
-    })
-  };
-}
-
-function shouldEmitPathMarkers(path: ScenePath, subpaths: ScenePathCommand[][]): boolean {
-  if (!path.style.markerStart && !path.style.markerEnd) {
-    return false;
-  }
-
-  if (path.style.tipsMode === "never") {
-    return false;
-  }
-
-  if (subpaths.length === 0) {
-    return false;
-  }
-
-  if (subpaths.some((subpath) => subpath.some((command) => command.kind === "Z"))) {
-    return false;
-  }
-
-  const lastSubpath = subpaths[subpaths.length - 1] ?? [];
-  const lastHasDrawableSegment = hasDrawablePathCommands(lastSubpath);
-  if (!lastHasDrawableSegment && (path.style.tipsMode === "proper" || path.style.tipsMode === "on proper draw")) {
-    return false;
-  }
-
-  const drawEnabled = path.style.drawExplicit || (path.style.stroke != null && path.style.stroke !== "none");
-  if ((path.style.tipsMode === "on draw" || path.style.tipsMode === "on proper draw") && !drawEnabled) {
-    return false;
-  }
-
-  return true;
-}
-
-function splitPathIntoSubpaths(commands: ScenePathCommand[]): ScenePathCommand[][] {
-  const subpaths: ScenePathCommand[][] = [];
-  let current: ScenePathCommand[] = [];
-
-  for (const command of commands) {
-    if (command.kind === "M" && current.length > 0) {
-      subpaths.push(current);
-      current = [clonePathCommand(command)];
-      continue;
-    }
-    current.push(clonePathCommand(command));
-  }
-
-  if (current.length > 0) {
-    subpaths.push(current);
-  }
-
-  return subpaths;
-}
-
-function flattenSubpaths(subpaths: ScenePathCommand[][]): ScenePathCommand[] {
-  const flattened: ScenePathCommand[] = [];
-  for (const subpath of subpaths) {
-    for (const command of subpath) {
-      flattened.push(clonePathCommand(command));
-    }
-  }
-  return flattened;
-}
-
-function shortenSubpathForMarkers(
-  subpath: ScenePathCommand[],
-  markerStart: ArrowMarker | null,
-  markerEnd: ArrowMarker | null
-): ScenePathCommand[] {
-  const commands = subpath.map(clonePathCommand);
-  if (commands.length < 2) {
-    return commands;
-  }
-
-  const firstSegmentIndex = findFirstDrawableCommandIndex(commands);
-  const lastSegmentIndex = findLastDrawableCommandIndex(commands);
-  if (firstSegmentIndex < 0 || lastSegmentIndex < 0) {
-    return commands;
-  }
-
-  if (markerStart) {
-    const requested = markerStartShorteningLength(markerStart);
-    applyStartShortening(commands, firstSegmentIndex, requested);
-  }
-
-  if (markerEnd) {
-    const requested = markerShorteningLength(markerEnd);
-    applyEndShortening(commands, lastSegmentIndex, requested);
-  }
-
-  return commands;
-}
-
-function markerShorteningLength(marker: ArrowMarker): number {
-  if (marker.tips.length === 0) {
-    return 0;
-  }
-  const frontTip = marker.tips[marker.tips.length - 1];
-  if (!frontTip) {
-    return 0;
-  }
-  return tipShorteningLength(frontTip, "end") + Math.max(0, frontTip.sep);
-}
-
-function markerStartShorteningLength(marker: ArrowMarker): number {
-  if (marker.tips.length === 0) {
-    return 0;
-  }
-  const frontTip = marker.tips[marker.tips.length - 1];
-  if (!frontTip) {
-    return 0;
-  }
-  return tipShorteningLength(frontTip, "start") + Math.max(0, frontTip.sep);
-}
-
-function tipShorteningLength(tip: ArrowTip, side: "start" | "end"): number {
-  const effectiveSide = tip.reversed ? (side === "start" ? "end" : "start") : side;
-  const canonicalReversed = side === "start" ? !tip.reversed : tip.reversed;
-  const length = Math.max(1, tip.length);
-  const lineWidth = tip.lineWidth != null && tip.lineWidth > 0 ? tip.lineWidth : 0.4;
-
-  if (tip.kind === "cm-rightarrow") {
-    if (effectiveSide === "start") {
-      return length;
-    }
-    return lineWidth;
-  }
-  if (tip.kind === "hooks" || tip.kind === "bar") {
-    return 0;
-  }
-  if (tip.kind === "stealth") {
-    const width = Math.max(1, tip.width);
-    const slope = length / Math.max(1e-6, width);
-    const frontMiter = 0.5 * Math.sqrt(1 + 4 * slope * slope) * lineWidth;
-    if (canonicalReversed) {
-      // pgflibraryarrows.meta.code.tex: reversed Stealth line-end (non-harpoon, no inner line).
-      return Math.max(0, frontMiter + 0.25 * lineWidth);
-    }
-    const inset = Math.max(0, tip.inset ?? length * 0.325);
-    const insetSlope = inset / Math.max(1e-6, width);
-    const insetMiter = 0.5 * Math.sqrt(1 + 4 * insetSlope * insetSlope) * lineWidth;
-    const lineEnd = inset + insetMiter;
-    return Math.max(0, length - lineEnd);
-  }
-  if (tip.kind === "latex") {
-    if (canonicalReversed) {
-      // pgflibraryarrows.meta.code.tex: reversed Latex line-end (single line case).
-      const slope = length / Math.max(1e-6, Math.max(1, tip.width));
-      const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lineWidth;
-      return Math.max(0, 0.5 * frontMiter + 0.5 * lineWidth);
-    }
-    return Math.max(0, length - 0.5 * lineWidth);
-  }
-  if (tip.kind === "triangle") {
-    return effectiveSide === "start" ? length * 0.2 : length * 0.9;
-  }
-  if (tip.kind === "implies") {
-    return effectiveSide === "start" ? length * 0.25 : length * 0.9;
-  }
-  if (tip.kind === "to") {
-    return effectiveSide === "start" ? length * 0.2 : length * 0.85;
-  }
-
-  return effectiveSide === "start" ? length * 0.2 : length * 0.8;
-}
-
-function applyStartShortening(commands: ScenePathCommand[], firstSegmentIndex: number, requested: number): void {
-  if (requested <= 0 || firstSegmentIndex <= 0) {
-    return;
-  }
-
-  const segment = commands[firstSegmentIndex];
-  if (!segment || !isDrawableCommand(segment)) {
-    return;
-  }
-  const previous = commandPoint(commands[firstSegmentIndex - 1]);
-  if (!previous) {
-    return;
-  }
-
-  const tangent = startTangentForCommand(segment, previous);
-  const tangentLength = lengthOfVector(tangent);
-  if (tangentLength <= 1e-6) {
-    return;
-  }
-
-  const delta = Math.min(requested, tangentLength * 0.98);
-  if (delta <= 1e-6) {
-    return;
-  }
-  const unit = scaleVector(tangent, 1 / tangentLength);
-  const shift = scaleVector(unit, delta);
-  const newStart = addPoint(previous, shift);
-  const previousCommand = commands[firstSegmentIndex - 1];
-  if (previousCommand.kind !== "M" && previousCommand.kind !== "L" && previousCommand.kind !== "C" && previousCommand.kind !== "A") {
-    return;
-  }
-  previousCommand.to = newStart;
-
-  if (segment.kind === "C") {
-    segment.c1 = addPoint(segment.c1, shift);
-  }
-}
-
-function applyEndShortening(commands: ScenePathCommand[], lastSegmentIndex: number, requested: number): void {
-  if (requested <= 0 || lastSegmentIndex <= 0) {
-    return;
-  }
-
-  const segment = commands[lastSegmentIndex];
-  if (!segment || !isDrawableCommand(segment)) {
-    return;
-  }
-  const previous = commandPoint(commands[lastSegmentIndex - 1]);
-  if (!previous) {
-    return;
-  }
-
-  const tangent = endTangentForCommand(segment, previous);
-  const tangentLength = lengthOfVector(tangent);
-  if (tangentLength <= 1e-6) {
-    return;
-  }
-
-  const delta = Math.min(requested, tangentLength * 0.98);
-  if (delta <= 1e-6) {
-    return;
-  }
-
-  const unit = scaleVector(tangent, 1 / tangentLength);
-  const shift = scaleVector(unit, -delta);
-  segment.to = addPoint(segment.to, shift);
-
-  if (segment.kind === "C") {
-    segment.c2 = addPoint(segment.c2, shift);
-  }
-}
-
-function findFirstDrawableCommandIndex(commands: ScenePathCommand[]): number {
-  for (let index = 0; index < commands.length; index += 1) {
-    if (isDrawableCommand(commands[index])) {
-      return index;
-    }
-  }
-  return -1;
-}
-
-function findLastDrawableCommandIndex(commands: ScenePathCommand[]): number {
-  for (let index = commands.length - 1; index >= 0; index -= 1) {
-    if (isDrawableCommand(commands[index])) {
-      return index;
-    }
-  }
-  return -1;
-}
-
-function isDrawableCommand(command: ScenePathCommand | undefined): command is Extract<ScenePathCommand, { kind: "L" | "C" | "A" }> {
-  return command?.kind === "L" || command?.kind === "C" || command?.kind === "A";
-}
-
-function startTangentForCommand(command: Extract<ScenePathCommand, { kind: "L" | "C" | "A" }>, start: { x: number; y: number }): {
-  x: number;
-  y: number;
-} {
-  if (command.kind === "L" || command.kind === "A") {
-    return subtractPoint(command.to, start);
-  }
-
-  const c1 = subtractPoint(command.c1, start);
-  if (lengthOfVector(c1) > 1e-6) {
-    return c1;
-  }
-  const c2 = subtractPoint(command.c2, start);
-  if (lengthOfVector(c2) > 1e-6) {
-    return c2;
-  }
-  return subtractPoint(command.to, start);
-}
-
-function endTangentForCommand(command: Extract<ScenePathCommand, { kind: "L" | "C" | "A" }>, previous: { x: number; y: number }): {
-  x: number;
-  y: number;
-} {
-  if (command.kind === "L" || command.kind === "A") {
-    return subtractPoint(command.to, previous);
-  }
-
-  const c2 = subtractPoint(command.to, command.c2);
-  if (lengthOfVector(c2) > 1e-6) {
-    return c2;
-  }
-  const fallback = subtractPoint(command.to, previous);
-  return fallback;
-}
-
-function commandPoint(command: ScenePathCommand | undefined): { x: number; y: number } | null {
-  if (!command) {
-    return null;
-  }
-  if (command.kind === "M" || command.kind === "L" || command.kind === "C" || command.kind === "A") {
-    return command.to;
-  }
-  return null;
-}
-
-function clonePathCommand(command: ScenePathCommand): ScenePathCommand {
-  if (command.kind === "M" || command.kind === "L") {
-    return { kind: command.kind, to: { ...command.to } };
-  }
-  if (command.kind === "C") {
-    return { kind: "C", c1: { ...command.c1 }, c2: { ...command.c2 }, to: { ...command.to } };
-  }
-  if (command.kind === "A") {
-    return {
-      kind: "A",
-      rx: command.rx,
-      ry: command.ry,
-      xAxisRotation: command.xAxisRotation,
-      largeArc: command.largeArc,
-      sweep: command.sweep,
-      to: { ...command.to }
-    };
-  }
-  return { kind: "Z" };
-}
-
-function addPoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
-  return { x: left.x + right.x, y: left.y + right.y };
-}
-
-function subtractPoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
-  return { x: left.x - right.x, y: left.y - right.y };
-}
-
-function scaleVector(vector: { x: number; y: number }, factor: number): { x: number; y: number } {
-  return { x: vector.x * factor, y: vector.y * factor };
-}
-
-function lengthOfVector(vector: { x: number; y: number }): number {
-  return Math.hypot(vector.x, vector.y);
-}
-
-function renderMarkerDefinition(id: string, marker: ArrowMarker): string {
-  const shapes: string[] = [];
-  const normalizedTips = marker.tips.map(normalizeArrowTip);
-  const totalLength = normalizedTips.reduce((sum, tip) => sum + tip.length + tip.sep, 0);
-  let cursorX = -totalLength;
-  let minX = 0;
-  let maxX = 0;
-  let maxHalfWidth = 1;
-
-  for (const normalized of normalizedTips) {
-    const baseX = cursorX;
-    const tipX = baseX + normalized.length;
-    minX = Math.min(minX, baseX - 1);
-    maxX = Math.max(maxX, tipX + 1);
-    maxHalfWidth = Math.max(maxHalfWidth, normalized.width / 2 + 1);
-    shapes.push(renderArrowTipShape(normalized, baseX, tipX));
-    cursorX = tipX + normalized.sep;
-  }
-
-  const width = Math.max(1, maxX - minX);
-  const height = Math.max(2, maxHalfWidth * 2);
-  return (
-    `<marker id="${escapeAttr(id)}" viewBox="${fmt(minX)} ${fmt(-maxHalfWidth)} ${fmt(width)} ${fmt(height)}" ` +
-    `refX="0" refY="0" markerUnits="userSpaceOnUse" markerWidth="${fmt(width)}" markerHeight="${fmt(height)}" orient="auto-start-reverse">` +
-    shapes.join("") +
-    `</marker>`
-  );
-}
-
-function normalizeArrowTip(tip: ArrowTip): ArrowTip {
-  return {
-    ...tip,
-    length: Math.max(1, tip.length),
-    width: Math.max(1, tip.width),
-    sep: Math.max(0, tip.sep)
-  };
-}
-
-function renderArrowTipShape(tip: ArrowTip, baseX: number, tipX: number): string {
-  const halfWidth = tip.width / 2;
-  const color = tip.color ?? "context-stroke";
-  const strokeLinejoin = tip.round ? "round" : "miter";
-  const strokeLinecap = tip.round ? "round" : "butt";
-  const strokeWidth = tip.lineWidth ?? 0;
-  const fill = tip.fill ?? (tip.open || tip.kind === "bar" || tip.kind === "hooks" ? "none" : color);
-  const stroke = strokeWidth > 0 ? color : "none";
-  const tailX = tip.reversed ? tipX : baseX;
-  const pointX = tip.reversed ? baseX : tipX;
-  const span = pointX - tailX;
-  const lerpX = (t: number): number => tailX + span * t;
-  const atDistance = (distance: number): number => {
-    const ratio = distance / Math.max(1e-6, tip.length);
-    return tailX + span * ratio;
-  };
-
-  if (tip.kind === "cm-rightarrow") {
-    const c1x = lerpX(0.18269);
-    const c2x = lerpX(0.58981);
-    const c1y = halfWidth * 0.4;
-    const c2y = halfWidth * 0.116666;
-    return (
-      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} ` +
-      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(pointX)} 0 ` +
-      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(tailX)} ${fmt(halfWidth)}" ` +
-      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1)}" ` +
-      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "bar") {
-    const x = (tailX + pointX) / 2;
-    return (
-      `<path d="M ${fmt(x)} ${fmt(-halfWidth)} L ${fmt(x)} ${fmt(halfWidth)}" ` +
-      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.6)}" ` +
-      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "hooks") {
-    const controlX = lerpX(0.45);
-    return (
-      `<path d="M ${fmt(pointX)} 0 Q ${fmt(controlX)} ${fmt(-halfWidth)} ${fmt(tailX)} ${fmt(-halfWidth)} ` +
-      `M ${fmt(pointX)} 0 Q ${fmt(controlX)} ${fmt(halfWidth)} ${fmt(tailX)} ${fmt(halfWidth)}" ` +
-      `fill="none" stroke="${escapeAttr(color)}" stroke-width="${fmt(strokeWidth > 0 ? strokeWidth : 1.1)}" ` +
-      `stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "implies") {
-    const midX = lerpX(0.62);
-    const innerTailX = lerpX(0.35);
-    const innerMidX = lerpX(0.727);
-    const innerPointX = lerpX(0.97);
-    return (
-      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(midX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(midX)} ${fmt(halfWidth)} L ${fmt(tailX)} ${fmt(halfWidth)} z" ` +
-      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />` +
-      `<path d="M ${fmt(innerTailX)} ${fmt(-halfWidth * 0.7)} L ${fmt(innerMidX)} ${fmt(-halfWidth * 0.7)} L ${fmt(innerPointX)} 0 L ${fmt(innerMidX)} ${fmt(halfWidth * 0.7)} L ${fmt(innerTailX)} ${fmt(halfWidth * 0.7)} z" ` +
-      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "stealth") {
-    const nominalLength = Math.max(1, tip.length);
-    const nominalWidth = Math.max(1, tip.width);
-    const nominalInset = Math.max(0, tip.inset ?? nominalLength * 0.325);
-    const lw = Math.max(0, strokeWidth);
-
-    const frontSlope = nominalLength / Math.max(1e-6, nominalWidth);
-    const frontMiter = 0.5 * Math.sqrt(1 + 4 * frontSlope * frontSlope) * lw;
-
-    const halfNominalWidth = 0.5 * nominalWidth;
-    const angleTop = Math.atan2(nominalLength, Math.max(1e-6, halfNominalWidth));
-    const angleInset = Math.atan2(nominalInset, Math.max(1e-6, halfNominalWidth));
-    const halfDelta = 0.5 * (angleTop - angleInset);
-    const backMiterLength = 0.5 * (1 / Math.max(1e-6, Math.tan(halfDelta))) * lw;
-    const bisector = angleInset + halfDelta;
-    const backMiterX = Math.sin(bisector) * backMiterLength;
-    const topMiterY = Math.cos(bisector) * backMiterLength;
-
-    const insetSlope = nominalInset / Math.max(1e-6, nominalWidth);
-    const insetMiter = 0.5 * Math.sqrt(1 + 4 * insetSlope * insetSlope) * lw;
-    const adjustedInset = nominalInset + insetMiter;
-
-    const tipVertexX = atDistance(Math.max(0, nominalLength - frontMiter));
-    const topBackX = atDistance(Math.max(0, backMiterX));
-    const insetX = atDistance(Math.max(0, adjustedInset));
-    const innerHalfWidth = Math.max(0.1, halfNominalWidth - topMiterY);
-    return (
-      `<path d="M ${fmt(tipVertexX)} 0 L ${fmt(topBackX)} ${fmt(-innerHalfWidth)} L ${fmt(insetX)} 0 L ${fmt(topBackX)} ${fmt(innerHalfWidth)} z" ` +
-      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "latex") {
-    const nominalLength = Math.max(1, tip.length);
-    const nominalWidth = Math.max(1, tip.width);
-    const lw = Math.max(0, strokeWidth);
-    const axisSign = tip.reversed ? -1 : 1;
-    const tailShift = axisSign * 0.5 * lw;
-    const tail = tailX + tailShift;
-
-    const slope = nominalLength / Math.max(1e-6, nominalWidth);
-    const frontMiter = Math.sqrt(1 + 9 * slope * slope) * lw;
-    const innerLength = Math.max(0.1, nominalLength - 0.5 * frontMiter - 0.5 * lw);
-    const halfBackWidth = nominalWidth / 2;
-
-    const atDistanceFromTail = (distance: number): number => tail + axisSign * distance;
-    const tipVertexX = atDistanceFromTail(innerLength);
-    const c1x = atDistanceFromTail(0.877192 * innerLength);
-    const c2x = atDistanceFromTail(0.337381 * innerLength);
-    const c1y = 0.077922 * halfBackWidth;
-    const c2y = 0.51948 * halfBackWidth;
-    return (
-      `<path d="M ${fmt(tipVertexX)} 0 ` +
-      `C ${fmt(c1x)} ${fmt(-c1y)} ${fmt(c2x)} ${fmt(-c2y)} ${fmt(tail)} ${fmt(-halfBackWidth)} ` +
-      `L ${fmt(tail)} ${fmt(halfBackWidth)} ` +
-      `C ${fmt(c2x)} ${fmt(c2y)} ${fmt(c1x)} ${fmt(c1y)} ${fmt(tipVertexX)} 0 z" ` +
-      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  if (tip.kind === "triangle") {
-    return (
-      `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(tailX)} ${fmt(halfWidth)} z" ` +
-      `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-    );
-  }
-
-  const notchX = lerpX(0.24);
-  return (
-    `<path d="M ${fmt(tailX)} ${fmt(-halfWidth)} L ${fmt(pointX)} 0 L ${fmt(tailX)} ${fmt(halfWidth)} L ${fmt(notchX)} 0 z" ` +
-    `fill="${escapeAttr(fill)}" stroke="${escapeAttr(stroke)}" stroke-width="${fmt(strokeWidth)}" stroke-linecap="${strokeLinecap}" stroke-linejoin="${strokeLinejoin}" />`
-  );
+function arrowTipAttributes(style: ResolvedStyle, tipPath: RenderedArrowTipPath): string[] {
+  return [
+    `stroke="${escapeAttr(tipPath.stroke)}"`,
+    `fill="${escapeAttr(tipPath.fill)}"`,
+    `stroke-width="${fmt(tipPath.strokeWidth)}"`,
+    `stroke-linecap="${tipPath.lineCap}"`,
+    `stroke-linejoin="${tipPath.lineJoin}"`,
+    `stroke-opacity="${fmt(style.strokeOpacity)}"`,
+    `fill-opacity="${fmt(style.fillOpacity)}"`
+  ];
 }
 
 function normalizeShadingName(raw: string): string {
