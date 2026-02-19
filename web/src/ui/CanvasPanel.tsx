@@ -81,7 +81,7 @@ type DragState =
   | {
       kind: "element";
       pointerId: number;
-      elementId: string;
+      elementIds: string[];
       startWorld: Point;
       lastAppliedDelta: Point;
       historyMergeKey: string;
@@ -101,6 +101,13 @@ type DragState =
       startClientX: number;
       startClientY: number;
       startTransform: CanvasTransform;
+    }
+  | {
+      kind: "marquee";
+      pointerId: number;
+      startWorld: Point;
+      currentWorld: Point;
+      additive: boolean;
     }
   | {
       kind: "tool-create";
@@ -202,6 +209,7 @@ export function CanvasPanel() {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
+  const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
@@ -209,7 +217,9 @@ export function CanvasPanel() {
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
   const autoFitDoneRef = useRef(false);
   const canvasTransformRef = useRef(canvasTransform);
+  const selectedElementIdsRef = useRef(selectedElementIds);
   const svgResultRef = useRef(svgResult);
+  const sourceBoundsRef = useRef(new Map<string, Bounds>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
 
   const diagnostics = useMemo(() => {
@@ -240,6 +250,13 @@ export function CanvasPanel() {
     return collectSelectionBounds(snapshot.scene.elements, selectedElementIds, svgResult.viewBox);
   }, [snapshot.scene, selectedElementIds, svgResult]);
 
+  const sourceBounds = useMemo(() => {
+    if (!snapshot.scene || !svgResult) {
+      return new Map<string, Bounds>();
+    }
+    return collectSourceBounds(snapshot.scene.elements, svgResult.viewBox);
+  }, [snapshot.scene, svgResult]);
+
   const selectionBoundsBySource = useMemo(() => {
     const bySource = new Map<string, Bounds>();
     for (const entry of selectionBounds) {
@@ -247,6 +264,14 @@ export function CanvasPanel() {
     }
     return bySource;
   }, [selectionBounds]);
+
+  const marqueeBounds = useMemo(() => {
+    if (!svgResult || !marqueeDraft) return null;
+    return boundsFromPoints(
+      worldToSvgPoint(marqueeDraft.startWorld, svgResult.viewBox),
+      worldToSvgPoint(marqueeDraft.currentWorld, svgResult.viewBox)
+    );
+  }, [marqueeDraft, svgResult]);
 
   const handleDisplays = useMemo((): HandleDisplay[] => {
     if (!svgResult) return [];
@@ -551,18 +576,31 @@ export function CanvasPanel() {
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
 
-      dispatch({ type: "SELECT", id: sourceId, additive: event.shiftKey });
+      if (event.shiftKey) {
+        dispatch({ type: "SELECT", id: sourceId, additive: true });
+        return;
+      }
+
+      const alreadySelected = selectedElementIds.has(sourceId);
+      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [sourceId];
+      if (!alreadySelected) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+      }
 
       dragRef.current = {
         kind: "element",
         pointerId: event.pointerId,
-        elementId: sourceId,
+        elementIds: draggedIds,
         startWorld: world,
         lastAppliedDelta: { x: 0, y: 0 },
-        historyMergeKey: makeMergeKey("drag-element", sourceId, event.pointerId)
+        historyMergeKey: makeMergeKey(
+          "drag-element",
+          draggedIds.slice().sort().join(","),
+          event.pointerId
+        )
       };
     },
-    [dispatch, svgResult, toolMode]
+    [dispatch, selectedElementIds, svgResult, toolMode]
   );
 
   const onHandlePointerDown = useCallback(
@@ -573,7 +611,14 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
 
-      dispatch({ type: "SELECT", id: handle.sourceId, additive: event.shiftKey });
+      if (event.shiftKey) {
+        dispatch({ type: "SELECT", id: handle.sourceId, additive: true });
+        return;
+      }
+
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceId)) {
+        dispatch({ type: "SELECT", id: handle.sourceId, additive: false });
+      }
 
       dragRef.current = {
         kind: "handle",
@@ -585,7 +630,7 @@ export function CanvasPanel() {
         historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId)
       };
     },
-    [dispatch, svgResult, toolMode]
+    [dispatch, selectedElementIds, svgResult, toolMode]
   );
 
   const onInteractionPointerDown = useCallback(
@@ -649,8 +694,25 @@ export function CanvasPanel() {
       }
 
       if (toolMode === "select" && event.button === 0 && event.target === event.currentTarget) {
-        dispatch({ type: "CLEAR_SELECTION" });
         dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+        const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+        if (!world) {
+          if (!event.shiftKey) {
+            dispatch({ type: "CLEAR_SELECTION" });
+          }
+          return;
+        }
+
+        const nextMarquee: Extract<DragState, { kind: "marquee" }> = {
+          kind: "marquee",
+          pointerId: event.pointerId,
+          startWorld: world,
+          currentWorld: world,
+          additive: event.shiftKey
+        };
+        dragRef.current = nextMarquee;
+        setMarqueeDraft(nextMarquee);
+        event.preventDefault();
       }
     },
     [applyActionWithFeedback, canvasTransform, dispatch, queueSelectionForAddedElement, svgResult, toolMode]
@@ -699,6 +761,10 @@ export function CanvasPanel() {
           setToolDraft(null);
           setToolCursorWorld(null);
         }
+        setMarqueeDraft(null);
+        if (dragRef.current?.kind === "marquee") {
+          dragRef.current = null;
+        }
         dispatch({ type: "CLEAR_SELECTION" });
         setWarning(null);
         event.preventDefault();
@@ -706,8 +772,14 @@ export function CanvasPanel() {
       }
 
       if ((event.key === "Delete" || event.key === "Backspace") && selectedElementIds.size > 0) {
-        for (const elementId of selectedElementIds) {
-          applyActionWithFeedback({ kind: "deleteElement", elementId });
+        const selectedIds = [...selectedElementIds];
+        const ok = applyActionWithFeedback(
+          selectedIds.length === 1
+            ? { kind: "deleteElement", elementId: selectedIds[0]! }
+            : { kind: "deleteElements", elementIds: selectedIds }
+        );
+        if (ok) {
+          dispatch({ type: "CLEAR_SELECTION" });
         }
         event.preventDefault();
         return;
@@ -735,8 +807,8 @@ export function CanvasPanel() {
 
       if (!axis) return;
 
-      const firstSelected = selectedElementIds.values().next().value;
-      if (!firstSelected) return;
+      const selectedIds = [...selectedElementIds];
+      if (selectedIds.length === 0) return;
 
       if (snapshot.source !== source) {
         setWarning("Wait for recompute to finish before nudging again.");
@@ -744,15 +816,25 @@ export function CanvasPanel() {
         return;
       }
 
-      const elementHandles = snapshot.editHandles.filter((handle) => handle.sourceId === firstSelected);
+      const selectedSet = new Set(selectedIds);
+      const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceId));
       const anchorHandle = selectNudgeAnchorHandle(elementHandles);
       const delta = computeNudgeDelta(axis, direction, step, anchorHandle?.world ?? null);
 
-      applyActionWithFeedback({
-        kind: "moveElement",
-        elementId: firstSelected,
-        delta
-      });
+      const moveAction: EditAction =
+        selectedIds.length === 1
+          ? {
+              kind: "moveElement",
+              elementId: selectedIds[0]!,
+              delta
+            }
+          : {
+              kind: "moveElements",
+              elementIds: selectedIds,
+              delta
+            };
+
+      applyActionWithFeedback(moveAction);
       event.preventDefault();
     },
     [applyActionWithFeedback, dispatch, selectedElementIds, snapshot.editHandles, snapshot.source, source, toolMode]
@@ -782,8 +864,16 @@ export function CanvasPanel() {
   }, [canvasTransform]);
 
   useEffect(() => {
+    selectedElementIdsRef.current = selectedElementIds;
+  }, [selectedElementIds]);
+
+  useEffect(() => {
     svgResultRef.current = svgResult;
   }, [svgResult]);
+
+  useEffect(() => {
+    sourceBoundsRef.current = sourceBounds;
+  }, [sourceBounds]);
 
   useEffect(() => {
     if (!svgResult) {
@@ -895,6 +985,12 @@ export function CanvasPanel() {
       if (dragRef.current?.kind === "tool-create") {
         dragRef.current = null;
       }
+      return;
+    }
+
+    if (dragRef.current?.kind === "marquee") {
+      dragRef.current = null;
+      setMarqueeDraft(null);
     }
   }, [toolMode]);
 
@@ -965,6 +1061,12 @@ export function CanvasPanel() {
         return;
       }
 
+      if (drag.kind === "marquee") {
+        drag.currentWorld = world;
+        setMarqueeDraft({ ...drag });
+        return;
+      }
+
       if (!svgResult || snapshot.source !== source) {
         return;
       }
@@ -985,8 +1087,8 @@ export function CanvasPanel() {
 
         const ok = applyActionWithFeedback(
           {
-            kind: "moveElement",
-            elementId: drag.elementId,
+            kind: "moveElements",
+            elementIds: drag.elementIds,
             delta: incremental
           },
           drag.historyMergeKey
@@ -1021,12 +1123,44 @@ export function CanvasPanel() {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
 
+      const currentSvg = svgResultRef.current;
+      const world =
+        currentSvg == null
+          ? null
+          : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+
+      if (drag.kind === "marquee") {
+        const finalWorld = world ?? drag.currentWorld;
+        const deltaSq = distanceSquared(finalWorld, drag.startWorld);
+        const isClickOnly = deltaSq <= 0.25;
+
+        if (isClickOnly) {
+          if (!drag.additive) {
+            dispatch({ type: "CLEAR_SELECTION" });
+          }
+        } else if (currentSvg) {
+          const selection = boundsFromPoints(
+            worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
+            worldToSvgPoint(finalWorld, currentSvg.viewBox)
+          );
+          const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
+          if (drag.additive) {
+            const merged = new Set(selectedElementIdsRef.current);
+            for (const id of hitIds) {
+              merged.add(id);
+            }
+            dispatch({ type: "SELECT_RANGE", ids: [...merged] });
+          } else {
+            dispatch({ type: "SELECT_RANGE", ids: hitIds });
+          }
+        }
+
+        setMarqueeDraft(null);
+        dragRef.current = null;
+        return;
+      }
+
       if (drag.kind === "tool-create") {
-        const currentSvg = svgResultRef.current;
-        const world =
-          currentSvg == null
-            ? null
-            : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
         const finalWorld = world ?? drag.currentWorld;
         setToolCursorWorld(finalWorld);
 
@@ -1067,6 +1201,7 @@ export function CanvasPanel() {
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
+  const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const gridMinorStrokeWidth = 0.6 / Math.max(canvasTransform.scale, 1e-3);
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
 
@@ -1456,6 +1591,30 @@ export function CanvasPanel() {
                   })}
                 </g>
 
+                <g className={css.selectionOverlay}>
+                  {selectionBounds.map((entry) => (
+                    <rect
+                      key={`selection:${entry.sourceId}`}
+                      className={css.selectionRect}
+                      x={entry.bounds.minX}
+                      y={entry.bounds.minY}
+                      width={Math.max(0.001, entry.bounds.maxX - entry.bounds.minX)}
+                      height={Math.max(0.001, entry.bounds.maxY - entry.bounds.minY)}
+                      strokeWidth={selectionStrokeWidth}
+                    />
+                  ))}
+                  {marqueeBounds && (
+                    <rect
+                      className={css.marqueeRect}
+                      x={marqueeBounds.minX}
+                      y={marqueeBounds.minY}
+                      width={Math.max(0.001, marqueeBounds.maxX - marqueeBounds.minX)}
+                      height={Math.max(0.001, marqueeBounds.maxY - marqueeBounds.minY)}
+                      strokeWidth={selectionStrokeWidth}
+                    />
+                  )}
+                </g>
+
                 {toolMode === "select" && (
                   <g className={css.handleOverlay}>
                     {handleDisplays.map((display) => {
@@ -1574,10 +1733,20 @@ function collectSelectionBounds(
   selectedIds: ReadonlySet<string>,
   viewBox: SvgViewBox
 ): SelectionBounds[] {
+  const boundsBySource = collectSourceBounds(elements, viewBox);
+  const selections: SelectionBounds[] = [];
+  for (const [sourceId, bounds] of boundsBySource.entries()) {
+    if (selectedIds.has(sourceId)) {
+      selections.push({ sourceId, bounds });
+    }
+  }
+  return selections;
+}
+
+function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, Bounds> {
   const boundsBySource = new Map<string, Bounds>();
 
   for (const element of elements) {
-    if (!selectedIds.has(element.sourceId)) continue;
     const bounds = elementBoundsInSvg(element, viewBox);
     if (!bounds) continue;
 
@@ -1589,7 +1758,36 @@ function collectSelectionBounds(
     }
   }
 
-  return [...boundsBySource.entries()].map(([sourceId, bounds]) => ({ sourceId, bounds }));
+  return boundsBySource;
+}
+
+function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
+  return {
+    minX: Math.min(a.x, b.x),
+    minY: Math.min(a.y, b.y),
+    maxX: Math.max(a.x, b.x),
+    maxY: Math.max(a.y, b.y)
+  };
+}
+
+function collectSourceIdsInBounds(boundsBySource: ReadonlyMap<string, Bounds>, selection: Bounds): string[] {
+  const selected: string[] = [];
+  for (const [sourceId, bounds] of boundsBySource.entries()) {
+    if (boundsContainedWithin(bounds, selection)) {
+      selected.push(sourceId);
+    }
+  }
+  return selected;
+}
+
+function boundsContainedWithin(inner: Bounds, outer: Bounds): boolean {
+  const epsilon = 1e-6;
+  return (
+    inner.minX >= outer.minX - epsilon &&
+    inner.maxX <= outer.maxX + epsilon &&
+    inner.minY >= outer.minY - epsilon &&
+    inner.maxY <= outer.maxY + epsilon
+  );
 }
 
 function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {

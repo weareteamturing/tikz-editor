@@ -220,6 +220,24 @@
   fill: rgba(40, 122, 212, 0.12);
 }
 
+.selectionOverlay {
+  pointer-events: none;
+}
+
+.selectionRect {
+  fill: rgba(40, 122, 212, 0.08);
+  stroke: rgba(13, 95, 182, 0.9);
+  stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.marqueeRect {
+  fill: rgba(40, 122, 212, 0.12);
+  stroke: rgba(13, 95, 182, 0.95);
+  stroke-dasharray: 4 2;
+  vector-effect: non-scaling-stroke;
+}
+
 .handleOverlay {
   pointer-events: none;
 }

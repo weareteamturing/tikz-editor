@@ -97,11 +97,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
 
       const historyKind: HistoryEntry["kind"] =
-        action.action.kind === "moveElement" ? "move" :
+        action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
         action.action.kind === "moveHandle" ? "move-handle" :
         action.action.kind === "setProperty" ? "set-property" :
         action.action.kind === "addElement" ? "add-element" :
-        action.action.kind === "deleteElement" ? "delete" :
+        action.action.kind === "deleteElement" || action.action.kind === "deleteElements" ? "delete" :
         "resize";
 
       const truncated = state.history.slice(0, state.historyIndex + 1);

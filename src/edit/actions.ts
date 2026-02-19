@@ -1,4 +1,5 @@
 import type { EditHandle, Point } from "../semantic/types.js";
+import type { PathItem, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
@@ -10,6 +11,7 @@ import {
 } from "./element-templates.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { resolvePropertyTarget } from "./property-target.js";
+import { parseTikz } from "../parser/index.js";
 
 export type ResizeRole =
   | "top-left"
@@ -26,10 +28,12 @@ export type { ElementTemplate } from "./element-templates.js";
 
 export type EditAction =
   | { kind: "moveElement"; elementId: string; delta: Point }
+  | { kind: "moveElements"; elementIds: string[]; delta: Point }
   | { kind: "moveHandle"; handleId: string; newWorld: Point }
   | { kind: "setProperty"; elementId: string; level: StyleLevel; key: string; value: string }
   | { kind: "addElement"; template: ElementTemplate; at: Point }
   | { kind: "deleteElement"; elementId: string }
+  | { kind: "deleteElements"; elementIds: string[] }
   | { kind: "resizeElement"; elementId: string; role: ResizeRole; newWorld: Point };
 
 export type EditActionResult =
@@ -53,12 +57,17 @@ export function applyEditAction(
     case "moveHandle":
       return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
     case "moveElement":
-      return applyMoveElement(source, editHandles, action.elementId, action.delta);
+      return applyMoveElements(source, editHandles, [action.elementId], action.delta);
+    case "moveElements":
+      return applyMoveElements(source, editHandles, action.elementIds, action.delta);
     case "setProperty":
       return applySetProperty(source, action);
     case "addElement":
       return applyAddElement(source, action.template, action.at);
     case "deleteElement":
+      return applyDeleteElements(source, [action.elementId]);
+    case "deleteElements":
+      return applyDeleteElements(source, action.elementIds);
     case "resizeElement":
       return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
   }
@@ -80,16 +89,22 @@ function applyMoveHandle(
   return { kind: "error", message: result.message };
 }
 
-function applyMoveElement(
+function applyMoveElements(
   source: string,
   editHandles: EditHandle[],
-  elementId: string,
+  elementIds: readonly string[],
   delta: Point
 ): EditActionResult {
-  const elementHandles = editHandles.filter((h) => h.sourceId === elementId);
+  const normalizedIds = normalizeElementIds(elementIds);
+  if (normalizedIds.length === 0) {
+    return { kind: "unsupported", reason: "No element ids were provided for moveElements" };
+  }
+
+  const sourceIdSet = new Set(normalizedIds);
+  const elementHandles = editHandles.filter((h) => sourceIdSet.has(h.sourceId));
 
   if (elementHandles.length === 0) {
-    return { kind: "unsupported", reason: `No handles found for element ${elementId}` };
+    return { kind: "unsupported", reason: "No handles found for the selected element(s)" };
   }
 
   const rewritable = elementHandles.filter((h) => h.rewriteMode !== "unsupported");
@@ -100,7 +115,7 @@ function applyMoveElement(
   if (rewritable.length === 0) {
     return {
       kind: "unsupported",
-      reason: `All handles for element ${elementId} use unsupported coordinate forms`
+      reason: "All handles for the selected element(s) use unsupported coordinate forms"
     };
   }
 
@@ -153,6 +168,180 @@ function applyMoveElement(
   }
 
   return { kind: "success", newSource: currentSource, patches };
+}
+
+type DeleteTarget = {
+  span: Span;
+  scope: "statement" | "path-item";
+};
+
+function applyDeleteElements(source: string, elementIds: readonly string[]): EditActionResult {
+  const normalizedIds = normalizeElementIds(elementIds);
+  if (normalizedIds.length === 0) {
+    return { kind: "unsupported", reason: "No element ids were provided for deleteElements" };
+  }
+
+  const parsed = parseTikz(source, { recover: true });
+  const targets: DeleteTarget[] = [];
+  for (const elementId of normalizedIds) {
+    const target = resolveDeleteTarget(parsed.figure.body, elementId);
+    if (target) {
+      targets.push(target);
+    }
+  }
+
+  const collapsedTargets = collapseDeleteTargets(targets);
+  if (collapsedTargets.length === 0) {
+    return { kind: "unsupported", reason: "No deletable source span was found for the selected element(s)" };
+  }
+
+  const sorted = [...collapsedTargets].sort((a, b) => {
+    if (a.span.from !== b.span.from) {
+      return b.span.from - a.span.from;
+    }
+    return b.span.to - a.span.to;
+  });
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+
+  for (const target of sorted) {
+    const span = normalizeDeleteSpan(currentSource, target.span, target.scope);
+    const updated = replaceSpan(currentSource, span, "");
+    patches.push({
+      oldSpan: span,
+      newSpan: updated.changedSpan,
+      replacement: ""
+    });
+    currentSource = updated.source;
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches
+  };
+}
+
+function resolveDeleteTarget(statements: Statement[], elementId: string): DeleteTarget | null {
+  for (const statement of statements) {
+    if (statement.id === elementId) {
+      return { span: statement.span, scope: "statement" };
+    }
+
+    if (statement.kind === "Path") {
+      const itemTarget = resolveDeleteTargetInPath(statement.items, elementId);
+      if (itemTarget) {
+        const substantiveCount = statement.items.filter((item) => item.kind !== "PathComment").length;
+        if (substantiveCount <= 1) {
+          return { span: statement.span, scope: "statement" };
+        }
+        return itemTarget;
+      }
+      continue;
+    }
+
+    if (statement.kind === "Scope") {
+      const nested = resolveDeleteTarget(statement.body, elementId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+}
+
+function resolveDeleteTargetInPath(items: PathItem[], elementId: string): DeleteTarget | null {
+  for (const item of items) {
+    if (item.id === elementId) {
+      return { span: item.span, scope: "path-item" };
+    }
+
+    if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
+      for (const node of item.nodes) {
+        if (node.id === elementId) {
+          return { span: node.span, scope: "path-item" };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function collapseDeleteTargets(targets: DeleteTarget[]): DeleteTarget[] {
+  if (targets.length <= 1) {
+    return targets;
+  }
+
+  const sorted = [...targets].sort((a, b) => {
+    if (a.span.from !== b.span.from) {
+      return a.span.from - b.span.from;
+    }
+    return b.span.to - a.span.to;
+  });
+
+  const collapsed: DeleteTarget[] = [];
+  for (const target of sorted) {
+    const contained = collapsed.some(
+      (existing) => target.span.from >= existing.span.from && target.span.to <= existing.span.to
+    );
+    if (contained) {
+      continue;
+    }
+    collapsed.push(target);
+  }
+  return collapsed;
+}
+
+function normalizeDeleteSpan(source: string, span: Span, scope: DeleteTarget["scope"]): Span {
+  let from = clampOffset(span.from, source.length);
+  let to = clampOffset(span.to, source.length);
+  if (to < from) {
+    [from, to] = [to, from];
+  }
+
+  while (from > 0 && (source[from - 1] === " " || source[from - 1] === "\t")) {
+    from -= 1;
+  }
+  while (to < source.length && (source[to] === " " || source[to] === "\t")) {
+    to += 1;
+  }
+
+  if (scope === "statement") {
+    if (to < source.length && source[to] === "\r") {
+      to += 1;
+    }
+    if (to < source.length && source[to] === "\n") {
+      to += 1;
+    } else if (from > 0 && source[from - 1] === "\n") {
+      from -= 1;
+      if (from > 0 && source[from - 1] === "\r") {
+        from -= 1;
+      }
+    }
+  }
+
+  return { from, to };
+}
+
+function clampOffset(value: number, sourceLength: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(sourceLength, Math.trunc(value)));
+}
+
+function normalizeElementIds(elementIds: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const elementId of elementIds) {
+    const id = elementId.trim();
+    if (id.length === 0 || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push(id);
+  }
+  return normalized;
 }
 
 function applySetProperty(

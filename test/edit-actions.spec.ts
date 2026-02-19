@@ -112,6 +112,33 @@ describe("applyEditAction – moveElement", () => {
     }
   });
 
+  it("moves handles for multiple element ids in one action", () => {
+    const source = "\\node (A) at (1,2) {}; \\node (B) at (3,4) {};";
+    const h1 = makeHandle(source, {
+      world: { x: cm(1), y: cm(2) },
+      sourceSpan: { from: 14, to: 19 },
+      sourceId: "path:0"
+    });
+    const h2 = makeHandle(source, {
+      world: { x: cm(3), y: cm(4) },
+      sourceSpan: { from: 34, to: 39 },
+      id: "handle-34-39",
+      sourceId: "path:1"
+    } as Parameters<typeof makeHandle>[1]);
+
+    const result = applyEditAction(source, [h1, h2], {
+      kind: "moveElements",
+      elementIds: ["path:0", "path:1"],
+      delta: { x: cm(1), y: cm(0) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("(2,2)");
+      expect(result.newSource).toContain("(4,4)");
+    }
+  });
+
   it("returns unsupported when element has no handles", () => {
     const source = "\\draw (1,2) -- (3,4);";
     const result = applyEditAction(source, [], {
@@ -285,12 +312,43 @@ describe("applyEditAction – addElement", () => {
   });
 });
 
-describe("applyEditAction – still unimplemented", () => {
-  it("returns unsupported for deleteElement", () => {
-    const result = applyEditAction("\\draw (0,0);", [], {
+describe("applyEditAction – deleteElement", () => {
+  it("deletes a whole path statement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
       kind: "deleteElement",
       elementId: "path:0"
     });
-    expect(result.kind).toBe("unsupported");
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).not.toContain("\\draw (0,0) -- (1,0);");
+      expect(result.newSource).toContain("\\draw (0,1) -- (1,1);");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
+
+  it("deletes multiple elements in one action", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteElements",
+      elementIds: ["path:0", "path:2"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).not.toContain("\\draw (0,0) -- (1,0);");
+      expect(result.newSource).toContain("\\draw (0,1) -- (1,1);");
+      expect(result.newSource).not.toContain("\\draw (0,2) -- (1,2);");
+    }
   });
 });

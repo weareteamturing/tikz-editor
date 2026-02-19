@@ -181,7 +181,7 @@ function getInspectorDescriptor(
 
 ### `src/completion/index.ts` — symbol index for code completion
 
-A pure function that extracts all named symbols from the current session, used by CodeMirror autocomplete (Phase 6) and potentially by the inspector (to suggest node names for edges, etc.).
+A pure function that extracts all named symbols from the current session, used by CodeMirror autocomplete (Phase 6) and potentially by the inspector (to suggest node names for edges, re-use colors, etc.).
 
 ```typescript
 type DocumentSymbols = {
@@ -575,6 +575,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Deferred: Code-snippet path for complex elements (matrix etc.) — opens code panel with template inserted at cursor
 
 ### Phase 4: Resize handles
+- Status: deferred
 - Resize overlay on selected elements (only for element types where resize is meaningful)
 - Applicable to: **nodes with shapes** (adjust `minimum width`/`minimum height`), **rectangle paths** (adjust corner coordinates), **circle/ellipse paths** (adjust radius)
 - Not applicable to line-like paths (those use handle dragging from Phase 1)
@@ -582,6 +583,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Constrained resize (Shift = preserve aspect ratio)
 
 ### Phase 5: Multi-select
+- Status: complete
 - Shift-click to add/remove from selection
 - Marquee (rubber-band) selection on canvas
 - Move multiple selected elements simultaneously
@@ -591,8 +593,9 @@ The same applies in the inspector: a property control for a feature marked unsup
 ### Phase 6: Code editor enhancements
 - `src/completion/index.ts`: `collectSymbols()` pure function + tests
 - CodeMirror autocomplete: option keys, color names, node/coordinate/style names from `collectSymbols()`, coordinate forms
-- Improved number scrubber (all numeric contexts, including lengths and angles)
-- Canvas ↔ source cross-highlighting: select element on canvas → highlight its source span; cursor in source → highlight corresponding element
+- Support `tab` key press while in editor for adding 2 spaces (soft indent) instead of jumping focus
+- Canvas ↔ source cross-highlighting: select element on canvas → selects its source span in source editor (without moving focus to the editor); cursor in source → select corresponding element (without focus shift). Similarly, hover on canvas → highlight (but not select) source span, and hover in source → highlight corresponding element on canvas.
+- Double clicking a \node on canvas selects its text content and moves focus to the code editor for quick text editing
 
 ### Phase 7: Inspector cascade view
 - Consume `styleChain` payload from evaluator (already populated from Phase -1, including `sourceRef`, `before/after`, and `resolvedContributions`)

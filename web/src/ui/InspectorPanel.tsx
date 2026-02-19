@@ -1,26 +1,122 @@
 import { useMemo } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
-import { getInspectorDescriptor, type InspectorProperty, type SetPropertyWriteTarget } from "tikz-editor/edit/inspector";
+import {
+  getInspectorDescriptor,
+  type ArrowDirectionPreset,
+  type InspectorDescriptor,
+  type InspectorProperty,
+  type SetPropertyWriteTarget
+} from "tikz-editor/edit/inspector";
+import type { SceneElement } from "tikz-editor/semantic/types";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import css from "./InspectorPanel.module.css";
+
+type MultiInspectorNumberProperty = {
+  kind: "number";
+  id: string;
+  label: string;
+  value: number;
+  mixed: boolean;
+  step: number;
+  unit?: string;
+  readOnlyReason?: string;
+};
+
+type MultiInspectorColorProperty = {
+  kind: "color";
+  id: string;
+  label: string;
+  value: string | null;
+  mixed: boolean;
+  options: string[];
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorLineWidthProperty = {
+  kind: "lineWidth";
+  id: string;
+  label: string;
+  value: number;
+  mixed: boolean;
+  min: number;
+  max: number;
+  step: number;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorArrowTipProperty = {
+  kind: "arrowTip";
+  id: string;
+  label: string;
+  value: ArrowDirectionPreset;
+  mixed: boolean;
+  options: Array<{ value: ArrowDirectionPreset; label: string; preview: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorProperty =
+  | MultiInspectorNumberProperty
+  | MultiInspectorColorProperty
+  | MultiInspectorLineWidthProperty
+  | MultiInspectorArrowTipProperty;
+
+type MultiInspectorSection = {
+  id: string;
+  title: string;
+  sourceLevel: InspectorDescriptor["sections"][number]["sourceLevel"];
+  properties: MultiInspectorProperty[];
+};
+
+type MultiInspectorModel = {
+  selectionCount: number;
+  elementKinds: string[];
+  sections: MultiInspectorSection[];
+};
+
+const VALUE_EPSILON = 1e-6;
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const snapshot = useEditorStore((s) => s.snapshot);
   const dispatch = useEditorStore((s) => s.dispatch);
 
-  const selectedElements = snapshot.scene?.elements.filter((el) =>
-    selectedIds.has(el.sourceId)
-  ) ?? [];
+  const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
 
-  const descriptor = useMemo(() => {
-    if (selectedElements.length !== 1) return null;
-    return getInspectorDescriptor(selectedElements[0], {
-      source: snapshot.source,
-      editHandles: snapshot.editHandles
-    });
+  const selectedElements = useMemo(() => {
+    const bySource = new Map<string, SceneElement>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      if (!selectedIds.has(element.sourceId) || bySource.has(element.sourceId)) {
+        continue;
+      }
+      bySource.set(element.sourceId, element);
+    }
+
+    return selectedSourceIds
+      .map((sourceId) => bySource.get(sourceId))
+      .filter((element): element is SceneElement => element != null);
+  }, [selectedIds, selectedSourceIds, snapshot.scene]);
+
+  const descriptors = useMemo(() => {
+    return selectedElements.map((element) =>
+      getInspectorDescriptor(element, {
+        source: snapshot.source,
+        editHandles: snapshot.editHandles
+      })
+    );
   }, [selectedElements, snapshot.source, snapshot.editHandles]);
+
+  const descriptor = selectedSourceIds.length === 1 ? descriptors[0] ?? null : null;
+
+  const multiModel = useMemo(() => {
+    if (selectedSourceIds.length <= 1) {
+      return null;
+    }
+    return buildMultiInspectorModel(descriptors, selectedSourceIds.length);
+  }, [descriptors, selectedSourceIds.length]);
 
   function applySetProperty(write: SetPropertyWriteTarget, value: string): void {
     if (!write.writable || write.elementId.length === 0) return;
@@ -34,6 +130,28 @@ export function InspectorPanel() {
         value
       }
     });
+  }
+
+  function applySetPropertyMany(writes: readonly SetPropertyWriteTarget[], value: string): void {
+    const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
+    if (writable.length === 0) {
+      return;
+    }
+
+    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    for (const write of writable) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: write.key,
+          value
+        }
+      });
+    }
   }
 
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
@@ -177,32 +295,164 @@ export function InspectorPanel() {
     );
   }
 
+  function renderMultiProperty(property: MultiInspectorProperty) {
+    if (property.kind === "number") {
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              step={property.step}
+              value={property.mixed ? "" : formatNumber(property.value)}
+              disabled
+            />
+            {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
+          </div>
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "color") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const selected = property.mixed ? "" : (property.value ?? "none");
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <span
+              className={css.swatch}
+              style={{
+                background: selected === "none" || selected.length === 0 ? "transparent" : selected,
+                borderStyle: selected === "none" || selected.length === 0 ? "dashed" : "solid"
+              }}
+            />
+            <select
+              className={css.select}
+              value={selected}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = event.currentTarget.value;
+                if (next.length === 0) return;
+                applySetPropertyMany(property.writes, next);
+              }}
+            >
+              <option value=""> </option>
+              {property.options.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </div>
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "lineWidth") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              min={property.min}
+              max={property.max}
+              step={property.step}
+              value={property.mixed ? "" : formatNumber(property.value)}
+              disabled={!writable}
+              onChange={(event) => {
+                if (!writable) return;
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) return;
+                applySetPropertyMany(property.writes, `${formatNumber(next)}pt`);
+              }}
+            />
+            <span className={css.unitLabel}>pt</span>
+          </div>
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+    const selected = property.mixed ? "" : property.value;
+    return (
+      <div key={property.id} className={css.property}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <select
+          className={css.select}
+          value={selected}
+          disabled={!writable}
+          onChange={(event) => {
+            const next = event.currentTarget.value;
+            if (next.length === 0) return;
+            applySetPropertyMany(property.writes, next);
+          }}
+        >
+          <option value=""> </option>
+          {property.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.preview} {option.label}
+            </option>
+          ))}
+        </select>
+        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Inspector</div>
       <div className={css.content}>
-        {selectedElements.length === 0 ? (
+        {selectedSourceIds.length === 0 ? (
           <p className={css.hint}>Select an element on the canvas to inspect its properties.</p>
-        ) : selectedElements.length > 1 ? (
-          <p className={css.hint}>Select a single element to edit properties in Phase 2.</p>
-        ) : !descriptor ? (
-          <p className={css.hint}>Inspector data is unavailable for the current selection.</p>
+        ) : selectedSourceIds.length === 1 ? (
+          !descriptor ? (
+            <p className={css.hint}>Inspector data is unavailable for the current selection.</p>
+          ) : (
+            <div className={css.elementInfo}>
+              <div className={css.elementKind}>{descriptor.elementKind}</div>
+              <div className={css.elementId}>{descriptor.elementId}</div>
+              {descriptor.readOnlyReason ? (
+                <div className={css.globalNote}>{descriptor.readOnlyReason}</div>
+              ) : null}
+
+              {descriptor.sections.map((section) => (
+                <div key={section.id} className={css.section}>
+                  <div className={css.sectionHeader}>
+                    <span>{section.title}</span>
+                    <span className={css.sectionLevel}>{section.sourceLevel}</span>
+                  </div>
+                  <div className={css.sectionBody}>
+                    {section.properties.map((property) => renderProperty(property))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : !multiModel || multiModel.sections.length === 0 ? (
+          <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
         ) : (
           <div className={css.elementInfo}>
-            <div className={css.elementKind}>{descriptor.elementKind}</div>
-            <div className={css.elementId}>{descriptor.elementId}</div>
-            {descriptor.readOnlyReason ? (
-              <div className={css.globalNote}>{descriptor.readOnlyReason}</div>
-            ) : null}
+            <div className={css.elementKind}>{multiModel.selectionCount} selected</div>
+            <div className={css.elementId}>{multiModel.elementKinds.join(", ")}</div>
+            <div className={css.globalNote}>Shared properties are shown. Mixed values appear as blank inputs.</div>
 
-            {descriptor.sections.map((section) => (
+            {multiModel.sections.map((section) => (
               <div key={section.id} className={css.section}>
                 <div className={css.sectionHeader}>
                   <span>{section.title}</span>
                   <span className={css.sectionLevel}>{section.sourceLevel}</span>
                 </div>
                 <div className={css.sectionBody}>
-                  {section.properties.map((property) => renderProperty(property))}
+                  {section.properties.map((property) => renderMultiProperty(property))}
                 </div>
               </div>
             ))}
@@ -211,4 +461,179 @@ export function InspectorPanel() {
       </div>
     </div>
   );
+}
+
+function buildMultiInspectorModel(descriptors: InspectorDescriptor[], selectionCount: number): MultiInspectorModel {
+  if (descriptors.length === 0) {
+    return {
+      selectionCount,
+      elementKinds: [],
+      sections: []
+    };
+  }
+
+  const first = descriptors[0];
+  const sections: MultiInspectorSection[] = [];
+
+  for (const baseSection of first.sections) {
+    const matchingSections = descriptors
+      .map((descriptor) => descriptor.sections.find((section) => section.id === baseSection.id))
+      .filter((section): section is NonNullable<typeof section> => section != null);
+    if (matchingSections.length !== descriptors.length) {
+      continue;
+    }
+
+    const properties: MultiInspectorProperty[] = [];
+    for (const baseProperty of baseSection.properties) {
+      const matchingProperties = matchingSections
+        .map((section) => section.properties.find((property) => property.id === baseProperty.id))
+        .filter((property): property is InspectorProperty => property != null);
+      if (matchingProperties.length !== descriptors.length) {
+        continue;
+      }
+
+      const kinds = new Set(matchingProperties.map((property) => property.kind));
+      if (kinds.size !== 1) {
+        continue;
+      }
+
+      const multi = buildMultiInspectorProperty(matchingProperties);
+      if (multi) {
+        properties.push(multi);
+      }
+    }
+
+    if (properties.length > 0) {
+      sections.push({
+        id: baseSection.id,
+        title: baseSection.title,
+        sourceLevel: baseSection.sourceLevel,
+        properties
+      });
+    }
+  }
+
+  return {
+    selectionCount,
+    elementKinds: dedupeStrings(descriptors.map((descriptor) => descriptor.elementKind)),
+    sections
+  };
+}
+
+function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInspectorProperty | null {
+  const base = properties[0];
+  if (!base) {
+    return null;
+  }
+
+  if (base.kind === "number") {
+    const sameKind = properties.every((property) => property.kind === "number");
+    if (!sameKind) return null;
+    const numberProperties = properties as Array<Extract<InspectorProperty, { kind: "number" }>>;
+
+    return {
+      kind: "number",
+      id: base.id,
+      label: base.label,
+      value: numberProperties[0]?.value ?? 0,
+      mixed: !numbersAreEqual(numberProperties.map((property) => property.value)),
+      step: base.step,
+      unit: base.unit,
+      readOnlyReason: "Multi-element transform editing is not yet supported."
+    };
+  }
+
+  if (base.kind === "color") {
+    const sameKind = properties.every((property) => property.kind === "color");
+    if (!sameKind) return null;
+    const colorProperties = properties as Array<Extract<InspectorProperty, { kind: "color" }>>;
+    const values = colorProperties.map((property) => property.value);
+    const mixed = !allValuesEqual(values);
+    const writes = colorProperties.map((property) => property.write);
+
+    return {
+      kind: "color",
+      id: base.id,
+      label: base.label,
+      value: mixed ? null : (values[0] ?? null),
+      mixed,
+      options: dedupeStrings(colorProperties.flatMap((property) => property.options)),
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "lineWidth") {
+    const sameKind = properties.every((property) => property.kind === "lineWidth");
+    if (!sameKind) return null;
+    const widthProperties = properties as Array<Extract<InspectorProperty, { kind: "lineWidth" }>>;
+    const values = widthProperties.map((property) => property.value);
+    const writes = widthProperties.map((property) => property.write);
+
+    return {
+      kind: "lineWidth",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? 0,
+      mixed: !numbersAreEqual(values),
+      min: base.min,
+      max: base.max,
+      step: base.step,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  const sameKind = properties.every((property) => property.kind === "arrowTip");
+  if (!sameKind) return null;
+  const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
+  const values = arrowProperties.map((property) => property.value);
+  const writes = arrowProperties.map((property) => property.write);
+
+  return {
+    kind: "arrowTip",
+    id: base.id,
+    label: base.label,
+    value: values[0] ?? "-",
+    mixed: !allValuesEqual(values),
+    options: base.options,
+    writes,
+    readOnlyReason: deriveReadOnlyReason(writes)
+  };
+}
+
+function deriveReadOnlyReason(writes: readonly SetPropertyWriteTarget[]): string | undefined {
+  if (writes.some((write) => write.writable && write.elementId.length > 0)) {
+    return undefined;
+  }
+
+  const firstReason = writes.find((write) => (write.reason ?? "").trim().length > 0)?.reason;
+  if (firstReason) {
+    return firstReason;
+  }
+
+  return "This property is read-only for the current selection.";
+}
+
+function numbersAreEqual(values: readonly number[]): boolean {
+  if (values.length <= 1) return true;
+  const first = values[0] ?? 0;
+  return values.every((value) => Math.abs(value - first) <= VALUE_EPSILON);
+}
+
+function allValuesEqual<T>(values: readonly T[]): boolean {
+  if (values.length <= 1) return true;
+  const first = values[0];
+  return values.every((value) => value === first);
+}
+
+function dedupeStrings(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    deduped.push(value);
+  }
+  return deduped;
 }
