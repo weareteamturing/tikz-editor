@@ -187,4 +187,21 @@ describe("edit handles", () => {
     const uniqueIds = new Set(ids);
     expect(uniqueIds.size).toBe(ids.length);
   });
+
+  it("aligns handle source ids with emitted element source ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (-3,-3) rectangle (3,3);
+\node[draw] (A) at (-1,-1) {A};
+\node[draw] (B) at (1,-1) {B};
+\draw (A) edge (B);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceId));
+
+    expect(elementSourceIds.size).toBeGreaterThan(0);
+    expect(result.editHandles.length).toBeGreaterThan(0);
+    for (const handle of result.editHandles) {
+      expect(elementSourceIds.has(handle.sourceId)).toBe(true);
+    }
+  });
 });

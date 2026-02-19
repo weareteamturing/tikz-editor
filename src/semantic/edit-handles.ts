@@ -16,7 +16,9 @@ export function createEditHandle(
   const sourceText = context.source.slice(sourceSpan.from, sourceSpan.to);
 
   return {
-    id: `handle-${sourceSpan.from}-${sourceSpan.to}-${context.editHandles.length}`,
+    // Keep IDs stable across coordinate text rewrites by avoiding source-span offsets.
+    // This allows ongoing drags to continue after recompute snapshots.
+    id: `handle:${sourceId}:${kind}:${context.editHandles.length}`,
     sourceId,
     kind,
     world: evaluated.world,

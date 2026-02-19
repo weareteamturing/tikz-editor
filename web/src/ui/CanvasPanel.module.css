@@ -11,7 +11,7 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 2px 6px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
@@ -20,66 +20,232 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  height: 20px;
+  min-height: 20px;
   flex-shrink: 0;
-  gap: 8px;
 }
 
 .headerMeta {
+  flex: 1;
+  min-width: 0;
   font-size: 10px;
   font-weight: 400;
   color: var(--text-faint);
   text-transform: none;
   letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.canvas {
+.errMeta {
+  color: var(--color-error);
+}
+
+.warnMeta {
+  color: var(--color-warning);
+}
+
+.headerButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.headerBtn {
+  border: 1px solid var(--border);
+  background: var(--bg-pane);
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.headerBtn:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+}
+
+.headerBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.canvasGrid {
+  --ruler-size: 24px;
+
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: var(--ruler-size) 1fr;
+  grid-template-rows: var(--ruler-size) 1fr;
+  background: var(--bg-canvas-area);
+}
+
+.rulerCorner {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
-  /* Subtle grid background */
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: #dfdbd2;
+  color: var(--text-faint);
+  font-size: 9px;
+  user-select: none;
+}
+
+.topRuler {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  height: 100%;
+  border-bottom: 1px solid var(--border);
+  background: #dfdbd2;
+  user-select: none;
+}
+
+.leftRuler {
+  grid-column: 1;
+  grid-row: 2;
+  width: 100%;
+  height: 100%;
+  border-right: 1px solid var(--border);
+  background: #dfdbd2;
+  user-select: none;
+}
+
+.rulerAxis {
+  stroke: #8f8a82;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.rulerTickMinor {
+  stroke: #8f8a82;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.rulerTickMajor {
+  stroke: #5f5b55;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.rulerLabel {
+  fill: #5f5b55;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  text-transform: none;
+}
+
+.viewport {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  outline: none;
   background-color: var(--bg-canvas-area);
   background-image:
-    linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px);
-  background-size: 20px 20px;
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.16), transparent 45%),
+    radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.1), transparent 40%);
 }
 
-.svgWrap {
+.viewport:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.worldStage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.svgLayer {
+  position: absolute;
+  inset: 0;
   background: #fff;
   border: 1px solid var(--border);
-  box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
-.svgWrap :global(svg) {
+.svgLayer :global(svg) {
   display: block;
-  /* Fill the wrapper which is sized to viewBox dimensions */
   width: 100%;
   height: 100%;
 }
 
-.noSvg {
-  color: var(--text-dim);
-  font-size: 12px;
-  text-align: center;
+.interactionLayer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
 }
 
-.error {
-  color: var(--color-error);
-  font-size: 11px;
+.gridOverlay {
+  pointer-events: none;
+}
+
+.gridMinor {
+  stroke: rgba(85, 82, 76, 0.14);
+  vector-effect: non-scaling-stroke;
+}
+
+.gridMajor {
+  stroke: rgba(69, 65, 59, 0.22);
+  vector-effect: non-scaling-stroke;
+}
+
+.hitRegions {
+  cursor: default;
+}
+
+.hitRegion {
+  cursor: pointer;
+}
+
+.hitRegionHovered {
+  fill: rgba(40, 122, 212, 0.12);
+}
+
+.handleOverlay {
+  pointer-events: none;
+}
+
+.handle {
+  pointer-events: all;
+  fill: #ffffff;
+  stroke: #0d5fb6;
+}
+
+.noSvg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.warningBar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 5;
+  pointer-events: none;
+  padding: 5px 8px;
+  font-size: 10px;
+  color: #6a4700;
+  background: rgba(255, 205, 90, 0.8);
+  border: 1px solid rgba(160, 96, 16, 0.38);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   font-family: var(--font-mono);
-  padding: 8px 12px;
-  background: rgba(191, 44, 41, 0.06);
-  border: 1px solid rgba(191, 44, 41, 0.3);
-  border-radius: 2px;
-  max-width: 400px;
 }
 
 .diagnostics {
@@ -100,10 +266,10 @@
   font-family: var(--font-mono);
 }
 
-.diagnostic.error {
+.error {
   color: var(--color-error);
 }
 
-.diagnostic.warning {
+.warning {
   color: var(--color-warning);
 }

@@ -548,7 +548,7 @@ export function evaluatePathStatement(
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);
       const handleKind = statement.command === "node" ? "node-position" : "path-point";
-      const handle = createEditHandle(evaluated, item.span, item.id, handleKind, context);
+      const handle = createEditHandle(evaluated, item.span, statement.id, handleKind, context);
       if (handle) context.editHandles.push(handle);
       for (const code of evaluated.diagnostics) {
         pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, item.span.from, item.span.to);

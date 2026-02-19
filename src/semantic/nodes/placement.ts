@@ -9,6 +9,7 @@ import { arcCenter, clamp, interpolate, normalizeOptionValue, toRadians } from "
 export function resolveNodeTargetPoint(
   item: PathItem & { kind: "Node"; atRaw?: string; atSpan?: Span; atRelativePrefix?: "+" | "++" },
   context: SemanticContext,
+  handleSourceId: string,
   span: { from: number; to: number },
   pushDiagnostic: DiagnosticPushFn,
   options: PathOptionItem["options"] | undefined,
@@ -19,7 +20,7 @@ export function resolveNodeTargetPoint(
     const evaluated = evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix);
     if (evaluated.world) {
       const handleSpan = item.atSpan ?? span;
-      const handle = createEditHandle(evaluated, handleSpan, item.id, "node-position", context);
+      const handle = createEditHandle(evaluated, handleSpan, handleSourceId, "node-position", context);
       if (handle) context.editHandles.push(handle);
       return evaluated.world;
     }
@@ -40,7 +41,7 @@ export function resolveNodeTargetPoint(
     const evaluated = evaluateRawCoordinate(optionAtRaw, context);
     if (evaluated.world) {
       const handleSpan = optionAtSpan ?? span;
-      const handle = createEditHandle(evaluated, handleSpan, item.id, "node-position", context);
+      const handle = createEditHandle(evaluated, handleSpan, handleSourceId, "node-position", context);
       if (handle) context.editHandles.push(handle);
       return evaluated.world;
     }

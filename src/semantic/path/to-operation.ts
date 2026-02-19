@@ -171,7 +171,7 @@ function applyToLikeOperation(
   }
 
   const targetSpan = target.kind === "coordinate" ? (target.span ?? item.span) : item.span;
-  const handle = createEditHandle(evaluated, targetSpan, item.id, "path-point", context);
+  const handle = createEditHandle(evaluated, targetSpan, statement.id, "path-point", context);
   if (handle) {
     context.editHandles.push(handle);
   }

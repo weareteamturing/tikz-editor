@@ -6,6 +6,8 @@ import { makeEmptySnapshot } from "../compute";
 export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
   \draw (-3,-3) rectangle (3,3);
 
+  \draw (-2.5, 2.5) -- (2.5, 2.5);
+
   \node[draw] (A) at (-1, -1) {A};
   \node[draw] (B) at (1.5, -0.5) {B};
   \node[draw] (C) at (0, 1.5) {C};
@@ -102,17 +104,42 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "deleteElement" ? "delete" :
         "resize";
 
+      const truncated = state.history.slice(0, state.historyIndex + 1);
+      const mergeKey = action.historyMergeKey;
+      const lastIndex = truncated.length - 1;
+      const lastEntry = truncated[lastIndex];
+
+      if (
+        mergeKey &&
+        lastEntry &&
+        lastEntry.mergeKey === mergeKey &&
+        lastEntry.kind === historyKind
+      ) {
+        const nextHistory = [...truncated];
+        nextHistory[lastIndex] = {
+          ...lastEntry,
+          label: actionLabel(historyKind),
+          forward: result.patches,
+          sourceAfter: result.newSource
+        };
+
+        return {
+          ...state,
+          source: result.newSource,
+          history: nextHistory,
+          historyIndex: lastIndex
+        };
+      }
+
       const entry: HistoryEntry = {
         kind: historyKind,
         label: actionLabel(historyKind),
+        mergeKey,
         forward: result.patches,
         backward: result.patches,  // placeholder; proper undo patches added in Phase 1
         sourceBefore: state.source,
         sourceAfter: result.newSource
       };
-
-      // Truncate any redo entries above current index
-      const truncated = state.history.slice(0, state.historyIndex + 1);
 
       return {
         ...state,

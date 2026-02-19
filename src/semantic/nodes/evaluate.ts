@@ -146,7 +146,7 @@ export function evaluateNodeItem(
   const nodeStyle = nodeStyleTrace.style;
   const nodeStyleChain = nodeStyleTrace.chain;
   const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
-  const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, expandedNodeOptions, segment, defaultTargetPoint);
+  const target = resolveNodeTargetPoint(item, context, statement.id, item.span, pushDiagnostic, expandedNodeOptions, segment, defaultTargetPoint);
   const resolvedPositioning = resolveNodePositioningTarget(expandedNodeOptions, context, target);
   for (const code of resolvedPositioning.diagnostics) {
     pushDiagnostic(code, `Node positioning issue: ${code}`, item.span.from, item.span.to);

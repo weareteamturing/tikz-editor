@@ -12,6 +12,8 @@ export type CanvasTransform = {
 export type HistoryEntry = {
   kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize";
   label: string;
+  /** Optional key used to coalesce drag updates into one undo step. */
+  mergeKey?: string;
   /** Patches to apply to go backward (undo). */
   backward: import("tikz-editor/edit/types").SourcePatch[];
   /** Patches to apply to go forward (redo). */
@@ -56,7 +58,7 @@ export type EditorState = {
 export type EditorAction =
   // Document
   | { type: "CODE_EDITED"; source: string }
-  | { type: "APPLY_EDIT_ACTION"; action: EditAction }
+  | { type: "APPLY_EDIT_ACTION"; action: EditAction; historyMergeKey?: string }
   | { type: "COMPUTE_REQUESTED"; requestId: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot }
   // History

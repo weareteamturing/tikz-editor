@@ -171,6 +171,51 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next.history[0]?.sourceAfter).toBe("\\draw (5,6) -- (3,4);");
   });
 
+  it("coalesces drag updates that share the same history merge key", () => {
+    const { state: initial, handle } = makeStateWithHandle();
+    const mergeKey = "drag-elem-1";
+
+    const first = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: handle.id,
+        newWorld: { x: cm(5), y: cm(6) }
+      },
+      historyMergeKey: mergeKey
+    });
+
+    const refreshedHandle = makeHandle(first.source, {
+      world: { x: cm(5), y: cm(6) },
+      sourceSpan: { from: 6, to: 11 },
+      sourceId: "elem-1"
+    });
+
+    const withFreshSnapshot: EditorState = {
+      ...first,
+      snapshot: {
+        ...first.snapshot,
+        source: first.source,
+        editHandles: [refreshedHandle]
+      }
+    };
+
+    const second = editorReducer(withFreshSnapshot, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: refreshedHandle.id,
+        newWorld: { x: cm(7), y: cm(8) }
+      },
+      historyMergeKey: mergeKey
+    });
+
+    expect(second.history).toHaveLength(1);
+    expect(second.historyIndex).toBe(0);
+    expect(second.history[0]?.sourceBefore).toBe("\\draw (1,2) -- (3,4);");
+    expect(second.history[0]?.sourceAfter).toBe("\\draw (7,8) -- (3,4);");
+  });
+
   it("is a no-op for unsupported edit actions", () => {
     const initial = makeInitialState();
     const next = editorReducer(initial, {
