@@ -1,12 +1,22 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { SemanticContext } from "../context.js";
+import type { ProvenanceOptionList, SemanticContext } from "../context.js";
+import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
 import type { Point, ResolvedStyle, SceneElement } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
+import { resolveContextDelta } from "../style/resolve.js";
+import {
+  cloneResolvedStyle,
+  cloneStyleChain,
+  diffResolvedStyle,
+  type StyleChainEntry,
+  type StyleSourceRef,
+  type StyleTraceLayerInput
+} from "../style-chain.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
   applyNodeBoxPaintMode,
@@ -45,10 +55,10 @@ import {
   resolveNodeLayer,
   resolveNodeOptionScale,
   resolveNodeShape,
-  resolveNodeStyle,
   withDefaultNodePosition
 } from "./options.js";
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
+import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeOptionValue } from "./utils.js";
 
@@ -62,12 +72,14 @@ export function evaluateNodeItem(
   segment: PlacementSegment | null,
   forcedName?: string,
   defaultPositionFraction?: number,
-  defaultTargetPoint?: Point
+  defaultTargetPoint?: Point,
+  baseStyleChain?: StyleChainEntry[]
 ): {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
 } {
   const frame = context.stack[context.stack.length - 1];
+  const effectiveBaseStyleChain = baseStyleChain ?? frame.styleChain;
   const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
   const effectiveNodeOptions = resolveEffectiveNodeOptions({
     statementOptions: statement.options,
@@ -120,8 +132,19 @@ export function evaluateNodeItem(
   const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
   const nodeOptionScale = resolveNodeOptionScale(expandedNodeLocalOptions, style, context);
   const transformScale = inheritedTransformScale * nodeOptionScale;
-  const nodeStyle = resolveNodeStyle(expandedNodeOptions, style, context, transformScale);
   const nodeShape = resolveNodeShape(expandedNodeOptions);
+  const nodeStyleTrace = resolveNodeStyleTrace({
+    item,
+    statement,
+    context,
+    baseStyle: style,
+    baseStyleChain: effectiveBaseStyleChain,
+    nodeShape,
+    nodeOptions,
+    transformScale
+  });
+  const nodeStyle = nodeStyleTrace.style;
+  const nodeStyleChain = nodeStyleTrace.chain;
   const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
   const target = resolveNodeTargetPoint(item, context, item.span, pushDiagnostic, expandedNodeOptions, segment, defaultTargetPoint);
   const resolvedPositioning = resolveNodePositioningTarget(expandedNodeOptions, context, target);
@@ -148,13 +171,26 @@ export function evaluateNodeItem(
       matrixMode,
       nodeShape,
       nodeStyle,
+      nodeStyleChain,
       effectiveNodeOptions,
       effectiveNodeLocalOptions,
       inheritedTransformScale,
       resolvedPositioning,
       fallbackAnchor: resolvedPositioning.anchorOverride ?? anchor,
       evaluateNestedNode: (matrixCellItem) =>
-        evaluateNodeItem(matrixCellItem, statement, context, style, markFeature, pushDiagnostic, null)
+        evaluateNodeItem(
+          matrixCellItem,
+          statement,
+          context,
+          style,
+          markFeature,
+          pushDiagnostic,
+          null,
+          undefined,
+          undefined,
+          undefined,
+          effectiveBaseStyleChain
+        )
     });
   }
 
@@ -182,6 +218,10 @@ export function evaluateNodeItem(
   }
 
   const nodeElements: SceneElement[] = [];
+  const pushNodeElement = (element: SceneElement): void => {
+    element.styleChain = cloneStyleChain(nodeStyleChain);
+    nodeElements.push(element);
+  };
   const explicitPaintMode = resolveNodeBoxPaintMode(expandedNodeLocalOptions);
   const resolvedPaintMode = {
     draw:
@@ -195,14 +235,14 @@ export function evaluateNodeItem(
     const nodeBoxStyle = applyNodeBoxPaintMode(nodeStyle, resolvedPaintMode);
     const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, context, center);
     if (nodeShape === "circle") {
-      nodeElements.push(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
+      pushNodeElement(makeCircleElement(statement.id, center, nodeLayout.visualRadius, nodeBoxStyle, item.span));
       markFeature("shape_circle", "supported");
       markFeature("svg_circle", "supported");
     } else if (nodeShape === "ellipse") {
-      nodeElements.push(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      pushNodeElement(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("keyword_ellipse", "supported");
     } else if (nodeShape === "diamond") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeDiamondElement(
           statement.id,
           item.id,
@@ -217,7 +257,7 @@ export function evaluateNodeItem(
       markFeature("shape_diamond", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "trapezium") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeTrapeziumElement(
           statement.id,
           item.id,
@@ -238,7 +278,7 @@ export function evaluateNodeItem(
       markFeature("shape_trapezium", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "semicircle") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeSemicircleElement(
           statement.id,
           item.id,
@@ -255,7 +295,7 @@ export function evaluateNodeItem(
       markFeature("shape_semicircle", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "isosceles triangle") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeIsoscelesTriangleElement(
           statement.id,
           item.id,
@@ -274,7 +314,7 @@ export function evaluateNodeItem(
       markFeature("shape_isosceles_triangle", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "kite") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeKiteElement(
           statement.id,
           item.id,
@@ -293,7 +333,7 @@ export function evaluateNodeItem(
       markFeature("shape_kite", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "dart") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeDartElement(
           statement.id,
           item.id,
@@ -312,7 +352,7 @@ export function evaluateNodeItem(
       markFeature("shape_dart", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "circular sector") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeCircularSectorElement(
           statement.id,
           item.id,
@@ -330,7 +370,7 @@ export function evaluateNodeItem(
       markFeature("shape_circular_sector", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "cylinder") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeCylinderElement(
           statement.id,
           item.id,
@@ -348,7 +388,7 @@ export function evaluateNodeItem(
       markFeature("shape_cylinder", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "regular polygon") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeRegularPolygonElement(
           statement.id,
           item.id,
@@ -366,7 +406,7 @@ export function evaluateNodeItem(
       markFeature("shape_regular_polygon", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "star") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeStarElement(
           statement.id,
           item.id,
@@ -387,7 +427,7 @@ export function evaluateNodeItem(
       markFeature("shape_star", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "cloud") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeCloudElement(
           statement.id,
           item.id,
@@ -408,7 +448,7 @@ export function evaluateNodeItem(
       markFeature("shape_cloud", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "starburst") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeStarburstElement(
           statement.id,
           item.id,
@@ -428,7 +468,7 @@ export function evaluateNodeItem(
       markFeature("shape_starburst", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "signal") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeSignalElement(
           statement.id,
           item.id,
@@ -447,7 +487,7 @@ export function evaluateNodeItem(
       markFeature("shape_signal", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "tape") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeTapeElement(
           statement.id,
           item.id,
@@ -466,7 +506,7 @@ export function evaluateNodeItem(
       markFeature("shape_tape", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle callout") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeRectangleCalloutElement(
           statement.id,
           item.id,
@@ -486,7 +526,7 @@ export function evaluateNodeItem(
       markFeature("shape_rectangle_callout", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "ellipse callout") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeEllipseCalloutElement(
           statement.id,
           item.id,
@@ -506,7 +546,7 @@ export function evaluateNodeItem(
       markFeature("shape_ellipse_callout", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "cloud callout") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeCloudCalloutElement(
           statement.id,
           item.id,
@@ -533,7 +573,7 @@ export function evaluateNodeItem(
       markFeature("shape_cloud_callout", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "single arrow") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeSingleArrowElement(
           statement.id,
           item.id,
@@ -553,7 +593,7 @@ export function evaluateNodeItem(
       markFeature("shape_single_arrow", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "double arrow") {
-      nodeElements.push(
+      pushNodeElement(
         makeNodeDoubleArrowElement(
           statement.id,
           item.id,
@@ -573,7 +613,7 @@ export function evaluateNodeItem(
       markFeature("shape_double_arrow", "supported");
       markFeature("svg_path", "supported");
     } else if (nodeShape === "rectangle") {
-      nodeElements.push(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
+      pushNodeElement(makeNodeBoxElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
       markFeature("shape_rectangle", "supported");
       markFeature("svg_path", "supported");
     }
@@ -581,7 +621,7 @@ export function evaluateNodeItem(
 
   const normalizedText = nodeLayout.textLines.join("\n");
   if (normalizedText.length > 0) {
-    nodeElements.push(
+    pushNodeElement(
       makeTextElement(
         statement.id,
         item.id,
@@ -603,6 +643,189 @@ export function evaluateNodeItem(
     return { behindElements: nodeElements, frontElements: [] };
   }
   return { behindElements: [], frontElements: nodeElements };
+}
+
+function resolveNodeStyleTrace(params: {
+  item: NodeItem;
+  statement: PathStatement;
+  context: SemanticContext;
+  baseStyle: ResolvedStyle;
+  baseStyleChain: StyleChainEntry[];
+  nodeShape: NodeShape;
+  nodeOptions: OptionListAst | undefined;
+  transformScale: number;
+}): { style: ResolvedStyle; chain: StyleChainEntry[] } {
+  const frame = params.context.stack[params.context.stack.length - 1];
+  const macroTrace = params.context.macroTraceCollector ?? undefined;
+  const everyNodeLayers = expandProvenanceOptionLayers(frame.everyNodeStyles, frame, macroTrace);
+  const everyShapeLayers = expandProvenanceOptionLayers(resolveEveryShapeNodeStyleLayers(frame, params.nodeShape), frame, macroTrace);
+  const expandedStatementOptions = params.statement.options
+    ? expandOptionListMacros([params.statement.options], frame.macroBindings, macroTrace)
+    : [];
+  const expandedNodeOptions = params.nodeOptions ? expandOptionListMacros([params.nodeOptions], frame.macroBindings, macroTrace) : [];
+  const commandOptions = [...expandedStatementOptions, ...expandedNodeOptions];
+
+  const layers: StyleTraceLayerInput[] = [
+    ...everyNodeLayers.map(
+      (layer): StyleTraceLayerInput => ({
+        kind: "every-node",
+        sourceRef: layer.sourceRef,
+        rawOptions: [layer.options]
+      })
+    ),
+    ...everyShapeLayers.map(
+      (layer): StyleTraceLayerInput => ({
+        kind: "every-shape",
+        shape: params.nodeShape,
+        sourceRef: layer.sourceRef,
+        rawOptions: [layer.options]
+      })
+    )
+  ];
+  if (commandOptions.length > 0) {
+    layers.push({
+      kind: "command",
+      sourceRef: {
+        sourceId: params.item.id,
+        sourceSpan: params.item.optionsSpan ?? params.item.span,
+        sourceKind: "node-options",
+        label: "node"
+      },
+      rawOptions: commandOptions
+    });
+  }
+
+  const resolved = resolveContextDelta(
+    params.baseStyle,
+    frame.transform,
+    layers,
+    cloneCustomStyleRegistry(frame.customStyles),
+    (raw) => evaluateRawCoordinate(raw, params.context).world,
+    params.baseStyleChain
+  );
+
+  const scaledStyle = applyNodeTransformScale(resolved.style, params.transformScale);
+  const scaleContributions = diffResolvedStyle(resolved.style, scaledStyle);
+  if (Object.keys(scaleContributions).length === 0) {
+    return { style: scaledStyle, chain: resolved.chain };
+  }
+
+  const scaleSourceRef: StyleSourceRef = {
+    sourceId: params.item.id,
+    sourceSpan: params.item.span,
+    sourceKind: "node-transform-scale",
+    label: "node transform scale"
+  };
+  return {
+    style: scaledStyle,
+    chain: [
+      ...resolved.chain,
+      {
+        kind: "command",
+        sourceRef: scaleSourceRef,
+        rawOptions: [],
+        before: cloneResolvedStyle(resolved.style),
+        after: cloneResolvedStyle(scaledStyle),
+        resolvedContributions: scaleContributions
+      }
+    ]
+  };
+}
+
+function applyNodeTransformScale(style: ResolvedStyle, transformScale: number): ResolvedStyle {
+  if (Math.abs(transformScale - 1) <= 1e-6) {
+    return style;
+  }
+  return {
+    ...style,
+    lineWidth: style.lineWidth * transformScale,
+    doubleDistance: style.doubleDistance * transformScale,
+    fontSize: style.fontSize * transformScale
+  };
+}
+
+function expandProvenanceOptionLayers(
+  layers: ProvenanceOptionList[],
+  frame: SemanticContext["stack"][number],
+  macroTrace: SemanticContext["macroTraceCollector"] | undefined
+): ProvenanceOptionList[] {
+  if (layers.length === 0) {
+    return [];
+  }
+
+  const expanded: ProvenanceOptionList[] = [];
+  for (const layer of layers) {
+    const expandedOptions = expandOptionListMacros([layer.options], frame.macroBindings, macroTrace ?? undefined);
+    if (expandedOptions.length === 0) {
+      expanded.push(layer);
+      continue;
+    }
+    for (const optionList of expandedOptions) {
+      expanded.push({
+        options: optionList,
+        sourceRef: layer.sourceRef
+      });
+    }
+  }
+  return expanded;
+}
+
+function resolveEveryShapeNodeStyleLayers(frame: SemanticContext["stack"][number], nodeShape: NodeShape): ProvenanceOptionList[] {
+  if (nodeShape === "circle") {
+    return frame.everyCircleNodeStyles;
+  }
+  if (nodeShape === "rectangle") {
+    return frame.everyRectangleNodeStyles;
+  }
+  if (nodeShape === "diamond") {
+    return frame.everyDiamondNodeStyles;
+  }
+  if (nodeShape === "trapezium") {
+    return frame.everyTrapeziumNodeStyles;
+  }
+  if (nodeShape === "isosceles triangle") {
+    return frame.everyIsoscelesTriangleNodeStyles;
+  }
+  if (nodeShape === "kite") {
+    return frame.everyKiteNodeStyles;
+  }
+  if (nodeShape === "dart") {
+    return frame.everyDartNodeStyles;
+  }
+  if (nodeShape === "circular sector") {
+    return frame.everyCircularSectorNodeStyles;
+  }
+  if (nodeShape === "cylinder") {
+    return frame.everyCylinderNodeStyles;
+  }
+  if (nodeShape === "cloud") {
+    return frame.everyCloudNodeStyles;
+  }
+  if (nodeShape === "starburst") {
+    return frame.everyStarburstNodeStyles;
+  }
+  if (nodeShape === "signal") {
+    return frame.everySignalNodeStyles;
+  }
+  if (nodeShape === "tape") {
+    return frame.everyTapeNodeStyles;
+  }
+  if (nodeShape === "rectangle callout") {
+    return frame.everyRectangleCalloutNodeStyles;
+  }
+  if (nodeShape === "ellipse callout") {
+    return frame.everyEllipseCalloutNodeStyles;
+  }
+  if (nodeShape === "cloud callout") {
+    return frame.everyCloudCalloutNodeStyles;
+  }
+  if (nodeShape === "single arrow") {
+    return frame.everySingleArrowNodeStyles;
+  }
+  if (nodeShape === "double arrow") {
+    return frame.everyDoubleArrowNodeStyles;
+  }
+  return [];
 }
 
 function resolveAutoNodeAnchor(options: NodeItem["options"], segment: PlacementSegment | null): string | null {

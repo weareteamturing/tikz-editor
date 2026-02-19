@@ -30,6 +30,7 @@ import {
   currentFrame,
   popFrame,
   pushFrame,
+  type ProvenanceOptionList,
   type NodeDistanceSpec,
   type NodeQuotesMode
 } from "./context.js";
@@ -44,6 +45,7 @@ import { expandOptionListMacros } from "./style/macro-options.js";
 import { readBalancedBlock } from "./style/option-utils.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { identityMatrix } from "./transform.js";
+import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
 import type {
   Bounds,
   EditHandle,
@@ -86,12 +88,30 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       parent.macroBindings,
       context.macroTraceCollector ?? undefined
     );
-    const rootDelta = resolveContextDelta(parent.style, parent.transform, rootOptionLists, rootCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).world
+    const figureSourceRef: StyleSourceRef = {
+      sourceId: `figure:${figure.span.from}:${figure.span.to}`,
+      sourceSpan: figure.options.span,
+      sourceKind: "figure-options",
+      label: "figure"
+    };
+    const rootDelta = resolveContextDelta(
+      parent.style,
+      parent.transform,
+      [
+        {
+          kind: "scope",
+          sourceRef: figureSourceRef,
+          rawOptions: rootOptionLists
+        }
+      ],
+      rootCustomStyles,
+      (raw) => evaluateRawCoordinate(raw, context).world,
+      parent.styleChain
     );
-    const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists);
+    const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists, figureSourceRef);
     pushFrame(context, {
       style: rootDelta.style,
+      styleChain: rootDelta.chain,
       transform: rootDelta.transform,
       customStyles: rootCustomStyles,
       colorAliases: new Map(parent.colorAliases),
@@ -141,16 +161,17 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
   const elements: SceneElement[] = [];
   const statementMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
   for (const statement of expanded.figureBody) {
+    const statementHandleStart = context.editHandles.length;
     const statementElements = evaluateStatement(statement, context, diagnostics, featureUsage, statementMacroAttribution);
-    elements.push(
-      ...applyForeachAttributionToElements(
-        statement,
-        statementElements,
-        expanded.statementAttribution,
-        expanded.pathItemForeachStack,
-        statementMacroAttribution
-      )
+    const attributedElements = applyForeachAttributionToElements(
+      statement,
+      statementElements,
+      expanded.statementAttribution,
+      expanded.pathItemForeachStack,
+      statementMacroAttribution
     );
+    elements.push(...attributedElements);
+    applyForeachAttributionToHandles(statement, context.editHandles, statementHandleStart, expanded.statementAttribution);
   }
 
   if (figure.options) {
@@ -180,7 +201,28 @@ function evaluateStatement(
   if (statement.kind === "Path") {
     markFeature(featureUsage, "path_statement", "supported");
     const parent = currentFrame(context);
+    const commandSourceRef: StyleSourceRef = {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceKind: "path-statement",
+      label: statement.command
+    };
+    const commandStyleBefore = cloneResolvedStyle(parent.style);
     const baseStyle = { ...parent.style, ...commandDefaultStyle(statement.command, parent.style) };
+    const commandDefaultEntry = {
+      kind: "global" as const,
+      sourceRef: {
+        sourceId: statement.id,
+        sourceSpan: statement.span,
+        sourceKind: "command-default",
+        label: statement.command
+      },
+      rawOptions: [],
+      before: commandStyleBefore,
+      after: cloneResolvedStyle(baseStyle),
+      resolvedContributions: diffResolvedStyle(commandStyleBefore, baseStyle)
+    };
+    const baseChain = [...cloneStyleChain(parent.styleChain), commandDefaultEntry];
     const optionLists = statement.options ? [statement.options] : [];
     const expandedOptionLists = expandOptionListMacros(
       optionLists,
@@ -191,10 +233,21 @@ function evaluateStatement(
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(baseStyle, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).world
+    const resolved = resolveContextDelta(
+      baseStyle,
+      parent.transform,
+      [
+        {
+          kind: "command",
+          sourceRef: commandSourceRef,
+          rawOptions: expandedOptionLists
+        }
+      ],
+      scopedCustomStyles,
+      (raw) => evaluateRawCoordinate(raw, context).world,
+      baseChain
     );
-    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
+    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, commandSourceRef);
 
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
       markFeature(featureUsage, "path_shading", "supported");
@@ -229,6 +282,7 @@ function evaluateStatement(
 
     pushFrame(context, {
       style: resolved.style,
+      styleChain: resolved.chain,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
       colorAliases: new Map(parent.colorAliases),
@@ -319,6 +373,12 @@ function evaluateStatement(
   if (statement.kind === "Scope") {
     markFeature(featureUsage, "scope_statement", "supported");
     const parent = currentFrame(context);
+    const scopeSourceRef: StyleSourceRef = {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceKind: "scope-statement",
+      label: "scope"
+    };
     const optionLists = statement.options ? [statement.options] : [];
     const expandedOptionLists = expandOptionListMacros(
       optionLists,
@@ -329,12 +389,24 @@ function evaluateStatement(
       markFeature(featureUsage, "options_structured", "supported");
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
-    const resolved = resolveContextDelta(parent.style, parent.transform, expandedOptionLists, scopedCustomStyles, (raw) =>
-      evaluateRawCoordinate(raw, context).world
+    const resolved = resolveContextDelta(
+      parent.style,
+      parent.transform,
+      [
+        {
+          kind: "scope",
+          sourceRef: scopeSourceRef,
+          rawOptions: expandedOptionLists
+        }
+      ],
+      scopedCustomStyles,
+      (raw) => evaluateRawCoordinate(raw, context).world,
+      parent.styleChain
     );
-    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists);
+    const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
     pushFrame(context, {
       style: resolved.style,
+      styleChain: resolved.chain,
       transform: resolved.transform,
       customStyles: scopedCustomStyles,
       colorAliases: new Map(parent.colorAliases),
@@ -447,13 +519,13 @@ function applyStandaloneCommandStatement(
     return true;
   }
 
-  const tikzSetOptions = parseTikzSetOptionLists(raw);
+  const tikzSetOptions = parseTikzSetOptionLists(raw, span.from);
   if (tikzSetOptions) {
     applyOptionListsToCurrentFrame(tikzSetOptions, context, diagnostics, span, "\\tikzset");
     return true;
   }
 
-  const pgfkeysOptions = parsePgfkeysOptionLists(raw);
+  const pgfkeysOptions = parsePgfkeysOptionLists(raw, span.from);
   if (pgfkeysOptions) {
     applyOptionListsToCurrentFrame(pgfkeysOptions, context, diagnostics, span, "\\pgfkeys");
     return true;
@@ -470,7 +542,12 @@ function applyStandaloneCommandStatement(
 
     const optionList = parseStyleValueAsOptionList(expandedValue);
     if (optionList) {
-      applyCustomStyleDefinition(frame.customStyles, colorlet.name, "style", optionList);
+      applyCustomStyleDefinition(frame.customStyles, colorlet.name, "style", optionList, {
+        sourceId: `standalone:${span.from}:${span.to}`,
+        sourceSpan: span,
+        sourceKind: "colorlet",
+        label: colorlet.name
+      });
     }
     return true;
   }
@@ -478,7 +555,12 @@ function applyStandaloneCommandStatement(
   const legacyStyle = parseLegacyTikzStyleDefinition(raw);
   if (legacyStyle) {
     const frame = currentFrame(context);
-    applyCustomStyleDefinition(frame.customStyles, legacyStyle.styleName, legacyStyle.kind, legacyStyle.optionList);
+    applyCustomStyleDefinition(frame.customStyles, legacyStyle.styleName, legacyStyle.kind, legacyStyle.optionList, {
+      sourceId: `standalone:${span.from}:${span.to}`,
+      sourceSpan: span,
+      sourceKind: "legacy-tikzstyle",
+      label: legacyStyle.styleName
+    });
     return true;
   }
 
@@ -494,13 +576,31 @@ function applyOptionListsToCurrentFrame(
 ): void {
   const frame = currentFrame(context);
   const expandedOptionLists = expandOptionListMacros(optionLists, frame.macroBindings, context.macroTraceCollector ?? undefined);
-  const resolved = resolveContextDelta(frame.style, frame.transform, expandedOptionLists, frame.customStyles, (raw) =>
-    evaluateRawCoordinate(raw, context).world
+  const sourceRef: StyleSourceRef = {
+    sourceId: `standalone:${span.from}:${span.to}`,
+    sourceSpan: span,
+    sourceKind: "standalone-command",
+    label: sourceLabel
+  };
+  const resolved = resolveContextDelta(
+    frame.style,
+    frame.transform,
+    [
+      {
+        kind: "scope",
+        sourceRef,
+        rawOptions: expandedOptionLists
+      }
+    ],
+    frame.customStyles,
+    (raw) => evaluateRawCoordinate(raw, context).world,
+    frame.styleChain
   );
   frame.style = resolved.style;
+  frame.styleChain = resolved.chain;
   frame.transform = resolved.transform;
 
-  const frameMeta = resolveFrameMeta(frame, resolved.expandedOptionLists);
+  const frameMeta = resolveFrameMeta(frame, resolved.expandedOptionLists, sourceRef);
   frame.namePrefix = frameMeta.namePrefix;
   frame.nameSuffix = frameMeta.nameSuffix;
   frame.nodeLayerMode = frameMeta.nodeLayerMode;
@@ -757,24 +857,24 @@ function parseStandaloneCommandName(raw: string): string | null {
   return stripped;
 }
 
-function parseTikzSetOptionLists(raw: string): OptionListAst[] | null {
-  const content = parseBracedCommandContent(raw, "\\tikzset");
-  if (content == null) {
+function parseTikzSetOptionLists(raw: string, absoluteFrom = 0): OptionListAst[] | null {
+  const parsed = parseBracedCommandContent(raw, "\\tikzset");
+  if (parsed == null) {
     return null;
   }
-  return [parseOptionListRaw(content)];
+  return [parseOptionListRaw(parsed.content, absoluteFrom + parsed.contentOffset)];
 }
 
 function parseUseTikzLibraryCommand(raw: string): boolean {
   return parseBracedCommandContent(raw, "\\usetikzlibrary") != null;
 }
 
-function parsePgfkeysOptionLists(raw: string): OptionListAst[] | null {
-  const content = parseBracedCommandContent(raw, "\\pgfkeys");
-  if (content == null) {
+function parsePgfkeysOptionLists(raw: string, absoluteFrom = 0): OptionListAst[] | null {
+  const parsed = parseBracedCommandContent(raw, "\\pgfkeys");
+  if (parsed == null) {
     return null;
   }
-  return [normalizePgfkeysOptionList(parseOptionListRaw(content))];
+  return [normalizePgfkeysOptionList(parseOptionListRaw(parsed.content, absoluteFrom + parsed.contentOffset))];
 }
 
 function parseColorletDefinition(raw: string): { name: string; valueRaw: string } | null {
@@ -905,11 +1005,17 @@ function parseLegacyTikzStyleDefinition(raw: string): {
   };
 }
 
-function parseBracedCommandContent(raw: string, commandName: string): string | null {
-  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+function parseBracedCommandContent(
+  raw: string,
+  commandName: string
+): { content: string; contentOffset: number } | null {
+  const trimmedRaw = raw.trim();
+  const stripped = stripOptionalTrailingSemicolon(trimmedRaw);
   if (!stripped.startsWith(commandName)) {
     return null;
   }
+  const strippedOffsetInRaw = raw.indexOf(stripped);
+  const safeOffset = strippedOffsetInRaw >= 0 ? strippedOffsetInRaw : 0;
 
   let cursor = commandName.length;
   cursor = skipWhitespace(stripped, cursor);
@@ -917,12 +1023,16 @@ function parseBracedCommandContent(raw: string, commandName: string): string | n
   if (!block) {
     return null;
   }
+  const contentOffset = safeOffset + cursor + 1;
 
   cursor = skipWhitespace(stripped, block.nextIndex);
   if (cursor !== stripped.length) {
     return null;
   }
-  return block.content;
+  return {
+    content: block.content,
+    contentOffset
+  };
 }
 
 function normalizePgfkeysOptionList(list: OptionListAst): OptionListAst {
@@ -1353,6 +1463,29 @@ function applyForeachAttributionToElements(
   });
 }
 
+function applyForeachAttributionToHandles(
+  statement: Statement,
+  handles: EditHandle[],
+  startIndex: number,
+  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>
+): void {
+  const attribution = statementAttribution.get(statement);
+  if (!attribution) {
+    return;
+  }
+
+  for (let index = startIndex; index < handles.length; index += 1) {
+    const handle = handles[index];
+    if (!handle) {
+      continue;
+    }
+    handles[index] = {
+      ...handle,
+      sourceId: attribution.sourceId
+    };
+  }
+}
+
 function buildPathItemLookup(statement: PathStatement): Map<string, PathItem> {
   const byId = new Map<string, PathItem>();
   for (const item of statement.items) {
@@ -1439,6 +1572,72 @@ function cloneForeachStack(stack: ExpansionForeachOriginFrame[]): ExpansionForea
   }));
 }
 
+type FrameStyleBuckets = {
+  everyNodeStyles: ProvenanceOptionList[];
+  everyRectangleNodeStyles: ProvenanceOptionList[];
+  everyCircleNodeStyles: ProvenanceOptionList[];
+  everyDiamondNodeStyles: ProvenanceOptionList[];
+  everyTrapeziumNodeStyles: ProvenanceOptionList[];
+  everyIsoscelesTriangleNodeStyles: ProvenanceOptionList[];
+  everyKiteNodeStyles: ProvenanceOptionList[];
+  everyDartNodeStyles: ProvenanceOptionList[];
+  everyCircularSectorNodeStyles: ProvenanceOptionList[];
+  everyCylinderNodeStyles: ProvenanceOptionList[];
+  everyCloudNodeStyles: ProvenanceOptionList[];
+  everyStarburstNodeStyles: ProvenanceOptionList[];
+  everySignalNodeStyles: ProvenanceOptionList[];
+  everyTapeNodeStyles: ProvenanceOptionList[];
+  everyRectangleCalloutNodeStyles: ProvenanceOptionList[];
+  everyEllipseCalloutNodeStyles: ProvenanceOptionList[];
+  everyCloudCalloutNodeStyles: ProvenanceOptionList[];
+  everySingleArrowNodeStyles: ProvenanceOptionList[];
+  everyDoubleArrowNodeStyles: ProvenanceOptionList[];
+};
+
+const FRAME_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof FrameStyleBuckets> = {
+  "every node/.style": "everyNodeStyles",
+  "every rectangle node/.style": "everyRectangleNodeStyles",
+  "every circle node/.style": "everyCircleNodeStyles",
+  "every diamond node/.style": "everyDiamondNodeStyles",
+  "every trapezium node/.style": "everyTrapeziumNodeStyles",
+  "every isosceles triangle node/.style": "everyIsoscelesTriangleNodeStyles",
+  "every kite node/.style": "everyKiteNodeStyles",
+  "every dart node/.style": "everyDartNodeStyles",
+  "every circular sector node/.style": "everyCircularSectorNodeStyles",
+  "every cylinder node/.style": "everyCylinderNodeStyles",
+  "every cloud node/.style": "everyCloudNodeStyles",
+  "every starburst node/.style": "everyStarburstNodeStyles",
+  "every signal node/.style": "everySignalNodeStyles",
+  "every tape node/.style": "everyTapeNodeStyles",
+  "every rectangle callout node/.style": "everyRectangleCalloutNodeStyles",
+  "every ellipse callout node/.style": "everyEllipseCalloutNodeStyles",
+  "every cloud callout node/.style": "everyCloudCalloutNodeStyles",
+  "every single arrow node/.style": "everySingleArrowNodeStyles",
+  "every double arrow node/.style": "everyDoubleArrowNodeStyles"
+};
+
+const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> = {
+  "every node/.append style": "everyNodeStyles",
+  "every rectangle node/.append style": "everyRectangleNodeStyles",
+  "every circle node/.append style": "everyCircleNodeStyles",
+  "every diamond node/.append style": "everyDiamondNodeStyles",
+  "every trapezium node/.append style": "everyTrapeziumNodeStyles",
+  "every isosceles triangle node/.append style": "everyIsoscelesTriangleNodeStyles",
+  "every kite node/.append style": "everyKiteNodeStyles",
+  "every dart node/.append style": "everyDartNodeStyles",
+  "every circular sector node/.append style": "everyCircularSectorNodeStyles",
+  "every cylinder node/.append style": "everyCylinderNodeStyles",
+  "every cloud node/.append style": "everyCloudNodeStyles",
+  "every starburst node/.append style": "everyStarburstNodeStyles",
+  "every signal node/.append style": "everySignalNodeStyles",
+  "every tape node/.append style": "everyTapeNodeStyles",
+  "every rectangle callout node/.append style": "everyRectangleCalloutNodeStyles",
+  "every ellipse callout node/.append style": "everyEllipseCalloutNodeStyles",
+  "every cloud callout node/.append style": "everyCloudCalloutNodeStyles",
+  "every single arrow node/.append style": "everySingleArrowNodeStyles",
+  "every double arrow node/.append style": "everyDoubleArrowNodeStyles"
+};
+
 function resolveFrameMeta(
   base: {
     namePrefix: string;
@@ -1453,27 +1652,9 @@ function resolveFrameMeta(
     pinDistancePt: number;
     pinEdgeRaw: string | null;
     transformShape: boolean;
-    everyNodeStyles: OptionListAst[];
-    everyRectangleNodeStyles: OptionListAst[];
-    everyCircleNodeStyles: OptionListAst[];
-    everyDiamondNodeStyles: OptionListAst[];
-    everyTrapeziumNodeStyles: OptionListAst[];
-    everyIsoscelesTriangleNodeStyles: OptionListAst[];
-    everyKiteNodeStyles: OptionListAst[];
-    everyDartNodeStyles: OptionListAst[];
-    everyCircularSectorNodeStyles: OptionListAst[];
-    everyCylinderNodeStyles: OptionListAst[];
-    everyCloudNodeStyles: OptionListAst[];
-    everyStarburstNodeStyles: OptionListAst[];
-    everySignalNodeStyles: OptionListAst[];
-    everyTapeNodeStyles: OptionListAst[];
-    everyRectangleCalloutNodeStyles: OptionListAst[];
-    everyEllipseCalloutNodeStyles: OptionListAst[];
-    everyCloudCalloutNodeStyles: OptionListAst[];
-    everySingleArrowNodeStyles: OptionListAst[];
-    everyDoubleArrowNodeStyles: OptionListAst[];
-  },
-  optionLists: OptionListAst[]
+  } & FrameStyleBuckets,
+  optionLists: OptionListAst[],
+  sourceRef: StyleSourceRef
 ): {
   namePrefix: string;
   nameSuffix: string;
@@ -1487,26 +1668,7 @@ function resolveFrameMeta(
   pinDistancePt: number;
   pinEdgeRaw: string | null;
   transformShape: boolean;
-  everyNodeStyles: OptionListAst[];
-  everyRectangleNodeStyles: OptionListAst[];
-  everyCircleNodeStyles: OptionListAst[];
-  everyDiamondNodeStyles: OptionListAst[];
-  everyTrapeziumNodeStyles: OptionListAst[];
-  everyIsoscelesTriangleNodeStyles: OptionListAst[];
-  everyKiteNodeStyles: OptionListAst[];
-  everyDartNodeStyles: OptionListAst[];
-  everyCircularSectorNodeStyles: OptionListAst[];
-  everyCylinderNodeStyles: OptionListAst[];
-  everyCloudNodeStyles: OptionListAst[];
-  everyStarburstNodeStyles: OptionListAst[];
-  everySignalNodeStyles: OptionListAst[];
-  everyTapeNodeStyles: OptionListAst[];
-  everyRectangleCalloutNodeStyles: OptionListAst[];
-  everyEllipseCalloutNodeStyles: OptionListAst[];
-  everyCloudCalloutNodeStyles: OptionListAst[];
-  everySingleArrowNodeStyles: OptionListAst[];
-  everyDoubleArrowNodeStyles: OptionListAst[];
-} {
+} & FrameStyleBuckets {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
   let nodeLayerMode = base.nodeLayerMode;
@@ -1519,25 +1681,28 @@ function resolveFrameMeta(
   let pinDistancePt = base.pinDistancePt;
   let pinEdgeRaw = base.pinEdgeRaw;
   let transformShape = base.transformShape;
-  let everyNodeStyles = [...base.everyNodeStyles];
-  let everyRectangleNodeStyles = [...base.everyRectangleNodeStyles];
-  let everyCircleNodeStyles = [...base.everyCircleNodeStyles];
-  let everyDiamondNodeStyles = [...base.everyDiamondNodeStyles];
-  let everyTrapeziumNodeStyles = [...base.everyTrapeziumNodeStyles];
-  let everyIsoscelesTriangleNodeStyles = [...base.everyIsoscelesTriangleNodeStyles];
-  let everyKiteNodeStyles = [...base.everyKiteNodeStyles];
-  let everyDartNodeStyles = [...base.everyDartNodeStyles];
-  let everyCircularSectorNodeStyles = [...base.everyCircularSectorNodeStyles];
-  let everyCylinderNodeStyles = [...base.everyCylinderNodeStyles];
-  let everyCloudNodeStyles = [...base.everyCloudNodeStyles];
-  let everyStarburstNodeStyles = [...base.everyStarburstNodeStyles];
-  let everySignalNodeStyles = [...base.everySignalNodeStyles];
-  let everyTapeNodeStyles = [...base.everyTapeNodeStyles];
-  let everyRectangleCalloutNodeStyles = [...base.everyRectangleCalloutNodeStyles];
-  let everyEllipseCalloutNodeStyles = [...base.everyEllipseCalloutNodeStyles];
-  let everyCloudCalloutNodeStyles = [...base.everyCloudCalloutNodeStyles];
-  let everySingleArrowNodeStyles = [...base.everySingleArrowNodeStyles];
-  let everyDoubleArrowNodeStyles = [...base.everyDoubleArrowNodeStyles];
+
+  const styleBuckets: FrameStyleBuckets = {
+    everyNodeStyles: [...base.everyNodeStyles],
+    everyRectangleNodeStyles: [...base.everyRectangleNodeStyles],
+    everyCircleNodeStyles: [...base.everyCircleNodeStyles],
+    everyDiamondNodeStyles: [...base.everyDiamondNodeStyles],
+    everyTrapeziumNodeStyles: [...base.everyTrapeziumNodeStyles],
+    everyIsoscelesTriangleNodeStyles: [...base.everyIsoscelesTriangleNodeStyles],
+    everyKiteNodeStyles: [...base.everyKiteNodeStyles],
+    everyDartNodeStyles: [...base.everyDartNodeStyles],
+    everyCircularSectorNodeStyles: [...base.everyCircularSectorNodeStyles],
+    everyCylinderNodeStyles: [...base.everyCylinderNodeStyles],
+    everyCloudNodeStyles: [...base.everyCloudNodeStyles],
+    everyStarburstNodeStyles: [...base.everyStarburstNodeStyles],
+    everySignalNodeStyles: [...base.everySignalNodeStyles],
+    everyTapeNodeStyles: [...base.everyTapeNodeStyles],
+    everyRectangleCalloutNodeStyles: [...base.everyRectangleCalloutNodeStyles],
+    everyEllipseCalloutNodeStyles: [...base.everyEllipseCalloutNodeStyles],
+    everyCloudCalloutNodeStyles: [...base.everyCloudCalloutNodeStyles],
+    everySingleArrowNodeStyles: [...base.everySingleArrowNodeStyles],
+    everyDoubleArrowNodeStyles: [...base.everyDoubleArrowNodeStyles]
+  };
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1668,269 +1833,20 @@ function resolveFrameMeta(
         continue;
       }
 
-      if (entry.key === "every node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyNodeStyles = [parsed];
+      const replaceBucket = FRAME_STYLE_BUCKET_BY_STYLE_KEY[entry.key];
+      if (replaceBucket) {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          styleBuckets[replaceBucket] = [parsedLayer];
         }
         continue;
       }
-      if (entry.key === "every node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyNodeStyles = [...everyNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every rectangle node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyRectangleNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every rectangle node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyRectangleNodeStyles = [...everyRectangleNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every circle node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCircleNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every circle node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCircleNodeStyles = [...everyCircleNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every diamond node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDiamondNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every diamond node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDiamondNodeStyles = [...everyDiamondNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every trapezium node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyTrapeziumNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every trapezium node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyTrapeziumNodeStyles = [...everyTrapeziumNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every isosceles triangle node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyIsoscelesTriangleNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every isosceles triangle node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyIsoscelesTriangleNodeStyles = [...everyIsoscelesTriangleNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every kite node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyKiteNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every kite node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyKiteNodeStyles = [...everyKiteNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every dart node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDartNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every dart node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDartNodeStyles = [...everyDartNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every circular sector node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCircularSectorNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every circular sector node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCircularSectorNodeStyles = [...everyCircularSectorNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cylinder node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCylinderNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cylinder node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCylinderNodeStyles = [...everyCylinderNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cloud node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCloudNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cloud node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCloudNodeStyles = [...everyCloudNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every starburst node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyStarburstNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every starburst node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyStarburstNodeStyles = [...everyStarburstNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every signal node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everySignalNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every signal node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everySignalNodeStyles = [...everySignalNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every tape node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyTapeNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every tape node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyTapeNodeStyles = [...everyTapeNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every rectangle callout node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyRectangleCalloutNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every rectangle callout node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyRectangleCalloutNodeStyles = [...everyRectangleCalloutNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every ellipse callout node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyEllipseCalloutNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every ellipse callout node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyEllipseCalloutNodeStyles = [...everyEllipseCalloutNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cloud callout node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCloudCalloutNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every cloud callout node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyCloudCalloutNodeStyles = [...everyCloudCalloutNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every single arrow node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everySingleArrowNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every single arrow node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everySingleArrowNodeStyles = [...everySingleArrowNodeStyles, parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every double arrow node/.style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDoubleArrowNodeStyles = [parsed];
-        }
-        continue;
-      }
-      if (entry.key === "every double arrow node/.append style") {
-        const parsed = parseStyleValueAsOptionList(entry.valueRaw);
-        if (parsed) {
-          everyDoubleArrowNodeStyles = [...everyDoubleArrowNodeStyles, parsed];
+
+      const appendBucket = FRAME_STYLE_BUCKET_BY_APPEND_KEY[entry.key];
+      if (appendBucket) {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          styleBuckets[appendBucket] = [...styleBuckets[appendBucket], parsedLayer];
         }
       }
     }
@@ -1949,28 +1865,41 @@ function resolveFrameMeta(
     pinDistancePt,
     pinEdgeRaw,
     transformShape,
-    everyNodeStyles,
-    everyRectangleNodeStyles,
-    everyCircleNodeStyles,
-    everyDiamondNodeStyles,
-    everyTrapeziumNodeStyles,
-    everyIsoscelesTriangleNodeStyles,
-    everyKiteNodeStyles,
-    everyDartNodeStyles,
-    everyCircularSectorNodeStyles,
-    everyCylinderNodeStyles,
-    everyCloudNodeStyles,
-    everyStarburstNodeStyles,
-    everySignalNodeStyles,
-    everyTapeNodeStyles,
-    everyRectangleCalloutNodeStyles,
-    everyEllipseCalloutNodeStyles,
-    everyCloudCalloutNodeStyles,
-    everySingleArrowNodeStyles,
-    everyDoubleArrowNodeStyles
+    ...styleBuckets
   };
 }
 
+function parseProvenanceStyleLayer(
+  entry: Extract<OptionListAst["entries"][number], { kind: "kv" }>,
+  sourceRef: StyleSourceRef
+): ProvenanceOptionList | null {
+  const valueOffset = resolveOptionValueStartOffset(entry);
+  const parsed = parseStyleValueAsOptionList(entry.valueRaw, valueOffset);
+  if (!parsed) {
+    return null;
+  }
+  return {
+    options: parsed,
+    sourceRef: {
+      sourceId: sourceRef.sourceId,
+      sourceSpan: entry.span,
+      sourceKind: sourceRef.sourceKind,
+      label: entry.key
+    }
+  };
+}
+
+function resolveOptionValueStartOffset(entry: Extract<OptionListAst["entries"][number], { kind: "kv" }>): number {
+  const relative = entry.raw.indexOf(entry.valueRaw);
+  if (relative >= 0) {
+    return entry.span.from + relative;
+  }
+  return entry.span.from;
+}
+
+/* legacy kept for context in git history:
+  old resolveFrameMeta implementation replaced by provenance-aware bucket maps
+*/
 function parseBoolish(raw: string): boolean | null {
   const normalized = raw.trim().toLowerCase();
   if (normalized === "true" || normalized === "yes" || normalized === "1") {

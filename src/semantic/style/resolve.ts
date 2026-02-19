@@ -1,52 +1,195 @@
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import type { Matrix2D, Point, ResolvedStyle } from "../types.js";
+import {
+  cloneResolvedStyle,
+  cloneStyleChain,
+  cloneStyleSourceRef,
+  diffResolvedStyle,
+  type ResolvedStyleTrace,
+  type StyleChainEntry,
+  type StyleSourceRef,
+  type StyleTraceLayerInput
+} from "../style-chain.js";
 import { parseArrowSpecification } from "./arrows.js";
 import { applyFlagEntry } from "./apply-flag.js";
 import type { ApplyOutcome } from "./apply-types.js";
 import { applyKvEntry } from "./apply-kv.js";
 import type { CustomStyleRegistry } from "./custom-styles.js";
-import { walkOptionEntriesWithCustomStyles } from "./custom-styles.js";
+import {
+  applyCustomStyleDefinition,
+  parseCustomStyleDefinition,
+  resolveCustomStyleInvocation
+} from "./custom-styles.js";
 import { commandDefaultStyle, defaultStyle, DEFAULT_TEXT_FONT_SIZE } from "./defaults.js";
 import { extractCircleRadius } from "./extract-circle-radius.js";
 import { parseStyleValueAsOptionList } from "./option-utils.js";
 
-export type ResolvedContextDelta = {
-  style: ResolvedStyle;
-  transform: Matrix2D;
-  diagnostics: string[];
-  expandedOptionLists: OptionListAst[];
-};
+export type ResolvedContextDelta = ResolvedStyleTrace;
 
 export type CoordinateResolver = (raw: string) => Point | null;
 
 export function resolveContextDelta(
   baseStyle: ResolvedStyle,
   baseTransform: Matrix2D,
-  optionLists: OptionListAst[],
+  optionLayers: StyleTraceLayerInput[],
   customStyles: CustomStyleRegistry = new Map(),
-  resolveCoordinate?: CoordinateResolver
+  resolveCoordinate?: CoordinateResolver,
+  baseChain: StyleChainEntry[] = []
 ): ResolvedContextDelta {
   const diagnostics: string[] = [];
-  let style = { ...baseStyle };
+  let style = cloneResolvedStyle(baseStyle);
   let transform = baseTransform;
+  const chain = cloneStyleChain(baseChain);
   const expandedEntries: OptionEntry[] = [];
 
-  walkOptionEntriesWithCustomStyles(
-    optionLists,
-    customStyles,
-    (entry) => {
-      expandedEntries.push(entry);
-      const outcome = applyOptionEntry(entry, style, transform, resolveCoordinate);
-      style = outcome.style;
-      transform = outcome.transform;
-      diagnostics.push(...outcome.diagnostics);
+  const topLevelLayers = optionLayers;
+  const topLevelOptionLists = topLevelLayers.flatMap((layer) => layer.rawOptions);
+
+  const applyLayer = (layer: StyleTraceLayerInput, activeStyles: Set<string>): void => {
+    const beforeStyle = cloneResolvedStyle(style);
+    const layerExpandedEntries: OptionEntry[] = [];
+    const rawOptions = layer.rawOptions;
+
+    for (const optionList of rawOptions) {
+      for (const entry of optionList.entries) {
+        applyEntry(entry, layer.sourceRef, activeStyles, layerExpandedEntries);
+      }
+    }
+
+    const afterStyle = cloneResolvedStyle(style);
+    const entry = makeStyleChainEntry(layer, beforeStyle, afterStyle, layerExpandedEntries);
+    chain.push(entry);
+    expandedEntries.push(...layerExpandedEntries);
+  };
+
+  const applyEntry = (
+    entry: OptionEntry,
+    layerSourceRef: StyleSourceRef | undefined,
+    activeStyles: Set<string>,
+    layerExpandedEntries: OptionEntry[]
+  ): void => {
+    if (entry.kind === "kv") {
+      const definition = parseCustomStyleDefinition(entry.key);
+      if (definition) {
+        const valueStart = resolveValueStartOffset(entry);
+        const nested = parseStyleValueAsOptionList(entry.valueRaw, valueStart);
+        if (!nested) {
+          diagnostics.push(`invalid-style-value:${entry.valueRaw}`);
+          return;
+        }
+        applyCustomStyleDefinition(
+          customStyles,
+          definition.name,
+          definition.kind,
+          nested,
+          deriveStyleSourceRef(layerSourceRef, entry.span, definition.name)
+        );
+        return;
+      }
+    }
+
+    const invocation = resolveCustomStyleInvocation(entry, customStyles);
+    if (invocation) {
+      if (activeStyles.has(invocation.name)) {
+        diagnostics.push(`custom-style-recursion:${invocation.name}`);
+        return;
+      }
+
+      const nextActive = new Set(activeStyles);
+      nextActive.add(invocation.name);
+      for (const nestedLayer of invocation.layers) {
+        applyLayer(
+          {
+            kind: "named-style",
+            styleName: invocation.name,
+            sourceRef: cloneStyleSourceRef(nestedLayer.sourceRef),
+            rawOptions: [nestedLayer.options]
+          },
+          nextActive
+        );
+      }
+      return;
+    }
+
+    layerExpandedEntries.push(entry);
+    const outcome = applyOptionEntry(entry, style, transform, resolveCoordinate);
+    style = outcome.style;
+    transform = outcome.transform;
+    diagnostics.push(...outcome.diagnostics);
+  };
+
+  for (const layer of topLevelLayers) {
+    applyLayer(layer, new Set());
+  }
+
+  return {
+    style,
+    transform,
+    diagnostics,
+    expandedOptionLists: buildExpandedOptionLists(topLevelOptionLists, expandedEntries),
+    chain
+  };
+}
+
+function makeStyleChainEntry(
+  layer: StyleTraceLayerInput,
+  beforeStyle: ResolvedStyle,
+  afterStyle: ResolvedStyle,
+  _expandedEntries: OptionEntry[]
+): StyleChainEntry {
+  const baseEntry = {
+    kind: layer.kind,
+    sourceRef: cloneStyleSourceRef(layer.sourceRef),
+    rawOptions: layer.rawOptions,
+    before: beforeStyle,
+    after: afterStyle,
+    resolvedContributions: diffResolvedStyle(beforeStyle, afterStyle)
+  } as const;
+
+  if (layer.kind === "named-style") {
+    return {
+      ...baseEntry,
+      kind: "named-style",
+      styleName: layer.styleName
+    };
+  }
+
+  if (layer.kind === "every-shape") {
+    return {
+      ...baseEntry,
+      kind: "every-shape",
+      shape: layer.shape
+    };
+  }
+
+  return {
+    ...baseEntry,
+    kind: layer.kind
+  };
+}
+
+function resolveValueStartOffset(entry: Extract<OptionEntry, { kind: "kv" }>): number {
+  const rawIndex = entry.raw.indexOf(entry.valueRaw);
+  if (rawIndex >= 0) {
+    return entry.span.from + rawIndex;
+  }
+  return entry.span.from;
+}
+
+function deriveStyleSourceRef(
+  layerSourceRef: StyleSourceRef | undefined,
+  entrySpan: { from: number; to: number },
+  label: string
+): StyleSourceRef {
+  return {
+    sourceId: layerSourceRef?.sourceId ?? "__unknown__",
+    sourceSpan: {
+      from: entrySpan.from,
+      to: entrySpan.to
     },
-    diagnostics
-  );
-
-  const expandedOptionLists = buildExpandedOptionLists(optionLists, expandedEntries);
-
-  return { style, transform, diagnostics, expandedOptionLists };
+    sourceKind: layerSourceRef?.sourceKind ?? "custom-style-definition",
+    label
+  };
 }
 
 function applyOptionEntry(
@@ -110,7 +253,13 @@ function buildExpandedOptionLists(optionLists: OptionListAst[], entries: OptionE
         to: spanTo
       },
       raw: optionLists.map((list) => list.raw).join(", "),
-      entries
+      entries: entries.map((entry) => ({
+        ...entry,
+        span: {
+          from: entry.span.from,
+          to: entry.span.to
+        }
+      }))
     }
   ];
 }

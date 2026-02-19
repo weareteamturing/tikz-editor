@@ -13,12 +13,14 @@ import { makePath } from "./elements.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { normalizeOptionValue, toRadians } from "./shared.js";
 import { createEditHandle } from "../edit-handles.js";
+import type { StyleChainEntry } from "../style-chain.js";
 
 export function applyToOperation(
   item: ToOperationItem,
   context: SemanticContext,
   statement: PathStatement,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   activePath: ScenePath | null,
   previousSegmentRoundedCorners: number | null,
   markFeature: FeatureMarkFn,
@@ -31,14 +33,25 @@ export function applyToOperation(
   frontNodeElements: SceneElement[];
   previousSegmentRoundedCorners?: number | null;
 } {
-  return applyToLikeOperation(item, context, statement, style, activePath, previousSegmentRoundedCorners, markFeature, pushDiagnostic, {
-    operationKeyword: "to",
-    operationFeature: "to_operation",
-    keywordFeature: "keyword_to",
-    unsupportedDiagnostic: "unsupported-to-operation",
-    allowImplicitMoveToTargetWhenNoStart: true,
-    startCoordinateRaw
-  });
+  return applyToLikeOperation(
+    item,
+    context,
+    statement,
+    style,
+    styleChain,
+    activePath,
+    previousSegmentRoundedCorners,
+    markFeature,
+    pushDiagnostic,
+    {
+      operationKeyword: "to",
+      operationFeature: "to_operation",
+      keywordFeature: "keyword_to",
+      unsupportedDiagnostic: "unsupported-to-operation",
+      allowImplicitMoveToTargetWhenNoStart: true,
+      startCoordinateRaw
+    }
+  );
 }
 
 export function applyEdgeOperation(
@@ -46,6 +59,7 @@ export function applyEdgeOperation(
   context: SemanticContext,
   statement: PathStatement,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn,
   startPoint: Point | null,
@@ -62,7 +76,7 @@ export function applyEdgeOperation(
   context.currentPoint = startPoint;
   context.pathStartPoint = startPoint;
 
-  const handled = applyToLikeOperation(item, context, statement, style, null, null, markFeature, pushDiagnostic, {
+  const handled = applyToLikeOperation(item, context, statement, style, styleChain, null, null, markFeature, pushDiagnostic, {
     operationKeyword: "edge",
     operationFeature: "edge_operation",
     keywordFeature: "keyword_edge",
@@ -81,6 +95,7 @@ function applyToLikeOperation(
   context: SemanticContext,
   statement: PathStatement,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   activePath: ScenePath | null,
   previousSegmentRoundedCorners: number | null,
   markFeature: FeatureMarkFn,
@@ -156,7 +171,7 @@ function applyToLikeOperation(
   }
 
   const targetSpan = target.kind === "coordinate" ? (target.span ?? item.span) : item.span;
-  const handle = createEditHandle(evaluated, targetSpan, "path-point", context);
+  const handle = createEditHandle(evaluated, targetSpan, item.id, "path-point", context);
   if (handle) {
     context.editHandles.push(handle);
   }
@@ -201,11 +216,11 @@ function applyToLikeOperation(
   let path = activePath;
   if (!path) {
     if (effectiveStartPoint) {
-      path = makePath(statement.id, item.id, style, item.span);
+      path = makePath(statement.id, item.id, style, styleChain, item.span);
       path.commands.push({ kind: "M", to: effectiveStartPoint });
       context.pathStartPoint = effectiveStartPoint;
     } else {
-      path = makePath(statement.id, item.id, style, item.span);
+      path = makePath(statement.id, item.id, style, styleChain, item.span);
       path.commands.push({ kind: "M", to: effectiveTargetPoint });
       context.pathStartPoint = effectiveTargetPoint;
       context.currentPoint = effectiveTargetPoint;
@@ -245,7 +260,19 @@ function applyToLikeOperation(
   context.currentPoint = effectiveTargetPoint;
 
   for (const node of item.nodes ?? []) {
-    const resolvedNode = evaluateNodeItem(node, statement, context, style, markFeature, pushDiagnostic, segment, undefined, 0.5);
+    const resolvedNode = evaluateNodeItem(
+      node,
+      statement,
+      context,
+      style,
+      markFeature,
+      pushDiagnostic,
+      segment,
+      undefined,
+      0.5,
+      undefined,
+      styleChain
+    );
     behindNodeElements.push(...resolvedNode.behindElements);
     frontNodeElements.push(...resolvedNode.frontElements);
   }

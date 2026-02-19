@@ -7,6 +7,7 @@ import type { SemanticContext } from "../context.js";
 import type { NodePositioningResolution } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
+import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
 import type { ResolvedStyle, SceneElement } from "../types.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
@@ -100,6 +101,7 @@ export type EvaluateMatrixNodeParams = {
   matrixMode: MatrixMode;
   nodeShape: NodeShape;
   nodeStyle: ResolvedStyle;
+  nodeStyleChain: StyleChainEntry[];
   effectiveNodeOptions: OptionListAst | undefined;
   effectiveNodeLocalOptions: OptionListAst | undefined;
   inheritedTransformScale: number;
@@ -219,16 +221,20 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   }
 
   const matrixNodeElements: SceneElement[] = [];
+  const pushMatrixNodeElement = (element: SceneElement): void => {
+    element.styleChain = cloneStyleChain(params.nodeStyleChain);
+    matrixNodeElements.push(element);
+  };
   const matrixBoxPaintMode = resolveNodeBoxPaintMode(params.effectiveNodeLocalOptions);
   if (matrixBoxPaintMode.draw || matrixBoxPaintMode.fill || params.nodeStyle.shadowLayers.length > 0) {
     const matrixBoxStyle = applyNodeBoxPaintMode(params.nodeStyle, matrixBoxPaintMode);
     const calloutPointerOffset = resolveCalloutPointerOffset(shapeGeometry, params.context, matrixCenter);
     if (params.nodeShape === "circle") {
-      matrixNodeElements.push(makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span));
+      pushMatrixNodeElement(makeCircleElement(params.statement.id, matrixCenter, matrixLayout.visualRadius, matrixBoxStyle, params.item.span));
       params.markFeature("shape_circle", "supported");
       params.markFeature("svg_circle", "supported");
     } else if (params.nodeShape === "ellipse") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeEllipseElement(
           params.statement.id,
           params.item.id,
@@ -241,7 +247,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       );
       params.markFeature("keyword_ellipse", "supported");
     } else if (params.nodeShape === "diamond") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeDiamondElement(
           params.statement.id,
           params.item.id,
@@ -256,7 +262,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_diamond", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "trapezium") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeTrapeziumElement(
           params.statement.id,
           params.item.id,
@@ -277,7 +283,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_trapezium", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "semicircle") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeSemicircleElement(
           params.statement.id,
           params.item.id,
@@ -294,7 +300,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_semicircle", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "isosceles triangle") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeIsoscelesTriangleElement(
           params.statement.id,
           params.item.id,
@@ -313,7 +319,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_isosceles_triangle", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "kite") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeKiteElement(
           params.statement.id,
           params.item.id,
@@ -332,7 +338,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_kite", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "dart") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeDartElement(
           params.statement.id,
           params.item.id,
@@ -351,7 +357,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_dart", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "circular sector") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeCircularSectorElement(
           params.statement.id,
           params.item.id,
@@ -369,7 +375,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_circular_sector", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "cylinder") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeCylinderElement(
           params.statement.id,
           params.item.id,
@@ -387,7 +393,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_cylinder", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "regular polygon") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeRegularPolygonElement(
           params.statement.id,
           params.item.id,
@@ -405,7 +411,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_regular_polygon", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "star") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeStarElement(
           params.statement.id,
           params.item.id,
@@ -426,7 +432,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_star", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "cloud") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeCloudElement(
           params.statement.id,
           params.item.id,
@@ -447,7 +453,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_cloud", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "starburst") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeStarburstElement(
           params.statement.id,
           params.item.id,
@@ -467,7 +473,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_starburst", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "signal") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeSignalElement(
           params.statement.id,
           params.item.id,
@@ -486,7 +492,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_signal", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "tape") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeTapeElement(
           params.statement.id,
           params.item.id,
@@ -505,7 +511,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_tape", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle callout") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeRectangleCalloutElement(
           params.statement.id,
           params.item.id,
@@ -525,7 +531,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_rectangle_callout", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "ellipse callout") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeEllipseCalloutElement(
           params.statement.id,
           params.item.id,
@@ -545,7 +551,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_ellipse_callout", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "cloud callout") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeCloudCalloutElement(
           params.statement.id,
           params.item.id,
@@ -572,7 +578,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_cloud_callout", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "single arrow") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeSingleArrowElement(
           params.statement.id,
           params.item.id,
@@ -592,7 +598,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_single_arrow", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "double arrow") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeDoubleArrowElement(
           params.statement.id,
           params.item.id,
@@ -612,7 +618,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
       params.markFeature("shape_double_arrow", "supported");
       params.markFeature("svg_path", "supported");
     } else if (params.nodeShape === "rectangle") {
-      matrixNodeElements.push(
+      pushMatrixNodeElement(
         makeNodeBoxElement(
           params.statement.id,
           params.item.id,

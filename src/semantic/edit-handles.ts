@@ -6,6 +6,7 @@ import type { EditHandle } from "./types.js";
 export function createEditHandle(
   evaluated: EvaluatedCoordinate,
   sourceSpan: Span,
+  sourceId: string,
   kind: "node-position" | "path-point",
   context: SemanticContext
 ): EditHandle | null {
@@ -16,6 +17,7 @@ export function createEditHandle(
 
   return {
     id: `handle-${sourceSpan.from}-${sourceSpan.to}-${context.editHandles.length}`,
+    sourceId,
     kind,
     world: evaluated.world,
     local: evaluated.local ?? undefined,

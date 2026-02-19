@@ -7,6 +7,8 @@ import type { SemanticContext } from "../context.js";
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { coordinateInner, normalizeOptionValue, toRadians } from "./shared.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
+import type { StyleChainEntry } from "../style-chain.js";
+import { cloneStyleChain } from "../style-chain.js";
 
 export function extractGridSteps(
   item: PathOptionItem,
@@ -140,11 +142,12 @@ export function makeGridElements(
   stepX: number,
   stepY: number,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number },
   transform?: Matrix2D
 ): ScenePath[] {
   if (transform) {
-    const affine = makeAffineGridElements(sourceId, itemId, from, to, stepX, stepY, style, span, transform);
+    const affine = makeAffineGridElements(sourceId, itemId, from, to, stepX, stepY, style, styleChain, span, transform);
     if (affine) {
       return affine;
     }
@@ -166,6 +169,7 @@ export function makeGridElements(
         sourceId,
         sourceSpan: span,
         style: { ...style },
+        styleChain: cloneStyleChain(styleChain),
         commands: [
           { kind: "M", to: { x, y: minY } },
           { kind: "L", to: { x, y: maxY } }
@@ -181,6 +185,7 @@ export function makeGridElements(
         sourceId,
         sourceSpan: span,
         style: { ...style },
+        styleChain: cloneStyleChain(styleChain),
         commands: [
           { kind: "M", to: { x: minX, y } },
           { kind: "L", to: { x: maxX, y } }
@@ -199,6 +204,7 @@ function makeAffineGridElements(
   stepX: number,
   stepY: number,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number },
   transform: Matrix2D
 ): ScenePath[] | null {
@@ -233,6 +239,7 @@ function makeAffineGridElements(
         sourceId,
         sourceSpan: span,
         style: { ...style },
+        styleChain: cloneStyleChain(styleChain),
         commands: [
           { kind: "M", to: fromPoint },
           { kind: "L", to: toPoint }
@@ -251,6 +258,7 @@ function makeAffineGridElements(
         sourceId,
         sourceSpan: span,
         style: { ...style },
+        styleChain: cloneStyleChain(styleChain),
         commands: [
           { kind: "M", to: fromPoint },
           { kind: "L", to: toPoint }

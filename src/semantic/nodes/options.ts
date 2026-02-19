@@ -1,10 +1,11 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
-import type { SemanticContext } from "../context.js";
+import type { ProvenanceOptionList, SemanticContext } from "../context.js";
 import { currentAnchorForDirection, parseDirectionalKey } from "../path/node-positioning.js";
 import { resolveContextDelta } from "../style/resolve.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
+import type { StyleTraceLayerInput } from "../style-chain.js";
 import type { ResolvedStyle } from "../types.js";
 import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
@@ -65,7 +66,22 @@ export function resolveNodeStyle(
   if (options) {
     const frame = context.stack[context.stack.length - 1];
     const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
-    const resolved = resolveContextDelta(baseStyle, frame.transform, expanded, cloneCustomStyleRegistry(frame.customStyles));
+    const layers: StyleTraceLayerInput[] =
+      expanded.length > 0
+        ? [
+            {
+              kind: "command",
+              sourceRef: {
+                sourceId: "__node-style__",
+                sourceSpan: options.span,
+                sourceKind: "node-options",
+                label: "node"
+              },
+              rawOptions: expanded
+            }
+          ]
+        : [];
+    const resolved = resolveContextDelta(baseStyle, frame.transform, layers, cloneCustomStyleRegistry(frame.customStyles));
     resolvedStyle = resolved.style;
   }
 
@@ -92,63 +108,87 @@ export function resolveNodeOptionScale(
 
   const frame = context.stack[context.stack.length - 1];
   const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
-  const resolved = resolveContextDelta(baseStyle, frame.transform, expanded, cloneCustomStyleRegistry(frame.customStyles));
+  const layers: StyleTraceLayerInput[] =
+    expanded.length > 0
+      ? [
+          {
+            kind: "command",
+            sourceRef: {
+              sourceId: "__node-scale__",
+              sourceSpan: options.span,
+              sourceKind: "node-options",
+              label: "node"
+            },
+            rawOptions: expanded
+          }
+        ]
+      : [];
+  const resolved = resolveContextDelta(baseStyle, frame.transform, layers, cloneCustomStyleRegistry(frame.customStyles));
   return computeRelativeTransformScale(frame.transform, resolved.transform);
 }
 
 export function resolveEffectiveNodeOptions(params: {
   statementOptions: OptionListAst | undefined;
   nodeOptions: OptionListAst | undefined;
-  everyNodeStyles: OptionListAst[];
-  everyRectangleNodeStyles: OptionListAst[];
-  everyCircleNodeStyles: OptionListAst[];
-  everyDiamondNodeStyles: OptionListAst[];
-  everyTrapeziumNodeStyles: OptionListAst[];
-  everyIsoscelesTriangleNodeStyles: OptionListAst[];
-  everyKiteNodeStyles: OptionListAst[];
-  everyDartNodeStyles: OptionListAst[];
-  everyCircularSectorNodeStyles: OptionListAst[];
-  everyCylinderNodeStyles: OptionListAst[];
-  everyCloudNodeStyles: OptionListAst[];
-  everyStarburstNodeStyles: OptionListAst[];
-  everySignalNodeStyles: OptionListAst[];
-  everyTapeNodeStyles: OptionListAst[];
-  everyRectangleCalloutNodeStyles: OptionListAst[];
-  everyEllipseCalloutNodeStyles: OptionListAst[];
-  everyCloudCalloutNodeStyles: OptionListAst[];
-  everySingleArrowNodeStyles: OptionListAst[];
-  everyDoubleArrowNodeStyles: OptionListAst[];
+  everyNodeStyles: NodeStyleOptionList[];
+  everyRectangleNodeStyles: NodeStyleOptionList[];
+  everyCircleNodeStyles: NodeStyleOptionList[];
+  everyDiamondNodeStyles: NodeStyleOptionList[];
+  everyTrapeziumNodeStyles: NodeStyleOptionList[];
+  everyIsoscelesTriangleNodeStyles: NodeStyleOptionList[];
+  everyKiteNodeStyles: NodeStyleOptionList[];
+  everyDartNodeStyles: NodeStyleOptionList[];
+  everyCircularSectorNodeStyles: NodeStyleOptionList[];
+  everyCylinderNodeStyles: NodeStyleOptionList[];
+  everyCloudNodeStyles: NodeStyleOptionList[];
+  everyStarburstNodeStyles: NodeStyleOptionList[];
+  everySignalNodeStyles: NodeStyleOptionList[];
+  everyTapeNodeStyles: NodeStyleOptionList[];
+  everyRectangleCalloutNodeStyles: NodeStyleOptionList[];
+  everyEllipseCalloutNodeStyles: NodeStyleOptionList[];
+  everyCloudCalloutNodeStyles: NodeStyleOptionList[];
+  everySingleArrowNodeStyles: NodeStyleOptionList[];
+  everyDoubleArrowNodeStyles: NodeStyleOptionList[];
 }): OptionListAst | undefined {
-  const base = mergeOptionLists([...params.everyNodeStyles, params.statementOptions, params.nodeOptions]);
+  const base = mergeOptionLists([
+    ...params.everyNodeStyles.map(optionListFromNodeStyleSource),
+    params.statementOptions,
+    params.nodeOptions
+  ]);
   const shape = resolveNodeShape(base);
   const shapeStyles = resolveShapeStyleLists(shape, params);
 
-  return mergeOptionLists([...params.everyNodeStyles, ...shapeStyles, params.statementOptions, params.nodeOptions]);
+  return mergeOptionLists([
+    ...params.everyNodeStyles.map(optionListFromNodeStyleSource),
+    ...shapeStyles.map(optionListFromNodeStyleSource),
+    params.statementOptions,
+    params.nodeOptions
+  ]);
 }
 
 function resolveShapeStyleLists(
   shape: NodeShape,
   params: {
-    everyRectangleNodeStyles: OptionListAst[];
-    everyCircleNodeStyles: OptionListAst[];
-    everyDiamondNodeStyles: OptionListAst[];
-    everyTrapeziumNodeStyles: OptionListAst[];
-    everyIsoscelesTriangleNodeStyles: OptionListAst[];
-    everyKiteNodeStyles: OptionListAst[];
-    everyDartNodeStyles: OptionListAst[];
-    everyCircularSectorNodeStyles: OptionListAst[];
-    everyCylinderNodeStyles: OptionListAst[];
-    everyCloudNodeStyles: OptionListAst[];
-    everyStarburstNodeStyles: OptionListAst[];
-    everySignalNodeStyles: OptionListAst[];
-    everyTapeNodeStyles: OptionListAst[];
-    everyRectangleCalloutNodeStyles: OptionListAst[];
-    everyEllipseCalloutNodeStyles: OptionListAst[];
-    everyCloudCalloutNodeStyles: OptionListAst[];
-    everySingleArrowNodeStyles: OptionListAst[];
-    everyDoubleArrowNodeStyles: OptionListAst[];
+    everyRectangleNodeStyles: NodeStyleOptionList[];
+    everyCircleNodeStyles: NodeStyleOptionList[];
+    everyDiamondNodeStyles: NodeStyleOptionList[];
+    everyTrapeziumNodeStyles: NodeStyleOptionList[];
+    everyIsoscelesTriangleNodeStyles: NodeStyleOptionList[];
+    everyKiteNodeStyles: NodeStyleOptionList[];
+    everyDartNodeStyles: NodeStyleOptionList[];
+    everyCircularSectorNodeStyles: NodeStyleOptionList[];
+    everyCylinderNodeStyles: NodeStyleOptionList[];
+    everyCloudNodeStyles: NodeStyleOptionList[];
+    everyStarburstNodeStyles: NodeStyleOptionList[];
+    everySignalNodeStyles: NodeStyleOptionList[];
+    everyTapeNodeStyles: NodeStyleOptionList[];
+    everyRectangleCalloutNodeStyles: NodeStyleOptionList[];
+    everyEllipseCalloutNodeStyles: NodeStyleOptionList[];
+    everyCloudCalloutNodeStyles: NodeStyleOptionList[];
+    everySingleArrowNodeStyles: NodeStyleOptionList[];
+    everyDoubleArrowNodeStyles: NodeStyleOptionList[];
   }
-): OptionListAst[] {
+): NodeStyleOptionList[] {
   if (shape === "circle") {
     return params.everyCircleNodeStyles;
   }
@@ -204,6 +244,12 @@ function resolveShapeStyleLists(
     return params.everyDoubleArrowNodeStyles;
   }
   return [];
+}
+
+type NodeStyleOptionList = OptionListAst | ProvenanceOptionList;
+
+function optionListFromNodeStyleSource(source: NodeStyleOptionList): OptionListAst {
+  return "options" in source ? source.options : source;
 }
 
 function mergeOptionLists(lists: Array<OptionListAst | undefined>): OptionListAst | undefined {

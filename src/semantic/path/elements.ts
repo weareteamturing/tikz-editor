@@ -2,14 +2,23 @@ import type { Point, ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, Sce
 import type { Matrix2D } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
+import type { StyleChainEntry } from "../style-chain.js";
+import { cloneStyleChain } from "../style-chain.js";
 
-export function makePath(sourceId: string, itemId: string, style: ResolvedStyle, span: { from: number; to: number }): ScenePath {
+export function makePath(
+  sourceId: string,
+  itemId: string,
+  style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
+  span: { from: number; to: number }
+): ScenePath {
   return {
     kind: "Path",
     id: `scene-path:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     commands: []
   };
 }
@@ -19,12 +28,13 @@ export function ensurePathForSubpath(
   sourceId: string,
   itemId: string,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number }
 ): ScenePath {
   if (activePath) {
     return activePath;
   }
-  return makePath(sourceId, itemId, style, span);
+  return makePath(sourceId, itemId, style, styleChain, span);
 }
 
 export function appendRectangleSubpath(
@@ -139,6 +149,7 @@ export function makeRectangleElement(
   from: Point,
   to: Point,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number },
   roundedCorners: number | null = style.roundedCorners,
   transform?: Matrix2D
@@ -152,6 +163,7 @@ export function makeRectangleElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     commands
   };
 }
@@ -190,6 +202,7 @@ export function makeCircleElement(
   center: Point,
   radius: number,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number }
 ): SceneCircle {
   return {
@@ -198,6 +211,7 @@ export function makeCircleElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     center,
     radius
   };
@@ -209,6 +223,7 @@ export function makeEllipseElement(
   rx: number,
   ry: number,
   style: ResolvedStyle,
+  styleChain: StyleChainEntry[],
   span: { from: number; to: number },
   rotation = 0
 ): SceneEllipse {
@@ -218,6 +233,7 @@ export function makeEllipseElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     center,
     rx,
     ry,

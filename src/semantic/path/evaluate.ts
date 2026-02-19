@@ -42,6 +42,7 @@ import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.
 import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
+import type { StyleTraceLayerInput } from "../style-chain.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -277,6 +278,7 @@ export function evaluatePathStatement(
   let hasPathCurrentPoint = false;
   const frame = context.stack[context.stack.length - 1];
   const frameTransform = frame.transform;
+  const statementStyleChain = frame.styleChain;
   const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
   const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
   const setCurrentPoint = (
@@ -419,27 +421,27 @@ export function evaluatePathStatement(
     itemId: string,
     span: { from: number; to: number }
   ): void => {
-    if (geometry.kind === "circle") {
-      markFeature("shape_circle", "supported");
-      if (shouldCompoundFilledSubpaths) {
-        activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, span);
-        appendCircleSubpath(activePath.commands, center, geometry.radius);
-        markFeature("svg_path", "supported");
-      } else {
-        markFeature("svg_circle", "supported");
-        geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, span));
+      if (geometry.kind === "circle") {
+        markFeature("shape_circle", "supported");
+        if (shouldCompoundFilledSubpaths) {
+        activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
+          appendCircleSubpath(activePath.commands, center, geometry.radius);
+          markFeature("svg_path", "supported");
+        } else {
+          markFeature("svg_circle", "supported");
+          geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, statementStyleChain, span));
+        }
+        return;
       }
-      return;
-    }
 
     markFeature("keyword_ellipse", "supported");
     if (shouldCompoundFilledSubpaths) {
-      activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, span);
+      activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
       appendEllipseSubpath(activePath.commands, center, geometry.rx, geometry.ry, geometry.rotation);
       markFeature("svg_path", "supported");
       return;
     }
-    geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, span, geometry.rotation));
+    geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, statementStyleChain, span, geometry.rotation));
   };
 
   for (let index = 0; index < statement.items.length; index += 1) {
@@ -493,11 +495,13 @@ export function evaluatePathStatement(
           const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
           markFeature("keyword_ellipse", "supported");
           if (shouldCompoundFilledSubpaths) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
             appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
             markFeature("svg_path", "supported");
           } else {
-            geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, item.span, geometry.rotation));
+            geometryElements.push(
+              makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statementStyleChain, item.span, geometry.rotation)
+            );
           }
           pendingEllipseCenter = null;
           pendingEllipseRadii = null;
@@ -511,7 +515,7 @@ export function evaluatePathStatement(
         if (shorthand) {
           let path: ScenePath | null = activePath;
           if (!path) {
-            path = makePath(statement.id, item.id, style, item.span);
+            path = makePath(statement.id, item.id, style, statementStyleChain, item.span);
             path.commands.push({ kind: "M", to: pendingArc.from });
           }
           const appended = appendArcCommand(path.commands, pendingArc.from, shorthand, frameTransform);
@@ -544,7 +548,7 @@ export function evaluatePathStatement(
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);
       const handleKind = statement.command === "node" ? "node-position" : "path-point";
-      const handle = createEditHandle(evaluated, item.span, handleKind, context);
+      const handle = createEditHandle(evaluated, item.span, item.id, handleKind, context);
       if (handle) context.editHandles.push(handle);
       for (const code of evaluated.diagnostics) {
         pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, item.span.from, item.span.to);
@@ -567,12 +571,13 @@ export function evaluatePathStatement(
             item.id,
             pendingGrid.from,
             evaluated.world,
-            pendingGrid.stepX,
-            pendingGrid.stepY,
-            style,
-            item.span,
-            frameTransform
-          )
+              pendingGrid.stepX,
+              pendingGrid.stepY,
+              style,
+              statementStyleChain,
+              item.span,
+              frameTransform
+            )
         );
         setCurrentPoint(evaluated.world, evaluated.world, {
           form: item.form,
@@ -585,19 +590,20 @@ export function evaluatePathStatement(
       if (pendingRectangleFrom) {
         markFeature("shape_rectangle", "supported");
         if (shouldCompoundFilledSubpaths) {
-          activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, item.span);
+          activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
           appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.world, activeRoundedCorners, frameTransform);
         } else {
           geometryElements.push(
             makeRectangleElement(
               statement.id,
               item.id,
-              pendingRectangleFrom,
-              evaluated.world,
-              style,
-              item.span,
-              activeRoundedCorners,
-              frameTransform
+                pendingRectangleFrom,
+                evaluated.world,
+                style,
+                statementStyleChain,
+                item.span,
+                activeRoundedCorners,
+                frameTransform
             )
           );
         }
@@ -636,7 +642,7 @@ export function evaluatePathStatement(
       }
 
       if (!activePath) {
-        activePath = makePath(statement.id, item.id, style, statement.span);
+        activePath = makePath(statement.id, item.id, style, statementStyleChain, statement.span);
         if (hasOperatorSegment && pathSourcePoint) {
           activePath.commands.push({ kind: "M", to: pathSourcePoint });
           const appended = appendPathPoint(
@@ -759,7 +765,7 @@ export function evaluatePathStatement(
             index = parsedCurve.consumedIndex;
             continue;
           }
-          activePath = makePath(statement.id, item.id, style, statement.span);
+          activePath = makePath(statement.id, item.id, style, statementStyleChain, statement.span);
           activePath.commands.push({ kind: "M", to: context.currentPoint });
           context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
           markFeature("svg_path", "supported");
@@ -973,7 +979,7 @@ export function evaluatePathStatement(
         }
 
         if (!activePath) {
-          activePath = makePath(statement.id, item.id, style, statement.span);
+          activePath = makePath(statement.id, item.id, style, statementStyleChain, statement.span);
           activePath.commands.push({ kind: "M", to: context.currentPoint });
           context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
           markFeature("svg_path", "supported");
@@ -1027,7 +1033,7 @@ export function evaluatePathStatement(
 
         let path: ScenePath | null = activePath;
         if (!path) {
-          path = makePath(statement.id, item.id, style, statement.span);
+          path = makePath(statement.id, item.id, style, statementStyleChain, statement.span);
           path.commands.push({ kind: "M", to: context.currentPoint });
           context.pathStartPoint = context.pathStartPoint ?? context.currentPoint;
           markFeature("svg_path", "supported");
@@ -1120,7 +1126,7 @@ export function evaluatePathStatement(
         if (arcParams) {
           let path: ScenePath | null = activePath;
           if (!path) {
-            path = makePath(statement.id, item.id, style, item.span);
+            path = makePath(statement.id, item.id, style, statementStyleChain, item.span);
             path.commands.push({ kind: "M", to: pendingArc.from });
           }
           const appended = appendArcCommand(path.commands, pendingArc.from, arcParams, frameTransform);
@@ -1193,7 +1199,8 @@ export function evaluatePathStatement(
         lastPlacementSegment,
         forcedMainNodeName,
         undefined,
-        standaloneNodeDefaultTarget
+        standaloneNodeDefaultTarget,
+        statementStyleChain
       );
       pendingNodeNameForNodeCommand = null;
       pendingEdgeStartCoordinateRaw = declaredNodeName ? `(${declaredNodeName.trim()})` : null;
@@ -1219,7 +1226,10 @@ export function evaluatePathStatement(
             markFeature,
             pushDiagnostic,
             null,
-            materialized.node.name
+            materialized.node.name,
+            undefined,
+            undefined,
+            statementStyleChain
           );
           behindNodeElements.push(...resolvedAdornment.behindElements);
           frontNodeElements.push(...resolvedAdornment.frontElements);
@@ -1239,16 +1249,39 @@ export function evaluatePathStatement(
               raw: `edge (${materialized.node.name})`
             };
 
-            const pinEdgeOptionLists = [
-              parseStyleValueAsOptionList("help lines"),
-              materialized.pinEdgeOptions
-            ].filter((list): list is NonNullable<typeof list> => list != null);
+            const pinEdgeOptionLayers: StyleTraceLayerInput[] = [];
+            const helpLinesOptions = parseStyleValueAsOptionList("help lines");
+            if (helpLinesOptions) {
+              pinEdgeOptionLayers.push({
+                kind: "command",
+                sourceRef: {
+                  sourceId: pinEdgeItem.id,
+                  sourceSpan: spec.span,
+                  sourceKind: "pin-edge-default",
+                  label: "help lines"
+                },
+                rawOptions: [helpLinesOptions]
+              });
+            }
+            if (materialized.pinEdgeOptions) {
+              pinEdgeOptionLayers.push({
+                kind: "command",
+                sourceRef: {
+                  sourceId: pinEdgeItem.id,
+                  sourceSpan: materialized.pinEdgeOptions.span,
+                  sourceKind: "pin-edge-options",
+                  label: "pin edge"
+                },
+                rawOptions: [materialized.pinEdgeOptions]
+              });
+            }
             const resolvedPinEdgeStyle = resolveContextDelta(
               style,
               frameTransform,
-              pinEdgeOptionLists,
+              pinEdgeOptionLayers,
               frame.customStyles,
-              (raw) => evaluateRawCoordinate(raw, context).world
+              (raw) => evaluateRawCoordinate(raw, context).world,
+              statementStyleChain
             );
             for (const code of resolvedPinEdgeStyle.diagnostics) {
               pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
@@ -1259,6 +1292,7 @@ export function evaluatePathStatement(
               context,
               statement,
               resolvedPinEdgeStyle.style,
+              resolvedPinEdgeStyle.chain,
               markFeature,
               pushDiagnostic,
               materialized.mainPoint,
@@ -1375,7 +1409,7 @@ export function evaluatePathStatement(
         activePath = flushDrawableActivePath(geometryElements, activePath);
 
         if (points.length >= 2) {
-          const plotPath = makePath(statement.id, item.id, style, item.span);
+          const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
           plotPath.commands.push({ kind: "M", to: points[0] });
           for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
             plotPath.commands.push({ kind: "L", to: points[pointIndex] });
@@ -1398,7 +1432,7 @@ export function evaluatePathStatement(
             ...style,
             fill: "none"
           };
-          const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, item.span);
+          const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, statementStyleChain, item.span);
           appendPlotXMarks(markerPath.commands, points);
           if (hasDrawablePathSegments(markerPath)) {
             geometryElements.push(markerPath);
@@ -1435,6 +1469,7 @@ export function evaluatePathStatement(
         context,
         statement,
         style,
+        statementStyleChain,
         activePath,
         previousSegmentRoundedCorners,
         markFeature,
@@ -1491,17 +1526,50 @@ export function evaluatePathStatement(
         };
       }
 
-      const edgeOptionLists = [
-        everyEdgeOptions,
-        drawEdgeOptions,
-        edgeItem.options
-      ].filter((list): list is NonNullable<typeof list> => list != null);
+      const edgeOptionLayers: StyleTraceLayerInput[] = [];
+      if (everyEdgeOptions) {
+        edgeOptionLayers.push({
+          kind: "command",
+          sourceRef: {
+            sourceId: edgeItem.id,
+            sourceSpan: item.span,
+            sourceKind: "edge-default",
+            label: "every edge"
+          },
+          rawOptions: [everyEdgeOptions]
+        });
+      }
+      if (drawEdgeOptions) {
+        edgeOptionLayers.push({
+          kind: "command",
+          sourceRef: {
+            sourceId: edgeItem.id,
+            sourceSpan: item.span,
+            sourceKind: "edge-default",
+            label: "draw"
+          },
+          rawOptions: [drawEdgeOptions]
+        });
+      }
+      if (edgeItem.options) {
+        edgeOptionLayers.push({
+          kind: "command",
+          sourceRef: {
+            sourceId: edgeItem.id,
+            sourceSpan: edgeItem.optionsSpan ?? item.span,
+            sourceKind: "edge-options",
+            label: "edge"
+          },
+          rawOptions: [edgeItem.options]
+        });
+      }
       const resolvedEdgeStyle = resolveContextDelta(
         style,
         frameTransform,
-        edgeOptionLists,
+        edgeOptionLayers,
         frame.customStyles,
-        (raw) => evaluateRawCoordinate(raw, context).world
+        (raw) => evaluateRawCoordinate(raw, context).world,
+        statementStyleChain
       );
       for (const code of resolvedEdgeStyle.diagnostics) {
         if (code === "unsupported-option-flag:every edge") {
@@ -1515,6 +1583,7 @@ export function evaluatePathStatement(
         context,
         statement,
         resolvedEdgeStyle.style,
+        resolvedEdgeStyle.chain,
         markFeature,
         pushDiagnostic,
         edgeOperationStart.point,
@@ -1569,11 +1638,13 @@ export function evaluatePathStatement(
     };
     const geometry = transformEllipseGeometry(radii.rx, radii.ry, 0, frameTransform);
     if (shouldCompoundFilledSubpaths) {
-      activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statement.span);
+      activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statementStyleChain, statement.span);
       appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
       markFeature("svg_path", "supported");
     } else {
-      geometryElements.push(makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statement.span, geometry.rotation));
+      geometryElements.push(
+        makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statementStyleChain, statement.span, geometry.rotation)
+      );
     }
     lastPlacementSegment = null;
   }

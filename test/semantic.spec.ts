@@ -4013,4 +4013,195 @@ describe("semantic evaluator", () => {
     const textLabels = foreachResult.scene.elements.filter((element) => element.kind === "Text");
     expect(textLabels).toHaveLength(2);
   });
+
+  it("records path style-chain ordering and contribution snapshots", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{base/.style={line width=1pt,blue}}
+  \begin{scope}[base,line width=2pt]
+    \draw[red] (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind !== "Path") {
+      return;
+    }
+
+    const namedStyleIndex = path.styleChain.findIndex((entry) => entry.kind === "named-style" && entry.styleName === "base");
+    const scopeIndex = path.styleChain.findIndex(
+      (entry) => entry.kind === "scope" && entry.sourceRef?.sourceKind === "scope-statement"
+    );
+    const commandIndex = path.styleChain.findIndex(
+      (entry) => entry.kind === "command" && entry.sourceRef?.sourceKind === "path-statement"
+    );
+    expect(namedStyleIndex).toBeGreaterThan(-1);
+    expect(scopeIndex).toBeGreaterThan(-1);
+    expect(commandIndex).toBeGreaterThan(-1);
+    expect(namedStyleIndex).toBeLessThan(scopeIndex);
+    expect(scopeIndex).toBeLessThan(commandIndex);
+
+    const commandLayer = path.styleChain[commandIndex];
+    expect(commandLayer?.before.stroke).toBe("#0000ff");
+    expect(commandLayer?.after.stroke).toBe("#ff0000");
+    expect(commandLayer?.resolvedContributions.stroke).toBe("#ff0000");
+  });
+
+  it("records node style-chain ordering for every-node/every-shape/command layers", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={draw},every circle node/.style={fill=blue}]
+  \node[circle,fill=red] at (0,0) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const circle = result.scene.elements.find((element) => element.kind === "Circle");
+    expect(circle?.kind).toBe("Circle");
+    if (circle?.kind !== "Circle") {
+      return;
+    }
+
+    const everyNodeIndex = circle.styleChain.findIndex((entry) => entry.kind === "every-node");
+    const everyShapeIndex = circle.styleChain.findIndex((entry) => entry.kind === "every-shape" && entry.shape === "circle");
+    const nodeCommandIndex = circle.styleChain.findIndex(
+      (entry) => entry.kind === "command" && entry.sourceRef?.sourceKind === "node-options"
+    );
+    expect(everyNodeIndex).toBeGreaterThan(-1);
+    expect(everyShapeIndex).toBeGreaterThan(-1);
+    expect(nodeCommandIndex).toBeGreaterThan(-1);
+    expect(everyNodeIndex).toBeLessThan(everyShapeIndex);
+    expect(everyShapeIndex).toBeLessThan(nodeCommandIndex);
+  });
+
+  it("records .style/.append style/.prefix style fragments as ordered named-style layers with spans", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \tikzset{
+    box/.style={line width=1pt},
+    box/.append style={red},
+    box/.prefix style={draw}
+  }
+  \draw[box] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind !== "Path") {
+      return;
+    }
+
+    const namedBoxLayers = path.styleChain.filter(
+      (entry): entry is Extract<(typeof path.styleChain)[number], { kind: "named-style" }> =>
+        entry.kind === "named-style" && entry.styleName === "box"
+    );
+    expect(namedBoxLayers).toHaveLength(3);
+    for (const layer of namedBoxLayers) {
+      expect(layer.sourceRef?.sourceId.length ?? 0).toBeGreaterThan(0);
+      expect(layer.sourceRef?.sourceSpan).toBeDefined();
+    }
+
+    const prefixSlice = source.slice(namedBoxLayers[0].sourceRef!.sourceSpan!.from, namedBoxLayers[0].sourceRef!.sourceSpan!.to);
+    const styleSlice = source.slice(namedBoxLayers[1].sourceRef!.sourceSpan!.from, namedBoxLayers[1].sourceRef!.sourceSpan!.to);
+    const appendSlice = source.slice(namedBoxLayers[2].sourceRef!.sourceSpan!.from, namedBoxLayers[2].sourceRef!.sourceSpan!.to);
+    expect(prefixSlice).toContain(".prefix style");
+    expect(styleSlice).toContain(".style");
+    expect(appendSlice).toContain(".append style");
+  });
+
+  it("attaches traced style chains to edge and pin-edge outputs", () => {
+    const source = String.raw`\begin{tikzpicture}[every edge/.style={draw,blue},pin edge={draw=green,dotted}]
+  \path (0,0) edge[dashed] (1,0);
+  \node[pin=above:P] at (0,1) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const edgePath = result.scene.elements.find((element) => element.kind === "Path" && element.id.includes("edge-operation"));
+    const pinEdgePath = result.scene.elements.find((element) => element.kind === "Path" && element.id.includes(":pin-edge:"));
+    expect(edgePath?.kind).toBe("Path");
+    expect(pinEdgePath?.kind).toBe("Path");
+    if (edgePath?.kind !== "Path" || pinEdgePath?.kind !== "Path") {
+      return;
+    }
+
+    expect(edgePath.styleChain.some((entry) => entry.kind === "named-style" && entry.styleName === "every edge")).toBe(true);
+    expect(edgePath.styleChain.some((entry) => entry.kind === "command" && entry.sourceRef?.sourceKind === "edge-options")).toBe(true);
+    expect(pinEdgePath.styleChain.some((entry) => entry.kind === "named-style" && entry.styleName === "help lines")).toBe(true);
+    expect(pinEdgePath.styleChain.some((entry) => entry.kind === "command" && entry.sourceRef?.sourceKind === "pin-edge-options")).toBe(true);
+  });
+
+  it("keeps independent style chains for matrix wrapper and generated cell elements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,draw,nodes={circle,draw}] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const matrixWrapper = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
+    const matrixCellTexts = result.scene.elements.filter((element) => element.kind === "Text" && element.id.includes("matrix-cell:"));
+    expect(matrixWrapper?.kind).toBe("Path");
+    expect(matrixCellTexts).toHaveLength(4);
+    if (matrixWrapper?.kind !== "Path") {
+      return;
+    }
+
+    const wrapperTailSourceId = matrixWrapper.styleChain[matrixWrapper.styleChain.length - 1]?.sourceRef?.sourceId ?? "";
+    expect(wrapperTailSourceId.includes("node:")).toBe(true);
+
+    const cellTailSourceIds = matrixCellTexts.map(
+      (cell) => cell.styleChain[cell.styleChain.length - 1]?.sourceRef?.sourceId ?? ""
+    );
+    expect(cellTailSourceIds.every((sourceId) => sourceId.includes("matrix-cell:"))).toBe(true);
+    expect(new Set(cellTailSourceIds).size).toBe(4);
+  });
+
+  it("emits non-empty source ids on style-chain entries and valid source spans where available", () => {
+    const source = String.raw`\begin{tikzpicture}[every edge/.style={draw,blue},every node/.style={draw}]
+  \tikzset{box/.style={line width=1pt},box/.append style={red},box/.prefix style={draw}}
+  \begin{scope}[box]
+    \draw[red] (0,0) -- (1,0) edge[dashed] (2,0);
+    \node[circle,fill=red] at (0,1) {A};
+  \end{scope}
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const allEntries = result.scene.elements.flatMap((element) => element.styleChain);
+    expect(allEntries.length).toBeGreaterThan(0);
+    for (const entry of allEntries) {
+      expect(entry.sourceRef?.sourceId.length ?? 0).toBeGreaterThan(0);
+      const span = entry.sourceRef?.sourceSpan;
+      if (!span) {
+        continue;
+      }
+      expect(span.from).toBeGreaterThanOrEqual(0);
+      expect(span.to).toBeLessThanOrEqual(source.length);
+      expect(span.to).toBeGreaterThan(span.from);
+      expect(source.slice(span.from, span.to).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps foreach-attributed handle source ids aligned with emitted element source ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,1} {
+    \draw (\x,0) -- (\x,1);
+  }
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceId));
+    expect(elementSourceIds.size).toBe(1);
+    const [elementSourceId] = [...elementSourceIds];
+    expect(elementSourceId.startsWith("foreach:")).toBe(true);
+    expect(result.editHandles.length).toBeGreaterThan(0);
+    for (const handle of result.editHandles) {
+      expect(handle.sourceId).toBe(elementSourceId);
+    }
+  });
 });

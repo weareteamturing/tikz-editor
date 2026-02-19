@@ -4,23 +4,29 @@ import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
-export function parseStyleValueAsOptionList(valueRaw: string): OptionListAst | null {
+export function parseStyleValueAsOptionList(valueRaw: string, absoluteFrom = 0): OptionListAst | null {
   const trimmed = valueRaw.trim();
   if (trimmed.length === 0) {
     return null;
   }
 
   let inner = trimmed;
+  let innerStartOffset = 0;
   if (inner.startsWith("{") && inner.endsWith("}")) {
-    inner = inner.slice(1, -1).trim();
+    const withoutOuter = inner.slice(1, -1);
+    const leadingInner = withoutOuter.search(/\S/);
+    innerStartOffset = 1 + (leadingInner >= 0 ? leadingInner : 0);
+    inner = withoutOuter.trim();
   }
 
   if (inner.length === 0) {
     return null;
   }
 
-  const optionRaw = inner.startsWith("[") ? inner : `[${inner}]`;
-  return parseOptionListRaw(optionRaw);
+  const hasExplicitBrackets = inner.startsWith("[");
+  const optionRaw = hasExplicitBrackets ? inner : `[${inner}]`;
+  const offsetAdjustment = hasExplicitBrackets ? innerStartOffset : innerStartOffset - 1;
+  return parseOptionListRaw(optionRaw, absoluteFrom + offsetAdjustment);
 }
 
 const FONT_STYLE_BY_COMMAND: Record<string, ResolvedStyle["fontStyle"]> = {

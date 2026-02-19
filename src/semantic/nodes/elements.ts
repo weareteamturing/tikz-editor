@@ -2,6 +2,8 @@ import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
 import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
+import type { StyleChainEntry } from "../style-chain.js";
+import { cloneStyleChain } from "../style-chain.js";
 import {
   makeCircularSector,
   makeCloudCallout,
@@ -32,7 +34,8 @@ export function makeCircleElement(
   center: Point,
   radius: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): SceneCircle {
   return {
     kind: "Circle",
@@ -40,6 +43,7 @@ export function makeCircleElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     center,
     radius
   };
@@ -55,7 +59,8 @@ export function makeTextElement(
   textBlockWidth?: number,
   textBlockHeight?: number,
   textRenderInfo?: NodeTextRenderInfo,
-  rotation?: number
+  rotation?: number,
+  styleChain: StyleChainEntry[] = []
 ): SceneText {
   return {
     kind: "Text",
@@ -63,6 +68,7 @@ export function makeTextElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     position,
     text,
     textBlockWidth,
@@ -150,7 +156,8 @@ export function makeNodeBoxElement(
   width: number,
   height: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
@@ -189,6 +196,7 @@ export function makeNodeBoxElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     commands
   };
 }
@@ -200,7 +208,8 @@ export function makeNodeEllipseElement(
   width: number,
   height: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): SceneEllipse {
   return {
     kind: "Ellipse",
@@ -208,6 +217,7 @@ export function makeNodeEllipseElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     center,
     rx: width / 2,
     ry: height / 2
@@ -222,13 +232,14 @@ export function makeNodeDiamondElement(
   height: number,
   aspect: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeDiamondPolygon(width / 2, height / 2, aspect).map((point) => ({
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeTrapeziumElement(
@@ -245,7 +256,8 @@ export function makeNodeTrapeziumElement(
   stretches: boolean,
   stretchesBody: boolean,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeTrapeziumPolygon(
     {
@@ -263,7 +275,7 @@ export function makeNodeTrapeziumElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeIsoscelesTriangleElement(
@@ -278,7 +290,8 @@ export function makeNodeIsoscelesTriangleElement(
   rotation: number,
   stretches: boolean,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeIsoscelesTrianglePolygon(
     {
@@ -294,7 +307,7 @@ export function makeNodeIsoscelesTriangleElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeKiteElement(
@@ -309,7 +322,8 @@ export function makeNodeKiteElement(
   lowerVertexAngle: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeKitePolygon(
     {
@@ -325,7 +339,7 @@ export function makeNodeKiteElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeDartElement(
@@ -340,7 +354,8 @@ export function makeNodeDartElement(
   tailAngle: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeDartPolygon(
     {
@@ -356,7 +371,7 @@ export function makeNodeDartElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeSemicircleElement(
@@ -369,7 +384,8 @@ export function makeNodeSemicircleElement(
   minimumHeight: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const semicircle = makeSemicircle(
     {
@@ -385,7 +401,7 @@ export function makeNodeSemicircleElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeCircularSectorElement(
@@ -399,7 +415,8 @@ export function makeNodeCircularSectorElement(
   sectorAngle: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const sector = makeCircularSector(
     {
@@ -416,7 +433,7 @@ export function makeNodeCircularSectorElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeRegularPolygonElement(
@@ -430,7 +447,8 @@ export function makeNodeRegularPolygonElement(
   sides: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const corners = makeRegularPolygon(
     {
@@ -445,7 +463,7 @@ export function makeNodeRegularPolygonElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeCylinderElement(
@@ -459,7 +477,8 @@ export function makeNodeCylinderElement(
   aspect: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const cylinder = makeCylinder(
     {
@@ -476,7 +495,7 @@ export function makeNodeCylinderElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeStarElement(
@@ -493,7 +512,8 @@ export function makeNodeStarElement(
   usesRatio: boolean,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const star = makeStar(
     {
@@ -512,7 +532,7 @@ export function makeNodeStarElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeCloudElement(
@@ -529,7 +549,8 @@ export function makeNodeCloudElement(
   ignoresAspect: boolean,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const cloud = makeCloud(
     {
@@ -548,7 +569,7 @@ export function makeNodeCloudElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeStarburstElement(
@@ -564,7 +585,8 @@ export function makeNodeStarburstElement(
   randomSeed: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const starburst = makeStarburst(
     {
@@ -582,7 +604,7 @@ export function makeNodeStarburstElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeSignalElement(
@@ -597,7 +619,8 @@ export function makeNodeSignalElement(
   toSides: SignalDirection[],
   fromSides: SignalDirection[],
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const signal = makeSignal(
     {
@@ -614,7 +637,7 @@ export function makeNodeSignalElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeTapeElement(
@@ -629,7 +652,8 @@ export function makeNodeTapeElement(
   bendBottom: TapeBendStyle,
   bendHeightPt: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const tape = makeTape(
     {
@@ -646,7 +670,7 @@ export function makeNodeTapeElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeRectangleCalloutElement(
@@ -662,7 +686,8 @@ export function makeNodeRectangleCalloutElement(
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const callout = makeRectangleCallout(
     {
@@ -680,7 +705,7 @@ export function makeNodeRectangleCalloutElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeEllipseCalloutElement(
@@ -696,7 +721,8 @@ export function makeNodeEllipseCalloutElement(
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const callout = makeEllipseCallout(
     {
@@ -714,7 +740,7 @@ export function makeNodeEllipseCalloutElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeCloudCalloutElement(
@@ -737,7 +763,8 @@ export function makeNodeCloudCalloutElement(
   pointerIsAbsolute: boolean,
   pointerShortenPt: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const callout = makeCloudCallout(
     {
@@ -766,7 +793,7 @@ export function makeNodeCloudCalloutElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodeMultiPolygonElement(sourceId, itemId, [cloudPolygon, pointerPolygon], style, span);
+  return makeNodeMultiPolygonElement(sourceId, itemId, [cloudPolygon, pointerPolygon], style, span, styleChain);
 }
 
 export function makeNodeSingleArrowElement(
@@ -782,7 +809,8 @@ export function makeNodeSingleArrowElement(
   headIndentPt: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const arrow = makeSingleArrow(
     {
@@ -800,7 +828,7 @@ export function makeNodeSingleArrowElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 export function makeNodeDoubleArrowElement(
@@ -816,7 +844,8 @@ export function makeNodeDoubleArrowElement(
   headIndentPt: number,
   rotation: number,
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const arrow = makeDoubleArrow(
     {
@@ -834,7 +863,7 @@ export function makeNodeDoubleArrowElement(
     x: center.x + point.x,
     y: center.y + point.y
   }));
-  return makeNodePolygonElement(sourceId, itemId, corners, style, span);
+  return makeNodePolygonElement(sourceId, itemId, corners, style, span, styleChain);
 }
 
 function makeNodePolygonElement(
@@ -842,7 +871,8 @@ function makeNodePolygonElement(
   itemId: string,
   corners: Point[],
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const first = corners[0] ?? { x: 0, y: 0 };
   const commands: ScenePathCommand[] = [{ kind: "M", to: first }];
@@ -856,6 +886,7 @@ function makeNodePolygonElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     commands
   };
 }
@@ -865,7 +896,8 @@ function makeNodeMultiPolygonElement(
   itemId: string,
   polygons: Point[][],
   style: ResolvedStyle,
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  styleChain: StyleChainEntry[] = []
 ): ScenePath {
   const commands: ScenePathCommand[] = [];
   for (const polygon of polygons) {
@@ -890,6 +922,7 @@ function makeNodeMultiPolygonElement(
     sourceId,
     sourceSpan: span,
     style: { ...style },
+    styleChain: cloneStyleChain(styleChain),
     commands
   };
 }

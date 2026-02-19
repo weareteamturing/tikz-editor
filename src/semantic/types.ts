@@ -2,6 +2,7 @@ import type { CoordinateForm, Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
+import type { StyleChainEntry } from "./style-chain.js";
 
 export const SHADOW_INHERIT_STROKE = "__tikz-shadow-inherit-stroke__";
 export const SHADOW_INHERIT_FILL = "__tikz-shadow-inherit-fill__";
@@ -94,6 +95,7 @@ export type ScenePath = {
   sourceSpan: Span;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
+  styleChain: StyleChainEntry[];
   commands: ScenePathCommand[];
 };
 
@@ -104,6 +106,7 @@ export type SceneCircle = {
   sourceSpan: Span;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
+  styleChain: StyleChainEntry[];
   center: Point;
   radius: number;
 };
@@ -115,6 +118,7 @@ export type SceneEllipse = {
   sourceSpan: Span;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
+  styleChain: StyleChainEntry[];
   center: Point;
   rx: number;
   ry: number;
@@ -128,6 +132,7 @@ export type SceneText = {
   sourceSpan: Span;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
+  styleChain: StyleChainEntry[];
   position: Point;
   text: string;
   textBlockWidth?: number;
@@ -254,6 +259,7 @@ export type { CoordinateForm };
 
 export type EditHandle = {
   id: string;
+  sourceId: string;
   kind: "node-position" | "path-point";
   world: Point;
   local?: Point;

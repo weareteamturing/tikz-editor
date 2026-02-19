@@ -5,6 +5,8 @@ import type { EditHandle, Point, Matrix2D, ResolvedStyle, SceneElement } from ".
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
+import type { StyleChainEntry, StyleSourceRef } from "./style-chain.js";
+import { cloneResolvedStyle } from "./style-chain.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -68,8 +70,14 @@ export type NamedNodeGeometry = {
   anchorPolygon?: Point[];
 };
 
+export type ProvenanceOptionList = {
+  options: OptionListAst;
+  sourceRef: StyleSourceRef;
+};
+
 export type SemanticContextFrame = {
   style: ResolvedStyle;
+  styleChain: StyleChainEntry[];
   transform: Matrix2D;
   customStyles: CustomStyleRegistry;
   colorAliases: Map<string, string>;
@@ -86,25 +94,25 @@ export type SemanticContextFrame = {
   pinDistancePt: number;
   pinEdgeRaw: string | null;
   transformShape: boolean;
-  everyNodeStyles: OptionListAst[];
-  everyRectangleNodeStyles: OptionListAst[];
-  everyCircleNodeStyles: OptionListAst[];
-  everyDiamondNodeStyles: OptionListAst[];
-  everyTrapeziumNodeStyles: OptionListAst[];
-  everyIsoscelesTriangleNodeStyles: OptionListAst[];
-  everyKiteNodeStyles: OptionListAst[];
-  everyDartNodeStyles: OptionListAst[];
-  everyCircularSectorNodeStyles: OptionListAst[];
-  everyCylinderNodeStyles: OptionListAst[];
-  everyCloudNodeStyles: OptionListAst[];
-  everyStarburstNodeStyles: OptionListAst[];
-  everySignalNodeStyles: OptionListAst[];
-  everyTapeNodeStyles: OptionListAst[];
-  everyRectangleCalloutNodeStyles: OptionListAst[];
-  everyEllipseCalloutNodeStyles: OptionListAst[];
-  everyCloudCalloutNodeStyles: OptionListAst[];
-  everySingleArrowNodeStyles: OptionListAst[];
-  everyDoubleArrowNodeStyles: OptionListAst[];
+  everyNodeStyles: ProvenanceOptionList[];
+  everyRectangleNodeStyles: ProvenanceOptionList[];
+  everyCircleNodeStyles: ProvenanceOptionList[];
+  everyDiamondNodeStyles: ProvenanceOptionList[];
+  everyTrapeziumNodeStyles: ProvenanceOptionList[];
+  everyIsoscelesTriangleNodeStyles: ProvenanceOptionList[];
+  everyKiteNodeStyles: ProvenanceOptionList[];
+  everyDartNodeStyles: ProvenanceOptionList[];
+  everyCircularSectorNodeStyles: ProvenanceOptionList[];
+  everyCylinderNodeStyles: ProvenanceOptionList[];
+  everyCloudNodeStyles: ProvenanceOptionList[];
+  everyStarburstNodeStyles: ProvenanceOptionList[];
+  everySignalNodeStyles: ProvenanceOptionList[];
+  everyTapeNodeStyles: ProvenanceOptionList[];
+  everyRectangleCalloutNodeStyles: ProvenanceOptionList[];
+  everyEllipseCalloutNodeStyles: ProvenanceOptionList[];
+  everyCloudCalloutNodeStyles: ProvenanceOptionList[];
+  everySingleArrowNodeStyles: ProvenanceOptionList[];
+  everyDoubleArrowNodeStyles: ProvenanceOptionList[];
 };
 
 export type SemanticContext = {
@@ -128,10 +136,26 @@ export function createSemanticContext(
   source = ""
 ): SemanticContext {
   const defaultNodeDistance = 28.4527559055;
+  const clonedStyle = cloneResolvedStyle(initialStyle);
+  const defaultGlobalSource: StyleSourceRef = {
+    sourceId: "__global__",
+    sourceKind: "global-default",
+    label: "TikZ defaults"
+  };
   return {
     stack: [
       {
-        style: initialStyle,
+        style: clonedStyle,
+        styleChain: [
+          {
+            kind: "global",
+            sourceRef: defaultGlobalSource,
+            rawOptions: [],
+            before: cloneResolvedStyle(clonedStyle),
+            after: cloneResolvedStyle(clonedStyle),
+            resolvedContributions: cloneResolvedStyle(clonedStyle)
+          }
+        ],
         transform: initialTransform,
         customStyles: createDefaultCustomStyleRegistry(),
         colorAliases: new Map(),
