@@ -176,4 +176,15 @@ describe("edit handles", () => {
     expect(h.world.y).toBeCloseTo(cm(1)); // 1cm from rotation
     expect(h.rewriteMode).toBe("direct");
   });
+
+  it("assigns unique handle ids for repeated source spans (e.g. foreach expansion)", () => {
+    const source = String.raw`\begin{tikzpicture}
+\foreach \x in {0,1,2} { \draw (\x,0) -- ++(1,0); }
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    expect(result.editHandles.length).toBeGreaterThan(1);
+    const ids = result.editHandles.map((handle) => handle.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
+  });
 });

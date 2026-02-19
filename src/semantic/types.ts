@@ -259,6 +259,8 @@ export type EditHandle = {
   local?: Point;
   transform: Matrix2D;
   sourceSpan: Span;
+  sourceText: string;
+  sourceFingerprint: string;
   coordinateForm: CoordinateForm;
   relativePrefix?: "+" | "++";
   relativeBaseWorld?: Point;

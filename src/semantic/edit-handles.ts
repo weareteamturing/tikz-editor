@@ -12,14 +12,17 @@ export function createEditHandle(
   if (!evaluated.world) return null;
 
   const rewriteMode = determineRewriteMode(evaluated);
+  const sourceText = context.source.slice(sourceSpan.from, sourceSpan.to);
 
   return {
-    id: `handle-${sourceSpan.from}-${sourceSpan.to}`,
+    id: `handle-${sourceSpan.from}-${sourceSpan.to}-${context.editHandles.length}`,
     kind,
     world: evaluated.world,
     local: evaluated.local ?? undefined,
     transform: evaluated.transform,
     sourceSpan,
+    sourceText,
+    sourceFingerprint: context.sourceFingerprint,
     coordinateForm: evaluated.coordinateForm,
     relativePrefix: evaluated.relativePrefix,
     relativeBaseWorld: evaluated.relativePrefix ? context.currentPoint ?? undefined : undefined,

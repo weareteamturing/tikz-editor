@@ -75,7 +75,7 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       span: diagnostic.span
     });
   }
-  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null);
+  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null, source);
 
   if (figure.options) {
     markFeature(featureUsage, "options_structured", "supported");

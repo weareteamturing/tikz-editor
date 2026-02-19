@@ -4,6 +4,7 @@ import type { MacroBinding, MacroExpansionTraceEvent } from "../macros/index.js"
 import type { EditHandle, Point, Matrix2D, ResolvedStyle, SceneElement } from "./types.js";
 import type { CustomStyleRegistry } from "./style/custom-styles.js";
 import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
+import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -108,6 +109,8 @@ export type SemanticContextFrame = {
 
 export type SemanticContext = {
   stack: SemanticContextFrame[];
+  source: string;
+  sourceFingerprint: string;
   namedCoordinates: Map<string, Point>;
   namedNodeGeometries: Map<string, NamedNodeGeometry>;
   namedPaths: Map<string, SceneElement[]>;
@@ -121,7 +124,8 @@ export type SemanticContext = {
 export function createSemanticContext(
   initialStyle: ResolvedStyle,
   initialTransform: Matrix2D,
-  textEngine: NodeTextEngine | null = null
+  textEngine: NodeTextEngine | null = null,
+  source = ""
 ): SemanticContext {
   const defaultNodeDistance = 28.4527559055;
   return {
@@ -169,6 +173,8 @@ export function createSemanticContext(
         everyDoubleArrowNodeStyles: []
       }
     ],
+    source,
+    sourceFingerprint: computeSourceFingerprint(source),
     namedCoordinates: new Map<string, Point>(),
     namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
     namedPaths: new Map<string, SceneElement[]>(),
