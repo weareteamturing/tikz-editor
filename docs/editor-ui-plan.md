@@ -591,8 +591,10 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Implement `deleteElement` action and wire to Delete key for single- and multi-element deletion
 
 ### Phase 6: Code editor enhancements
+- Status: mostly complete
 - `src/completion/index.ts`: `collectSymbols()` pure function + tests
 - CodeMirror autocomplete: option keys, color names, node/coordinate/style names from `collectSymbols()`, coordinate forms
+  * Autocomplete deactivated for now, too confusing.
 - Support `tab` key press while in editor for adding 2 spaces (soft indent) instead of jumping focus
 - Canvas ↔ source cross-highlighting: select element on canvas → selects its source span in source editor (without moving focus to the editor); cursor in source → select corresponding element (without focus shift). Similarly, hover on canvas → highlight (but not select) source span, and hover in source → highlight corresponding element on canvas.
 - Double clicking a \node on canvas selects its text content and moves focus to the code editor for quick text editing

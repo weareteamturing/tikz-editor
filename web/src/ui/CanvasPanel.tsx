@@ -4,10 +4,12 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
+import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import type {
   EditHandle,
@@ -20,6 +22,7 @@ import type {
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { useEditorStore } from "../store/store";
 import type { CanvasTransform, ToolMode } from "../store/types";
+import { requestSourceSelection } from "./source-sync";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -249,6 +252,14 @@ export function CanvasPanel() {
     if (!snapshot.scene || !svgResult) return [];
     return collectSelectionBounds(snapshot.scene.elements, selectedElementIds, svgResult.viewBox);
   }, [snapshot.scene, selectedElementIds, svgResult]);
+
+  const nodeTextSpans = useMemo(() => {
+    const figure = snapshot.parseResult?.figure;
+    if (!figure) {
+      return new Map<string, Span>();
+    }
+    return collectNodeTextSpans(figure.body);
+  }, [snapshot.parseResult]);
 
   const sourceBounds = useMemo(() => {
     if (!snapshot.scene || !svgResult) {
@@ -601,6 +612,28 @@ export function CanvasPanel() {
       };
     },
     [dispatch, selectedElementIds, svgResult, toolMode]
+  );
+
+  const onElementDoubleClick = useCallback(
+    (event: ReactMouseEvent<SVGElement>, sourceId: string) => {
+      if (toolMode !== "select") return;
+
+      const textSpan = nodeTextSpans.get(sourceId);
+      if (!textSpan) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      viewportRef.current?.focus({ preventScroll: true });
+
+      dispatch({ type: "SELECT", id: sourceId, additive: false });
+      requestSourceSelection({
+        from: textSpan.from,
+        to: textSpan.to,
+        sourceId,
+        focus: true
+      });
+    },
+    [dispatch, nodeTextSpans, toolMode]
   );
 
   const onHandlePointerDown = useCallback(
@@ -1491,6 +1524,7 @@ export function CanvasPanel() {
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -1518,6 +1552,7 @@ export function CanvasPanel() {
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -1551,6 +1586,7 @@ export function CanvasPanel() {
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -1576,6 +1612,7 @@ export function CanvasPanel() {
                         fill="transparent"
                         pointerEvents={toolMode === "select" ? "all" : "none"}
                         onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
+                        onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
                         onPointerEnter={() => {
                           if (toolMode === "select") {
                             dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -1592,17 +1629,6 @@ export function CanvasPanel() {
                 </g>
 
                 <g className={css.selectionOverlay}>
-                  {selectionBounds.map((entry) => (
-                    <rect
-                      key={`selection:${entry.sourceId}`}
-                      className={css.selectionRect}
-                      x={entry.bounds.minX}
-                      y={entry.bounds.minY}
-                      width={Math.max(0.001, entry.bounds.maxX - entry.bounds.minX)}
-                      height={Math.max(0.001, entry.bounds.maxY - entry.bounds.minY)}
-                      strokeWidth={selectionStrokeWidth}
-                    />
-                  ))}
                   {marqueeBounds && (
                     <rect
                       className={css.marqueeRect}
@@ -2193,6 +2219,56 @@ function collectNewSourceIds(elements: SceneElement[], beforeIds: ReadonlySet<st
     }
   }
   return [...newIds];
+}
+
+function collectNodeTextSpans(statements: readonly Statement[]): Map<string, Span> {
+  const spans = new Map<string, Span>();
+
+  const addNodeSpan = (sourceId: string, span: Span) => {
+    if (span.to <= span.from) {
+      return;
+    }
+    spans.set(sourceId, span);
+  };
+
+  const visitPathItems = (items: readonly PathItem[]) => {
+    const nodesForStatement: Array<{ id: string; textSpan: Span }> = [];
+    for (const item of items) {
+      if (item.kind === "Node") {
+        addNodeSpan(item.id, item.textSpan);
+        nodesForStatement.push({ id: item.id, textSpan: item.textSpan });
+        continue;
+      }
+
+      if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
+        for (const node of item.nodes) {
+          addNodeSpan(node.id, node.textSpan);
+          nodesForStatement.push({ id: node.id, textSpan: node.textSpan });
+        }
+      }
+    }
+    return nodesForStatement;
+  };
+
+  const visitStatements = (items: readonly Statement[]) => {
+    for (const statement of items) {
+      if (statement.kind === "Path") {
+        const statementNodes = visitPathItems(statement.items);
+        if (statement.command === "node" && statementNodes.length > 0) {
+          addNodeSpan(statement.id, statementNodes[0]!.textSpan);
+        } else if (statementNodes.length === 1) {
+          addNodeSpan(statement.id, statementNodes[0]!.textSpan);
+        }
+        continue;
+      }
+      if (statement.kind === "Scope") {
+        visitStatements(statement.body);
+      }
+    }
+  };
+
+  visitStatements(statements);
+  return spans;
 }
 
 function pickClosestSourceId(

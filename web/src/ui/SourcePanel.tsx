@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import {
+  EditorSelection,
   EditorState as CMState,
   Prec,
   Transaction,
@@ -20,9 +22,17 @@ import {
   keymap
 } from "@codemirror/view";
 import { basicSetup } from "codemirror";
+import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
+import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
+import type { SceneElement } from "tikz-editor/semantic/types";
+import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tikz-editor/semantic/style/constants";
 import { tikzLanguage } from "../codemirror-tikz";
 import { numberScrubber } from "../number-scrubber";
 import { useEditorStore } from "../store/store";
+import {
+  SOURCE_SELECTION_REQUEST_EVENT,
+  type SourceSelectionRequestDetail
+} from "./source-sync";
 import css from "./SourcePanel.module.css";
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
@@ -43,9 +53,107 @@ type DiagnosticInput = {
 
 type Diagnostic = DiagnosticInput;
 
+type SourceSpan = {
+  from: number;
+  to: number;
+};
+
+type SourceSpanEntry = {
+  sourceId: string;
+  from: number;
+  to: number;
+  width: number;
+};
+
+type SourceSpanIndex = {
+  bySourceId: ReadonlyMap<string, SourceSpan>;
+  sortedByWidth: SourceSpanEntry[];
+};
+
+const EMPTY_SPAN_INDEX: SourceSpanIndex = {
+  bySourceId: new Map(),
+  sortedByWidth: []
+};
+
+const EMPTY_SYMBOLS: DocumentSymbols = {
+  nodeNames: [],
+  styleNames: [],
+  coordinateNames: []
+};
+
 const MAX_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DEBOUNCE_MS = 120;
+
+const COMMON_OPTION_KEYS = [
+  "draw",
+  "fill",
+  "text",
+  "line width",
+  "opacity",
+  "fill opacity",
+  "text opacity",
+  "rounded corners",
+  "dash pattern",
+  "dashed",
+  "dotted",
+  "thick",
+  "thin",
+  "very thick",
+  "very thin",
+  "ultra thick",
+  "ultra thin",
+  "line cap",
+  "line join",
+  "font",
+  "xshift",
+  "yshift",
+  "shift",
+  "rotate",
+  "scale",
+  "xscale",
+  "yscale",
+  "minimum width",
+  "minimum height",
+  "minimum size",
+  "inner sep",
+  "outer sep",
+  "shape",
+  "name",
+  "alias",
+  "at",
+  "<-",
+  "->",
+  "<->"
+] as const;
+
+const COORDINATE_FORM_COMPLETIONS: Completion[] = [
+  { label: "(0,0)", type: "snippet", detail: "cartesian coordinate" },
+  { label: "(30:1cm)", type: "snippet", detail: "polar coordinate" },
+  { label: "++(1,0)", type: "snippet", detail: "incremental coordinate" },
+  { label: "+(1,0)", type: "snippet", detail: "relative coordinate" },
+  { label: "($(A)+(1,0)$)", type: "snippet", detail: "calc coordinate" },
+  { label: "(intersection of A--B and C--D)", type: "snippet", detail: "intersection coordinate" }
+];
+
+const OPTION_KEY_COMPLETIONS: Completion[] = uniqueStrings([
+  ...COMMON_OPTION_KEYS,
+  ...NON_STYLE_OPTION_KEYS,
+  ...NON_STYLE_OPTION_FLAGS
+]).map((key) => ({ label: key, type: "keyword", detail: "TikZ option" }));
+
+const COLOR_COMPLETIONS: Completion[] = uniqueStrings([...NAMED_COLORS]).map((color) => ({
+  label: color,
+  type: "constant",
+  detail: "color"
+}));
+
+const BASE_COMPLETIONS: Completion[] = dedupeCompletions([
+  ...OPTION_KEY_COMPLETIONS,
+  ...COLOR_COMPLETIONS,
+  ...COORDINATE_FORM_COMPLETIONS
+]);
+const ENABLE_TIKZ_AUTOCOMPLETE = false;
 
 // ── State fields ─────────────────────────────────────────────────────────────
 
@@ -112,7 +220,9 @@ const editorKeymap = Prec.highest(
   keymap.of([
     { key: "Mod-d", run: deleteLine, preventDefault: true },
     { key: "Mod-[", run: indentLess, preventDefault: true },
-    { key: "Mod-]", run: indentMore, preventDefault: true }
+    { key: "Mod-]", run: indentMore, preventDefault: true },
+    { key: "Tab", run: insertSoftIndent, preventDefault: true },
+    { key: "Shift-Tab", run: indentLess, preventDefault: true }
   ])
 );
 
@@ -121,38 +231,98 @@ const editorKeymap = Prec.highest(
 export function SourcePanel() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
+  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const dispatch = useEditorStore((s) => s.dispatch);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
-  // Track whether a CM update was triggered by us (WYSIWYG → CM), not the user
-  const ignoreNextUpdateRef = useRef(false);
+  const ignoreNextDocUpdateRef = useRef(false);
+  const ignoreNextSelectionSyncRef = useRef(false);
+  const suppressStoreSelectionSyncRef = useRef(false);
   const diagnosticTimerRef = useRef<number | null>(null);
+  const spanIndexRef = useRef<SourceSpanIndex>(EMPTY_SPAN_INDEX);
+  const symbolsRef = useRef<DocumentSymbols>(EMPTY_SYMBOLS);
+  const selectedElementIdsRef = useRef(selectedElementIds);
+
+  useEffect(() => {
+    selectedElementIdsRef.current = selectedElementIds;
+  }, [selectedElementIds]);
+
+  useEffect(() => {
+    spanIndexRef.current = buildSourceSpanIndex(snapshot.scene?.elements ?? [], snapshot.parseResult?.figure.body);
+    symbolsRef.current = collectSymbols({ parseResult: snapshot.parseResult });
+  }, [snapshot.scene, snapshot.parseResult]);
 
   // ── Initialize CodeMirror ───────────────────────────────────────────────────
   useEffect(() => {
     if (!editorRef.current) return;
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (!update.docChanged) return;
-      if (ignoreNextUpdateRef.current) {
-        ignoreNextUpdateRef.current = false;
+      if (update.docChanged) {
+        if (ignoreNextDocUpdateRef.current) {
+          ignoreNextDocUpdateRef.current = false;
+        } else {
+          const nextSource = update.state.doc.toString();
+          dispatch({ type: "CODE_EDITED", source: nextSource });
+        }
+      }
+
+      if (!update.selectionSet) {
         return;
       }
-      const nextSource = update.state.doc.toString();
-      dispatch({ type: "CODE_EDITED", source: nextSource });
+
+      if (ignoreNextSelectionSyncRef.current) {
+        ignoreNextSelectionSyncRef.current = false;
+        return;
+      }
+
+      syncSelectionFromSourceCursor(
+        update.state,
+        spanIndexRef.current,
+        selectedElementIdsRef.current,
+        () => {
+          suppressStoreSelectionSyncRef.current = true;
+        },
+        dispatch
+      );
     });
+
+    const sourceHoverBridge = EditorView.domEventHandlers({
+      mousemove(event, view) {
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        const sourceId = findSourceIdAtPosition(pos, view.state.doc.length, spanIndexRef.current);
+        dispatch({ type: "SET_HOVERED_ELEMENT", id: sourceId });
+        return false;
+      },
+      mouseleave() {
+        dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+        return false;
+      }
+    });
+
+    const completionExtensions = ENABLE_TIKZ_AUTOCOMPLETE
+      ? [
+          autocompletion({
+            override: [
+              (context) => completeTikz(context, symbolsRef.current)
+            ]
+          })
+        ]
+      : [];
 
     const state = CMState.create({
       doc: source,
       extensions: [
         basicSetup,
         editorKeymap,
+        ...completionExtensions,
         tikzLanguage(),
         numberScrubber(),
         highlightField,
         diagnosticsField,
         diagnosticTooltip,
+        sourceHoverBridge,
         updateListener
       ]
     });
@@ -169,7 +339,43 @@ export function SourcePanel() {
       viewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // intentionally run once; source synced via separate effect below
+  }, []); // intentionally run once; source synced via separate effect below
+
+  // ── Canvas selection → source selection sync ────────────────────────────────
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    // Preserve active typing/caret behavior: when the source editor has focus,
+    // store selection changes should update canvas state but must not replace
+    // the user's current text selection/cursor in CodeMirror.
+    if (view.hasFocus) {
+      return;
+    }
+
+    if (suppressStoreSelectionSyncRef.current) {
+      suppressStoreSelectionSyncRef.current = false;
+      return;
+    }
+
+    const selection = combineSelectedSourceSpan(selectedElementIds, spanIndexRef.current.bySourceId);
+    if (!selection) {
+      return;
+    }
+
+    const normalized = normalizeRange(selection.from, selection.to, view.state.doc.length);
+    const currentSelection = view.state.selection.main;
+    if (currentSelection.from === normalized.from && currentSelection.to === normalized.to) {
+      return;
+    }
+
+    ignoreNextSelectionSyncRef.current = true;
+    view.dispatch({
+      selection: { anchor: normalized.from, head: normalized.to },
+      annotations: [Transaction.addToHistory.of(false)],
+      scrollIntoView: true
+    });
+  }, [selectedElementIds]);
 
   // ── Sync store source → CodeMirror (for WYSIWYG changes) ───────────────────
   useEffect(() => {
@@ -178,10 +384,7 @@ export function SourcePanel() {
     const current = view.state.doc.toString();
     if (current === source) return;
 
-    // Push WYSIWYG change into CM without creating a CM undo entry.
-    // We isolate history around this transaction so user typing starts
-    // a fresh undo group after canvas-originated edits.
-    ignoreNextUpdateRef.current = true;
+    ignoreNextDocUpdateRef.current = true;
     view.dispatch({
       changes: { from: 0, to: current.length, insert: source },
       annotations: [
@@ -195,7 +398,25 @@ export function SourcePanel() {
     });
   }, [source]);
 
-  // ── Update diagnostic decorations when snapshot changes ───────────────────
+  // ── Canvas hover → source highlight sync ────────────────────────────────────
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    const hoverSpan = hoveredElementId
+      ? spanIndexRef.current.bySourceId.get(hoveredElementId) ?? null
+      : null;
+
+    if (!hoverSpan) {
+      view.dispatch({ effects: setHighlight.of(null) });
+      return;
+    }
+
+    const normalized = normalizeRange(hoverSpan.from, hoverSpan.to, view.state.doc.length);
+    view.dispatch({ effects: setHighlight.of([normalized.from, normalized.to]) });
+  }, [hoveredElementId, snapshot.scene]);
+
+  // ── Update diagnostic decorations when snapshot changes ────────────────────
   useEffect(() => {
     if (diagnosticTimerRef.current != null) {
       clearTimeout(diagnosticTimerRef.current);
@@ -235,6 +456,36 @@ export function SourcePanel() {
     };
   }, [snapshot]);
 
+  // ── Handle source selection/focus requests (canvas double-click) ───────────
+  useEffect(() => {
+    const handleRequest = (rawEvent: Event) => {
+      const event = rawEvent as CustomEvent<SourceSelectionRequestDetail>;
+      const detail = event.detail;
+      const view = viewRef.current;
+      if (!view || !detail) return;
+
+      const sourceId = detail.sourceId?.trim();
+      if (sourceId && shouldSuppressStoreSelectionSync(sourceId, selectedElementIdsRef.current)) {
+        suppressStoreSelectionSyncRef.current = true;
+      }
+
+      const normalized = normalizeRange(detail.from, detail.to, view.state.doc.length);
+      ignoreNextSelectionSyncRef.current = true;
+      view.dispatch({
+        selection: { anchor: normalized.from, head: normalized.to },
+        annotations: [Transaction.addToHistory.of(false)],
+        scrollIntoView: true
+      });
+
+      if (detail.focus) {
+        view.focus();
+      }
+    };
+
+    window.addEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
+    return () => window.removeEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
+  }, []);
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Source</div>
@@ -244,6 +495,240 @@ export function SourcePanel() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+function insertSoftIndent(view: EditorView): boolean {
+  const transactionSpec = view.state.changeByRange((range) => ({
+    changes: { from: range.from, to: range.to, insert: "  " },
+    range: EditorSelection.cursor(range.from + 2)
+  }));
+  view.dispatch(
+    view.state.update(transactionSpec, {
+      scrollIntoView: true,
+      userEvent: "input"
+    })
+  );
+  return true;
+}
+
+function completeTikz(context: CompletionContext, symbols: DocumentSymbols) {
+  const coordinatePrefix = context.matchBefore(/(?:\+\+|\+)?\([^)\]\}\s,]*$/);
+  const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_./:-]*/);
+
+  if (!context.explicit && !coordinatePrefix && (!word || word.from === word.to)) {
+    return null;
+  }
+
+  const from = coordinatePrefix?.from ?? word?.from ?? context.pos;
+  return {
+    from,
+    options: buildCompletionOptions(symbols),
+    validFor: /[A-Za-z0-9_./:+\-()$ ]*/
+  };
+}
+
+function buildCompletionOptions(symbols: DocumentSymbols): Completion[] {
+  const dynamic: Completion[] = [];
+
+  for (const nodeName of symbols.nodeNames) {
+    dynamic.push({
+      label: nodeName,
+      type: "variable",
+      detail: "node name"
+    });
+    dynamic.push({
+      label: `(${nodeName})`,
+      type: "snippet",
+      detail: "node coordinate"
+    });
+  }
+
+  for (const coordinateName of symbols.coordinateNames) {
+    dynamic.push({
+      label: coordinateName,
+      type: "variable",
+      detail: "coordinate name"
+    });
+    dynamic.push({
+      label: `(${coordinateName})`,
+      type: "snippet",
+      detail: "named coordinate"
+    });
+  }
+
+  for (const styleName of symbols.styleNames) {
+    dynamic.push({
+      label: styleName,
+      type: "type",
+      detail: "style name"
+    });
+  }
+
+  return dedupeCompletions([...dynamic, ...BASE_COMPLETIONS]);
+}
+
+function buildSourceSpanIndex(elements: readonly SceneElement[], statements: readonly Statement[] | undefined): SourceSpanIndex {
+  if (elements.length === 0 && (!statements || statements.length === 0)) {
+    return EMPTY_SPAN_INDEX;
+  }
+
+  const sourceIds = new Set<string>();
+  for (const element of elements) {
+    sourceIds.add(element.sourceId);
+  }
+
+  const sceneSpansBySourceId = new Map<string, SourceSpan>();
+  for (const element of elements) {
+    const existing = sceneSpansBySourceId.get(element.sourceId);
+    if (!existing) {
+      sceneSpansBySourceId.set(element.sourceId, { from: element.sourceSpan.from, to: element.sourceSpan.to });
+      continue;
+    }
+    sceneSpansBySourceId.set(element.sourceId, {
+      from: Math.min(existing.from, element.sourceSpan.from),
+      to: Math.max(existing.to, element.sourceSpan.to)
+    });
+  }
+
+  const parseSpansById = collectParseSpansById(statements ?? []);
+  const bySourceId = new Map<string, SourceSpan>();
+  for (const sourceId of sourceIds) {
+    const parseSpan = parseSpansById.get(sourceId);
+    const sceneSpan = sceneSpansBySourceId.get(sourceId);
+    const chosen = parseSpan ?? sceneSpan;
+    if (!chosen) {
+      continue;
+    }
+    bySourceId.set(sourceId, chosen);
+  }
+
+  const sortedByWidth = [...bySourceId.entries()]
+    .map(([sourceId, span]) => ({
+      sourceId,
+      from: span.from,
+      to: span.to,
+      width: Math.max(0, span.to - span.from)
+    }))
+    .sort((a, b) => {
+      if (a.width !== b.width) return a.width - b.width;
+      if (a.from !== b.from) return a.from - b.from;
+      return a.sourceId.localeCompare(b.sourceId);
+    });
+
+  return { bySourceId, sortedByWidth };
+}
+
+function collectParseSpansById(statements: readonly Statement[]): Map<string, SourceSpan> {
+  const spans = new Map<string, SourceSpan>();
+
+  const addSpan = (id: string, span: Span | undefined) => {
+    if (!span || span.to <= span.from) {
+      return;
+    }
+    const existing = spans.get(id);
+    if (!existing) {
+      spans.set(id, { from: span.from, to: span.to });
+      return;
+    }
+    spans.set(id, {
+      from: Math.min(existing.from, span.from),
+      to: Math.max(existing.to, span.to)
+    });
+  };
+
+  const collectItems = (items: readonly PathItem[]) => {
+    for (const item of items) {
+      addSpan(item.id, item.span);
+      if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
+        for (const node of item.nodes) {
+          addSpan(node.id, node.span);
+        }
+      }
+    }
+  };
+
+  const collectStatements = (items: readonly Statement[]) => {
+    for (const statement of items) {
+      addSpan(statement.id, statement.span);
+      if (statement.kind === "Path") {
+        collectItems(statement.items);
+      } else if (statement.kind === "Scope") {
+        collectStatements(statement.body);
+      }
+    }
+  };
+
+  collectStatements(statements);
+  return spans;
+}
+
+function combineSelectedSourceSpan(
+  selectedElementIds: ReadonlySet<string>,
+  spansBySourceId: ReadonlyMap<string, SourceSpan>
+): SourceSpan | null {
+  let combined: SourceSpan | null = null;
+  for (const sourceId of selectedElementIds) {
+    const span = spansBySourceId.get(sourceId);
+    if (!span) continue;
+    if (!combined) {
+      combined = { ...span };
+      continue;
+    }
+    combined = {
+      from: Math.min(combined.from, span.from),
+      to: Math.max(combined.to, span.to)
+    };
+  }
+  return combined;
+}
+
+function syncSelectionFromSourceCursor(
+  state: CMState,
+  spanIndex: SourceSpanIndex,
+  selectedElementIds: ReadonlySet<string>,
+  onDispatchingStoreSelection: () => void,
+  dispatch: (action: { type: "SELECT"; id: string; additive: boolean } | { type: "CLEAR_SELECTION" }) => void
+): void {
+  const sourceId = findSourceIdAtPosition(state.selection.main.head, state.doc.length, spanIndex);
+
+  if (sourceId) {
+    const alreadySelected = selectedElementIds.size === 1 && selectedElementIds.has(sourceId);
+    if (alreadySelected) {
+      return;
+    }
+    onDispatchingStoreSelection();
+    dispatch({ type: "SELECT", id: sourceId, additive: false });
+    return;
+  }
+
+  if (selectedElementIds.size === 0) {
+    return;
+  }
+
+  onDispatchingStoreSelection();
+  dispatch({ type: "CLEAR_SELECTION" });
+}
+
+function shouldSuppressStoreSelectionSync(sourceId: string, selectedElementIds: ReadonlySet<string>): boolean {
+  return !(selectedElementIds.size === 1 && selectedElementIds.has(sourceId));
+}
+
+function findSourceIdAtPosition(
+  position: number | null | undefined,
+  docLength: number,
+  spanIndex: SourceSpanIndex
+): string | null {
+  if (position == null || docLength <= 0) {
+    return null;
+  }
+
+  const probe = clamp(position, 0, Math.max(0, docLength - 1));
+  for (const span of spanIndex.sortedByWidth) {
+    if (probe >= span.from && probe < span.to) {
+      return span.sourceId;
+    }
+  }
+  return null;
+}
 
 function normalizeDiagnostics(inputs: DiagnosticInput[], docLength: number): Diagnostic[] {
   return [...inputs]
@@ -287,13 +772,40 @@ function bestDiagnosticAt(diagnostics: Diagnostic[], pos: number): Diagnostic | 
   let best: Diagnostic | null = null;
   for (const d of diagnostics) {
     if (pos < d.from || pos > d.to) continue;
-    if (!best) { best = d; continue; }
-    const cs = d.severity === "error" ? 2 : 1;
-    const bs = best.severity === "error" ? 2 : 1;
-    if (cs > bs) { best = d; continue; }
-    if (cs === bs && d.to - d.from < best.to - best.from) best = d;
+    if (!best) {
+      best = d;
+      continue;
+    }
+    const currentSeverity = d.severity === "error" ? 2 : 1;
+    const bestSeverity = best.severity === "error" ? 2 : 1;
+    if (currentSeverity > bestSeverity) {
+      best = d;
+      continue;
+    }
+    if (currentSeverity === bestSeverity && d.to - d.from < best.to - best.from) {
+      best = d;
+    }
   }
   return best;
+}
+
+function dedupeCompletions(completions: Completion[]): Completion[] {
+  const byLabel = new Map<string, Completion>();
+  for (const completion of completions) {
+    if (byLabel.has(completion.label)) continue;
+    byLabel.set(completion.label, completion);
+  }
+  return [...byLabel.values()];
+}
+
+function uniqueStrings(values: Iterable<string>): string[] {
+  const unique = new Set<string>();
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) continue;
+    unique.add(trimmed);
+  }
+  return [...unique].sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" }));
 }
 
 function clamp(v: number, lo: number, hi: number) {
