@@ -155,6 +155,10 @@
     radial-gradient(circle at 90% 90%, rgba(255, 255, 255, 0.1), transparent 40%);
 }
 
+.viewportTool {
+  cursor: crosshair;
+}
+
 .viewport:focus-visible {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
@@ -184,6 +188,10 @@
   position: absolute;
   inset: 0;
   overflow: visible;
+}
+
+.interactionLayerTool {
+  cursor: crosshair;
 }
 
 .gridOverlay {
@@ -220,6 +228,20 @@
   pointer-events: all;
   fill: #ffffff;
   stroke: #0d5fb6;
+}
+
+.toolPreview {
+  pointer-events: none;
+}
+
+.toolPreviewStroke {
+  fill: none;
+  stroke: rgba(13, 95, 182, 0.72);
+}
+
+.toolPreviewFill {
+  fill: rgba(53, 133, 221, 0.16);
+  stroke: rgba(13, 95, 182, 0.72);
 }
 
 .noSvg {

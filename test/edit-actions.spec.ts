@@ -262,14 +262,34 @@ describe("applyEditAction – setProperty", () => {
   });
 });
 
-// ── unimplemented actions ──────────────────────────────────────────────────────
+// ── addElement / unimplemented actions ─────────────────────────────────────────
 
-describe("applyEditAction – unimplemented", () => {
-  it("returns unsupported for addElement", () => {
-    const result = applyEditAction("\\draw (0,0);", [], {
+describe("applyEditAction – addElement", () => {
+  it("inserts a node snippet before \\end{tikzpicture}", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
       kind: "addElement",
-      template: { kind: "node" },
-      at: { x: 0, y: 0 }
+      template: { kind: "node", text: "A" },
+      at: { x: cm(2), y: cm(3) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("  \\node at (2,3) {A};");
+      expect(result.newSource).toContain("\\end{tikzpicture}");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
+});
+
+describe("applyEditAction – still unimplemented", () => {
+  it("returns unsupported for deleteElement", () => {
+    const result = applyEditAction("\\draw (0,0);", [], {
+      kind: "deleteElement",
+      elementId: "path:0"
     });
     expect(result.kind).toBe("unsupported");
   });

@@ -1,5 +1,6 @@
 import { useEditorStore } from "../store/store";
 import type { ToolMode } from "../store/types";
+import { getToolCapabilityStatus } from "./capabilities";
 import css from "./Toolbar.module.css";
 
 type ToolButtonDef = {
@@ -36,17 +37,30 @@ export function Toolbar() {
 
       {/* Tool mode buttons */}
       <div className={css.group}>
-        {TOOL_BUTTONS.map(({ mode, label, title }) => (
-          <button
-            key={mode}
-            className={`${css.btn} ${toolMode === mode ? css.btnActive : ""}`}
-            title={title}
-            disabled={mode !== "select"}  /* Phase 0: only select enabled */
-            onClick={() => dispatch({ type: "SET_TOOL_MODE", mode })}
-          >
-            {label}
-          </button>
-        ))}
+        {TOOL_BUTTONS.map(({ mode, label, title }) => {
+          const capability = getToolCapabilityStatus(mode);
+          const unsupported = capability.status === "unsupported";
+          const partial = capability.status === "partial";
+          const buttonTitle = partial || unsupported
+            ? `${title}\n${capability.reason}`
+            : title;
+
+          return (
+            <button
+              key={mode}
+              className={[
+                css.btn,
+                toolMode === mode ? css.btnActive : "",
+                partial ? css.btnPartial : ""
+              ].filter(Boolean).join(" ")}
+              title={buttonTitle}
+              disabled={unsupported}
+              onClick={() => dispatch({ type: "SET_TOOL_MODE", mode })}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       <div className={css.separator} />

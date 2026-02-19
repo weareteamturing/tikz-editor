@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import { getInspectorDescriptor, type InspectorProperty, type SetPropertyWriteTarget } from "tikz-editor/edit/inspector";
 import { useEditorStore } from "../store/store";
+import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import css from "./InspectorPanel.module.css";
 
 export function InspectorPanel() {
@@ -57,18 +58,17 @@ export function InspectorPanel() {
     });
   }
 
-  function propertyReadOnlyReason(property: InspectorProperty): string | null {
-    if (property.kind === "number") {
-      return property.readOnlyReason ?? property.write?.reason ?? null;
-    }
-    return property.write.reason ?? null;
-  }
-
   function renderProperty(property: InspectorProperty) {
-    const readOnlyReason = propertyReadOnlyReason(property);
+    const capability = getInspectorPropertyCapabilityStatus(property);
+    const capabilityReadOnlyReason =
+      capability.status === "unsupported" ? capability.reason : null;
+    const readOnlyReason =
+      property.kind === "number"
+        ? property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason
+        : property.write.reason ?? capabilityReadOnlyReason;
 
     if (property.kind === "number") {
-      const writable = property.write?.writable ?? false;
+      const writable = (property.write?.writable ?? false) && capability.status !== "unsupported";
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -90,6 +90,7 @@ export function InspectorPanel() {
 
     if (property.kind === "color") {
       const selected = property.value ?? "none";
+      const writable = property.write.writable && capability.status !== "unsupported";
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -104,7 +105,7 @@ export function InspectorPanel() {
             <select
               className={css.select}
               value={selected}
-              disabled={!property.write.writable}
+              disabled={!writable}
               onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
             >
               {property.options.map((option) => (
@@ -120,6 +121,7 @@ export function InspectorPanel() {
     }
 
     if (property.kind === "lineWidth") {
+      const writable = property.write.writable && capability.status !== "unsupported";
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -130,7 +132,7 @@ export function InspectorPanel() {
             max={property.max}
             step={property.step}
             value={property.value}
-            disabled={!property.write.writable}
+            disabled={!writable}
             onChange={(event) => {
               const next = Number(event.currentTarget.value);
               if (!Number.isFinite(next)) return;
@@ -161,7 +163,7 @@ export function InspectorPanel() {
             <button
               key={option.value}
               className={`${css.arrowBtn} ${property.value === option.value ? css.arrowBtnActive : ""}`}
-              disabled={!property.write.writable}
+              disabled={!(property.write.writable && capability.status !== "unsupported")}
               onClick={() => applySetProperty(property.write, option.value)}
               title={option.label}
             >

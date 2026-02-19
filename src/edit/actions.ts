@@ -3,6 +3,11 @@ import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
+import {
+  generateElementSource,
+  insertElementIntoSource,
+  type ElementTemplate
+} from "./element-templates.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { resolvePropertyTarget } from "./property-target.js";
 
@@ -17,13 +22,7 @@ export type ResizeRole =
   | "right";
 
 export type StyleLevel = "command" | "scope" | "named-style" | "preamble";
-
-export type ElementTemplate =
-  | { kind: "node"; text?: string }
-  | { kind: "line"; hasArrow?: boolean }
-  | { kind: "rectangle" }
-  | { kind: "circle" }
-  | { kind: "filledCircle" };
+export type { ElementTemplate } from "./element-templates.js";
 
 export type EditAction =
   | { kind: "moveElement"; elementId: string; delta: Point }
@@ -58,6 +57,7 @@ export function applyEditAction(
     case "setProperty":
       return applySetProperty(source, action);
     case "addElement":
+      return applyAddElement(source, action.template, action.at);
     case "deleteElement":
     case "resizeElement":
       return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
@@ -212,6 +212,28 @@ function applySetProperty(
   };
 }
 
+function applyAddElement(
+  source: string,
+  template: ElementTemplate,
+  at: Point
+): EditActionResult {
+  const snippet = generateElementSource(template, at);
+  if (snippet.trim().length === 0) {
+    return { kind: "error", message: "Failed to generate source for the requested element template." };
+  }
+
+  const newSource = insertElementIntoSource(source, snippet);
+  if (newSource === source) {
+    return { kind: "unsupported", reason: "The source insertion point could not be resolved." };
+  }
+
+  return {
+    kind: "success",
+    newSource,
+    patches: [computeReplacementPatch(source, newSource)]
+  };
+}
+
 function rewriteOptionList(options: OptionListAst, key: string, value: string): string {
   const replacementEntry = serializeOptionEntry(key, value);
   const parts: string[] = [];
@@ -271,4 +293,40 @@ function serializeOptionEntry(key: string, value: string): string {
     return key;
   }
   return `${key}=${trimmed}`;
+}
+
+function computeReplacementPatch(oldSource: string, newSource: string): SourcePatch {
+  if (oldSource === newSource) {
+    return {
+      oldSpan: { from: 0, to: 0 },
+      newSpan: { from: 0, to: 0 },
+      replacement: ""
+    };
+  }
+
+  const oldLen = oldSource.length;
+  const newLen = newSource.length;
+  const minLen = Math.min(oldLen, newLen);
+
+  let prefix = 0;
+  while (prefix < minLen && oldSource.charCodeAt(prefix) === newSource.charCodeAt(prefix)) {
+    prefix += 1;
+  }
+
+  let oldSuffix = oldLen;
+  let newSuffix = newLen;
+  while (
+    oldSuffix > prefix &&
+    newSuffix > prefix &&
+    oldSource.charCodeAt(oldSuffix - 1) === newSource.charCodeAt(newSuffix - 1)
+  ) {
+    oldSuffix -= 1;
+    newSuffix -= 1;
+  }
+
+  return {
+    oldSpan: { from: prefix, to: oldSuffix },
+    newSpan: { from: prefix, to: newSuffix },
+    replacement: newSource.slice(prefix, newSuffix)
+  };
 }

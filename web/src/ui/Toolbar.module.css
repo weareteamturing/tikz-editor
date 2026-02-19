@@ -78,6 +78,10 @@
   border-color: var(--accent-btn-hover-border);
 }
 
+.btnPartial {
+  border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
+}
+
 .icon {
   width: 14px;
   height: 14px;

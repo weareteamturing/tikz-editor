@@ -51,6 +51,39 @@ export function App() {
       }
 
       const key = e.key.toLowerCase();
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (key === "v") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          e.preventDefault();
+          return;
+        }
+        if (key === "n") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "addNode" });
+          e.preventDefault();
+          return;
+        }
+        if (key === "l") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "addLine" });
+          e.preventDefault();
+          return;
+        }
+        if (key === "a") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "addArrow" });
+          e.preventDefault();
+          return;
+        }
+        if (key === "r") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "addRect" });
+          e.preventDefault();
+          return;
+        }
+        if (key === "c") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "addCircle" });
+          e.preventDefault();
+          return;
+        }
+      }
+
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z") {
         dispatch({ type: "UNDO" });
         e.preventDefault();

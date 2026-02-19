@@ -555,6 +555,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Rulers + optional grid overlay
 
 ### Phase 2: Inspector (basic)
+- Status: complete
 - `getInspectorDescriptor()` in `src/edit/inspector.ts` + tests
 - `InspectorPanel` with property editors:
   - Color picker (start basic with only named colors, no mixing or tinting)
@@ -564,6 +565,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Inspector edits write back to source via `setProperty` action
 
 ### Phase 3: Toolbar & add element
+- Status: complete
 - Tool mode buttons in Toolbar
 - Capability matrix integration: disabled/annotated buttons via `getToolCapabilityStatus()`
 - `src/edit/element-templates.ts` + `insertElementIntoSource` + tests
@@ -584,6 +586,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Marquee (rubber-band) selection on canvas
 - Move multiple selected elements simultaneously
 - Inspector: show shared properties; blank inputs for differing values
+- Implement `deleteElement` action and wire to Delete key for single- and multi-element deletion
 
 ### Phase 6: Code editor enhancements
 - `src/completion/index.ts`: `collectSymbols()` pure function + tests

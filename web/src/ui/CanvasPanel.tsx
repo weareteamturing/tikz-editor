@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import { applyEditAction, type EditAction } from "tikz-editor/edit/actions";
+import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import type {
   EditHandle,
@@ -19,7 +19,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { useEditorStore } from "../store/store";
-import type { CanvasTransform } from "../store/types";
+import type { CanvasTransform, ToolMode } from "../store/types";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -101,6 +101,13 @@ type DragState =
       startClientX: number;
       startClientY: number;
       startTransform: CanvasTransform;
+    }
+  | {
+      kind: "tool-create";
+      pointerId: number;
+      toolMode: ToolCreateMode;
+      startWorld: Point;
+      currentWorld: Point;
     };
 
 type SelectionBounds = {
@@ -151,6 +158,20 @@ type VisibleRanges = {
   svgMaxY: number;
 };
 
+type ToolCreateMode = "addLine" | "addArrow" | "addRect" | "addCircle";
+
+type ToolPreview =
+  | { kind: "cursor"; x: number; y: number }
+  | { kind: "node"; x: number; y: number }
+  | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
+  | { kind: "rect"; x: number; y: number; width: number; height: number }
+  | { kind: "circle"; cx: number; cy: number; r: number };
+
+type PendingAddedSelection = {
+  beforeIds: Set<string>;
+  preferredWorld: Point;
+};
+
 const RULER_SIZE = 24;
 const FIT_PADDING = 44;
 const HIT_STROKE_PX = 10;
@@ -160,6 +181,8 @@ const ZOOM_EXP_FACTOR = 0.0045;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
+const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
+const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 
 export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
@@ -177,10 +200,13 @@ export function CanvasPanel() {
   const [warning, setWarning] = useState<string | null>(null);
   const [showGrid, setShowGrid] = useState(true);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
+  const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
   const autoFitDoneRef = useRef(false);
   const canvasTransformRef = useRef(canvasTransform);
   const svgResultRef = useRef(svgResult);
@@ -387,6 +413,64 @@ export function CanvasPanel() {
     };
   }, [canvasTransform.scale, showGrid, svgResult, visibleRanges]);
 
+  const toolPreview = useMemo((): ToolPreview | null => {
+    if (!svgResult || toolMode === "select") {
+      return null;
+    }
+
+    const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
+    if (!liveWorld) {
+      return null;
+    }
+
+    if (toolMode === "addNode") {
+      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
+      return { kind: "node", x: point.x, y: point.y };
+    }
+
+    if (!toolDraft) {
+      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
+      return { kind: "cursor", x: point.x, y: point.y };
+    }
+
+    const start = worldToSvgPoint(toolDraft.startWorld, svgResult.viewBox);
+    const end = worldToSvgPoint(toolDraft.currentWorld, svgResult.viewBox);
+
+    if (toolDraft.toolMode === "addLine" || toolDraft.toolMode === "addArrow") {
+      return {
+        kind: "line",
+        x1: start.x,
+        y1: start.y,
+        x2: end.x,
+        y2: end.y,
+        arrow: toolDraft.toolMode === "addArrow"
+      };
+    }
+
+    if (toolDraft.toolMode === "addRect") {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      return {
+        kind: "rect",
+        x,
+        y,
+        width: Math.abs(end.x - start.x),
+        height: Math.abs(end.y - start.y)
+      };
+    }
+
+    const dx = toolDraft.currentWorld.x - toolDraft.startWorld.x;
+    const dy = toolDraft.currentWorld.y - toolDraft.startWorld.y;
+    const radius = Math.hypot(dx, dy);
+
+    return {
+      kind: "circle",
+      cx: start.x,
+      cy: start.y,
+      r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
+    };
+  }, [svgResult, toolCursorWorld, toolDraft, toolMode]);
+
   const fitToContent = useCallback(() => {
     if (!svgResult || !viewportRef.current) return;
 
@@ -445,6 +529,17 @@ export function CanvasPanel() {
     [dispatch, source, snapshot.editHandles]
   );
 
+  const queueSelectionForAddedElement = useCallback(
+    (preferredWorld: Point) => {
+      const beforeIds = new Set<string>();
+      for (const element of snapshot.scene?.elements ?? []) {
+        beforeIds.add(element.sourceId);
+      }
+      pendingAddedSelectionRef.current = { beforeIds, preferredWorld };
+    },
+    [snapshot.scene]
+  );
+
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
@@ -471,7 +566,7 @@ export function CanvasPanel() {
   );
 
   const onHandlePointerDown = useCallback(
-    (event: ReactPointerEvent<SVGCircleElement>, handle: EditHandle) => {
+    (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
 
       viewportRef.current?.focus({ preventScroll: true });
@@ -512,17 +607,98 @@ export function CanvasPanel() {
         return;
       }
 
+      if (event.button === 0 && toolMode !== "select") {
+        const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+        if (!world) {
+          return;
+        }
+
+        setToolCursorWorld(world);
+        event.preventDefault();
+
+        if (toolMode === "addNode") {
+          queueSelectionForAddedElement(world);
+          const ok = applyActionWithFeedback({
+            kind: "addElement",
+            template: { kind: "node" },
+            at: world
+          });
+          if (!ok) {
+            pendingAddedSelectionRef.current = null;
+          }
+          if (ok) {
+            dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+            setToolDraft(null);
+            setToolCursorWorld(null);
+          }
+          return;
+        }
+
+        if (isToolCreateMode(toolMode)) {
+          const nextDraft: Extract<DragState, { kind: "tool-create" }> = {
+            kind: "tool-create",
+            pointerId: event.pointerId,
+            toolMode,
+            startWorld: world,
+            currentWorld: world
+          };
+          dragRef.current = nextDraft;
+          setToolDraft(nextDraft);
+        }
+        return;
+      }
+
       if (toolMode === "select" && event.button === 0 && event.target === event.currentTarget) {
         dispatch({ type: "CLEAR_SELECTION" });
         dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
       }
     },
-    [canvasTransform, dispatch, svgResult, toolMode]
+    [applyActionWithFeedback, canvasTransform, dispatch, queueSelectionForAddedElement, svgResult, toolMode]
+  );
+
+  const onInteractionPointerMove = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!svgResult || toolMode === "select") {
+        return;
+      }
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+      setToolCursorWorld(world);
+    },
+    [svgResult, toolMode]
+  );
+
+  const onInteractionPointerLeave = useCallback(() => {
+    if (toolMode === "select" || toolDraft) {
+      return;
+    }
+    setToolCursorWorld(null);
+  }, [toolDraft, toolMode]);
+
+  const onInteractionPointerEnter = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!svgResult || toolMode === "select") {
+        return;
+      }
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (world) {
+        setToolCursorWorld(world);
+      }
+    },
+    [svgResult, toolMode]
   );
 
   const onViewportKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (event.key === "Escape") {
+        if (toolMode !== "select") {
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          setToolDraft(null);
+          setToolCursorWorld(null);
+        }
         dispatch({ type: "CLEAR_SELECTION" });
         setWarning(null);
         event.preventDefault();
@@ -579,7 +755,7 @@ export function CanvasPanel() {
       });
       event.preventDefault();
     },
-    [applyActionWithFeedback, dispatch, selectedElementIds, snapshot.editHandles, snapshot.source, source]
+    [applyActionWithFeedback, dispatch, selectedElementIds, snapshot.editHandles, snapshot.source, source, toolMode]
   );
 
   useEffect(() => {
@@ -713,6 +889,40 @@ export function CanvasPanel() {
   }, [warning]);
 
   useEffect(() => {
+    if (toolMode === "select") {
+      setToolDraft(null);
+      setToolCursorWorld(null);
+      if (dragRef.current?.kind === "tool-create") {
+        dragRef.current = null;
+      }
+    }
+  }, [toolMode]);
+
+  useEffect(() => {
+    const pending = pendingAddedSelectionRef.current;
+    if (!pending) {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+
+    const sceneElements = snapshot.scene?.elements ?? [];
+    const newSourceIds = collectNewSourceIds(sceneElements, pending.beforeIds);
+    pendingAddedSelectionRef.current = null;
+    if (newSourceIds.length === 0) {
+      return;
+    }
+
+    const selectedId =
+      newSourceIds.length === 1
+        ? newSourceIds[0]!
+        : pickClosestSourceId(sceneElements, newSourceIds, pending.preferredWorld);
+
+    dispatch({ type: "SELECT", id: selectedId, additive: false });
+  }, [dispatch, snapshot.scene, snapshot.source, source]);
+
+  useEffect(() => {
     if (!svgResult || autoFitDoneRef.current) return;
     if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
 
@@ -740,12 +950,24 @@ export function CanvasPanel() {
         return;
       }
 
-      if (!svgResult || snapshot.source !== source) {
+      const currentSvg = svgResultRef.current;
+      if (!currentSvg) {
         return;
       }
 
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
       if (!world) return;
+
+      if (drag.kind === "tool-create") {
+        drag.currentWorld = world;
+        setToolDraft({ ...drag });
+        setToolCursorWorld(world);
+        return;
+      }
+
+      if (!svgResult || snapshot.source !== source) {
+        return;
+      }
 
       if (drag.kind === "element") {
         const totalDelta = {
@@ -798,6 +1020,37 @@ export function CanvasPanel() {
     function onPointerUp(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
+
+      if (drag.kind === "tool-create") {
+        const currentSvg = svgResultRef.current;
+        const world =
+          currentSvg == null
+            ? null
+            : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+        const finalWorld = world ?? drag.currentWorld;
+        setToolCursorWorld(finalWorld);
+
+        queueSelectionForAddedElement({
+          x: (drag.startWorld.x + finalWorld.x) / 2,
+          y: (drag.startWorld.y + finalWorld.y) / 2
+        });
+        const template = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
+        const ok = applyActionWithFeedback({
+          kind: "addElement",
+          template,
+          at: drag.startWorld
+        });
+        if (!ok) {
+          pendingAddedSelectionRef.current = null;
+        }
+
+        if (ok) {
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          setToolCursorWorld(null);
+        }
+        setToolDraft(null);
+      }
+
       dragRef.current = null;
     }
 
@@ -810,7 +1063,7 @@ export function CanvasPanel() {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [applyActionWithFeedback, dispatch, snapshot.source, source, svgResult]);
+  }, [applyActionWithFeedback, dispatch, queueSelectionForAddedElement, snapshot.editHandles, snapshot.source, source, svgResult]);
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
@@ -910,7 +1163,7 @@ export function CanvasPanel() {
         </svg>
 
         <div
-          className={css.viewport}
+          className={[css.viewport, toolMode === "select" ? "" : css.viewportTool].filter(Boolean).join(" ")}
           ref={viewportRef}
           tabIndex={0}
           onKeyDown={onViewportKeyDown}
@@ -931,9 +1184,12 @@ export function CanvasPanel() {
 
               <svg
                 ref={interactionSvgRef}
-                className={css.interactionLayer}
+                className={[css.interactionLayer, toolMode === "select" ? "" : css.interactionLayerTool].filter(Boolean).join(" ")}
                 viewBox={`${svgResult.viewBox.x} ${svgResult.viewBox.y} ${svgResult.viewBox.width} ${svgResult.viewBox.height}`}
                 onPointerDown={onInteractionPointerDown}
+                onPointerMove={onInteractionPointerMove}
+                onPointerEnter={onInteractionPointerEnter}
+                onPointerLeave={onInteractionPointerLeave}
               >
                 {gridLines && (
                   <g className={css.gridOverlay}>
@@ -984,6 +1240,101 @@ export function CanvasPanel() {
                   </g>
                 )}
 
+                {toolPreview && (
+                  <g className={css.toolPreview}>
+                    {toolPreview.kind === "cursor" && (
+                      <g>
+                        <line
+                          x1={toolPreview.x - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          y1={toolPreview.y}
+                          x2={toolPreview.x + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          y2={toolPreview.y}
+                          className={css.toolPreviewStroke}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                        <line
+                          x1={toolPreview.x}
+                          y1={toolPreview.y - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          x2={toolPreview.x}
+                          y2={toolPreview.y + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          className={css.toolPreviewStroke}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                      </g>
+                    )}
+                    {toolPreview.kind === "node" && (
+                      <g>
+                        <circle
+                          cx={toolPreview.x}
+                          cy={toolPreview.y}
+                          r={TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          className={css.toolPreviewFill}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                        <line
+                          x1={toolPreview.x - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          y1={toolPreview.y}
+                          x2={toolPreview.x + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          y2={toolPreview.y}
+                          className={css.toolPreviewStroke}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                        <line
+                          x1={toolPreview.x}
+                          y1={toolPreview.y - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          x2={toolPreview.x}
+                          y2={toolPreview.y + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
+                          className={css.toolPreviewStroke}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                      </g>
+                    )}
+                    {toolPreview.kind === "line" && (
+                      <g>
+                        <line
+                          x1={toolPreview.x1}
+                          y1={toolPreview.y1}
+                          x2={toolPreview.x2}
+                          y2={toolPreview.y2}
+                          className={css.toolPreviewStroke}
+                          strokeWidth={handleStrokeWidth}
+                        />
+                        {toolPreview.arrow && (
+                          <polygon
+                            points={previewArrowPoints(
+                              toolPreview.x1,
+                              toolPreview.y1,
+                              toolPreview.x2,
+                              toolPreview.y2,
+                              10 / Math.max(canvasTransform.scale, 1e-3)
+                            )}
+                            className={css.toolPreviewStroke}
+                          />
+                        )}
+                      </g>
+                    )}
+                    {toolPreview.kind === "rect" && (
+                      <rect
+                        x={toolPreview.x}
+                        y={toolPreview.y}
+                        width={toolPreview.width}
+                        height={toolPreview.height}
+                        className={css.toolPreviewFill}
+                        strokeWidth={handleStrokeWidth}
+                      />
+                    )}
+                    {toolPreview.kind === "circle" && (
+                      <circle
+                        cx={toolPreview.cx}
+                        cy={toolPreview.cy}
+                        r={toolPreview.r}
+                        className={css.toolPreviewFill}
+                        strokeWidth={handleStrokeWidth}
+                      />
+                    )}
+                  </g>
+                )}
+
                 <g className={css.hitRegions}>
                   {hitRegions.map((region) => {
                     const isHovered = hoveredElementId === region.sourceId;
@@ -1003,10 +1354,18 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          pointerEvents={region.pointerMode === "stroke" ? "stroke" : "fill"}
+                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onPointerEnter={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId })}
-                          onPointerLeave={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: null })}
+                          onPointerEnter={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
+                            }
+                          }}
+                          onPointerLeave={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+                            }
+                          }}
                         />
                       );
                     }
@@ -1022,10 +1381,18 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          pointerEvents={region.pointerMode === "stroke" ? "stroke" : "fill"}
+                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onPointerEnter={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId })}
-                          onPointerLeave={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: null })}
+                          onPointerEnter={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
+                            }
+                          }}
+                          onPointerLeave={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+                            }
+                          }}
                         />
                       );
                     }
@@ -1047,10 +1414,18 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          pointerEvents={region.pointerMode === "stroke" ? "stroke" : "fill"}
+                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
                           onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onPointerEnter={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId })}
-                          onPointerLeave={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: null })}
+                          onPointerEnter={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
+                            }
+                          }}
+                          onPointerLeave={() => {
+                            if (toolMode === "select") {
+                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+                            }
+                          }}
                         />
                       );
                     }
@@ -1064,36 +1439,46 @@ export function CanvasPanel() {
                         width={region.width}
                         height={region.height}
                         fill="transparent"
-                        pointerEvents="all"
+                        pointerEvents={toolMode === "select" ? "all" : "none"}
                         onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                        onPointerEnter={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId })}
-                        onPointerLeave={() => dispatch({ type: "SET_HOVERED_ELEMENT", id: null })}
+                        onPointerEnter={() => {
+                          if (toolMode === "select") {
+                            dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
+                          }
+                        }}
+                        onPointerLeave={() => {
+                          if (toolMode === "select") {
+                            dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+                          }
+                        }}
                       />
                     );
                   })}
                 </g>
 
-                <g className={css.handleOverlay}>
-                  {handleDisplays.map((display) => {
-                    return (
-                      <rect
-                        key={display.key}
-                        className={css.handle}
-                        x={display.x - handleHalfSize}
-                        y={display.y - handleHalfSize}
-                        width={handleHalfSize * 2}
-                        height={handleHalfSize * 2}
-                        strokeWidth={handleStrokeWidth}
-                        style={{ cursor: display.cursor }}
-                        onPointerDown={(event) =>
-                          display.kind === "move-handle"
-                            ? onHandlePointerDown(event, display.handle)
-                            : onElementPointerDown(event, display.elementId)
-                        }
-                      />
-                    );
-                  })}
-                </g>
+                {toolMode === "select" && (
+                  <g className={css.handleOverlay}>
+                    {handleDisplays.map((display) => {
+                      return (
+                        <rect
+                          key={display.key}
+                          className={css.handle}
+                          x={display.x - handleHalfSize}
+                          y={display.y - handleHalfSize}
+                          width={handleHalfSize * 2}
+                          height={handleHalfSize * 2}
+                          strokeWidth={handleStrokeWidth}
+                          style={{ cursor: display.cursor }}
+                          onPointerDown={(event) =>
+                            display.kind === "move-handle"
+                              ? onHandlePointerDown(event, display.handle)
+                              : onElementPointerDown(event, display.elementId)
+                          }
+                        />
+                      );
+                    })}
+                  </g>
+                )}
               </svg>
             </div>
           )}
@@ -1535,6 +1920,148 @@ function fmt(value: number): string {
 
 function makeMergeKey(prefix: string, id: string, pointerId: number): string {
   return `${prefix}:${id}:${pointerId}:${Date.now().toString(36)}`;
+}
+
+function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {
+  return mode === "addLine" || mode === "addArrow" || mode === "addRect" || mode === "addCircle";
+}
+
+function createTemplateForToolDrag(
+  mode: ToolCreateMode,
+  startWorld: Point,
+  endWorld: Point
+): ElementTemplate {
+  const dx = endWorld.x - startWorld.x;
+  const dy = endWorld.y - startWorld.y;
+  const dragDistance = Math.hypot(dx, dy);
+  const hasDrag = dragDistance >= 1e-3;
+
+  if (mode === "addLine") {
+    return hasDrag
+      ? { kind: "line", hasArrow: false, to: endWorld }
+      : { kind: "line", hasArrow: false };
+  }
+
+  if (mode === "addArrow") {
+    return hasDrag
+      ? { kind: "line", hasArrow: true, to: endWorld }
+      : { kind: "line", hasArrow: true };
+  }
+
+  if (mode === "addRect") {
+    return hasDrag
+      ? { kind: "rectangle", corner: endWorld }
+      : { kind: "rectangle" };
+  }
+
+  return hasDrag
+    ? { kind: "circle", edge: endWorld }
+    : { kind: "circle" };
+}
+
+function previewArrowPoints(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  size: number
+): string {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (len <= 1e-6) {
+    return `${fmt(x2)},${fmt(y2)}`;
+  }
+
+  const ux = dx / len;
+  const uy = dy / len;
+  const baseX = x2 - ux * size;
+  const baseY = y2 - uy * size;
+  const halfWidth = size * 0.45;
+  const px = -uy * halfWidth;
+  const py = ux * halfWidth;
+
+  const p1 = `${fmt(x2)},${fmt(y2)}`;
+  const p2 = `${fmt(baseX + px)},${fmt(baseY + py)}`;
+  const p3 = `${fmt(baseX - px)},${fmt(baseY - py)}`;
+  return `${p1} ${p2} ${p3}`;
+}
+
+function collectNewSourceIds(elements: SceneElement[], beforeIds: ReadonlySet<string>): string[] {
+  const newIds = new Set<string>();
+  for (const element of elements) {
+    if (!beforeIds.has(element.sourceId)) {
+      newIds.add(element.sourceId);
+    }
+  }
+  return [...newIds];
+}
+
+function pickClosestSourceId(
+  elements: SceneElement[],
+  sourceIds: readonly string[],
+  preferredWorld: Point
+): string {
+  let bestId = sourceIds[0]!;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+
+  for (const sourceId of sourceIds) {
+    const anchor = sourceIdAnchorWorld(elements, sourceId);
+    const distSq = distanceSquared(anchor, preferredWorld);
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestId = sourceId;
+    }
+  }
+
+  return bestId;
+}
+
+function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string): Point {
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+
+  for (const element of elements) {
+    if (element.sourceId !== sourceId) {
+      continue;
+    }
+    const anchor = elementAnchorWorld(element);
+    sumX += anchor.x;
+    sumY += anchor.y;
+    count += 1;
+  }
+
+  if (count === 0) {
+    return { x: 0, y: 0 };
+  }
+
+  return {
+    x: sumX / count,
+    y: sumY / count
+  };
+}
+
+function elementAnchorWorld(element: SceneElement): Point {
+  if (element.kind === "Circle" || element.kind === "Ellipse") {
+    return element.center;
+  }
+  if (element.kind === "Text") {
+    return element.position;
+  }
+
+  const firstPoint = firstPathPoint(element.commands);
+  return firstPoint ?? { x: 0, y: 0 };
+}
+
+function firstPathPoint(commands: ScenePathCommand[]): Point | null {
+  for (const command of commands) {
+    if (command.kind === "Z") {
+      continue;
+    }
+    return command.to;
+  }
+  return null;
 }
 
 function resolveHandleIdForDrag(
