@@ -30,6 +30,11 @@ body.is-scrubbing {
   user-select: none;
 }
 
+body.is-node-dragging,
+body.is-node-dragging * {
+  cursor: grabbing !important;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -405,21 +410,22 @@ body.is-scrubbing {
   height: 100%;
 }
 
-.svg-overlay-handle {
-  pointer-events: all;
-  fill: rgba(255, 255, 255, 0.96);
-  stroke: #b42318;
-  stroke-width: 0.7;
+.svg-node-target {
   cursor: grab;
-  filter: drop-shadow(0 1px 2px rgba(16, 42, 67, 0.45));
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-.svg-overlay-handle:hover {
-  stroke: #dc6803;
-}
-
-.svg-overlay-handle.is-dragging {
+.svg-node-target:active {
   cursor: grabbing;
-  stroke: #dc6803;
-  fill: #fff7ed;
+}
+
+.svg-ghost-layer {
+  pointer-events: none;
+}
+
+.svg-ghost-element {
+  opacity: 0.62;
+  filter: drop-shadow(0 2px 5px rgba(28, 49, 70, 0.35));
 }

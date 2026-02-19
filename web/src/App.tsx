@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
 import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { deleteLine, indentLess, indentMore } from "@codemirror/commands";
 import { EditorView, Decoration, DecorationSet, hoverTooltip, keymap } from "@codemirror/view";
@@ -22,10 +22,16 @@ type DraggableNodeHandle = EditHandle & {
   rewriteMode: "direct";
   coordinateForm: "cartesian";
 };
+type NodeDragTarget = {
+  handle: DraggableNodeHandle;
+  sourceIds: string[];
+};
 type DragState = {
   pointerId: number;
   handleId: string;
+  sourceIds: string[];
   sourceSpan: SourceSpan;
+  capturedElement: SVGElement | null;
   baseSource: string;
   startWorld: Point2D;
   pointerStartWorld: Point2D;
@@ -40,19 +46,30 @@ const PANE_LABELS: Record<PaneId, string> = {
   svg: "SVG"
 };
 
-const defaultSource = String.raw`\begin{tikzpicture}[line width=0.8pt]
-  \begin{scope}[xshift=1cm, yshift=0.5cm, rotate=4]
-    \draw[->, blue] (0,0) -- (3,1) node {Flow};
-    \draw[red, fill=yellow] (0,0) rectangle (1.4,0.8);
-    \draw[green] (2,0.4) circle [radius=0.45cm];
-    \draw (2,1.4) ellipse [x radius=0.8cm, y radius=0.35cm];
-    \draw (0,1.2) arc [start angle=0, end angle=120, radius=0.7cm];
-  \end{scope}
-  \path coordinate (A) at (0,0) coordinate (B) at (2,1);
-  \draw[gray] (A) grid [step=1cm] (4,2);
-  \draw[thick] (A) to (B) -- +(1,0);
-  \node at (3.5,1.7) {Semantic IR + SVG};
-\end{tikzpicture}`;
+// const defaultSource = String.raw`\begin{tikzpicture}[line width=0.8pt]
+//   \begin{scope}[xshift=1cm, yshift=0.5cm, rotate=4]
+//     \draw[->, blue] (0,0) -- (3,1) node {Flow};
+//     \draw[red, fill=yellow] (0,0) rectangle (1.4,0.8);
+//     \draw[green] (2,0.4) circle [radius=0.45cm];
+//     \draw (2,1.4) ellipse [x radius=0.8cm, y radius=0.35cm];
+//     \draw (0,1.2) arc [start angle=0, end angle=120, radius=0.7cm];
+//   \end{scope}
+//   \path coordinate (A) at (0,0) coordinate (B) at (2,1);
+//   \draw[gray] (A) grid [step=1cm] (4,2);
+//   \draw[thick] (A) to (B) -- +(1,0);
+//   \node at (3.5,1.7) {Semantic IR + SVG};
+// \end{tikzpicture}`;
+
+const defaultSource = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+  \draw (-3,-3) rectangle (3,3);
+
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1.5, -0.5) {B};
+  \node[draw] (C) at (0, 1.5) {C};
+  \draw (A) edge (B)
+        (B) edge (C)
+        (C) edge (A);
+\end{tikzpicture}`
 
 const setHighlight = StateEffect.define<[number, number] | null>();
 const setEditorDiagnostics = StateEffect.define<EditorDiagnosticInput[]>();
@@ -81,6 +98,8 @@ const MAX_EDITOR_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DECORATION_DEBOUNCE_MS = 120;
 const CM_PER_TEX_POINT = 2.54 / 72.27;
+const LIVE_PARSE_INTERVAL_MS = 8;
+const LIVE_SOURCE_UPDATE_INTERVAL_MS = 8;
 const INITIAL_PANE_VISIBILITY: Record<PaneId, boolean> = {
   editor: true,
   tree: false,
@@ -219,6 +238,9 @@ export function App() {
   const scrubAnimationFrameRef = useRef<number | null>(null);
   const scrubPendingSourceRef = useRef<string | null>(null);
   const isScrubbingRef = useRef(false);
+  const isLiveDraggingRef = useRef(false);
+  const liveDragParseTimerRef = useRef<number | null>(null);
+  const liveDragPendingSourceRef = useRef<string | null>(null);
   const dragRef = useRef<{
     left: PaneId;
     right: PaneId;
@@ -233,6 +255,7 @@ export function App() {
   const [renderDiagnostics, setRenderDiagnostics] = useState<RenderDiagnostic[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [source, setSource] = useState(defaultSource);
+  const [showGhostDragPreview, setShowGhostDragPreview] = useState(false);
   const [paneVisibility, setPaneVisibility] = useState<Record<PaneId, boolean>>(INITIAL_PANE_VISIBILITY);
   const [paneSizes, setPaneSizes] = useState<Record<PaneId, number>>(() =>
     normalizePaneSizes(BASE_PANE_SIZES, INITIAL_PANE_VISIBILITY)
@@ -302,6 +325,24 @@ export function App() {
     [runParse]
   );
 
+  const queueLiveDragParse = useCallback(
+    (src: string) => {
+      liveDragPendingSourceRef.current = src;
+      if (liveDragParseTimerRef.current != null) {
+        return;
+      }
+      liveDragParseTimerRef.current = window.setTimeout(() => {
+        liveDragParseTimerRef.current = null;
+        const pending = liveDragPendingSourceRef.current;
+        liveDragPendingSourceRef.current = null;
+        if (pending != null) {
+          runParse(pending);
+        }
+      }, LIVE_PARSE_INTERVAL_MS);
+    },
+    [runParse]
+  );
+
   const handleScrubStateChange = useCallback(
     (active: boolean) => {
       isScrubbingRef.current = active;
@@ -326,6 +367,34 @@ export function App() {
     [runParse]
   );
 
+  const handleLiveDragStateChange = useCallback(
+    (active: boolean) => {
+      if (isLiveDraggingRef.current === active) {
+        return;
+      }
+      isLiveDraggingRef.current = active;
+
+      if (active) {
+        if (parseDebounceTimerRef.current != null) {
+          window.clearTimeout(parseDebounceTimerRef.current);
+          parseDebounceTimerRef.current = null;
+        }
+        return;
+      }
+
+      if (liveDragParseTimerRef.current != null) {
+        window.clearTimeout(liveDragParseTimerRef.current);
+        liveDragParseTimerRef.current = null;
+      }
+      const pending = liveDragPendingSourceRef.current;
+      liveDragPendingSourceRef.current = null;
+      if (pending != null) {
+        runParse(pending);
+      }
+    },
+    [runParse]
+  );
+
   useEffect(() => {
     if (!editorRef.current) {
       return;
@@ -337,7 +406,9 @@ export function App() {
       }
       const nextSource = update.state.doc.toString();
       setSource(nextSource);
-      if (isScrubbingRef.current) {
+      if (isLiveDraggingRef.current) {
+        queueLiveDragParse(nextSource);
+      } else if (isScrubbingRef.current) {
         queueScrubParse(nextSource);
       } else {
         queueParse(nextSource);
@@ -378,12 +449,18 @@ export function App() {
         window.cancelAnimationFrame(scrubAnimationFrameRef.current);
         scrubAnimationFrameRef.current = null;
       }
+      if (liveDragParseTimerRef.current != null) {
+        window.clearTimeout(liveDragParseTimerRef.current);
+        liveDragParseTimerRef.current = null;
+      }
       scrubPendingSourceRef.current = null;
+      liveDragPendingSourceRef.current = null;
       isScrubbingRef.current = false;
+      isLiveDraggingRef.current = false;
       document.body.classList.remove("is-scrubbing");
       view.destroy();
     };
-  }, [handleScrubStateChange, queueParse, queueScrubParse, runParse]);
+  }, [handleScrubStateChange, queueLiveDragParse, queueParse, queueScrubParse, runParse]);
 
   useEffect(() => {
     function onMouseMove(event: MouseEvent): void {
@@ -524,6 +601,14 @@ export function App() {
               <span>{PANE_LABELS[paneId]}</span>
             </label>
           ))}
+          <label className="pane-toggle">
+            <input
+              type="checkbox"
+              checked={showGhostDragPreview}
+              onChange={(event) => setShowGhostDragPreview(event.target.checked)}
+            />
+            <span>Ghost</span>
+          </label>
         </div>
       </header>
 
@@ -544,6 +629,8 @@ export function App() {
                   semanticResult={semanticResult}
                   source={source}
                   renderDiagnostics={renderDiagnostics}
+                  showGhost={showGhostDragPreview}
+                  onLiveEditStateChange={handleLiveDragStateChange}
                   onReplaceSource={replaceSourceText}
                 />
               )}
@@ -773,6 +860,8 @@ function SvgView({
   semanticResult,
   source,
   renderDiagnostics,
+  showGhost,
+  onLiveEditStateChange,
   onReplaceSource
 }: {
   parseError: string | null;
@@ -780,14 +869,20 @@ function SvgView({
   semanticResult: EvaluateTikzResult | null;
   source: string;
   renderDiagnostics: RenderDiagnostic[];
+  showGhost: boolean;
+  onLiveEditStateChange: (active: boolean) => void;
   onReplaceSource: (nextSource: string) => void;
 }) {
   const overlaySvgRef = useRef<SVGSVGElement>(null);
-  const dragSnapshotHandlesRef = useRef<DraggableNodeHandle[] | null>(null);
+  const svgContentRef = useRef<HTMLDivElement>(null);
+  const ghostLayerRef = useRef<SVGGElement>(null);
   const dragStateRef = useRef<DragState | null>(null);
   const pendingLiveSourceRef = useRef<string | null>(null);
-  const liveUpdateFrameRef = useRef<number | null>(null);
-  const [dragState, setDragState] = useState<DragState | null>(null);
+  const liveUpdateTimerRef = useRef<number | null>(null);
+
+  const setNodeDragCursorActive = useCallback((active: boolean) => {
+    document.body.classList.toggle("is-node-dragging", active);
+  }, []);
 
   const draggableHandles = useMemo(() => {
     const handles = semanticResult?.editHandles ?? [];
@@ -802,12 +897,44 @@ function SvgView({
     });
   }, [semanticResult, source]);
 
-  const handlesForRendering = dragState ? dragSnapshotHandlesRef.current ?? draggableHandles : draggableHandles;
+  const nodeDragTargets = useMemo<NodeDragTarget[]>(() => {
+    const sceneElements = semanticResult?.scene.elements ?? [];
+    return draggableHandles
+      .map((handle) => {
+        const sourceIds = Array.from(
+          new Set(
+            sceneElements
+              .filter((element) => spanContains(element.sourceSpan, handle.sourceSpan))
+              .map((element) => element.sourceId)
+          )
+        );
+        return {
+          handle,
+          sourceIds
+        };
+      })
+      .filter((target) => target.sourceIds.length > 0);
+  }, [draggableHandles, semanticResult?.scene.elements]);
+
+  const targetsBySourceId = useMemo(() => {
+    const map = new Map<string, NodeDragTarget[]>();
+    for (const target of nodeDragTargets) {
+      for (const sourceId of target.sourceIds) {
+        const bucket = map.get(sourceId);
+        if (bucket) {
+          bucket.push(target);
+        } else {
+          map.set(sourceId, [target]);
+        }
+      }
+    }
+    return map;
+  }, [nodeDragTargets]);
 
   const flushPendingLiveSource = useCallback(() => {
-    if (liveUpdateFrameRef.current != null) {
-      window.cancelAnimationFrame(liveUpdateFrameRef.current);
-      liveUpdateFrameRef.current = null;
+    if (liveUpdateTimerRef.current != null) {
+      window.clearTimeout(liveUpdateTimerRef.current);
+      liveUpdateTimerRef.current = null;
     }
     const pending = pendingLiveSourceRef.current;
     pendingLiveSourceRef.current = null;
@@ -816,39 +943,79 @@ function SvgView({
     }
   }, [onReplaceSource]);
 
+  const clearGhostClone = useCallback(() => {
+    const layer = ghostLayerRef.current;
+    if (!layer) {
+      return;
+    }
+    layer.replaceChildren();
+    layer.removeAttribute("transform");
+  }, []);
+
+  const setGhostTranslation = useCallback(
+    (deltaWorld: Point2D) => {
+      const layer = ghostLayerRef.current;
+      if (!layer || !svgResult || !showGhost) {
+        return;
+      }
+      const dx = deltaWorld.x;
+      const dy = -deltaWorld.y;
+      layer.setAttribute("transform", `translate(${formatSvgNumber(dx)} ${formatSvgNumber(dy)})`);
+    },
+    [showGhost, svgResult]
+  );
+
   const queueLiveSourceUpdate = useCallback(
     (nextSource: string) => {
       pendingLiveSourceRef.current = nextSource;
-      if (liveUpdateFrameRef.current != null) {
+      if (liveUpdateTimerRef.current != null) {
         return;
       }
-      liveUpdateFrameRef.current = window.requestAnimationFrame(() => {
-        liveUpdateFrameRef.current = null;
+      liveUpdateTimerRef.current = window.setTimeout(() => {
+        liveUpdateTimerRef.current = null;
         const pending = pendingLiveSourceRef.current;
         pendingLiveSourceRef.current = null;
         if (pending != null) {
           onReplaceSource(pending);
         }
-      });
+      }, LIVE_SOURCE_UPDATE_INTERVAL_MS);
     },
     [onReplaceSource]
   );
 
   useEffect(() => {
     return () => {
-      if (liveUpdateFrameRef.current != null) {
-        window.cancelAnimationFrame(liveUpdateFrameRef.current);
-        liveUpdateFrameRef.current = null;
+      if (liveUpdateTimerRef.current != null) {
+        window.clearTimeout(liveUpdateTimerRef.current);
+        liveUpdateTimerRef.current = null;
       }
       pendingLiveSourceRef.current = null;
-      dragSnapshotHandlesRef.current = null;
+      if (dragStateRef.current) {
+        onLiveEditStateChange(false);
+      }
+      setNodeDragCursorActive(false);
+      clearGhostClone();
       dragStateRef.current = null;
     };
-  }, []);
+  }, [clearGhostClone, onLiveEditStateChange, setNodeDragCursorActive]);
 
-  const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<SVGCircleElement>, handle: DraggableNodeHandle) => {
-      if (!svgResult) {
+  useEffect(() => {
+    if (!showGhost) {
+      clearGhostClone();
+    }
+  }, [clearGhostClone, showGhost]);
+
+  const handleNodePointerDown = useCallback(
+    (event: PointerEvent) => {
+      if (event.button !== 0 || !event.isPrimary || dragStateRef.current) {
+        return;
+      }
+      if (!svgResult || !(event.currentTarget instanceof SVGElement)) {
+        return;
+      }
+
+      const sourceId = event.currentTarget.getAttribute("data-source-id");
+      if (!sourceId) {
         return;
       }
 
@@ -857,37 +1024,107 @@ function SvgView({
         return;
       }
 
-      event.preventDefault();
-      event.currentTarget.setPointerCapture(event.pointerId);
-      dragSnapshotHandlesRef.current = draggableHandles;
+      const candidates = targetsBySourceId.get(sourceId);
+      if (!candidates || candidates.length === 0) {
+        return;
+      }
+
+      let chosen = candidates[0];
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const candidate of candidates) {
+        const distance = Math.hypot(candidate.handle.world.x - pointerWorld.x, candidate.handle.world.y - pointerWorld.y);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          chosen = candidate;
+        }
+      }
+
       const nextState: DragState = {
         pointerId: event.pointerId,
-        handleId: handle.id,
-        sourceSpan: handle.sourceSpan,
+        handleId: chosen.handle.id,
+        sourceIds: chosen.sourceIds,
+        sourceSpan: chosen.handle.sourceSpan,
+        capturedElement: event.currentTarget,
         baseSource: source,
-        startWorld: { ...handle.world },
+        startWorld: { ...chosen.handle.world },
         pointerStartWorld: pointerWorld,
-        currentWorld: { ...handle.world }
+        currentWorld: { ...chosen.handle.world }
       };
       dragStateRef.current = nextState;
-      setDragState(nextState);
+      setNodeDragCursorActive(true);
+      onLiveEditStateChange(true);
+
+      const rootSvg = svgContentRef.current?.querySelector("svg");
+      const layer = ghostLayerRef.current;
+      if (showGhost && rootSvg && layer) {
+        layer.replaceChildren();
+        for (const ghostSourceId of nextState.sourceIds) {
+          const selector = `[data-source-id="${escapeCssAttributeValue(ghostSourceId)}"]`;
+          const sourceElements = rootSvg.querySelectorAll<SVGGraphicsElement>(selector);
+          for (const sourceElement of sourceElements) {
+            const clone = sourceElement.cloneNode(true);
+            if (!(clone instanceof SVGElement)) {
+              continue;
+            }
+            clone.classList.add("svg-ghost-element");
+            clone.removeAttribute("data-source-id");
+            layer.appendChild(clone);
+          }
+        }
+      } else {
+        clearGhostClone();
+      }
+      setGhostTranslation({ x: 0, y: 0 });
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore capture failures (e.g. unsupported environment).
+      }
+      event.preventDefault();
+      event.stopPropagation();
     },
-    [draggableHandles, source, svgResult]
+    [clearGhostClone, onLiveEditStateChange, setGhostTranslation, setNodeDragCursorActive, showGhost, source, svgResult, targetsBySourceId]
   );
 
-  const handlePointerMove = useCallback(
-    (event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
+  useEffect(() => {
+    const rootSvg = svgContentRef.current?.querySelector("svg");
+    if (!rootSvg || targetsBySourceId.size === 0) {
+      return;
+    }
+
+    const cleanup: Array<() => void> = [];
+    for (const sourceId of targetsBySourceId.keys()) {
+      const selector = `[data-source-id="${escapeCssAttributeValue(sourceId)}"]`;
+      const elements = rootSvg.querySelectorAll<SVGGraphicsElement>(selector);
+      for (const element of elements) {
+        element.classList.add("svg-node-target");
+        element.addEventListener("pointerdown", handleNodePointerDown);
+        cleanup.push(() => {
+          element.classList.remove("svg-node-target");
+          element.removeEventListener("pointerdown", handleNodePointerDown);
+        });
+      }
+    }
+
+    return () => {
+      for (const dispose of cleanup) {
+        dispose();
+      }
+    };
+  }, [handleNodePointerDown, svgResult?.svg, targetsBySourceId]);
+
+  const handleWindowPointerMove = useCallback(
+    (event: PointerEvent) => {
       if (!svgResult) {
+        return;
+      }
+      const previous = dragStateRef.current;
+      if (!previous || previous.pointerId !== event.pointerId) {
         return;
       }
 
       const pointerWorld = pointerEventToWorldOnSvg(event, overlaySvgRef.current, svgResult.viewBox);
       if (!pointerWorld) {
-        return;
-      }
-
-      const previous = dragStateRef.current;
-      if (!previous || previous.handleId !== handleId || previous.pointerId !== event.pointerId) {
         return;
       }
 
@@ -895,63 +1132,67 @@ function SvgView({
         x: pointerWorld.x - previous.pointerStartWorld.x,
         y: pointerWorld.y - previous.pointerStartWorld.y
       };
-
-      const nextState: DragState = {
-        ...previous,
-        currentWorld: {
-          x: previous.startWorld.x + delta.x,
-          y: previous.startWorld.y + delta.y
-        }
+      const currentWorld = {
+        x: previous.startWorld.x + delta.x,
+        y: previous.startWorld.y + delta.y
       };
-      dragStateRef.current = nextState;
-      setDragState(nextState);
-      queueLiveSourceUpdate(
-        replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(nextState.currentWorld))
-      );
+      dragStateRef.current = {
+        ...previous,
+        currentWorld
+      };
+      setGhostTranslation({
+        x: currentWorld.x - previous.startWorld.x,
+        y: currentWorld.y - previous.startWorld.y
+      });
+      queueLiveSourceUpdate(replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(currentWorld)));
     },
-    [queueLiveSourceUpdate, svgResult]
+    [queueLiveSourceUpdate, setGhostTranslation, svgResult]
   );
 
-  const handlePointerUp = useCallback(
-    (event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
-      const target = event.currentTarget;
-      const pointerId = event.pointerId;
-      if (target?.hasPointerCapture(pointerId)) {
-        target.releasePointerCapture(pointerId);
-      }
-
+  const handleWindowPointerUp = useCallback(
+    (event: PointerEvent) => {
       const previous = dragStateRef.current;
-      if (!previous || previous.handleId !== handleId || previous.pointerId !== pointerId) {
+      if (!previous || previous.pointerId !== event.pointerId) {
         return;
       }
 
       flushPendingLiveSource();
-      onReplaceSource(
-        replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(previous.currentWorld))
-      );
-      dragSnapshotHandlesRef.current = null;
+      onReplaceSource(replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(previous.currentWorld)));
+      releaseCapturedPointer(previous.capturedElement, previous.pointerId);
       dragStateRef.current = null;
-      setDragState(null);
+      setNodeDragCursorActive(false);
+      clearGhostClone();
+      onLiveEditStateChange(false);
     },
-    [flushPendingLiveSource, onReplaceSource]
+    [clearGhostClone, flushPendingLiveSource, onLiveEditStateChange, onReplaceSource, setNodeDragCursorActive]
   );
 
-  const handlePointerCancel = useCallback((event: ReactPointerEvent<SVGCircleElement>, handleId: string) => {
-    const target = event.currentTarget;
-    const pointerId = event.pointerId;
-    if (target?.hasPointerCapture(pointerId)) {
-      target.releasePointerCapture(pointerId);
-    }
+  const handleWindowPointerCancel = useCallback(
+    (event: PointerEvent) => {
+      const previous = dragStateRef.current;
+      if (!previous || previous.pointerId !== event.pointerId) {
+        return;
+      }
+      flushPendingLiveSource();
+      releaseCapturedPointer(previous.capturedElement, previous.pointerId);
+      dragStateRef.current = null;
+      setNodeDragCursorActive(false);
+      clearGhostClone();
+      onLiveEditStateChange(false);
+    },
+    [clearGhostClone, flushPendingLiveSource, onLiveEditStateChange, setNodeDragCursorActive]
+  );
 
-    const previous = dragStateRef.current;
-    if (!previous || previous.handleId !== handleId || previous.pointerId !== pointerId) {
-      return;
-    }
-    flushPendingLiveSource();
-    dragSnapshotHandlesRef.current = null;
-    dragStateRef.current = null;
-    setDragState(null);
-  }, [flushPendingLiveSource]);
+  useEffect(() => {
+    window.addEventListener("pointermove", handleWindowPointerMove);
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerCancel);
+    return () => {
+      window.removeEventListener("pointermove", handleWindowPointerMove);
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel);
+    };
+  }, [handleWindowPointerCancel, handleWindowPointerMove, handleWindowPointerUp]);
 
   if (parseError) {
     return <div className="ir-view ir-error">{parseError}</div>;
@@ -968,7 +1209,8 @@ function SvgView({
           viewBox: {svgResult.viewBox.x.toFixed(1)} {svgResult.viewBox.y.toFixed(1)} {svgResult.viewBox.width.toFixed(1)}{" "}
           {svgResult.viewBox.height.toFixed(1)}
         </span>
-        <span>Node handles: {draggableHandles.length}</span>
+        <span>Draggable nodes: {draggableHandles.length}</span>
+        <span>Ghost: {showGhost ? "on" : "off"}</span>
         <span>Emitter diagnostics: {svgResult.diagnostics.length}</span>
       </div>
       {renderDiagnostics.length > 0 && (
@@ -983,7 +1225,7 @@ function SvgView({
       )}
       <div className="svg-canvas">
         <div className="svg-stage">
-          <div className="svg-content" dangerouslySetInnerHTML={{ __html: svgResult.svg }} />
+          <div className="svg-content" ref={svgContentRef} dangerouslySetInnerHTML={{ __html: svgResult.svg }} />
           <svg
             ref={overlaySvgRef}
             className="svg-overlay-svg"
@@ -991,25 +1233,7 @@ function SvgView({
             preserveAspectRatio="xMidYMid meet"
             aria-hidden
           >
-            {handlesForRendering.map((handle) => {
-              const world = dragState?.handleId === handle.id ? dragState.currentWorld : handle.world;
-              const overlayPoint = worldToSvgPoint(world, svgResult.viewBox);
-              return (
-                <circle
-                  key={handle.id}
-                  className={`svg-overlay-handle ${dragState?.handleId === handle.id ? "is-dragging" : ""}`}
-                  cx={overlayPoint.x}
-                  cy={overlayPoint.y}
-                  r={2.4}
-                  onPointerDown={(event) => handlePointerDown(event, handle)}
-                  onPointerMove={(event) => handlePointerMove(event, handle.id)}
-                  onPointerUp={(event) => handlePointerUp(event, handle.id)}
-                  onPointerCancel={(event) => handlePointerCancel(event, handle.id)}
-                >
-                  <title>Drag to move node and rewrite TikZ coordinate</title>
-                </circle>
-              );
-            })}
+            <g ref={ghostLayerRef} className="svg-ghost-layer" />
           </svg>
         </div>
       </div>
@@ -1025,8 +1249,12 @@ function isSimpleCoordinateSpan(source: string, span: SourceSpan): boolean {
   return /^\(\s*[+-]?(?:\d+(?:\.\d+)?|\.\d+)\s*,\s*[+-]?(?:\d+(?:\.\d+)?|\.\d+)\s*\)$/.test(raw);
 }
 
+function spanContains(outer: SourceSpan, inner: SourceSpan): boolean {
+  return outer.from <= inner.from && outer.to >= inner.to;
+}
+
 function pointerEventToWorldOnSvg(
-  event: Pick<ReactPointerEvent<Element>, "clientX" | "clientY">,
+  event: Pick<PointerEvent, "clientX" | "clientY">,
   svg: SVGSVGElement | null,
   viewBox: EmitSvgResult["viewBox"]
 ): Point2D | null {
@@ -1048,17 +1276,6 @@ function pointerEventToWorldOnSvg(
   };
 }
 
-function worldToSvgPoint(world: Point2D, viewBox: EmitSvgResult["viewBox"]): Point2D {
-  return {
-    x: world.x,
-    y: worldYToSvgY(world.y, viewBox)
-  };
-}
-
-function worldYToSvgY(worldY: number, viewBox: EmitSvgResult["viewBox"]): number {
-  return viewBox.y + viewBox.height - (worldY - viewBox.y);
-}
-
 function svgYToWorldY(svgY: number, viewBox: EmitSvgResult["viewBox"]): number {
   return viewBox.y + viewBox.height - (svgY - viewBox.y);
 }
@@ -1073,6 +1290,30 @@ function replaceSpanInSource(source: string, span: SourceSpan, replacement: stri
   const from = clamp(span.from, 0, source.length);
   const to = clamp(span.to, from, source.length);
   return `${source.slice(0, from)}${replacement}${source.slice(to)}`;
+}
+
+function escapeCssAttributeValue(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/["\\]/g, "\\$&");
+}
+
+function releaseCapturedPointer(element: SVGElement | null, pointerId: number): void {
+  if (!element) {
+    return;
+  }
+  try {
+    if (element.hasPointerCapture(pointerId)) {
+      element.releasePointerCapture(pointerId);
+    }
+  } catch {
+    // Ignore if capture was already released or unsupported.
+  }
+}
+
+function formatSvgNumber(value: number): string {
+  return Number(value.toFixed(4)).toString();
 }
 
 function formatCoordinateComponent(value: number): string {
