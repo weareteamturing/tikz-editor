@@ -1,0 +1,56 @@
+/* ── Status Bar ────────────────────────────────────────────────────────────── */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-header);
+  border-top: 1px solid var(--border);
+  height: 20px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0;
+  overflow: hidden;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 100%;
+  white-space: nowrap;
+  border-right: 1px solid var(--border-light);
+}
+
+.cell:last-child {
+  border-right: none;
+}
+
+.label {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+.error {
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.ok {
+  color: var(--color-ok);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.toolMode {
+  font-family: var(--font-mono);
+  color: var(--accent-dark);
+}

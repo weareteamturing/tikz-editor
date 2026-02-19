@@ -1,0 +1,109 @@
+/* ── Canvas Panel ──────────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-canvas-panel);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  height: 20px;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.headerMeta {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  /* Subtle grid background */
+  background-color: var(--bg-canvas-area);
+  background-image:
+    linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.svgWrap {
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svgWrap :global(svg) {
+  display: block;
+  /* Fill the wrapper which is sized to viewBox dimensions */
+  width: 100%;
+  height: 100%;
+}
+
+.noSvg {
+  color: var(--text-dim);
+  font-size: 12px;
+  text-align: center;
+}
+
+.error {
+  color: var(--color-error);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  padding: 8px 12px;
+  background: rgba(191, 44, 41, 0.06);
+  border: 1px solid rgba(191, 44, 41, 0.3);
+  border-radius: 2px;
+  max-width: 400px;
+}
+
+.diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 8px;
+  background: var(--bg-diagnostics);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.diagnostic {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+
+.diagnostic.error {
+  color: var(--color-error);
+}
+
+.diagnostic.warning {
+  color: var(--color-warning);
+}

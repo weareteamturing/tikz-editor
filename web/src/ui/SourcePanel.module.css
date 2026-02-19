@@ -1,0 +1,105 @@
+/* ── Source Panel ──────────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.editorWrap {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editorWrap :global(.cm-editor) {
+  height: 100%;
+}
+
+.editorWrap :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+
+.editorWrap :global(.cm-scroller) {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.editorWrap :global(.cm-editor.cm-scrub-hover .cm-scroller) {
+  cursor: ew-resize;
+}
+
+/* Diagnostic decorations (reused from playground) */
+.editorWrap :global(.cm-highlight-range) {
+  background: rgba(217, 119, 6, 0.15);
+  border-bottom: 2px solid #d97706;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-range) {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-error) {
+  text-decoration-color: var(--color-error);
+}
+
+.editorWrap :global(.cm-editor-diagnostic-warning) {
+  text-decoration-color: #d97706;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip) {
+  max-width: 360px;
+  border: 1px solid #c9d6e4;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip-header) {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #596b7d;
+  margin-bottom: 3px;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip-header code) {
+  font-weight: 700;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip-message) {
+  color: #1f3347;
+  white-space: normal;
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip-error .cm-editor-diagnostic-tooltip-header code) {
+  color: var(--color-error);
+}
+
+.editorWrap :global(.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code) {
+  color: #d97706;
+}

@@ -10,4 +10,8 @@ export default defineConfig({
       "tikz-editor": path.resolve(__dirname, "../src"),
     },
   },
+  // Content-Security-Policy should be configured at the production web server level:
+  //   Content-Security-Policy: script-src 'self'
+  // This blocks any inline event handlers that could be embedded in TikZ-generated SVG.
+  // It is not set here because Vite's dev server injects inline scripts for React Refresh.
 });
