@@ -9,6 +9,7 @@ import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 import { renderTikzToSvgAsync } from "tikz-editor/render/index";
+import { applyEditIntent } from "tikz-editor/edit/apply";
 import { tikzLanguage } from "./codemirror-tikz";
 import { numberScrubber } from "./number-scrubber";
 import { TreeView } from "./TreeView";
@@ -29,8 +30,8 @@ type NodeDragTarget = {
 type DragState = {
   pointerId: number;
   handleId: string;
+  editHandlesSnapshot: EditHandle[];
   sourceIds: string[];
-  sourceSpan: SourceSpan;
   capturedElement: SVGElement | null;
   baseSource: string;
   startWorld: Point2D;
@@ -97,7 +98,6 @@ type EditorDiagnostic = {
 const MAX_EDITOR_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DECORATION_DEBOUNCE_MS = 120;
-const CM_PER_TEX_POINT = 2.54 / 72.27;
 const LIVE_PARSE_INTERVAL_MS = 8;
 const LIVE_SOURCE_UPDATE_INTERVAL_MS = 8;
 const INITIAL_PANE_VISIBILITY: Record<PaneId, boolean> = {
@@ -983,6 +983,21 @@ function SvgView({
     [onReplaceSource]
   );
 
+  const applyMoveIntentToSource = useCallback(
+    (baseSource: string, handles: EditHandle[], handleId: string, world: Point2D): string | null => {
+      const result = applyEditIntent(baseSource, handles, {
+        kind: "move",
+        handleId,
+        newWorld: world
+      });
+      if (result.kind !== "success") {
+        return null;
+      }
+      return result.newSource;
+    },
+    []
+  );
+
   useEffect(() => {
     return () => {
       if (liveUpdateTimerRef.current != null) {
@@ -1042,8 +1057,8 @@ function SvgView({
       const nextState: DragState = {
         pointerId: event.pointerId,
         handleId: chosen.handle.id,
+        editHandlesSnapshot: semanticResult?.editHandles ?? [],
         sourceIds: chosen.sourceIds,
-        sourceSpan: chosen.handle.sourceSpan,
         capturedElement: event.currentTarget,
         baseSource: source,
         startWorld: { ...chosen.handle.world },
@@ -1083,7 +1098,17 @@ function SvgView({
       event.preventDefault();
       event.stopPropagation();
     },
-    [clearGhostClone, onLiveEditStateChange, setGhostTranslation, setNodeDragCursorActive, showGhost, source, svgResult, targetsBySourceId]
+    [
+      clearGhostClone,
+      onLiveEditStateChange,
+      semanticResult?.editHandles,
+      setGhostTranslation,
+      setNodeDragCursorActive,
+      showGhost,
+      source,
+      svgResult,
+      targetsBySourceId
+    ]
   );
 
   useEffect(() => {
@@ -1144,9 +1169,17 @@ function SvgView({
         x: currentWorld.x - previous.startWorld.x,
         y: currentWorld.y - previous.startWorld.y
       });
-      queueLiveSourceUpdate(replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(currentWorld)));
+      const nextSource = applyMoveIntentToSource(
+        previous.baseSource,
+        previous.editHandlesSnapshot,
+        previous.handleId,
+        currentWorld
+      );
+      if (nextSource != null) {
+        queueLiveSourceUpdate(nextSource);
+      }
     },
-    [queueLiveSourceUpdate, setGhostTranslation, svgResult]
+    [applyMoveIntentToSource, queueLiveSourceUpdate, setGhostTranslation, svgResult]
   );
 
   const handleWindowPointerUp = useCallback(
@@ -1157,14 +1190,29 @@ function SvgView({
       }
 
       flushPendingLiveSource();
-      onReplaceSource(replaceSpanInSource(previous.baseSource, previous.sourceSpan, formatCoordinateForSource(previous.currentWorld)));
+      const committed = applyMoveIntentToSource(
+        previous.baseSource,
+        previous.editHandlesSnapshot,
+        previous.handleId,
+        previous.currentWorld
+      );
+      if (committed != null) {
+        onReplaceSource(committed);
+      }
       releaseCapturedPointer(previous.capturedElement, previous.pointerId);
       dragStateRef.current = null;
       setNodeDragCursorActive(false);
       clearGhostClone();
       onLiveEditStateChange(false);
     },
-    [clearGhostClone, flushPendingLiveSource, onLiveEditStateChange, onReplaceSource, setNodeDragCursorActive]
+    [
+      applyMoveIntentToSource,
+      clearGhostClone,
+      flushPendingLiveSource,
+      onLiveEditStateChange,
+      onReplaceSource,
+      setNodeDragCursorActive
+    ]
   );
 
   const handleWindowPointerCancel = useCallback(
@@ -1280,18 +1328,6 @@ function svgYToWorldY(svgY: number, viewBox: EmitSvgResult["viewBox"]): number {
   return viewBox.y + viewBox.height - (svgY - viewBox.y);
 }
 
-function formatCoordinateForSource(world: Point2D): string {
-  const x = world.x * CM_PER_TEX_POINT;
-  const y = world.y * CM_PER_TEX_POINT;
-  return `(${formatCoordinateComponent(x)},${formatCoordinateComponent(y)})`;
-}
-
-function replaceSpanInSource(source: string, span: SourceSpan, replacement: string): string {
-  const from = clamp(span.from, 0, source.length);
-  const to = clamp(span.to, from, source.length);
-  return `${source.slice(0, from)}${replacement}${source.slice(to)}`;
-}
-
 function escapeCssAttributeValue(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
     return CSS.escape(value);
@@ -1314,13 +1350,4 @@ function releaseCapturedPointer(element: SVGElement | null, pointerId: number): 
 
 function formatSvgNumber(value: number): string {
   return Number(value.toFixed(4)).toString();
-}
-
-function formatCoordinateComponent(value: number): string {
-  const rounded = Math.round(value * 1000) / 1000;
-  const normalized = Math.abs(rounded) < 1e-9 ? 0 : rounded;
-  if (Number.isInteger(normalized)) {
-    return String(normalized);
-  }
-  return normalized.toFixed(3).replace(/\.?0+$/, "");
 }
