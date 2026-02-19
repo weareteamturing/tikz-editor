@@ -10,7 +10,7 @@
   --bg-app:          #eceae4;   /* app shell, toolbar */
   --bg-header:       #e3e0d8;   /* panel headers, status bar */
   --bg-canvas-panel: #d5d1c9;   /* canvas panel shell */
-  --bg-canvas-area:  #cdc9c1;   /* scrollable canvas background */
+  --bg-canvas-area:  #efeeeb;   /* scrollable canvas background */
   --bg-diagnostics:  #faf8f3;   /* diagnostics strip */
 
   /* Borders */

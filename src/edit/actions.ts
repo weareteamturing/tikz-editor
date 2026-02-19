@@ -3,6 +3,8 @@ import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
+import type { OptionEntry, OptionListAst } from "../options/types.js";
+import { resolvePropertyTarget } from "./property-target.js";
 
 export type ResizeRole =
   | "top-left"
@@ -54,6 +56,7 @@ export function applyEditAction(
     case "moveElement":
       return applyMoveElement(source, editHandles, action.elementId, action.delta);
     case "setProperty":
+      return applySetProperty(source, action);
     case "addElement":
     case "deleteElement":
     case "resizeElement":
@@ -150,4 +153,122 @@ function applyMoveElement(
   }
 
   return { kind: "success", newSource: currentSource, patches };
+}
+
+function applySetProperty(
+  source: string,
+  action: Extract<EditAction, { kind: "setProperty" }>
+): EditActionResult {
+  if (action.level !== "command") {
+    return {
+      kind: "unsupported",
+      reason: `setProperty currently supports only command level edits (received ${action.level})`
+    };
+  }
+
+  const key = normalizeOptionKey(action.key);
+  if (key.length === 0) {
+    return { kind: "error", message: "Cannot set an empty option key" };
+  }
+
+  const resolved = resolvePropertyTarget(source, action.elementId);
+  if (resolved.kind === "not-found") {
+    return { kind: "unsupported", reason: resolved.reason };
+  }
+
+  const target = resolved.target;
+  if (target.options && target.optionsSpan) {
+    const replacement = rewriteOptionList(target.options, key, action.value);
+    const updated = replaceSpan(source, target.optionsSpan, replacement);
+    return {
+      kind: "success",
+      newSource: updated.source,
+      patches: [
+        {
+          oldSpan: target.optionsSpan,
+          newSpan: updated.changedSpan,
+          replacement
+        }
+      ]
+    };
+  }
+
+  const replacement = `[${serializeOptionEntry(key, action.value)}]`;
+  const insertionSpan = {
+    from: target.insertOffset,
+    to: target.insertOffset
+  };
+  const updated = replaceSpan(source, insertionSpan, replacement);
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [
+      {
+        oldSpan: insertionSpan,
+        newSpan: updated.changedSpan,
+        replacement
+      }
+    ]
+  };
+}
+
+function rewriteOptionList(options: OptionListAst, key: string, value: string): string {
+  const replacementEntry = serializeOptionEntry(key, value);
+  const parts: string[] = [];
+  let replaced = false;
+
+  for (const entry of options.entries) {
+    const entryKey = optionEntryKey(entry);
+    if (entryKey === key) {
+      if (!replaced) {
+        parts.push(replacementEntry);
+        replaced = true;
+      }
+      continue;
+    }
+
+    const normalized = normalizeOptionEntryRaw(entry);
+    if (normalized.length > 0) {
+      parts.push(normalized);
+    }
+  }
+
+  if (!replaced) {
+    parts.push(replacementEntry);
+  }
+
+  return `[${parts.join(", ")}]`;
+}
+
+function optionEntryKey(entry: OptionEntry): string | null {
+  if (entry.kind === "kv" || entry.kind === "flag") {
+    return normalizeOptionKey(entry.key);
+  }
+  return null;
+}
+
+function normalizeOptionEntryRaw(entry: OptionEntry): string {
+  const raw = entry.raw.trim();
+  if (raw.length > 0) {
+    return raw;
+  }
+  if (entry.kind === "kv") {
+    return `${entry.key}=${entry.valueRaw}`;
+  }
+  if (entry.kind === "flag") {
+    return entry.key;
+  }
+  return "";
+}
+
+function normalizeOptionKey(key: string): string {
+  return key.trim().toLowerCase();
+}
+
+function serializeOptionEntry(key: string, value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.toLowerCase() === "true") {
+    return key;
+  }
+  return `${key}=${trimmed}`;
 }

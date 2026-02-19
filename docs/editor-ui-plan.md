@@ -531,7 +531,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Added dedicated style-chain assertions in `test/semantic.spec.ts`
 
 ### Phase 0: Foundation
-- Status: complete for local development baseline (updated on February 19, 2026)
+- Status: complete
 - Completed: decomposed `web/src/App.tsx` into the component tree above (CSS Modules)
 - Completed: added `src/edit/actions.ts` with `applyEditAction` baseline (`moveElement` + `moveHandle`) and tests
 - Completed: set up editor store (pure reducer + Zustand binding) with document/history/selection/canvas/layout (+ debug) slices
@@ -541,6 +541,7 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Completed: reducer tests now cover all current action types
 
 ### Phase 1: Canvas interaction (from scratch)
+- Status: complete
 - Implement fixed coordinate system + `canvasTransform` in store
 - `CanvasSVGLayer` (dangerouslySetInnerHTML, display-only) / `CanvasInteractionLayer` (SVG overlay, all pointer events)
 - Hit regions driven by semantic data (element-type-specific shapes: fat strokes for lines, fill regions for shapes, bounding box rects for text nodes)
@@ -556,8 +557,8 @@ The same applies in the inspector: a property control for a feature marked unsup
 ### Phase 2: Inspector (basic)
 - `getInspectorDescriptor()` in `src/edit/inspector.ts` + tests
 - `InspectorPanel` with property editors:
-  - Color picker (custom, xcolor model)
-  - Line width with visual thickness preview
+  - Color picker (start basic with only named colors, no mixing or tinting)
+  - Line width with visual thickness preview and label (`thin` etc)
   - Arrow tip selector with rendered previews
   - Numeric position/size inputs in TransformSection
 - Inspector edits write back to source via `setProperty` action
@@ -566,10 +567,10 @@ The same applies in the inspector: a property control for a feature marked unsup
 - Tool mode buttons in Toolbar
 - Capability matrix integration: disabled/annotated buttons via `getToolCapabilityStatus()`
 - `src/edit/element-templates.ts` + `insertElementIntoSource` + tests
-- Click-to-place: node, line with/without arrow
-- Drag-to-create: rectangle, circle
-- Ghost preview (ToolPreview) while placing
-- Code-snippet path for complex elements (matrix etc.) — opens code panel with template inserted at cursor
+- Click-to-place: node 
+- Drag-to-create: rectangle, circle, line with/without arrow
+- Ghost preview (ToolPreview) while placing. Use crosshair cursor
+- Deferred: Code-snippet path for complex elements (matrix etc.) — opens code panel with template inserted at cursor
 
 ### Phase 4: Resize handles
 - Resize overlay on selected elements (only for element types where resize is meaningful)

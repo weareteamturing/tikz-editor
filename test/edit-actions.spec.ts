@@ -4,6 +4,7 @@ import { identityMatrix } from "../src/semantic/transform.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import { PT_PER_CM } from "../src/edit/format.js";
 import { computeSourceFingerprint } from "../src/utils/source-fingerprint.js";
+import { parseTikz } from "../src/parser/index.js";
 
 const cm = (v: number) => v * PT_PER_CM;
 
@@ -179,20 +180,91 @@ describe("applyEditAction – moveElement", () => {
   });
 });
 
-// ── unimplemented actions ──────────────────────────────────────────────────────
+// ── setProperty ───────────────────────────────────────────────────────────────
 
-describe("applyEditAction – unimplemented", () => {
-  it("returns unsupported for setProperty", () => {
+describe("applyEditAction – setProperty", () => {
+  it("updates an existing command option key", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, line width=0.4pt] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "line width",
+      value: "1.2pt"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[blue, line width=1.2pt] (0,0) -- (1,0);");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
+
+  it("inserts a new command option list when none exists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[draw=red] (0,0) -- (1,0);");
+    }
+  });
+
+  it("inserts node options when targeting a node item id", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) node {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      throw new Error("Expected first statement to be a path");
+    }
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (!node || node.kind !== "Node") {
+      throw new Error("Expected a node item");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "fill",
+      value: "yellow"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw (0,0) node[fill=yellow] {A};");
+    }
+  });
+
+  it("returns unsupported when the target id is missing", () => {
     const result = applyEditAction("\\draw (0,0);", [], {
       kind: "setProperty",
-      elementId: "elem",
+      elementId: "missing",
       level: "command",
       key: "color",
       value: "red"
     });
     expect(result.kind).toBe("unsupported");
   });
+});
 
+// ── unimplemented actions ──────────────────────────────────────────────────────
+
+describe("applyEditAction – unimplemented", () => {
   it("returns unsupported for addElement", () => {
     const result = applyEditAction("\\draw (0,0);", [], {
       kind: "addElement",
