@@ -544,6 +544,43 @@ export function evaluatePathStatement(
         }
       }
 
+      if (
+        statement.command === "coordinate" &&
+        item.form === "named" &&
+        pendingNamedCoordinate == null &&
+        shouldCaptureStandaloneNodeNameCoordinate(statement.items, index)
+      ) {
+        const rawName = item.x.trim();
+        if (rawName.length > 0) {
+          let nextMeaningfulItem: PathStatement["items"][number] | null = null;
+          for (let lookahead = index + 1; lookahead < statement.items.length; lookahead += 1) {
+            const candidate = statement.items[lookahead];
+            if (candidate?.kind === "PathComment") {
+              continue;
+            }
+            nextMeaningfulItem = candidate ?? null;
+            break;
+          }
+
+          const hasExplicitAtTarget = nextMeaningfulItem?.kind === "PathKeyword" && nextMeaningfulItem.keyword === "at";
+          if (hasExplicitAtTarget) {
+            pendingNamedCoordinate = { name: rawName };
+          } else {
+            const fallbackPoint = hasPathCurrentPoint ? (currentPointLogical ?? context.currentPoint ?? defaultPathOrigin) : defaultPathOrigin;
+            context.namedCoordinates.set(applyNameScope(rawName, context), fallbackPoint);
+            if (!context.currentPoint) {
+              setCurrentPoint(fallbackPoint, fallbackPoint, {
+                form: item.form,
+                x: item.x
+              });
+            }
+          }
+
+          markFeature("named_coordinates", "supported");
+          continue;
+        }
+      }
+
       const evaluated =
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);

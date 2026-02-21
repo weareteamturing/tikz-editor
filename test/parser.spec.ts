@@ -421,6 +421,30 @@ describe("parseTikz", () => {
     expect(statement.items.some((item) => item.kind === "Coordinate")).toBe(true);
   });
 
+  it("parses standalone coordinate commands as path statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+      \coordinate (A) at (0,0);
+    \end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    expect(statement.command).toBe("coordinate");
+    const coordinates = statement.items.filter((item) => item.kind === "Coordinate");
+    expect(coordinates).toHaveLength(2);
+    if (coordinates[0]?.kind === "Coordinate") {
+      expect(coordinates[0].form).toBe("named");
+    }
+    if (coordinates[1]?.kind === "Coordinate") {
+      expect(coordinates[1].form).toBe("cartesian");
+    }
+    expect(statement.items.some((item) => item.kind === "PathKeyword" && item.keyword === "at")).toBe(true);
+  });
+
   it("parses standalone node commands that use node contents without trailing braces", () => {
     const source = String.raw`\begin{tikzpicture}
       \node[name=title,alias=headline,node contents=Hello,at={(1,2)}];

@@ -163,6 +163,36 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("treats standalone `\\coordinate` commands like `\\path coordinate`", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \coordinate (A) at (0,0);
+  \coordinate (B) at (1,0);
+  \draw (A) -- (B);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:A")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:B")).toBe(false);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      const move = path.commands[0];
+      const line = path.commands[1];
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M") {
+        expect(move.to.x).toBeCloseTo(0, 6);
+        expect(move.to.y).toBeCloseTo(0, 6);
+      }
+      if (line?.kind === "L") {
+        expect(line.to.x).toBeCloseTo(28.4528, 3);
+        expect(line.to.y).toBeCloseTo(0, 6);
+      }
+    }
+  });
+
   it("captures coordinate[pos=...] points along the previous segment", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- coordinate[pos=0.25] (A) coordinate[pos=0.75] (B) (4,0);
