@@ -538,6 +538,26 @@ describe("parseTikz", () => {
     expect(nodeTexts).toContain(String.raw`100\%`);
   });
 
+  it("accepts \\( ... \\) inline math delimiters in node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {This is math: \( x + y\)};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind === "Node") {
+      expect(node.text).toBe(String.raw`This is math: \( x + y\)`);
+    }
+  });
+
   it("captures inline node placement coordinates in path syntax", () => {
     const source = String.raw`\begin{tikzpicture}
       \draw (0,0) node[draw] at (1,0) {A};

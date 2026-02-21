@@ -297,6 +297,8 @@ MacroCommandDefaultArgPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
   PathKeyword |
   KnownCommand |
   CommandName |
@@ -341,6 +343,8 @@ OptionPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
   KnownCommand |
   CommandName |
   NodeKw |
@@ -389,6 +393,8 @@ GroupPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
   PathKeyword |
   KnownCommand |
   NodeKw |
@@ -412,6 +418,8 @@ StylePayloadPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
   KnownCommand |
   CommandName |
   NodeKw |
@@ -470,6 +478,8 @@ Coordinate {
   PathKeyword |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedParenOpenCmd |
+  EscapedParenCloseCmd |
   KnownCommand |
   CommandName |
   ToKw |
@@ -589,6 +599,8 @@ StrayToken {
     EscapedAmpersandCmd,
     EscapedPercentCmd,
     EscapedDollarCmd,
+    EscapedParenOpenCmd,
+    EscapedParenCloseCmd,
     AtKw,
     BendKw,
     CycleKw,
@@ -656,6 +668,8 @@ StrayToken {
   EscapedAmpersandCmd { "\\&" }
   EscapedPercentCmd { "\\%" }
   EscapedDollarCmd { "\\$" }
+  EscapedParenOpenCmd { "\\(" }
+  EscapedParenCloseCmd { "\\)" }
 
   AtKw { "at" }
   BendKw { "bend" }
