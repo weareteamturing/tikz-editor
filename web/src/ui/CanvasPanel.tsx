@@ -78,6 +78,9 @@ type HitRegion =
       y: number;
       width: number;
       height: number;
+      cx: number;
+      cy: number;
+      rotation: number;
     };
 
 type DragState =
@@ -1609,6 +1612,11 @@ export function CanvasPanel() {
                         y={region.y}
                         width={region.width}
                         height={region.height}
+                        transform={
+                          Math.abs(region.rotation) > 1e-6
+                            ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
+                            : undefined
+                        }
                         fill="transparent"
                         pointerEvents={toolMode === "select" ? "all" : "none"}
                         onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
@@ -1739,15 +1747,18 @@ function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, scale: n
       continue;
     }
 
-    const bounds = textBounds(element, viewBox);
+    const textGeometry = textGeometryInSvg(element, viewBox);
     regions.push({
       shape: "rect",
       key: `hit:${element.id}`,
       sourceId: element.sourceId,
-      x: bounds.minX,
-      y: bounds.minY,
-      width: bounds.maxX - bounds.minX,
-      height: bounds.maxY - bounds.minY
+      x: textGeometry.cx - textGeometry.width / 2,
+      y: textGeometry.cy - textGeometry.height / 2,
+      width: textGeometry.width,
+      height: textGeometry.height,
+      cx: textGeometry.cx,
+      cy: textGeometry.cy,
+      rotation: textGeometry.rotation
     });
   }
 
@@ -1840,15 +1851,30 @@ function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds 
 }
 
 function textBounds(element: SceneText, viewBox: SvgViewBox): Bounds {
+  const textGeometry = textGeometryInSvg(element, viewBox);
+  return computeRotatedRectBounds(
+    textGeometry.cx,
+    textGeometry.cy,
+    textGeometry.width,
+    textGeometry.height,
+    textGeometry.rotation
+  );
+}
+
+function textGeometryInSvg(
+  element: SceneText,
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): { cx: number; cy: number; width: number; height: number; rotation: number } {
   const center = worldToSvgPoint(element.position, viewBox);
   const width = element.textBlockWidth ?? estimateTextBlockWidth(element.text, element.style.fontSize);
   const height = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
 
   return {
-    minX: center.x - width / 2,
-    maxX: center.x + width / 2,
-    minY: center.y - height / 2,
-    maxY: center.y + height / 2
+    cx: center.x,
+    cy: center.y,
+    width,
+    height,
+    rotation: element.rotation ?? 0
   };
 }
 
@@ -2070,6 +2096,32 @@ function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, ro
   const sin = Math.sin(theta);
   const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
   const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
+
+  return {
+    minX: cx - extentX,
+    maxX: cx + extentX,
+    minY: cy - extentY,
+    maxY: cy + extentY
+  };
+}
+
+function computeRotatedRectBounds(cx: number, cy: number, width: number, height: number, rotation: number): Bounds {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  if (Math.abs(rotation) <= 1e-6) {
+    return {
+      minX: cx - halfWidth,
+      maxX: cx + halfWidth,
+      minY: cy - halfHeight,
+      maxY: cy + halfHeight
+    };
+  }
+
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(theta));
+  const sin = Math.abs(Math.sin(theta));
+  const extentX = halfWidth * cos + halfHeight * sin;
+  const extentY = halfWidth * sin + halfHeight * cos;
 
   return {
     minX: cx - extentX,
