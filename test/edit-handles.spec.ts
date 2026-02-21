@@ -109,6 +109,7 @@ describe("edit handles", () => {
     const namedHandle = pathHandles.find((h) => h.coordinateForm === "named");
     expect(namedHandle).toBeDefined();
     expect(namedHandle?.rewriteMode).toBe("unsupported");
+    expect(namedHandle?.rewriteTargetHandleId).toBeDefined();
     expect(namedHandle?.world.x).toBeCloseTo(cm(2));
     expect(namedHandle?.world.y).toBeCloseTo(cm(3));
   });

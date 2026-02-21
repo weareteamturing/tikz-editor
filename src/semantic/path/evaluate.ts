@@ -585,7 +585,13 @@ export function evaluatePathStatement(
         evaluateTurnCoordinate(item, currentPointLogical ?? context.currentPoint, frameTransform, lastPlacementSegment) ??
         evaluateCoordinate(item, context);
       const handleKind = statement.command === "node" ? "node-position" : "path-point";
-      const handle = createEditHandle(evaluated, item.span, statement.id, handleKind, context);
+      const rewriteTargetHandleId =
+        handleKind === "path-point" && evaluated.coordinateForm === "named"
+          ? resolveNamedCoordinateRewriteHandleId(item.x, context)
+          : undefined;
+      const handle = createEditHandle(evaluated, item.span, statement.id, handleKind, context, {
+        rewriteTargetHandleId
+      });
       if (handle) context.editHandles.push(handle);
       for (const code of evaluated.diagnostics) {
         pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, item.span.from, item.span.to);
@@ -595,7 +601,11 @@ export function evaluatePathStatement(
       }
 
       if (pendingNamedCoordinate) {
-        context.namedCoordinates.set(applyNameScope(pendingNamedCoordinate.name, context), evaluated.world);
+        const scopedName = applyNameScope(pendingNamedCoordinate.name, context);
+        context.namedCoordinates.set(scopedName, evaluated.world);
+        if (handle && handle.rewriteMode !== "unsupported" && !handle.rewriteTargetHandleId) {
+          context.namedCoordinateRewriteHandles.set(scopedName, handle.id);
+        }
         pendingNamedCoordinate = null;
       }
 
@@ -1695,6 +1705,23 @@ export function evaluatePathStatement(
   }
 
   return [...behindNodeElements, ...geometryElements, ...frontNodeElements];
+}
+
+function resolveNamedCoordinateRewriteHandleId(rawName: string, context: SemanticContext): string | undefined {
+  const trimmed = rawName.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  const scoped = applyNameScope(trimmed, context);
+  const candidates = scoped === trimmed ? [trimmed] : [scoped, trimmed];
+  for (const candidate of candidates) {
+    const handleId = context.namedCoordinateRewriteHandles.get(candidate);
+    if (handleId) {
+      return handleId;
+    }
+  }
+  return undefined;
 }
 
 function sanitizeGeneratedNodeName(raw: string): string {

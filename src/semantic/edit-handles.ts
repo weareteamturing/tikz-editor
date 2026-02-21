@@ -8,7 +8,10 @@ export function createEditHandle(
   sourceSpan: Span,
   sourceId: string,
   kind: "node-position" | "path-point",
-  context: SemanticContext
+  context: SemanticContext,
+  opts: {
+    rewriteTargetHandleId?: string;
+  } = {}
 ): EditHandle | null {
   if (!evaluated.world) return null;
 
@@ -31,6 +34,7 @@ export function createEditHandle(
     relativePrefix: evaluated.relativePrefix,
     relativeBaseWorld: evaluated.relativePrefix ? context.currentPoint ?? undefined : undefined,
     rewriteMode,
+    rewriteTargetHandleId: opts.rewriteTargetHandleId
   };
 }
 

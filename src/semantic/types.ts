@@ -271,4 +271,5 @@ export type EditHandle = {
   relativePrefix?: "+" | "++";
   relativeBaseWorld?: Point;
   rewriteMode: "direct" | "delta" | "unsupported";
+  rewriteTargetHandleId?: string;
 };

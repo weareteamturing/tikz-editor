@@ -79,12 +79,17 @@ function applyMoveIntent(
   editHandles: EditHandle[],
   intent: Extract<EditIntent, { kind: "move" }>
 ): EditIntentResult {
-  const handle = editHandles.find((h) => h.id === intent.handleId);
+  const handle = editHandles.find((entry) => entry.id === intent.handleId);
   if (!handle) {
     return { kind: "error", message: `Handle not found: ${intent.handleId}` };
   }
 
-  if (handle.rewriteMode === "unsupported") {
+  const rewriteHandle = resolveRewriteHandle(handle, editHandles);
+  if (!rewriteHandle) {
+    return { kind: "error", message: "Rewrite target handle could not be resolved (stale handle?)." };
+  }
+
+  if (rewriteHandle.rewriteMode === "unsupported") {
     return {
       kind: "unsupported",
       reason: `Coordinate form "${handle.coordinateForm}" cannot be rewritten`,
@@ -96,8 +101,7 @@ function applyMoveIntent(
     editHandles.some(
       (candidate) =>
         candidate.id !== handle.id &&
-        candidate.sourceSpan.from === handle.sourceSpan.from &&
-        candidate.sourceSpan.to === handle.sourceSpan.to
+        isConflictingRewriteTarget(candidate, rewriteHandle, editHandles)
     )
   ) {
     return {
@@ -107,20 +111,24 @@ function applyMoveIntent(
     };
   }
 
-  if (handle.sourceFingerprint !== computeSourceFingerprint(source)) {
+  if (rewriteHandle.sourceFingerprint !== computeSourceFingerprint(source)) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }
 
-  if (handle.sourceSpan.from < 0 || handle.sourceSpan.to > source.length || handle.sourceSpan.from >= handle.sourceSpan.to) {
+  if (
+    rewriteHandle.sourceSpan.from < 0 ||
+    rewriteHandle.sourceSpan.to > source.length ||
+    rewriteHandle.sourceSpan.from >= rewriteHandle.sourceSpan.to
+  ) {
     return { kind: "error", message: "Handle source span exceeds source length (stale handle?)" };
   }
 
-  const currentSourceText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
-  if (currentSourceText !== handle.sourceText) {
+  const currentSourceText = source.slice(rewriteHandle.sourceSpan.from, rewriteHandle.sourceSpan.to);
+  if (currentSourceText !== rewriteHandle.sourceText) {
     return { kind: "error", message: "Handle span content mismatch (stale handle)." };
   }
 
-  const replacement = rewriteCoordinate(intent.newWorld, handle, source);
+  const replacement = rewriteCoordinate(intent.newWorld, rewriteHandle, source);
   if (replacement === null) {
     return {
       kind: "unsupported",
@@ -129,18 +137,47 @@ function applyMoveIntent(
     };
   }
 
-  const updated = replaceSpan(source, handle.sourceSpan, replacement);
+  const updated = replaceSpan(source, rewriteHandle.sourceSpan, replacement);
   return {
     kind: "success",
     newSource: updated.source,
     patches: [
       {
-        oldSpan: handle.sourceSpan,
+        oldSpan: rewriteHandle.sourceSpan,
         newSpan: updated.changedSpan,
         replacement
       }
     ]
   };
+}
+
+function resolveRewriteHandle(
+  handle: EditHandle,
+  editHandles: EditHandle[]
+): EditHandle | null {
+  if (!handle.rewriteTargetHandleId) {
+    return handle;
+  }
+
+  return editHandles.find((entry) => entry.id === handle.rewriteTargetHandleId) ?? null;
+}
+
+function isConflictingRewriteTarget(
+  candidate: EditHandle,
+  rewriteHandle: EditHandle,
+  editHandles: EditHandle[]
+): boolean {
+  const candidateRewriteHandle = resolveRewriteHandle(candidate, editHandles);
+  if (!candidateRewriteHandle) {
+    return false;
+  }
+  if (candidateRewriteHandle.id === rewriteHandle.id) {
+    return false;
+  }
+  return (
+    candidateRewriteHandle.sourceSpan.from === rewriteHandle.sourceSpan.from &&
+    candidateRewriteHandle.sourceSpan.to === rewriteHandle.sourceSpan.to
+  );
 }
 
 export function isCoordinateItem(item: PathItem): item is CoordinateItem {

@@ -150,6 +150,44 @@ describe("edit integration (round-trip)", () => {
     expect(result.newHandle!.world.y).toBeCloseTo(cm(3), 0);
   });
 
+  it("moves named path handles by rewriting matching coordinate definitions", () => {
+    const source = String.raw`\begin{tikzpicture}
+\coordinate (A) at (0,0);
+\coordinate (B) at (2,1);
+\draw[thick,blue] (A) -- (B);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const namedHandle = handles.find(
+      (h) =>
+        source.slice(h.sourceSpan.from, h.sourceSpan.to) === "(A)" &&
+        h.coordinateForm === "named"
+    );
+    expect(namedHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: namedHandle!.id,
+      newWorld: { x: cm(1), y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain(String.raw`\coordinate (A) at (1,1);`);
+    expect(result.newSource).toContain(String.raw`\coordinate (B) at (2,1);`);
+    expect(result.newSource).toContain(String.raw`\draw[thick,blue] (A) -- (B);`);
+
+    const reevaluated = evaluateAndGetHandles(result.newSource);
+    const movedNamedHandle = reevaluated.handles.find(
+      (h) =>
+        result.newSource.slice(h.sourceSpan.from, h.sourceSpan.to) === "(A)" &&
+        h.coordinateForm === "named"
+    );
+    expect(movedNamedHandle).toBeDefined();
+    expect(movedNamedHandle!.world.x).toBeCloseTo(cm(1), 3);
+    expect(movedNamedHandle!.world.y).toBeCloseTo(cm(1), 3);
+  });
+
   it("returns unsupported for named coordinates", () => {
     const source = String.raw`\begin{tikzpicture}
 \node (A) at (0,0) {A};
