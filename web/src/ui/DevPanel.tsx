@@ -1,9 +1,24 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useEditorStore } from "../store/store";
 import { TreeView } from "../TreeView";
 import css from "./DevPanel.module.css";
 
 type Tab = "cst" | "ir" | "snapshot";
+
+const MIN_PANEL_WIDTH = 360;
+const MAX_PANEL_MARGIN = 72;
+
+function clampPanelWidth(width: number, viewportWidth: number): number {
+  const maxWidth = Math.max(MIN_PANEL_WIDTH, viewportWidth - MAX_PANEL_MARGIN);
+  return Math.max(MIN_PANEL_WIDTH, Math.min(width, maxWidth));
+}
+
+function initialPanelWidth(): number {
+  if (typeof window === "undefined") {
+    return 900;
+  }
+  return clampPanelWidth(Math.min(900, window.innerWidth * 0.9), window.innerWidth);
+}
 
 export function DevPanel() {
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
@@ -12,12 +27,58 @@ export function DevPanel() {
   const source = useEditorStore((s) => s.source);
 
   const [tab, setTab] = useState<Tab>("cst");
+  const [panelWidth, setPanelWidth] = useState<number>(initialPanelWidth);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const onResizeMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      resizeRef.current = {
+        startX: event.clientX,
+        startWidth: panelWidth
+      };
+      document.body.classList.add("is-resizing-dev-panel");
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [panelWidth]
+  );
+
+  useEffect(() => {
+    function onMouseMove(event: MouseEvent) {
+      const resize = resizeRef.current;
+      if (!resize) return;
+      const deltaX = event.clientX - resize.startX;
+      const nextWidth = clampPanelWidth(resize.startWidth - deltaX, window.innerWidth);
+      setPanelWidth(nextWidth);
+    }
+
+    function onMouseUp() {
+      if (!resizeRef.current) return;
+      resizeRef.current = null;
+      document.body.classList.remove("is-resizing-dev-panel");
+    }
+
+    function onWindowResize() {
+      setPanelWidth((current) => clampPanelWidth(current, window.innerWidth));
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("resize", onWindowResize);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("resize", onWindowResize);
+      document.body.classList.remove("is-resizing-dev-panel");
+    };
+  }, []);
 
   if (!showDevPanel) return null;
 
   return (
-    <div className={css.overlay} onClick={(e) => e.target === e.currentTarget && dispatch({ type: "TOGGLE_DEV_PANEL" })}>
-      <div className={css.panel}>
+    <div className={css.overlay}>
+      <div className={css.panel} style={{ width: panelWidth }}>
+        <div className={css.resizeHandle} onMouseDown={onResizeMouseDown} />
         <div className={css.header}>
           <span>Dev Panel</span>
           <button className={css.closeBtn} onClick={() => dispatch({ type: "TOGGLE_DEV_PANEL" })}>✕</button>

@@ -4,19 +4,54 @@
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.4);
+  background: transparent;
   display: flex;
   align-items: stretch;
   justify-content: flex-end;
+  pointer-events: none;
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  width: min(900px, 90vw);
+  min-width: 0;
   background: #f8f8f8;
   border-left: 2px solid var(--accent);
   box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+  position: relative;
+  pointer-events: auto;
+}
+
+.resizeHandle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.resizeHandle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(64, 124, 154, 0.6);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.panel:hover .resizeHandle::after {
+  opacity: 1;
+}
+
+.resizeHandle:active::after {
+  opacity: 1;
 }
 
 .header {
@@ -91,4 +126,9 @@
 .treeWrap {
   font-size: 11px;
   line-height: 1.5;
+}
+
+:global(body.is-resizing-dev-panel) {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
