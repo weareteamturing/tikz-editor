@@ -243,6 +243,57 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
 
     expect(next).toBe(initial);
   });
+
+  it("replaces selected ids when the edit result provides selectedSourceIds", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      selectedElementIds: new Set(["path:0"]),
+      snapshot: { ...makeEmptySnapshot(source), source }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "pasteStatements",
+        snippets: ["\\draw (2,2) -- (3,2);"],
+        anchorElementId: "path:0"
+      }
+    });
+
+    expect(next).not.toBe(initial);
+    expect(next.selectedElementIds).not.toEqual(new Set(["path:0"]));
+    expect(next.selectedElementIds.size).toBe(1);
+  });
+
+  it("records reorder actions with reorder history kind and label", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "reorderElements",
+        elementIds: ["path:0"],
+        direction: "bringForward"
+      }
+    });
+
+    expect(next.history).toHaveLength(1);
+    expect(next.history[0]?.kind).toBe("reorder");
+    expect(next.history[0]?.label).toBe("Reordered elements");
+  });
 });
 
 // ── SELECT / CLEAR_SELECTION ───────────────────────────────────────────────────
@@ -288,6 +339,32 @@ describe("editorReducer – selection", () => {
       { type: "SELECT_RANGE", ids: ["elem-1", "elem-2", "elem-3"] }
     ]);
     expect(state.selectedElementIds).toEqual(new Set(["elem-1", "elem-2", "elem-3"]));
+  });
+
+  it("SET_INTERNAL_CLIPBOARD stores a copied payload", () => {
+    const clipboard = {
+      snippets: ["\\draw (0,0) -- (1,0);"],
+      plainText: "\\draw (0,0) -- (1,0);",
+      copiedAt: 1234
+    };
+    const state = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
+    expect(state.internalClipboard).toEqual(clipboard);
+    expect(state.internalClipboard).not.toBe(clipboard);
+  });
+
+  it("SET_INTERNAL_CLIPBOARD clears clipboard and no-ops when already null", () => {
+    const clipboard = {
+      snippets: ["\\draw (0,0) -- (1,0);"],
+      plainText: "\\draw (0,0) -- (1,0);",
+      copiedAt: 1234
+    };
+    const withClipboard = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
+    const cleared = editorReducer(withClipboard, { type: "SET_INTERNAL_CLIPBOARD", clipboard: null });
+    expect(cleared.internalClipboard).toBeNull();
+
+    const initial = makeInitialState();
+    const unchanged = editorReducer(initial, { type: "SET_INTERNAL_CLIPBOARD", clipboard: null });
+    expect(unchanged).toBe(initial);
   });
 });
 

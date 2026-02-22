@@ -8,10 +8,18 @@ import { CanvasPanel } from "./CanvasPanel";
 import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
 import { DevPanel } from "./DevPanel";
+import {
+  copySelection,
+  duplicateSelection,
+  isCodeMirrorEventTarget,
+  pasteSelectionAnchor
+} from "./editor-commands";
 import css from "./App.module.css";
 
 export function App() {
   const source = useEditorStore((s) => s.source);
+  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const dispatch = useEditorStore((s) => s.dispatch);
 
   // ── Compute pipeline ─────────────────────────────────────────────────────────
@@ -38,7 +46,7 @@ export function App() {
       }
 
       const target = e.target as HTMLElement | null;
-      const inCodeMirror = target?.closest?.(".cm-editor") != null;
+      const inCodeMirror = isCodeMirrorEventTarget(target);
       if (inCodeMirror) return;
 
       // Keep browser/field-native undo for editable fields outside CM.
@@ -50,7 +58,36 @@ export function App() {
         return;
       }
 
+      const commandContext = {
+        source,
+        selectedElementIds,
+        dispatch
+      };
+
       const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (!e.shiftKey && key === "c") {
+          void copySelection(commandContext);
+          e.preventDefault();
+          return;
+        }
+
+        if (!e.shiftKey && key === "v") {
+          pasteSelectionAnchor({
+            ...commandContext,
+            internalClipboard
+          });
+          e.preventDefault();
+          return;
+        }
+
+        if (!e.shiftKey && key === "d") {
+          duplicateSelection(commandContext);
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         if (key === "v") {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
@@ -97,7 +134,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch]);
+  }, [dispatch, internalClipboard, selectedElementIds, source]);
 
   return (
     <div className={css.app}>

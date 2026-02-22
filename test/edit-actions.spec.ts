@@ -352,3 +352,305 @@ describe("applyEditAction – deleteElement", () => {
     }
   });
 });
+
+describe("applyEditAction – reorderElements", () => {
+  it("brings a single statement forward by one slot", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:0"],
+      direction: "bringForward"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource.indexOf("\\draw (0,1) -- (1,1);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,0) -- (1,0);")
+    );
+  });
+
+  it("sends a single statement backward by one slot", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:1"],
+      direction: "sendBackward"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource.indexOf("\\draw (0,1) -- (1,1);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,0) -- (1,0);")
+    );
+  });
+
+  it("supports sendToBack and bringToFront", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const toBack = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:2"],
+      direction: "sendToBack"
+    });
+    expect(toBack.kind).toBe("success");
+    if (toBack.kind === "success") {
+      expect(toBack.newSource.indexOf("\\draw (0,2) -- (1,2);")).toBeLessThan(
+        toBack.newSource.indexOf("\\draw (0,0) -- (1,0);")
+      );
+    }
+
+    const toFront = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:0"],
+      direction: "bringToFront"
+    });
+    expect(toFront.kind).toBe("success");
+    if (toFront.kind === "success") {
+      expect(toFront.newSource.indexOf("\\draw (0,2) -- (1,2);")).toBeLessThan(
+        toFront.newSource.indexOf("\\draw (0,0) -- (1,0);")
+      );
+    }
+  });
+
+  it("keeps contiguous multi-selection stable while moving one step forward", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+  \draw (0,3) -- (1,3);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:1", "path:2"],
+      direction: "bringForward"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource.indexOf("\\draw (0,3) -- (1,3);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,1) -- (1,1);")
+    );
+    expect(result.newSource.indexOf("\\draw (0,1) -- (1,1);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,2) -- (1,2);")
+    );
+  });
+
+  it("moves non-contiguous multi-selection one step backward per statement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+  \draw (0,3) -- (1,3);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:1", "path:3"],
+      direction: "sendBackward"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource.indexOf("\\draw (0,1) -- (1,1);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,0) -- (1,0);")
+    );
+    expect(result.newSource.indexOf("\\draw (0,3) -- (1,3);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,2) -- (1,2);")
+    );
+  });
+
+  it("keeps statements separated by newline+indent when reordering forward/backward", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);\draw[fill=gray] (-1.31,1.23) rectangle (1,-0.29);
+
+  \draw (-2.5, 2.5) -- (2.5, 2.5);
+\end{tikzpicture}`;
+
+    const backward = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:1"],
+      direction: "sendBackward"
+    });
+    expect(backward.kind).toBe("success");
+    if (backward.kind !== "success") return;
+    expect(backward.newSource).not.toContain(";\\draw");
+    expect(backward.newSource).toContain(";\n  \\draw");
+
+    const forward = applyEditAction(backward.newSource, [], {
+      kind: "reorderElements",
+      elementIds: ["path:0"],
+      direction: "bringForward"
+    });
+    expect(forward.kind).toBe("success");
+    if (forward.kind !== "success") return;
+    expect(forward.newSource).not.toContain(";\\draw");
+    expect(forward.newSource).toContain(";\n  \\draw");
+  });
+
+  it("reorders mixed-parent selections per parent list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \begin{scope}
+    \draw (0,1) -- (1,1);
+    \draw (0,2) -- (1,2);
+  \end{scope}
+  \draw (0,3) -- (1,3);
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const scope = parsed.figure.body.find((statement) => statement.kind === "Scope");
+    expect(scope?.kind).toBe("Scope");
+    if (!scope || scope.kind !== "Scope") {
+      throw new Error("Expected a scope statement.");
+    }
+    const nestedFirst = scope.body.find((statement) => statement.kind === "Path");
+    expect(nestedFirst?.kind).toBe("Path");
+    if (!nestedFirst || nestedFirst.kind !== "Path") {
+      throw new Error("Expected a nested path statement.");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:0", nestedFirst.id],
+      direction: "bringToFront"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource.indexOf("\\draw (0,3) -- (1,3);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,0) -- (1,0);")
+    );
+    expect(result.newSource.indexOf("\\draw (0,2) -- (1,2);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,1) -- (1,1);")
+    );
+  });
+});
+
+describe("applyEditAction – duplicateElements", () => {
+  it("duplicates selected statements after the same-parent anchor with default down-right offset", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:0"]
+    });
+
+    expect(result.kind === "success" || result.kind === "partial").toBe(true);
+    if (result.kind !== "success" && result.kind !== "partial") return;
+
+    expect(result.newSource.indexOf("\\draw (0,0) -- (1,0);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0.25,-0.25) -- (1.25,-0.25);")
+    );
+    expect(result.newSource.indexOf("\\draw (0.25,-0.25) -- (1.25,-0.25);")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,1) -- (1,1);")
+    );
+    expect(result.selectedSourceIds?.length ?? 0).toBe(1);
+  });
+
+  it("renames duplicated named nodes to avoid name conflicts", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0, 1.5) {C};
+  \node[draw] (C2) at (2, 1.5) {C2};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:0"]
+    });
+
+    expect(result.kind === "success" || result.kind === "partial").toBe(true);
+    if (result.kind !== "success" && result.kind !== "partial") return;
+    expect(result.newSource).toContain("\\node[draw] (C3) at (0.25, 1.25) {C};");
+  });
+
+  it("uses spaced numeric suffixes for names that contain spaces", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (My Node) at (0, 1.5) {C};
+  \node[draw] (My Node 2) at (2, 1.5) {C2};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "duplicateElements",
+      elementIds: ["path:0"]
+    });
+
+    expect(result.kind === "success" || result.kind === "partial").toBe(true);
+    if (result.kind !== "success" && result.kind !== "partial") return;
+    expect(result.newSource).toContain("\\node[draw] (My Node 3) at (0.25, 1.25) {C};");
+  });
+});
+
+describe("applyEditAction – pasteStatements", () => {
+  it("pastes snippets after anchor and returns selected source ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: ["\\draw (0,0) -- (1,0);"],
+      anchorElementId: "path:0"
+    });
+
+    expect(result.kind === "success" || result.kind === "partial").toBe(true);
+    if (result.kind !== "success" && result.kind !== "partial") return;
+    expect(result.newSource).toContain("\\draw (0.25,-0.25) -- (1.25,-0.25);");
+    expect(result.selectedSourceIds?.length ?? 0).toBe(1);
+  });
+
+  it("pastes snippets before \\end{tikzpicture} when no anchor is provided", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: ["\\draw (2,2) -- (3,2);"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (2.25,1.75) -- (3.25,1.75);");
+    const endIndex = result.newSource.lastIndexOf("\\end{tikzpicture}");
+    expect(result.newSource.lastIndexOf("\\draw (2.25,1.75) -- (3.25,1.75);")).toBeLessThan(endIndex);
+  });
+
+  it("renames pasted named nodes and updates coordinate references", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "pasteStatements",
+      snippets: [
+        "\\node[draw] (C) at (0, 1.5) {C};",
+        "\\draw (C) -- ++(1,0);"
+      ]
+    });
+
+    expect(result.kind === "success" || result.kind === "partial").toBe(true);
+    if (result.kind !== "success" && result.kind !== "partial") return;
+    expect(result.newSource).toContain("\\node[draw] (C2) at (0.25, 1.25) {C};");
+    expect(result.newSource).toContain("\\draw (C2) -- ++");
+  });
+});

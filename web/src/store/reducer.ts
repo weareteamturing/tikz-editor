@@ -32,6 +32,7 @@ export function makeInitialState(): EditorState {
     historyIndex: -1,
 
     selectedElementIds: new Set(),
+    internalClipboard: null,
 
     toolMode: "select",
     canvasTransform: DEFAULT_CANVAS_TRANSFORM,
@@ -54,6 +55,7 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
     case "add-element": return "Added element";
     case "delete": return "Deleted element";
     case "resize": return "Resized element";
+    case "reorder": return "Reordered elements";
   }
 }
 
@@ -100,11 +102,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
 
+      const nextSelection = result.selectedSourceIds
+        ? new Set(result.selectedSourceIds)
+        : state.selectedElementIds;
+
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
         action.action.kind === "moveHandle" ? "move-handle" :
         action.action.kind === "setProperty" ? "set-property" :
+        action.action.kind === "reorderElements" ? "reorder" :
         action.action.kind === "addElement" ? "add-element" :
+        action.action.kind === "duplicateElements" || action.action.kind === "pasteStatements" ? "add-element" :
         action.action.kind === "deleteElement" || action.action.kind === "deleteElements" ? "delete" :
         "resize";
 
@@ -130,6 +138,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...state,
           source: result.newSource,
+          selectedElementIds: nextSelection,
           history: nextHistory,
           historyIndex: lastIndex
         };
@@ -148,6 +157,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         source: result.newSource,
+        selectedElementIds: nextSelection,
         history: [...truncated, entry],
         historyIndex: truncated.length
       };
@@ -203,6 +213,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "CLEAR_SELECTION": {
       if (state.selectedElementIds.size === 0) return state;
       return { ...state, selectedElementIds: new Set() };
+    }
+
+    case "SET_INTERNAL_CLIPBOARD": {
+      if (action.clipboard == null) {
+        if (state.internalClipboard == null) {
+          return state;
+        }
+        return { ...state, internalClipboard: null };
+      }
+      return {
+        ...state,
+        internalClipboard: {
+          snippets: [...action.clipboard.snippets],
+          plainText: action.clipboard.plainText,
+          copiedAt: action.clipboard.copiedAt
+        }
+      };
     }
 
     // ── Canvas ────────────────────────────────────────────────────────────────

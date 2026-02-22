@@ -1,6 +1,17 @@
 import { useEditorStore } from "../store/store";
 import type { ToolMode } from "../store/types";
+import type { ReorderDirection } from "tikz-editor/edit/actions";
 import { getToolCapabilityStatus } from "./capabilities";
+import {
+  canCopySelection,
+  canDuplicateSelection,
+  canPasteSelection,
+  canReorderSelection,
+  copySelection,
+  duplicateSelection,
+  pasteSelectionAnchor,
+  reorderSelection
+} from "./editor-commands";
 import css from "./Toolbar.module.css";
 
 type ToolButtonDef = {
@@ -19,7 +30,10 @@ const TOOL_BUTTONS: ToolButtonDef[] = [
 ];
 
 export function Toolbar() {
+  const source = useEditorStore((s) => s.source);
   const toolMode = useEditorStore((s) => s.toolMode);
+  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
@@ -28,6 +42,20 @@ export function Toolbar() {
 
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
+  const canCopy = canCopySelection(selectedElementIds);
+  const canDuplicate = canDuplicateSelection(selectedElementIds);
+  const canPaste = canPasteSelection(internalClipboard);
+  const canReorder = canReorderSelection(selectedElementIds);
+
+  const commandContext = {
+    source,
+    selectedElementIds,
+    dispatch
+  };
+
+  const runReorder = (direction: ReorderDirection) => {
+    reorderSelection(commandContext, direction);
+  };
 
   return (
     <div className={css.toolbar}>
@@ -61,6 +89,80 @@ export function Toolbar() {
             </button>
           );
         })}
+      </div>
+
+      <div className={css.separator} />
+
+      {/* Clipboard / Arrange */}
+      <div className={css.group}>
+        <button
+          className={css.btn}
+          title="Copy selection (Ctrl/Cmd+C)"
+          disabled={!canCopy}
+          onClick={() => {
+            void copySelection(commandContext);
+          }}
+        >
+          Copy
+        </button>
+        <button
+          className={css.btn}
+          title="Paste after selection (Ctrl/Cmd+V)"
+          disabled={!canPaste}
+          onClick={() => {
+            pasteSelectionAnchor({
+              ...commandContext,
+              internalClipboard
+            });
+          }}
+        >
+          Paste
+        </button>
+        <button
+          className={css.btn}
+          title="Duplicate selection (Ctrl/Cmd+D)"
+          disabled={!canDuplicate}
+          onClick={() => {
+            duplicateSelection(commandContext);
+          }}
+        >
+          Duplicate
+        </button>
+      </div>
+
+      <div className={css.group}>
+        <button
+          className={css.btn}
+          title="Send to back"
+          disabled={!canReorder}
+          onClick={() => runReorder("sendToBack")}
+        >
+          To Back
+        </button>
+        <button
+          className={css.btn}
+          title="Send backward"
+          disabled={!canReorder}
+          onClick={() => runReorder("sendBackward")}
+        >
+          Backward
+        </button>
+        <button
+          className={css.btn}
+          title="Bring forward"
+          disabled={!canReorder}
+          onClick={() => runReorder("bringForward")}
+        >
+          Forward
+        </button>
+        <button
+          className={css.btn}
+          title="Bring to front"
+          disabled={!canReorder}
+          onClick={() => runReorder("bringToFront")}
+        >
+          To Front
+        </button>
       </div>
 
       <div className={css.separator} />

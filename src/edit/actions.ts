@@ -4,6 +4,7 @@ import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
+import { PT_PER_CM } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
@@ -12,6 +13,21 @@ import {
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { parseTikz } from "../parser/index.js";
+import { evaluateTikzFigure } from "../semantic/evaluate.js";
+import { renameSnippetDeclaredNames } from "./name-conflicts.js";
+import {
+  applyTextReplacements,
+  formatSnippetsForInsertion,
+  groupStatementRefsByParent,
+  lineIndentAtOffset,
+  mapSpansToStatementIds,
+  parseStatementSnapshot,
+  resolveRootInsertionPoint,
+  resolveStatementRefs,
+  shiftSpansAfterReplacement,
+  statementSnippet,
+  type StatementRef
+} from "./statement-ops.js";
 
 export type ResizeRole =
   | "top-left"
@@ -25,6 +41,7 @@ export type ResizeRole =
 
 export type StyleLevel = "command" | "scope" | "named-style" | "preamble";
 export type { ElementTemplate } from "./element-templates.js";
+export type ReorderDirection = "sendToBack" | "sendBackward" | "bringForward" | "bringToFront";
 
 export type EditAction =
   | { kind: "moveElement"; elementId: string; delta: Point }
@@ -34,19 +51,25 @@ export type EditAction =
   | { kind: "addElement"; template: ElementTemplate; at: Point }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
+  | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: Point }
+  | { kind: "duplicateElements"; elementIds: string[]; delta?: Point }
+  | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
   | { kind: "resizeElement"; elementId: string; role: ResizeRole; newWorld: Point };
 
 export type EditActionResult =
-  | { kind: "success"; newSource: string; patches: SourcePatch[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[] }
   | {
       kind: "partial";
       newSource: string;
       patches: SourcePatch[];
       skippedHandles: string[];
       reason: string;
+      selectedSourceIds?: string[];
     }
   | { kind: "unsupported"; reason: string }
   | { kind: "error"; message: string };
+
+const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
 
 export function applyEditAction(
   source: string,
@@ -68,6 +91,12 @@ export function applyEditAction(
       return applyDeleteElements(source, [action.elementId]);
     case "deleteElements":
       return applyDeleteElements(source, action.elementIds);
+    case "pasteStatements":
+      return applyPasteStatements(source, action);
+    case "duplicateElements":
+      return applyDuplicateElements(source, action);
+    case "reorderElements":
+      return applyReorderElements(source, action.elementIds, action.direction);
     case "resizeElement":
       return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
   }
@@ -168,6 +197,507 @@ function applyMoveElements(
   }
 
   return { kind: "success", newSource: currentSource, patches };
+}
+
+function applyPasteStatements(
+  source: string,
+  action: Extract<EditAction, { kind: "pasteStatements" }>
+): EditActionResult {
+  const snippets = action.snippets
+    .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
+    .filter((snippet) => snippet.trim().length > 0);
+  if (snippets.length === 0) {
+    return { kind: "unsupported", reason: "No snippets were provided for pasteStatements." };
+  }
+
+  const delta = normalizeDuplicateDelta(action.delta);
+  const shifted = offsetSnippetsByDelta(snippets, delta);
+  const renamedSnippets = renameSnippetDeclaredNames(source, shifted.snippets);
+
+  const snapshot = parseStatementSnapshot(source);
+  const anchorId = action.anchorElementId?.trim();
+  const anchorRef = anchorId ? snapshot.byId.get(anchorId) : undefined;
+
+  const insertionPoint = anchorRef
+    ? {
+        offset: anchorRef.span.to,
+        indent: lineIndentAtOffset(source, anchorRef.span.from)
+      }
+    : resolveRootInsertionPoint(source);
+
+  const insertion = formatSnippetsForInsertion(renamedSnippets, insertionPoint.indent);
+  if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
+    return { kind: "unsupported", reason: "No non-empty statements were available to paste." };
+  }
+
+  const applied = applyTextReplacements(source, [
+    {
+      span: { from: insertionPoint.offset, to: insertionPoint.offset },
+      text: insertion.text
+    }
+  ]);
+  const appliedInsertion = applied.applied[0];
+  if (!appliedInsertion) {
+    return { kind: "error", message: "Failed to apply pasted source snippets." };
+  }
+
+  const insertedSpans = insertion.snippetSpans.map((span) => ({
+    from: appliedInsertion.newSpan.from + span.from,
+    to: appliedInsertion.newSpan.from + span.to
+  }));
+  const selectedSourceIds = mapSpansToStatementIds(applied.source, insertedSpans);
+
+  if (shifted.partialReason) {
+    return {
+      kind: "partial",
+      newSource: applied.source,
+      patches: applied.patches,
+      skippedHandles: shifted.skippedHandles,
+      reason: shifted.partialReason,
+      selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+    };
+  }
+
+  return {
+    kind: "success",
+    newSource: applied.source,
+    patches: applied.patches,
+    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+  };
+}
+
+function applyDuplicateElements(
+  source: string,
+  action: Extract<EditAction, { kind: "duplicateElements" }>
+): EditActionResult {
+  const normalizedIds = normalizeElementIds(action.elementIds);
+  if (normalizedIds.length === 0) {
+    return { kind: "unsupported", reason: "No element ids were provided for duplicateElements." };
+  }
+
+  const initialSnapshot = parseStatementSnapshot(source);
+  const initialRefs = resolveStatementRefs(initialSnapshot, normalizedIds);
+  if (initialRefs.length === 0) {
+    return { kind: "unsupported", reason: "No duplicable statements were found for the selected element ids." };
+  }
+
+  const groups = groupStatementRefsByParent(initialRefs);
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  let insertedSpans: Span[] = [];
+  const partialReasons: string[] = [];
+  const partialSkippedHandles: string[] = [];
+  const delta = normalizeDuplicateDelta(action.delta);
+
+  for (const group of groups) {
+    const snapshot = parseStatementSnapshot(currentSource);
+    const currentRefs = resolveStatementRefs(
+      snapshot,
+      group.refs.map((ref) => ref.id)
+    );
+    if (currentRefs.length === 0) {
+      continue;
+    }
+
+    const resolvedGroups = groupStatementRefsByParent(currentRefs);
+    for (const resolvedGroup of resolvedGroups) {
+      const orderedRefs = [...resolvedGroup.refs].sort((left, right) => left.index - right.index);
+      const snippets = orderedRefs.map((ref) => statementSnippet(currentSource, ref));
+      const shifted = offsetSnippetsByDelta(snippets, delta);
+      const renamedSnippets = renameSnippetDeclaredNames(currentSource, shifted.snippets);
+      if (shifted.partialReason) {
+        partialReasons.push(shifted.partialReason);
+        partialSkippedHandles.push(...shifted.skippedHandles);
+      }
+
+      const anchor = orderedRefs[orderedRefs.length - 1];
+      if (!anchor) {
+        continue;
+      }
+
+      const insertion = formatSnippetsForInsertion(
+        renamedSnippets,
+        lineIndentAtOffset(currentSource, anchor.span.from)
+      );
+      if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
+        continue;
+      }
+
+      const applied = applyTextReplacements(currentSource, [
+        {
+          span: { from: anchor.span.to, to: anchor.span.to },
+          text: insertion.text
+        }
+      ]);
+      const appliedInsertion = applied.applied[0];
+      if (!appliedInsertion) {
+        continue;
+      }
+
+      patches.push(...applied.patches);
+      currentSource = applied.source;
+      insertedSpans = shiftSpansAfterReplacement(insertedSpans, appliedInsertion.oldSpan, appliedInsertion.newSpan);
+      insertedSpans.push(
+        ...insertion.snippetSpans.map((span) => ({
+          from: appliedInsertion.newSpan.from + span.from,
+          to: appliedInsertion.newSpan.from + span.to
+        }))
+      );
+    }
+  }
+
+  if (insertedSpans.length === 0) {
+    return { kind: "unsupported", reason: "Duplicate operation produced no inserted statements." };
+  }
+
+  const selectedSourceIds = mapSpansToStatementIds(currentSource, insertedSpans);
+  if (partialReasons.length > 0) {
+    return {
+      kind: "partial",
+      newSource: currentSource,
+      patches,
+      skippedHandles: uniqueStrings(partialSkippedHandles),
+      reason: uniqueStrings(partialReasons).join(" "),
+      selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+    };
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches,
+    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+  };
+}
+
+function applyReorderElements(
+  source: string,
+  elementIds: readonly string[],
+  direction: ReorderDirection
+): EditActionResult {
+  const normalizedIds = normalizeElementIds(elementIds);
+  if (normalizedIds.length === 0) {
+    return { kind: "unsupported", reason: "No element ids were provided for reorderElements." };
+  }
+
+  const initialSnapshot = parseStatementSnapshot(source);
+  const initialRefs = resolveStatementRefs(initialSnapshot, normalizedIds);
+  if (initialRefs.length === 0) {
+    return { kind: "unsupported", reason: "No reorderable statements were found for the selected element ids." };
+  }
+
+  const groups = groupStatementRefsByParent(initialRefs);
+  const trackedSpansById = new Map<string, Span>();
+  for (const ref of initialRefs) {
+    trackedSpansById.set(ref.id, { ...ref.span });
+  }
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+
+  for (const group of groups) {
+    const snapshot = parseStatementSnapshot(currentSource);
+    const currentRefs = resolveStatementRefs(
+      snapshot,
+      group.refs.map((ref) => ref.id)
+    );
+    if (currentRefs.length === 0) {
+      continue;
+    }
+
+    const resolvedGroups = groupStatementRefsByParent(currentRefs);
+    for (const resolvedGroup of resolvedGroups) {
+      const parentRefs = snapshot.byParentKey.get(resolvedGroup.parentKey) ?? [];
+      if (parentRefs.length <= 1) {
+        continue;
+      }
+
+      const selectedIdSet = new Set(resolvedGroup.refs.map((ref) => ref.id));
+      const currentOrder = parentRefs.map((ref) => ref.id);
+      const nextOrder = reorderStatementIds(currentOrder, selectedIdSet, direction);
+      if (arraysEqual(currentOrder, nextOrder)) {
+        continue;
+      }
+
+      const replacement = buildParentReorderReplacement(snapshot.source, parentRefs, nextOrder);
+      if (!replacement) {
+        continue;
+      }
+
+      const applied = applyTextReplacements(currentSource, [
+        {
+          span: replacement.span,
+          text: replacement.text
+        }
+      ]);
+      const appliedReplacement = applied.applied[0];
+      if (!appliedReplacement) {
+        continue;
+      }
+
+      patches.push(...applied.patches);
+      currentSource = applied.source;
+
+      for (const [id, span] of trackedSpansById.entries()) {
+        const [shifted] = shiftSpansAfterReplacement([span], appliedReplacement.oldSpan, appliedReplacement.newSpan);
+        if (shifted) {
+          trackedSpansById.set(id, shifted);
+        }
+      }
+
+      for (const [id, span] of replacement.newSpansById.entries()) {
+        if (!trackedSpansById.has(id)) {
+          continue;
+        }
+        trackedSpansById.set(id, {
+          from: appliedReplacement.newSpan.from + (span.from - replacement.span.from),
+          to: appliedReplacement.newSpan.from + (span.to - replacement.span.from)
+        });
+      }
+    }
+  }
+
+  const finalTrackedSpans = normalizedIds
+    .map((id) => trackedSpansById.get(id))
+    .filter((span): span is Span => span != null);
+  const selectedSourceIds = mapSpansToStatementIds(currentSource, finalTrackedSpans);
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches,
+    selectedSourceIds: selectedSourceIds.length > 0 ? selectedSourceIds : undefined
+  };
+}
+
+type ReorderReplacement = {
+  span: Span;
+  text: string;
+  newSpansById: Map<string, Span>;
+};
+
+function buildParentReorderReplacement(
+  source: string,
+  parentRefs: readonly StatementRef[],
+  orderedIds: readonly string[]
+): ReorderReplacement | null {
+  if (parentRefs.length === 0) {
+    return null;
+  }
+
+  const sortedRefs = [...parentRefs].sort((left, right) => left.index - right.index);
+  const refsById = new Map(sortedRefs.map((ref) => [ref.id, ref] as const));
+
+  const replacementSpan: Span = {
+    from: sortedRefs[0]!.span.from,
+    to: sortedRefs[sortedRefs.length - 1]!.span.to
+  };
+
+  const indent = lineIndentAtOffset(source, sortedRefs[0]!.span.from);
+  const separator = resolveReorderStatementSeparator(source, sortedRefs, indent);
+
+  let text = "";
+  let cursor = replacementSpan.from;
+  const newSpansById = new Map<string, Span>();
+  for (let index = 0; index < orderedIds.length; index += 1) {
+    const id = orderedIds[index];
+    const ref = refsById.get(id);
+    if (!ref) {
+      continue;
+    }
+
+    const statementText = source.slice(ref.span.from, ref.span.to);
+    newSpansById.set(id, {
+      from: cursor,
+      to: cursor + statementText.length
+    });
+
+    text += statementText;
+    cursor += statementText.length;
+
+    if (index < orderedIds.length - 1) {
+      text += separator;
+      cursor += separator.length;
+    }
+  }
+
+  return {
+    span: replacementSpan,
+    text,
+    newSpansById
+  };
+}
+
+function resolveReorderStatementSeparator(
+  source: string,
+  sortedRefs: readonly StatementRef[],
+  indent: string
+): string {
+  const newline = detectPreferredNewline(source, sortedRefs[0]?.span.from ?? 0);
+  for (let index = 0; index < sortedRefs.length - 1; index += 1) {
+    const left = sortedRefs[index];
+    const right = sortedRefs[index + 1];
+    if (!left || !right) {
+      continue;
+    }
+
+    const gap = source.slice(left.span.to, right.span.from);
+    if (gap.includes("\n")) {
+      return `${gap.includes("\r\n") ? "\r\n" : "\n"}${indent}`;
+    }
+  }
+
+  return `${newline}${indent}`;
+}
+
+function detectPreferredNewline(source: string, aroundOffset: number): string {
+  const windowStart = Math.max(0, aroundOffset - 256);
+  const windowEnd = Math.min(source.length, aroundOffset + 256);
+  const window = source.slice(windowStart, windowEnd);
+  if (window.includes("\r\n")) {
+    return "\r\n";
+  }
+  return "\n";
+}
+
+function reorderStatementIds(
+  ids: readonly string[],
+  selected: ReadonlySet<string>,
+  direction: ReorderDirection
+): string[] {
+  if (ids.length <= 1 || selected.size === 0) {
+    return [...ids];
+  }
+
+  if (direction === "sendToBack") {
+    const selectedIds = ids.filter((id) => selected.has(id));
+    const unselectedIds = ids.filter((id) => !selected.has(id));
+    return [...selectedIds, ...unselectedIds];
+  }
+
+  if (direction === "bringToFront") {
+    const selectedIds = ids.filter((id) => selected.has(id));
+    const unselectedIds = ids.filter((id) => !selected.has(id));
+    return [...unselectedIds, ...selectedIds];
+  }
+
+  const reordered = [...ids];
+  if (direction === "sendBackward") {
+    for (let index = 1; index < reordered.length; index += 1) {
+      if (!selected.has(reordered[index]!) || selected.has(reordered[index - 1]!)) {
+        continue;
+      }
+      [reordered[index - 1], reordered[index]] = [reordered[index]!, reordered[index - 1]!];
+    }
+    return reordered;
+  }
+
+  for (let index = reordered.length - 2; index >= 0; index -= 1) {
+    if (!selected.has(reordered[index]!) || selected.has(reordered[index + 1]!)) {
+      continue;
+    }
+    [reordered[index], reordered[index + 1]] = [reordered[index + 1]!, reordered[index]!];
+  }
+  return reordered;
+}
+
+function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+type OffsetSnippetsResult = {
+  snippets: string[];
+  partialReason?: string;
+  skippedHandles: string[];
+};
+
+function offsetSnippetsByDelta(
+  snippets: readonly string[],
+  delta: Point
+): OffsetSnippetsResult {
+  const normalized = snippets
+    .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
+    .filter((snippet) => snippet.trim().length > 0);
+  if (normalized.length === 0) {
+    return { snippets: [], skippedHandles: [] };
+  }
+  if (Math.abs(delta.x) <= 1e-9 && Math.abs(delta.y) <= 1e-9) {
+    return { snippets: normalized, skippedHandles: [] };
+  }
+
+  const wrappedSource = wrapSnippetsInFigure(normalized);
+  const wrappedSnapshot = parseStatementSnapshot(wrappedSource);
+  const rootRefs = wrappedSnapshot.byParentKey.get("root") ?? [];
+  const rootIds = rootRefs.map((ref) => ref.id);
+  if (rootIds.length === 0) {
+    return { snippets: normalized, skippedHandles: [] };
+  }
+
+  const parsed = parseTikz(wrappedSource, { recover: true });
+  const semantic = evaluateTikzFigure(parsed.figure, wrappedSource);
+  const moved = applyMoveElements(wrappedSource, semantic.editHandles, rootIds, delta);
+
+  if (moved.kind !== "success" && moved.kind !== "partial") {
+    return {
+      snippets: normalized,
+      skippedHandles: [],
+      partialReason:
+        moved.kind === "unsupported"
+          ? `Could not offset all pasted/duplicated statements: ${moved.reason}`
+          : `Could not offset all pasted/duplicated statements: ${moved.message}`
+    };
+  }
+
+  const movedSnapshot = parseStatementSnapshot(moved.newSource);
+  const movedRootRefs = movedSnapshot.byParentKey.get("root") ?? [];
+  const movedSnippets = movedRootRefs.map((ref) => statementSnippet(moved.newSource, ref));
+  if (movedSnippets.length !== normalized.length) {
+    return {
+      snippets: normalized,
+      skippedHandles: moved.kind === "partial" ? moved.skippedHandles : [],
+      partialReason:
+        moved.kind === "partial"
+          ? `Some pasted/duplicated coordinates could not be offset: ${moved.reason}`
+          : "Some pasted/duplicated statements could not be offset."
+    };
+  }
+
+  if (moved.kind === "partial") {
+    return {
+      snippets: movedSnippets,
+      partialReason: `Some pasted/duplicated coordinates could not be offset: ${moved.reason}`,
+      skippedHandles: moved.skippedHandles
+    };
+  }
+
+  return {
+    snippets: movedSnippets,
+    skippedHandles: []
+  };
+}
+
+function wrapSnippetsInFigure(snippets: readonly string[]): string {
+  const body = snippets.map((snippet) => `  ${snippet}`).join("\n");
+  return `\\begin{tikzpicture}\n${body}\n\\end{tikzpicture}`;
+}
+
+function normalizeDuplicateDelta(delta: Point | undefined): Point {
+  if (!delta) {
+    return { x: DEFAULT_DUPLICATE_OFFSET_PT, y: -DEFAULT_DUPLICATE_OFFSET_PT };
+  }
+
+  return {
+    x: Number.isFinite(delta.x) ? delta.x : DEFAULT_DUPLICATE_OFFSET_PT,
+    y: Number.isFinite(delta.y) ? delta.y : -DEFAULT_DUPLICATE_OFFSET_PT
+  };
 }
 
 type DeleteTarget = {
@@ -342,6 +872,20 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
     normalized.push(id);
   }
   return normalized;
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const normalized = value.trim();
+    if (normalized.length === 0 || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    unique.push(normalized);
+  }
+  return unique;
 }
 
 function applySetProperty(

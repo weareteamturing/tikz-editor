@@ -10,7 +10,7 @@ export type CanvasTransform = {
 };
 
 export type HistoryEntry = {
-  kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize";
+  kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize" | "reorder";
   label: string;
   /** Optional key used to coalesce drag updates into one undo step. */
   mergeKey?: string;
@@ -22,6 +22,12 @@ export type HistoryEntry = {
   sourceBefore: string;
   /** Source after the action (for full redo). */
   sourceAfter: string;
+};
+
+export type InternalClipboard = {
+  snippets: string[];
+  plainText: string;
+  copiedAt: number;
 };
 
 export type EditorState = {
@@ -39,6 +45,7 @@ export type EditorState = {
 
   // ── selection slice ──────────────────────────────────────────────────────────
   selectedElementIds: ReadonlySet<string>;
+  internalClipboard: InternalClipboard | null;
 
   // ── canvas slice ─────────────────────────────────────────────────────────────
   toolMode: ToolMode;
@@ -68,6 +75,7 @@ export type EditorAction =
   | { type: "SELECT"; id: string; additive: boolean }
   | { type: "SELECT_RANGE"; ids: string[] }
   | { type: "CLEAR_SELECTION" }
+  | { type: "SET_INTERNAL_CLIPBOARD"; clipboard: InternalClipboard | null }
   // Canvas
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }
