@@ -119,6 +119,7 @@ async function initializeEngine(): Promise<NodeTextEngine> {
 
   const cache = new Map<string, CachedRenderEntry>();
   const validationCache = new Map<string, NodeTextValidationIssue | null>();
+  const pendingAsyncRenders = new Set<Promise<void>>();
 
   return {
     validate(text: string): NodeTextValidationIssue | null {
@@ -126,15 +127,16 @@ async function initializeEngine(): Promise<NodeTextEngine> {
         return validationCache.get(text) ?? null;
       }
 
+      const prepared = normalizeMathJaxTextInput(text, {
+        fontStyle: "normal",
+        fontWeight: "normal",
+        fontFamily: "serif"
+      });
+      const tex = buildWrappedTeX(prepared.text, null, prepared.font);
+      const defaultMeasureKey = measurementKey(prepared.text, null, prepared.font);
+
       try {
-        const prepared = normalizeMathJaxTextInput(text, {
-          fontStyle: "normal",
-          fontWeight: "normal",
-          fontFamily: "serif"
-        });
-        const tex = buildWrappedTeX(prepared.text, null, prepared.font);
         const node = runtime.tex2svg(tex, { display: false });
-        const defaultMeasureKey = measurementKey(prepared.text, null, prepared.font);
         if (!cache.has(defaultMeasureKey)) {
           const entry = buildCacheEntry(defaultMeasureKey, node, runtime.startup?.adaptor ?? null);
           if (entry) {
@@ -144,6 +146,11 @@ async function initializeEngine(): Promise<NodeTextEngine> {
         validationCache.set(text, null);
         return null;
       } catch (error) {
+        if (isMathJaxAsyncRetryError(error)) {
+          queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, defaultMeasureKey, tex);
+          validationCache.set(text, null);
+          return null;
+        }
         const issue = {
           code: "invalid-node-tex",
           message: sanitizeErrorMessage(error)
@@ -164,8 +171,8 @@ async function initializeEngine(): Promise<NodeTextEngine> {
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
       if (!entry) {
+        const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font);
         try {
-          const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font);
           const node = runtime.tex2svg(tex, { display: false });
           entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
           if (!entry) {
@@ -173,7 +180,11 @@ async function initializeEngine(): Promise<NodeTextEngine> {
           }
           cache.set(cacheKey, entry);
           validationCache.set(request.text, null);
-        } catch {
+        } catch (error) {
+          if (isMathJaxAsyncRetryError(error)) {
+            queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, cacheKey, tex);
+            validationCache.set(request.text, null);
+          }
           return null;
         }
       }
@@ -188,6 +199,17 @@ async function initializeEngine(): Promise<NodeTextEngine> {
     },
     renderFromCache(cacheKey: string): NodeTextRenderPayload | null {
       return cache.get(cacheKey)?.payload ?? null;
+    },
+    async flushPending(): Promise<boolean> {
+      if (pendingAsyncRenders.size === 0) {
+        return false;
+      }
+
+      do {
+        const batch = [...pendingAsyncRenders];
+        await Promise.allSettled(batch);
+      } while (pendingAsyncRenders.size > 0);
+      return true;
     }
   };
 }
@@ -551,6 +573,45 @@ async function preloadMathJaxWarmupExpressions(runtime: MathJaxRuntime): Promise
       // Fall back silently; measure/validate will still guard individual failures.
     }
   }
+}
+
+function isMathJaxAsyncRetryError(error: unknown): boolean {
+  const message = sanitizeErrorMessage(error).toLowerCase();
+  return (
+    message.includes("mathjax retry") ||
+    (message.includes("asynchronous action is required") && message.includes("promise-based"))
+  );
+}
+
+function queueAsyncCachePopulate(
+  runtime: MathJaxRuntime,
+  cache: Map<string, CachedRenderEntry>,
+  pendingAsyncRenders: Set<Promise<void>>,
+  cacheKey: string,
+  tex: string
+): void {
+  if (typeof runtime.tex2svgPromise !== "function") {
+    return;
+  }
+
+  const task = runtime
+    .tex2svgPromise(tex, { display: false })
+    .then((node) => {
+      if (cache.has(cacheKey)) {
+        return;
+      }
+      const entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
+      if (entry) {
+        cache.set(cacheKey, entry);
+      }
+    })
+    .catch(() => {
+      // Retry remains best-effort and should not surface parser diagnostics.
+    });
+  pendingAsyncRenders.add(task);
+  void task.finally(() => {
+    pendingAsyncRenders.delete(task);
+  });
 }
 
 function buildCacheEntry(cacheKey: string, containerNode: unknown, adaptor: MathJaxAdaptor | null): CachedRenderEntry | null {

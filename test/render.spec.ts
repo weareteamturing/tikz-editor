@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderTikzToSvg, renderTikzToSvgAsync } from "../src/render/index.js";
+import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../src/text/types.js";
 
 describe("render pipeline", () => {
   it("renders basic source end-to-end", () => {
@@ -62,6 +63,55 @@ describe("render pipeline", () => {
 
     expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
     expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
+  it("rerenders after async text-engine flush when first measure pass is pending", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {$\ell^2$};
+\end{tikzpicture}`;
+
+    const cache = new Map<string, { cacheKey: string; viewBox: { x: number; y: number; width: number; height: number }; body: string }>();
+    let ready = false;
+    let flushCalls = 0;
+
+    const fakeTextEngine: NodeTextEngine = {
+      validate: () => null,
+      measure: (_request: NodeTextMeasureRequest): NodeTextMetrics | null => {
+        if (!ready) {
+          return null;
+        }
+        const cacheKey = "ready-cache";
+        cache.set(cacheKey, {
+          cacheKey,
+          viewBox: { x: 0, y: 0, width: 1000, height: 1000 },
+          body: "<g data-test='ready'></g>"
+        });
+        return {
+          cacheKey,
+          width: 10,
+          height: 10,
+          baselineY: 0,
+          midLineY: 0
+        };
+      },
+      renderFromCache: (cacheKey) => cache.get(cacheKey) ?? null,
+      flushPending: async () => {
+        flushCalls += 1;
+        if (!ready) {
+          ready = true;
+          return true;
+        }
+        return false;
+      }
+    };
+
+    const result = await renderTikzToSvgAsync(source, {
+      textEngine: fakeTextEngine
+    });
+
+    expect(flushCalls).toBeGreaterThan(0);
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg).toContain("data-test='ready'");
   });
 
   it("reports invalid node TeX as parser errors while preserving rendering", async () => {

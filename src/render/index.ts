@@ -104,8 +104,14 @@ export async function renderTikzToSvgAsync(source: string, opts: RenderTikzOptio
   };
 
   const parseResult = parseTikz(source, parseOpts);
-  const semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source, evaluateOpts);
-  const svgResult = emitSvg(semanticResult.scene, svgOpts);
+  let semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source, evaluateOpts);
+  let svgResult = emitSvg(semanticResult.scene, svgOpts);
+
+  const flushedPendingText = await textEngine?.flushPending?.();
+  if (flushedPendingText) {
+    semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source, evaluateOpts);
+    svgResult = emitSvg(semanticResult.scene, svgOpts);
+  }
 
   return {
     parse: parseResult,

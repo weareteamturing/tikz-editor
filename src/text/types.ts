@@ -48,4 +48,5 @@ export type NodeTextEngine = {
   validate(text: string): NodeTextValidationIssue | null;
   measure(request: NodeTextMeasureRequest): NodeTextMetrics | null;
   renderFromCache(cacheKey: string): NodeTextRenderPayload | null;
+  flushPending?(): Promise<boolean>;
 };
