@@ -228,6 +228,21 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     });
     expect(next).toBe(initial);
   });
+
+  it("is a no-op when an edit action rewrites to the same source text", () => {
+    const { state: initial } = makeStateWithHandle();
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveElement",
+        elementId: "elem-1",
+        delta: { x: 0.01, y: 0 }
+      }
+    });
+
+    expect(next).toBe(initial);
+  });
 });
 
 // ── SELECT / CLEAR_SELECTION ───────────────────────────────────────────────────

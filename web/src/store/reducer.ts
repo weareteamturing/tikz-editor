@@ -96,6 +96,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
 
+      if (result.newSource === state.source) {
+        return state;
+      }
+
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
         action.action.kind === "moveHandle" ? "move-handle" :

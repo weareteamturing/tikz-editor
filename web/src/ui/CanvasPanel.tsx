@@ -9,6 +9,17 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
+import {
+  buildSnapContext,
+  collectSelectionGeometry,
+  snapHandlePosition,
+  snapKeyboardNudge,
+  snapSelectionTranslation,
+  snapToolPointer,
+  type SelectionGeometry,
+  type SnapContext,
+  type SnapLine
+} from "tikz-editor/edit/snapping";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import type {
@@ -89,7 +100,9 @@ type DragState =
       pointerId: number;
       elementIds: string[];
       startWorld: Point;
-      lastAppliedDelta: Point;
+      snapContext: SnapContext | null;
+      initialSelection: SelectionGeometry | null;
+      selectionAnchorRatio: { x: number; y: number } | null;
       historyMergeKey: string;
     }
   | {
@@ -99,6 +112,7 @@ type DragState =
       sourceId: string;
       handleKind: EditHandle["kind"];
       lastKnownWorld: Point;
+      snapContext: SnapContext | null;
       historyMergeKey: string;
     }
   | {
@@ -121,6 +135,7 @@ type DragState =
       toolMode: ToolCreateMode;
       startWorld: Point;
       currentWorld: Point;
+      snapContext: SnapContext | null;
     };
 
 type SelectionBounds = {
@@ -185,6 +200,99 @@ type PendingAddedSelection = {
   preferredWorld: Point;
 };
 
+type SnapDebugPoint = {
+  x: number;
+  y: number;
+};
+
+type SnapDebugOverlayRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+type SnapDebugLineSummary =
+  | {
+      type: "points";
+      axis: "x" | "y";
+      pointCount: number;
+      points: SnapDebugPoint[];
+    }
+  | {
+      type: "pointer";
+      axis: "x" | "y";
+      from: SnapDebugPoint;
+      to: SnapDebugPoint;
+    }
+  | {
+      type: "gap";
+      direction: "horizontal" | "vertical";
+      gapKind: "center" | "equal";
+      segmentCount: number;
+      segments: Array<{ from: SnapDebugPoint; to: SnapDebugPoint }>;
+    };
+
+type SnapDebugContextSummary = {
+  zoom: number;
+  thresholdWorld: number;
+  selectedSourceIds: string[];
+  referencePointCount: number;
+  referenceBoundsCount: number;
+  horizontalGapCount: number;
+  verticalGapCount: number;
+};
+
+type SnapDebugOverlayState = {
+  atIso: string;
+  phase: string;
+  note: string | null;
+  snapshotMatchesSource: boolean;
+  dragKind: DragState["kind"] | null;
+  rawPoint: SnapDebugPoint | null;
+  rawDelta: SnapDebugPoint | null;
+  snappedPoint: SnapDebugPoint | null;
+  snappedDelta: SnapDebugPoint | null;
+  offset: SnapDebugPoint | null;
+  context: SnapDebugContextSummary | null;
+  lineCount: number;
+  lineSummary: SnapDebugLineSummary[];
+};
+
+type SnapDebugOverlayDragState =
+  | {
+      kind: "move";
+      startClientX: number;
+      startClientY: number;
+      startLeft: number;
+      startTop: number;
+    }
+  | {
+      kind: "resize";
+      startClientX: number;
+      startClientY: number;
+      startWidth: number;
+      startHeight: number;
+    };
+
+type SnapDebugLogInput = {
+  phase: string;
+  note?: string;
+  snapshotMatchesSource: boolean;
+  dragKind: DragState["kind"] | null;
+  context?: SnapContext | null;
+  rawPoint?: Point | null;
+  rawDelta?: Point | null;
+  snappedPoint?: Point | null;
+  snappedDelta?: Point | null;
+  offset?: Point | null;
+  lines?: readonly SnapLine[];
+};
+
+type ApplyActionFeedback = {
+  sourceChanged: boolean;
+};
+
 const RULER_SIZE = 24;
 const FIT_PADDING = 44;
 const HIT_STROKE_PX = 10;
@@ -196,6 +304,10 @@ const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
 const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
+const SNAP_DEBUG_MIN_WIDTH_PX = 280;
+const SNAP_DEBUG_MIN_HEIGHT_PX = 140;
+const SNAP_DEBUG_MARGIN_PX = 8;
+const SNAP_GAP_ARROW_MARKER_ID = "snap-gap-arrow-marker";
 
 export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
@@ -204,6 +316,7 @@ export function CanvasPanel() {
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
+  const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
 
   const svgResult = snapshot.svg;
@@ -211,6 +324,14 @@ export function CanvasPanel() {
   const semanticDiags = snapshot.semanticResult?.diagnostics;
 
   const [warning, setWarning] = useState<string | null>(null);
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
+  const [snapDebug, setSnapDebug] = useState<SnapDebugOverlayState | null>(null);
+  const [snapDebugRect, setSnapDebugRect] = useState<SnapDebugOverlayRect>({
+    left: 10,
+    top: 10,
+    width: 460,
+    height: 220
+  });
   const [showGrid, setShowGrid] = useState(true);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
@@ -227,6 +348,71 @@ export function CanvasPanel() {
   const svgResultRef = useRef(svgResult);
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
+  const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
+
+  const logSnapDebug = useCallback(
+    (input: SnapDebugLogInput) => {
+      if (!showDevPanel) {
+        return;
+      }
+
+      const lines = input.lines ?? [];
+      setSnapDebug({
+        atIso: new Date().toISOString(),
+        phase: input.phase,
+        note: input.note ?? null,
+        snapshotMatchesSource: input.snapshotMatchesSource,
+        dragKind: input.dragKind,
+        rawPoint: toDebugPoint(input.rawPoint),
+        rawDelta: toDebugPoint(input.rawDelta),
+        snappedPoint: toDebugPoint(input.snappedPoint),
+        snappedDelta: toDebugPoint(input.snappedDelta),
+        offset: toDebugPoint(input.offset),
+        context: summarizeSnapContextForDebug(input.context),
+        lineCount: lines.length,
+        lineSummary: summarizeSnapLinesForDebug(lines)
+      });
+    },
+    [showDevPanel]
+  );
+
+  const onSnapDebugMovePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      snapDebugDragRef.current = {
+        kind: "move",
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startLeft: snapDebugRect.left,
+        startTop: snapDebugRect.top
+      };
+      document.body.classList.add("is-dragging-snap-debug");
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [snapDebugRect.left, snapDebugRect.top]
+  );
+
+  const onSnapDebugResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      snapDebugDragRef.current = {
+        kind: "resize",
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startWidth: snapDebugRect.width,
+        startHeight: snapDebugRect.height
+      };
+      document.body.classList.add("is-resizing-snap-debug");
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [snapDebugRect.height, snapDebugRect.width]
+  );
 
   const diagnostics = useMemo(() => {
     const result: DiagnosticRow[] = [];
@@ -245,6 +431,77 @@ export function CanvasPanel() {
 
   const errorCount = diagnostics.filter((d) => d.severity === "error").length;
   const warnCount = diagnostics.filter((d) => d.severity === "warning").length;
+
+  useEffect(() => {
+    function onPointerMove(event: PointerEvent) {
+      const drag = snapDebugDragRef.current;
+      if (!drag) {
+        return;
+      }
+
+      if (viewportSize.width <= 0 || viewportSize.height <= 0) {
+        return;
+      }
+
+      if (drag.kind === "move") {
+        setSnapDebugRect((current) =>
+          clampSnapDebugOverlayRect(
+            {
+              ...current,
+              left: drag.startLeft + (event.clientX - drag.startClientX),
+              top: drag.startTop + (event.clientY - drag.startClientY)
+            },
+            viewportSize.width,
+            viewportSize.height
+          )
+        );
+        return;
+      }
+
+      setSnapDebugRect((current) =>
+        clampSnapDebugOverlayRect(
+          {
+            ...current,
+            width: drag.startWidth + (event.clientX - drag.startClientX),
+            height: drag.startHeight + (event.clientY - drag.startClientY)
+          },
+          viewportSize.width,
+          viewportSize.height
+        )
+      );
+    }
+
+    function clearSnapDebugDragState() {
+      if (!snapDebugDragRef.current) {
+        return;
+      }
+      snapDebugDragRef.current = null;
+      document.body.classList.remove("is-dragging-snap-debug");
+      document.body.classList.remove("is-resizing-snap-debug");
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", clearSnapDebugDragState);
+    window.addEventListener("pointercancel", clearSnapDebugDragState);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", clearSnapDebugDragState);
+      window.removeEventListener("pointercancel", clearSnapDebugDragState);
+      clearSnapDebugDragState();
+    };
+  }, [viewportSize.height, viewportSize.width]);
+
+  useEffect(() => {
+    if (!showDevPanel) {
+      return;
+    }
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) {
+      return;
+    }
+    setSnapDebugRect((current) =>
+      clampSnapDebugOverlayRect(current, viewportSize.width, viewportSize.height)
+    );
+  }, [showDevPanel, viewportSize.height, viewportSize.width]);
 
   const selectedHandles = useMemo(
     () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceId)),
@@ -381,6 +638,19 @@ export function CanvasPanel() {
     if (!svgResult || viewportSize.width <= 0 || viewportSize.height <= 0) return null;
     return computeVisibleRanges(svgResult.viewBox, canvasTransform, viewportSize.width, viewportSize.height);
   }, [svgResult, canvasTransform, viewportSize]);
+
+  const viewportWorldBounds = useMemo(
+    () =>
+      visibleRanges
+        ? {
+            minX: visibleRanges.worldMinX,
+            minY: visibleRanges.worldMinY,
+            maxX: visibleRanges.worldMaxX,
+            maxY: visibleRanges.worldMaxY
+          }
+        : null,
+    [visibleRanges]
+  );
 
   const rulers = useMemo(() => {
     if (!svgResult || !visibleRanges) {
@@ -544,7 +814,7 @@ export function CanvasPanel() {
   }, [dispatch, svgResult]);
 
   const applyActionWithFeedback = useCallback(
-    (action: EditAction, historyMergeKey?: string): boolean => {
+    (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
       const result = applyEditAction(source, snapshot.editHandles, action);
 
       if (result.kind === "success" || result.kind === "partial") {
@@ -553,8 +823,11 @@ export function CanvasPanel() {
           setWarning(`${result.reason} (${skippedCount} handle${skippedCount === 1 ? "" : "s"} skipped)`);
         }
 
-        dispatch({ type: "APPLY_EDIT_ACTION", action, historyMergeKey });
-        return true;
+        const sourceChanged = result.newSource !== source;
+        if (sourceChanged) {
+          dispatch({ type: "APPLY_EDIT_ACTION", action, historyMergeKey });
+        }
+        return { sourceChanged };
       }
 
       if (result.kind === "unsupported") {
@@ -563,7 +836,7 @@ export function CanvasPanel() {
         setWarning(result.message);
       }
 
-      return false;
+      return { sourceChanged: false };
     },
     [dispatch, source, snapshot.editHandles]
   );
@@ -595,26 +868,77 @@ export function CanvasPanel() {
         return;
       }
 
+      if (snapshot.source !== source) {
+        setWarning("Wait for recompute to finish before dragging.");
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-start-element",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: "element",
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
       const alreadySelected = selectedElementIds.has(sourceId);
       const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [sourceId];
       if (!alreadySelected) {
         dispatch({ type: "SELECT", id: sourceId, additive: false });
       }
 
+      const snapContext = snapshot.scene
+        ? buildSnapContext({
+            sceneElements: snapshot.scene.elements,
+            selectedSourceIds: draggedIds,
+            zoom: canvasTransform.scale,
+            viewportWorld: viewportWorldBounds
+          })
+        : null;
+      const initialSelection = snapshot.scene
+        ? collectSelectionGeometry(snapshot.scene.elements, draggedIds)
+        : null;
+      const selectionAnchorRatio = initialSelection
+        ? selectionAnchorRatioFromPoint(initialSelection.bounds, world)
+        : null;
+      setSnapLines([]);
+
       dragRef.current = {
         kind: "element",
         pointerId: event.pointerId,
         elementIds: draggedIds,
         startWorld: world,
-        lastAppliedDelta: { x: 0, y: 0 },
+        snapContext,
+        initialSelection,
+        selectionAnchorRatio,
         historyMergeKey: makeMergeKey(
           "drag-element",
           draggedIds.slice().sort().join(","),
           event.pointerId
         )
       };
+      logSnapDebug({
+        phase: "drag-start-element",
+        snapshotMatchesSource: true,
+        dragKind: "element",
+        context: snapContext,
+        rawPoint: world,
+        lines: []
+      });
     },
-    [dispatch, selectedElementIds, svgResult, toolMode]
+    [
+      canvasTransform.scale,
+      dispatch,
+      logSnapDebug,
+      selectedElementIds,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   const onElementDoubleClick = useCallback(
@@ -652,9 +976,33 @@ export function CanvasPanel() {
         return;
       }
 
+      if (snapshot.source !== source) {
+        setWarning("Wait for recompute to finish before dragging.");
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-start-handle",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: "handle",
+          rawPoint: handle.world,
+          lines: []
+        });
+        return;
+      }
+
       if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceId)) {
         dispatch({ type: "SELECT", id: handle.sourceId, additive: false });
       }
+
+      const snapContext = snapshot.scene
+        ? buildSnapContext({
+            sceneElements: snapshot.scene.elements,
+            selectedSourceIds: [handle.sourceId],
+            zoom: canvasTransform.scale,
+            viewportWorld: viewportWorldBounds
+          })
+        : null;
+      setSnapLines([]);
 
       dragRef.current = {
         kind: "handle",
@@ -663,10 +1011,30 @@ export function CanvasPanel() {
         sourceId: handle.sourceId,
         handleKind: handle.kind,
         lastKnownWorld: { ...handle.world },
+        snapContext,
         historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId)
       };
+      logSnapDebug({
+        phase: "drag-start-handle",
+        snapshotMatchesSource: true,
+        dragKind: "handle",
+        context: snapContext,
+        rawPoint: handle.world,
+        lines: []
+      });
     },
-    [dispatch, selectedElementIds, svgResult, toolMode]
+    [
+      canvasTransform.scale,
+      dispatch,
+      logSnapDebug,
+      selectedElementIds,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   const onInteractionPointerDown = useCallback(
@@ -693,38 +1061,99 @@ export function CanvasPanel() {
         if (!world) {
           return;
         }
+        if (snapshot.source !== source) {
+          setWarning("Wait for recompute to finish before starting a draw gesture.");
+          setSnapLines([]);
+          logSnapDebug({
+            phase: "tool-start",
+            note: "blocked: snapshot/source mismatch",
+            snapshotMatchesSource: false,
+            dragKind: "tool-create",
+            rawPoint: world,
+            lines: []
+          });
+          return;
+        }
+        const toolSnapContext = snapshot.scene
+          ? buildSnapContext({
+              sceneElements: snapshot.scene.elements,
+              selectedSourceIds: [],
+              zoom: canvasTransform.scale,
+              viewportWorld: viewportWorldBounds
+            })
+          : null;
+        const snappedStart = toolSnapContext
+          ? (snapToolPointer({
+              context: toolSnapContext,
+              pointer: world,
+              kind: "node",
+              modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+            }).snappedPoint ?? world)
+          : world;
 
-        setToolCursorWorld(world);
+        setToolCursorWorld(snappedStart);
         event.preventDefault();
 
         if (toolMode === "addNode") {
-          queueSelectionForAddedElement(world);
+          const snapResult = toolSnapContext
+            ? snapToolPointer({
+                context: toolSnapContext,
+                pointer: world,
+                kind: "node",
+                modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+              })
+            : { snappedPoint: world, lines: [] as SnapLine[] };
+          const nodeAt = snapResult.snappedPoint ?? world;
+          setSnapLines(snapResult.lines);
+          logSnapDebug({
+            phase: "tool-add-node",
+            snapshotMatchesSource: true,
+            dragKind: null,
+            context: toolSnapContext,
+            rawPoint: world,
+            snappedPoint: nodeAt,
+            offset: snapResult.offset,
+            lines: snapResult.lines
+          });
+          queueSelectionForAddedElement(nodeAt);
           const ok = applyActionWithFeedback({
             kind: "addElement",
             template: { kind: "node" },
-            at: world
+            at: nodeAt
           });
-          if (!ok) {
+          if (!ok.sourceChanged) {
             pendingAddedSelectionRef.current = null;
           }
-          if (ok) {
+          if (ok.sourceChanged) {
             dispatch({ type: "SET_TOOL_MODE", mode: "select" });
             setToolDraft(null);
             setToolCursorWorld(null);
+            setSnapLines([]);
           }
           return;
         }
 
         if (isToolCreateMode(toolMode)) {
+          setSnapLines([]);
           const nextDraft: Extract<DragState, { kind: "tool-create" }> = {
             kind: "tool-create",
             pointerId: event.pointerId,
             toolMode,
-            startWorld: world,
-            currentWorld: world
+            startWorld: snappedStart,
+            currentWorld: snappedStart,
+            snapContext: toolSnapContext
           };
           dragRef.current = nextDraft;
           setToolDraft(nextDraft);
+          logSnapDebug({
+            phase: "tool-start",
+            snapshotMatchesSource: true,
+            dragKind: "tool-create",
+            context: toolSnapContext,
+            rawPoint: world,
+            snappedPoint: snappedStart,
+            lines: []
+          });
         }
         return;
       }
@@ -748,10 +1177,30 @@ export function CanvasPanel() {
         };
         dragRef.current = nextMarquee;
         setMarqueeDraft(nextMarquee);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "marquee-start",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: "marquee",
+          rawPoint: world,
+          lines: []
+        });
         event.preventDefault();
       }
     },
-    [applyActionWithFeedback, canvasTransform, dispatch, queueSelectionForAddedElement, svgResult, toolMode]
+    [
+      applyActionWithFeedback,
+      canvasTransform.scale,
+      dispatch,
+      logSnapDebug,
+      queueSelectionForAddedElement,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   const onInteractionPointerMove = useCallback(
@@ -764,9 +1213,58 @@ export function CanvasPanel() {
       if (!world) {
         return;
       }
-      setToolCursorWorld(world);
+      if (!snapshot.scene || snapshot.source !== source) {
+        setToolCursorWorld(world);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "tool-hover-move",
+          note: !snapshot.scene ? "no scene available" : "stale snapshot/source mismatch",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: null,
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      const snapContext = buildSnapContext({
+        sceneElements: snapshot.scene.elements,
+        selectedSourceIds: [],
+        zoom: canvasTransform.scale,
+        viewportWorld: viewportWorldBounds
+      });
+      const snapped = snapToolPointer({
+        context: snapContext,
+        pointer: world,
+        kind: "node",
+        modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+      });
+      setToolCursorWorld(snapped.snappedPoint ?? world);
+      if (!toolDraft) {
+        setSnapLines(snapped.lines);
+      }
+      logSnapDebug({
+        phase: "tool-hover-move",
+        snapshotMatchesSource: true,
+        dragKind: toolDraft ? "tool-create" : null,
+        context: snapContext,
+        rawPoint: world,
+        snappedPoint: snapped.snappedPoint ?? world,
+        offset: snapped.offset,
+        lines: snapped.lines
+      });
     },
-    [svgResult, toolMode]
+    [
+      canvasTransform.scale,
+      logSnapDebug,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolDraft,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   const onInteractionPointerLeave = useCallback(() => {
@@ -774,6 +1272,7 @@ export function CanvasPanel() {
       return;
     }
     setToolCursorWorld(null);
+    setSnapLines([]);
   }, [toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
@@ -782,11 +1281,59 @@ export function CanvasPanel() {
         return;
       }
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
-      if (world) {
+      if (!world) return;
+      if (!snapshot.scene || snapshot.source !== source) {
         setToolCursorWorld(world);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "tool-hover-enter",
+          note: !snapshot.scene ? "no scene available" : "stale snapshot/source mismatch",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: null,
+          rawPoint: world,
+          lines: []
+        });
+        return;
       }
+
+      const snapContext = buildSnapContext({
+        sceneElements: snapshot.scene.elements,
+        selectedSourceIds: [],
+        zoom: canvasTransform.scale,
+        viewportWorld: viewportWorldBounds
+      });
+      const snapped = snapToolPointer({
+        context: snapContext,
+        pointer: world,
+        kind: "node",
+        modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+      });
+      setToolCursorWorld(snapped.snappedPoint ?? world);
+      if (!toolDraft) {
+        setSnapLines(snapped.lines);
+      }
+      logSnapDebug({
+        phase: "tool-hover-enter",
+        snapshotMatchesSource: true,
+        dragKind: toolDraft ? "tool-create" : null,
+        context: snapContext,
+        rawPoint: world,
+        snappedPoint: snapped.snappedPoint ?? world,
+        offset: snapped.offset,
+        lines: snapped.lines
+      });
     },
-    [svgResult, toolMode]
+    [
+      canvasTransform.scale,
+      logSnapDebug,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolDraft,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   const onViewportKeyDown = useCallback(
@@ -803,6 +1350,7 @@ export function CanvasPanel() {
         }
         dispatch({ type: "CLEAR_SELECTION" });
         setWarning(null);
+        setSnapLines([]);
         event.preventDefault();
         return;
       }
@@ -814,7 +1362,7 @@ export function CanvasPanel() {
             ? { kind: "deleteElement", elementId: selectedIds[0]! }
             : { kind: "deleteElements", elementIds: selectedIds }
         );
-        if (ok) {
+        if (ok.sourceChanged) {
           dispatch({ type: "CLEAR_SELECTION" });
         }
         event.preventDefault();
@@ -848,14 +1396,48 @@ export function CanvasPanel() {
 
       if (snapshot.source !== source) {
         setWarning("Wait for recompute to finish before nudging again.");
+        logSnapDebug({
+          phase: "keyboard-nudge",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: null,
+          rawDelta: axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step },
+          lines: []
+        });
         event.preventDefault();
+        return;
+      }
+
+      const sceneElements = snapshot.scene?.elements ?? [];
+      if (sceneElements.length === 0) {
+        return;
+      }
+
+      const selection = collectSelectionGeometry(sceneElements, selectedIds);
+      if (!selection) {
         return;
       }
 
       const selectedSet = new Set(selectedIds);
       const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceId));
       const anchorHandle = selectNudgeAnchorHandle(elementHandles);
-      const delta = computeNudgeDelta(axis, direction, step, anchorHandle?.world ?? null);
+      const snapContext = buildSnapContext({
+        sceneElements,
+        selectedSourceIds: selectedIds,
+        zoom: canvasTransform.scale,
+        viewportWorld: viewportWorldBounds
+      });
+      const snapped = snapKeyboardNudge({
+        context: snapContext,
+        selection,
+        anchor: anchorHandle?.world ?? null,
+        axis,
+        direction,
+        step,
+        modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+      });
+      const delta = snapped.snappedDelta ??
+        (axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step });
 
       const moveAction: EditAction =
         selectedIds.length === 1
@@ -871,9 +1453,32 @@ export function CanvasPanel() {
             };
 
       applyActionWithFeedback(moveAction);
+      setSnapLines(snapped.lines);
+      logSnapDebug({
+        phase: "keyboard-nudge",
+        snapshotMatchesSource: true,
+        dragKind: null,
+        context: snapContext,
+        rawDelta: axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step },
+        snappedDelta: delta,
+        offset: snapped.offset,
+        lines: snapped.lines
+      });
       event.preventDefault();
     },
-    [applyActionWithFeedback, dispatch, selectedElementIds, snapshot.editHandles, snapshot.source, source, toolMode]
+    [
+      applyActionWithFeedback,
+      canvasTransform.scale,
+      dispatch,
+      logSnapDebug,
+      selectedElementIds,
+      snapshot.editHandles,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      toolMode,
+      viewportWorldBounds
+    ]
   );
 
   useEffect(() => {
@@ -1015,9 +1620,27 @@ export function CanvasPanel() {
   }, [warning]);
 
   useEffect(() => {
+    if (showDevPanel) {
+      return;
+    }
+    snapDebugDragRef.current = null;
+    document.body.classList.remove("is-dragging-snap-debug");
+    document.body.classList.remove("is-resizing-snap-debug");
+    setSnapDebug(null);
+  }, [showDevPanel]);
+
+  useEffect(() => {
+    if (snapshot.source === source) {
+      return;
+    }
+    setSnapLines([]);
+  }, [snapshot.source, source]);
+
+  useEffect(() => {
     if (toolMode === "select") {
       setToolDraft(null);
       setToolCursorWorld(null);
+      setSnapLines([]);
       if (dragRef.current?.kind === "tool-create") {
         dragRef.current = null;
       }
@@ -1066,10 +1689,19 @@ export function CanvasPanel() {
     function onPointerMove(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
+      const ctrlOrMeta = event.ctrlKey || event.metaKey;
 
       if (drag.kind === "pan") {
         const deltaX = event.clientX - drag.startClientX;
         const deltaY = event.clientY - drag.startClientY;
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-pan-move",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: "pan",
+          rawDelta: { x: deltaX, y: deltaY },
+          lines: []
+        });
 
         dispatch({
           type: "SET_CANVAS_TRANSFORM",
@@ -1091,37 +1723,110 @@ export function CanvasPanel() {
       if (!world) return;
 
       if (drag.kind === "tool-create") {
-        drag.currentWorld = world;
+        const snapKind =
+          drag.toolMode === "addRect"
+            ? "rect-corner"
+            : drag.toolMode === "addCircle"
+              ? "circle-edge"
+              : "line-end";
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: world,
+              kind: snapKind,
+              anchor: drag.startWorld,
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: world, lines: [] as SnapLine[] };
+        drag.currentWorld = snapped.snappedPoint ?? world;
         setToolDraft({ ...drag });
-        setToolCursorWorld(world);
+        setToolCursorWorld(drag.currentWorld);
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-tool-create-move",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: "tool-create",
+          context: drag.snapContext,
+          rawPoint: world,
+          snappedPoint: drag.currentWorld,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
         return;
       }
 
       if (drag.kind === "marquee") {
         drag.currentWorld = world;
         setMarqueeDraft({ ...drag });
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-marquee-move",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: "marquee",
+          rawPoint: world,
+          lines: []
+        });
         return;
       }
 
       if (!svgResult || snapshot.source !== source) {
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-move",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: drag.kind,
+          rawPoint: world,
+          lines: []
+        });
         return;
       }
 
       if (drag.kind === "element") {
-        const totalDelta = {
+        const rawTotalDelta = {
           x: world.x - drag.startWorld.x,
           y: world.y - drag.startWorld.y
         };
+        const snapped = drag.snapContext && drag.initialSelection
+          ? snapSelectionTranslation({
+              context: drag.snapContext,
+              selection: drag.initialSelection,
+              rawDelta: rawTotalDelta,
+              modifiers: { ctrlOrMeta }
+            })
+          : {
+              snappedDelta: rawTotalDelta,
+              lines: [] as SnapLine[]
+            };
+        const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
+        const actualTotalDelta = drag.initialSelection && snapshot.scene
+          ? deriveSelectionTranslationDeltaFromAnchor(
+              drag.initialSelection,
+              collectSelectionGeometry(snapshot.scene.elements, drag.elementIds),
+              drag.selectionAnchorRatio
+            )
+          : { x: 0, y: 0 };
         const incremental = {
-          x: totalDelta.x - drag.lastAppliedDelta.x,
-          y: totalDelta.y - drag.lastAppliedDelta.y
+          x: totalDelta.x - actualTotalDelta.x,
+          y: totalDelta.y - actualTotalDelta.y
         };
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-element-move",
+          snapshotMatchesSource: true,
+          dragKind: "element",
+          context: drag.snapContext,
+          rawDelta: rawTotalDelta,
+          snappedDelta: totalDelta,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
 
         if (Math.abs(incremental.x) < 1e-6 && Math.abs(incremental.y) < 1e-6) {
           return;
         }
 
-        const ok = applyActionWithFeedback(
+        applyActionWithFeedback(
           {
             kind: "moveElements",
             elementIds: drag.elementIds,
@@ -1129,10 +1834,6 @@ export function CanvasPanel() {
           },
           drag.historyMergeKey
         );
-
-        if (ok) {
-          drag.lastAppliedDelta = totalDelta;
-        }
         return;
       }
 
@@ -1142,22 +1843,44 @@ export function CanvasPanel() {
         return;
       }
 
+      const snapped = drag.snapContext
+        ? snapHandlePosition({
+            context: drag.snapContext,
+            point: world,
+            sourceId: drag.sourceId,
+            modifiers: { ctrlOrMeta }
+          })
+        : { snappedPoint: world, lines: [] as SnapLine[] };
+      const nextWorld = snapped.snappedPoint ?? world;
+      setSnapLines(snapped.lines);
+      logSnapDebug({
+        phase: "drag-handle-move",
+        snapshotMatchesSource: true,
+        dragKind: "handle",
+        context: drag.snapContext,
+        rawPoint: world,
+        snappedPoint: nextWorld,
+        offset: snapped.offset,
+        lines: snapped.lines
+      });
+
       const ok = applyActionWithFeedback(
         {
           kind: "moveHandle",
           handleId: resolvedHandleId,
-          newWorld: world
+          newWorld: nextWorld
         },
         drag.historyMergeKey
       );
-      if (ok) {
-        drag.lastKnownWorld = world;
+      if (ok.sourceChanged) {
+        drag.lastKnownWorld = nextWorld;
       }
     }
 
     function onPointerUp(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
+      const ctrlOrMeta = event.ctrlKey || event.metaKey;
 
       const currentSvg = svgResultRef.current;
       const world =
@@ -1192,12 +1915,30 @@ export function CanvasPanel() {
         }
 
         setMarqueeDraft(null);
+        setSnapLines([]);
         dragRef.current = null;
         return;
       }
 
       if (drag.kind === "tool-create") {
-        const finalWorld = world ?? drag.currentWorld;
+        const rawFinalWorld = world ?? drag.currentWorld;
+        const snapKind =
+          drag.toolMode === "addRect"
+            ? "rect-corner"
+            : drag.toolMode === "addCircle"
+              ? "circle-edge"
+              : "line-end";
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: rawFinalWorld,
+              kind: snapKind,
+              anchor: drag.startWorld,
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
+        const finalWorld = snapped.snappedPoint ?? rawFinalWorld;
+        setSnapLines(snapped.lines);
         setToolCursorWorld(finalWorld);
 
         queueSelectionForAddedElement({
@@ -1210,17 +1951,19 @@ export function CanvasPanel() {
           template,
           at: drag.startWorld
         });
-        if (!ok) {
+        if (!ok.sourceChanged) {
           pendingAddedSelectionRef.current = null;
         }
 
-        if (ok) {
+        if (ok.sourceChanged) {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
           setToolCursorWorld(null);
         }
         setToolDraft(null);
+        setSnapLines([]);
       }
 
+      setSnapLines([]);
       dragRef.current = null;
     }
 
@@ -1233,13 +1976,24 @@ export function CanvasPanel() {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [applyActionWithFeedback, dispatch, queueSelectionForAddedElement, snapshot.editHandles, snapshot.source, source, svgResult]);
+  }, [
+    applyActionWithFeedback,
+    dispatch,
+    logSnapDebug,
+    queueSelectionForAddedElement,
+    snapshot.editHandles,
+    snapshot.source,
+    source,
+    svgResult
+  ]);
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
   const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const gridMinorStrokeWidth = 0.6 / Math.max(canvasTransform.scale, 1e-3);
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
+  const snapStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
+  const snapCrossSize = 3 / Math.max(canvasTransform.scale, 1e-3);
 
   return (
     <div className={css.panel}>
@@ -1408,6 +2162,121 @@ export function CanvasPanel() {
                         strokeWidth={gridMajorStrokeWidth}
                       />
                     ))}
+                  </g>
+                )}
+
+                {snapLines.length > 0 && (
+                  <g className={css.snapOverlay}>
+                    <defs>
+                      <marker
+                        id={SNAP_GAP_ARROW_MARKER_ID}
+                        markerWidth={6}
+                        markerHeight={6}
+                        refX={10}
+                        refY={5}
+                        orient="auto-start-reverse"
+                        viewBox="0 0 10 10"
+                      >
+                        <path d="M 0 0 L 10 5 L 0 10 z" className={css.snapGapArrowHead} />
+                      </marker>
+                    </defs>
+                    {snapLines.map((line, index) => {
+                      if (line.type === "points") {
+                        const points = line.points.map((point) => worldToSvgPoint(point, svgResult.viewBox));
+                        const first = points[0];
+                        const last = points[points.length - 1];
+                        return (
+                          <g key={`snap-points-${index}`}>
+                            {first && last && points.length > 1 && (
+                              <line
+                                x1={first.x}
+                                y1={first.y}
+                                x2={last.x}
+                                y2={last.y}
+                                className={css.snapLine}
+                                strokeWidth={snapStrokeWidth}
+                              />
+                            )}
+                            {points.map((point, pointIndex) => (
+                              <g key={`snap-point-${index}-${pointIndex}`}>
+                                <line
+                                  x1={point.x - snapCrossSize}
+                                  y1={point.y - snapCrossSize}
+                                  x2={point.x + snapCrossSize}
+                                  y2={point.y + snapCrossSize}
+                                  className={css.snapLine}
+                                  strokeWidth={snapStrokeWidth}
+                                />
+                                <line
+                                  x1={point.x - snapCrossSize}
+                                  y1={point.y + snapCrossSize}
+                                  x2={point.x + snapCrossSize}
+                                  y2={point.y - snapCrossSize}
+                                  className={css.snapLine}
+                                  strokeWidth={snapStrokeWidth}
+                                />
+                              </g>
+                            ))}
+                          </g>
+                        );
+                      }
+
+                      if (line.type === "pointer") {
+                        const from = worldToSvgPoint(line.from, svgResult.viewBox);
+                        const to = worldToSvgPoint(line.to, svgResult.viewBox);
+                        return (
+                          <g key={`snap-pointer-${index}`}>
+                            <line
+                              x1={from.x}
+                              y1={from.y}
+                              x2={to.x}
+                              y2={to.y}
+                              className={css.snapLine}
+                              strokeWidth={snapStrokeWidth}
+                            />
+                            <line
+                              x1={from.x - snapCrossSize}
+                              y1={from.y - snapCrossSize}
+                              x2={from.x + snapCrossSize}
+                              y2={from.y + snapCrossSize}
+                              className={css.snapLine}
+                              strokeWidth={snapStrokeWidth}
+                            />
+                            <line
+                              x1={from.x - snapCrossSize}
+                              y1={from.y + snapCrossSize}
+                              x2={from.x + snapCrossSize}
+                              y2={from.y - snapCrossSize}
+                              className={css.snapLine}
+                              strokeWidth={snapStrokeWidth}
+                            />
+                          </g>
+                        );
+                      }
+
+                      return (
+                        <g key={`snap-gap-${index}`}>
+                          {line.segments.map((segment, segmentIndex) => {
+                            const a = worldToSvgPoint(segment[0], svgResult.viewBox);
+                            const b = worldToSvgPoint(segment[1], svgResult.viewBox);
+                            const isEqualGap = line.gapKind === "equal";
+                            return (
+                              <line
+                                key={`snap-gap-segment-${index}-${segmentIndex}`}
+                                x1={a.x}
+                                y1={a.y}
+                                x2={b.x}
+                                y2={b.y}
+                                className={`${css.snapLine} ${css.snapGapLine}`}
+                                strokeWidth={snapStrokeWidth}
+                                markerStart={isEqualGap ? `url(#${SNAP_GAP_ARROW_MARKER_ID})` : undefined}
+                                markerEnd={isEqualGap ? `url(#${SNAP_GAP_ARROW_MARKER_ID})` : undefined}
+                              />
+                            );
+                          })}
+                        </g>
+                      );
+                    })}
                   </g>
                 )}
 
@@ -1677,6 +2546,31 @@ export function CanvasPanel() {
           )}
 
           {warning && <div className={css.warningBar}>{warning}</div>}
+          {showDevPanel && (
+            <div
+              className={css.snapDebugOverlay}
+              style={{
+                left: snapDebugRect.left,
+                top: snapDebugRect.top,
+                width: snapDebugRect.width,
+                height: snapDebugRect.height
+              }}
+            >
+              <div className={css.snapDebugTitle} onPointerDown={onSnapDebugMovePointerDown}>
+                Snap Debug (drag to move)
+              </div>
+              <pre className={css.snapDebugBody}>
+                {snapDebug
+                  ? JSON.stringify(snapDebug, null, 2)
+                  : "Trigger a snap interaction to populate diagnostics."}
+              </pre>
+              <div
+                className={css.snapDebugResizeHandle}
+                onPointerDown={onSnapDebugResizePointerDown}
+                title="Drag to resize"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1691,6 +2585,108 @@ function CanvasSVGLayer({ svg }: { svg: string }) {
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
+}
+
+function clampSnapDebugOverlayRect(
+  rect: SnapDebugOverlayRect,
+  viewportWidth: number,
+  viewportHeight: number
+): SnapDebugOverlayRect {
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    return rect;
+  }
+
+  const maxWidth = Math.max(SNAP_DEBUG_MIN_WIDTH_PX, viewportWidth - SNAP_DEBUG_MARGIN_PX * 2);
+  const maxHeight = Math.max(SNAP_DEBUG_MIN_HEIGHT_PX, viewportHeight - SNAP_DEBUG_MARGIN_PX * 2);
+  const width = Math.max(SNAP_DEBUG_MIN_WIDTH_PX, Math.min(rect.width, maxWidth));
+  const height = Math.max(SNAP_DEBUG_MIN_HEIGHT_PX, Math.min(rect.height, maxHeight));
+  const maxLeft = Math.max(SNAP_DEBUG_MARGIN_PX, viewportWidth - width - SNAP_DEBUG_MARGIN_PX);
+  const maxTop = Math.max(SNAP_DEBUG_MARGIN_PX, viewportHeight - height - SNAP_DEBUG_MARGIN_PX);
+
+  return {
+    width,
+    height,
+    left: Math.max(SNAP_DEBUG_MARGIN_PX, Math.min(rect.left, maxLeft)),
+    top: Math.max(SNAP_DEBUG_MARGIN_PX, Math.min(rect.top, maxTop))
+  };
+}
+
+function roundForDebug(value: number): number {
+  return Math.round(value * 1e4) / 1e4;
+}
+
+function toDebugPoint(point: Point | null | undefined): SnapDebugPoint | null {
+  if (!point) {
+    return null;
+  }
+  return {
+    x: roundForDebug(point.x),
+    y: roundForDebug(point.y)
+  };
+}
+
+function summarizeSnapContextForDebug(context: SnapContext | null | undefined): SnapDebugContextSummary | null {
+  if (!context) {
+    return null;
+  }
+
+  return {
+    zoom: roundForDebug(context.zoom),
+    thresholdWorld: roundForDebug(context.settings.thresholdPx / Math.max(context.zoom, 1e-6)),
+    selectedSourceIds: context.selectedSourceIds.slice(0, 8),
+    referencePointCount: context.referencePoints.length,
+    referenceBoundsCount: context.referenceBounds.length,
+    horizontalGapCount: context.visibleGaps.horizontal.length,
+    verticalGapCount: context.visibleGaps.vertical.length
+  };
+}
+
+function summarizeSnapLinesForDebug(lines: readonly SnapLine[]): SnapDebugLineSummary[] {
+  return lines.slice(0, 8).map((line) => {
+    if (line.type === "points") {
+      return {
+        type: "points",
+        axis: line.axis,
+        pointCount: line.points.length,
+        points: line.points.slice(0, 6).map((point) => ({
+          x: roundForDebug(point.x),
+          y: roundForDebug(point.y)
+        }))
+      };
+    }
+
+    if (line.type === "pointer") {
+      return {
+        type: "pointer",
+        axis: line.axis,
+        from: {
+          x: roundForDebug(line.from.x),
+          y: roundForDebug(line.from.y)
+        },
+        to: {
+          x: roundForDebug(line.to.x),
+          y: roundForDebug(line.to.y)
+        }
+      };
+    }
+
+    return {
+      type: "gap",
+      direction: line.direction,
+      gapKind: line.gapKind,
+      segmentCount: line.segments.length,
+      segments: line.segments.slice(0, 4).map((segment) => ({
+        from: {
+          x: roundForDebug(segment[0].x),
+          y: roundForDebug(segment[0].y)
+        },
+        to: {
+          x: roundForDebug(segment[1].x),
+          y: roundForDebug(segment[1].y)
+        }
+      }))
+    };
+  });
 }
 
 function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, scale: number): HitRegion[] {
@@ -2137,6 +3133,40 @@ function mergeBounds(a: Bounds, b: Bounds): Bounds {
     minY: Math.min(a.minY, b.minY),
     maxX: Math.max(a.maxX, b.maxX),
     maxY: Math.max(a.maxY, b.maxY)
+  };
+}
+
+function selectionAnchorRatioFromPoint(bounds: Bounds, point: Point): { x: number; y: number } {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  return {
+    x: Math.abs(width) > 1e-9 ? (point.x - bounds.minX) / width : 0.5,
+    y: Math.abs(height) > 1e-9 ? (point.y - bounds.minY) / height : 0.5
+  };
+}
+
+function pointFromBoundsAnchorRatio(bounds: Bounds, ratio: { x: number; y: number }): Point {
+  return {
+    x: bounds.minX + (bounds.maxX - bounds.minX) * ratio.x,
+    y: bounds.minY + (bounds.maxY - bounds.minY) * ratio.y
+  };
+}
+
+function deriveSelectionTranslationDeltaFromAnchor(
+  initialSelection: SelectionGeometry,
+  currentSelection: SelectionGeometry | null,
+  anchorRatio: { x: number; y: number } | null
+): Point {
+  if (!currentSelection) {
+    return { x: 0, y: 0 };
+  }
+
+  const ratio = anchorRatio ?? { x: 0.5, y: 0.5 };
+  const initialCenter = pointFromBoundsAnchorRatio(initialSelection.bounds, ratio);
+  const currentCenter = pointFromBoundsAnchorRatio(currentSelection.bounds, ratio);
+  return {
+    x: currentCenter.x - initialCenter.x,
+    y: currentCenter.y - initialCenter.y
   };
 }
 
@@ -2596,36 +3626,4 @@ function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | null {
     return null;
   }
   return handles.find((handle) => handle.kind === "node-position") ?? handles[0]!;
-}
-
-function computeNudgeDelta(
-  axis: "x" | "y",
-  direction: -1 | 1,
-  step: number,
-  anchorWorld: Point | null
-): Point {
-  const fallback = direction * step;
-  if (!anchorWorld) {
-    return axis === "x" ? { x: fallback, y: 0 } : { x: 0, y: fallback };
-  }
-
-  const current = axis === "x" ? anchorWorld.x : anchorWorld.y;
-  const snapped = snapToNextMultiple(current, step, direction);
-  let axisDelta = snapped - current;
-  if (Math.abs(axisDelta) < step * 1e-6) {
-    axisDelta = fallback;
-  }
-  return axis === "x" ? { x: axisDelta, y: 0 } : { x: 0, y: axisDelta };
-}
-
-function snapToNextMultiple(value: number, step: number, direction: -1 | 1): number {
-  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) {
-    return value + direction * step;
-  }
-
-  const normalized = value / step;
-  const epsilon = 1e-9;
-  const biased = normalized + direction * epsilon;
-  const nextIndex = direction > 0 ? Math.ceil(biased) : Math.floor(biased);
-  return nextIndex * step;
 }
