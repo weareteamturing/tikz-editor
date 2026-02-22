@@ -231,11 +231,11 @@
 }
 
 .hitRegion {
-  cursor: pointer;
+  cursor: default;
 }
 
 .hitRegionHovered {
-  fill: rgba(40, 122, 212, 0.12);
+  fill: transparent;
 }
 
 .selectionOverlay {
