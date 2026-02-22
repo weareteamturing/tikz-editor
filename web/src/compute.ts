@@ -1,4 +1,3 @@
-import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
@@ -55,6 +54,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
   const revision = ++revisionCounter;
 
   try {
+    const { renderTikzToSvgAsync } = await import("tikz-editor/render/index");
     const result = await renderTikzToSvgAsync(request.source, {
       parse: { recover: true },
       svg: { padding: 18 }

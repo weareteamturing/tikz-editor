@@ -129,14 +129,10 @@ export type SnapHandlePositionInput = {
 };
 
 export type SnapKeyboardNudgeInput = {
-  context: SnapContext;
-  selection: SelectionGeometry;
   anchor: Point | null;
   axis: Axis;
   direction: -1 | 1;
   step: number;
-  modifiers?: SnapModifiers;
-  settings?: SnapSettingsPatch;
 };
 
 export type SnapToolPointerKind = "node" | "line-end" | "rect-corner" | "circle-edge";

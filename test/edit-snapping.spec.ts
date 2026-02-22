@@ -283,25 +283,7 @@ describe("edit snapping core", () => {
   });
 
   it("keeps keyboard nudge directional intent", () => {
-    const scene = [
-      makeCircle("ref", 30, 12, 5)
-    ];
-
-    const context = buildSnapContext({
-      sceneElements: scene,
-      selectedSourceIds: ["moving"],
-      zoom: 1,
-      settings: { grid: { enabled: false }, gaps: { enabled: false } }
-    });
-
-    const selection = {
-      bounds: boundsFromPoints({ x: 0, y: 0 }, { x: 10, y: 10 }),
-      snapPoints: selectionSnapPointsFromBounds(boundsFromPoints({ x: 0, y: 0 }, { x: 10, y: 10 }))
-    };
-
     const snapped = snapKeyboardNudge({
-      context,
-      selection,
       anchor: { x: 0, y: 0 },
       axis: "x",
       direction: 1,
@@ -310,6 +292,20 @@ describe("edit snapping core", () => {
 
     expect((snapped.snappedDelta?.x ?? 0) > 0).toBe(true);
     expect(snapped.snappedDelta?.y ?? 0).toBe(0);
+  });
+
+  it("does not snap keyboard nudges to nearby targets", () => {
+    const rawStep = 2;
+    const snapped = snapKeyboardNudge({
+      anchor: { x: 0, y: 0 },
+      axis: "x",
+      direction: 1,
+      step: rawStep
+    });
+
+    expect(snapped.snappedDelta).toEqual({ x: rawStep, y: 0 });
+    expect(snapped.offset).toEqual({ x: 0, y: 0 });
+    expect(snapped.lines).toEqual([]);
   });
 
   it("does not suggest snap targets when only selected-source geometry exists", () => {

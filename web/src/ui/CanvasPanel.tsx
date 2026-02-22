@@ -1413,28 +1413,14 @@ export function CanvasPanel() {
         return;
       }
 
-      const selection = collectSelectionGeometry(sceneElements, selectedIds);
-      if (!selection) {
-        return;
-      }
-
       const selectedSet = new Set(selectedIds);
       const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceId));
       const anchorHandle = selectNudgeAnchorHandle(elementHandles);
-      const snapContext = buildSnapContext({
-        sceneElements,
-        selectedSourceIds: selectedIds,
-        zoom: canvasTransform.scale,
-        viewportWorld: viewportWorldBounds
-      });
       const snapped = snapKeyboardNudge({
-        context: snapContext,
-        selection,
         anchor: anchorHandle?.world ?? null,
         axis,
         direction,
-        step,
-        modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+        step
       });
       const delta = snapped.snappedDelta ??
         (axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step });
@@ -1458,7 +1444,6 @@ export function CanvasPanel() {
         phase: "keyboard-nudge",
         snapshotMatchesSource: true,
         dragKind: null,
-        context: snapContext,
         rawDelta: axis === "x" ? { x: direction * step, y: 0 } : { x: 0, y: direction * step },
         snappedDelta: delta,
         offset: snapped.offset,
@@ -1468,7 +1453,6 @@ export function CanvasPanel() {
     },
     [
       applyActionWithFeedback,
-      canvasTransform.scale,
       dispatch,
       logSnapDebug,
       selectedElementIds,
@@ -1476,8 +1460,7 @@ export function CanvasPanel() {
       snapshot.scene,
       snapshot.source,
       source,
-      toolMode,
-      viewportWorldBounds
+      toolMode
     ]
   );
 

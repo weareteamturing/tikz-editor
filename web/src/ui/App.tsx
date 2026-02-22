@@ -1,13 +1,10 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot } from "../compute";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
-import { SourcePanel } from "./SourcePanel";
-import { CanvasPanel } from "./CanvasPanel";
 import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
-import { DevPanel } from "./DevPanel";
 import {
   copySelection,
   duplicateSelection,
@@ -15,6 +12,21 @@ import {
   pasteSelectionAnchor
 } from "./editor-commands";
 import css from "./App.module.css";
+
+const SourcePanel = lazy(async () => {
+  const mod = await import("./SourcePanel");
+  return { default: mod.SourcePanel };
+});
+
+const CanvasPanel = lazy(async () => {
+  const mod = await import("./CanvasPanel");
+  return { default: mod.CanvasPanel };
+});
+
+const DevPanel = lazy(async () => {
+  const mod = await import("./DevPanel");
+  return { default: mod.DevPanel };
+});
 
 export function App() {
   const source = useEditorStore((s) => s.source);
@@ -141,13 +153,23 @@ export function App() {
       <Toolbar />
       <div className={css.body}>
         <ResizableLayout
-          left={<SourcePanel />}
-          center={<CanvasPanel />}
+          left={(
+            <Suspense fallback={<div className={css.panelLoading}>Loading source editor…</div>}>
+              <SourcePanel />
+            </Suspense>
+          )}
+          center={(
+            <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
+              <CanvasPanel />
+            </Suspense>
+          )}
           right={<InspectorPanel />}
         />
       </div>
       <StatusBar />
-      <DevPanel />
+      <Suspense fallback={null}>
+        <DevPanel />
+      </Suspense>
     </div>
   );
 }

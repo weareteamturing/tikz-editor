@@ -17,3 +17,11 @@
   min-height: 0;
   position: relative;
 }
+
+.panelLoading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--text-muted);
+  background: var(--bg-panel);
+}

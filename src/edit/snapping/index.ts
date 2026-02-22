@@ -105,7 +105,6 @@ export function snapHandlePosition(input: SnapHandlePositionInput): SnapResult {
 }
 
 export function snapKeyboardNudge(input: SnapKeyboardNudgeInput): SnapResult {
-  const settings = effectiveSettings(input.context, input.settings);
   const fallback = input.direction * input.step;
 
   let axisDelta = fallback;
@@ -122,20 +121,10 @@ export function snapKeyboardNudge(input: SnapKeyboardNudgeInput): SnapResult {
     ? { x: axisDelta, y: 0 }
     : { x: 0, y: axisDelta };
 
-  const snapped = snapSelectionTranslation({
-    context: input.context,
-    selection: input.selection,
-    rawDelta,
-    modifiers: input.modifiers,
-    settings,
-    enabledAxis: input.axis
-  });
-
   return {
-    ...snapped,
-    snappedDelta: input.axis === "x"
-      ? { x: snapped.snappedDelta?.x ?? rawDelta.x, y: 0 }
-      : { x: 0, y: snapped.snappedDelta?.y ?? rawDelta.y }
+    offset: { x: 0, y: 0 },
+    snappedDelta: rawDelta,
+    lines: []
   };
 }
 
