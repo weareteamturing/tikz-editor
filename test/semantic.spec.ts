@@ -1175,6 +1175,18 @@ describe("semantic evaluator", () => {
     expect(text?.kind).toBe("Text");
   });
 
+  it("supports node names that contain the `node` keyword", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (example node) at (0.76, 1.5) {Hello};
+  \draw (example node.east) -- +(1,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+    expect(result.scene.elements.some((element) => element.kind === "Text" && element.text === "Hello")).toBe(true);
+  });
+
   it("applies rounded corners across cycle closure", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) [rounded corners=10pt] -- (1,1) -- (2,1)

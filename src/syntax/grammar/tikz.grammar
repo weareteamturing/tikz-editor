@@ -497,6 +497,7 @@ Coordinate {
   InKw |
   CoordinateKw |
   DecorateKw |
+  NodeKw |
   Number |
   IdentifierLike |
   "," |
