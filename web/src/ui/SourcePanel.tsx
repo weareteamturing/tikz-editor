@@ -469,10 +469,14 @@ export function SourcePanel() {
         suppressStoreSelectionSyncRef.current = true;
       }
 
-      const normalized = normalizeRange(detail.from, detail.to, view.state.doc.length);
+      const normalized = normalizeSelectionAnchorHead(
+        detail.anchor ?? detail.from,
+        detail.head ?? detail.to,
+        view.state.doc.length
+      );
       ignoreNextSelectionSyncRef.current = true;
       view.dispatch({
-        selection: { anchor: normalized.from, head: normalized.to },
+        selection: { anchor: normalized.anchor, head: normalized.head },
         annotations: [Transaction.addToHistory.of(false)],
         scrollIntoView: true
       });
@@ -755,6 +759,16 @@ function normalizeRange(from: number, to: number, length: number): { from: numbe
     return start < length ? { from: start, to: start + 1 } : { from: Math.max(0, start - 1), to: start };
   }
   return { from: start, to: end };
+}
+
+function normalizeSelectionAnchorHead(anchor: number, head: number, length: number): { anchor: number; head: number } {
+  if (length <= 0) {
+    return { anchor: 0, head: 0 };
+  }
+  return {
+    anchor: clamp(Math.floor(anchor), 0, length),
+    head: clamp(Math.floor(head), 0, length)
+  };
 }
 
 function buildDecorations(diagnostics: Diagnostic[]): DecorationSet {

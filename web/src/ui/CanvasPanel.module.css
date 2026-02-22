@@ -242,6 +242,36 @@
   pointer-events: none;
 }
 
+.textSelectionOverlay {
+  pointer-events: none;
+}
+
+.textSelectionRect {
+  fill: rgba(63, 136, 227, 0.28);
+}
+
+.textCaret {
+  stroke: #0d5fb6;
+  animation: textCaretBlink 1.08s steps(1, end) infinite;
+}
+
+@keyframes textCaretBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .textCaret {
+    animation: none;
+  }
+}
+
 .selectionRect {
   fill: rgba(40, 122, 212, 0.08);
   stroke: rgba(13, 95, 182, 0.9);

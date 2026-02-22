@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
+import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
 import {
   buildSnapContext,
   collectSelectionGeometry,
@@ -20,8 +21,16 @@ import {
   type SnapContext,
   type SnapLine
 } from "tikz-editor/edit/snapping";
+import type { NodeTextEngine } from "tikz-editor/text/types";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import {
+  finalizePrefixWidthTable,
+  findNearestPrefixIndexFromTable,
+  readPrefixUnitsFromTable,
+  seedPrefixWidthTable,
+  stabilizePrefixForMeasurement
+} from "tikz-editor/text/prefix-width";
 import type {
   EditHandle,
   Point,
@@ -136,6 +145,23 @@ type DragState =
       startWorld: Point;
       currentWorld: Point;
       snapContext: SnapContext | null;
+    }
+  | {
+      kind: "text-select";
+      pointerId: number;
+      sourceId: string;
+      sourceSpan: Span;
+      textLength: number;
+      totalWidth: number;
+      fontSizePt: number;
+      rotation: number;
+      cx: number;
+      cy: number;
+      width: number;
+      height: number;
+      anchorIndex: number;
+      headIndex: number;
+      prefixTable: readonly number[] | null;
     };
 
 type SelectionBounds = {
@@ -198,6 +224,42 @@ type ToolPreview =
 type PendingAddedSelection = {
   beforeIds: Set<string>;
   preferredWorld: Point;
+};
+
+type NodeTextSelectionEntry = {
+  span: Span;
+  text: string;
+  hasTextWidth: boolean;
+};
+
+type TextSelectionOverlay = {
+  sourceId: string;
+  textLength: number;
+  totalWidth: number;
+  fontSizePt: number;
+  startIndex: number;
+  endIndex: number;
+  rotation: number;
+  cx: number;
+  cy: number;
+  width: number;
+  height: number;
+  prefixTable: readonly number[] | null;
+};
+
+type EditableTextTarget = {
+  sourceId: string;
+  sourceSpan: Span;
+  text: string;
+  style: SceneText["style"];
+  totalWidth: number;
+  region: Extract<HitRegion, { shape: "rect" }>;
+};
+
+type TextIndexMappingTarget = {
+  textLength: number;
+  totalWidth: number;
+  region: Extract<HitRegion, { shape: "rect" }>;
 };
 
 type SnapDebugPoint = {
@@ -308,6 +370,8 @@ const SNAP_DEBUG_MIN_WIDTH_PX = 280;
 const SNAP_DEBUG_MIN_HEIGHT_PX = 140;
 const SNAP_DEBUG_MARGIN_PX = 8;
 const SNAP_GAP_ARROW_MARKER_ID = "snap-gap-arrow-marker";
+const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
+const PREFIX_MEASURE_CACHE_LIMIT = 64;
 
 export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
@@ -337,6 +401,7 @@ export function CanvasPanel() {
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
+  const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
@@ -349,6 +414,8 @@ export function CanvasPanel() {
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
+  const textEngineRef = useRef<NodeTextEngine | null>(null);
+  const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
 
   const logSnapDebug = useCallback(
     (input: SnapDebugLogInput) => {
@@ -433,6 +500,24 @@ export function CanvasPanel() {
   const warnCount = diagnostics.filter((d) => d.severity === "warning").length;
 
   useEffect(() => {
+    let cancelled = false;
+    void createMathJaxNodeTextEngine()
+      .then((engine) => {
+        if (!cancelled) {
+          textEngineRef.current = engine;
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          textEngineRef.current = null;
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     function onPointerMove(event: PointerEvent) {
       const drag = snapDebugDragRef.current;
       if (!drag) {
@@ -513,13 +598,33 @@ export function CanvasPanel() {
     return collectSelectionBounds(snapshot.scene.elements, selectedElementIds, svgResult.viewBox);
   }, [snapshot.scene, selectedElementIds, svgResult]);
 
-  const nodeTextSpans = useMemo(() => {
+  const nodeTextEntries = useMemo(() => {
     const figure = snapshot.parseResult?.figure;
     if (!figure) {
-      return new Map<string, Span>();
+      return new Map<string, NodeTextSelectionEntry>();
     }
-    return collectNodeTextSpans(figure.body);
+    return collectNodeTextEntries(figure.body);
   }, [snapshot.parseResult]);
+
+  const sceneTextBySource = useMemo(() => {
+    const elements = snapshot.scene?.elements ?? [];
+    const bySource = new Map<string, SceneText>();
+    const duplicates = new Set<string>();
+    for (const element of elements) {
+      if (element.kind !== "Text") {
+        continue;
+      }
+      if (bySource.has(element.sourceId)) {
+        duplicates.add(element.sourceId);
+        continue;
+      }
+      bySource.set(element.sourceId, element);
+    }
+    for (const sourceId of duplicates) {
+      bySource.delete(sourceId);
+    }
+    return bySource;
+  }, [snapshot.scene]);
 
   const sourceBounds = useMemo(() => {
     if (!snapshot.scene || !svgResult) {
@@ -852,13 +957,255 @@ export function CanvasPanel() {
     [snapshot.scene]
   );
 
+  const resolveEditableTextTarget = useCallback(
+    (sourceId: string, region: HitRegion | undefined): EditableTextTarget | null => {
+      if (!region || region.shape !== "rect") {
+        return null;
+      }
+      const nodeEntry = nodeTextEntries.get(sourceId);
+      const sceneText = sceneTextBySource.get(sourceId);
+      if (!nodeEntry || !sceneText) {
+        return null;
+      }
+      if (sceneText.textRenderInfo?.mode !== "mathjax") {
+        return null;
+      }
+      if (nodeEntry.hasTextWidth) {
+        return null;
+      }
+      if (nodeEntry.text.includes("\n") || sceneText.text.includes("\n")) {
+        return null;
+      }
+      if (nodeEntry.text !== sceneText.text) {
+        return null;
+      }
+      if (source.slice(nodeEntry.span.from, nodeEntry.span.to) !== nodeEntry.text) {
+        return null;
+      }
+      if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {
+        return null;
+      }
+      return {
+        sourceId,
+        sourceSpan: nodeEntry.span,
+        text: nodeEntry.text,
+        style: sceneText.style,
+        totalWidth: sceneText.textBlockWidth,
+        region
+      };
+    },
+    [nodeTextEntries, sceneTextBySource, source]
+  );
+
+  const editableTextRegionKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (toolMode !== "select") {
+      return keys;
+    }
+    for (const region of hitRegions) {
+      if (resolveEditableTextTarget(region.sourceId, region)) {
+        keys.add(region.key);
+      }
+    }
+    return keys;
+  }, [hitRegions, resolveEditableTextTarget, toolMode]);
+
+  const resolvePrefixTableForTarget = useCallback((target: EditableTextTarget): readonly number[] | null => {
+    if (target.text.length === 0 || target.totalWidth <= 0 || target.text.length > PREFIX_MEASURE_TEXT_MAX_LENGTH) {
+      return null;
+    }
+
+    const cacheKey = JSON.stringify({
+      text: target.text,
+      fontStyle: target.style.fontStyle,
+      fontWeight: target.style.fontWeight,
+      fontFamily: target.style.fontFamily,
+      fontSizePt: Number(target.style.fontSize.toFixed(4))
+    });
+    const cached = prefixTableCacheRef.current.get(cacheKey);
+    if (cached) {
+      prefixTableCacheRef.current.delete(cacheKey);
+      prefixTableCacheRef.current.set(cacheKey, cached);
+      return cached;
+    }
+
+    const textEngine = textEngineRef.current;
+    if (!textEngine) {
+      return null;
+    }
+
+    const table = seedPrefixWidthTable(target.text.length, target.totalWidth);
+    for (let index = 1; index < target.text.length; index += 1) {
+      const prefix = stabilizePrefixForMeasurement(target.text.slice(0, index));
+      const measured = textEngine.measure({
+        text: prefix,
+        textWidthPt: null,
+        fontStyle: target.style.fontStyle,
+        fontWeight: target.style.fontWeight,
+        fontFamily: target.style.fontFamily,
+        fontSizePt: target.style.fontSize
+      });
+      table[index] = measured?.width ?? Number.NaN;
+    }
+    const finalized = finalizePrefixWidthTable(table, target.totalWidth);
+    prefixTableCacheRef.current.set(cacheKey, finalized);
+    while (prefixTableCacheRef.current.size > PREFIX_MEASURE_CACHE_LIMIT) {
+      const oldestKey = prefixTableCacheRef.current.keys().next().value;
+      if (typeof oldestKey !== "string") {
+        break;
+      }
+      prefixTableCacheRef.current.delete(oldestKey);
+    }
+    return finalized;
+  }, []);
+
+  const textIndexFromClient = useCallback(
+    (
+      clientX: number,
+      clientY: number,
+      target: TextIndexMappingTarget,
+      prefixTable: readonly number[] | null
+    ): number | null => {
+      const svgPoint = clientToSvgPoint(clientX, clientY, interactionSvgRef.current);
+      if (!svgPoint) {
+        return null;
+      }
+
+      const unrotatedPoint = rotatePointAroundCenter(svgPoint, target.region.cx, target.region.cy, target.region.rotation);
+      const left = target.region.cx - target.region.width / 2;
+      const ratio = clamp((unrotatedPoint.x - left) / Math.max(target.region.width, 1e-6), 0, 1);
+      const units = ratio * target.totalWidth;
+      return clamp(
+        findNearestPrefixIndexFromTable(units, target.textLength, target.totalWidth, prefixTable),
+        0,
+        target.textLength
+      );
+    },
+    []
+  );
+
+  const applyCanvasTextSelection = useCallback(
+    (
+      target: EditableTextTarget,
+      anchorIndex: number,
+      headIndex: number,
+      prefixTable: readonly number[] | null
+    ) => {
+      const boundedAnchor = clamp(Math.floor(anchorIndex), 0, target.text.length);
+      const boundedHead = clamp(Math.floor(headIndex), 0, target.text.length);
+      const anchorOffset = target.sourceSpan.from + boundedAnchor;
+      const headOffset = target.sourceSpan.from + boundedHead;
+      requestSourceSelection({
+        from: Math.min(anchorOffset, headOffset),
+        to: Math.max(anchorOffset, headOffset),
+        anchor: anchorOffset,
+        head: headOffset,
+        sourceId: target.sourceId,
+        focus: true
+      });
+      setTextSelectionOverlay({
+        sourceId: target.sourceId,
+        textLength: target.text.length,
+        totalWidth: target.totalWidth,
+        fontSizePt: target.style.fontSize,
+        startIndex: boundedAnchor,
+        endIndex: boundedHead,
+        rotation: target.region.rotation,
+        cx: target.region.cx,
+        cy: target.region.cy,
+        width: target.region.width,
+        height: target.region.height,
+        prefixTable
+      });
+    },
+    []
+  );
+
+  const beginTextSelectionDrag = useCallback(
+    (
+      event: ReactPointerEvent<SVGElement>,
+      sourceId: string,
+      region: HitRegion | undefined
+    ): boolean => {
+      if (event.shiftKey || event.button !== 0) {
+        return false;
+      }
+      if (!svgResult || snapshot.source !== source) {
+        return false;
+      }
+      const target = resolveEditableTextTarget(sourceId, region);
+      if (!target) {
+        return false;
+      }
+      const prefixTable = resolvePrefixTableForTarget(target);
+      const clickIndex = textIndexFromClient(
+        event.clientX,
+        event.clientY,
+        {
+          textLength: target.text.length,
+          totalWidth: target.totalWidth,
+          region: target.region
+        },
+        prefixTable
+      );
+      if (clickIndex == null) {
+        return false;
+      }
+
+      dispatch({ type: "SELECT", id: sourceId, additive: false });
+      applyCanvasTextSelection(target, clickIndex, clickIndex, prefixTable);
+      dragRef.current = {
+        kind: "text-select",
+        pointerId: event.pointerId,
+        sourceId: target.sourceId,
+        sourceSpan: target.sourceSpan,
+        textLength: target.text.length,
+        totalWidth: target.totalWidth,
+        fontSizePt: target.style.fontSize,
+        rotation: target.region.rotation,
+        cx: target.region.cx,
+        cy: target.region.cy,
+        width: target.region.width,
+        height: target.region.height,
+        anchorIndex: clickIndex,
+        headIndex: clickIndex,
+        prefixTable
+      };
+      setSnapLines([]);
+      logSnapDebug({
+        phase: "drag-start-text-select",
+        snapshotMatchesSource: true,
+        dragKind: "text-select",
+        lines: []
+      });
+      return true;
+    },
+    [
+      applyCanvasTextSelection,
+      dispatch,
+      logSnapDebug,
+      resolveEditableTextTarget,
+      resolvePrefixTableForTarget,
+      snapshot.source,
+      source,
+      svgResult,
+      textIndexFromClient
+    ]
+  );
+
   const onElementPointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, sourceId: string) => {
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
 
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
+
+      if (beginTextSelectionDrag(event, sourceId, region)) {
+        return;
+      }
+
+      setTextSelectionOverlay(null);
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
@@ -928,6 +1275,7 @@ export function CanvasPanel() {
       });
     },
     [
+      beginTextSelectionDrag,
       canvasTransform.scale,
       dispatch,
       logSnapDebug,
@@ -942,25 +1290,62 @@ export function CanvasPanel() {
   );
 
   const onElementDoubleClick = useCallback(
-    (event: ReactMouseEvent<SVGElement>, sourceId: string) => {
+    (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => {
       if (toolMode !== "select") return;
 
-      const textSpan = nodeTextSpans.get(sourceId);
-      if (!textSpan) return;
+      const target = resolveEditableTextTarget(sourceId, region);
 
       event.preventDefault();
       event.stopPropagation();
       viewportRef.current?.focus({ preventScroll: true });
 
+      if (target) {
+        const prefixTable = resolvePrefixTableForTarget(target);
+        const clickIndex = textIndexFromClient(
+          event.clientX,
+          event.clientY,
+          {
+            textLength: target.text.length,
+            totalWidth: target.totalWidth,
+            region: target.region
+          },
+          prefixTable
+        );
+        if (clickIndex != null) {
+          const wordRange = findWordRangeAtIndex(target.text, clickIndex);
+          const startIndex = wordRange?.start ?? clickIndex;
+          const endIndex = wordRange?.end ?? clickIndex;
+          dispatch({ type: "SELECT", id: sourceId, additive: false });
+          applyCanvasTextSelection(target, startIndex, endIndex, prefixTable);
+          return;
+        }
+      }
+
+      const fallback = nodeTextEntries.get(sourceId);
+      if (!fallback) {
+        return;
+      }
+
       dispatch({ type: "SELECT", id: sourceId, additive: false });
       requestSourceSelection({
-        from: textSpan.from,
-        to: textSpan.to,
+        from: fallback.span.from,
+        to: fallback.span.to,
+        anchor: fallback.span.from,
+        head: fallback.span.to,
         sourceId,
         focus: true
       });
+      setTextSelectionOverlay(null);
     },
-    [dispatch, nodeTextSpans, toolMode]
+    [
+      applyCanvasTextSelection,
+      dispatch,
+      nodeTextEntries,
+      resolveEditableTextTarget,
+      resolvePrefixTableForTarget,
+      textIndexFromClient,
+      toolMode
+    ]
   );
 
   const onHandlePointerDown = useCallback(
@@ -970,6 +1355,7 @@ export function CanvasPanel() {
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
+      setTextSelectionOverlay(null);
 
       if (event.shiftKey) {
         dispatch({ type: "SELECT", id: handle.sourceId, additive: true });
@@ -1040,6 +1426,7 @@ export function CanvasPanel() {
   const onInteractionPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
+      setTextSelectionOverlay(null);
 
       if (!svgResult) return;
 
@@ -1617,6 +2004,7 @@ export function CanvasPanel() {
       return;
     }
     setSnapLines([]);
+    setTextSelectionOverlay(null);
   }, [snapshot.source, source]);
 
   useEffect(() => {
@@ -1630,11 +2018,23 @@ export function CanvasPanel() {
       return;
     }
 
+    setTextSelectionOverlay(null);
     if (dragRef.current?.kind === "marquee") {
       dragRef.current = null;
       setMarqueeDraft(null);
+    } else if (dragRef.current?.kind === "text-select") {
+      dragRef.current = null;
     }
   }, [toolMode]);
+
+  useEffect(() => {
+    if (!textSelectionOverlay) {
+      return;
+    }
+    if (!selectedElementIds.has(textSelectionOverlay.sourceId)) {
+      setTextSelectionOverlay(null);
+    }
+  }, [selectedElementIds, textSelectionOverlay]);
 
   useEffect(() => {
     const pending = pendingAddedSelectionRef.current;
@@ -1693,6 +2093,69 @@ export function CanvasPanel() {
             translateX: drag.startTransform.translateX + deltaX,
             translateY: drag.startTransform.translateY + deltaY
           }
+        });
+        return;
+      }
+
+      if (drag.kind === "text-select") {
+        if (snapshot.source !== source) {
+          return;
+        }
+        const nextIndex = textIndexFromClient(
+          event.clientX,
+          event.clientY,
+          {
+            textLength: drag.textLength,
+            totalWidth: drag.totalWidth,
+            region: {
+              shape: "rect",
+              key: "",
+              sourceId: drag.sourceId,
+              x: drag.cx - drag.width / 2,
+              y: drag.cy - drag.height / 2,
+              width: drag.width,
+              height: drag.height,
+              cx: drag.cx,
+              cy: drag.cy,
+              rotation: drag.rotation
+            }
+          },
+          drag.prefixTable
+        );
+        if (nextIndex == null || nextIndex === drag.headIndex) {
+          return;
+        }
+        drag.headIndex = nextIndex;
+        const anchorOffset = drag.sourceSpan.from + drag.anchorIndex;
+        const headOffset = drag.sourceSpan.from + drag.headIndex;
+        requestSourceSelection({
+          from: Math.min(anchorOffset, headOffset),
+          to: Math.max(anchorOffset, headOffset),
+          anchor: anchorOffset,
+          head: headOffset,
+          sourceId: drag.sourceId,
+          focus: true
+        });
+        setTextSelectionOverlay({
+          sourceId: drag.sourceId,
+          textLength: drag.textLength,
+          totalWidth: drag.totalWidth,
+          fontSizePt: drag.fontSizePt,
+          startIndex: drag.anchorIndex,
+          endIndex: drag.headIndex,
+          rotation: drag.rotation,
+          cx: drag.cx,
+          cy: drag.cy,
+          width: drag.width,
+          height: drag.height,
+          prefixTable: drag.prefixTable
+        });
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-text-select-move",
+          snapshotMatchesSource: true,
+          dragKind: "text-select",
+          lines: []
         });
         return;
       }
@@ -1946,6 +2409,12 @@ export function CanvasPanel() {
         setSnapLines([]);
       }
 
+      if (drag.kind === "text-select") {
+        setSnapLines([]);
+        dragRef.current = null;
+        return;
+      }
+
       setSnapLines([]);
       dragRef.current = null;
     }
@@ -1967,7 +2436,8 @@ export function CanvasPanel() {
     snapshot.editHandles,
     snapshot.source,
     source,
-    svgResult
+    svgResult,
+    textIndexFromClient
   ]);
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
@@ -1977,6 +2447,41 @@ export function CanvasPanel() {
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
   const snapStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
   const snapCrossSize = 3 / Math.max(canvasTransform.scale, 1e-3);
+  const textSelectionVisual = useMemo(() => {
+    if (!textSelectionOverlay) {
+      return null;
+    }
+    if (textSelectionOverlay.textLength < 0 || textSelectionOverlay.totalWidth <= 0 || textSelectionOverlay.width <= 0) {
+      return null;
+    }
+    const unitsStart = readPrefixUnitsFromTable(
+      textSelectionOverlay.startIndex,
+      textSelectionOverlay.textLength,
+      textSelectionOverlay.totalWidth,
+      textSelectionOverlay.prefixTable
+    );
+    const unitsEnd = readPrefixUnitsFromTable(
+      textSelectionOverlay.endIndex,
+      textSelectionOverlay.textLength,
+      textSelectionOverlay.totalWidth,
+      textSelectionOverlay.prefixTable
+    );
+    const leftEdge = textSelectionOverlay.cx - textSelectionOverlay.width / 2;
+    const rightEdge = textSelectionOverlay.cx + textSelectionOverlay.width / 2;
+    const mappedStart = clamp(leftEdge + (unitsStart / textSelectionOverlay.totalWidth) * textSelectionOverlay.width, leftEdge, rightEdge);
+    const mappedEnd = clamp(leftEdge + (unitsEnd / textSelectionOverlay.totalWidth) * textSelectionOverlay.width, leftEdge, rightEdge);
+    return {
+      collapsed: textSelectionOverlay.startIndex === textSelectionOverlay.endIndex,
+      x1: mappedStart,
+      x2: mappedEnd,
+      yTop: textSelectionOverlay.cy - textSelectionOverlay.height / 2,
+      height: textSelectionOverlay.height,
+      caretStrokeWidth: caretStrokeWidthInSvg(textSelectionOverlay.fontSizePt),
+      rotation: textSelectionOverlay.rotation,
+      cx: textSelectionOverlay.cx,
+      cy: textSelectionOverlay.cy
+    };
+  }, [textSelectionOverlay]);
 
   return (
     <div className={css.panel}>
@@ -2361,6 +2866,7 @@ export function CanvasPanel() {
                 <g className={css.hitRegions}>
                   {hitRegions.map((region) => {
                     const isHovered = hoveredElementId === region.sourceId;
+                    const cursor = toolMode === "select" ? (editableTextRegionKeys.has(region.key) ? "text" : "move") : undefined;
                     const className = [
                       css.hitRegion,
                       isHovered ? css.hitRegionHovered : ""
@@ -2377,9 +2883,10 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
+                          style={cursor ? { cursor } : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
+                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -2405,9 +2912,10 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
+                          style={cursor ? { cursor } : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
+                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -2439,9 +2947,10 @@ export function CanvasPanel() {
                           fill={region.pointerMode === "fill" ? "transparent" : "none"}
                           stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
                           strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
+                          style={cursor ? { cursor } : undefined}
                           pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
+                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
                           onPointerEnter={() => {
                             if (toolMode === "select") {
                               dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -2470,9 +2979,10 @@ export function CanvasPanel() {
                             : undefined
                         }
                         fill="transparent"
+                        style={cursor ? { cursor } : undefined}
                         pointerEvents={toolMode === "select" ? "all" : "none"}
-                        onPointerDown={(event) => onElementPointerDown(event, region.sourceId)}
-                        onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId)}
+                        onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+                        onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
                         onPointerEnter={() => {
                           if (toolMode === "select") {
                             dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
@@ -2500,6 +3010,36 @@ export function CanvasPanel() {
                     />
                   )}
                 </g>
+
+                {textSelectionVisual && (
+                  <g
+                    className={css.textSelectionOverlay}
+                    transform={
+                      Math.abs(textSelectionVisual.rotation) > 1e-6
+                        ? `rotate(${fmt(-textSelectionVisual.rotation)} ${fmt(textSelectionVisual.cx)} ${fmt(textSelectionVisual.cy)})`
+                        : undefined
+                    }
+                  >
+                    {textSelectionVisual.collapsed ? (
+                      <line
+                        className={css.textCaret}
+                        x1={textSelectionVisual.x1}
+                        y1={textSelectionVisual.yTop}
+                        x2={textSelectionVisual.x1}
+                        y2={textSelectionVisual.yTop + textSelectionVisual.height}
+                        strokeWidth={textSelectionVisual.caretStrokeWidth}
+                      />
+                    ) : (
+                      <rect
+                        className={css.textSelectionRect}
+                        x={Math.min(textSelectionVisual.x1, textSelectionVisual.x2)}
+                        y={textSelectionVisual.yTop}
+                        width={Math.max(1e-3, Math.abs(textSelectionVisual.x2 - textSelectionVisual.x1))}
+                        height={textSelectionVisual.height}
+                      />
+                    )}
+                  </g>
+                )}
 
                 {toolMode === "select" && (
                   <g className={css.handleOverlay}>
@@ -2987,6 +3527,45 @@ function clientToWorldPoint(
   return svgToWorldPoint(svgPoint, viewBox);
 }
 
+function clientToSvgPoint(
+  clientX: number,
+  clientY: number,
+  svgElement: SVGSVGElement | null
+): { x: number; y: number } | null {
+  if (!svgElement) {
+    return null;
+  }
+  const ctm = svgElement.getScreenCTM();
+  if (!ctm) {
+    return null;
+  }
+  const point = svgElement.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const svgPoint = point.matrixTransform(ctm.inverse());
+  return { x: svgPoint.x, y: svgPoint.y };
+}
+
+function rotatePointAroundCenter(
+  point: { x: number; y: number },
+  cx: number,
+  cy: number,
+  degrees: number
+): { x: number; y: number } {
+  if (Math.abs(degrees) <= 1e-6) {
+    return point;
+  }
+  const theta = (degrees * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const dx = point.x - cx;
+  const dy = point.y - cy;
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos
+  };
+}
+
 function viewportToSvgPoint(
   viewportX: number,
   viewportY: number,
@@ -3157,6 +3736,13 @@ function hasVisibleFill(fill: string | null): boolean {
   return fill != null && fill !== "none";
 }
 
+function caretStrokeWidthInSvg(fontSizePt: number): number {
+  if (!Number.isFinite(fontSizePt) || fontSizePt <= 0) {
+    return 0.5;
+  }
+  return clamp(fontSizePt * 0.055, 0.45, 1.1);
+}
+
 function estimateTextBlockWidth(text: string, fontSize: number): number {
   const lines = text.split("\n");
   const maxChars = lines.reduce((max, line) => Math.max(max, line.length), 0);
@@ -3286,29 +3872,39 @@ function collectNewSourceIds(elements: SceneElement[], beforeIds: ReadonlySet<st
   return [...newIds];
 }
 
-function collectNodeTextSpans(statements: readonly Statement[]): Map<string, Span> {
-  const spans = new Map<string, Span>();
+function collectNodeTextEntries(statements: readonly Statement[]): Map<string, NodeTextSelectionEntry> {
+  const entries = new Map<string, NodeTextSelectionEntry>();
 
-  const addNodeSpan = (sourceId: string, span: Span) => {
-    if (span.to <= span.from) {
+  const addNodeEntry = (sourceId: string, entry: NodeTextSelectionEntry) => {
+    if (entry.span.to <= entry.span.from) {
       return;
     }
-    spans.set(sourceId, span);
+    entries.set(sourceId, entry);
   };
 
   const visitPathItems = (items: readonly PathItem[]) => {
-    const nodesForStatement: Array<{ id: string; textSpan: Span }> = [];
+    const nodesForStatement: Array<{ id: string; entry: NodeTextSelectionEntry }> = [];
     for (const item of items) {
       if (item.kind === "Node") {
-        addNodeSpan(item.id, item.textSpan);
-        nodesForStatement.push({ id: item.id, textSpan: item.textSpan });
+        const entry: NodeTextSelectionEntry = {
+          span: item.textSpan,
+          text: item.text,
+          hasTextWidth: hasTextWidthOption(item.options?.entries)
+        };
+        addNodeEntry(item.id, entry);
+        nodesForStatement.push({ id: item.id, entry });
         continue;
       }
 
       if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
         for (const node of item.nodes) {
-          addNodeSpan(node.id, node.textSpan);
-          nodesForStatement.push({ id: node.id, textSpan: node.textSpan });
+          const entry: NodeTextSelectionEntry = {
+            span: node.textSpan,
+            text: node.text,
+            hasTextWidth: hasTextWidthOption(node.options?.entries)
+          };
+          addNodeEntry(node.id, entry);
+          nodesForStatement.push({ id: node.id, entry });
         }
       }
     }
@@ -3320,9 +3916,9 @@ function collectNodeTextSpans(statements: readonly Statement[]): Map<string, Spa
       if (statement.kind === "Path") {
         const statementNodes = visitPathItems(statement.items);
         if (statement.command === "node" && statementNodes.length > 0) {
-          addNodeSpan(statement.id, statementNodes[0]!.textSpan);
+          addNodeEntry(statement.id, statementNodes[0]!.entry);
         } else if (statementNodes.length === 1) {
-          addNodeSpan(statement.id, statementNodes[0]!.textSpan);
+          addNodeEntry(statement.id, statementNodes[0]!.entry);
         }
         continue;
       }
@@ -3333,7 +3929,58 @@ function collectNodeTextSpans(statements: readonly Statement[]): Map<string, Spa
   };
 
   visitStatements(statements);
-  return spans;
+  return entries;
+}
+
+function hasTextWidthOption(
+  options: ReadonlyArray<{ kind: "kv" | "flag" | "unknown"; key?: string }> | undefined
+): boolean {
+  if (!options) {
+    return false;
+  }
+  for (const entry of options) {
+    if (entry.kind === "kv" && entry.key === "text width") {
+      return true;
+    }
+  }
+  return false;
+}
+
+function findWordRangeAtIndex(text: string, index: number): { start: number; end: number } | null {
+  if (text.length === 0) {
+    return null;
+  }
+
+  let probe = clamp(Math.floor(index), 0, text.length);
+  if (probe === text.length) {
+    probe = text.length - 1;
+  }
+  if (probe < 0) {
+    return null;
+  }
+
+  if (!isWordChar(text.charAt(probe))) {
+    if (probe > 0 && isWordChar(text.charAt(probe - 1))) {
+      probe -= 1;
+    } else {
+      return null;
+    }
+  }
+
+  let start = probe;
+  let end = probe + 1;
+  while (start > 0 && isWordChar(text.charAt(start - 1))) {
+    start -= 1;
+  }
+  while (end < text.length && isWordChar(text.charAt(end))) {
+    end += 1;
+  }
+
+  return { start, end };
+}
+
+function isWordChar(character: string): boolean {
+  return /^[A-Za-z0-9_]$/.test(character);
 }
 
 function pickClosestSourceId(

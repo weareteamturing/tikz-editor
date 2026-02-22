@@ -3,6 +3,8 @@ export const SOURCE_SELECTION_REQUEST_EVENT = "tikz-editor:source-selection-requ
 export type SourceSelectionRequestDetail = {
   from: number;
   to: number;
+  anchor?: number;
+  head?: number;
   sourceId?: string;
   focus?: boolean;
 };
