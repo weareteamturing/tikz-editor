@@ -1,5 +1,5 @@
 import type { Point, ScenePathCommand } from "../../semantic/types.js";
-import { addPoint, scaleVector } from "./path-sampler.js";
+import { addPoint, scaleVector } from "../../geometry/path-sampler.js";
 import type { Frame } from "./types.js";
 
 export function placeLocalPathsRigid(localPaths: ScenePathCommand[][], frame: Frame, offset: number): ScenePathCommand[][] {

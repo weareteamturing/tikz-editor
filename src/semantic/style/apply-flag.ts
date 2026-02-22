@@ -61,6 +61,19 @@ export function applyFlagEntry(
   if (key === "double") {
     return { style: { ...style, doubleStroke: true }, transform, diagnostics: [] };
   }
+  if (key === "decorate") {
+    return {
+      style: {
+        ...style,
+        decoration: {
+          ...style.decoration,
+          enabled: true
+        }
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "even odd rule") {
     return { style: { ...style, fillRule: "evenodd" }, transform, diagnostics: [] };
   }

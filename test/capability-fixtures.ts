@@ -120,6 +120,30 @@ export const capabilityFixtures: Record<string, string> = {
   let_operation: String.raw`\begin{tikzpicture}
   \path let \p1 = (1,1) in (0,0) -- (\p1);
 \end{tikzpicture}`,
+  decorate_operation: String.raw`\begin{tikzpicture}
+  \draw decorate[decoration=zigzag] {(0,0) -- (2,0)};
+\end{tikzpicture}`,
+  decorate_option: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration=snake] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_pathmorphing: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={coil,segment length=10pt,amplitude=2pt}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_pathreplacing: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={ticks,segment length=6pt,amplitude=2pt}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_fractals: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={Koch snowflake}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_shape_marks: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={crosses,segment length=6pt,shape size=3pt}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_footprints: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={footprints,stride length=12pt,foot length=4pt}] (0,0) -- (2,0);
+\end{tikzpicture}`,
+  decoration_shape_backgrounds: String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={shape backgrounds,shape=rectangle,shape sep=8pt,shape width=4pt,shape height=3pt}] (0,0) -- (2,0);
+\end{tikzpicture}`,
   ellipse_keyword: String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm,y radius=0.5cm];
 \end{tikzpicture}`,

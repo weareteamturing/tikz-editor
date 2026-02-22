@@ -1,4 +1,5 @@
 import type { CoordinateForm, CoordinateItem, EdgeOperationItem, PathStatement, ToOperationItem } from "../../ast/types.js";
+import { parseTikz } from "../../parser/index.js";
 import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
@@ -43,6 +44,7 @@ import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.j
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
+import { applyDecorationToPath } from "../decorations/index.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -1375,6 +1377,91 @@ export function evaluatePathStatement(
       continue;
     }
 
+    if (item.kind === "DecorateOperation") {
+      markFeature("decorate_operation", "supported");
+      activePath = flushDrawableActivePath(geometryElements, activePath);
+      previousSegmentRoundedCorners = null;
+      pendingRectangleFrom = null;
+      pendingCircleCenter = null;
+      pendingCircleRadius = null;
+      pendingCircleRadii = null;
+      pendingCircleRotation = 0;
+      pendingEllipseCenter = null;
+      pendingEllipseRadii = null;
+      pendingArc = null;
+      pendingGrid = null;
+      pendingPlot = null;
+
+      const raw = item.subpathRaw.trim();
+      const subpathBody = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
+      const parseResult = parseTikz(`\\begin{tikzpicture}\\path ${subpathBody};\\end{tikzpicture}`, { recover: true });
+      for (const diagnostic of parseResult.diagnostics) {
+        if (diagnostic.severity !== "error") {
+          continue;
+        }
+        pushDiagnostic(
+          diagnostic.code ?? "decorate-operation-parse-error",
+          `Decorate operation parse issue: ${diagnostic.message}`,
+          item.subpathSpan.from,
+          item.subpathSpan.to
+        );
+      }
+
+      let operationStyle = style;
+      let operationStyleChain = statementStyleChain;
+      if (item.options) {
+        const resolvedDecorateOptions = resolveContextDelta(
+          style,
+          frameTransform,
+          [
+            {
+              kind: "command",
+              sourceRef: {
+                sourceId: item.id,
+                sourceSpan: item.optionsSpan ?? item.span,
+                sourceKind: "decorate-operation",
+                label: "decorate"
+              },
+              rawOptions: [item.options]
+            }
+          ],
+          frame.customStyles,
+          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+          statementStyleChain
+        );
+        operationStyle = {
+          ...resolvedDecorateOptions.style,
+          decoration: {
+            ...resolvedDecorateOptions.style.decoration,
+            enabled: true,
+            params: { ...resolvedDecorateOptions.style.decoration.params }
+          }
+        };
+        operationStyleChain = resolvedDecorateOptions.chain;
+        for (const code of resolvedDecorateOptions.diagnostics) {
+          pushDiagnostic(code, `Decorate option issue: ${code}`, item.span.from, item.span.to);
+        }
+      } else {
+        operationStyle = {
+          ...style,
+          decoration: {
+            ...style.decoration,
+            enabled: true,
+            params: { ...style.decoration.params }
+          }
+        };
+      }
+
+      for (const nestedStatement of parseResult.figure.body) {
+        if (nestedStatement.kind !== "Path") {
+          continue;
+        }
+        const nestedElements = evaluatePathStatement(nestedStatement, context, operationStyle, markFeature, pushDiagnostic);
+        geometryElements.push(...nestedElements);
+      }
+      continue;
+    }
+
     if (item.kind === "CoordinateOperation") {
       const parsedName = item.name?.trim() || parseCoordinateOperation(item.raw)?.name;
       if (!parsedName) {
@@ -1704,7 +1791,198 @@ export function evaluatePathStatement(
     geometryElements.push(activePath);
   }
 
-  return [...behindNodeElements, ...geometryElements, ...frontNodeElements];
+  const preActionElements: SceneElement[] = [];
+  const postActionElements: SceneElement[] = [];
+  for (const preAction of style.decorationPreActions) {
+    markFeature("decorate_option", "supported");
+    preActionElements.push(
+      ...decoratePathElements(geometryElements, preAction, "collect", statement.id, markFeature, pushDiagnostic)
+    );
+  }
+  for (const postAction of style.decorationPostActions) {
+    markFeature("decorate_option", "supported");
+    postActionElements.push(
+      ...decoratePathElements(geometryElements, postAction, "collect", statement.id, markFeature, pushDiagnostic)
+    );
+  }
+
+  let mainGeometry = geometryElements;
+  if (style.decoration.enabled) {
+    markFeature("decorate_option", "supported");
+    mainGeometry = decoratePathElements(geometryElements, style.decoration, "replace", statement.id, markFeature, pushDiagnostic);
+  }
+
+  return [...preActionElements, ...behindNodeElements, ...mainGeometry, ...frontNodeElements, ...postActionElements];
+}
+
+function decoratePathElements(
+  elements: SceneElement[],
+  decoration: ResolvedStyle["decoration"],
+  mode: "replace" | "collect",
+  statementId: string,
+  markFeature: FeatureMarkFn,
+  pushDiagnostic: DiagnosticPushFn
+): SceneElement[] {
+  const output: SceneElement[] = [];
+  const decorationName = canonicalDecorationName(decoration.name);
+  if (decorationName) {
+    markDecorationFeature(decorationName, "supported", markFeature);
+  }
+
+  for (const element of elements) {
+    const path = toDecoratablePathElement(element);
+    if (!path) {
+      if (mode === "replace") {
+        output.push(element);
+      }
+      continue;
+    }
+
+    const outcome = applyDecorationToPath(path, decoration, `${statementId}:${element.id}`);
+    if (outcome.kind === "unsupported") {
+      markDecorationFeature(outcome.name, "unsupported", markFeature);
+      pushDiagnostic(
+        `unsupported-decoration-name:${outcome.name}`,
+        outcome.reason === "deferred"
+          ? `Decoration \`${outcome.name}\` is parsed but deferred because it requires dynamic TeX code execution.`
+          : `Decoration \`${outcome.name}\` is not implemented; keeping the undecorated path.`,
+        path.sourceSpan.from,
+        path.sourceSpan.to
+      );
+      if (mode === "replace") {
+        output.push(element);
+      } else {
+        output.push(...outcome.paths);
+      }
+      continue;
+    }
+
+    output.push(...outcome.paths);
+  }
+
+  return output;
+}
+
+function toDecoratablePathElement(element: SceneElement): ScenePath | null {
+  if (element.kind === "Path") {
+    return element;
+  }
+
+  if (element.kind === "Circle") {
+    const commands: ScenePath["commands"] = [];
+    appendCircleSubpath(commands, element.center, element.radius);
+    return {
+      kind: "Path",
+      id: `${element.id}:as-path`,
+      sourceId: element.sourceId,
+      sourceSpan: element.sourceSpan,
+      origin: element.origin,
+      style: cloneStyleForDecoration(element.style),
+      styleChain: element.styleChain.map((entry) => ({ ...entry })),
+      commands
+    };
+  }
+
+  if (element.kind === "Ellipse") {
+    const commands: ScenePath["commands"] = [];
+    appendEllipseSubpath(commands, element.center, element.rx, element.ry, element.rotation ?? 0);
+    return {
+      kind: "Path",
+      id: `${element.id}:as-path`,
+      sourceId: element.sourceId,
+      sourceSpan: element.sourceSpan,
+      origin: element.origin,
+      style: cloneStyleForDecoration(element.style),
+      styleChain: element.styleChain.map((entry) => ({ ...entry })),
+      commands
+    };
+  }
+
+  return null;
+}
+
+function cloneStyleForDecoration(style: ResolvedStyle): ResolvedStyle {
+  return {
+    ...style,
+    decoration: {
+      ...style.decoration,
+      params: { ...style.decoration.params }
+    },
+    decorationPreActions: style.decorationPreActions.map((entry) => ({
+      ...entry,
+      params: { ...entry.params }
+    })),
+    decorationPostActions: style.decorationPostActions.map((entry) => ({
+      ...entry,
+      params: { ...entry.params }
+    })),
+    shadowLayers: style.shadowLayers.map((layer) => ({
+      ...layer,
+      style: { ...layer.style }
+    }))
+  };
+}
+
+function canonicalDecorationName(raw: string | null | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  const normalized = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
+}
+
+function markDecorationFeature(nameRaw: string, status: "supported" | "unsupported", markFeature: FeatureMarkFn): void {
+  const name = canonicalDecorationName(nameRaw);
+  if (!name || name === "none") {
+    return;
+  }
+
+  if (
+    name === "zigzag" ||
+    name === "straight zigzag" ||
+    name === "random steps" ||
+    name === "saw" ||
+    name === "bent" ||
+    name === "bumps" ||
+    name === "coil" ||
+    name === "snake" ||
+    name === "lineto" ||
+    name === "curveto" ||
+    name === "moveto"
+  ) {
+    markFeature("decoration_pathmorphing", status);
+    return;
+  }
+
+  if (
+    name === "ticks" ||
+    name === "expanding waves" ||
+    name === "waves" ||
+    name === "border" ||
+    name === "brace"
+  ) {
+    markFeature("decoration_pathreplacing", status);
+    return;
+  }
+
+  if (name === "koch curve type 1" || name === "koch curve type 2" || name === "koch snowflake" || name === "cantor set") {
+    markFeature("decoration_fractals", status);
+    return;
+  }
+
+  if (name === "crosses" || name === "triangles") {
+    markFeature("decoration_shape_marks", status);
+    return;
+  }
+
+  if (name === "footprints") {
+    markFeature("decoration_footprints", status);
+    return;
+  }
+
+  if (name === "shape backgrounds") {
+    markFeature("decoration_shape_backgrounds", status);
+  }
 }
 
 function resolveNamedCoordinateRewriteHandleId(rawName: string, context: SemanticContext): string | undefined {

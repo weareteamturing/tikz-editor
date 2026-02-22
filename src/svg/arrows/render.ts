@@ -10,7 +10,7 @@ import {
   sampleFrameFromStartExtrapolated,
   scaleVector,
   splitPathIntoSubpaths
-} from "./path-sampler.js";
+} from "../../geometry/path-sampler.js";
 import { placeLocalPathsBent, placeLocalPathsRigid } from "./place.js";
 import { buildLocalTipPaths } from "./shapes.js";
 import { shortenOpenSubpath } from "./shorten.js";

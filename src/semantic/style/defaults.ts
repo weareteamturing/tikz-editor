@@ -64,7 +64,21 @@ export function defaultStyle(): ResolvedStyle {
     shadowYShift: 0,
     shadowFade: "none",
     everyShadowStyles: [],
-    shadowLayers: []
+    shadowLayers: [],
+    decoration: {
+      enabled: false,
+      name: null,
+      raise: 0,
+      mirror: false,
+      transformRaw: null,
+      pre: "lineto",
+      preLength: 0,
+      post: "lineto",
+      postLength: 0,
+      params: {}
+    },
+    decorationPreActions: [],
+    decorationPostActions: []
   };
 }
 

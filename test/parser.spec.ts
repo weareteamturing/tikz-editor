@@ -646,6 +646,32 @@ describe("parseTikz", () => {
     expect(coordinates.some((item) => item.kind === "Coordinate" && item.relativePrefix === "+")).toBe(true);
   });
 
+  it("merges consecutive leading path option lists into statement options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill [decorate,decoration={zigzag}] [fill=blue!20,draw=blue,thick] (0,0) -- (1,0) -- cycle;
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path" || !statement.options) {
+      return;
+    }
+
+    const keys = statement.options.entries
+      .filter((entry) => entry.kind === "kv")
+      .map((entry) => (entry.kind === "kv" ? entry.key : ""));
+    const flags = statement.options.entries
+      .filter((entry) => entry.kind === "flag")
+      .map((entry) => (entry.kind === "flag" ? entry.key : ""));
+
+    expect(flags).toContain("decorate");
+    expect(keys).toContain("decoration");
+    expect(keys).toContain("fill");
+    expect(keys).toContain("draw");
+    expect(flags).toContain("thick");
+  });
+
   it("parses coordinate-local options like ([xshift=3pt] 1,1)", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- ([xshift=3pt] 1,1) -- +([shift=(135:5pt)] 30:2cm);
@@ -788,10 +814,11 @@ describe("parseTikz", () => {
     expect(unknown).toHaveLength(0);
   });
 
-  it("parses to, edge, svg, let, and coordinate operations with typed IR items", () => {
+  it("parses to, edge, svg, let, decorate, and coordinate operations with typed IR items", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) to [edge label=x, edge label'=y] node [above] {t} (3,2);
   \path (0,0) edge [->] node [below] {e} (2,1);
+  \draw decorate[decoration=zigzag] {(0,0) -- (1,0)};
   \filldraw [fill=red!20] (0,1) svg[scale=2] {h 10 v 10 h -10} -- cycle;
   \path let \p1 = (1,1), \p2 = (2,0) in (0,0) -- (\p2);
   \path coordinate (p1) at (1,0) coordinate (p2) at (2,1);
@@ -808,12 +835,37 @@ describe("parseTikz", () => {
     expect(items.some((item) => item.kind === "EdgeOperation")).toBe(true);
     expect(items.some((item) => item.kind === "SvgOperation")).toBe(true);
     expect(items.some((item) => item.kind === "LetOperation")).toBe(true);
+    expect(items.some((item) => item.kind === "DecorateOperation")).toBe(true);
     expect(items.filter((item) => item.kind === "CoordinateOperation").length).toBeGreaterThanOrEqual(2);
 
     const svg = items.find((item) => item.kind === "SvgOperation");
     expect(svg?.kind).toBe("SvgOperation");
     if (svg?.kind === "SvgOperation") {
       expect(svg.dataRaw).toBe("{h 10 v 10 h -10}");
+    }
+  });
+
+  it("parses nested decorate operations as typed path items", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw decorate[decoration=crosses] {
+    decorate[decoration=zigzag] {(0,0) -- (1,0)}
+  };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    const path = result.figure.body.find((statement) => statement.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind !== "Path") {
+      return;
+    }
+
+    const decorateOps = path.items.filter((item) => item.kind === "DecorateOperation");
+    expect(decorateOps.length).toBeGreaterThanOrEqual(1);
+    const first = decorateOps[0];
+    if (first?.kind === "DecorateOperation") {
+      expect(first.subpathRaw.trim().startsWith("{")).toBe(true);
+      expect(first.subpathRaw.trim().endsWith("}")).toBe(true);
     }
   });
 

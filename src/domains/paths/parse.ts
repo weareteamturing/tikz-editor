@@ -2,6 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import { pathCommentItemId, pathStatementId } from "../../ast/ids.js";
 import type { PathCommand, PathItem, PathStatement } from "../../ast/types.js";
+import type { OptionListAst } from "../../options/types.js";
 import { mapCoordinateItem, mapRelativeCoordinateItem } from "../coordinates/parse.js";
 import { mapNodeItem, mapSyntheticNodeItem } from "../nodes/parse.js";
 import { mapPathOptionItem } from "../options/parse.js";
@@ -10,6 +11,8 @@ import { mapUnknownPathItem } from "../../transform/unknown.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 import {
   mapCoordinateOperationItem,
+  mapDecorateOperationItem,
+  mapDecorateOperationNode,
   mapEdgeOperationItem,
   mapLetOperationItem,
   mapPathForeachOperationItem,
@@ -39,26 +42,31 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
 
   const items: PathItem[] = [];
   let itemIndex = 0;
-
-  forEachChild(node, (child) => {
-    if (child.type.name === "PathItem") {
-      const actual = firstNamedChild(child) ?? child;
-      const mapped = mapPathItem(actual, source, statementIndex, itemIndex, context);
-      if (mapped) {
-        items.push(mapped);
-        itemIndex += 1;
+  const pathItemNodes = collectPathItemNodes(node);
+  let nodeIndex = 0;
+  while (nodeIndex < pathItemNodes.length) {
+    const mappedDecorate = tryMapDecorateOperation(pathItemNodes, nodeIndex, source, statementIndex, itemIndex);
+    if (mappedDecorate) {
+      if (context.pendingNodeOptions.length > 0) {
+        for (const optionNode of context.pendingNodeOptions) {
+          items.push(mapPathOptionItem(optionNode, source, statementIndex, itemIndex));
+          itemIndex += 1;
+        }
+        context.pendingNodeOptions = [];
       }
-      return;
+      items.push(mappedDecorate.item);
+      itemIndex += 1;
+      nodeIndex += mappedDecorate.consumed;
+      continue;
     }
 
-    if (isDirectPathItemNode(child.type.name)) {
-      const mapped = mapPathItem(child, source, statementIndex, itemIndex, context);
-      if (mapped) {
-        items.push(mapped);
-        itemIndex += 1;
-      }
+    const mapped = mapPathItem(pathItemNodes[nodeIndex], source, statementIndex, itemIndex, context);
+    if (mapped) {
+      items.push(mapped);
+      itemIndex += 1;
     }
-  });
+    nodeIndex += 1;
+  }
 
   if (context.command === "node" && !context.syntheticNodeEmitted && context.pendingNodeOptions.length > 0) {
     if (pendingNodeOptionsContainNodeContents(context.pendingNodeOptions, source)) {
@@ -129,6 +137,10 @@ function mapPathItem(
 
   if (actual.type.name === "CoordinateOperation") {
     return mapCoordinateOperationItem(actual, source, statementIndex, itemIndex);
+  }
+
+  if (actual.type.name === "DecorateOperation") {
+    return mapDecorateOperationNode(actual, source, statementIndex, itemIndex);
   }
 
   if (actual.type.name === "NodeItem") {
@@ -203,6 +215,7 @@ function isDirectPathItemNode(name: string): boolean {
     name === "SvgOperation" ||
     name === "LetOperation" ||
     name === "CoordinateOperation" ||
+    name === "DecorateOperation" ||
     name === "Comment" ||
     name === "NodeItem" ||
     name === "UnknownPathItem" ||
@@ -229,6 +242,68 @@ function mapPathCommentItem(
   };
 }
 
+function collectPathItemNodes(node: SyntaxNode): SyntaxNode[] {
+  const nodes: SyntaxNode[] = [];
+  forEachChild(node, (child) => {
+    if (child.type.name === "PathItem") {
+      nodes.push(firstNamedChild(child) ?? child);
+      return;
+    }
+    if (isDirectPathItemNode(child.type.name)) {
+      nodes.push(child);
+    }
+  });
+  return nodes;
+}
+
+function tryMapDecorateOperation(
+  nodes: SyntaxNode[],
+  startIndex: number,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): { item: PathItem; consumed: number } | null {
+  const keywordNode = unwrapPathItemNode(nodes[startIndex]);
+  if (!isDecorateKeywordNode(keywordNode, source)) {
+    return null;
+  }
+
+  let consumeCount = 1;
+  let optionsNode: SyntaxNode | null = null;
+  const nextNode = nodes[startIndex + consumeCount];
+  if (nextNode) {
+    const unwrapped = unwrapPathItemNode(nextNode);
+    if (unwrapped.type.name === "OptionList") {
+      optionsNode = unwrapped;
+      consumeCount += 1;
+    }
+  }
+
+  const subpathCandidate = nodes[startIndex + consumeCount];
+  if (!subpathCandidate) {
+    return null;
+  }
+  const subpathNode = unwrapPathItemNode(subpathCandidate);
+  if (!isDecorationSubpathNode(subpathNode, source)) {
+    return null;
+  }
+
+  return {
+    item: mapDecorateOperationItem(keywordNode, optionsNode, subpathNode, source, statementIndex, itemIndex),
+    consumed: consumeCount + 1
+  };
+}
+
+function isDecorateKeywordNode(node: SyntaxNode, source: string): boolean {
+  const raw = source.slice(node.from, node.to).trim().toLowerCase();
+  return raw === "decorate";
+}
+
+function isDecorationSubpathNode(node: SyntaxNode, source: string): boolean {
+  const raw = source.slice(node.from, node.to).trim();
+  return raw.startsWith("{") && raw.endsWith("}");
+}
+
 function unwrapPathItemNode(node: SyntaxNode): SyntaxNode {
   if (node.type.name === "UnknownPathItem") {
     return firstNamedChild(node) ?? node;
@@ -237,16 +312,51 @@ function unwrapPathItemNode(node: SyntaxNode): SyntaxNode {
 }
 
 function findStatementOptions(items: PathItem[]) {
+  const leadingOptions: OptionListAst[] = [];
+  let seenNonComment = false;
+
   for (const item of items) {
     if (item.kind === "PathComment") {
       continue;
     }
-    if (item.kind === "PathOption") {
-      return item.options;
+
+    if (item.kind !== "PathOption") {
+      return leadingOptions.length > 0 ? mergeOptionLists(leadingOptions) : undefined;
     }
+
+    seenNonComment = true;
+    leadingOptions.push(item.options);
+  }
+
+  if (!seenNonComment) {
     return undefined;
   }
-  return undefined;
+  return leadingOptions.length > 0 ? mergeOptionLists(leadingOptions) : undefined;
+}
+
+function mergeOptionLists(optionLists: OptionListAst[]): OptionListAst {
+  if (optionLists.length === 1) {
+    return optionLists[0];
+  }
+
+  const first = optionLists[0];
+  const last = optionLists[optionLists.length - 1];
+  return {
+    span: {
+      from: first.span.from,
+      to: last.span.to
+    },
+    raw: `[${optionLists.map((entry) => stripOptionListBrackets(entry.raw)).join(",")}]`,
+    entries: optionLists.flatMap((entry) => entry.entries)
+  };
+}
+
+function stripOptionListBrackets(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]") && trimmed.length >= 2) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function pendingNodeOptionsContainNodeContents(optionNodes: SyntaxNode[], source: string): boolean {

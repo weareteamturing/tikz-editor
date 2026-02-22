@@ -2,6 +2,7 @@ import type { SyntaxNode } from "@lezer/common";
 
 import {
   coordinateOperationItemId,
+  decorateOperationItemId,
   edgeOperationItemId,
   letOperationItemId,
   pathForeachItemId,
@@ -10,6 +11,7 @@ import {
 } from "../../ast/ids.js";
 import type {
   CoordinateOperationItem,
+  DecorateOperationItem,
   EdgeOperationItem,
   LetOperationItem,
   NodeItem,
@@ -138,6 +140,38 @@ export function mapCoordinateOperationItem(
     placementSpan: undefined,
     raw: source.slice(node.from, node.to)
   };
+}
+
+export function mapDecorateOperationItem(
+  keywordNode: SyntaxNode,
+  optionsNode: SyntaxNode | null,
+  subpathNode: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): DecorateOperationItem {
+  return {
+    kind: "DecorateOperation",
+    id: decorateOperationItemId(statementIndex, itemIndex),
+    span: { from: keywordNode.from, to: subpathNode.to },
+    optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+    subpathSpan: { from: subpathNode.from, to: subpathNode.to },
+    subpathRaw: source.slice(subpathNode.from, subpathNode.to),
+    raw: source.slice(keywordNode.from, subpathNode.to)
+  };
+}
+
+export function mapDecorateOperationNode(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): DecorateOperationItem {
+  const keywordNode = findFirstChildByName(node, "DecorateKw") ?? firstNamedChild(node) ?? node;
+  const optionsNode = findFirstChildByName(node, "OptionList");
+  const subpathNode = findFirstChildByName(node, "Group") ?? node;
+  return mapDecorateOperationItem(keywordNode, optionsNode, subpathNode, source, statementIndex, itemIndex);
 }
 
 export function mapPathForeachOperationItem(

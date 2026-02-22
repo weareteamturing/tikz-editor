@@ -286,6 +286,62 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["let_operation"]
   },
+  decorate_operation: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decorate_operation"]
+  },
+  decorate_option: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decorate_option"]
+  },
+  decoration_pathmorphing: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_pathmorphing"]
+  },
+  decoration_pathreplacing: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_pathreplacing"]
+  },
+  decoration_fractals: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_fractals"]
+  },
+  decoration_shape_marks: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_shape_marks"]
+  },
+  decoration_footprints: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_footprints"]
+  },
+  decoration_shape_backgrounds: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["decoration_shape_backgrounds"]
+  },
   keyword_ellipse: {
     parser: "stable",
     semantic: "partial",

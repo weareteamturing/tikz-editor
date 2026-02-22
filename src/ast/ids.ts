@@ -70,6 +70,10 @@ export function letOperationItemId(statementIndex: number, itemIndex: number): s
   return `let-operation:${statementIndex}:${itemIndex}`;
 }
 
+export function decorateOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `decorate-operation:${statementIndex}:${itemIndex}`;
+}
+
 export function coordinateOperationItemId(statementIndex: number, itemIndex: number): string {
   return `coordinate-operation:${statementIndex}:${itemIndex}`;
 }
