@@ -3,11 +3,10 @@ import type { ToolMode } from "../store/types";
 import type { ReorderDirection } from "tikz-editor/edit/actions";
 import { getToolCapabilityStatus } from "./capabilities";
 import {
-  canCopySelection,
-  canDuplicateSelection,
-  canPasteSelection,
-  canReorderSelection,
+  actionAvailability,
+  alignSelection,
   copySelection,
+  distributeSelection,
   duplicateSelection,
   pasteSelectionAnchor,
   reorderSelection
@@ -31,6 +30,7 @@ const TOOL_BUTTONS: ToolButtonDef[] = [
 
 export function Toolbar() {
   const source = useEditorStore((s) => s.source);
+  const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
@@ -42,16 +42,27 @@ export function Toolbar() {
 
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
-  const canCopy = canCopySelection(selectedElementIds);
-  const canDuplicate = canDuplicateSelection(selectedElementIds);
-  const canPaste = canPasteSelection(internalClipboard);
-  const canReorder = canReorderSelection(selectedElementIds);
 
   const commandContext = {
     source,
+    snapshotSource: snapshot.source,
+    scene: snapshot.scene,
+    editHandles: snapshot.editHandles,
     selectedElementIds,
     dispatch
   };
+
+  const availability = actionAvailability(commandContext, internalClipboard);
+  const canCopy = availability.copy.enabled;
+  const canDuplicate = availability.duplicate.enabled;
+  const canPaste = availability.paste.enabled;
+  const canSendToBack = availability["reorder-sendToBack"].enabled;
+  const canSendBackward = availability["reorder-sendBackward"].enabled;
+  const canBringForward = availability["reorder-bringForward"].enabled;
+  const canBringToFront = availability["reorder-bringToFront"].enabled;
+
+  const availabilityTitle = (base: string, reason: string | null, enabled: boolean) =>
+    enabled ? base : `${base}\n${reason ?? "Action unavailable."}`;
 
   const runReorder = (direction: ReorderDirection) => {
     reorderSelection(commandContext, direction);
@@ -97,7 +108,7 @@ export function Toolbar() {
       <div className={css.group}>
         <button
           className={css.btn}
-          title="Copy selection (Ctrl/Cmd+C)"
+          title={availabilityTitle("Copy selection (Ctrl/Cmd+C)", availability.copy.reason, canCopy)}
           disabled={!canCopy}
           onClick={() => {
             void copySelection(commandContext);
@@ -107,7 +118,7 @@ export function Toolbar() {
         </button>
         <button
           className={css.btn}
-          title="Paste after selection (Ctrl/Cmd+V)"
+          title={availabilityTitle("Paste after selection (Ctrl/Cmd+V)", availability.paste.reason, canPaste)}
           disabled={!canPaste}
           onClick={() => {
             pasteSelectionAnchor({
@@ -120,7 +131,11 @@ export function Toolbar() {
         </button>
         <button
           className={css.btn}
-          title="Duplicate selection (Ctrl/Cmd+D)"
+          title={availabilityTitle(
+            "Duplicate selection (Ctrl/Cmd+D)",
+            availability.duplicate.reason,
+            canDuplicate
+          )}
           disabled={!canDuplicate}
           onClick={() => {
             duplicateSelection(commandContext);
@@ -133,35 +148,113 @@ export function Toolbar() {
       <div className={css.group}>
         <button
           className={css.btn}
-          title="Send to back"
-          disabled={!canReorder}
+          title={availabilityTitle("Send to back", availability["reorder-sendToBack"].reason, canSendToBack)}
+          disabled={!canSendToBack}
           onClick={() => runReorder("sendToBack")}
         >
           To Back
         </button>
         <button
           className={css.btn}
-          title="Send backward"
-          disabled={!canReorder}
+          title={availabilityTitle("Send backward", availability["reorder-sendBackward"].reason, canSendBackward)}
+          disabled={!canSendBackward}
           onClick={() => runReorder("sendBackward")}
         >
           Backward
         </button>
         <button
           className={css.btn}
-          title="Bring forward"
-          disabled={!canReorder}
+          title={availabilityTitle("Bring forward", availability["reorder-bringForward"].reason, canBringForward)}
+          disabled={!canBringForward}
           onClick={() => runReorder("bringForward")}
         >
           Forward
         </button>
         <button
           className={css.btn}
-          title="Bring to front"
-          disabled={!canReorder}
+          title={availabilityTitle("Bring to front", availability["reorder-bringToFront"].reason, canBringToFront)}
+          disabled={!canBringToFront}
           onClick={() => runReorder("bringToFront")}
         >
           To Front
+        </button>
+      </div>
+
+      <div className={css.group}>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align left", availability["align-left"].reason, availability["align-left"].enabled)}
+          disabled={!availability["align-left"].enabled}
+          onClick={() => alignSelection(commandContext, "left")}
+        >
+          Left
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align center", availability["align-center"].reason, availability["align-center"].enabled)}
+          disabled={!availability["align-center"].enabled}
+          onClick={() => alignSelection(commandContext, "center")}
+        >
+          Center
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align right", availability["align-right"].reason, availability["align-right"].enabled)}
+          disabled={!availability["align-right"].enabled}
+          onClick={() => alignSelection(commandContext, "right")}
+        >
+          Right
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align top", availability["align-top"].reason, availability["align-top"].enabled)}
+          disabled={!availability["align-top"].enabled}
+          onClick={() => alignSelection(commandContext, "top")}
+        >
+          Top
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align middle", availability["align-middle"].reason, availability["align-middle"].enabled)}
+          disabled={!availability["align-middle"].enabled}
+          onClick={() => alignSelection(commandContext, "middle")}
+        >
+          Middle
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle("Align bottom", availability["align-bottom"].reason, availability["align-bottom"].enabled)}
+          disabled={!availability["align-bottom"].enabled}
+          onClick={() => alignSelection(commandContext, "bottom")}
+        >
+          Bottom
+        </button>
+      </div>
+
+      <div className={css.group}>
+        <button
+          className={css.btn}
+          title={availabilityTitle(
+            "Distribute horizontally",
+            availability["distribute-horizontal"].reason,
+            availability["distribute-horizontal"].enabled
+          )}
+          disabled={!availability["distribute-horizontal"].enabled}
+          onClick={() => distributeSelection(commandContext, "horizontal")}
+        >
+          H Dist
+        </button>
+        <button
+          className={css.btn}
+          title={availabilityTitle(
+            "Distribute vertically",
+            availability["distribute-vertical"].reason,
+            availability["distribute-vertical"].enabled
+          )}
+          disabled={!availability["distribute-vertical"].enabled}
+          onClick={() => distributeSelection(commandContext, "vertical")}
+        >
+          V Dist
         </button>
       </div>
 

@@ -9,6 +9,7 @@ export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
 export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 export { collectSymbols } from "./completion/index.js";
+export { EDIT_ACTION_IDS, getEditActionAvailability } from "./edit/action-availability.js";
 export {
   buildSnapContext,
   snapSelectionTranslation,
@@ -33,6 +34,12 @@ export type { EmitSvgResult, EmitSvgOptions, SvgViewBox } from "./svg/index.js";
 export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js";
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
 export type { DocumentSymbols } from "./completion/index.js";
+export type {
+  ActionAvailability,
+  EditActionAvailability,
+  EditActionId,
+  GetEditActionAvailabilityInput
+} from "./edit/action-availability.js";
 export type * from "./edit/snapping/types.js";
 export type * from "./text/types.js";
 export type * from "./ast/types.js";

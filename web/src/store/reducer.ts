@@ -56,6 +56,8 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
     case "delete": return "Deleted element";
     case "resize": return "Resized element";
     case "reorder": return "Reordered elements";
+    case "align": return "Aligned elements";
+    case "distribute": return "Distributed elements";
   }
 }
 
@@ -110,6 +112,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
         action.action.kind === "moveHandle" ? "move-handle" :
         action.action.kind === "setProperty" ? "set-property" :
+        action.action.kind === "alignElements" ? "align" :
+        action.action.kind === "distributeElements" ? "distribute" :
         action.action.kind === "reorderElements" ? "reorder" :
         action.action.kind === "addElement" ? "add-element" :
         action.action.kind === "duplicateElements" || action.action.kind === "pasteStatements" ? "add-element" :

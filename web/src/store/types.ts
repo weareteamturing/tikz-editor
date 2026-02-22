@@ -10,7 +10,7 @@ export type CanvasTransform = {
 };
 
 export type HistoryEntry = {
-  kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize" | "reorder";
+  kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize" | "reorder" | "align" | "distribute";
   label: string;
   /** Optional key used to coalesce drag updates into one undo step. */
   mergeKey?: string;

@@ -30,6 +30,7 @@ const DevPanel = lazy(async () => {
 
 export function App() {
   const source = useEditorStore((s) => s.source);
+  const snapshot = useEditorStore((s) => s.snapshot);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const dispatch = useEditorStore((s) => s.dispatch);
@@ -72,6 +73,9 @@ export function App() {
 
       const commandContext = {
         source,
+        snapshotSource: snapshot.source,
+        scene: snapshot.scene,
+        editHandles: snapshot.editHandles,
         selectedElementIds,
         dispatch
       };
@@ -146,7 +150,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, internalClipboard, selectedElementIds, source]);
+  }, [dispatch, internalClipboard, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]);
 
   return (
     <div className={css.app}>

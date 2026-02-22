@@ -14,6 +14,8 @@ import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
+import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
+import { collectSourceWorldBounds } from "./snapping/index.js";
 import { renameSnippetDeclaredNames } from "./name-conflicts.js";
 import {
   applyTextReplacements,
@@ -46,6 +48,8 @@ export type ReorderDirection = "sendToBack" | "sendBackward" | "bringForward" | 
 export type EditAction =
   | { kind: "moveElement"; elementId: string; delta: Point }
   | { kind: "moveElements"; elementIds: string[]; delta: Point }
+  | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
+  | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
   | { kind: "moveHandle"; handleId: string; newWorld: Point }
   | { kind: "setProperty"; elementId: string; level: StyleLevel; key: string; value: string }
   | { kind: "addElement"; template: ElementTemplate; at: Point }
@@ -70,6 +74,7 @@ export type EditActionResult =
   | { kind: "error"; message: string };
 
 const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
+const ARRANGE_EPSILON = 1e-6;
 
 export function applyEditAction(
   source: string,
@@ -83,6 +88,10 @@ export function applyEditAction(
       return applyMoveElements(source, editHandles, [action.elementId], action.delta);
     case "moveElements":
       return applyMoveElements(source, editHandles, action.elementIds, action.delta);
+    case "alignElements":
+      return applyAlignElements(source, action);
+    case "distributeElements":
+      return applyDistributeElements(source, action);
     case "setProperty":
       return applySetProperty(source, action);
     case "addElement":
@@ -197,6 +206,168 @@ function applyMoveElements(
   }
 
   return { kind: "success", newSource: currentSource, patches };
+}
+
+function applyAlignElements(
+  source: string,
+  action: Extract<EditAction, { kind: "alignElements" }>
+): EditActionResult {
+  const normalizedIds = normalizeElementIds(action.elementIds);
+  if (normalizedIds.length < 2) {
+    return { kind: "unsupported", reason: "Align requires at least 2 selected elements." };
+  }
+
+  const parsed = parseTikz(source, { recover: true });
+  const semantic = evaluateTikzFigure(parsed.figure, source);
+  const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+  const plan = planAlignDeltas(boundsBySource, normalizedIds, action.mode);
+  if (plan.kind === "unsupported") {
+    return plan;
+  }
+
+  return applyElementDeltaMapStrict(source, semantic.editHandles, normalizedIds, plan.deltas);
+}
+
+function applyDistributeElements(
+  source: string,
+  action: Extract<EditAction, { kind: "distributeElements" }>
+): EditActionResult {
+  const normalizedIds = normalizeElementIds(action.elementIds);
+  if (normalizedIds.length < 3) {
+    return { kind: "unsupported", reason: "Distribute requires at least 3 selected elements." };
+  }
+
+  const parsed = parseTikz(source, { recover: true });
+  const semantic = evaluateTikzFigure(parsed.figure, source);
+  const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+  const plan = planDistributeDeltas(boundsBySource, normalizedIds, action.axis);
+  if (plan.kind === "unsupported") {
+    return plan;
+  }
+
+  return applyElementDeltaMapStrict(source, semantic.editHandles, normalizedIds, plan.deltas);
+}
+
+function applyElementDeltaMapStrict(
+  source: string,
+  editHandles: EditHandle[],
+  elementIds: readonly string[],
+  deltasBySource: ReadonlyMap<string, Point>
+): EditActionResult {
+  const normalizedIds = normalizeElementIds(elementIds);
+  if (normalizedIds.length === 0) {
+    return { kind: "unsupported", reason: "No element ids were provided for arrange operation." };
+  }
+
+  const sourceIdSet = new Set(normalizedIds);
+  const selectedHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceId));
+  if (selectedHandles.length === 0) {
+    return { kind: "unsupported", reason: "No handles found for the selected element(s)." };
+  }
+
+  const handlesBySource = new Map<string, EditHandle[]>();
+  for (const handle of selectedHandles) {
+    const existing = handlesBySource.get(handle.sourceId);
+    if (existing) {
+      existing.push(handle);
+    } else {
+      handlesBySource.set(handle.sourceId, [handle]);
+    }
+  }
+
+  for (const sourceId of normalizedIds) {
+    const handles = handlesBySource.get(sourceId) ?? [];
+    if (handles.length === 0) {
+      return {
+        kind: "unsupported",
+        reason: `No handles found for selected element: ${sourceId}.`
+      };
+    }
+    if (handles.some((handle) => handle.rewriteMode === "unsupported")) {
+      return {
+        kind: "unsupported",
+        reason: "One or more selected elements use unsupported coordinate forms."
+      };
+    }
+  }
+
+  type PendingReplacement = { span: { from: number; to: number }; text: string };
+  const pending: PendingReplacement[] = [];
+  const replacementBySpan = new Map<string, string>();
+
+  for (const handle of selectedHandles) {
+    const delta = deltasBySource.get(handle.sourceId) ?? { x: 0, y: 0 };
+    if (Math.abs(delta.x) <= ARRANGE_EPSILON && Math.abs(delta.y) <= ARRANGE_EPSILON) {
+      continue;
+    }
+
+    const actualText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+    if (actualText !== handle.sourceText) {
+      return {
+        kind: "unsupported",
+        reason: "Some selected handles are stale. Wait for recompute and try again."
+      };
+    }
+
+    const text = rewriteCoordinate(
+      {
+        x: handle.world.x + delta.x,
+        y: handle.world.y + delta.y
+      },
+      handle,
+      source
+    );
+    if (text == null) {
+      return {
+        kind: "unsupported",
+        reason: "Could not rewrite one or more selected coordinates."
+      };
+    }
+
+    const spanKey = `${handle.sourceSpan.from}:${handle.sourceSpan.to}`;
+    const existing = replacementBySpan.get(spanKey);
+    if (existing != null) {
+      if (existing !== text) {
+        return {
+          kind: "unsupported",
+          reason: "Arrange operation found conflicting rewrites for a shared coordinate span."
+        };
+      }
+      continue;
+    }
+
+    replacementBySpan.set(spanKey, text);
+    pending.push({ span: handle.sourceSpan, text });
+  }
+
+  if (pending.length === 0) {
+    return { kind: "unsupported", reason: "Arrange operation would not change the source." };
+  }
+
+  pending.sort((left, right) => {
+    if (left.span.from !== right.span.from) {
+      return right.span.from - left.span.from;
+    }
+    return right.span.to - left.span.to;
+  });
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  for (const replacement of pending) {
+    const updated = replaceSpan(currentSource, replacement.span, replacement.text);
+    patches.push({
+      oldSpan: replacement.span,
+      newSpan: updated.changedSpan,
+      replacement: replacement.text
+    });
+    currentSource = updated.source;
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches
+  };
 }
 
 function applyPasteStatements(

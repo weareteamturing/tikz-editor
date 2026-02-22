@@ -294,6 +294,57 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next.history[0]?.kind).toBe("reorder");
     expect(next.history[0]?.label).toBe("Reordered elements");
   });
+
+  it("records align actions with align history kind and label", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (2,1) -- (3,1);
+\end{tikzpicture}`;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "alignElements",
+        elementIds: ["path:0", "path:1"],
+        mode: "left"
+      }
+    });
+
+    expect(next.history).toHaveLength(1);
+    expect(next.history[0]?.kind).toBe("align");
+    expect(next.history[0]?.label).toBe("Aligned elements");
+  });
+
+  it("records distribute actions with distribute history kind and label", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (2,0) -- (3,0);
+  \draw (10,0) -- (11,0);
+\end{tikzpicture}`;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "distributeElements",
+        elementIds: ["path:0", "path:1", "path:2"],
+        axis: "horizontal"
+      }
+    });
+
+    expect(next.history).toHaveLength(1);
+    expect(next.history[0]?.kind).toBe("distribute");
+    expect(next.history[0]?.label).toBe("Distributed elements");
+  });
 });
 
 // ── SELECT / CLEAR_SELECTION ───────────────────────────────────────────────────

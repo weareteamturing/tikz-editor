@@ -1407,6 +1407,27 @@ export function evaluatePathStatement(
         );
       }
 
+      // Guard against malformed decorate operations with no decorated subpath.
+      // In that shape the parser may produce a self-referential decorate item that
+      // would recurse indefinitely through evaluatePathStatement.
+      const normalizedSubpathBody = subpathBody.trim();
+      const hasSelfReferentialDecorate = parseResult.figure.body.some((candidate) => {
+        if (candidate.kind !== "Path" || candidate.items.length !== 1) {
+          return false;
+        }
+        const onlyItem = candidate.items[0];
+        return onlyItem?.kind === "DecorateOperation" && onlyItem.subpathRaw.trim() === normalizedSubpathBody;
+      });
+      if (hasSelfReferentialDecorate) {
+        pushDiagnostic(
+          "invalid-decorate-operation",
+          "Decorate operation requires a decorated subpath.",
+          item.subpathSpan.from,
+          item.subpathSpan.to
+        );
+        continue;
+      }
+
       let operationStyle = style;
       let operationStyleChain = statementStyleChain;
       if (item.options) {
