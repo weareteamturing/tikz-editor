@@ -95,6 +95,7 @@ PathItem {
   SvgOperation |
   LetOperation |
   CoordinateOperation |
+  DecorateOperation |
   Comment |
   RelativeCoordinate |
   Coordinate |
@@ -222,6 +223,10 @@ CoordinateOperation {
   CoordinateKw OptionList? Coordinate
 }
 
+DecorateOperation {
+  DecorateKw OptionList? Group
+}
+
 UnknownStatement {
   CommandName UnknownPart* ";"
 }
@@ -307,6 +312,7 @@ MacroCommandDefaultArgPart {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   Number |
   IdentifierLike |
   GroupPunct
@@ -354,6 +360,7 @@ OptionPart {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   IdentifierLike |
   Number |
   OptionPunct
@@ -404,6 +411,7 @@ GroupPart {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   Number |
   IdentifierLike |
   GroupPunct
@@ -428,6 +436,7 @@ StylePayloadPart {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   Number |
   IdentifierLike |
   OptionPunct
@@ -487,6 +496,7 @@ Coordinate {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   Number |
   IdentifierLike |
   "," |
@@ -547,6 +557,7 @@ StrayToken {
   LetKw |
   InKw |
   CoordinateKw |
+  DecorateKw |
   IdentifierLike |
   PathKeyword |
   "{" |
@@ -611,6 +622,7 @@ StrayToken {
     InKw,
     CoordinatesKw,
     CoordinateKw,
+    DecorateKw,
     EdgeKw,
     ControlsKw,
     AndKw,
@@ -680,6 +692,7 @@ StrayToken {
   LetKw { "let" }
   InKw { "in" ![-A-Za-z0-9_:@] }
   CoordinateKw { "coordinate" }
+  DecorateKw { "decorate" }
   EdgeKw { "edge" }
   ControlsKw { "controls" }
   AndKw { "and" }

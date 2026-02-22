@@ -192,6 +192,19 @@ export type ShadowLayer = {
   style: ShadowPaintStyle;
 };
 
+export type DecorationStyle = {
+  enabled: boolean;
+  name: string | null;
+  raise: number;
+  mirror: boolean;
+  transformRaw: string | null;
+  pre: string;
+  preLength: number;
+  post: string;
+  postLength: number;
+  params: Record<string, string>;
+};
+
 export type ResolvedStyle = {
   stroke: string | null;
   fill: string | null;
@@ -243,6 +256,9 @@ export type ResolvedStyle = {
   shadowFade: ShadowFadeKind;
   everyShadowStyles: OptionListAst[];
   shadowLayers: ShadowLayer[];
+  decoration: DecorationStyle;
+  decorationPreActions: DecorationStyle[];
+  decorationPostActions: DecorationStyle[];
 };
 
 export type FeatureUsageState = "unused" | "used-supported" | "used-unsupported";

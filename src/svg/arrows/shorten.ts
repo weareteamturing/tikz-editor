@@ -1,5 +1,11 @@
 import type { ScenePathCommand } from "../../semantic/types.js";
-import { commandFromSegment, commandsToSegments, hasDrawablePathCommands, samplePointFromStartExtrapolated, sliceSegment } from "./path-sampler.js";
+import {
+  commandFromSegment,
+  commandsToSegments,
+  hasDrawablePathCommands,
+  samplePointFromStartExtrapolated,
+  sliceSegment
+} from "../../geometry/path-sampler.js";
 
 const EPSILON = 1e-6;
 

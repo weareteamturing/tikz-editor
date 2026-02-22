@@ -114,6 +114,7 @@ export type PathItem =
   | EdgeOperationItem
   | SvgOperationItem
   | LetOperationItem
+  | DecorateOperationItem
   | CoordinateOperationItem
   | UnknownPathItem;
 
@@ -246,6 +247,17 @@ export type CoordinateOperationItem = {
   name?: string;
   nameSpan?: Span;
   placementSpan?: Span;
+  raw: string;
+};
+
+export type DecorateOperationItem = {
+  kind: "DecorateOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  subpathSpan: Span;
+  subpathRaw: string;
   raw: string;
 };
 

@@ -4,6 +4,7 @@ import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "
 import {
   SHADOW_INHERIT_FILL,
   SHADOW_INHERIT_STROKE,
+  type DecorationStyle,
   type Matrix2D,
   type Point,
   type ResolvedStyle,
@@ -136,6 +137,65 @@ export function applyKvEntry(
         "shadow scale=1.25,shadow xshift=0pt,shadow yshift=0pt,fill=black!50,path fading={circle with fuzzy edge 15 percent}",
       applyEveryShadow: true
     });
+  }
+
+  if (key === "decorate" || key === "/tikz/decorate") {
+    const parsed = parseDecorationBoolean(valueRaw);
+    if (parsed == null) {
+      return { style, transform, diagnostics: [`invalid-decorate-flag:${valueRaw}`] };
+    }
+    return {
+      style: {
+        ...style,
+        decoration: {
+          ...style.decoration,
+          enabled: parsed
+        }
+      },
+      transform,
+      diagnostics: []
+    };
+  }
+
+  if (key === "decoration" || key === "/pgf/decoration") {
+    const parsed = parseDecorationOptionValue(style.decoration, valueRaw);
+    return {
+      style: {
+        ...style,
+        decoration: parsed.decoration
+      },
+      transform,
+      diagnostics: parsed.diagnostics
+    };
+  }
+
+  if (key.startsWith("/pgf/decoration/") || key.startsWith("/pgf/decorations/")) {
+    const canonical = canonicalDecorationKey(key);
+    const parsed = applyDecorationSetting(style.decoration, canonical, valueRaw);
+    return {
+      style: {
+        ...style,
+        decoration: parsed.decoration
+      },
+      transform,
+      diagnostics: parsed.diagnostics
+    };
+  }
+
+  if (key === "preaction" || key === "postaction") {
+    const action = parseDecorationAction(style.decoration, valueRaw);
+    if (!action) {
+      return { style, transform, diagnostics: [] };
+    }
+    return {
+      style: {
+        ...style,
+        decorationPreActions: key === "preaction" ? [...style.decorationPreActions, action] : style.decorationPreActions,
+        decorationPostActions: key === "postaction" ? [...style.decorationPostActions, action] : style.decorationPostActions
+      },
+      transform,
+      diagnostics: []
+    };
   }
 
   if (key === "arrows") {
@@ -821,4 +881,192 @@ function parseShadowFadeKind(valueRaw: string): ShadowFadeKind | null {
     return "none";
   }
   return null;
+}
+
+function cloneDecorationStyle(decoration: DecorationStyle): DecorationStyle {
+  return {
+    ...decoration,
+    params: { ...decoration.params }
+  };
+}
+
+function canonicalDecorationKey(rawKey: string): string {
+  const normalized = rawKey.trim().toLowerCase().replace(/^\/pgf\/decorations\//, "/pgf/decoration/");
+  if (normalized === "decoration" || normalized === "/pgf/decoration") {
+    return "decoration";
+  }
+  if (normalized.startsWith("/pgf/decoration/")) {
+    return normalized.slice("/pgf/decoration/".length);
+  }
+  return normalized;
+}
+
+function parseDecorationOptionValue(
+  decoration: DecorationStyle,
+  valueRaw: string
+): { decoration: DecorationStyle; diagnostics: string[] } {
+  const nested = parseStyleValueAsOptionList(valueRaw);
+  const next = cloneDecorationStyle(decoration);
+  const diagnostics: string[] = [];
+
+  if (!nested) {
+    const normalized = normalizeOptionValue(valueRaw);
+    if (normalized.length > 0) {
+      next.name = normalized;
+    }
+    return { decoration: next, diagnostics };
+  }
+
+  for (const entry of nested.entries) {
+    if (entry.kind === "kv") {
+      const parsed = applyDecorationSetting(next, canonicalDecorationKey(entry.key), entry.valueRaw);
+      next.raise = parsed.decoration.raise;
+      next.mirror = parsed.decoration.mirror;
+      next.transformRaw = parsed.decoration.transformRaw;
+      next.name = parsed.decoration.name;
+      next.pre = parsed.decoration.pre;
+      next.preLength = parsed.decoration.preLength;
+      next.post = parsed.decoration.post;
+      next.postLength = parsed.decoration.postLength;
+      next.params = parsed.decoration.params;
+      diagnostics.push(...parsed.diagnostics);
+      continue;
+    }
+
+    if (entry.kind === "flag") {
+      const key = canonicalDecorationKey(entry.key);
+      if (key === "mirror") {
+        next.mirror = true;
+      } else if (key === "path has corners" || key === "reverse path") {
+        next.params[key] = "true";
+      } else if (key !== "decorate") {
+        next.name = entry.key.trim();
+      }
+    }
+  }
+
+  return { decoration: next, diagnostics };
+}
+
+function applyDecorationSetting(
+  decoration: DecorationStyle,
+  key: string,
+  valueRaw: string
+): { decoration: DecorationStyle; diagnostics: string[] } {
+  const next = cloneDecorationStyle(decoration);
+  const diagnostics: string[] = [];
+  const normalized = normalizeOptionValue(valueRaw);
+
+  if (key === "name") {
+    next.name = normalized.length > 0 ? normalized : null;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "raise") {
+    const raise = parseLength(valueRaw, "pt");
+    if (raise == null) {
+      diagnostics.push(`invalid-decoration-raise:${valueRaw}`);
+      return { decoration: next, diagnostics };
+    }
+    next.raise = raise;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "mirror") {
+    const parsed = parseDecorationBoolean(valueRaw);
+    if (parsed == null) {
+      diagnostics.push(`invalid-decoration-mirror:${valueRaw}`);
+      return { decoration: next, diagnostics };
+    }
+    next.mirror = parsed;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "transform") {
+    next.transformRaw = normalized.length > 0 ? normalized : null;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "pre") {
+    next.pre = normalized.length > 0 ? normalized : next.pre;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "pre length") {
+    const length = parseLength(valueRaw, "pt");
+    if (length == null) {
+      diagnostics.push(`invalid-decoration-pre-length:${valueRaw}`);
+      return { decoration: next, diagnostics };
+    }
+    next.preLength = length;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "post") {
+    next.post = normalized.length > 0 ? normalized : next.post;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "post length") {
+    const length = parseLength(valueRaw, "pt");
+    if (length == null) {
+      diagnostics.push(`invalid-decoration-post-length:${valueRaw}`);
+      return { decoration: next, diagnostics };
+    }
+    next.postLength = length;
+    return { decoration: next, diagnostics };
+  }
+  if (key === "decoration") {
+    const parsed = parseDecorationOptionValue(next, valueRaw);
+    return parsed;
+  }
+
+  next.params[key] = normalized;
+  return { decoration: next, diagnostics };
+}
+
+function parseDecorationBoolean(raw: string): boolean | null {
+  const normalized = normalizeOptionValue(raw).toLowerCase();
+  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+    return false;
+  }
+  return null;
+}
+
+function parseDecorationAction(baseDecoration: DecorationStyle, valueRaw: string): DecorationStyle | null {
+  const nested = parseStyleValueAsOptionList(valueRaw);
+  if (!nested) {
+    return null;
+  }
+
+  let hasDecorate = false;
+  let decoration = cloneDecorationStyle(baseDecoration);
+  for (const entry of nested.entries) {
+    if (entry.kind === "flag") {
+      if (entry.key === "decorate") {
+        hasDecorate = true;
+      }
+      continue;
+    }
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const canonicalKey = canonicalDecorationKey(entry.key);
+    const parsed = applyDecorationSetting(decoration, canonicalKey, entry.valueRaw);
+    decoration = parsed.decoration;
+    if (
+      canonicalKey === "decoration" ||
+      canonicalKey === "name" ||
+      canonicalKey === "decorate" ||
+      entry.key.startsWith("/pgf/decoration/") ||
+      entry.key.startsWith("/pgf/decorations/")
+    ) {
+      hasDecorate = true;
+    }
+  }
+
+  if (!hasDecorate) {
+    return null;
+  }
+
+  return {
+    ...decoration,
+    enabled: true
+  };
 }
