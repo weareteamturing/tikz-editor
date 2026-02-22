@@ -2,6 +2,11 @@
 
 @skip { space }
 
+@precedence {
+  childContinuation,
+  childBare
+}
+
 TikzEnvironment {
   BeginTikz OptionList? BodyItem* EndTikz
 }
@@ -92,6 +97,8 @@ PathItem {
   PathForeachOperation |
   ToOperation |
   EdgeOperation |
+  ChildOperation |
+  EdgeFromParentOperation |
   SvgOperation |
   LetOperation |
   CoordinateOperation |
@@ -175,6 +182,19 @@ ToOperation {
 
 EdgeOperation {
   EdgeKw OptionList? NodeItem* ToTarget
+}
+
+ChildOperation {
+  ChildKw !childContinuation (OptionList ChildForeachClause* Group? | ChildForeachClause+ Group? | Group) |
+  ChildKw !childBare
+}
+
+ChildForeachClause {
+  (ForeachKw | ForeachCmd) ForeachHeaderToken* InKw ForeachList
+}
+
+EdgeFromParentOperation {
+  EdgeKw ((FromKw ParentKw) | (ToKw ParentKw)) OptionList? NodeItem
 }
 
 PathForeachOperation {
@@ -308,6 +328,10 @@ MacroCommandDefaultArgPart {
   KnownCommand |
   CommandName |
   ToKw |
+  EdgeKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   SvgKw |
   LetKw |
   InKw |
@@ -355,6 +379,9 @@ OptionPart {
   CommandName |
   NodeKw |
   ToKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   EdgeKw |
   SvgKw |
   LetKw |
@@ -407,6 +434,10 @@ GroupPart {
   NodeKw |
   CommandName |
   ToKw |
+  EdgeKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   SvgKw |
   LetKw |
   InKw |
@@ -432,6 +463,9 @@ StylePayloadPart {
   CommandName |
   NodeKw |
   ToKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   SvgKw |
   LetKw |
   InKw |
@@ -492,6 +526,9 @@ Coordinate {
   KnownCommand |
   CommandName |
   ToKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   SvgKw |
   LetKw |
   InKw |
@@ -554,6 +591,9 @@ StraySymbol {
 StrayToken {
   Number |
   ToKw |
+  ChildKw |
+  FromKw |
+  ParentKw |
   SvgKw |
   LetKw |
   InKw |
@@ -618,6 +658,9 @@ StrayToken {
     CycleKw,
     CircleKw,
     ToKw,
+    ChildKw,
+    FromKw,
+    ParentKw,
     SvgKw,
     LetKw,
     InKw,
@@ -689,6 +732,9 @@ StrayToken {
   CycleKw { "cycle" }
   CircleKw { "circle" }
   ToKw { "to" }
+  ChildKw { "child" }
+  FromKw { "from" }
+  ParentKw { "parent" }
   SvgKw { "svg" }
   LetKw { "let" }
   InKw { "in" ![-A-Za-z0-9_:@] }

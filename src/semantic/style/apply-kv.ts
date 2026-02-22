@@ -709,6 +709,14 @@ export function applyKvEntry(
     return { style, transform, diagnostics: [] };
   }
 
+  if (/^level\s+\d+\s*\/\.(style|append style)$/.test(key)) {
+    return { style, transform, diagnostics: [] };
+  }
+
+  if (/^level\s+\d+$/.test(key)) {
+    return { style, transform, diagnostics: [] };
+  }
+
   if (NON_STYLE_OPTION_KEYS.has(key)) {
     return { style, transform, diagnostics: [] };
   }

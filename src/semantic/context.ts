@@ -113,6 +113,23 @@ export type SemanticContextFrame = {
   everyCloudCalloutNodeStyles: ProvenanceOptionList[];
   everySingleArrowNodeStyles: ProvenanceOptionList[];
   everyDoubleArrowNodeStyles: ProvenanceOptionList[];
+  treeLevel: number;
+  treeLevelDistancePt: number;
+  treeSiblingDistancePt: number;
+  treeCurrentLevelSiblingDistancePt: number | null;
+  treeGrowDirectionDegrees: number;
+  treeGrowReverse: boolean;
+  treeGrowthParentAnchor: string;
+  treeParentAnchor: string;
+  treeChildAnchor: string;
+  treeMissing: boolean;
+  treeEveryChildStyles: ProvenanceOptionList[];
+  treeEveryChildNodeStyles: ProvenanceOptionList[];
+  treeLevelStyleTemplateLayers: ProvenanceOptionList[];
+  treeLevelStyleLayers: Array<{ level: number; layers: ProvenanceOptionList[] }>;
+  treeDeferredGrowthFunction: boolean;
+  treeDeferredEdgeFromParentPath: boolean;
+  treeDeferredEdgeFromParentMacro: boolean;
 };
 
 export type SemanticContext = {
@@ -137,6 +154,7 @@ export function createSemanticContext(
   source = ""
 ): SemanticContext {
   const defaultNodeDistance = 28.4527559055;
+  const defaultTreeDistance = 15 * 2.84527559055;
   const clonedStyle = cloneResolvedStyle(initialStyle);
   const defaultGlobalSource: StyleSourceRef = {
     sourceId: "__global__",
@@ -195,7 +213,24 @@ export function createSemanticContext(
         everyEllipseCalloutNodeStyles: [],
         everyCloudCalloutNodeStyles: [],
         everySingleArrowNodeStyles: [],
-        everyDoubleArrowNodeStyles: []
+        everyDoubleArrowNodeStyles: [],
+        treeLevel: 0,
+        treeLevelDistancePt: defaultTreeDistance,
+        treeSiblingDistancePt: defaultTreeDistance,
+        treeCurrentLevelSiblingDistancePt: null,
+        treeGrowDirectionDegrees: -90,
+        treeGrowReverse: false,
+        treeGrowthParentAnchor: "center",
+        treeParentAnchor: "border",
+        treeChildAnchor: "border",
+        treeMissing: false,
+        treeEveryChildStyles: [],
+        treeEveryChildNodeStyles: [],
+        treeLevelStyleTemplateLayers: [],
+        treeLevelStyleLayers: [],
+        treeDeferredGrowthFunction: false,
+        treeDeferredEdgeFromParentPath: false,
+        treeDeferredEdgeFromParentMacro: false
       }
     ],
     source,

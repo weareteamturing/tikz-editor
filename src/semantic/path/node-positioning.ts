@@ -200,6 +200,32 @@ export function resolveNodePositioningTarget(
       continue;
     }
 
+    if (entry.key === "xshift") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed == null || !Number.isFinite(parsed)) {
+        diagnostics.push(`invalid-xshift:${entry.valueRaw}`);
+      } else {
+        additiveOffset = {
+          x: additiveOffset.x + parsed,
+          y: additiveOffset.y
+        };
+      }
+      continue;
+    }
+
+    if (entry.key === "yshift") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed == null || !Number.isFinite(parsed)) {
+        diagnostics.push(`invalid-yshift:${entry.valueRaw}`);
+      } else {
+        additiveOffset = {
+          x: additiveOffset.x,
+          y: additiveOffset.y + parsed
+        };
+      }
+      continue;
+    }
+
     const directional = parseDirectionalKey(entry.key);
     if (!directional) {
       continue;

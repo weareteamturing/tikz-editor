@@ -1,4 +1,13 @@
-import type { CoordinateForm, CoordinateItem, EdgeOperationItem, PathStatement, ToOperationItem } from "../../ast/types.js";
+import type {
+  ChildOperationItem,
+  CoordinateForm,
+  CoordinateItem,
+  EdgeFromParentOperationItem,
+  EdgeOperationItem,
+  PathItem,
+  PathStatement,
+  ToOperationItem
+} from "../../ast/types.js";
 import { parseTikz } from "../../parser/index.js";
 import type { SemanticContext } from "../context.js";
 import {
@@ -45,6 +54,17 @@ import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import { applyDecorationToPath } from "../decorations/index.js";
+import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
+import { resolveFrameMeta } from "../evaluate.js";
+import {
+  collectDeferredTreeHookDiagnostics,
+  collectTreeChildCluster,
+  computeTreeChildOrigin,
+  makeTreeAutoName,
+  prepareChildBodyWithRoot,
+  resolveNamedTreeAnchorPoint,
+  resolveTreeLevelStyleLayers
+} from "./tree.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -250,7 +270,10 @@ export function evaluatePathStatement(
   context: SemanticContext,
   style: ResolvedStyle,
   markFeature: FeatureMarkFn,
-  pushDiagnostic: DiagnosticPushFn
+  pushDiagnostic: DiagnosticPushFn,
+  options: {
+    honorInitialCurrentPoint?: boolean;
+  } = {}
 ): SceneElement[] {
   const geometryElements: SceneElement[] = [];
   const behindNodeElements: SceneElement[] = [];
@@ -277,10 +300,15 @@ export function evaluatePathStatement(
   let currentPointCoordinate: Pick<CoordinateItem, "form" | "x"> | null = null;
   let pendingEdgeStartCoordinateRaw: string | null = null;
   let edgeOperationStart: { point: Point; coordinateRaw: string | null } | null = null;
-  let hasPathCurrentPoint = false;
+  let treeParentCandidate: { nameRaw: string | null; point: Point; span: { from: number; to: number } } | null = null;
+  let sawNonLeadingPathItem = false;
+  const emittedTreeHookDiagnostics = new Set<string>();
+  const honorInitialCurrentPoint = options.honorInitialCurrentPoint === true;
+  let hasPathCurrentPoint = honorInitialCurrentPoint && context.currentPoint != null;
   const frame = context.stack[context.stack.length - 1];
+  let treeFrameState = frame;
   const frameTransform = frame.transform;
-  const statementStyleChain = frame.styleChain;
+  let statementStyleChain = frame.styleChain;
   const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
   const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
   const setCurrentPoint = (
@@ -308,14 +336,16 @@ export function evaluatePathStatement(
     }
     pendingSegmentPlacements = [];
   };
-  const hasFilledShadowLayer = style.shadowLayers.some(
-    (layer) =>
-      layer.style.shadeEnabled ||
-      (layer.style.fill != null && layer.style.fill !== "none")
-  );
-  const shouldCompoundFilledSubpaths = style.shadeEnabled || (style.fill != null && style.fill !== "none") || hasFilledShadowLayer;
+  const computeShouldCompoundFilledSubpaths = (candidateStyle: ResolvedStyle): boolean => {
+    const hasFilledShadowLayer = candidateStyle.shadowLayers.some(
+      (layer) => layer.style.shadeEnabled || (layer.style.fill != null && layer.style.fill !== "none")
+    );
+    return candidateStyle.shadeEnabled || (candidateStyle.fill != null && candidateStyle.fill !== "none") || hasFilledShadowLayer;
+  };
+  let shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
   const drawEdgeOptions = parseStyleValueAsOptionList("draw");
   const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
+  const edgeFromParentStyleOptions = parseStyleValueAsOptionList("edge from parent");
   const resolvePlotMark = (options: { entries: Array<{ kind: string; key?: string; valueRaw?: string }> } | undefined): string | null => {
     if (!options) {
       return null;
@@ -448,9 +478,22 @@ export function evaluatePathStatement(
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
+    const isLeadingPathOption = item.kind === "PathOption" && !sawNonLeadingPathItem;
+    if (item.kind !== "PathComment" && item.kind !== "PathOption") {
+      sawNonLeadingPathItem = true;
+    }
     if (item.kind !== "EdgeOperation" && item.kind !== "PathComment") {
       edgeOperationStart = null;
       pendingEdgeStartCoordinateRaw = null;
+    }
+    if (
+      item.kind !== "PathComment" &&
+      item.kind !== "PathOption" &&
+      item.kind !== "ChildOperation" &&
+      item.kind !== "Coordinate" &&
+      item.kind !== "Node"
+    ) {
+      treeParentCandidate = null;
     }
 
     if (item.kind === "Coordinate") {
@@ -601,6 +644,14 @@ export function evaluatePathStatement(
       if (!evaluated.world) {
         continue;
       }
+      treeParentCandidate = {
+        nameRaw:
+          item.form === "named" && !item.x.includes(".") && item.x.trim().length > 0
+            ? item.x.trim()
+            : null,
+        point: evaluated.world,
+        span: item.span
+      };
 
       if (pendingNamedCoordinate) {
         const scopedName = applyNameScope(pendingNamedCoordinate.name, context);
@@ -1212,6 +1263,449 @@ export function evaluatePathStatement(
       if (rounded !== undefined) {
         activeRoundedCorners = rounded;
       }
+
+      if (item.options && !isLeadingPathOption) {
+        const optionSourceRef = {
+          sourceId: item.id,
+          sourceSpan: item.span,
+          sourceKind: "path-option-item",
+          label: "path option"
+        } as const;
+        const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
+        const optionResolved = resolveContextDelta(
+          treeFrameState.style,
+          treeFrameState.transform,
+          [
+            {
+              kind: "scope",
+              sourceRef: optionSourceRef,
+              rawOptions: [item.options]
+            }
+          ],
+          optionCustomStyles,
+          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+          treeFrameState.styleChain
+        );
+        for (const code of optionResolved.diagnostics) {
+          pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
+        }
+
+        const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
+
+        treeFrameState = {
+          ...treeFrameState,
+          ...optionMeta,
+          style: optionResolved.style,
+          styleChain: optionResolved.chain,
+          transform: optionResolved.transform,
+          customStyles: optionCustomStyles
+        };
+        style = treeFrameState.style;
+        statementStyleChain = treeFrameState.styleChain;
+        shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
+      }
+      continue;
+    }
+
+    if (item.kind === "ChildOperation") {
+      const cluster = collectTreeChildCluster(statement.items, index);
+      if (cluster.children.length === 0 || cluster.consumed <= 0) {
+        continue;
+      }
+
+      if (!treeParentCandidate && statement.command === "coordinate") {
+        const coordinateRootPoint = context.currentPoint ?? defaultPathOrigin;
+        treeParentCandidate = {
+          nameRaw: null,
+          point: coordinateRootPoint,
+          span: statement.span
+        };
+      }
+
+      if (!treeParentCandidate) {
+        pushDiagnostic(
+          "tree-child-without-parent",
+          "`child` operations require a preceding parent node or coordinate in the same path.",
+          item.span.from,
+          item.span.to
+        );
+        index += cluster.consumed - 1;
+        continue;
+      }
+
+      const parentFrame = treeFrameState;
+      markFeature("child_operation", "supported");
+      markFeature("tree_layout_keys", "supported");
+      if (parentFrame.treeEveryChildStyles.length > 0 || parentFrame.treeEveryChildNodeStyles.length > 0) {
+        markFeature("tree_every_child_styles", "supported");
+      }
+      if (parentFrame.treeLevelStyleTemplateLayers.length > 0 || parentFrame.treeLevelStyleLayers.length > 0) {
+        markFeature("tree_level_styles", "supported");
+      }
+      if (parentFrame.treeGrowthParentAnchor !== "center") {
+        markFeature("tree_anchor_keys", "supported");
+      }
+      if (
+        parentFrame.treeDeferredGrowthFunction ||
+        parentFrame.treeDeferredEdgeFromParentPath ||
+        parentFrame.treeDeferredEdgeFromParentMacro
+      ) {
+        markFeature("tree_deferred_hooks", "unsupported");
+      }
+      const clusterChildCount = cluster.children.length;
+
+      for (let childIndex = 0; childIndex < cluster.children.length; childIndex += 1) {
+        const child = cluster.children[childIndex]!;
+        const childIndexOneBased = childIndex + 1;
+        const defaultChildLevel = parentFrame.treeLevel + 1;
+        const childSourceRef = {
+          sourceId: child.id,
+          sourceSpan: child.optionsSpan ?? child.span,
+          sourceKind: "tree-child-operation",
+          label: "child"
+        } as const;
+
+        const childCustomStyles = cloneCustomStyleRegistry(parentFrame.customStyles);
+        const styleLayers: StyleTraceLayerInput[] = [];
+        for (const layer of parentFrame.treeEveryChildStyles) {
+          styleLayers.push({
+            kind: "scope",
+            sourceRef: layer.sourceRef,
+            rawOptions: [layer.options]
+          });
+        }
+        for (const layer of resolveTreeLevelStyleLayers(parentFrame, defaultChildLevel)) {
+          styleLayers.push({
+            kind: "scope",
+            sourceRef: layer.sourceRef,
+            rawOptions: [layer.options]
+          });
+        }
+        if (child.options) {
+          styleLayers.push({
+            kind: "scope",
+            sourceRef: childSourceRef,
+            rawOptions: [child.options]
+          });
+        }
+
+        const resolvedChildStyle = resolveContextDelta(
+          parentFrame.style,
+          parentFrame.transform,
+          styleLayers,
+          childCustomStyles,
+          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+          parentFrame.styleChain
+        );
+        for (const code of resolvedChildStyle.diagnostics) {
+          pushDiagnostic(code, `Tree child option issue: ${code}`, child.span.from, child.span.to);
+        }
+
+        const childMetaBase = {
+          ...parentFrame,
+          treeLevel: defaultChildLevel,
+          treeCurrentLevelSiblingDistancePt: null,
+          treeMissing: false
+        };
+        const childFrameMeta = resolveFrameMeta(childMetaBase, resolvedChildStyle.expandedOptionLists, childSourceRef);
+        if (childFrameMeta.treeLevel !== defaultChildLevel) {
+          markFeature("tree_level_styles", "supported");
+        }
+        if (
+          childFrameMeta.treeParentAnchor !== "border" ||
+          childFrameMeta.treeChildAnchor !== "border" ||
+          childFrameMeta.treeGrowthParentAnchor !== "center"
+        ) {
+          markFeature("tree_anchor_keys", "supported");
+        }
+        if (
+          childFrameMeta.treeDeferredGrowthFunction ||
+          childFrameMeta.treeDeferredEdgeFromParentPath ||
+          childFrameMeta.treeDeferredEdgeFromParentMacro
+        ) {
+          markFeature("tree_deferred_hooks", "unsupported");
+        }
+        for (const deferredDiagnostic of collectDeferredTreeHookDiagnostics(childFrameMeta, child.span)) {
+          if (emittedTreeHookDiagnostics.has(deferredDiagnostic.code)) {
+            continue;
+          }
+          emittedTreeHookDiagnostics.add(deferredDiagnostic.code);
+          pushDiagnostic(
+            deferredDiagnostic.code,
+            deferredDiagnostic.message,
+            deferredDiagnostic.span.from,
+            deferredDiagnostic.span.to
+          );
+        }
+
+        const effectiveSiblingDistancePt =
+          childFrameMeta.treeCurrentLevelSiblingDistancePt ?? childFrameMeta.treeSiblingDistancePt;
+        const tentativeOrigin = computeTreeChildOrigin(
+          treeParentCandidate.point,
+          childFrameMeta.treeLevelDistancePt,
+          effectiveSiblingDistancePt,
+          childIndexOneBased,
+          clusterChildCount,
+          childFrameMeta.treeGrowDirectionDegrees,
+          childFrameMeta.treeGrowReverse
+        );
+        const parentGrowthAnchorPoint =
+          treeParentCandidate.nameRaw && treeParentCandidate.nameRaw.trim().length > 0
+            ? resolveNamedTreeAnchorPoint(
+                context,
+                treeParentCandidate.nameRaw,
+                childFrameMeta.treeGrowthParentAnchor,
+                treeParentCandidate.point,
+                tentativeOrigin
+              )
+            : treeParentCandidate.point;
+        const childOrigin = computeTreeChildOrigin(
+          parentGrowthAnchorPoint,
+          childFrameMeta.treeLevelDistancePt,
+          effectiveSiblingDistancePt,
+          childIndexOneBased,
+          clusterChildCount,
+          childFrameMeta.treeGrowDirectionDegrees,
+          childFrameMeta.treeGrowReverse
+        );
+
+        if (childFrameMeta.treeMissing) {
+          markFeature("tree_missing_child", "supported");
+          continue;
+        }
+
+        const generatedRootName = makeTreeAutoName(
+          treeParentCandidate.nameRaw,
+          statement.id,
+          child.id,
+          childIndexOneBased,
+          childFrameMeta.treeLevel
+        );
+        const rootWasNamedBefore = hasNamedTreeRootNode(child.body);
+        const preparedRoot = prepareChildBodyWithRoot(child, generatedRootName);
+        if (preparedRoot.rootNameRaw === generatedRootName && !rootWasNamedBefore) {
+          markFeature("tree_auto_naming", "supported");
+        }
+        const splitBody = splitChildBodyAndTrailingEdgeFromParent(preparedRoot.body);
+
+        const childFrame = {
+          ...parentFrame,
+          style: resolvedChildStyle.style,
+          styleChain: resolvedChildStyle.chain,
+          transform: resolvedChildStyle.transform,
+          customStyles: childCustomStyles,
+          colorAliases: new Map(parentFrame.colorAliases),
+          macroBindings: new Map(parentFrame.macroBindings),
+          namePrefix: childFrameMeta.namePrefix,
+          nameSuffix: childFrameMeta.nameSuffix,
+          nodeLayerMode: childFrameMeta.nodeLayerMode,
+          onGrid: childFrameMeta.onGrid,
+          nodeDistance: childFrameMeta.nodeDistance,
+          nodeQuotesMode: childFrameMeta.nodeQuotesMode,
+          labelPosition: childFrameMeta.labelPosition,
+          pinPosition: childFrameMeta.pinPosition,
+          labelDistancePt: childFrameMeta.labelDistancePt,
+          pinDistancePt: childFrameMeta.pinDistancePt,
+          pinEdgeRaw: childFrameMeta.pinEdgeRaw,
+          transformShape: childFrameMeta.transformShape,
+          everyNodeStyles: childFrameMeta.everyNodeStyles,
+          everyRectangleNodeStyles: childFrameMeta.everyRectangleNodeStyles,
+          everyCircleNodeStyles: childFrameMeta.everyCircleNodeStyles,
+          everyDiamondNodeStyles: childFrameMeta.everyDiamondNodeStyles,
+          everyTrapeziumNodeStyles: childFrameMeta.everyTrapeziumNodeStyles,
+          everyIsoscelesTriangleNodeStyles: childFrameMeta.everyIsoscelesTriangleNodeStyles,
+          everyKiteNodeStyles: childFrameMeta.everyKiteNodeStyles,
+          everyDartNodeStyles: childFrameMeta.everyDartNodeStyles,
+          everyCircularSectorNodeStyles: childFrameMeta.everyCircularSectorNodeStyles,
+          everyCylinderNodeStyles: childFrameMeta.everyCylinderNodeStyles,
+          everyCloudNodeStyles: childFrameMeta.everyCloudNodeStyles,
+          everyStarburstNodeStyles: childFrameMeta.everyStarburstNodeStyles,
+          everySignalNodeStyles: childFrameMeta.everySignalNodeStyles,
+          everyTapeNodeStyles: childFrameMeta.everyTapeNodeStyles,
+          everyRectangleCalloutNodeStyles: childFrameMeta.everyRectangleCalloutNodeStyles,
+          everyEllipseCalloutNodeStyles: childFrameMeta.everyEllipseCalloutNodeStyles,
+          everyCloudCalloutNodeStyles: childFrameMeta.everyCloudCalloutNodeStyles,
+          everySingleArrowNodeStyles: childFrameMeta.everySingleArrowNodeStyles,
+          everyDoubleArrowNodeStyles: childFrameMeta.everyDoubleArrowNodeStyles,
+          treeLevel: childFrameMeta.treeLevel,
+          treeLevelDistancePt: childFrameMeta.treeLevelDistancePt,
+          treeSiblingDistancePt: childFrameMeta.treeSiblingDistancePt,
+          treeCurrentLevelSiblingDistancePt: childFrameMeta.treeCurrentLevelSiblingDistancePt,
+          treeGrowDirectionDegrees: childFrameMeta.treeGrowDirectionDegrees,
+          treeGrowReverse: childFrameMeta.treeGrowReverse,
+          treeGrowthParentAnchor: childFrameMeta.treeGrowthParentAnchor,
+          treeParentAnchor: childFrameMeta.treeParentAnchor,
+          treeChildAnchor: childFrameMeta.treeChildAnchor,
+          treeMissing: childFrameMeta.treeMissing,
+          treeEveryChildStyles: childFrameMeta.treeEveryChildStyles,
+          treeEveryChildNodeStyles: childFrameMeta.treeEveryChildNodeStyles,
+          treeLevelStyleTemplateLayers: childFrameMeta.treeLevelStyleTemplateLayers,
+          treeLevelStyleLayers: childFrameMeta.treeLevelStyleLayers.map(
+            (entry: { level: number; layers: typeof childFrameMeta.treeEveryChildStyles }) => ({
+              level: entry.level,
+              layers: [...entry.layers]
+            })
+          ),
+          treeDeferredGrowthFunction: childFrameMeta.treeDeferredGrowthFunction,
+          treeDeferredEdgeFromParentPath: childFrameMeta.treeDeferredEdgeFromParentPath,
+          treeDeferredEdgeFromParentMacro: childFrameMeta.treeDeferredEdgeFromParentMacro
+        };
+
+        const savedCurrentPoint = context.currentPoint;
+        const savedPathStartPoint = context.pathStartPoint;
+        context.stack.push(childFrame);
+        try {
+          context.currentPoint = childOrigin;
+          context.pathStartPoint = childOrigin;
+          const scopedChildRootName = applyNameScope(preparedRoot.rootNameRaw, context);
+          const childStatement: PathStatement = {
+            kind: "Path",
+            id: `${statement.id}:tree-child:${childIndexOneBased}:${child.id}`,
+            span: child.span,
+            command: "path",
+            options: undefined,
+            items: splitBody.body
+          };
+          const childElements = evaluatePathStatement(childStatement, context, resolvedChildStyle.style, markFeature, pushDiagnostic, {
+            honorInitialCurrentPoint: true
+          });
+          frontNodeElements.push(...childElements);
+
+          const childRootPoint = context.namedCoordinates.get(scopedChildRootName) ?? childOrigin;
+          const parentAnchorPoint =
+            treeParentCandidate.nameRaw && treeParentCandidate.nameRaw.trim().length > 0
+              ? resolveNamedTreeAnchorPoint(
+                  context,
+                  treeParentCandidate.nameRaw,
+                  childFrameMeta.treeParentAnchor,
+                  treeParentCandidate.point,
+                  childRootPoint
+                )
+              : treeParentCandidate.point;
+          const childAnchorPoint = resolveNamedTreeAnchorPoint(
+            context,
+            scopedChildRootName,
+            childFrameMeta.treeChildAnchor,
+            childRootPoint,
+            parentAnchorPoint
+          );
+
+          const edgeSpec = splitBody.trailingEdge;
+          if (edgeSpec) {
+            markFeature("edge_from_parent_operation", "supported");
+          }
+          const materializedEdge: EdgeOperationItem = {
+            kind: "EdgeOperation",
+            id: `${child.id}:edge-from-parent:${childIndexOneBased}`,
+            span: edgeSpec?.span ?? child.span,
+            optionsSpan: edgeSpec?.optionsSpan,
+            options: edgeSpec?.options,
+            nodes: edgeSpec?.nodes,
+            target: {
+              kind: "coordinate",
+              raw: formatPointCoordinateRaw(childAnchorPoint)
+            },
+            raw: edgeSpec?.raw ?? "edge from parent"
+          };
+
+          const edgeOptionLayers: StyleTraceLayerInput[] = [];
+          if (drawEdgeOptions) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: materializedEdge.id,
+                sourceSpan: materializedEdge.span,
+                sourceKind: "tree-edge-default",
+                label: "draw"
+              },
+              rawOptions: [drawEdgeOptions]
+            });
+          }
+          if (edgeFromParentStyleOptions) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: materializedEdge.id,
+                sourceSpan: materializedEdge.span,
+                sourceKind: "tree-edge-default",
+                label: "edge from parent"
+              },
+              rawOptions: [edgeFromParentStyleOptions]
+            });
+          }
+          if (materializedEdge.options) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: materializedEdge.id,
+                sourceSpan: materializedEdge.optionsSpan ?? materializedEdge.span,
+                sourceKind: "tree-edge-options",
+                label: "edge from parent"
+              },
+              rawOptions: [materializedEdge.options]
+            });
+          }
+
+          const activeTreeFrame = context.stack[context.stack.length - 1];
+          const resolvedTreeEdgeStyle = resolveContextDelta(
+            activeTreeFrame.style,
+            activeTreeFrame.transform,
+            edgeOptionLayers,
+            activeTreeFrame.customStyles,
+            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+            activeTreeFrame.styleChain
+          );
+          for (const code of resolvedTreeEdgeStyle.diagnostics) {
+            if (code === "unsupported-option-flag:edge from parent") {
+              continue;
+            }
+            pushDiagnostic(code, `Tree edge option issue: ${code}`, materializedEdge.span.from, materializedEdge.span.to);
+          }
+
+          const handledEdge = applyEdgeOperation(
+            materializedEdge,
+            context,
+            statement,
+            resolvedTreeEdgeStyle.style,
+            resolvedTreeEdgeStyle.chain,
+            markFeature,
+            pushDiagnostic,
+            parentAnchorPoint
+          );
+          if (handledEdge.activePath && hasDrawablePathSegments(handledEdge.activePath)) {
+            frontNodeElements.push(...handledEdge.behindNodeElements);
+            frontNodeElements.push(handledEdge.activePath);
+            frontNodeElements.push(...handledEdge.frontNodeElements);
+          } else {
+            frontNodeElements.push(...handledEdge.behindNodeElements, ...handledEdge.frontNodeElements);
+          }
+          for (const coordinateOperation of splitBody.trailingCoordinateOperations) {
+            const parsedName = coordinateOperation.name?.trim() || parseCoordinateOperation(coordinateOperation.raw)?.name;
+            if (!parsedName) {
+              pushDiagnostic(
+                "invalid-coordinate-operation",
+                "Could not parse coordinate operation.",
+                coordinateOperation.span.from,
+                coordinateOperation.span.to
+              );
+              continue;
+            }
+
+            const placementFraction = resolveNodePositionFraction(coordinateOperation.options) ?? 0.5;
+            const capturePoint = handledEdge.segment
+              ? pointAtPlacementSegment(handledEdge.segment, placementFraction)
+              : childAnchorPoint;
+            context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
+            markFeature("named_coordinates", "supported");
+          }
+        } finally {
+          context.currentPoint = savedCurrentPoint;
+          context.pathStartPoint = savedPathStartPoint;
+          context.stack.pop();
+        }
+      }
+
+      index += cluster.consumed - 1;
       continue;
     }
 
@@ -1225,12 +1719,24 @@ export function evaluatePathStatement(
         pinEdgeRaw: frame.pinEdgeRaw
       });
       const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
+      const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, index + 1);
+      const existingTreeParent = treeParentCandidate as
+        | { nameRaw: string | null; point: Point; span: { from: number; to: number } }
+        | null;
+      const synthesizedTreeNodeName: string | null =
+        hasFollowingTreeChildren && !declaredNodeName
+          ? makeTreeAutoName(existingTreeParent?.nameRaw ?? null, statement.id, item.id, index + 1, frame.treeLevel)
+          : null;
+      if (synthesizedTreeNodeName) {
+        markFeature("tree_auto_naming", "supported");
+      }
       const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
       const synthesizedMainNodeName =
         adornmentPlan.adornments.length > 0 && !declaredNodeName
           ? `adornment_main_${sanitizeGeneratedNodeName(statement.id)}_${index}`
           : null;
-      const forcedMainNodeName = pendingNodeNameForNodeCommand ?? synthesizedMainNodeName ?? undefined;
+      const forcedMainNodeName: string | undefined =
+        pendingNodeNameForNodeCommand ?? synthesizedMainNodeName ?? synthesizedTreeNodeName ?? undefined;
       const nodeBase = trailingCoordinateRaw ? { ...item, name: undefined } : item;
       const nodeItem = {
         ...nodeBase,
@@ -1252,9 +1758,26 @@ export function evaluatePathStatement(
         statementStyleChain
       );
       pendingNodeNameForNodeCommand = null;
-      pendingEdgeStartCoordinateRaw = declaredNodeName ? `(${declaredNodeName.trim()})` : null;
+      const edgeStartName = declaredNodeName ?? forcedMainNodeName;
+      pendingEdgeStartCoordinateRaw = edgeStartName ? `(${edgeStartName.trim()})` : null;
       behindNodeElements.push(...resolvedNode.behindElements);
       frontNodeElements.push(...resolvedNode.frontElements);
+
+      const treeParentNameCandidate: string | null = forcedMainNodeName ?? declaredNodeName;
+      if (treeParentNameCandidate && treeParentNameCandidate.trim().length > 0) {
+        const scopedTreeParentName = applyNameScope(treeParentNameCandidate, context);
+        const treeParentPoint: Point | undefined =
+          context.namedCoordinates.get(scopedTreeParentName) ??
+          context.namedCoordinates.get(treeParentNameCandidate) ??
+          existingTreeParent?.point;
+        if (treeParentPoint) {
+          treeParentCandidate = {
+            nameRaw: scopedTreeParentName,
+            point: treeParentPoint,
+            span: item.span
+          };
+        }
+      }
 
       const mainNodeNameRaw = forcedMainNodeName ?? declaredNodeName;
       if (mainNodeNameRaw) {
@@ -1754,6 +2277,17 @@ export function evaluatePathStatement(
       continue;
     }
 
+    if (item.kind === "EdgeFromParentOperation") {
+      markFeature("edge_from_parent_operation", "unsupported");
+      pushDiagnostic(
+        "edge-from-parent-outside-child",
+        "`edge from parent`/`edge to parent` operations are only supported inside `child` bodies.",
+        item.span.from,
+        item.span.to
+      );
+      continue;
+    }
+
     if (item.kind === "SvgOperation") {
       markFeature("svg_operation", "unsupported");
       pushDiagnostic("unsupported-svg-operation", "`svg` operations are not semantically implemented yet.", item.span.from, item.span.to);
@@ -2021,6 +2555,87 @@ function resolveNamedCoordinateRewriteHandleId(rawName: string, context: Semanti
     }
   }
   return undefined;
+}
+
+function hasFollowingChildOperation(items: PathItem[], startIndex: number): boolean {
+  for (let index = startIndex; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item || item.kind === "PathComment" || item.kind === "PathOption") {
+      continue;
+    }
+    return item.kind === "ChildOperation";
+  }
+  return false;
+}
+
+function hasNamedTreeRootNode(items: PathItem[]): boolean {
+  for (const item of items) {
+    if (item.kind === "PathComment" || item.kind === "PathOption") {
+      continue;
+    }
+    return item.kind === "Node" && typeof item.name === "string" && item.name.trim().length > 0;
+  }
+  return false;
+}
+
+function splitChildBodyAndTrailingEdgeFromParent(
+  items: PathItem[]
+): {
+  body: PathItem[];
+  trailingEdge: EdgeFromParentOperationItem | null;
+  trailingCoordinateOperations: Array<Extract<PathItem, { kind: "CoordinateOperation" }>>;
+} {
+  const explicitEdges = items.filter((item): item is EdgeFromParentOperationItem => item.kind === "EdgeFromParentOperation");
+  const trailingEdge = explicitEdges.length > 0 ? explicitEdges[explicitEdges.length - 1]! : null;
+  if (!trailingEdge) {
+    return {
+      body: [...items],
+      trailingEdge: null,
+      trailingCoordinateOperations: []
+    };
+  }
+
+  const trailingEdgeIndex = items.lastIndexOf(trailingEdge);
+  const trailingLabelNodes: Array<Extract<PathItem, { kind: "Node" }>> = [];
+  const trailingCoordinateOperations: Array<Extract<PathItem, { kind: "CoordinateOperation" }>> = [];
+  const absorbedNodeIndexes = new Set<number>();
+  for (let cursor = trailingEdgeIndex + 1; cursor < items.length; cursor += 1) {
+    const candidate = items[cursor];
+    if (!candidate || candidate.kind === "PathComment") {
+      continue;
+    }
+    if (candidate.kind === "Node") {
+      trailingLabelNodes.push(candidate);
+      absorbedNodeIndexes.add(cursor);
+      continue;
+    }
+    if (candidate.kind === "CoordinateOperation") {
+      trailingCoordinateOperations.push(candidate);
+      absorbedNodeIndexes.add(cursor);
+      continue;
+    }
+    break;
+  }
+
+  const mergedTrailingEdge: EdgeFromParentOperationItem =
+    trailingLabelNodes.length > 0
+      ? {
+          ...trailingEdge,
+          nodes: [...(trailingEdge.nodes ?? []), ...trailingLabelNodes]
+        }
+      : trailingEdge;
+
+  return {
+    body: items.filter((item, index) => item.kind !== "EdgeFromParentOperation" && !absorbedNodeIndexes.has(index)),
+    trailingEdge: mergedTrailingEdge,
+    trailingCoordinateOperations
+  };
+}
+
+function formatPointCoordinateRaw(point: Point): string {
+  const x = Number.isFinite(point.x) ? Number(point.x.toFixed(6)) : point.x;
+  const y = Number.isFinite(point.y) ? Number(point.y.toFixed(6)) : point.y;
+  return `(${x}pt,${y}pt)`;
 }
 
 function sanitizeGeneratedNodeName(raw: string): string {

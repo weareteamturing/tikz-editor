@@ -156,6 +156,22 @@ function collectDeclaredNamesFromPathItems(
         }
         collectDeclaredNamesFromOptions(node.options, target);
       }
+      continue;
+    }
+
+    if (item.kind === "EdgeFromParentOperation") {
+      for (const node of item.nodes ?? []) {
+        addName(node.name, target);
+        for (const alias of node.aliases ?? []) {
+          addName(alias, target);
+        }
+        collectDeclaredNamesFromOptions(node.options, target);
+      }
+      continue;
+    }
+
+    if (item.kind === "ChildOperation") {
+      collectDeclaredNamesFromPathItems(item.body, target);
     }
   }
 }

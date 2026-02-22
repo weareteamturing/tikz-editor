@@ -1,7 +1,11 @@
 import {
+  childForeachClauseId,
+  childOperationItemId,
   coordinateItemId,
   coordinateOperationItemId,
+  decorateOperationItemId,
   edgeOperationItemId,
+  edgeFromParentOperationItemId,
   foreachStatementId,
   letOperationItemId,
   macroAliasStatementId,
@@ -21,6 +25,7 @@ import {
   unknownStatementId
 } from "../ast/ids.js";
 import type {
+  ChildOperationItem,
   ForeachStatement,
   NodeItem,
   PathItem,
@@ -284,6 +289,12 @@ function expandPathItems(
       continue;
     }
 
+    if (item.kind === "ChildOperation") {
+      const expandedChildren = expandChildOperationItem(item, stack, inheritedBindings, context);
+      expanded.push(...expandedChildren);
+      continue;
+    }
+
     if (item.kind === "Node" && (item as NodeItem).foreachClauses && (item as NodeItem).foreachClauses!.length > 0) {
       const expandedNodes = expandNodeForeachItem(item as NodeItem, stack, inheritedBindings, context);
       expanded.push(...expandedNodes);
@@ -294,6 +305,111 @@ function expandPathItems(
       markPathItemForeachStack(item, stack, context);
     }
     expanded.push(item);
+  }
+
+  return expanded;
+}
+
+function expandChildOperationItem(
+  item: ChildOperationItem,
+  stack: ForeachOriginFrame[],
+  inheritedBindings: Record<string, string>,
+  context: ExpandContext
+): PathItem[] {
+  const clauses = item.foreachClauses ?? [];
+
+  if (clauses.length === 0) {
+    const expandedBody = expandPathItems(item.body, stack, inheritedBindings, context);
+    const expandedChild: ChildOperationItem = {
+      ...item,
+      body: expandedBody
+    };
+    if (stack.length > 0) {
+      markPathItemForeachStack(expandedChild, stack, context);
+    }
+    return [expandedChild];
+  }
+
+  let variants: Array<{ bindings: Record<string, string>; stack: ForeachOriginFrame[] }> = [
+    { bindings: { ...inheritedBindings }, stack: [...stack] }
+  ];
+
+  for (const clause of clauses) {
+    const nextVariants: Array<{ bindings: Record<string, string>; stack: ForeachOriginFrame[] }> = [];
+    for (const variant of variants) {
+      const variablesRaw = clause.variablesRaw?.trim() ?? "";
+      const listRaw = clause.listRaw?.trim() ?? "";
+      if (variablesRaw.length === 0 || listRaw.length === 0) {
+        context.diagnostics.push({
+          severity: "warning",
+          code: "invalid-foreach-header",
+          message: "Could not parse child foreach loop header.",
+          span: clause.span
+        });
+        continue;
+      }
+
+      const { iterations, diagnostics } = buildForeachIterations({
+        variablesRaw,
+        listRaw,
+        options: clause.options,
+        baseBindings: variant.bindings,
+        loopSpan: clause.span
+      });
+      context.diagnostics.push(...diagnostics);
+      maybeWarnUnsupportedBreakforeach(clause.id, item.bodyRaw, clause.span, context);
+
+      for (const iteration of iterations) {
+        if (!consumeExpansionBudget(context, clause.span)) {
+          break;
+        }
+
+        const combinedBindings = {
+          ...variant.bindings,
+          ...iteration.bindings
+        };
+        const frame: ForeachOriginFrame = {
+          loopId: clause.id,
+          loopSpan: clause.span,
+          iterationIndex: iteration.index,
+          bindings: { ...iteration.bindings }
+        };
+        nextVariants.push({
+          bindings: combinedBindings,
+          stack: [...variant.stack, frame]
+        });
+      }
+    }
+    variants = nextVariants;
+  }
+
+  const expanded: PathItem[] = [];
+  for (const variant of variants) {
+    const childRaw = substituteForeachBindings(item.templateRaw, variant.bindings);
+    const parsed = parsePathItemsFromFragment(childRaw);
+    if (parsed.hasParseError) {
+      context.diagnostics.push({
+        severity: "warning",
+        code: "foreach-body-parse-error",
+        message: "Could not parse expanded child foreach body.",
+        span: item.span
+      });
+    }
+
+    const expandedChildren = parsed.value.filter((entry): entry is ChildOperationItem => entry.kind === "ChildOperation");
+    if (expandedChildren.length === 0) {
+      continue;
+    }
+
+    for (const expandedChildItem of expandedChildren) {
+      const expandedBody = expandPathItems(expandedChildItem.body, variant.stack, variant.bindings, context);
+      const expandedChild: ChildOperationItem = {
+        ...expandedChildItem,
+        body: expandedBody
+      };
+      markPathItemForeachStack(expandedChild, variant.stack, context);
+      expanded.push(expandedChild);
+    }
   }
 
   return expanded;
@@ -414,6 +530,11 @@ function markPathItemForeachStack(item: PathItem, stack: ForeachOriginFrame[], c
     return;
   }
   context.pathItemForeachStack.set(item, cloneForeachStack(stack));
+  if (item.kind === "ChildOperation") {
+    for (const nestedItem of item.body) {
+      markPathItemForeachStack(nestedItem, stack, context);
+    }
+  }
 }
 
 function maybeRecordStatementAttribution(
@@ -511,12 +632,7 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
       continue;
     }
     if (item.kind === "Node") {
-      item.id = nodeItemId(statementIndex, itemIndex);
-      if (item.foreachClauses) {
-        for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
-          item.foreachClauses[clauseIndex].id = nodeForeachClauseId(statementIndex, itemIndex, clauseIndex);
-        }
-      }
+      reindexTopLevelNodeItem(item, statementIndex, itemIndex);
       continue;
     }
     if (item.kind === "PathForeach") {
@@ -541,6 +657,34 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
     }
     if (item.kind === "EdgeOperation") {
       item.id = edgeOperationItemId(statementIndex, itemIndex);
+      for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
+        const node = item.nodes?.[nodeIndex];
+        if (!node) {
+          continue;
+        }
+        node.id = `${item.id}:node:${nodeIndex}`;
+      }
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      item.id = childOperationItemId(statementIndex, itemIndex);
+      if (item.foreachClauses) {
+        for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
+          item.foreachClauses[clauseIndex].id = childForeachClauseId(statementIndex, itemIndex, clauseIndex);
+        }
+      }
+      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`);
+      continue;
+    }
+    if (item.kind === "EdgeFromParentOperation") {
+      item.id = edgeFromParentOperationItemId(statementIndex, itemIndex);
+      for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
+        const node = item.nodes?.[nodeIndex];
+        if (!node) {
+          continue;
+        }
+        node.id = `${item.id}:node:${nodeIndex}`;
+      }
       continue;
     }
     if (item.kind === "SvgOperation") {
@@ -555,6 +699,114 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
       item.id = coordinateOperationItemId(statementIndex, itemIndex);
       continue;
     }
+    if (item.kind === "DecorateOperation") {
+      item.id = decorateOperationItemId(statementIndex, itemIndex);
+      continue;
+    }
     item.id = unknownPathItemId(statementIndex, itemIndex);
+  }
+}
+
+function reindexTopLevelNodeItem(item: NodeItem, statementIndex: number, itemIndex: number): void {
+  item.id = nodeItemId(statementIndex, itemIndex);
+  if (item.foreachClauses) {
+    for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
+      item.foreachClauses[clauseIndex].id = nodeForeachClauseId(statementIndex, itemIndex, clauseIndex);
+    }
+  }
+}
+
+function reindexNestedPathItems(items: PathItem[], statementIndex: number, parentPrefix: string): void {
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    const nestedPrefix = `${parentPrefix}:${itemIndex}`;
+
+    if (item.kind === "Coordinate") {
+      item.id = `coordinate:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "Node") {
+      item.id = `node:${statementIndex}:${nestedPrefix}`;
+      if (item.foreachClauses) {
+        for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
+          item.foreachClauses[clauseIndex].id = `${item.id}:foreach:${clauseIndex}`;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "PathForeach") {
+      item.id = `path-foreach:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "PathComment") {
+      item.id = `path-comment:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "PathOption") {
+      item.id = `path-option:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "PathKeyword") {
+      item.id = `path-keyword:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "ToOperation") {
+      item.id = `to-operation:${statementIndex}:${nestedPrefix}`;
+      for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
+        const node = item.nodes?.[nodeIndex];
+        if (node) {
+          node.id = `${item.id}:node:${nodeIndex}`;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "EdgeOperation") {
+      item.id = `edge-operation:${statementIndex}:${nestedPrefix}`;
+      for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
+        const node = item.nodes?.[nodeIndex];
+        if (node) {
+          node.id = `${item.id}:node:${nodeIndex}`;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      item.id = `child-operation:${statementIndex}:${nestedPrefix}`;
+      if (item.foreachClauses) {
+        for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
+          item.foreachClauses[clauseIndex].id = `${item.id}:foreach:${clauseIndex}`;
+        }
+      }
+      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`);
+      continue;
+    }
+    if (item.kind === "EdgeFromParentOperation") {
+      item.id = `edge-from-parent-operation:${statementIndex}:${nestedPrefix}`;
+      for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
+        const node = item.nodes?.[nodeIndex];
+        if (node) {
+          node.id = `${item.id}:node:${nodeIndex}`;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "SvgOperation") {
+      item.id = `svg-operation:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "LetOperation") {
+      item.id = `let-operation:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "CoordinateOperation") {
+      item.id = `coordinate-operation:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "DecorateOperation") {
+      item.id = `decorate-operation:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+
+    item.id = `unknown-path-item:${statementIndex}:${nestedPrefix}`;
   }
 }

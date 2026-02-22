@@ -114,6 +114,53 @@ export const capabilityFixtures: Record<string, string> = {
   edge_operation: String.raw`\begin{tikzpicture}
   \path (0,0) edge[->,dotted] (1,1);
 \end{tikzpicture}`,
+  tree_child_operation: String.raw`\begin{tikzpicture}
+  \path (0,0) node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`,
+  tree_edge_from_parent: String.raw`\begin{tikzpicture}
+  \path node (r) {root}
+    child { node (c) {leaf} edge from parent node[left] {L} };
+\end{tikzpicture}`,
+  tree_layout_keys: String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=8mm,sibling distance=12mm]
+    node {root}
+    child { node {a} }
+    child { node {b} };
+\end{tikzpicture}`,
+  tree_level_styles: String.raw`\begin{tikzpicture}
+  \path[level/.style={sibling distance=#1mm}, level 2/.style={sibling distance=20pt}]
+    node {root}
+    child { node {a} child { node {a1} } child { node {a2} } }
+    child { node {b} child { node {b1} } };
+\end{tikzpicture}`,
+  tree_every_child_styles: String.raw`\begin{tikzpicture}
+  \path[every child/.style={draw}, every child node/.style={fill=yellow}]
+    node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`,
+  tree_anchor_keys: String.raw`\begin{tikzpicture}
+  \path[growth parent anchor=south,parent anchor=south,child anchor=north]
+    node[draw] {root}
+    child { node[draw] {leaf} };
+\end{tikzpicture}`,
+  tree_missing_child: String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[missing] {}
+    child { node {visible} };
+\end{tikzpicture}`,
+  tree_auto_naming: String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`,
+  tree_deferred_hooks: String.raw`\begin{tikzpicture}
+  \path[growth function={\pgfmathsetmacro{\x}{#1}}, edge from parent path={(\tikzparentnode) -- (\tikzchildnode)}, edge from parent macro=\myhook]
+    node {root}
+    child { node {leaf} };
+\end{tikzpicture}`,
   svg_operation: String.raw`\begin{tikzpicture}
   \draw (0,0) svg {h 10 v 10 h -10};
 \end{tikzpicture}`,

@@ -112,6 +112,8 @@ export type PathItem =
   | PathKeywordItem
   | ToOperationItem
   | EdgeOperationItem
+  | ChildOperationItem
+  | EdgeFromParentOperationItem
   | SvgOperationItem
   | LetOperationItem
   | DecorateOperationItem
@@ -153,6 +155,18 @@ export type NodeItem = {
 
 export type NodeForeachClause = {
   kind: "NodeForeachClause";
+  id: string;
+  span: Span;
+  raw: string;
+  headerRaw: string;
+  variablesRaw?: string;
+  listRaw?: string;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+};
+
+export type ChildForeachClause = {
+  kind: "ChildForeachClause";
   id: string;
   span: Span;
   raw: string;
@@ -218,6 +232,31 @@ export type EdgeOperationItem = {
   options?: OptionListAst;
   nodes?: NodeItem[];
   target?: ToOperationTarget;
+  raw: string;
+};
+
+export type ChildOperationItem = {
+  kind: "ChildOperation";
+  id: string;
+  span: Span;
+  raw: string;
+  templateRaw: string;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  foreachClauses?: ChildForeachClause[];
+  bodySpan?: Span;
+  bodyRaw: string;
+  body: PathItem[];
+};
+
+export type EdgeFromParentOperationItem = {
+  kind: "EdgeFromParentOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  nodes?: NodeItem[];
+  alias: "edge from parent" | "edge to parent";
   raw: string;
 };
 

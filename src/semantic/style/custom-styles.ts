@@ -33,6 +33,15 @@ const RESERVED_STYLE_DEFINITION_KEYS = new Set([
   "every node/.style",
   "every node/.append style",
   "every node/.prefix style",
+  "every child/.style",
+  "every child/.append style",
+  "every child/.prefix style",
+  "every child node/.style",
+  "every child node/.append style",
+  "every child node/.prefix style",
+  "level/.style",
+  "level/.append style",
+  "level/.prefix style",
   "every rectangle node/.style",
   "every rectangle node/.append style",
   "every rectangle node/.prefix style",
@@ -217,6 +226,10 @@ export function resolveCustomStyleInvocation(entry: OptionEntry, customStyles: C
 export function parseCustomStyleDefinition(key: string): CustomStyleDefinition | null {
   const normalizedKey = key.trim().toLowerCase();
   if (RESERVED_STYLE_DEFINITION_KEYS.has(normalizedKey)) {
+    return null;
+  }
+
+  if (/^level\s+\d+\s*\/\.(append style|prefix style|style(?:\s+\d+\s+args|\s+args)?|estyle)$/.test(normalizedKey)) {
     return null;
   }
 

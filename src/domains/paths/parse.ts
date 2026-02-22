@@ -1,8 +1,9 @@
 import type { SyntaxNode } from "@lezer/common";
 
 import { pathCommentItemId, pathStatementId } from "../../ast/ids.js";
-import type { PathCommand, PathItem, PathStatement } from "../../ast/types.js";
+import type { ChildForeachClause, PathCommand, PathItem, PathStatement } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
+import { parsePathItemsFromFragment } from "../../foreach/snippet-parse.js";
 import { mapCoordinateItem, mapRelativeCoordinateItem } from "../coordinates/parse.js";
 import { mapNodeItem, mapSyntheticNodeItem } from "../nodes/parse.js";
 import { mapPathOptionItem } from "../options/parse.js";
@@ -10,10 +11,12 @@ import { maybeMapPathKeywordItem } from "./keywords.js";
 import { mapUnknownPathItem } from "../../transform/unknown.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 import {
+  mapChildOperationItem,
   mapCoordinateOperationItem,
   mapDecorateOperationItem,
   mapDecorateOperationNode,
   mapEdgeOperationItem,
+  mapEdgeFromParentOperationItem,
   mapLetOperationItem,
   mapPathForeachOperationItem,
   mapSvgOperationItem,
@@ -88,14 +91,95 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
     }
   }
 
+  const normalizedItems = normalizeChildOperationItems(items);
+
   return {
     kind: "Path",
     id: pathStatementId(statementIndex),
     span: { from: node.from, to: node.to },
     command,
-    options: findStatementOptions(items),
-    items
+    options: findStatementOptions(normalizedItems),
+    items: normalizedItems
   };
+}
+
+function normalizeChildOperationItems(items: PathItem[]): PathItem[] {
+  const normalized: PathItem[] = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item || item.kind !== "ChildOperation") {
+      normalized.push(item);
+      continue;
+    }
+
+    let nextIndex = index + 1;
+    let normalizedChild = item;
+
+    const bodyCandidate = items[nextIndex];
+    if (
+      bodyCandidate &&
+      bodyCandidate.kind === "UnknownPathItem" &&
+      normalizedChild.body.length === 0 &&
+      isLikelyGroupFragment(bodyCandidate.raw)
+    ) {
+      const parsedBody = parsePathItemsFromFragment(bodyCandidate.raw);
+      normalizedChild = {
+        ...normalizedChild,
+        raw: `${normalizedChild.raw} ${bodyCandidate.raw}`.trim(),
+        templateRaw: withChildTemplateBody(normalizedChild, bodyCandidate.raw),
+        bodySpan: bodyCandidate.span,
+        bodyRaw: bodyCandidate.raw,
+        body: parsedBody.value
+      };
+      nextIndex += 1;
+    }
+
+    const foreachCandidate = items[nextIndex];
+    if (foreachCandidate && foreachCandidate.kind === "PathForeach" && normalizedChild.body.length === 0) {
+      const clause: ChildForeachClause = {
+        kind: "ChildForeachClause",
+        id: `${normalizedChild.id}:foreach:0`,
+        span: foreachCandidate.span,
+        raw: foreachCandidate.raw,
+        headerRaw: foreachCandidate.headerRaw,
+        variablesRaw: foreachCandidate.variablesRaw,
+        listRaw: foreachCandidate.listRaw,
+        optionsSpan: foreachCandidate.optionsSpan,
+        options: foreachCandidate.options
+      };
+      const parsedBody = parsePathItemsFromFragment(foreachCandidate.bodyRaw);
+      normalizedChild = {
+        ...normalizedChild,
+        raw: `${normalizedChild.raw} ${foreachCandidate.raw}`.trim(),
+        templateRaw: withChildTemplateBody(normalizedChild, foreachCandidate.bodyRaw),
+        foreachClauses: [clause],
+        bodySpan: {
+          from: foreachCandidate.span.from,
+          to: foreachCandidate.span.to
+        },
+        bodyRaw: foreachCandidate.bodyRaw,
+        body: parsedBody.value
+      };
+      nextIndex += 1;
+    }
+
+    normalized.push(normalizedChild);
+    index = nextIndex - 1;
+  }
+  return normalized;
+}
+
+function withChildTemplateBody(item: Extract<PathItem, { kind: "ChildOperation" }>, bodyRaw: string): string {
+  const prefix = [];
+  if (item.options) {
+    prefix.push(item.options.raw);
+  }
+  return [...prefix, bodyRaw].join(" ").trim();
+}
+
+function isLikelyGroupFragment(raw: string): boolean {
+  const trimmed = raw.trim();
+  return trimmed.startsWith("{") && trimmed.endsWith("}");
 }
 
 function mapPathItem(
@@ -121,6 +205,14 @@ function mapPathItem(
 
   if (actual.type.name === "EdgeOperation") {
     return mapEdgeOperationItem(actual, source, statementIndex, itemIndex);
+  }
+
+  if (actual.type.name === "ChildOperation") {
+    return mapChildOperationItem(actual, source, statementIndex, itemIndex);
+  }
+
+  if (actual.type.name === "EdgeFromParentOperation") {
+    return mapEdgeFromParentOperationItem(actual, source, statementIndex, itemIndex);
   }
 
   if (actual.type.name === "PathForeachOperation") {
@@ -211,6 +303,8 @@ function isDirectPathItemNode(name: string): boolean {
     name === "RelativeCoordinate" ||
     name === "ToOperation" ||
     name === "EdgeOperation" ||
+    name === "ChildOperation" ||
+    name === "EdgeFromParentOperation" ||
     name === "PathForeachOperation" ||
     name === "SvgOperation" ||
     name === "LetOperation" ||

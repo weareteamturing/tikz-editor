@@ -146,7 +146,27 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
       everyEllipseCalloutNodeStyles: rootMeta.everyEllipseCalloutNodeStyles,
       everyCloudCalloutNodeStyles: rootMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: rootMeta.everySingleArrowNodeStyles,
-      everyDoubleArrowNodeStyles: rootMeta.everyDoubleArrowNodeStyles
+      everyDoubleArrowNodeStyles: rootMeta.everyDoubleArrowNodeStyles,
+      treeLevel: rootMeta.treeLevel,
+      treeLevelDistancePt: rootMeta.treeLevelDistancePt,
+      treeSiblingDistancePt: rootMeta.treeSiblingDistancePt,
+      treeCurrentLevelSiblingDistancePt: rootMeta.treeCurrentLevelSiblingDistancePt,
+      treeGrowDirectionDegrees: rootMeta.treeGrowDirectionDegrees,
+      treeGrowReverse: rootMeta.treeGrowReverse,
+      treeGrowthParentAnchor: rootMeta.treeGrowthParentAnchor,
+      treeParentAnchor: rootMeta.treeParentAnchor,
+      treeChildAnchor: rootMeta.treeChildAnchor,
+      treeMissing: rootMeta.treeMissing,
+      treeEveryChildStyles: rootMeta.treeEveryChildStyles,
+      treeEveryChildNodeStyles: rootMeta.treeEveryChildNodeStyles,
+      treeLevelStyleTemplateLayers: rootMeta.treeLevelStyleTemplateLayers,
+      treeLevelStyleLayers: rootMeta.treeLevelStyleLayers.map((entry) => ({
+        level: entry.level,
+        layers: [...entry.layers]
+      })),
+      treeDeferredGrowthFunction: rootMeta.treeDeferredGrowthFunction,
+      treeDeferredEdgeFromParentPath: rootMeta.treeDeferredEdgeFromParentPath,
+      treeDeferredEdgeFromParentMacro: rootMeta.treeDeferredEdgeFromParentMacro
     });
     for (const code of rootDelta.diagnostics) {
       diagnostics.push({
@@ -317,7 +337,27 @@ function evaluateStatement(
       everyEllipseCalloutNodeStyles: frameMeta.everyEllipseCalloutNodeStyles,
       everyCloudCalloutNodeStyles: frameMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
-      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
+      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles,
+      treeLevel: frameMeta.treeLevel,
+      treeLevelDistancePt: frameMeta.treeLevelDistancePt,
+      treeSiblingDistancePt: frameMeta.treeSiblingDistancePt,
+      treeCurrentLevelSiblingDistancePt: frameMeta.treeCurrentLevelSiblingDistancePt,
+      treeGrowDirectionDegrees: frameMeta.treeGrowDirectionDegrees,
+      treeGrowReverse: frameMeta.treeGrowReverse,
+      treeGrowthParentAnchor: frameMeta.treeGrowthParentAnchor,
+      treeParentAnchor: frameMeta.treeParentAnchor,
+      treeChildAnchor: frameMeta.treeChildAnchor,
+      treeMissing: frameMeta.treeMissing,
+      treeEveryChildStyles: frameMeta.treeEveryChildStyles,
+      treeEveryChildNodeStyles: frameMeta.treeEveryChildNodeStyles,
+      treeLevelStyleTemplateLayers: frameMeta.treeLevelStyleTemplateLayers,
+      treeLevelStyleLayers: frameMeta.treeLevelStyleLayers.map((entry) => ({
+        level: entry.level,
+        layers: [...entry.layers]
+      })),
+      treeDeferredGrowthFunction: frameMeta.treeDeferredGrowthFunction,
+      treeDeferredEdgeFromParentPath: frameMeta.treeDeferredEdgeFromParentPath,
+      treeDeferredEdgeFromParentMacro: frameMeta.treeDeferredEdgeFromParentMacro
     });
     const previousTraceCollector = context.macroTraceCollector;
     const statementMacroTrace: MacroExpansionTraceEvent[] = [];
@@ -441,7 +481,27 @@ function evaluateStatement(
       everyEllipseCalloutNodeStyles: frameMeta.everyEllipseCalloutNodeStyles,
       everyCloudCalloutNodeStyles: frameMeta.everyCloudCalloutNodeStyles,
       everySingleArrowNodeStyles: frameMeta.everySingleArrowNodeStyles,
-      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles
+      everyDoubleArrowNodeStyles: frameMeta.everyDoubleArrowNodeStyles,
+      treeLevel: frameMeta.treeLevel,
+      treeLevelDistancePt: frameMeta.treeLevelDistancePt,
+      treeSiblingDistancePt: frameMeta.treeSiblingDistancePt,
+      treeCurrentLevelSiblingDistancePt: frameMeta.treeCurrentLevelSiblingDistancePt,
+      treeGrowDirectionDegrees: frameMeta.treeGrowDirectionDegrees,
+      treeGrowReverse: frameMeta.treeGrowReverse,
+      treeGrowthParentAnchor: frameMeta.treeGrowthParentAnchor,
+      treeParentAnchor: frameMeta.treeParentAnchor,
+      treeChildAnchor: frameMeta.treeChildAnchor,
+      treeMissing: frameMeta.treeMissing,
+      treeEveryChildStyles: frameMeta.treeEveryChildStyles,
+      treeEveryChildNodeStyles: frameMeta.treeEveryChildNodeStyles,
+      treeLevelStyleTemplateLayers: frameMeta.treeLevelStyleTemplateLayers,
+      treeLevelStyleLayers: frameMeta.treeLevelStyleLayers.map((entry) => ({
+        level: entry.level,
+        layers: [...entry.layers]
+      })),
+      treeDeferredGrowthFunction: frameMeta.treeDeferredGrowthFunction,
+      treeDeferredEdgeFromParentPath: frameMeta.treeDeferredEdgeFromParentPath,
+      treeDeferredEdgeFromParentMacro: frameMeta.treeDeferredEdgeFromParentMacro
     });
     for (const code of resolved.diagnostics) {
       diagnostics.push({
@@ -632,6 +692,26 @@ function applyOptionListsToCurrentFrame(
   frame.everyCloudCalloutNodeStyles = frameMeta.everyCloudCalloutNodeStyles;
   frame.everySingleArrowNodeStyles = frameMeta.everySingleArrowNodeStyles;
   frame.everyDoubleArrowNodeStyles = frameMeta.everyDoubleArrowNodeStyles;
+  frame.treeLevel = frameMeta.treeLevel;
+  frame.treeLevelDistancePt = frameMeta.treeLevelDistancePt;
+  frame.treeSiblingDistancePt = frameMeta.treeSiblingDistancePt;
+  frame.treeCurrentLevelSiblingDistancePt = frameMeta.treeCurrentLevelSiblingDistancePt;
+  frame.treeGrowDirectionDegrees = frameMeta.treeGrowDirectionDegrees;
+  frame.treeGrowReverse = frameMeta.treeGrowReverse;
+  frame.treeGrowthParentAnchor = frameMeta.treeGrowthParentAnchor;
+  frame.treeParentAnchor = frameMeta.treeParentAnchor;
+  frame.treeChildAnchor = frameMeta.treeChildAnchor;
+  frame.treeMissing = frameMeta.treeMissing;
+  frame.treeEveryChildStyles = frameMeta.treeEveryChildStyles;
+  frame.treeEveryChildNodeStyles = frameMeta.treeEveryChildNodeStyles;
+  frame.treeLevelStyleTemplateLayers = frameMeta.treeLevelStyleTemplateLayers;
+  frame.treeLevelStyleLayers = frameMeta.treeLevelStyleLayers.map((entry) => ({
+    level: entry.level,
+    layers: [...entry.layers]
+  }));
+  frame.treeDeferredGrowthFunction = frameMeta.treeDeferredGrowthFunction;
+  frame.treeDeferredEdgeFromParentPath = frameMeta.treeDeferredEdgeFromParentPath;
+  frame.treeDeferredEdgeFromParentMacro = frameMeta.treeDeferredEdgeFromParentMacro;
 
   for (const code of resolved.diagnostics) {
     diagnostics.push({
@@ -1373,6 +1453,21 @@ function markFeature(featureUsage: FeatureUsage, featureId: FeatureId, status: "
 }
 
 function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: FeatureUsage): void {
+  const walkPathItems = (items: PathItem[]): void => {
+    for (const item of items) {
+      if (item.kind === "PathForeach") {
+        markFeature(featureUsage, "foreach_path_operation", "supported");
+      } else if (item.kind === "Node" && item.foreachClauses && item.foreachClauses.length > 0) {
+        markFeature(featureUsage, "foreach_node_operation", "supported");
+      } else if (item.kind === "ChildOperation") {
+        if (item.foreachClauses && item.foreachClauses.length > 0) {
+          markFeature(featureUsage, "foreach_path_operation", "supported");
+        }
+        walkPathItems(item.body);
+      }
+    }
+  };
+
   const walkStatement = (statement: Statement): void => {
     if (statement.kind === "Foreach") {
       markFeature(featureUsage, "foreach_statement", "supported");
@@ -1390,13 +1485,7 @@ function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: Feature
       return;
     }
 
-    for (const item of statement.items) {
-      if (item.kind === "PathForeach") {
-        markFeature(featureUsage, "foreach_path_operation", "supported");
-      } else if (item.kind === "Node" && item.foreachClauses && item.foreachClauses.length > 0) {
-        markFeature(featureUsage, "foreach_node_operation", "supported");
-      }
-    }
+    walkPathItems(statement.items);
   };
 
   for (const statement of figure.body) {
@@ -1488,9 +1577,7 @@ function applyForeachAttributionToHandles(
 
 function buildPathItemLookup(statement: PathStatement): Map<string, PathItem> {
   const byId = new Map<string, PathItem>();
-  for (const item of statement.items) {
-    byId.set(item.id, item);
-  }
+  collectPathItemsById(statement.items, byId);
   return byId;
 }
 
@@ -1534,8 +1621,23 @@ function resolveFirstPathItemForeachStack(
     if (stack && stack.length > 0) {
       return stack;
     }
+    if (item.kind === "ChildOperation") {
+      const nested = resolveFirstPathItemForeachStack(item.body, pathItemForeachStack);
+      if (nested && nested.length > 0) {
+        return nested;
+      }
+    }
   }
   return undefined;
+}
+
+function collectPathItemsById(items: PathItem[], byId: Map<string, PathItem>): void {
+  for (const item of items) {
+    byId.set(item.id, item);
+    if (item.kind === "ChildOperation") {
+      collectPathItemsById(item.body, byId);
+    }
+  }
 }
 
 function extractElementItemPayload(elementId: string, sourceId: string): string | undefined {
@@ -1638,7 +1740,26 @@ const FRAME_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof FrameStyleBuckets> 
   "every double arrow node/.append style": "everyDoubleArrowNodeStyles"
 };
 
-function resolveFrameMeta(
+type TreeMetaBuckets = {
+  treeEveryChildStyles: ProvenanceOptionList[];
+  treeEveryChildNodeStyles: ProvenanceOptionList[];
+  treeLevelStyleTemplateLayers: ProvenanceOptionList[];
+  treeLevelStyleLayers: Array<{ level: number; layers: ProvenanceOptionList[] }>;
+};
+
+const TREE_STYLE_BUCKET_BY_STYLE_KEY: Record<string, keyof Omit<TreeMetaBuckets, "treeLevelStyleLayers">> = {
+  "every child/.style": "treeEveryChildStyles",
+  "every child node/.style": "treeEveryChildNodeStyles",
+  "level/.style": "treeLevelStyleTemplateLayers"
+};
+
+const TREE_STYLE_BUCKET_BY_APPEND_KEY: Record<string, keyof Omit<TreeMetaBuckets, "treeLevelStyleLayers">> = {
+  "every child/.append style": "treeEveryChildStyles",
+  "every child node/.append style": "treeEveryChildNodeStyles",
+  "level/.append style": "treeLevelStyleTemplateLayers"
+};
+
+export function resolveFrameMeta(
   base: {
     namePrefix: string;
     nameSuffix: string;
@@ -1652,7 +1773,21 @@ function resolveFrameMeta(
     pinDistancePt: number;
     pinEdgeRaw: string | null;
     transformShape: boolean;
-  } & FrameStyleBuckets,
+    treeLevel: number;
+    treeLevelDistancePt: number;
+    treeSiblingDistancePt: number;
+    treeCurrentLevelSiblingDistancePt: number | null;
+    treeGrowDirectionDegrees: number;
+    treeGrowReverse: boolean;
+    treeGrowthParentAnchor: string;
+    treeParentAnchor: string;
+    treeChildAnchor: string;
+    treeMissing: boolean;
+    treeDeferredGrowthFunction: boolean;
+    treeDeferredEdgeFromParentPath: boolean;
+    treeDeferredEdgeFromParentMacro: boolean;
+  } & FrameStyleBuckets &
+    TreeMetaBuckets,
   optionLists: OptionListAst[],
   sourceRef: StyleSourceRef
 ): {
@@ -1668,7 +1803,21 @@ function resolveFrameMeta(
   pinDistancePt: number;
   pinEdgeRaw: string | null;
   transformShape: boolean;
-} & FrameStyleBuckets {
+  treeLevel: number;
+  treeLevelDistancePt: number;
+  treeSiblingDistancePt: number;
+  treeCurrentLevelSiblingDistancePt: number | null;
+  treeGrowDirectionDegrees: number;
+  treeGrowReverse: boolean;
+  treeGrowthParentAnchor: string;
+  treeParentAnchor: string;
+  treeChildAnchor: string;
+  treeMissing: boolean;
+  treeDeferredGrowthFunction: boolean;
+  treeDeferredEdgeFromParentPath: boolean;
+  treeDeferredEdgeFromParentMacro: boolean;
+} & FrameStyleBuckets &
+  TreeMetaBuckets {
   let namePrefix = base.namePrefix;
   let nameSuffix = base.nameSuffix;
   let nodeLayerMode = base.nodeLayerMode;
@@ -1681,6 +1830,19 @@ function resolveFrameMeta(
   let pinDistancePt = base.pinDistancePt;
   let pinEdgeRaw = base.pinEdgeRaw;
   let transformShape = base.transformShape;
+  let treeLevel = base.treeLevel;
+  let treeLevelDistancePt = base.treeLevelDistancePt;
+  let treeSiblingDistancePt = base.treeSiblingDistancePt;
+  let treeCurrentLevelSiblingDistancePt = base.treeCurrentLevelSiblingDistancePt;
+  let treeGrowDirectionDegrees = base.treeGrowDirectionDegrees;
+  let treeGrowReverse = base.treeGrowReverse;
+  let treeGrowthParentAnchor = base.treeGrowthParentAnchor;
+  let treeParentAnchor = base.treeParentAnchor;
+  let treeChildAnchor = base.treeChildAnchor;
+  let treeMissing = base.treeMissing;
+  let treeDeferredGrowthFunction = base.treeDeferredGrowthFunction;
+  let treeDeferredEdgeFromParentPath = base.treeDeferredEdgeFromParentPath;
+  let treeDeferredEdgeFromParentMacro = base.treeDeferredEdgeFromParentMacro;
 
   const styleBuckets: FrameStyleBuckets = {
     everyNodeStyles: [...base.everyNodeStyles],
@@ -1703,6 +1865,15 @@ function resolveFrameMeta(
     everySingleArrowNodeStyles: [...base.everySingleArrowNodeStyles],
     everyDoubleArrowNodeStyles: [...base.everyDoubleArrowNodeStyles]
   };
+  const treeBuckets: TreeMetaBuckets = {
+    treeEveryChildStyles: [...base.treeEveryChildStyles],
+    treeEveryChildNodeStyles: [...base.treeEveryChildNodeStyles],
+    treeLevelStyleTemplateLayers: [...base.treeLevelStyleTemplateLayers],
+    treeLevelStyleLayers: base.treeLevelStyleLayers.map((entry) => ({
+      level: entry.level,
+      layers: [...entry.layers]
+    }))
+  };
 
   for (const list of optionLists) {
     for (const entry of list.entries) {
@@ -1719,6 +1890,17 @@ function resolveFrameMeta(
           nodeQuotesMode = "label";
         } else if (entry.key === "transform shape") {
           transformShape = true;
+        } else if (entry.key === "missing") {
+          treeMissing = true;
+        } else if (entry.key === "grow'") {
+          treeGrowReverse = true;
+          treeCurrentLevelSiblingDistancePt = 0;
+        } else if (entry.key === "growth function") {
+          treeDeferredGrowthFunction = true;
+        } else if (entry.key === "edge from parent path") {
+          treeDeferredEdgeFromParentPath = true;
+        } else if (entry.key === "edge from parent macro") {
+          treeDeferredEdgeFromParentMacro = true;
         }
         continue;
       }
@@ -1833,6 +2015,108 @@ function resolveFrameMeta(
         continue;
       }
 
+      if (entry.key === "nodes") {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          styleBuckets.everyNodeStyles = [...styleBuckets.everyNodeStyles, parsedLayer];
+        }
+        continue;
+      }
+
+      if (entry.key === "level distance") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null && Number.isFinite(parsed)) {
+          treeLevelDistancePt = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "sibling distance") {
+        const parsed = parseLength(entry.valueRaw, "pt");
+        if (parsed != null && Number.isFinite(parsed)) {
+          treeSiblingDistancePt = parsed;
+          treeCurrentLevelSiblingDistancePt = null;
+        }
+        continue;
+      }
+
+      if (entry.key === "grow") {
+        const parsed = parseTreeGrowDirection(entry.valueRaw);
+        if (parsed != null) {
+          treeGrowDirectionDegrees = parsed;
+        }
+        treeCurrentLevelSiblingDistancePt = 0;
+        continue;
+      }
+
+      if (entry.key === "grow'") {
+        const parsed = parseTreeGrowDirection(entry.valueRaw);
+        if (parsed != null) {
+          treeGrowDirectionDegrees = parsed;
+        }
+        treeGrowReverse = true;
+        treeCurrentLevelSiblingDistancePt = 0;
+        continue;
+      }
+
+      if (entry.key === "growth parent anchor") {
+        const normalized = normalizeTreeAnchor(entry.valueRaw);
+        if (normalized.length > 0) {
+          treeGrowthParentAnchor = normalized;
+        }
+        continue;
+      }
+
+      if (entry.key === "parent anchor") {
+        const normalized = normalizeTreeAnchor(entry.valueRaw);
+        if (normalized.length > 0) {
+          treeParentAnchor = normalized;
+        }
+        continue;
+      }
+
+      if (entry.key === "child anchor") {
+        const normalized = normalizeTreeAnchor(entry.valueRaw);
+        if (normalized.length > 0) {
+          treeChildAnchor = normalized;
+        }
+        continue;
+      }
+
+      if (entry.key === "missing") {
+        const parsed = parseBoolish(entry.valueRaw);
+        if (parsed != null) {
+          treeMissing = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "level") {
+        const parsed = parseTreeLevel(entry.valueRaw);
+        if (parsed != null) {
+          treeLevel = parsed;
+        }
+        continue;
+      }
+
+      if (entry.key === "growth function") {
+        const parsed = parseBoolish(entry.valueRaw);
+        treeDeferredGrowthFunction = parsed == null ? true : parsed;
+        continue;
+      }
+
+      if (entry.key === "edge from parent path") {
+        const parsed = parseBoolish(entry.valueRaw);
+        treeDeferredEdgeFromParentPath = parsed == null ? true : parsed;
+        continue;
+      }
+
+      if (entry.key === "edge from parent macro") {
+        const parsed = parseBoolish(entry.valueRaw);
+        treeDeferredEdgeFromParentMacro = parsed == null ? true : parsed;
+        continue;
+      }
+
       const replaceBucket = FRAME_STYLE_BUCKET_BY_STYLE_KEY[entry.key];
       if (replaceBucket) {
         const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
@@ -1842,11 +2126,43 @@ function resolveFrameMeta(
         continue;
       }
 
+      const treeReplaceBucket = TREE_STYLE_BUCKET_BY_STYLE_KEY[entry.key];
+      if (treeReplaceBucket) {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          treeBuckets[treeReplaceBucket] = [parsedLayer];
+        }
+        continue;
+      }
+
+      const parsedLevelStyle = parseTreeLevelStyleKey(entry.key);
+      if (parsedLevelStyle) {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          treeBuckets.treeLevelStyleLayers = updateTreeLevelStyleLayers(
+            treeBuckets.treeLevelStyleLayers,
+            parsedLevelStyle.level,
+            parsedLayer,
+            parsedLevelStyle.append
+          );
+        }
+        continue;
+      }
+
       const appendBucket = FRAME_STYLE_BUCKET_BY_APPEND_KEY[entry.key];
       if (appendBucket) {
         const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
         if (parsedLayer) {
           styleBuckets[appendBucket] = [...styleBuckets[appendBucket], parsedLayer];
+        }
+        continue;
+      }
+
+      const treeAppendBucket = TREE_STYLE_BUCKET_BY_APPEND_KEY[entry.key];
+      if (treeAppendBucket) {
+        const parsedLayer = parseProvenanceStyleLayer(entry, sourceRef);
+        if (parsedLayer) {
+          treeBuckets[treeAppendBucket] = [...treeBuckets[treeAppendBucket], parsedLayer];
         }
       }
     }
@@ -1865,8 +2181,141 @@ function resolveFrameMeta(
     pinDistancePt,
     pinEdgeRaw,
     transformShape,
-    ...styleBuckets
+    treeLevel,
+    treeLevelDistancePt,
+    treeSiblingDistancePt,
+    treeCurrentLevelSiblingDistancePt,
+    treeGrowDirectionDegrees,
+    treeGrowReverse,
+    treeGrowthParentAnchor,
+    treeParentAnchor,
+    treeChildAnchor,
+    treeMissing,
+    treeDeferredGrowthFunction,
+    treeDeferredEdgeFromParentPath,
+    treeDeferredEdgeFromParentMacro,
+    ...styleBuckets,
+    ...treeBuckets
   };
+}
+
+function parseTreeGrowDirection(raw: string): number | null {
+  const normalized = stripWrappingBraces(raw).trim().toLowerCase();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const canonical = normalized.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const compact = canonical.replace(/\s+/g, "");
+
+  switch (canonical) {
+    case "right":
+    case "east":
+      return 0;
+    case "up":
+    case "north":
+      return 90;
+    case "left":
+    case "west":
+      return 180;
+    case "down":
+    case "south":
+      return -90;
+    case "north east":
+      return 45;
+    case "north west":
+      return 135;
+    case "south east":
+      return -45;
+    case "south west":
+      return -135;
+    default:
+      break;
+  }
+
+  switch (compact) {
+    case "northeast":
+      return 45;
+    case "northwest":
+      return 135;
+    case "southeast":
+      return -45;
+    case "southwest":
+      return -135;
+    default:
+      break;
+  }
+
+  const parsed = Number(canonical);
+  if (Number.isFinite(parsed)) {
+    return parsed;
+  }
+  return null;
+}
+
+function parseTreeLevel(raw: string): number | null {
+  const normalized = stripWrappingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.max(0, Math.trunc(parsed));
+}
+
+function normalizeTreeAnchor(raw: string): string {
+  return stripWrappingBraces(raw).trim().toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ");
+}
+
+function parseTreeLevelStyleKey(key: string): { level: number; append: boolean } | null {
+  const match = key.match(/^level\s+(\d+)\s*\/\.(style|append style)$/);
+  if (!match) {
+    return null;
+  }
+
+  const parsedLevel = Number(match[1]);
+  if (!Number.isFinite(parsedLevel)) {
+    return null;
+  }
+
+  return {
+    level: Math.max(0, Math.trunc(parsedLevel)),
+    append: match[2] === "append style"
+  };
+}
+
+function updateTreeLevelStyleLayers(
+  layers: Array<{ level: number; layers: ProvenanceOptionList[] }>,
+  level: number,
+  layer: ProvenanceOptionList,
+  append: boolean
+): Array<{ level: number; layers: ProvenanceOptionList[] }> {
+  const next = layers.map((entry) => ({
+    level: entry.level,
+    layers: [...entry.layers]
+  }));
+  const index = next.findIndex((entry) => entry.level === level);
+  if (index < 0) {
+    next.push({ level, layers: [layer] });
+    next.sort((left, right) => left.level - right.level);
+    return next;
+  }
+
+  if (append) {
+    next[index] = {
+      level,
+      layers: [...next[index]!.layers, layer]
+    };
+  } else {
+    next[index] = {
+      level,
+      layers: [layer]
+    };
+  }
+
+  return next;
 }
 
 function parseProvenanceStyleLayer(

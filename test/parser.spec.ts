@@ -1009,6 +1009,115 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses child operations with nested child bodies", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} child { node {left-left} } }
+    child { node {right} };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const childItems = statement.items.filter((item) => item.kind === "ChildOperation");
+    expect(childItems).toHaveLength(2);
+    const firstChild = childItems[0];
+    expect(firstChild?.kind).toBe("ChildOperation");
+    if (firstChild?.kind === "ChildOperation") {
+      expect(firstChild.body.some((item) => item.kind === "Node")).toBe(true);
+      expect(firstChild.body.some((item) => item.kind === "ChildOperation")).toBe(true);
+    }
+  });
+
+  it("parses child foreach clauses and keeps a foreach-free child template", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child foreach \x in {a,b} { node {\x} };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const child = statement.items.find((item) => item.kind === "ChildOperation");
+    expect(child?.kind).toBe("ChildOperation");
+    if (child?.kind === "ChildOperation") {
+      expect(child.foreachClauses).toHaveLength(1);
+      expect(child.foreachClauses?.[0]?.variablesRaw).toContain("\\x");
+      expect(child.foreachClauses?.[0]?.listRaw).toContain("a,b");
+      expect(child.templateRaw.includes("foreach")).toBe(false);
+    }
+  });
+
+  it("parses edge from parent and edge to parent aliases as typed tree operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} edge from parent node[left] {L} }
+    child { node {right} edge to parent node[right] {R} };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const firstChild = statement.items.find((item) => item.kind === "ChildOperation");
+    expect(firstChild?.kind).toBe("ChildOperation");
+    if (firstChild?.kind !== "ChildOperation") {
+      return;
+    }
+
+    const nestedEdges = firstChild.body.filter((item) => item.kind === "EdgeFromParentOperation");
+    expect(nestedEdges).toHaveLength(1);
+    if (nestedEdges[0]?.kind === "EdgeFromParentOperation") {
+      expect(nestedEdges[0].alias).toBe("edge from parent");
+      expect(nestedEdges[0].nodes?.length).toBeGreaterThan(0);
+    }
+
+    const secondChild = statement.items.filter((item) => item.kind === "ChildOperation")[1];
+    expect(secondChild?.kind).toBe("ChildOperation");
+    if (secondChild?.kind === "ChildOperation") {
+      const secondNestedEdge = secondChild.body.find((item) => item.kind === "EdgeFromParentOperation");
+      expect(secondNestedEdge?.kind).toBe("EdgeFromParentOperation");
+      if (secondNestedEdge?.kind === "EdgeFromParentOperation") {
+        expect(secondNestedEdge.alias).toBe("edge to parent");
+      }
+    }
+  });
+
+  it("does not fall back to UnknownPathItem for chapter tree syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right, level distance=8mm, sibling distance=6mm]
+    node {root}
+    child { node {a} edge from parent node[above] {A} }
+    child foreach \x in {b,c} { node {\x} };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const statement = result.figure.body.find((entry) => entry.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const hasUnknownAtTopLevel = statement.items.some((item) => item.kind === "UnknownPathItem");
+    const hasUnknownInChildren = statement.items.some(
+      (item) => item.kind === "ChildOperation" && item.body.some((nested) => nested.kind === "UnknownPathItem")
+    );
+    expect(hasUnknownAtTopLevel).toBe(false);
+    expect(hasUnknownInChildren).toBe(false);
+  });
+
   it("supports node text validator hooks and reports TeX validation diagnostics", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) node {ok} -- (1,0) node {bad};

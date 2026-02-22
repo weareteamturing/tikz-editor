@@ -92,6 +92,14 @@ function collectPathNodes(items: PathItem[], target: NodeItem[]): void {
     }
     if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
       target.push(...item.nodes);
+      continue;
+    }
+    if (item.kind === "EdgeFromParentOperation" && item.nodes) {
+      target.push(...item.nodes);
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      collectPathNodes(item.body, target);
     }
   }
 }

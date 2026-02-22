@@ -62,6 +62,18 @@ export function edgeOperationItemId(statementIndex: number, itemIndex: number): 
   return `edge-operation:${statementIndex}:${itemIndex}`;
 }
 
+export function childOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `child-operation:${statementIndex}:${itemIndex}`;
+}
+
+export function edgeFromParentOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `edge-from-parent-operation:${statementIndex}:${itemIndex}`;
+}
+
+export function childForeachClauseId(statementIndex: number, itemIndex: number, clauseIndex: number): string {
+  return `child-foreach-clause:${statementIndex}:${itemIndex}:${clauseIndex}`;
+}
+
 export function svgOperationItemId(statementIndex: number, itemIndex: number): string {
   return `svg-operation:${statementIndex}:${itemIndex}`;
 }

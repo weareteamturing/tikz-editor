@@ -1,27 +1,35 @@
 import type { SyntaxNode } from "@lezer/common";
 
 import {
+  childForeachClauseId,
+  childOperationItemId,
   coordinateOperationItemId,
   decorateOperationItemId,
   edgeOperationItemId,
+  edgeFromParentOperationItemId,
   letOperationItemId,
   pathForeachItemId,
   svgOperationItemId,
   toOperationItemId
 } from "../../ast/ids.js";
 import type {
+  ChildForeachClause,
+  ChildOperationItem,
   CoordinateOperationItem,
   DecorateOperationItem,
   EdgeOperationItem,
+  EdgeFromParentOperationItem,
   LetOperationItem,
   NodeItem,
   PathForeachItem,
+  PathItem,
   Span,
   SvgOperationItem,
   ToOperationTarget,
   ToOperationItem
 } from "../../ast/types.js";
-import { parseForeachHeaderRaw } from "../../foreach/header.js";
+import { parseForeachHeaderRaw, stripForeachCommandPrefix } from "../../foreach/header.js";
+import { parsePathItemsFromFragment } from "../../foreach/snippet-parse.js";
 import { parseCoordinate } from "../coordinates/parse.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import { findFirstChildByName, firstNamedChild } from "../../syntax/cursor.js";
@@ -43,6 +51,59 @@ export function mapEdgeOperationItem(
   itemIndex: number
 ): EdgeOperationItem {
   return mapToLikeOperationItem("EdgeOperation", edgeOperationItemId(statementIndex, itemIndex), node, source, statementIndex, itemIndex);
+}
+
+export function mapChildOperationItem(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): ChildOperationItem {
+  const optionsNode = findFirstChildByName(node, "OptionList");
+  const bodyNode = findFirstChildByName(node, "Group");
+  const foreachClauses = mapChildForeachClauses(node, source, statementIndex, itemIndex);
+  const bodyRaw = bodyNode ? source.slice(bodyNode.from, bodyNode.to) : "{}";
+  const parsedBody = bodyNode ? parsePathItemsFromFragment(bodyRaw) : { value: [] as PathItem[] };
+  const templateRaw = buildChildTemplateRaw(node, source, foreachClauses);
+
+  return {
+    kind: "ChildOperation",
+    id: childOperationItemId(statementIndex, itemIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    templateRaw,
+    optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+    foreachClauses: foreachClauses.length > 0 ? foreachClauses : undefined,
+    bodySpan: toSpan(bodyNode),
+    bodyRaw,
+    body: parsedBody.value
+  };
+}
+
+export function mapEdgeFromParentOperationItem(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): EdgeFromParentOperationItem {
+  const optionsNode = findFirstChildByName(node, "OptionList");
+  const nodes = mapToOperationNodes(node, source, statementIndex, itemIndex, "edge-from-parent-node");
+  const raw = source.slice(node.from, node.to);
+  const normalizedRaw = raw.toLowerCase();
+  const alias: EdgeFromParentOperationItem["alias"] =
+    normalizedRaw.includes("edge to parent") ? "edge to parent" : "edge from parent";
+
+  return {
+    kind: "EdgeFromParentOperation",
+    id: edgeFromParentOperationItemId(statementIndex, itemIndex),
+    span: { from: node.from, to: node.to },
+    optionsSpan: toSpan(optionsNode),
+    options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+    nodes: nodes.length > 0 ? nodes : undefined,
+    alias,
+    raw
+  };
 }
 
 function mapToLikeOperationItem(
@@ -71,7 +132,7 @@ function mapToLikeOperationItem(
 ): ToOperationItem | EdgeOperationItem {
   const optionsNode = findFirstChildByName(node, "OptionList");
   const target = mapToOperationTarget(node, source);
-  const nodes = mapToOperationNodes(node, source, statementIndex, itemIndex);
+  const nodes = mapToOperationNodes(node, source, statementIndex, itemIndex, kind === "ToOperation" ? "to-node" : "edge-node");
 
   return {
     kind,
@@ -267,7 +328,13 @@ function mapToOperationTarget(node: SyntaxNode, source: string): ToOperationTarg
   };
 }
 
-function mapToOperationNodes(node: SyntaxNode, source: string, statementIndex: number, itemIndex: number): NodeItem[] {
+function mapToOperationNodes(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number,
+  nodeIdPrefix: string
+): NodeItem[] {
   const result: NodeItem[] = [];
   let nodeIndex = 0;
 
@@ -279,12 +346,70 @@ function mapToOperationNodes(node: SyntaxNode, source: string, statementIndex: n
     const mapped = mapNodeItem(child, source, statementIndex, itemIndex + nodeIndex + 1);
     result.push({
       ...mapped,
-      id: `to-node:${statementIndex}:${itemIndex}:${nodeIndex}`
+      id: `${nodeIdPrefix}:${statementIndex}:${itemIndex}:${nodeIndex}`
     });
     nodeIndex += 1;
   }
 
   return result;
+}
+
+function mapChildForeachClauses(
+  node: SyntaxNode,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): ChildForeachClause[] {
+  const clauses: ChildForeachClause[] = [];
+  let clauseIndex = 0;
+
+  for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (child.type.name !== "ChildForeachClause") {
+      continue;
+    }
+
+    const raw = source.slice(child.from, child.to);
+    const parsed = parseForeachHeaderRaw(stripForeachCommandPrefix(raw));
+    const headerStartInRaw = raw.indexOf(parsed.headerRaw);
+    const headerFrom = child.from + (headerStartInRaw >= 0 ? headerStartInRaw : 0);
+
+    const options =
+      parsed.optionsRaw && parsed.optionsSpan
+        ? parseOptionListRaw(parsed.optionsRaw, headerFrom + parsed.optionsSpan.from)
+        : undefined;
+    const optionsSpan =
+      parsed.optionsSpan != null
+        ? {
+            from: headerFrom + parsed.optionsSpan.from,
+            to: headerFrom + parsed.optionsSpan.to
+          }
+        : undefined;
+
+    clauses.push({
+      kind: "ChildForeachClause",
+      id: childForeachClauseId(statementIndex, itemIndex, clauseIndex),
+      span: { from: child.from, to: child.to },
+      raw,
+      headerRaw: parsed.headerRaw,
+      variablesRaw: parsed.variablesRaw,
+      listRaw: parsed.listRaw,
+      options,
+      optionsSpan
+    });
+    clauseIndex += 1;
+  }
+
+  return clauses;
+}
+
+function buildChildTemplateRaw(node: SyntaxNode, source: string, clauses: ChildForeachClause[]): string {
+  if (clauses.length === 0) {
+    return source.slice(node.from, node.to);
+  }
+
+  const firstClauseStart = clauses.reduce((min, clause) => Math.min(min, clause.span.from), clauses[0]!.span.from);
+  const lastClauseEnd = clauses.reduce((max, clause) => Math.max(max, clause.span.to), clauses[0]!.span.to);
+  return `${source.slice(node.from, firstClauseStart)}${source.slice(lastClauseEnd, node.to)}`;
 }
 
 function parseCoordinateOperationName(nameNode: SyntaxNode | null, source: string): string | undefined {

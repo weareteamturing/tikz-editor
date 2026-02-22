@@ -272,6 +272,70 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["edge_operation"]
   },
+  child_operation: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_child_operation"]
+  },
+  edge_from_parent_operation: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["tree_edge_from_parent"]
+  },
+  tree_layout_keys: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_layout_keys"]
+  },
+  tree_level_styles: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_level_styles"]
+  },
+  tree_every_child_styles: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_every_child_styles"]
+  },
+  tree_anchor_keys: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_anchor_keys"]
+  },
+  tree_missing_child: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_missing_child"]
+  },
+  tree_auto_naming: {
+    parser: "none",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["tree_auto_naming"]
+  },
+  tree_deferred_hooks: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["tree_deferred_hooks"],
+    notes: "Low-level tree hooks are parsed and diagnosed, then default tree layout/edge behavior is used as fallback."
+  },
   svg_operation: {
     parser: "stable",
     semantic: "none",

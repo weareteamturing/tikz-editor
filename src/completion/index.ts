@@ -75,6 +75,18 @@ function collectSymbolsFromPathItems(
       for (const node of item.nodes) {
         collectNodeIdentifiers(node, nodeNames);
       }
+      continue;
+    }
+
+    if (item.kind === "EdgeFromParentOperation" && item.nodes) {
+      for (const node of item.nodes) {
+        collectNodeIdentifiers(node, nodeNames);
+      }
+      continue;
+    }
+
+    if (item.kind === "ChildOperation") {
+      collectSymbolsFromPathItems(item.body, nodeNames, coordinateNames);
     }
   }
 }
