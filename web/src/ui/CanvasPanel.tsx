@@ -43,6 +43,39 @@ import type { SvgViewBox } from "tikz-editor/svg/types";
 import { useEditorStore } from "../store/store";
 import type { CanvasTransform, ToolMode } from "../store/types";
 import { requestSourceSelection } from "./source-sync";
+import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
+import {
+  buildTicks,
+  clamp,
+  clientToSvgPoint,
+  clientToWorldPoint,
+  computeVisibleRanges,
+  distanceSquared,
+  fmt,
+  pickStepPt,
+  resizeCursorForVector,
+  rotatePointAroundCenter,
+  toViewportXFromWorld,
+  toViewportYFromWorld,
+  vectorLengthSquared,
+  viewportToSvgPoint,
+  viewportToWorldPoint,
+  worldToSvgPoint,
+  worldToSvgY,
+  svgToWorldPoint,
+  type RulerTick,
+  type VisibleRanges
+} from "./canvas-panel/geometry";
+import {
+  clampSnapDebugOverlayRect,
+  summarizeSnapContextForDebug,
+  summarizeSnapLinesForDebug,
+  toDebugPoint,
+  type SnapDebugContextSummary,
+  type SnapDebugLineSummary,
+  type SnapDebugOverlayRect,
+  type SnapDebugPoint
+} from "./canvas-panel/snap-debug";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -58,50 +91,6 @@ type Bounds = {
   maxX: number;
   maxY: number;
 };
-
-type HitRegion =
-  | {
-      shape: "path";
-      key: string;
-      sourceId: string;
-      d: string;
-      pointerMode: "stroke" | "fill";
-      strokeWidth: number;
-    }
-  | {
-      shape: "circle";
-      key: string;
-      sourceId: string;
-      cx: number;
-      cy: number;
-      r: number;
-      pointerMode: "stroke" | "fill";
-      strokeWidth: number;
-    }
-  | {
-      shape: "ellipse";
-      key: string;
-      sourceId: string;
-      cx: number;
-      cy: number;
-      rx: number;
-      ry: number;
-      rotation: number;
-      pointerMode: "stroke" | "fill";
-      strokeWidth: number;
-    }
-  | {
-      shape: "rect";
-      key: string;
-      sourceId: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      cx: number;
-      cy: number;
-      rotation: number;
-    };
 
 type DragState =
   | {
@@ -187,13 +176,6 @@ type HandleDisplay =
       elementId: string;
     };
 
-type RulerTick = {
-  worldValue: number;
-  viewportPos: number;
-  major: boolean;
-  label?: string;
-};
-
 type GridLines = {
   verticalMinor: number[];
   verticalMajor: number[];
@@ -201,15 +183,6 @@ type GridLines = {
   horizontalMajor: number[];
   yMin: number;
   yMax: number;
-};
-
-type VisibleRanges = {
-  worldMinX: number;
-  worldMaxX: number;
-  worldMinY: number;
-  worldMaxY: number;
-  svgMinY: number;
-  svgMaxY: number;
 };
 
 type ToolCreateMode = "addLine" | "addArrow" | "addRect" | "addCircle";
@@ -260,49 +233,6 @@ type TextIndexMappingTarget = {
   textLength: number;
   totalWidth: number;
   region: Extract<HitRegion, { shape: "rect" }>;
-};
-
-type SnapDebugPoint = {
-  x: number;
-  y: number;
-};
-
-type SnapDebugOverlayRect = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
-type SnapDebugLineSummary =
-  | {
-      type: "points";
-      axis: "x" | "y";
-      pointCount: number;
-      points: SnapDebugPoint[];
-    }
-  | {
-      type: "pointer";
-      axis: "x" | "y";
-      from: SnapDebugPoint;
-      to: SnapDebugPoint;
-    }
-  | {
-      type: "gap";
-      direction: "horizontal" | "vertical";
-      gapKind: "center" | "equal";
-      segmentCount: number;
-      segments: Array<{ from: SnapDebugPoint; to: SnapDebugPoint }>;
-    };
-
-type SnapDebugContextSummary = {
-  zoom: number;
-  thresholdWorld: number;
-  selectedSourceIds: string[];
-  referencePointCount: number;
-  referenceBoundsCount: number;
-  horizontalGapCount: number;
-  verticalGapCount: number;
 };
 
 type SnapDebugOverlayState = {
@@ -357,7 +287,6 @@ type ApplyActionFeedback = {
 
 const RULER_SIZE = 24;
 const FIT_PADDING = 44;
-const HIT_STROKE_PX = 10;
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 20;
 const ZOOM_EXP_FACTOR = 0.0045;
@@ -366,9 +295,6 @@ const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
 const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
-const SNAP_DEBUG_MIN_WIDTH_PX = 280;
-const SNAP_DEBUG_MIN_HEIGHT_PX = 140;
-const SNAP_DEBUG_MARGIN_PX = 8;
 const SNAP_GAP_ARROW_MARKER_ID = "snap-gap-arrow-marker";
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
@@ -3110,180 +3036,6 @@ function CanvasSVGLayer({ svg }: { svg: string }) {
   );
 }
 
-function clampSnapDebugOverlayRect(
-  rect: SnapDebugOverlayRect,
-  viewportWidth: number,
-  viewportHeight: number
-): SnapDebugOverlayRect {
-  if (viewportWidth <= 0 || viewportHeight <= 0) {
-    return rect;
-  }
-
-  const maxWidth = Math.max(SNAP_DEBUG_MIN_WIDTH_PX, viewportWidth - SNAP_DEBUG_MARGIN_PX * 2);
-  const maxHeight = Math.max(SNAP_DEBUG_MIN_HEIGHT_PX, viewportHeight - SNAP_DEBUG_MARGIN_PX * 2);
-  const width = Math.max(SNAP_DEBUG_MIN_WIDTH_PX, Math.min(rect.width, maxWidth));
-  const height = Math.max(SNAP_DEBUG_MIN_HEIGHT_PX, Math.min(rect.height, maxHeight));
-  const maxLeft = Math.max(SNAP_DEBUG_MARGIN_PX, viewportWidth - width - SNAP_DEBUG_MARGIN_PX);
-  const maxTop = Math.max(SNAP_DEBUG_MARGIN_PX, viewportHeight - height - SNAP_DEBUG_MARGIN_PX);
-
-  return {
-    width,
-    height,
-    left: Math.max(SNAP_DEBUG_MARGIN_PX, Math.min(rect.left, maxLeft)),
-    top: Math.max(SNAP_DEBUG_MARGIN_PX, Math.min(rect.top, maxTop))
-  };
-}
-
-function roundForDebug(value: number): number {
-  return Math.round(value * 1e4) / 1e4;
-}
-
-function toDebugPoint(point: Point | null | undefined): SnapDebugPoint | null {
-  if (!point) {
-    return null;
-  }
-  return {
-    x: roundForDebug(point.x),
-    y: roundForDebug(point.y)
-  };
-}
-
-function summarizeSnapContextForDebug(context: SnapContext | null | undefined): SnapDebugContextSummary | null {
-  if (!context) {
-    return null;
-  }
-
-  return {
-    zoom: roundForDebug(context.zoom),
-    thresholdWorld: roundForDebug(context.settings.thresholdPx / Math.max(context.zoom, 1e-6)),
-    selectedSourceIds: context.selectedSourceIds.slice(0, 8),
-    referencePointCount: context.referencePoints.length,
-    referenceBoundsCount: context.referenceBounds.length,
-    horizontalGapCount: context.visibleGaps.horizontal.length,
-    verticalGapCount: context.visibleGaps.vertical.length
-  };
-}
-
-function summarizeSnapLinesForDebug(lines: readonly SnapLine[]): SnapDebugLineSummary[] {
-  return lines.slice(0, 8).map((line) => {
-    if (line.type === "points") {
-      return {
-        type: "points",
-        axis: line.axis,
-        pointCount: line.points.length,
-        points: line.points.slice(0, 6).map((point) => ({
-          x: roundForDebug(point.x),
-          y: roundForDebug(point.y)
-        }))
-      };
-    }
-
-    if (line.type === "pointer") {
-      return {
-        type: "pointer",
-        axis: line.axis,
-        from: {
-          x: roundForDebug(line.from.x),
-          y: roundForDebug(line.from.y)
-        },
-        to: {
-          x: roundForDebug(line.to.x),
-          y: roundForDebug(line.to.y)
-        }
-      };
-    }
-
-    return {
-      type: "gap",
-      direction: line.direction,
-      gapKind: line.gapKind,
-      segmentCount: line.segments.length,
-      segments: line.segments.slice(0, 4).map((segment) => ({
-        from: {
-          x: roundForDebug(segment[0].x),
-          y: roundForDebug(segment[0].y)
-        },
-        to: {
-          x: roundForDebug(segment[1].x),
-          y: roundForDebug(segment[1].y)
-        }
-      }))
-    };
-  });
-}
-
-function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, scale: number): HitRegion[] {
-  const regions: HitRegion[] = [];
-  const strokeWidth = HIT_STROKE_PX / Math.max(scale, 1e-3);
-
-  for (const element of elements) {
-    if (element.kind === "Path") {
-      const d = encodePathData(element.commands, viewBox);
-      if (!d) continue;
-      const filled = hasVisibleFill(element.style.fill);
-      regions.push({
-        shape: "path",
-        key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        d,
-        pointerMode: filled ? "fill" : "stroke",
-        strokeWidth
-      });
-      continue;
-    }
-
-    if (element.kind === "Circle") {
-      const center = worldToSvgPoint(element.center, viewBox);
-      const filled = hasVisibleFill(element.style.fill);
-      regions.push({
-        shape: "circle",
-        key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        cx: center.x,
-        cy: center.y,
-        r: element.radius,
-        pointerMode: filled ? "fill" : "stroke",
-        strokeWidth
-      });
-      continue;
-    }
-
-    if (element.kind === "Ellipse") {
-      const center = worldToSvgPoint(element.center, viewBox);
-      const filled = hasVisibleFill(element.style.fill);
-      regions.push({
-        shape: "ellipse",
-        key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        cx: center.x,
-        cy: center.y,
-        rx: element.rx,
-        ry: element.ry,
-        rotation: element.rotation ?? 0,
-        pointerMode: filled ? "fill" : "stroke",
-        strokeWidth
-      });
-      continue;
-    }
-
-    const textGeometry = textGeometryInSvg(element, viewBox);
-    regions.push({
-      shape: "rect",
-      key: `hit:${element.id}`,
-      sourceId: element.sourceId,
-      x: textGeometry.cx - textGeometry.width / 2,
-      y: textGeometry.cy - textGeometry.height / 2,
-      width: textGeometry.width,
-      height: textGeometry.height,
-      cx: textGeometry.cx,
-      cy: textGeometry.cy,
-      rotation: textGeometry.rotation
-    });
-  }
-
-  return regions;
-}
-
 function collectSelectionBounds(
   elements: SceneElement[],
   selectedIds: ReadonlySet<string>,
@@ -3443,211 +3195,6 @@ function pathBoundsInSvg(path: ScenePath, viewBox: SvgViewBox): Bounds | null {
   return { minX, minY, maxX, maxY };
 }
 
-function computeVisibleRanges(
-  viewBox: SvgViewBox,
-  transform: CanvasTransform,
-  viewportWidth: number,
-  viewportHeight: number
-): VisibleRanges {
-  const worldTopLeft = viewportToWorldPoint(0, 0, transform, viewBox);
-  const worldBottomRight = viewportToWorldPoint(viewportWidth, viewportHeight, transform, viewBox);
-
-  const svgTopLeft = viewportToSvgPoint(0, 0, transform, viewBox);
-  const svgBottomRight = viewportToSvgPoint(viewportWidth, viewportHeight, transform, viewBox);
-
-  return {
-    worldMinX: Math.min(worldTopLeft.x, worldBottomRight.x),
-    worldMaxX: Math.max(worldTopLeft.x, worldBottomRight.x),
-    worldMinY: Math.min(worldTopLeft.y, worldBottomRight.y),
-    worldMaxY: Math.max(worldTopLeft.y, worldBottomRight.y),
-    svgMinY: Math.min(svgTopLeft.y, svgBottomRight.y),
-    svgMaxY: Math.max(svgTopLeft.y, svgBottomRight.y)
-  };
-}
-
-function buildTicks(
-  worldMin: number,
-  worldMax: number,
-  minorStep: number,
-  majorStep: number,
-  mapWorldToViewport: (value: number) => number
-): RulerTick[] {
-  const values = buildValueSequence(worldMin, worldMax, minorStep, 1000);
-  const ticks: RulerTick[] = [];
-
-  for (const worldValue of values) {
-    const major = isMultipleOfStep(worldValue, majorStep);
-    ticks.push({
-      worldValue,
-      viewportPos: mapWorldToViewport(worldValue),
-      major,
-      label: major ? formatCm(worldValue / PT_PER_CM) : undefined
-    });
-  }
-
-  return ticks;
-}
-
-function buildValueSequence(min: number, max: number, step: number, maxCount: number): number[] {
-  if (!(step > 0) || !Number.isFinite(min) || !Number.isFinite(max)) return [];
-
-  let startIndex = Math.floor(min / step) - 1;
-  let endIndex = Math.ceil(max / step) + 1;
-
-  if (endIndex < startIndex) {
-    [startIndex, endIndex] = [endIndex, startIndex];
-  }
-
-  const total = endIndex - startIndex + 1;
-  const stride = Math.max(1, Math.ceil(total / maxCount));
-
-  const values: number[] = [];
-  for (let i = startIndex; i <= endIndex; i += stride) {
-    values.push(i * step);
-  }
-  return values;
-}
-
-function clientToWorldPoint(
-  clientX: number,
-  clientY: number,
-  svgElement: SVGSVGElement | null,
-  viewBox: SvgViewBox
-): Point | null {
-  if (!svgElement) return null;
-
-  const ctm = svgElement.getScreenCTM();
-  if (!ctm) return null;
-
-  const point = svgElement.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-
-  const svgPoint = point.matrixTransform(ctm.inverse());
-  return svgToWorldPoint(svgPoint, viewBox);
-}
-
-function clientToSvgPoint(
-  clientX: number,
-  clientY: number,
-  svgElement: SVGSVGElement | null
-): { x: number; y: number } | null {
-  if (!svgElement) {
-    return null;
-  }
-  const ctm = svgElement.getScreenCTM();
-  if (!ctm) {
-    return null;
-  }
-  const point = svgElement.createSVGPoint();
-  point.x = clientX;
-  point.y = clientY;
-  const svgPoint = point.matrixTransform(ctm.inverse());
-  return { x: svgPoint.x, y: svgPoint.y };
-}
-
-function rotatePointAroundCenter(
-  point: { x: number; y: number },
-  cx: number,
-  cy: number,
-  degrees: number
-): { x: number; y: number } {
-  if (Math.abs(degrees) <= 1e-6) {
-    return point;
-  }
-  const theta = (degrees * Math.PI) / 180;
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
-  const dx = point.x - cx;
-  const dy = point.y - cy;
-  return {
-    x: cx + dx * cos - dy * sin,
-    y: cy + dx * sin + dy * cos
-  };
-}
-
-function viewportToSvgPoint(
-  viewportX: number,
-  viewportY: number,
-  transform: CanvasTransform,
-  viewBox: SvgViewBox
-): { x: number; y: number } {
-  const scale = Math.max(transform.scale, 1e-6);
-  return {
-    x: viewBox.x + (viewportX - transform.translateX) / scale,
-    y: viewBox.y + (viewportY - transform.translateY) / scale
-  };
-}
-
-function viewportToWorldPoint(
-  viewportX: number,
-  viewportY: number,
-  transform: CanvasTransform,
-  viewBox: SvgViewBox
-): Point {
-  return svgToWorldPoint(viewportToSvgPoint(viewportX, viewportY, transform, viewBox), viewBox);
-}
-
-function toViewportXFromWorld(worldX: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  return transform.translateX + (worldX - viewBox.x) * transform.scale;
-}
-
-function toViewportYFromWorld(worldY: number, viewBox: SvgViewBox, transform: CanvasTransform): number {
-  const svgY = worldToSvgY(worldY, viewBox);
-  return transform.translateY + (svgY - viewBox.y) * transform.scale;
-}
-
-function worldToSvgPoint(point: { x: number; y: number }, viewBox: Pick<SvgViewBox, "y" | "height">): { x: number; y: number } {
-  return {
-    x: point.x,
-    y: worldToSvgY(point.y, viewBox)
-  };
-}
-
-function worldToSvgY(worldY: number, viewBox: Pick<SvgViewBox, "y" | "height">): number {
-  return viewBox.y + viewBox.height - (worldY - viewBox.y);
-}
-
-function svgToWorldPoint(point: { x: number; y: number }, viewBox: Pick<SvgViewBox, "y" | "height">): Point {
-  return {
-    x: point.x,
-    y: viewBox.y + viewBox.height - (point.y - viewBox.y)
-  };
-}
-
-function encodePathData(commands: ScenePathCommand[], viewBox: Pick<SvgViewBox, "y" | "height">): string {
-  const chunks: string[] = [];
-
-  for (const command of commands) {
-    if (command.kind === "Z") {
-      chunks.push("Z");
-      continue;
-    }
-
-    if (command.kind === "A") {
-      const to = worldToSvgPoint(command.to, viewBox);
-      const sweep = command.sweep ? 0 : 1;
-      chunks.push(
-        `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(-command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${sweep} ${fmt(to.x)} ${fmt(to.y)}`
-      );
-      continue;
-    }
-
-    if (command.kind === "C") {
-      const c1 = worldToSvgPoint(command.c1, viewBox);
-      const c2 = worldToSvgPoint(command.c2, viewBox);
-      const to = worldToSvgPoint(command.to, viewBox);
-      chunks.push(`C ${fmt(c1.x)} ${fmt(c1.y)} ${fmt(c2.x)} ${fmt(c2.y)} ${fmt(to.x)} ${fmt(to.y)}`);
-      continue;
-    }
-
-    const to = worldToSvgPoint(command.to, viewBox);
-    chunks.push(`${command.kind} ${fmt(to.x)} ${fmt(to.y)}`);
-  }
-
-  return chunks.join(" ");
-}
-
 function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): Bounds {
   const theta = (rotation * Math.PI) / 180;
   const cos = Math.cos(theta);
@@ -3732,10 +3279,6 @@ function deriveSelectionTranslationDeltaFromAnchor(
   };
 }
 
-function hasVisibleFill(fill: string | null): boolean {
-  return fill != null && fill !== "none";
-}
-
 function caretStrokeWidthInSvg(fontSizePt: number): number {
   if (!Number.isFinite(fontSizePt) || fontSizePt <= 0) {
     return 0.5;
@@ -3750,47 +3293,6 @@ function estimateTextBlockWidth(text: string, fontSize: number): number {
     return 0;
   }
   return maxChars * fontSize * 0.7;
-}
-
-function pickStepPt(scale: number, targetPixels: number): number {
-  const cmSteps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50];
-  const minStepPt = targetPixels / Math.max(scale, 1e-6);
-
-  for (const cmStep of cmSteps) {
-    const pt = cmStep * PT_PER_CM;
-    if (pt >= minStepPt) return pt;
-  }
-
-  return cmSteps[cmSteps.length - 1]! * PT_PER_CM;
-}
-
-function isMultipleOfStep(value: number, step: number): boolean {
-  if (!(step > 0)) return false;
-  const q = value / step;
-  return Math.abs(q - Math.round(q)) < 1e-4;
-}
-
-function formatCm(valueCm: number): string {
-  if (Math.abs(valueCm) < 1e-8) return "0";
-
-  const rounded2 = Math.round(valueCm * 100) / 100;
-  if (Math.abs(rounded2 - Math.round(rounded2)) < 1e-8) {
-    return String(Math.round(rounded2));
-  }
-
-  if (Math.abs(rounded2 * 10 - Math.round(rounded2 * 10)) < 1e-8) {
-    return rounded2.toFixed(1);
-  }
-
-  return rounded2.toFixed(2);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function fmt(value: number): string {
-  return Number(value.toFixed(4)).toString();
 }
 
 function makeMergeKey(prefix: string, id: string, pointerId: number): string {
@@ -4215,40 +3717,6 @@ function getHandleCursor(
   }
 
   return resizeCursorForVector(bestVector);
-}
-
-function resizeCursorForVector(vector: Point): string {
-  // Convert world-space y-up vector to screen-space y-down.
-  const screenVector = { x: vector.x, y: -vector.y };
-  const angle = ((Math.atan2(screenVector.y, screenVector.x) * 180) / Math.PI + 180) % 180;
-  const candidates: Array<{ angle: number; cursor: string }> = [
-    { angle: 0, cursor: "ew-resize" },
-    { angle: 45, cursor: "nwse-resize" },
-    { angle: 90, cursor: "ns-resize" },
-    { angle: 135, cursor: "nesw-resize" }
-  ];
-
-  let best = candidates[0]!;
-  let bestDiff = Number.POSITIVE_INFINITY;
-  for (const candidate of candidates) {
-    const diff = Math.min(Math.abs(angle - candidate.angle), 180 - Math.abs(angle - candidate.angle));
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = candidate;
-    }
-  }
-
-  return best.cursor;
-}
-
-function vectorLengthSquared(vector: Point): number {
-  return vector.x * vector.x + vector.y * vector.y;
-}
-
-function distanceSquared(a: Point, b: Point): number {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return dx * dx + dy * dy;
 }
 
 function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | null {
