@@ -894,7 +894,543 @@ export function evaluatePathStatement(
     geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, statementStyleChain, span, geometry.rotation));
   };
 
-  const tailItemHandlers = new Map<PathItem["kind"], (item: PathItem) => void>([
+  let currentItemIndex = -1;
+  const itemHandlers = new Map<PathItem["kind"], (item: PathItem) => void>([
+    [
+      "PlotOperation",
+      (pathItem) => {
+        const item = pathItem as PlotOperationItem;
+        const connectFrom = currentOperator === "--" ? context.currentPoint ?? currentPointLogical : null;
+        const localPlotSettings = applyPlotOptionLists(
+          { ...plotSettings },
+          item.options ? [item.options] : [],
+          treeFrameState.macroBindings
+        );
+
+        if (item.mode === "coordinates") {
+          const coordinateEntries = extractPlotCoordinateEntries(item.dataRaw ?? "");
+          if (coordinateEntries.length === 0) {
+            pushDiagnostic(
+              "invalid-plot-coordinates",
+              "Plot coordinates require at least one coordinate entry.",
+              item.span.from,
+              item.span.to
+            );
+            currentOperator = null;
+            return;
+          }
+          const points = evaluatePlotCoordinatePoints(coordinateEntries, item.span, "Plot coordinate issue");
+          emitPlotPath(item, points, localPlotSettings, connectFrom);
+          markFeature("plot_operation", "supported");
+          currentOperator = null;
+          return;
+        }
+
+        if (item.mode === "expression") {
+          const expressionRaw = item.dataRaw?.trim() ?? "";
+          if (expressionRaw.length === 0) {
+            pushDiagnostic("invalid-plot-expression", "Plot expression requires a coordinate expression.", item.span.from, item.span.to);
+            currentOperator = null;
+            return;
+          }
+
+          const variableName = localPlotSettings.variable;
+          const plotMacroBindings = treeFrameState.macroBindings;
+          const sampleValues = resolvePlotSampleValues(localPlotSettings);
+          const entries = sampleValues.map((sampleValue) => {
+            const sampleBinding: MacroBinding = {
+              kind: "text",
+              value: formatPlotSampleValue(sampleValue),
+              provenance: []
+            };
+            const previousBinding = plotMacroBindings.get(variableName);
+            plotMacroBindings.set(variableName, sampleBinding);
+            const expandedExpression = expandMacroBindings(expressionRaw, plotMacroBindings, {
+              maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
+            });
+            if (previousBinding) {
+              plotMacroBindings.set(variableName, previousBinding);
+            } else {
+              plotMacroBindings.delete(variableName);
+            }
+            return { raw: expandedExpression };
+          });
+
+          const points = evaluatePlotCoordinatePoints(entries, item.span, "Plot expression issue");
+          if (points.length === 0) {
+            pushDiagnostic("invalid-plot-expression", "Plot expression did not produce any valid coordinate points.", item.span.from, item.span.to);
+            currentOperator = null;
+            return;
+          }
+          emitPlotPath(item, points, localPlotSettings, connectFrom);
+          markFeature("plot_operation", "supported");
+          currentOperator = null;
+          return;
+        }
+
+        if (item.mode === "function" || item.mode === "file") {
+          markFeature("plot_operation", "unsupported");
+          pushDiagnostic(
+            `unsupported-plot-mode:${item.mode}`,
+            `Plot mode \`${item.mode}\` is not supported yet.`,
+            item.span.from,
+            item.span.to
+          );
+          currentOperator = null;
+          return;
+        }
+
+        markFeature("plot_operation", "unsupported");
+        pushDiagnostic(
+          "invalid-plot-operation",
+          "Could not parse this plot operation.",
+          item.span.from,
+          item.span.to
+        );
+        currentOperator = null;
+      }
+    ],
+    [
+      "PathOption",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "PathOption" }>;
+        if (pendingCircleCenter) {
+          const parsed = extractCircleShapeOptions(item);
+          if (parsed.radius != null) {
+            pendingCircleRadius = parsed.radius;
+            pendingCircleRadii = null;
+          } else if (parsed.rx != null && parsed.ry != null) {
+            pendingCircleRadius = null;
+            pendingCircleRadii = { rx: parsed.rx, ry: parsed.ry };
+          }
+          if (parsed.rotation != null) {
+            pendingCircleRotation = parsed.rotation;
+          }
+        }
+
+        if (pendingEllipseCenter) {
+          pendingEllipseRadii = extractEllipseRadii(item, pushDiagnostic);
+        }
+
+        if (pendingArc) {
+          const arcParams = extractArcParameters(item, pushDiagnostic, style);
+          if (arcParams) {
+            let path: ScenePath | null = activePath;
+            if (!path) {
+              path = makePath(statement.id, item.id, style, statementStyleChain, item.span);
+              path.commands.push({ kind: "M", to: pendingArc.from });
+            }
+            const appended = appendArcCommand(path.commands, pendingArc.from, arcParams, frameTransform);
+            activePath = path;
+            setCurrentPoint(appended.endpoint);
+            lastPlacementSegment = appended.segment;
+            previousSegmentRoundedCorners = activeRoundedCorners;
+            markFeature("keyword_arc", "supported");
+            markFeature("svg_path", "supported");
+            pendingArc = null;
+          }
+        }
+
+        if (pendingGrid) {
+          const parsed = extractGridSteps(item, pushDiagnostic, context);
+          if (parsed) {
+            if (parsed.stepX != null && parsed.stepX >= 0) {
+              pendingGrid.stepX = parsed.stepX;
+            }
+            if (parsed.stepY != null && parsed.stepY >= 0) {
+              pendingGrid.stepY = parsed.stepY;
+            }
+          }
+        }
+
+        const rounded = extractRoundedCorners(item.options, activeRoundedCorners);
+        if (rounded !== undefined) {
+          activeRoundedCorners = rounded;
+        }
+
+        const isLeadingPathOption = !sawNonLeadingPathItem;
+        if (item.options && !isLeadingPathOption) {
+          const optionSourceRef = {
+            sourceId: item.id,
+            sourceSpan: item.span,
+            sourceKind: "path-option-item",
+            label: "path option"
+          } as const;
+          const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
+          const optionResolved = resolveContextDelta(
+            treeFrameState.style,
+            treeFrameState.transform,
+            [
+              {
+                kind: "scope",
+                sourceRef: optionSourceRef,
+                rawOptions: [item.options]
+              }
+            ],
+            optionCustomStyles,
+            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+            treeFrameState.styleChain
+          );
+          for (const code of optionResolved.diagnostics) {
+            pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
+          }
+
+          const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
+
+          treeFrameState = {
+            ...treeFrameState,
+            ...optionMeta,
+            style: optionResolved.style,
+            styleChain: optionResolved.chain,
+            transform: optionResolved.transform,
+            customStyles: optionCustomStyles
+          };
+          style = treeFrameState.style;
+          statementStyleChain = treeFrameState.styleChain;
+          plotSettings = applyPlotSettingsFromStyleChain(
+            createDefaultPlotSettings(),
+            treeFrameState.styleChain,
+            treeFrameState.macroBindings
+          );
+          shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
+        }
+      }
+    ],
+    [
+      "Node",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "Node" }>;
+        const adornmentPlan = extractNodeAdornmentPlan(item.options, {
+          quoteMode: frame.nodeQuotesMode,
+          labelPosition: frame.labelPosition,
+          pinPosition: frame.pinPosition,
+          labelDistancePt: frame.labelDistancePt,
+          pinDistancePt: frame.pinDistancePt,
+          pinEdgeRaw: frame.pinEdgeRaw
+        });
+        const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
+        const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, currentItemIndex + 1);
+        const existingTreeParent = treeParentCandidate as
+          | { nameRaw: string | null; point: Point; span: { from: number; to: number } }
+          | null;
+        const synthesizedTreeNodeName: string | null =
+          hasFollowingTreeChildren && !declaredNodeName
+            ? makeTreeAutoName(existingTreeParent?.nameRaw ?? null, statement.id, item.id, currentItemIndex + 1, frame.treeLevel)
+            : null;
+        if (synthesizedTreeNodeName) {
+          markFeature("tree_auto_naming", "supported");
+        }
+        const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
+        const synthesizedMainNodeName =
+          adornmentPlan.adornments.length > 0 && !declaredNodeName
+            ? `adornment_main_${sanitizeGeneratedNodeName(statement.id)}_${currentItemIndex}`
+            : null;
+        const forcedMainNodeName: string | undefined =
+          pendingNodeNameForNodeCommand ?? synthesizedMainNodeName ?? synthesizedTreeNodeName ?? undefined;
+        const nodeBase = trailingCoordinateRaw ? { ...item, name: undefined } : item;
+        const nodeItem = {
+          ...nodeBase,
+          options: adornmentPlan.mainOptions,
+          optionsSpan: adornmentPlan.mainOptions?.span
+        };
+        const standaloneNodeDefaultTarget = statement.command === "node" && !hasPathCurrentPoint ? defaultPathOrigin : undefined;
+        const resolvedNode = evaluateNodeItem(
+          nodeItem,
+          statement,
+          context,
+          style,
+          markFeature,
+          pushDiagnostic,
+          lastPlacementSegment,
+          forcedMainNodeName,
+          undefined,
+          standaloneNodeDefaultTarget,
+          statementStyleChain
+        );
+        pendingNodeNameForNodeCommand = null;
+        const edgeStartName = declaredNodeName ?? forcedMainNodeName;
+        pendingEdgeStartCoordinateRaw = edgeStartName ? `(${edgeStartName.trim()})` : null;
+        behindNodeElements.push(...resolvedNode.behindElements);
+        frontNodeElements.push(...resolvedNode.frontElements);
+
+        const treeParentNameCandidate: string | null = forcedMainNodeName ?? declaredNodeName;
+        if (treeParentNameCandidate && treeParentNameCandidate.trim().length > 0) {
+          const scopedTreeParentName = applyNameScope(treeParentNameCandidate, context);
+          const treeParentPoint: Point | undefined =
+            context.namedCoordinates.get(scopedTreeParentName) ??
+            context.namedCoordinates.get(treeParentNameCandidate) ??
+            existingTreeParent?.point;
+          if (treeParentPoint) {
+            treeParentCandidate = {
+              nameRaw: scopedTreeParentName,
+              point: treeParentPoint,
+              span: item.span
+            };
+          }
+        }
+
+        const mainNodeNameRaw = forcedMainNodeName ?? declaredNodeName;
+        if (mainNodeNameRaw) {
+          for (let adornmentIndex = 0; adornmentIndex < adornmentPlan.adornments.length; adornmentIndex += 1) {
+            const spec = adornmentPlan.adornments[adornmentIndex];
+            const materialized = materializeNodeAdornment({
+              spec,
+              context,
+              mainNodeNameRaw,
+              ownerId: item.id,
+              adornmentIndex
+            });
+            const resolvedAdornment = evaluateNodeItem(
+              materialized.node,
+              statement,
+              context,
+              style,
+              markFeature,
+              pushDiagnostic,
+              null,
+              materialized.node.name,
+              undefined,
+              undefined,
+              statementStyleChain
+            );
+            behindNodeElements.push(...resolvedAdornment.behindElements);
+            frontNodeElements.push(...resolvedAdornment.frontElements);
+
+            if (spec.kind === "pin" && materialized.node.name && materialized.mainPoint) {
+              const pinEdgeItem: EdgeOperationItem = {
+                kind: "EdgeOperation",
+                id: `${item.id}:pin-edge:${adornmentIndex}`,
+                span: spec.span,
+                optionsSpan: undefined,
+                options: undefined,
+                nodes: undefined,
+                target: {
+                  kind: "coordinate",
+                  raw: `(${materialized.node.name})`
+                },
+                raw: `edge (${materialized.node.name})`
+              };
+
+              const pinEdgeOptionLayers: StyleTraceLayerInput[] = [];
+              const helpLinesOptions = parseStyleValueAsOptionList("help lines");
+              if (helpLinesOptions) {
+                pinEdgeOptionLayers.push({
+                  kind: "command",
+                  sourceRef: {
+                    sourceId: pinEdgeItem.id,
+                    sourceSpan: spec.span,
+                    sourceKind: "pin-edge-default",
+                    label: "help lines"
+                  },
+                  rawOptions: [helpLinesOptions]
+                });
+              }
+              if (materialized.pinEdgeOptions) {
+                pinEdgeOptionLayers.push({
+                  kind: "command",
+                  sourceRef: {
+                    sourceId: pinEdgeItem.id,
+                    sourceSpan: materialized.pinEdgeOptions.span,
+                    sourceKind: "pin-edge-options",
+                    label: "pin edge"
+                  },
+                  rawOptions: [materialized.pinEdgeOptions]
+                });
+              }
+              const resolvedPinEdgeStyle = resolveContextDelta(
+                style,
+                frameTransform,
+                pinEdgeOptionLayers,
+                frame.customStyles,
+                (raw) => evaluateRawCoordinate(raw, context).world,
+                statementStyleChain
+              );
+              for (const code of resolvedPinEdgeStyle.diagnostics) {
+                pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
+              }
+
+              const pinEdge = applyEdgeOperation(
+                pinEdgeItem,
+                context,
+                statement,
+                resolvedPinEdgeStyle.style,
+                resolvedPinEdgeStyle.chain,
+                markFeature,
+                pushDiagnostic,
+                materialized.mainPoint,
+                `(${materialized.mainNameRaw})`
+              );
+              if (pinEdge.activePath && hasDrawablePathSegments(pinEdge.activePath)) {
+                frontNodeElements.push(...pinEdge.behindNodeElements);
+                frontNodeElements.push(pinEdge.activePath);
+                frontNodeElements.push(...pinEdge.frontNodeElements);
+              } else {
+                frontNodeElements.push(...pinEdge.behindNodeElements, ...pinEdge.frontNodeElements);
+              }
+            }
+          }
+        }
+
+        if (trailingCoordinateRaw) {
+          const trailingCoordinate = evaluateRawCoordinate(trailingCoordinateRaw, context);
+          if (trailingCoordinate.world) {
+            if (activePath) {
+              activePath.commands.push({ kind: "M", to: trailingCoordinate.world });
+            }
+            setCurrentPoint(trailingCoordinate.world);
+            context.pathStartPoint = trailingCoordinate.world;
+            lastPlacementSegment = null;
+            previousSegmentRoundedCorners = null;
+          } else {
+            for (const code of trailingCoordinate.diagnostics) {
+              pushDiagnostic(code, `Node trailing coordinate issue: ${code}`, item.span.from, item.span.to);
+            }
+          }
+        }
+      }
+    ],
+    [
+      "DecorateOperation",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "DecorateOperation" }>;
+        markFeature("decorate_operation", "supported");
+        activePath = flushDrawableActivePath(geometryElements, activePath);
+        previousSegmentRoundedCorners = null;
+        pendingRectangleFrom = null;
+        pendingCircleCenter = null;
+        pendingCircleRadius = null;
+        pendingCircleRadii = null;
+        pendingCircleRotation = 0;
+        pendingEllipseCenter = null;
+        pendingEllipseRadii = null;
+        pendingArc = null;
+        pendingGrid = null;
+
+        const raw = item.subpathRaw.trim();
+        const subpathBody = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
+        const parseResult = parseTikz(`\\begin{tikzpicture}\\path ${subpathBody};\\end{tikzpicture}`, { recover: true });
+        for (const diagnostic of parseResult.diagnostics) {
+          if (diagnostic.severity !== "error") {
+            continue;
+          }
+          pushDiagnostic(
+            diagnostic.code ?? "decorate-operation-parse-error",
+            `Decorate operation parse issue: ${diagnostic.message}`,
+            item.subpathSpan.from,
+            item.subpathSpan.to
+          );
+        }
+
+        const normalizedSubpathBody = subpathBody.trim();
+        const hasSelfReferentialDecorate = parseResult.figure.body.some((candidate) => {
+          if (candidate.kind !== "Path" || candidate.items.length !== 1) {
+            return false;
+          }
+          const onlyItem = candidate.items[0];
+          return onlyItem?.kind === "DecorateOperation" && onlyItem.subpathRaw.trim() === normalizedSubpathBody;
+        });
+        if (hasSelfReferentialDecorate) {
+          pushDiagnostic(
+            "invalid-decorate-operation",
+            "Decorate operation requires a decorated subpath.",
+            item.subpathSpan.from,
+            item.subpathSpan.to
+          );
+          return;
+        }
+
+        let operationStyle = style;
+        if (item.options) {
+          const resolvedDecorateOptions = resolveContextDelta(
+            style,
+            frameTransform,
+            [
+              {
+                kind: "command",
+                sourceRef: {
+                  sourceId: item.id,
+                  sourceSpan: item.optionsSpan ?? item.span,
+                  sourceKind: "decorate-operation",
+                  label: "decorate"
+                },
+                rawOptions: [item.options]
+              }
+            ],
+            frame.customStyles,
+            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+            statementStyleChain
+          );
+          operationStyle = {
+            ...resolvedDecorateOptions.style,
+            decoration: {
+              ...resolvedDecorateOptions.style.decoration,
+              enabled: true,
+              params: { ...resolvedDecorateOptions.style.decoration.params }
+            }
+          };
+          for (const code of resolvedDecorateOptions.diagnostics) {
+            pushDiagnostic(code, `Decorate option issue: ${code}`, item.span.from, item.span.to);
+          }
+        } else {
+          operationStyle = {
+            ...style,
+            decoration: {
+              ...style.decoration,
+              enabled: true,
+              params: { ...style.decoration.params }
+            }
+          };
+        }
+
+        for (const nestedStatement of parseResult.figure.body) {
+          if (nestedStatement.kind !== "Path") {
+            continue;
+          }
+          const nestedElements = evaluatePathStatement(nestedStatement, context, operationStyle, markFeature, pushDiagnostic);
+          geometryElements.push(...nestedElements);
+        }
+      }
+    ],
+    [
+      "CoordinateOperation",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "CoordinateOperation" }>;
+        const parsedName = item.name?.trim() || parseCoordinateOperation(item.raw)?.name;
+        if (!parsedName) {
+          pushDiagnostic("invalid-coordinate-operation", "Could not parse coordinate operation.", item.span.from, item.span.to);
+          return;
+        }
+
+        const nextItem = statement.items[currentItemIndex + 1];
+        const nextCoordinate = statement.items[currentItemIndex + 2];
+        if (nextItem?.kind === "PathKeyword" && nextItem.keyword === "at" && nextCoordinate?.kind === "Coordinate") {
+          pendingNamedCoordinate = { name: parsedName };
+        } else {
+          const placementFraction = resolveNodePositionFraction(item.options);
+          if (placementFraction != null && currentOperator) {
+            pendingSegmentPlacements.push({ name: parsedName, fraction: placementFraction });
+            markFeature("named_coordinates", "supported");
+            return;
+          }
+
+          const capturePoint =
+            placementFraction != null && lastPlacementSegment
+              ? pointAtPlacementSegment(lastPlacementSegment, placementFraction)
+              : currentPointLogical ?? context.currentPoint;
+          if (capturePoint) {
+            context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
+          } else {
+            pushDiagnostic(
+              "invalid-coordinate-operation",
+              "Coordinate operation requires `at (...)` or an existing current point.",
+              item.span.from,
+              item.span.to
+            );
+          }
+        }
+        markFeature("named_coordinates", "supported");
+      }
+    ],
     [
       "UnknownPathItem",
       () => {}
@@ -1087,7 +1623,7 @@ export function evaluatePathStatement(
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
-    const isLeadingPathOption = item.kind === "PathOption" && !sawNonLeadingPathItem;
+    currentItemIndex = index;
     if (item.kind !== "PathComment" && item.kind !== "PathOption") {
       sawNonLeadingPathItem = true;
     }
@@ -1798,197 +2334,10 @@ export function evaluatePathStatement(
       continue;
     }
 
-    if (item.kind === "PlotOperation") {
-      const connectFrom = currentOperator === "--" ? context.currentPoint ?? currentPointLogical : null;
-      const localPlotSettings = applyPlotOptionLists(
-        { ...plotSettings },
-        item.options ? [item.options] : [],
-        treeFrameState.macroBindings
-      );
-
-      if (item.mode === "coordinates") {
-        const coordinateEntries = extractPlotCoordinateEntries(item.dataRaw ?? "");
-        if (coordinateEntries.length === 0) {
-          pushDiagnostic(
-            "invalid-plot-coordinates",
-            "Plot coordinates require at least one coordinate entry.",
-            item.span.from,
-            item.span.to
-          );
-          currentOperator = null;
-          continue;
-        }
-        const points = evaluatePlotCoordinatePoints(coordinateEntries, item.span, "Plot coordinate issue");
-        emitPlotPath(item, points, localPlotSettings, connectFrom);
-        markFeature("plot_operation", "supported");
-        currentOperator = null;
-        continue;
-      }
-
-      if (item.mode === "expression") {
-        const expressionRaw = item.dataRaw?.trim() ?? "";
-        if (expressionRaw.length === 0) {
-          pushDiagnostic("invalid-plot-expression", "Plot expression requires a coordinate expression.", item.span.from, item.span.to);
-          currentOperator = null;
-          continue;
-        }
-
-        const variableName = localPlotSettings.variable;
-        const plotMacroBindings = treeFrameState.macroBindings;
-        const sampleValues = resolvePlotSampleValues(localPlotSettings);
-        const entries = sampleValues.map((sampleValue) => {
-          const sampleBinding: MacroBinding = {
-            kind: "text",
-            value: formatPlotSampleValue(sampleValue),
-            provenance: []
-          };
-          const previousBinding = plotMacroBindings.get(variableName);
-          plotMacroBindings.set(variableName, sampleBinding);
-          const expandedExpression = expandMacroBindings(expressionRaw, plotMacroBindings, {
-            maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
-          });
-          if (previousBinding) {
-            plotMacroBindings.set(variableName, previousBinding);
-          } else {
-            plotMacroBindings.delete(variableName);
-          }
-          return { raw: expandedExpression };
-        });
-
-        const points = evaluatePlotCoordinatePoints(entries, item.span, "Plot expression issue");
-        if (points.length === 0) {
-          pushDiagnostic("invalid-plot-expression", "Plot expression did not produce any valid coordinate points.", item.span.from, item.span.to);
-          currentOperator = null;
-          continue;
-        }
-        emitPlotPath(item, points, localPlotSettings, connectFrom);
-        markFeature("plot_operation", "supported");
-        currentOperator = null;
-        continue;
-      }
-
-      if (item.mode === "function" || item.mode === "file") {
-        markFeature("plot_operation", "unsupported");
-        pushDiagnostic(
-          `unsupported-plot-mode:${item.mode}`,
-          `Plot mode \`${item.mode}\` is not supported yet.`,
-          item.span.from,
-          item.span.to
-        );
-        currentOperator = null;
-        continue;
-      }
-
-      markFeature("plot_operation", "unsupported");
-      pushDiagnostic(
-        "invalid-plot-operation",
-        "Could not parse this plot operation.",
-        item.span.from,
-        item.span.to
-      );
-      currentOperator = null;
-      continue;
-    }
-
-    if (item.kind === "PathOption") {
-      if (pendingCircleCenter) {
-        const parsed = extractCircleShapeOptions(item);
-        if (parsed.radius != null) {
-          pendingCircleRadius = parsed.radius;
-          pendingCircleRadii = null;
-        } else if (parsed.rx != null && parsed.ry != null) {
-          pendingCircleRadius = null;
-          pendingCircleRadii = { rx: parsed.rx, ry: parsed.ry };
-        }
-        if (parsed.rotation != null) {
-          pendingCircleRotation = parsed.rotation;
-        }
-      }
-
-      if (pendingEllipseCenter) {
-        pendingEllipseRadii = extractEllipseRadii(item, pushDiagnostic);
-      }
-
-      if (pendingArc) {
-        const arcParams = extractArcParameters(item, pushDiagnostic, style);
-        if (arcParams) {
-          let path: ScenePath | null = activePath;
-          if (!path) {
-            path = makePath(statement.id, item.id, style, statementStyleChain, item.span);
-            path.commands.push({ kind: "M", to: pendingArc.from });
-          }
-          const appended = appendArcCommand(path.commands, pendingArc.from, arcParams, frameTransform);
-          activePath = path;
-          setCurrentPoint(appended.endpoint);
-          lastPlacementSegment = appended.segment;
-          previousSegmentRoundedCorners = activeRoundedCorners;
-          markFeature("keyword_arc", "supported");
-          markFeature("svg_path", "supported");
-          pendingArc = null;
-        }
-      }
-
-      if (pendingGrid) {
-        const parsed = extractGridSteps(item, pushDiagnostic, context);
-        if (parsed) {
-          if (parsed.stepX != null && parsed.stepX >= 0) {
-            pendingGrid.stepX = parsed.stepX;
-          }
-          if (parsed.stepY != null && parsed.stepY >= 0) {
-            pendingGrid.stepY = parsed.stepY;
-          }
-        }
-      }
-
-      const rounded = extractRoundedCorners(item.options, activeRoundedCorners);
-      if (rounded !== undefined) {
-        activeRoundedCorners = rounded;
-      }
-
-      if (item.options && !isLeadingPathOption) {
-        const optionSourceRef = {
-          sourceId: item.id,
-          sourceSpan: item.span,
-          sourceKind: "path-option-item",
-          label: "path option"
-        } as const;
-        const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
-        const optionResolved = resolveContextDelta(
-          treeFrameState.style,
-          treeFrameState.transform,
-          [
-            {
-              kind: "scope",
-              sourceRef: optionSourceRef,
-              rawOptions: [item.options]
-            }
-          ],
-          optionCustomStyles,
-          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-          treeFrameState.styleChain
-        );
-        for (const code of optionResolved.diagnostics) {
-          pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
-        }
-
-        const optionMeta = resolveFrameMeta(treeFrameState, optionResolved.expandedOptionLists, optionSourceRef);
-
-        treeFrameState = {
-          ...treeFrameState,
-          ...optionMeta,
-          style: optionResolved.style,
-          styleChain: optionResolved.chain,
-          transform: optionResolved.transform,
-          customStyles: optionCustomStyles
-        };
-        style = treeFrameState.style;
-        statementStyleChain = treeFrameState.styleChain;
-        plotSettings = applyPlotSettingsFromStyleChain(
-          createDefaultPlotSettings(),
-          treeFrameState.styleChain,
-          treeFrameState.macroBindings
-        );
-        shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
+    if (item.kind === "PlotOperation" || item.kind === "PathOption") {
+      const mappedHandler = itemHandlers.get(item.kind);
+      if (mappedHandler) {
+        mappedHandler(item);
       }
       continue;
     }
@@ -2395,341 +2744,19 @@ export function evaluatePathStatement(
       continue;
     }
 
-    if (item.kind === "Node") {
-      const adornmentPlan = extractNodeAdornmentPlan(item.options, {
-        quoteMode: frame.nodeQuotesMode,
-        labelPosition: frame.labelPosition,
-        pinPosition: frame.pinPosition,
-        labelDistancePt: frame.labelDistancePt,
-        pinDistancePt: frame.pinDistancePt,
-        pinEdgeRaw: frame.pinEdgeRaw
-      });
-      const declaredNodeName = pendingNodeNameForNodeCommand ?? item.name ?? null;
-      const hasFollowingTreeChildren = hasFollowingChildOperation(statement.items, index + 1);
-      const existingTreeParent = treeParentCandidate as
-        | { nameRaw: string | null; point: Point; span: { from: number; to: number } }
-        | null;
-      const synthesizedTreeNodeName: string | null =
-        hasFollowingTreeChildren && !declaredNodeName
-          ? makeTreeAutoName(existingTreeParent?.nameRaw ?? null, statement.id, item.id, index + 1, frame.treeLevel)
-          : null;
-      if (synthesizedTreeNodeName) {
-        markFeature("tree_auto_naming", "supported");
-      }
-      const trailingCoordinateRaw = maybeResolveTrailingCoordinateFromNodeName(item.name);
-      const synthesizedMainNodeName =
-        adornmentPlan.adornments.length > 0 && !declaredNodeName
-          ? `adornment_main_${sanitizeGeneratedNodeName(statement.id)}_${index}`
-          : null;
-      const forcedMainNodeName: string | undefined =
-        pendingNodeNameForNodeCommand ?? synthesizedMainNodeName ?? synthesizedTreeNodeName ?? undefined;
-      const nodeBase = trailingCoordinateRaw ? { ...item, name: undefined } : item;
-      const nodeItem = {
-        ...nodeBase,
-        options: adornmentPlan.mainOptions,
-        optionsSpan: adornmentPlan.mainOptions?.span
-      };
-      const standaloneNodeDefaultTarget = statement.command === "node" && !hasPathCurrentPoint ? defaultPathOrigin : undefined;
-      const resolvedNode = evaluateNodeItem(
-        nodeItem,
-        statement,
-        context,
-        style,
-        markFeature,
-        pushDiagnostic,
-        lastPlacementSegment,
-        forcedMainNodeName,
-        undefined,
-        standaloneNodeDefaultTarget,
-        statementStyleChain
-      );
-      pendingNodeNameForNodeCommand = null;
-      const edgeStartName = declaredNodeName ?? forcedMainNodeName;
-      pendingEdgeStartCoordinateRaw = edgeStartName ? `(${edgeStartName.trim()})` : null;
-      behindNodeElements.push(...resolvedNode.behindElements);
-      frontNodeElements.push(...resolvedNode.frontElements);
-
-      const treeParentNameCandidate: string | null = forcedMainNodeName ?? declaredNodeName;
-      if (treeParentNameCandidate && treeParentNameCandidate.trim().length > 0) {
-        const scopedTreeParentName = applyNameScope(treeParentNameCandidate, context);
-        const treeParentPoint: Point | undefined =
-          context.namedCoordinates.get(scopedTreeParentName) ??
-          context.namedCoordinates.get(treeParentNameCandidate) ??
-          existingTreeParent?.point;
-        if (treeParentPoint) {
-          treeParentCandidate = {
-            nameRaw: scopedTreeParentName,
-            point: treeParentPoint,
-            span: item.span
-          };
-        }
-      }
-
-      const mainNodeNameRaw = forcedMainNodeName ?? declaredNodeName;
-      if (mainNodeNameRaw) {
-        for (let adornmentIndex = 0; adornmentIndex < adornmentPlan.adornments.length; adornmentIndex += 1) {
-          const spec = adornmentPlan.adornments[adornmentIndex];
-          const materialized = materializeNodeAdornment({
-            spec,
-            context,
-            mainNodeNameRaw,
-            ownerId: item.id,
-            adornmentIndex
-          });
-          const resolvedAdornment = evaluateNodeItem(
-            materialized.node,
-            statement,
-            context,
-            style,
-            markFeature,
-            pushDiagnostic,
-            null,
-            materialized.node.name,
-            undefined,
-            undefined,
-            statementStyleChain
-          );
-          behindNodeElements.push(...resolvedAdornment.behindElements);
-          frontNodeElements.push(...resolvedAdornment.frontElements);
-
-          if (spec.kind === "pin" && materialized.node.name && materialized.mainPoint) {
-            const pinEdgeItem: EdgeOperationItem = {
-              kind: "EdgeOperation",
-              id: `${item.id}:pin-edge:${adornmentIndex}`,
-              span: spec.span,
-              optionsSpan: undefined,
-              options: undefined,
-              nodes: undefined,
-              target: {
-                kind: "coordinate",
-                raw: `(${materialized.node.name})`
-              },
-              raw: `edge (${materialized.node.name})`
-            };
-
-            const pinEdgeOptionLayers: StyleTraceLayerInput[] = [];
-            const helpLinesOptions = parseStyleValueAsOptionList("help lines");
-            if (helpLinesOptions) {
-              pinEdgeOptionLayers.push({
-                kind: "command",
-                sourceRef: {
-                  sourceId: pinEdgeItem.id,
-                  sourceSpan: spec.span,
-                  sourceKind: "pin-edge-default",
-                  label: "help lines"
-                },
-                rawOptions: [helpLinesOptions]
-              });
-            }
-            if (materialized.pinEdgeOptions) {
-              pinEdgeOptionLayers.push({
-                kind: "command",
-                sourceRef: {
-                  sourceId: pinEdgeItem.id,
-                  sourceSpan: materialized.pinEdgeOptions.span,
-                  sourceKind: "pin-edge-options",
-                  label: "pin edge"
-                },
-                rawOptions: [materialized.pinEdgeOptions]
-              });
-            }
-            const resolvedPinEdgeStyle = resolveContextDelta(
-              style,
-              frameTransform,
-              pinEdgeOptionLayers,
-              frame.customStyles,
-              (raw) => evaluateRawCoordinate(raw, context).world,
-              statementStyleChain
-            );
-            for (const code of resolvedPinEdgeStyle.diagnostics) {
-              pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
-            }
-
-            const pinEdge = applyEdgeOperation(
-              pinEdgeItem,
-              context,
-              statement,
-              resolvedPinEdgeStyle.style,
-              resolvedPinEdgeStyle.chain,
-              markFeature,
-              pushDiagnostic,
-              materialized.mainPoint,
-              `(${materialized.mainNameRaw})`
-            );
-            if (pinEdge.activePath && hasDrawablePathSegments(pinEdge.activePath)) {
-              frontNodeElements.push(...pinEdge.behindNodeElements);
-              frontNodeElements.push(pinEdge.activePath);
-              frontNodeElements.push(...pinEdge.frontNodeElements);
-            } else {
-              frontNodeElements.push(...pinEdge.behindNodeElements, ...pinEdge.frontNodeElements);
-            }
-          }
-        }
-      }
-
-      if (trailingCoordinateRaw) {
-        const trailingCoordinate = evaluateRawCoordinate(trailingCoordinateRaw, context);
-        if (trailingCoordinate.world) {
-          if (activePath) {
-            activePath.commands.push({ kind: "M", to: trailingCoordinate.world });
-          }
-          setCurrentPoint(trailingCoordinate.world);
-          context.pathStartPoint = trailingCoordinate.world;
-          lastPlacementSegment = null;
-          previousSegmentRoundedCorners = null;
-        } else {
-          for (const code of trailingCoordinate.diagnostics) {
-            pushDiagnostic(code, `Node trailing coordinate issue: ${code}`, item.span.from, item.span.to);
-          }
-        }
+    if (
+      item.kind === "Node" ||
+      item.kind === "DecorateOperation" ||
+      item.kind === "CoordinateOperation"
+    ) {
+      const mappedHandler = itemHandlers.get(item.kind);
+      if (mappedHandler) {
+        mappedHandler(item);
       }
       continue;
     }
 
-    if (item.kind === "DecorateOperation") {
-      markFeature("decorate_operation", "supported");
-      activePath = flushDrawableActivePath(geometryElements, activePath);
-      previousSegmentRoundedCorners = null;
-      pendingRectangleFrom = null;
-      pendingCircleCenter = null;
-      pendingCircleRadius = null;
-      pendingCircleRadii = null;
-      pendingCircleRotation = 0;
-      pendingEllipseCenter = null;
-      pendingEllipseRadii = null;
-      pendingArc = null;
-      pendingGrid = null;
-
-      const raw = item.subpathRaw.trim();
-      const subpathBody = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
-      const parseResult = parseTikz(`\\begin{tikzpicture}\\path ${subpathBody};\\end{tikzpicture}`, { recover: true });
-      for (const diagnostic of parseResult.diagnostics) {
-        if (diagnostic.severity !== "error") {
-          continue;
-        }
-        pushDiagnostic(
-          diagnostic.code ?? "decorate-operation-parse-error",
-          `Decorate operation parse issue: ${diagnostic.message}`,
-          item.subpathSpan.from,
-          item.subpathSpan.to
-        );
-      }
-
-      // Guard against malformed decorate operations with no decorated subpath.
-      // In that shape the parser may produce a self-referential decorate item that
-      // would recurse indefinitely through evaluatePathStatement.
-      const normalizedSubpathBody = subpathBody.trim();
-      const hasSelfReferentialDecorate = parseResult.figure.body.some((candidate) => {
-        if (candidate.kind !== "Path" || candidate.items.length !== 1) {
-          return false;
-        }
-        const onlyItem = candidate.items[0];
-        return onlyItem?.kind === "DecorateOperation" && onlyItem.subpathRaw.trim() === normalizedSubpathBody;
-      });
-      if (hasSelfReferentialDecorate) {
-        pushDiagnostic(
-          "invalid-decorate-operation",
-          "Decorate operation requires a decorated subpath.",
-          item.subpathSpan.from,
-          item.subpathSpan.to
-        );
-        continue;
-      }
-
-      let operationStyle = style;
-      let operationStyleChain = statementStyleChain;
-      if (item.options) {
-        const resolvedDecorateOptions = resolveContextDelta(
-          style,
-          frameTransform,
-          [
-            {
-              kind: "command",
-              sourceRef: {
-                sourceId: item.id,
-                sourceSpan: item.optionsSpan ?? item.span,
-                sourceKind: "decorate-operation",
-                label: "decorate"
-              },
-              rawOptions: [item.options]
-            }
-          ],
-          frame.customStyles,
-          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-          statementStyleChain
-        );
-        operationStyle = {
-          ...resolvedDecorateOptions.style,
-          decoration: {
-            ...resolvedDecorateOptions.style.decoration,
-            enabled: true,
-            params: { ...resolvedDecorateOptions.style.decoration.params }
-          }
-        };
-        operationStyleChain = resolvedDecorateOptions.chain;
-        for (const code of resolvedDecorateOptions.diagnostics) {
-          pushDiagnostic(code, `Decorate option issue: ${code}`, item.span.from, item.span.to);
-        }
-      } else {
-        operationStyle = {
-          ...style,
-          decoration: {
-            ...style.decoration,
-            enabled: true,
-            params: { ...style.decoration.params }
-          }
-        };
-      }
-
-      for (const nestedStatement of parseResult.figure.body) {
-        if (nestedStatement.kind !== "Path") {
-          continue;
-        }
-        const nestedElements = evaluatePathStatement(nestedStatement, context, operationStyle, markFeature, pushDiagnostic);
-        geometryElements.push(...nestedElements);
-      }
-      continue;
-    }
-
-    if (item.kind === "CoordinateOperation") {
-      const parsedName = item.name?.trim() || parseCoordinateOperation(item.raw)?.name;
-      if (!parsedName) {
-        pushDiagnostic("invalid-coordinate-operation", "Could not parse coordinate operation.", item.span.from, item.span.to);
-        continue;
-      }
-
-      const nextItem = statement.items[index + 1];
-      const nextCoordinate = statement.items[index + 2];
-      if (nextItem?.kind === "PathKeyword" && nextItem.keyword === "at" && nextCoordinate?.kind === "Coordinate") {
-        pendingNamedCoordinate = { name: parsedName };
-      } else {
-        const placementFraction = resolveNodePositionFraction(item.options);
-        if (placementFraction != null && currentOperator) {
-          pendingSegmentPlacements.push({ name: parsedName, fraction: placementFraction });
-          markFeature("named_coordinates", "supported");
-          continue;
-        }
-
-        const capturePoint =
-          placementFraction != null && lastPlacementSegment
-            ? pointAtPlacementSegment(lastPlacementSegment, placementFraction)
-            : currentPointLogical ?? context.currentPoint;
-        if (capturePoint) {
-          context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
-        } else {
-          pushDiagnostic(
-            "invalid-coordinate-operation",
-            "Coordinate operation requires `at (...)` or an existing current point.",
-            item.span.from,
-            item.span.to
-          );
-        }
-      }
-      markFeature("named_coordinates", "supported");
-      continue;
-    }
-
-    const tailHandler = tailItemHandlers.get(item.kind);
+    const tailHandler = itemHandlers.get(item.kind);
     if (tailHandler) {
       tailHandler(item);
       continue;
