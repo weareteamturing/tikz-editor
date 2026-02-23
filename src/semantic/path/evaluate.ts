@@ -1063,6 +1063,21 @@ export function evaluatePathStatement(
           const edge = plan.edges[edgeIndex]!;
           const startCoordinateRaw = `(${edge.from})`;
           const targetCoordinateRaw = `(${edge.to})`;
+          const graphEdgeNodes: NodeItem[] | undefined =
+            edge.nodes && edge.nodes.length > 0
+              ? edge.nodes.map((node, nodeIndex): NodeItem => ({
+                  kind: "Node",
+                  id: `${item.id}:graph-edge:${edgeIndex}:node:${nodeIndex}`,
+                  span: node.span,
+                  raw: node.text,
+                  templateRaw: node.text,
+                  optionsSpan: node.options?.span,
+                  options: node.options,
+                  textSource: "group",
+                  textSpan: node.span,
+                  text: node.text
+                }))
+              : undefined;
           const startEvaluation = evaluateRawCoordinate(startCoordinateRaw, context);
           for (const code of startEvaluation.diagnostics) {
             pushDiagnostic(code, `Graph edge start issue: ${code}`, edge.span.from, edge.span.to);
@@ -1083,6 +1098,7 @@ export function evaluatePathStatement(
             span: edge.span,
             optionsSpan: edge.options?.span,
             options: edge.options,
+            nodes: graphEdgeNodes,
             target: {
               kind: "coordinate",
               raw: targetCoordinateRaw,
