@@ -19,6 +19,7 @@ import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
   evaluateNodeItem,
+  measureNodeAnchorExtents,
   maybeResolveNamedCoordinateBorderPoint,
   maybeResolveTrailingCoordinateFromNodeName,
   shouldCaptureStandaloneNodeNameCoordinate
@@ -86,7 +87,7 @@ import {
   sanitizeGeneratedNodeName,
   splitChildBodyAndTrailingEdgeFromParent
 } from "./tree-child.js";
-import { buildGraphPlan } from "./graph.js";
+import { buildGraphPlan, type GraphPlacementHint } from "./graph.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -102,6 +103,159 @@ type CircleOrEllipseGeometry =
   | ({
       kind: "ellipse";
     } & EllipseGeometry);
+
+type RuntimeGraphNode = {
+  syntheticNode: NodeItem;
+  defaultPoint: Point;
+  placementHint?: GraphPlacementHint;
+  nodeIndex: number;
+};
+
+function resolveSizeAwareGraphNodePoints(
+  runtimeNodes: RuntimeGraphNode[],
+  statement: PathStatement,
+  context: SemanticContext,
+  style: ResolvedStyle
+): Map<number, Point> {
+  const resolved = new Map<number, Point>();
+  if (runtimeNodes.length === 0) {
+    return resolved;
+  }
+
+  const hintedNodes = runtimeNodes.filter((node): node is RuntimeGraphNode & { placementHint: GraphPlacementHint } => Boolean(node.placementHint));
+  if (hintedNodes.length !== runtimeNodes.length) {
+    return resolved;
+  }
+
+  const baseHint = hintedNodes[0]!.placementHint;
+  if (baseHint.mode !== "cartesian" && baseHint.mode !== "grid") {
+    return resolved;
+  }
+  if (baseHint.chainSepDistance == null && baseHint.groupSepDistance == null) {
+    return resolved;
+  }
+  if (!hintedNodes.every((node) => placementHintsCompatible(baseHint, node.placementHint))) {
+    return resolved;
+  }
+
+  const chainUnit = normalizeVector(baseHint.chainShift);
+  const groupUnit = normalizeVector(baseHint.groupShift);
+  if (!chainUnit || !groupUnit) {
+    return resolved;
+  }
+
+  const chainStep = Math.max(1e-3, Math.hypot(baseHint.chainShift.x, baseHint.chainShift.y));
+  const groupStep = Math.max(1e-3, Math.hypot(baseHint.groupShift.x, baseHint.groupShift.y));
+  const chainSep = baseHint.chainSepDistance;
+  const groupSep = baseHint.groupSepDistance;
+
+  const measured = hintedNodes.map((node) => ({
+    node,
+    extents: measureNodeAnchorExtents(node.syntheticNode, statement, context, style)
+  }));
+
+  const columnKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalWidth));
+  const rowKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalDepth));
+
+  const columnExtent = new Map<number, number>();
+  const rowExtent = new Map<number, number>();
+  for (const entry of measured) {
+    const widthKey = entry.node.placementHint.logicalWidth;
+    const depthKey = entry.node.placementHint.logicalDepth;
+    const projectedChain = projectedExtentAlongAxis(chainUnit, entry.extents.halfWidth, entry.extents.halfHeight);
+    const projectedGroup = projectedExtentAlongAxis(groupUnit, entry.extents.halfWidth, entry.extents.halfHeight);
+    columnExtent.set(widthKey, Math.max(columnExtent.get(widthKey) ?? 0, projectedChain));
+    rowExtent.set(depthKey, Math.max(rowExtent.get(depthKey) ?? 0, projectedGroup));
+  }
+
+  const columnOffset = buildAxisOffsets(columnKeys, columnExtent, chainSep, chainStep);
+  const rowOffset = buildAxisOffsets(rowKeys, rowExtent, groupSep, groupStep);
+
+  const anchorNode = measured[0]!.node;
+  const anchorColOffset = columnOffset.get(anchorNode.placementHint.logicalWidth) ?? 0;
+  const anchorRowOffset = rowOffset.get(anchorNode.placementHint.logicalDepth) ?? 0;
+  const anchorComputed = {
+    x: chainUnit.x * anchorColOffset + groupUnit.x * anchorRowOffset,
+    y: chainUnit.y * anchorColOffset + groupUnit.y * anchorRowOffset
+  };
+  const translation = {
+    x: anchorNode.defaultPoint.x - anchorComputed.x,
+    y: anchorNode.defaultPoint.y - anchorComputed.y
+  };
+
+  for (const entry of measured) {
+    const col = columnOffset.get(entry.node.placementHint.logicalWidth) ?? 0;
+    const row = rowOffset.get(entry.node.placementHint.logicalDepth) ?? 0;
+    resolved.set(entry.node.nodeIndex, {
+      x: chainUnit.x * col + groupUnit.x * row + translation.x,
+      y: chainUnit.y * col + groupUnit.y * row + translation.y
+    });
+  }
+
+  return resolved;
+}
+
+function placementHintsCompatible(left: GraphPlacementHint, right: GraphPlacementHint): boolean {
+  return (
+    left.mode === right.mode &&
+    left.chainSepDistance === right.chainSepDistance &&
+    left.groupSepDistance === right.groupSepDistance &&
+    Math.abs(left.chainShift.x - right.chainShift.x) <= 1e-6 &&
+    Math.abs(left.chainShift.y - right.chainShift.y) <= 1e-6 &&
+    Math.abs(left.groupShift.x - right.groupShift.x) <= 1e-6 &&
+    Math.abs(left.groupShift.y - right.groupShift.y) <= 1e-6
+  );
+}
+
+function normalizeVector(vector: Point): Point | null {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length <= 1e-6) {
+    return null;
+  }
+  return {
+    x: vector.x / length,
+    y: vector.y / length
+  };
+}
+
+function projectedExtentAlongAxis(axis: Point, halfWidth: number, halfHeight: number): number {
+  return Math.abs(axis.x) * halfWidth + Math.abs(axis.y) * halfHeight;
+}
+
+function sortedUnique(values: number[]): number[] {
+  return [...new Set(values)].sort((left, right) => left - right);
+}
+
+function buildAxisOffsets(
+  keys: number[],
+  extentByKey: Map<number, number>,
+  sepDistance: number | null,
+  fallbackStep: number
+): Map<number, number> {
+  const offsets = new Map<number, number>();
+  if (keys.length === 0) {
+    return offsets;
+  }
+
+  offsets.set(keys[0]!, 0);
+  for (let index = 1; index < keys.length; index += 1) {
+    const previousKey = keys[index - 1]!;
+    const currentKey = keys[index]!;
+    const previousOffset = offsets.get(previousKey) ?? 0;
+    const keyGap = Math.max(1, currentKey - previousKey);
+
+    let delta = fallbackStep * keyGap;
+    if (sepDistance != null) {
+      const previousExtent = extentByKey.get(previousKey) ?? 0;
+      const currentExtent = extentByKey.get(currentKey) ?? 0;
+      delta = previousExtent + currentExtent + sepDistance;
+    }
+
+    offsets.set(currentKey, previousOffset + delta);
+  }
+
+  return offsets;
+}
 
 function transformCircleGeometry(
   radius: number,
@@ -1021,6 +1175,8 @@ export function evaluatePathStatement(
         const plannedBehindNodeElements: SceneElement[] = [];
         const plannedFrontNodeElements: SceneElement[] = [];
 
+        const runtimeGraphNodes: RuntimeGraphNode[] = [];
+
         for (let nodeIndex = 0; nodeIndex < plan.nodes.length; nodeIndex += 1) {
           const node = plan.nodes[nodeIndex]!;
           const scoped = applyNameScope(node.name, context);
@@ -1041,8 +1197,19 @@ export function evaluatePathStatement(
             textSpan: node.span,
             text: node.text
           };
-          const evaluatedNode = evaluateNodeItem(
+          runtimeGraphNodes.push({
             syntheticNode,
+            defaultPoint: node.defaultPoint,
+            placementHint: node.placementHint,
+            nodeIndex
+          });
+        }
+
+        const sizeAwarePoints = resolveSizeAwareGraphNodePoints(runtimeGraphNodes, graphStatement, context, style);
+        for (const runtimeNode of runtimeGraphNodes) {
+          const defaultPoint = sizeAwarePoints.get(runtimeNode.nodeIndex) ?? runtimeNode.defaultPoint;
+          const evaluatedNode = evaluateNodeItem(
+            runtimeNode.syntheticNode,
             graphStatement,
             context,
             style,
@@ -1051,7 +1218,7 @@ export function evaluatePathStatement(
             null,
             undefined,
             undefined,
-            node.defaultPoint,
+            defaultPoint,
             statementStyleChain
           );
           plannedBehindNodeElements.push(...evaluatedNode.behindElements);

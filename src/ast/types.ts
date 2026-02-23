@@ -204,6 +204,39 @@ export type PathKeywordItem = {
 
 export type PlotOperationMode = "coordinates" | "expression" | "function" | "file" | "unknown";
 
+export type GraphConnectorOperator = "--" | "->" | "<-" | "<->" | "-!-";
+
+export type GraphSpecNode = {
+  span: Span;
+  raw: string;
+};
+
+export type GraphSpecConnector = {
+  operator: GraphConnectorOperator;
+  span: Span;
+  optionsSpan?: Span;
+  optionsRaw?: string;
+};
+
+export type GraphSpecChain = {
+  span: Span;
+  raw: string;
+  nodes: GraphSpecNode[];
+  connectors: GraphSpecConnector[];
+};
+
+export type GraphSpecSegment = {
+  span: Span;
+  raw: string;
+  chain: GraphSpecChain;
+};
+
+export type GraphSpec = {
+  span: Span;
+  raw: string;
+  segments: GraphSpecSegment[];
+};
+
 export type GraphOperationItem = {
   kind: "GraphOperation";
   id: string;
@@ -212,6 +245,7 @@ export type GraphOperationItem = {
   options?: OptionListAst;
   specSpan: Span;
   specRaw: string;
+  spec?: GraphSpec;
   raw: string;
 };
 

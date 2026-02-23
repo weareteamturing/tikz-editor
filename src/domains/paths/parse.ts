@@ -10,6 +10,7 @@ import { mapNodeItem, mapSyntheticNodeItem } from "../nodes/parse.js";
 import { mapPathOptionItem } from "../options/parse.js";
 import { maybeMapPathKeywordItem } from "./keywords.js";
 import { mapUnknownPathItem } from "../../transform/unknown.js";
+import { parseGraphSpec } from "./graph-spec.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 import {
   mapChildOperationItem,
@@ -430,7 +431,8 @@ function tryMapGraphOperation(
         optionsSpan: toSpan(optionsNode),
         options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
         specSpan: { from: specNode.from, to: specNode.to },
-        specRaw: source.slice(specNode.from, specNode.to)
+        specRaw: source.slice(specNode.from, specNode.to),
+        spec: parseGraphSpec(source.slice(specNode.from, specNode.to), specNode.from)
       },
       consumed: consumeCount
     };
@@ -469,7 +471,8 @@ function tryMapGraphOperation(
       optionsSpan: toSpan(optionsNode),
       options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
       specSpan: { from: specNode.from, to: specNode.to },
-      specRaw: source.slice(specNode.from, specNode.to)
+      specRaw: source.slice(specNode.from, specNode.to),
+      spec: parseGraphSpec(source.slice(specNode.from, specNode.to), specNode.from)
     },
     consumed: consumeCount
   };

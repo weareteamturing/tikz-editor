@@ -48,11 +48,21 @@ describe("parseTikz", () => {
 
     if (result.figure.body[0]?.kind === "Path") {
       expect(result.figure.body[0].command).toBe("graph");
-      expect(result.figure.body[0].items.some((item) => item.kind === "GraphOperation")).toBe(true);
+      const graphItem = result.figure.body[0].items.find((item) => item.kind === "GraphOperation");
+      expect(graphItem).toBeDefined();
+      if (graphItem?.kind === "GraphOperation") {
+        expect(graphItem.spec?.segments.length ?? 0).toBeGreaterThan(0);
+        const firstChain = graphItem.spec?.segments[0]?.chain;
+        expect(firstChain?.nodes.length ?? 0).toBeGreaterThan(0);
+      }
     }
     if (result.figure.body[1]?.kind === "Path") {
       expect(result.figure.body[1].command).toBe("path");
-      expect(result.figure.body[1].items.some((item) => item.kind === "GraphOperation")).toBe(true);
+      const graphItem = result.figure.body[1].items.find((item) => item.kind === "GraphOperation");
+      expect(graphItem).toBeDefined();
+      if (graphItem?.kind === "GraphOperation") {
+        expect(graphItem.spec?.segments.length ?? 0).toBeGreaterThan(0);
+      }
     }
   });
 

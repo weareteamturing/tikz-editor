@@ -65,6 +65,98 @@ import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeOptionValue } from "./utils.js";
 
+export type NodeAnchorExtents = {
+  halfWidth: number;
+  halfHeight: number;
+};
+
+export function measureNodeAnchorExtents(
+  item: NodeItem,
+  statement: PathStatement,
+  context: SemanticContext,
+  style: ResolvedStyle,
+  defaultPositionFraction?: number
+): NodeAnchorExtents {
+  const frame = context.stack[context.stack.length - 1];
+  const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
+  const effectiveNodeOptions = resolveEffectiveNodeOptions({
+    statementOptions: statement.options,
+    nodeOptions,
+    everyNodeStyles: frame.everyNodeStyles,
+    everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+    everyCircleNodeStyles: frame.everyCircleNodeStyles,
+    everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+    everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+    everyKiteNodeStyles: frame.everyKiteNodeStyles,
+    everyDartNodeStyles: frame.everyDartNodeStyles,
+    everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+    everyCloudNodeStyles: frame.everyCloudNodeStyles,
+    everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+    everySignalNodeStyles: frame.everySignalNodeStyles,
+    everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+    everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+    everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
+    everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+    everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
+  });
+  const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
+    statementOptions: undefined,
+    nodeOptions,
+    everyNodeStyles: frame.everyNodeStyles,
+    everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
+    everyCircleNodeStyles: frame.everyCircleNodeStyles,
+    everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
+    everyTrapeziumNodeStyles: frame.everyTrapeziumNodeStyles,
+    everyIsoscelesTriangleNodeStyles: frame.everyIsoscelesTriangleNodeStyles,
+    everyKiteNodeStyles: frame.everyKiteNodeStyles,
+    everyDartNodeStyles: frame.everyDartNodeStyles,
+    everyCircularSectorNodeStyles: frame.everyCircularSectorNodeStyles,
+    everyCylinderNodeStyles: frame.everyCylinderNodeStyles,
+    everyCloudNodeStyles: frame.everyCloudNodeStyles,
+    everyStarburstNodeStyles: frame.everyStarburstNodeStyles,
+    everySignalNodeStyles: frame.everySignalNodeStyles,
+    everyTapeNodeStyles: frame.everyTapeNodeStyles,
+    everyRectangleCalloutNodeStyles: frame.everyRectangleCalloutNodeStyles,
+    everyEllipseCalloutNodeStyles: frame.everyEllipseCalloutNodeStyles,
+    everyCloudCalloutNodeStyles: frame.everyCloudCalloutNodeStyles,
+    everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
+    everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
+  });
+
+  const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
+  const expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
+  const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
+  const nodeOptionScale = resolveNodeOptionScale(expandedNodeLocalOptions, style, context);
+  const transformScale = inheritedTransformScale * nodeOptionScale;
+
+  const nodeDecorationBaseStyle: ResolvedStyle = {
+    ...style,
+    decoration: {
+      ...style.decoration,
+      enabled: false,
+      params: { ...style.decoration.params }
+    },
+    decorationPreActions: [],
+    decorationPostActions: []
+  };
+  const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, transformScale);
+  const nodeShape = resolveNodeShape(expandedNodeOptions);
+  const expandedNodeText = expandMacroBindings(item.text, frame.macroBindings, {
+    maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+    trace: context.macroTraceCollector ?? undefined
+  });
+  const resolvedNodeText = resolveTextColorAliases(expandedNodeText, frame.colorAliases);
+  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, transformScale, context.textEngine);
+  const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
+  return {
+    halfWidth: nodeLayout.anchorHalfWidth,
+    halfHeight: nodeLayout.anchorHalfHeight
+  };
+}
+
 export function evaluateNodeItem(
   item: NodeItem,
   statement: PathStatement,

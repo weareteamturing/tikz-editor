@@ -1,19 +1,52 @@
-import type { GraphOperationItem, Span } from "../../ast/types.js";
+import type { GraphOperationItem, GraphSpecChain, GraphSpecSegment, Span } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
+import { parseLength } from "../coords/parse-length.js";
 
 const CONNECTOR_OPERATORS = ["<->", "-!-", "->", "<-", "--"] as const;
 const DEFAULT_GRAPH_STEP_PT = 36;
+const DEFAULT_GRAPH_SEP_PT = parseLength("1em", "cm") ?? 10;
+const DEFAULT_GRAPH_RADIUS_PT = parseLength("1cm", "cm") ?? DEFAULT_GRAPH_STEP_PT;
+const BUILTIN_COLOR_CLASSES = ["all", "source", "target", "source'", "target'"] as const;
 
 type ConnectorOperator = (typeof CONNECTOR_OPERATORS)[number];
 type GraphMode = "multi" | "simple";
 type GraphNodeResolutionMode = "auto" | "fresh" | "existing";
+type GraphOperatorContext = "group" | "edge";
+type GraphPlacementMode = "none" | "cartesian" | "grid" | "circular";
+
+type GraphVector2 = {
+  x: number;
+  y: number;
+};
+
+type GraphCircularPlacementState = {
+  chainAngle: number;
+  chainRadius: number;
+  groupAngle: number;
+  groupRadius: number;
+  radius: number;
+  phase: number;
+};
 
 type GraphNumberingState = {
   enabled: boolean;
   next: number;
   separator: string;
 };
+
+type GraphColorOp =
+  | { kind: "add"; color: string }
+  | { kind: "remove"; color: string }
+  | { kind: "recolor"; from: string; to: string };
+
+type GraphOperatorInvocation =
+  | { kind: "clique"; color: string }
+  | { kind: "cycle"; color: string }
+  | { kind: "path"; color: string }
+  | { kind: "complete-bipartite"; fromColor: string; toColor: string }
+  | { kind: "matching"; fromColor: string; toColor: string }
+  | { kind: "matching-star"; fromColor: string; toColor: string };
 
 type GraphScopeState = {
   nodeOptionLists: OptionListAst[];
@@ -26,6 +59,20 @@ type GraphScopeState = {
   asTextOverride?: string;
   putNodeTextIncomingOptions: string[];
   putNodeTextOutgoingOptions: string[];
+  declaredColorClasses: Set<string>;
+  defaultOperatorEdgeKind: ConnectorOperator;
+  defaultJoinOperator: GraphOperatorInvocation;
+  placementMode: GraphPlacementMode;
+  chainShift: GraphVector2;
+  groupShift: GraphVector2;
+  manualX: number | null;
+  manualY: number | null;
+  wrapAfter: number | null;
+  nodeCountHint: number | null;
+  circularPlacement: GraphCircularPlacementState;
+  levelStyleOptionLists: Map<number, OptionListAst[]>;
+  chainSepDistance: number | null;
+  groupSepDistance: number | null;
 };
 
 type GraphNodeAccumulatorOp =
@@ -45,12 +92,26 @@ type GraphNodeRecord = {
   targetEdgeNodes: GraphPlannedEdgeNode[];
 };
 
+type GraphColorMap = Map<string, string[]>;
+
+export type GraphPlacementHint = {
+  mode: GraphPlacementMode;
+  logicalWidth: number;
+  logicalDepth: number;
+  level: number;
+  chainShift: GraphVector2;
+  groupShift: GraphVector2;
+  chainSepDistance: number | null;
+  groupSepDistance: number | null;
+};
+
 export type GraphPlannedNode = {
   name: string;
   text: string;
   options?: OptionListAst;
   span: Span;
   defaultPoint: { x: number; y: number };
+  placementHint?: GraphPlacementHint;
 };
 
 export type GraphPlannedEdgeNode = {
@@ -82,6 +143,21 @@ type GraphTermResult = {
   entries: string[];
   exits: string[];
   edges: GraphPlannedEdgeInternal[];
+  colors: GraphColorMap;
+  logicalWidth: number;
+  logicalDepth: number;
+};
+
+type GraphLayoutContext = {
+  logicalWidth: number;
+  logicalDepth: number;
+  level: number;
+};
+
+type GraphChainSegmentInput = {
+  raw: string;
+  from: number;
+  chain?: GraphSpecChain;
 };
 
 type ParsedDirectNodeSpec = {
@@ -91,6 +167,20 @@ type ParsedDirectNodeSpec = {
   explicitReference: boolean;
   options?: OptionListAst;
   span: Span;
+};
+
+type ParsedSubgraphSpec = {
+  macro: "I_n" | "I_nm" | "K_n" | "K_nm" | "P_n" | "C_n" | "Grid_n";
+  options?: OptionListAst;
+  span: Span;
+};
+
+type ParsedSubgraphStructure = {
+  verticesV: string[];
+  verticesW: string[];
+  nameShoreV: string;
+  nameShoreW: string;
+  wrapAfter: number | null;
 };
 
 export function buildGraphPlan(operation: GraphOperationItem): GraphPlan {
@@ -120,7 +210,18 @@ class GraphPlanner {
   build(): void {
     let rootScope = this.createRootScope();
     rootScope = this.applyGroupOptionControls(rootScope, this.operation.options);
-    const term = this.parseGroup(this.operation.specRaw, this.operation.specSpan.from, rootScope, null);
+    const term = this.parseGroup(
+      this.operation.specRaw,
+      this.operation.specSpan.from,
+      rootScope,
+      null,
+      {
+        logicalWidth: 0,
+        logicalDepth: 0,
+        level: 1
+      },
+      this.operation.spec?.segments
+    );
     for (const edge of term.edges) {
       this.edges.push({
         from: edge.from,
@@ -148,7 +249,32 @@ class GraphPlanner {
       mode: "multi",
       asTextOverride: undefined,
       putNodeTextIncomingOptions: [],
-      putNodeTextOutgoingOptions: []
+      putNodeTextOutgoingOptions: [],
+      declaredColorClasses: new Set(BUILTIN_COLOR_CLASSES),
+      defaultOperatorEdgeKind: "--",
+      defaultJoinOperator: {
+        kind: "matching-star",
+        fromColor: "target'",
+        toColor: "source'"
+      },
+      placementMode: "cartesian",
+      chainShift: { x: DEFAULT_GRAPH_STEP_PT, y: 0 },
+      groupShift: { x: 0, y: -DEFAULT_GRAPH_STEP_PT },
+      manualX: null,
+      manualY: null,
+      wrapAfter: null,
+      nodeCountHint: null,
+      circularPlacement: {
+        chainAngle: 0,
+        chainRadius: DEFAULT_GRAPH_STEP_PT,
+        groupAngle: 45,
+        groupRadius: 0,
+        radius: DEFAULT_GRAPH_RADIUS_PT,
+        phase: 90
+      },
+      levelStyleOptionLists: new Map(),
+      chainSepDistance: null,
+      groupSepDistance: null
     };
   }
 
@@ -164,11 +290,32 @@ class GraphPlanner {
       mode: scope.mode,
       asTextOverride: scope.asTextOverride,
       putNodeTextIncomingOptions: [...scope.putNodeTextIncomingOptions],
-      putNodeTextOutgoingOptions: [...scope.putNodeTextOutgoingOptions]
+      putNodeTextOutgoingOptions: [...scope.putNodeTextOutgoingOptions],
+      declaredColorClasses: new Set(scope.declaredColorClasses),
+      defaultOperatorEdgeKind: scope.defaultOperatorEdgeKind,
+      defaultJoinOperator: cloneOperatorInvocation(scope.defaultJoinOperator),
+      placementMode: scope.placementMode,
+      chainShift: { ...scope.chainShift },
+      groupShift: { ...scope.groupShift },
+      manualX: scope.manualX,
+      manualY: scope.manualY,
+      wrapAfter: scope.wrapAfter,
+      nodeCountHint: scope.nodeCountHint,
+      circularPlacement: { ...scope.circularPlacement },
+      levelStyleOptionLists: cloneLevelStyleOptionLists(scope.levelStyleOptionLists),
+      chainSepDistance: scope.chainSepDistance,
+      groupSepDistance: scope.groupSepDistance
     };
   }
 
-  private parseGroup(raw: string, from: number, inheritedScope: GraphScopeState, parentMode: GraphMode | null): GraphTermResult {
+  private parseGroup(
+    raw: string,
+    from: number,
+    inheritedScope: GraphScopeState,
+    parentMode: GraphMode | null,
+    layout: GraphLayoutContext,
+    parserSegments?: readonly GraphSpecSegment[]
+  ): GraphTermResult {
     const groupBody = stripOuterBraces(raw);
     const bodyText = groupBody?.inner ?? raw.trim();
     const bodyFrom = groupBody ? from + groupBody.innerOffset : from;
@@ -178,31 +325,76 @@ class GraphPlanner {
     if (leadingOptions) {
       scope = this.applyGroupOptionControls(scope, leadingOptions.options);
     }
+    const groupOptionPlan = this.extractGroupOptionPlan(leadingOptions?.options, scope);
 
     const content = leadingOptions ? bodyText.slice(leadingOptions.length).trim() : bodyText.trim();
     const contentFrom = leadingOptions ? bodyFrom + leadingOptions.length : bodyFrom;
 
     if (content.length === 0) {
-      return { entries: [], exits: [], edges: [] };
+      return {
+        entries: [],
+        exits: [],
+        edges: this.finalizeGroupEdges(scope.mode, parentMode, []),
+        colors: createEmptyColorMap(),
+        logicalWidth: 0,
+        logicalDepth: 0
+      };
     }
 
-    const segments = splitTopLevel(content, [",", ";"], contentFrom);
-    const entries: string[] = [];
-    const exits: string[] = [];
+    const segments: GraphChainSegmentInput[] =
+      !leadingOptions && parserSegments && parserSegments.length > 0
+        ? parserSegments.map((segment) => ({
+            raw: segment.raw,
+            from: segment.span.from,
+            chain: segment.chain
+          }))
+        : splitTopLevel(content, [",", ";"], contentFrom);
     const edges: GraphPlannedEdgeInternal[] = [];
+    let colors = createEmptyColorMap();
+    let logicalWidth = 0;
+    let logicalDepth = 0;
 
     for (const segment of segments) {
       if (segment.raw.trim().length === 0) {
         continue;
       }
-      const chainResult = this.parseChain(segment.raw, segment.from, scope);
-      appendUnique(entries, chainResult.entries);
-      appendUnique(exits, chainResult.exits);
+      const chainResult = this.parseChain(segment.raw, segment.from, scope, {
+        logicalWidth: layout.logicalWidth,
+        logicalDepth: layout.logicalDepth + logicalDepth,
+        level: layout.level
+      }, segment.chain);
       edges.push(...chainResult.edges);
+      colors = mergeColorMaps(colors, chainResult.colors);
+      logicalWidth = Math.max(logicalWidth, chainResult.logicalWidth);
+      logicalDepth += chainResult.logicalDepth;
+    }
+
+    applyColorOperationsToNodes(colors, groupOptionPlan.colorOps, colorNodes(colors, "all"));
+
+    if (groupOptionPlan.operators.length > 0) {
+      edges.push(
+        ...this.buildEdgesForOperators(
+          groupOptionPlan.operators,
+          colors,
+          scope.defaultOperatorEdgeKind,
+          {
+            from: contentFrom,
+            to: contentFrom + content.length
+          },
+          scope
+        )
+      );
     }
 
     const finalizedEdges = this.finalizeGroupEdges(scope.mode, parentMode, edges);
-    return { entries, exits, edges: finalizedEdges };
+    return {
+      entries: colorNodes(colors, "source"),
+      exits: colorNodes(colors, "target"),
+      edges: finalizedEdges,
+      colors,
+      logicalWidth,
+      logicalDepth
+    };
   }
 
   private finalizeGroupEdges(
@@ -217,16 +409,45 @@ class GraphPlanner {
     return finalized;
   }
 
-  private parseChain(raw: string, from: number, scope: GraphScopeState): GraphTermResult {
+  private parseChain(
+    raw: string,
+    from: number,
+    scope: GraphScopeState,
+    layout: GraphLayoutContext,
+    parsedChain?: GraphSpecChain
+  ): GraphTermResult {
+    if (parsedChain && parsedChain.nodes.length > 0) {
+      return this.parseChainFromParsedSpec(parsedChain, scope, layout);
+    }
+
+    let chainWidth = 0;
+    let chainDepth = 0;
+    let levelOffset = 0;
+
     let cursor = 0;
-    const first = this.parseNodeSpec(raw, from, cursor, scope);
+    const first = this.parseNodeSpec(raw, from, cursor, scope, {
+      logicalWidth: layout.logicalWidth,
+      logicalDepth: layout.logicalDepth,
+      level: layout.level
+    });
     if (!first) {
-      return { entries: [], exits: [], edges: [] };
+      return {
+        entries: [],
+        exits: [],
+        edges: [],
+        colors: createEmptyColorMap(),
+        logicalWidth: 0,
+        logicalDepth: 0
+      };
     }
     cursor = first.next;
+    chainWidth += first.term.logicalWidth;
+    chainDepth = Math.max(chainDepth, first.term.logicalDepth);
+    levelOffset += 1;
 
-    const entries = [...first.term.entries];
-    let exits = [...first.term.exits];
+    const chainSources = [...first.term.entries];
+    let chainTargets = [...first.term.exits];
+    let chainColors = cloneColorMap(first.term.colors);
     const edges: GraphPlannedEdgeInternal[] = [...first.term.edges];
 
     while (true) {
@@ -242,63 +463,182 @@ class GraphPlanner {
       if (edgeOptionRead) {
         cursor = edgeOptionRead.next;
       }
+      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, scope);
 
-      const nextNode = this.parseNodeSpec(raw, from, cursor, scope);
+      const nextNode = this.parseNodeSpec(raw, from, cursor, scope, {
+        logicalWidth: layout.logicalWidth + chainWidth,
+        logicalDepth: layout.logicalDepth,
+        level: layout.level + levelOffset
+      });
       if (!nextNode) {
         this.diagnostics.push("graph-connector-without-right-node");
         break;
       }
       cursor = nextNode.next;
       edges.push(...nextNode.term.edges);
+      chainWidth += nextNode.term.logicalWidth;
+      chainDepth = Math.max(chainDepth, nextNode.term.logicalDepth);
+      levelOffset += 1;
 
-      const pairs = pairMatchingAndStar(exits, nextNode.term.entries);
+      const nextSources = colorNodes(nextNode.term.colors, "source");
+      const nextTargets = colorNodes(nextNode.term.colors, "target");
+
       const includeConnectorEdge = connector.operator !== "-!-" || scope.mode === "simple";
       if (includeConnectorEdge) {
-        const connectorOptionList = connectorToOptionList(connector.operator);
-        for (const pair of pairs) {
-          const edgeFrom = connector.operator === "<-" ? pair.to : pair.from;
-          const edgeTo = connector.operator === "<-" ? pair.from : pair.to;
-          const sourceRecord = this.ensureNodeRecord(edgeFrom);
-          const targetRecord = this.ensureNodeRecord(edgeTo);
+        const operatorColors = mergeColorMaps(chainColors, nextNode.term.colors);
+        setColorNodes(operatorColors, "target'", chainTargets);
+        setColorNodes(operatorColors, "source'", nextSources);
 
-          const edgeOptions = mergeOptionLists([
-            ...scope.edgeOptionLists,
-            ...(connectorOptionList ? [connectorOptionList] : []),
-            ...(edgeLocalOptions ? [edgeLocalOptions] : []),
-            ...sourceRecord.sourceEdgeOptionLists,
-            ...targetRecord.targetEdgeOptionLists
-          ]);
-
-          const edgeNodes = [
-            ...sourceRecord.sourceEdgeNodes.map(clonePlannedEdgeNode),
-            ...targetRecord.targetEdgeNodes.map(clonePlannedEdgeNode)
-          ];
-
-          edges.push({
-            from: edgeFrom,
-            to: edgeTo,
-            operator: connector.operator,
-            options: edgeOptions,
-            nodes: edgeNodes.length > 0 ? edgeNodes : undefined,
-            span: {
-              from: from + connector.index,
-              to: from + nextNode.next
-            }
-          });
+        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [scope.defaultJoinOperator];
+        for (const operator of operators) {
+          edges.push(
+            ...this.buildEdgesForOperators(
+              [operator],
+              operatorColors,
+              connector.operator,
+              {
+                from: from + connector.index,
+                to: from + nextNode.next
+              },
+              scope,
+              edgePlan.styleOptions
+            )
+          );
         }
       }
 
-      exits = [...nextNode.term.exits];
+      chainColors = mergeColorMaps(chainColors, nextNode.term.colors);
+      setColorNodes(chainColors, "source", chainSources);
+      setColorNodes(chainColors, "target", nextTargets);
+      chainTargets = [...nextTargets];
     }
 
-    return { entries, exits, edges };
+    return {
+      entries: chainSources,
+      exits: chainTargets,
+      edges,
+      colors: chainColors,
+      logicalWidth: chainWidth,
+      logicalDepth: chainDepth
+    };
+  }
+
+  private parseChainFromParsedSpec(chain: GraphSpecChain, scope: GraphScopeState, layout: GraphLayoutContext): GraphTermResult {
+    let chainWidth = 0;
+    let chainDepth = 0;
+    let levelOffset = 0;
+
+    const firstNodeSpec = chain.nodes[0];
+    if (!firstNodeSpec) {
+      return {
+        entries: [],
+        exits: [],
+        edges: [],
+        colors: createEmptyColorMap(),
+        logicalWidth: 0,
+        logicalDepth: 0
+      };
+    }
+
+    const firstTerm = this.parseNodeTerm(firstNodeSpec.raw, firstNodeSpec.span.from, scope, {
+      logicalWidth: layout.logicalWidth,
+      logicalDepth: layout.logicalDepth,
+      level: layout.level
+    });
+    if (!firstTerm) {
+      return {
+        entries: [],
+        exits: [],
+        edges: [],
+        colors: createEmptyColorMap(),
+        logicalWidth: 0,
+        logicalDepth: 0
+      };
+    }
+
+    chainWidth += firstTerm.logicalWidth;
+    chainDepth = Math.max(chainDepth, firstTerm.logicalDepth);
+    levelOffset += 1;
+
+    const chainSources = [...firstTerm.entries];
+    let chainTargets = [...firstTerm.exits];
+    let chainColors = cloneColorMap(firstTerm.colors);
+    const edges: GraphPlannedEdgeInternal[] = [...firstTerm.edges];
+
+    const pairCount = Math.min(chain.connectors.length, chain.nodes.length - 1);
+    for (let index = 0; index < pairCount; index += 1) {
+      const connector = chain.connectors[index]!;
+      const nextNodeSpec = chain.nodes[index + 1]!;
+      const edgeLocalOptions =
+        connector.optionsRaw && connector.optionsSpan
+          ? parseOptionListRaw(connector.optionsRaw, connector.optionsSpan.from)
+          : undefined;
+      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, scope);
+
+      const nextTerm = this.parseNodeTerm(nextNodeSpec.raw, nextNodeSpec.span.from, scope, {
+        logicalWidth: layout.logicalWidth + chainWidth,
+        logicalDepth: layout.logicalDepth,
+        level: layout.level + levelOffset
+      });
+      if (!nextTerm) {
+        this.diagnostics.push("graph-connector-without-right-node");
+        break;
+      }
+
+      edges.push(...nextTerm.edges);
+      chainWidth += nextTerm.logicalWidth;
+      chainDepth = Math.max(chainDepth, nextTerm.logicalDepth);
+      levelOffset += 1;
+
+      const nextSources = colorNodes(nextTerm.colors, "source");
+      const nextTargets = colorNodes(nextTerm.colors, "target");
+
+      const includeConnectorEdge = connector.operator !== "-!-" || scope.mode === "simple";
+      if (includeConnectorEdge) {
+        const operatorColors = mergeColorMaps(chainColors, nextTerm.colors);
+        setColorNodes(operatorColors, "target'", chainTargets);
+        setColorNodes(operatorColors, "source'", nextSources);
+
+        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [scope.defaultJoinOperator];
+        for (const operator of operators) {
+          edges.push(
+            ...this.buildEdgesForOperators(
+              [operator],
+              operatorColors,
+              connector.operator,
+              {
+                from: connector.span.from,
+                to: nextNodeSpec.span.to
+              },
+              scope,
+              edgePlan.styleOptions
+            )
+          );
+        }
+      }
+
+      chainColors = mergeColorMaps(chainColors, nextTerm.colors);
+      setColorNodes(chainColors, "source", chainSources);
+      setColorNodes(chainColors, "target", nextTargets);
+      chainTargets = [...nextTargets];
+    }
+
+    return {
+      entries: chainSources,
+      exits: chainTargets,
+      edges,
+      colors: chainColors,
+      logicalWidth: chainWidth,
+      logicalDepth: chainDepth
+    };
   }
 
   private parseNodeSpec(
     chainRaw: string,
     chainFrom: number,
     cursor: number,
-    scope: GraphScopeState
+    scope: GraphScopeState,
+    layout: GraphLayoutContext
   ): { term: GraphTermResult; next: number } | null {
     const start = skipWhitespace(chainRaw, cursor);
     if (start >= chainRaw.length) {
@@ -307,7 +647,7 @@ class GraphPlanner {
 
     const groupSegment = readBalancedSegment(chainRaw, start, "{", "}");
     if (groupSegment) {
-      const term = this.parseGroup(groupSegment.raw, chainFrom + start, scope, scope.mode);
+      const term = this.parseGroup(groupSegment.raw, chainFrom + start, scope, scope.mode, layout);
       return { term, next: groupSegment.next };
     }
 
@@ -319,8 +659,42 @@ class GraphPlanner {
       return null;
     }
 
-    const parsedNode = this.parseDirectNode(rawNode, chainFrom + start);
-    const nodePlan = this.processNodeOptionList(scope, parsedNode.options, parsedNode.textCandidate, parsedNode.span);
+    const term = this.parseNodeTerm(rawNode, chainFrom + start, scope, layout);
+    if (!term) {
+      return null;
+    }
+
+    return {
+      term,
+      next: end
+    };
+  }
+
+  private parseNodeTerm(rawNode: string, nodeFrom: number, scope: GraphScopeState, layout: GraphLayoutContext): GraphTermResult | null {
+    const trimmedNode = rawNode.trim();
+    const balancedGroup = readBalancedSegment(trimmedNode, 0, "{", "}");
+    if (balancedGroup && balancedGroup.next === trimmedNode.length) {
+      return this.parseGroup(trimmedNode, nodeFrom, scope, scope.mode, layout);
+    }
+
+    const subgraphSpec = this.tryParseSubgraphSpec(trimmedNode, nodeFrom);
+    if (subgraphSpec) {
+      return this.expandSubgraph(subgraphSpec, scope, layout);
+    }
+    if (/^subgraph\b/i.test(trimmedNode)) {
+      return {
+        entries: [],
+        exits: [],
+        edges: [],
+        colors: createEmptyColorMap(),
+        logicalWidth: 0,
+        logicalDepth: 0
+      };
+    }
+
+    const parsedNode = this.parseDirectNode(trimmedNode, nodeFrom);
+    const leveledScope = this.applyLevelStyles(scope, layout.level);
+    const nodePlan = this.processNodeOptionList(leveledScope, parsedNode.options, parsedNode.textCandidate, parsedNode.span);
     const localScope = nodePlan.scope;
 
     const resolvedName = this.resolveDirectNodeName(parsedNode, localScope);
@@ -334,16 +708,282 @@ class GraphPlanner {
         ...localScope.nodeOptionLists,
         ...(nodePlan.styleOptions ? [nodePlan.styleOptions] : [])
       ]);
-      this.ensurePlannedNode(record, resolvedName, nodePlan.finalNodeText, mergedOptions, parsedNode.span);
+      this.ensurePlannedNode(
+        record,
+        resolvedName,
+        nodePlan.finalNodeText,
+        mergedOptions,
+        parsedNode.span,
+        localScope,
+        layout
+      );
+    }
+
+    const colors = createColorMapFromNodes([resolvedName]);
+    applyColorOperationsToNodes(colors, nodePlan.colorOps, [resolvedName]);
+
+    const edges = this.buildEdgesForOperators(
+      nodePlan.operators,
+      colors,
+      localScope.defaultOperatorEdgeKind,
+      parsedNode.span,
+      localScope
+    );
+
+    return {
+      entries: colorNodes(colors, "source"),
+      exits: colorNodes(colors, "target"),
+      edges,
+      colors,
+      logicalWidth: 1,
+      logicalDepth: 1
+    };
+  }
+
+  private tryParseSubgraphSpec(raw: string, from: number): ParsedSubgraphSpec | null {
+    let working = raw.trim();
+    let options: OptionListAst | undefined;
+
+    const trailingOptions = readTrailingOptionList(working);
+    if (trailingOptions) {
+      options = parseOptionListRaw(trailingOptions.raw, from + trailingOptions.start);
+      working = working.slice(0, trailingOptions.start).trim();
+    }
+
+    const match = working.match(/^subgraph\s+([A-Za-z0-9_]+)$/i);
+    if (!match) {
+      return null;
+    }
+
+    const macroRaw = match[1]!;
+    const normalizedMacro = macroRaw.toLowerCase();
+    const macro: ParsedSubgraphSpec["macro"] | null =
+      normalizedMacro === "i_n"
+        ? "I_n"
+        : normalizedMacro === "i_nm"
+          ? "I_nm"
+          : normalizedMacro === "k_n"
+            ? "K_n"
+            : normalizedMacro === "k_nm"
+              ? "K_nm"
+              : normalizedMacro === "p_n"
+                ? "P_n"
+                : normalizedMacro === "c_n"
+                  ? "C_n"
+                  : normalizedMacro === "grid_n"
+                    ? "Grid_n"
+                    : null;
+    if (!macro) {
+      this.diagnostics.push(`unsupported-subgraph:${macroRaw}`);
+      return null;
     }
 
     return {
-      term: {
-        entries: [resolvedName],
-        exits: [resolvedName],
-        edges: []
+      macro,
+      options,
+      span: {
+        from,
+        to: from + raw.length
+      }
+    };
+  }
+
+  private expandSubgraph(spec: ParsedSubgraphSpec, scope: GraphScopeState, layout: GraphLayoutContext): GraphTermResult {
+    let localScope = this.cloneScope(scope);
+    localScope = this.applyGroupOptionControls(localScope, spec.options);
+    const groupPlan = this.extractGroupOptionPlan(spec.options, localScope);
+    const structure = parseSubgraphStructure(spec.options);
+
+    const verticesV = structure.verticesV;
+    const verticesW = structure.verticesW;
+
+    const vNames = this.createSubgraphNodes(
+      verticesV,
+      localScope,
+      spec.span,
+      structure.nameShoreV,
+      {
+        logicalWidth: layout.logicalWidth,
+        logicalDepth: layout.logicalDepth,
+        level: layout.level
       },
-      next: end
+      spec.macro === "Grid_n" ? structure.wrapAfter : null
+    );
+    const wNames = this.createSubgraphNodes(
+      verticesW,
+      localScope,
+      spec.span,
+      structure.nameShoreW,
+      {
+        logicalWidth: layout.logicalWidth,
+        logicalDepth: layout.logicalDepth + (verticesV.length > 0 ? 1 : 0),
+        level: layout.level
+      },
+      null
+    );
+
+    const colors = createColorMapFromNodes([...vNames, ...wNames]);
+    if (vNames.length > 0) {
+      addNodesToColor(colors, "v", vNames);
+    }
+    if (wNames.length > 0) {
+      addNodesToColor(colors, "w", wNames);
+    }
+
+    const edges: GraphPlannedEdgeInternal[] = [];
+    const kind = localScope.defaultOperatorEdgeKind;
+
+    switch (spec.macro) {
+      case "I_n":
+      case "I_nm":
+        break;
+      case "K_n": {
+        edges.push(...this.buildEdgesForPairs(buildCliquePairs(vNames), kind, spec.span, localScope));
+        break;
+      }
+      case "K_nm": {
+        edges.push(...this.buildEdgesForPairs(buildCompleteBipartitePairs(vNames, wNames), kind, spec.span, localScope));
+        break;
+      }
+      case "P_n": {
+        edges.push(...this.buildEdgesForPairs(buildPathPairs(vNames), kind, spec.span, localScope));
+        break;
+      }
+      case "C_n": {
+        edges.push(...this.buildEdgesForPairs(buildCyclePairs(vNames), kind, spec.span, localScope));
+        break;
+      }
+      case "Grid_n": {
+        edges.push(...this.buildEdgesForPairs(buildGridPairs(vNames, structure.wrapAfter), kind, spec.span, localScope));
+        break;
+      }
+      default:
+        break;
+    }
+
+    applyColorOperationsToNodes(colors, groupPlan.colorOps, colorNodes(colors, "all"));
+    if (groupPlan.operators.length > 0) {
+      edges.push(...this.buildEdgesForOperators(groupPlan.operators, colors, kind, spec.span, localScope));
+    }
+
+    return {
+      entries: colorNodes(colors, "source"),
+      exits: colorNodes(colors, "target"),
+      edges: this.finalizeGroupEdges(localScope.mode, scope.mode, edges),
+      colors,
+      logicalWidth: Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0),
+      logicalDepth: wNames.length > 0 ? 2 : vNames.length > 0 ? 1 : 0
+    };
+  }
+
+  private createSubgraphNodes(
+    labels: string[],
+    scope: GraphScopeState,
+    span: Span,
+    shorePrefix: string,
+    layout: GraphLayoutContext,
+    wrapAfter: number | null
+  ): string[] {
+    if (labels.length === 0) {
+      return [];
+    }
+
+    const names: string[] = [];
+    const localScope = shorePrefix.length > 0 ? appendScopedNamePrefix(scope, shorePrefix) : scope;
+    const wrap = wrapAfter != null && wrapAfter > 0 ? Math.max(1, Math.floor(wrapAfter)) : null;
+    for (let index = 0; index < labels.length; index += 1) {
+      const label = labels[index]!;
+      const col = wrap ? index % wrap : index;
+      const row = wrap ? Math.floor(index / wrap) : 0;
+      const nodeLayout: GraphLayoutContext = {
+        logicalWidth: layout.logicalWidth + col,
+        logicalDepth: layout.logicalDepth + row,
+        level: layout.level + col
+      };
+      const styledScope = this.applyLevelStyles(localScope, nodeLayout.level);
+      const nameToken = parseGraphNameToken(label);
+      const textToken = parseGraphTextToken(label);
+      const parsedNode: ParsedDirectNodeSpec = {
+        baseName: nameToken.text,
+        baseNameWasQuoted: nameToken.quoted,
+        textCandidate: textToken.text,
+        explicitReference: false,
+        options: undefined,
+        span
+      };
+
+      const resolvedName = this.resolveDirectNodeName(parsedNode, styledScope);
+      const existingRecord = this.nodeRecords.get(resolvedName);
+      const record = existingRecord ?? this.ensureNodeRecord(resolvedName);
+      const shouldCreateFreshNode = this.shouldCreateFreshNode(parsedNode, styledScope, existingRecord != null);
+      if (shouldCreateFreshNode) {
+        this.ensurePlannedNode(
+          record,
+          resolvedName,
+          styledScope.asTextOverride ?? parsedNode.textCandidate,
+          mergeOptionLists(styledScope.nodeOptionLists),
+          span,
+          styledScope,
+          nodeLayout
+        );
+      }
+
+      names.push(resolvedName);
+    }
+
+    return names;
+  }
+
+  private buildEdgesForPairs(
+    pairs: Array<{ from: string; to: string }>,
+    edgeKind: ConnectorOperator,
+    span: Span,
+    scope: GraphScopeState,
+    edgeStyleOptions?: OptionListAst
+  ): GraphPlannedEdgeInternal[] {
+    const edges: GraphPlannedEdgeInternal[] = [];
+    for (const pair of pairs) {
+      edges.push(this.createEdgeFromPair(pair.from, pair.to, edgeKind, span, scope, edgeStyleOptions));
+    }
+    return edges;
+  }
+
+  private parseDirectNode(raw: string, from: number): ParsedDirectNodeSpec {
+    let working = raw.trim();
+    let nodeOptions: OptionListAst | undefined;
+
+    const trailingOptions = readTrailingOptionList(working);
+    if (trailingOptions) {
+      nodeOptions = parseOptionListRaw(trailingOptions.raw, from + trailingOptions.start);
+      working = working.slice(0, trailingOptions.start).trim();
+    }
+
+    const slashIndex = findTopLevelChar(working, "/");
+    let nameRaw = slashIndex >= 0 ? working.slice(0, slashIndex).trim() : working;
+    let textRaw = slashIndex >= 0 ? working.slice(slashIndex + 1).trim() : "";
+
+    let explicitReference = false;
+    if (nameRaw.startsWith("(") && nameRaw.endsWith(")")) {
+      nameRaw = stripOuterParens(nameRaw).trim();
+      explicitReference = true;
+      if (textRaw.length === 0) {
+        textRaw = nameRaw;
+      }
+    }
+
+    const nameToken = parseGraphNameToken(nameRaw);
+    const textToken = textRaw.length > 0 ? parseGraphTextToken(textRaw) : { text: nameToken.text };
+
+    return {
+      baseName: nameToken.text,
+      baseNameWasQuoted: nameToken.quoted,
+      textCandidate: textToken.text,
+      explicitReference,
+      options: nodeOptions,
+      span: {
+        from,
+        to: from + raw.length
+      }
     };
   }
 
@@ -402,9 +1042,13 @@ class GraphPlanner {
     styleOptions?: OptionListAst;
     accumulatorOps: GraphNodeAccumulatorOp[];
     finalNodeText: string;
+    colorOps: GraphColorOp[];
+    operators: GraphOperatorInvocation[];
   } {
     let scope = this.cloneScope(baseScope);
     const accumulatorOps: GraphNodeAccumulatorOp[] = [];
+    const colorOps: GraphColorOp[] = [];
+    const operators: GraphOperatorInvocation[] = [];
 
     for (const optionsRaw of baseScope.putNodeTextIncomingOptions) {
       accumulatorOps.push(makeAddTargetNodeOp(baseNodeText, optionsRaw, span, true));
@@ -417,7 +1061,9 @@ class GraphPlanner {
       return {
         scope,
         accumulatorOps,
-        finalNodeText: scope.asTextOverride ?? baseNodeText
+        finalNodeText: scope.asTextOverride ?? baseNodeText,
+        colorOps,
+        operators
       };
     }
 
@@ -537,6 +1183,52 @@ class GraphPlanner {
           accumulatorOps.push(makeAddSourceNodeOp(baseNodeText, entry.valueRaw, entry.span, true));
           scope.asTextOverride = "";
           consumed = true;
+        } else if (key === "color class") {
+          const className = normalizeColorClassName(entry.valueRaw);
+          if (className.length > 0) {
+            scope.declaredColorClasses.add(className);
+          }
+          consumed = true;
+        } else if (isDefaultEdgeKindKey(key)) {
+          const parsedKind = parseDefaultEdgeKind(entry.valueRaw);
+          if (parsedKind) {
+            scope.defaultOperatorEdgeKind = parsedKind;
+          }
+          consumed = true;
+        } else if (key === "default edge operator") {
+          const operator = parseOperatorFromRaw(entry.valueRaw, scope, "edge");
+          if (operator) {
+            scope.defaultJoinOperator = operator;
+          }
+          consumed = true;
+        }
+
+        if (!consumed) {
+          const levelStyle = parseLevelStyleDefinition(entry);
+          if (levelStyle) {
+            addLevelStyleOption(scope.levelStyleOptionLists, levelStyle.level, levelStyle.options);
+            consumed = true;
+          }
+        }
+
+        if (!consumed) {
+          consumed = applyPlacementControlFromKv(scope, key, entry.valueRaw);
+        }
+
+        if (!consumed) {
+          const colorOp = parseColorOpFromEntry(entry, scope.declaredColorClasses);
+          if (colorOp) {
+            colorOps.push(colorOp);
+            consumed = true;
+          }
+        }
+
+        if (!consumed) {
+          const operatorInvocations = parseOperatorInvocationsFromEntry(entry, scope, "group");
+          if (operatorInvocations.length > 0) {
+            operators.push(...operatorInvocations);
+            consumed = true;
+          }
         }
       } else if (entry.kind === "flag") {
         const key = normalizeGraphOptionKey(entry.key);
@@ -570,6 +1262,29 @@ class GraphPlanner {
         } else if (key === "number nodes") {
           scope = applyNumberNodes(scope, undefined);
           consumed = true;
+        } else if (isEdgeKindFlag(key)) {
+          scope.defaultOperatorEdgeKind = key as ConnectorOperator;
+          consumed = true;
+        }
+
+        if (!consumed) {
+          consumed = applyPlacementControlFromFlag(scope, key);
+        }
+
+        if (!consumed) {
+          const colorOp = parseColorOpFromEntry(entry, scope.declaredColorClasses);
+          if (colorOp) {
+            colorOps.push(colorOp);
+            consumed = true;
+          }
+        }
+
+        if (!consumed) {
+          const operatorInvocations = parseOperatorInvocationsFromEntry(entry, scope, "group");
+          if (operatorInvocations.length > 0) {
+            operators.push(...operatorInvocations);
+            consumed = true;
+          }
         }
       } else {
         const normalizedRaw = normalizeGraphOptionKey(rawToken.toLowerCase());
@@ -594,6 +1309,10 @@ class GraphPlanner {
           scope.asTextOverride = "";
           consumed = true;
         }
+
+        if (!consumed) {
+          consumed = applyPlacementControlFromFlag(scope, normalizedRaw);
+        }
       }
 
       if (!consumed) {
@@ -605,7 +1324,9 @@ class GraphPlanner {
       scope,
       styleOptions: optionListFromEntries(retainedEntries, options),
       accumulatorOps,
-      finalNodeText: scope.asTextOverride ?? baseNodeText
+      finalNodeText: scope.asTextOverride ?? baseNodeText,
+      colorOps,
+      operators
     };
   }
 
@@ -696,6 +1417,35 @@ class GraphPlanner {
           scope.asTextOverride = "";
           continue;
         }
+        if (key === "color class") {
+          const className = normalizeColorClassName(entry.valueRaw);
+          if (className.length > 0) {
+            scope.declaredColorClasses.add(className);
+          }
+          continue;
+        }
+        if (isDefaultEdgeKindKey(key)) {
+          const parsedKind = parseDefaultEdgeKind(entry.valueRaw);
+          if (parsedKind) {
+            scope.defaultOperatorEdgeKind = parsedKind;
+          }
+          continue;
+        }
+        if (key === "default edge operator") {
+          const operator = parseOperatorFromRaw(entry.valueRaw, scope, "edge");
+          if (operator) {
+            scope.defaultJoinOperator = operator;
+          }
+          continue;
+        }
+        const levelStyle = parseLevelStyleDefinition(entry);
+        if (levelStyle) {
+          addLevelStyleOption(scope.levelStyleOptionLists, levelStyle.level, levelStyle.options);
+          continue;
+        }
+        if (applyPlacementControlFromKv(scope, key, entry.valueRaw)) {
+          continue;
+        }
       } else if (entry.kind === "flag") {
         const key = normalizeGraphOptionKey(entry.key);
         if (key === "simple") {
@@ -728,6 +1478,13 @@ class GraphPlanner {
           scope.asTextOverride = "";
           continue;
         }
+        if (isEdgeKindFlag(key)) {
+          scope.defaultOperatorEdgeKind = key as ConnectorOperator;
+          continue;
+        }
+        if (applyPlacementControlFromFlag(scope, key)) {
+          continue;
+        }
       } else {
         const rawToken = normalizeGraphOptionKey(entry.raw.trim().toLowerCase());
         if (rawToken === "simple") {
@@ -738,48 +1495,64 @@ class GraphPlanner {
           scope.mode = "multi";
           continue;
         }
+        if (applyPlacementControlFromFlag(scope, rawToken)) {
+          continue;
+        }
       }
     }
 
     return scope;
   }
 
-  private parseDirectNode(raw: string, from: number): ParsedDirectNodeSpec {
-    let working = raw.trim();
-    let nodeOptions: OptionListAst | undefined;
-
-    const trailingOptions = readTrailingOptionList(working);
-    if (trailingOptions) {
-      nodeOptions = parseOptionListRaw(trailingOptions.raw, from + trailingOptions.start);
-      working = working.slice(0, trailingOptions.start).trim();
+  private extractGroupOptionPlan(
+    options: OptionListAst | undefined,
+    scope: GraphScopeState
+  ): { colorOps: GraphColorOp[]; operators: GraphOperatorInvocation[] } {
+    if (!options) {
+      return { colorOps: [], operators: [] };
     }
 
-    const slashIndex = findTopLevelChar(working, "/");
-    let nameRaw = slashIndex >= 0 ? working.slice(0, slashIndex).trim() : working;
-    let textRaw = slashIndex >= 0 ? working.slice(slashIndex + 1).trim() : "";
+    const colorOps: GraphColorOp[] = [];
+    const operators: GraphOperatorInvocation[] = [];
 
-    let explicitReference = false;
-    if (nameRaw.startsWith("(") && nameRaw.endsWith(")")) {
-      nameRaw = stripOuterParens(nameRaw).trim();
-      explicitReference = true;
-      if (textRaw.length === 0) {
-        textRaw = nameRaw;
+    for (const entry of options.entries) {
+      const maybeColorOp = parseColorOpFromEntry(entry, scope.declaredColorClasses);
+      if (maybeColorOp) {
+        colorOps.push(maybeColorOp);
+      }
+
+      const parsedOperators = parseOperatorInvocationsFromEntry(entry, scope, "group");
+      if (parsedOperators.length > 0) {
+        operators.push(...parsedOperators);
       }
     }
 
-    const nameToken = parseGraphNameToken(nameRaw);
-    const textToken = textRaw.length > 0 ? parseGraphTextToken(textRaw) : { text: nameToken.text };
+    return { colorOps, operators };
+  }
+
+  private extractEdgeOptionPlan(
+    options: OptionListAst | undefined,
+    scope: GraphScopeState
+  ): { styleOptions?: OptionListAst; operators: GraphOperatorInvocation[] } {
+    if (!options) {
+      return { styleOptions: undefined, operators: [] };
+    }
+
+    const operators: GraphOperatorInvocation[] = [];
+    const retainedEntries: OptionEntry[] = [];
+
+    for (const entry of options.entries) {
+      const parsedOperators = parseOperatorInvocationsFromEntry(entry, scope, "edge");
+      if (parsedOperators.length > 0) {
+        operators.push(...parsedOperators);
+        continue;
+      }
+      retainedEntries.push(entry);
+    }
 
     return {
-      baseName: nameToken.text,
-      baseNameWasQuoted: nameToken.quoted,
-      textCandidate: textToken.text,
-      explicitReference,
-      options: nodeOptions,
-      span: {
-        from,
-        to: from + raw.length
-      }
+      styleOptions: optionListFromEntries(retainedEntries, options),
+      operators
     };
   }
 
@@ -836,7 +1609,9 @@ class GraphPlanner {
     name: string,
     text: string,
     options: OptionListAst | undefined,
-    span: Span
+    span: Span,
+    scope: GraphScopeState,
+    layout: GraphLayoutContext
   ): void {
     if (record.created) {
       return;
@@ -844,19 +1619,145 @@ class GraphPlanner {
 
     const placementSlot = this.placementIndex;
     this.placementIndex += 1;
+    const defaultPoint = this.resolvePlacementPoint(scope, layout, placementSlot);
+    const gridColumns = resolveGridColumns(scope.wrapAfter, scope.nodeCountHint);
+    const gridColumn = placementSlot % gridColumns;
+    const gridRow = Math.floor(placementSlot / gridColumns);
 
     this.nodes.push({
       name,
       text,
       options,
       span,
-      defaultPoint: {
-        x: (placementSlot % 8) * DEFAULT_GRAPH_STEP_PT,
-        y: -Math.floor(placementSlot / 8) * DEFAULT_GRAPH_STEP_PT
+      defaultPoint,
+      placementHint: {
+        mode: scope.placementMode,
+        logicalWidth: scope.placementMode === "grid" ? gridColumn : layout.logicalWidth,
+        logicalDepth: scope.placementMode === "grid" ? gridRow : layout.logicalDepth,
+        level: layout.level,
+        chainShift: { ...scope.chainShift },
+        groupShift: { ...scope.groupShift },
+        chainSepDistance: scope.chainSepDistance,
+        groupSepDistance: scope.groupSepDistance
       }
     });
 
     record.created = true;
+  }
+
+  private applyLevelStyles(baseScope: GraphScopeState, level: number): GraphScopeState {
+    const optionLists = baseScope.levelStyleOptionLists.get(level);
+    if (!optionLists || optionLists.length === 0) {
+      return baseScope;
+    }
+
+    let scope = this.cloneScope(baseScope);
+    for (const optionList of optionLists) {
+      scope = this.applyGroupOptionControls(scope, optionList);
+    }
+    return scope;
+  }
+
+  private resolvePlacementPoint(
+    scope: GraphScopeState,
+    layout: GraphLayoutContext,
+    placementSlot: number
+  ): { x: number; y: number } {
+    let x = 0;
+    let y = 0;
+
+    if (scope.placementMode === "cartesian") {
+      x = layout.logicalWidth * scope.chainShift.x + layout.logicalDepth * scope.groupShift.x;
+      y = layout.logicalWidth * scope.chainShift.y + layout.logicalDepth * scope.groupShift.y;
+    } else if (scope.placementMode === "grid") {
+      const columns = resolveGridColumns(scope.wrapAfter, scope.nodeCountHint);
+      const col = placementSlot % columns;
+      const row = Math.floor(placementSlot / columns);
+      x = col * scope.chainShift.x + row * scope.groupShift.x;
+      y = col * scope.chainShift.y + row * scope.groupShift.y;
+    } else if (scope.placementMode === "circular") {
+      const angleDeg =
+        scope.circularPlacement.phase +
+        layout.logicalWidth * scope.circularPlacement.chainAngle +
+        layout.logicalDepth * scope.circularPlacement.groupAngle;
+      const radius =
+        scope.circularPlacement.radius +
+        layout.logicalWidth * scope.circularPlacement.chainRadius +
+        layout.logicalDepth * scope.circularPlacement.groupRadius;
+      const radians = (angleDeg * Math.PI) / 180;
+      x = radius * Math.cos(radians);
+      y = radius * Math.sin(radians);
+    }
+
+    if (scope.manualX != null) {
+      x = scope.manualX;
+    }
+    if (scope.manualY != null) {
+      y = scope.manualY;
+    }
+
+    return { x, y };
+  }
+
+  private createEdgeFromPair(
+    from: string,
+    to: string,
+    edgeKind: ConnectorOperator,
+    span: Span,
+    scope: GraphScopeState,
+    edgeStyleOptions?: OptionListAst
+  ): GraphPlannedEdgeInternal {
+    const oriented = orientEdgeByKind(from, to, edgeKind);
+
+    const sourceRecord = this.ensureNodeRecord(oriented.from);
+    const targetRecord = this.ensureNodeRecord(oriented.to);
+
+    const edgeOptions = mergeOptionLists([
+      ...scope.edgeOptionLists,
+      ...edgeKindOptionLists(edgeKind),
+      ...(edgeStyleOptions ? [edgeStyleOptions] : []),
+      ...sourceRecord.sourceEdgeOptionLists,
+      ...targetRecord.targetEdgeOptionLists
+    ]);
+
+    const edgeNodes = [
+      ...sourceRecord.sourceEdgeNodes.map(clonePlannedEdgeNode),
+      ...targetRecord.targetEdgeNodes.map(clonePlannedEdgeNode)
+    ];
+
+    return {
+      from: oriented.from,
+      to: oriented.to,
+      operator: edgeKind,
+      options: edgeOptions,
+      nodes: edgeNodes.length > 0 ? edgeNodes : undefined,
+      span
+    };
+  }
+
+  private buildEdgesForOperators(
+    operators: GraphOperatorInvocation[],
+    colors: GraphColorMap,
+    edgeKind: ConnectorOperator,
+    span: Span,
+    scope: GraphScopeState,
+    edgeStyleOptions?: OptionListAst
+  ): GraphPlannedEdgeInternal[] {
+    if (operators.length === 0) {
+      return [];
+    }
+
+    const edges: GraphPlannedEdgeInternal[] = [];
+    for (const operator of operators) {
+      const pairs = buildOperatorPairs(operator, colors);
+      for (const pair of pairs) {
+        if (pair.from === pair.to) {
+          continue;
+        }
+        edges.push(this.createEdgeFromPair(pair.from, pair.to, edgeKind, span, scope, edgeStyleOptions));
+      }
+    }
+    return edges;
   }
 
   private nextAnonymousNodeName(): string {
@@ -948,6 +1849,412 @@ function appendScopedNamePrefix(scope: GraphScopeState, rawName: string): GraphS
     ...scope,
     namePrefix: nextPrefix
   };
+}
+
+function cloneLevelStyleOptionLists(levelStyleOptionLists: Map<number, OptionListAst[]>): Map<number, OptionListAst[]> {
+  const cloned = new Map<number, OptionListAst[]>();
+  for (const [level, optionLists] of levelStyleOptionLists.entries()) {
+    cloned.set(level, [...optionLists]);
+  }
+  return cloned;
+}
+
+function addLevelStyleOption(target: Map<number, OptionListAst[]>, level: number, options: OptionListAst): void {
+  const existing = target.get(level) ?? [];
+  target.set(level, [...existing, options]);
+}
+
+function parseLevelStyleDefinition(entry: OptionEntry): { level: number; options: OptionListAst } | null {
+  if (entry.kind !== "kv") {
+    return null;
+  }
+
+  const key = normalizeGraphOptionKey(entry.key);
+  const match = key.match(/^level\s+(-?\d+)\s*\/\.style$/);
+  if (!match) {
+    return null;
+  }
+
+  const level = Number(match[1]);
+  if (!Number.isFinite(level)) {
+    return null;
+  }
+
+  const options = parseGraphValueAsOptionList(entry.valueRaw, entry.span.from);
+  if (!options) {
+    return null;
+  }
+
+  return {
+    level: Math.floor(level),
+    options
+  };
+}
+
+function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawValue: string): boolean {
+  if (key === "no placement") {
+    const enabled = parseGraphBoolean(rawValue, true);
+    if (enabled === true) {
+      scope.placementMode = "none";
+    } else if (enabled === false && scope.placementMode === "none") {
+      scope.placementMode = "cartesian";
+    }
+    return enabled != null;
+  }
+  if (key === "cartesian placement") {
+    const enabled = parseGraphBoolean(rawValue, true);
+    if (enabled === true) {
+      scope.placementMode = "cartesian";
+    }
+    return enabled != null;
+  }
+  if (key === "grid placement") {
+    const enabled = parseGraphBoolean(rawValue, true);
+    if (enabled === true) {
+      scope.placementMode = "grid";
+    }
+    return enabled != null;
+  }
+  if (key === "circular placement") {
+    const enabled = parseGraphBoolean(rawValue, true);
+    if (enabled === true) {
+      scope.placementMode = "circular";
+    }
+    return enabled != null;
+  }
+  if (key === "x") {
+    const parsed = parseGraphLength(rawValue);
+    if (parsed != null) {
+      scope.manualX = parsed;
+      return true;
+    }
+    return false;
+  }
+  if (key === "y") {
+    const parsed = parseGraphLength(rawValue);
+    if (parsed != null) {
+      scope.manualY = parsed;
+      return true;
+    }
+    return false;
+  }
+  if (key === "n") {
+    const parsed = parseGraphPositiveInteger(rawValue);
+    if (parsed != null) {
+      scope.nodeCountHint = parsed;
+      return true;
+    }
+    return false;
+  }
+  if (key === "wrap after") {
+    const parsed = parseGraphPositiveInteger(rawValue);
+    if (parsed != null) {
+      scope.wrapAfter = parsed;
+      return true;
+    }
+    return false;
+  }
+
+  if (applyGrowBranchPlacement(scope, key, rawValue, true)) {
+    return true;
+  }
+
+  if (key === "radius") {
+    const parsed = parseGraphLength(rawValue);
+    if (parsed != null) {
+      scope.circularPlacement.radius = parsed;
+      return true;
+    }
+    return false;
+  }
+  if (key === "phase") {
+    const parsed = parseGraphScalar(rawValue);
+    if (parsed != null) {
+      scope.circularPlacement.phase = parsed;
+      return true;
+    }
+    return false;
+  }
+  if (key === "clockwise") {
+    applyClockwisePlacement(scope, rawValue, true);
+    return true;
+  }
+  if (key === "counterclockwise") {
+    applyClockwisePlacement(scope, rawValue, false);
+    return true;
+  }
+
+  return false;
+}
+
+function applyPlacementControlFromFlag(scope: GraphScopeState, key: string): boolean {
+  if (key === "no placement") {
+    scope.placementMode = "none";
+    return true;
+  }
+  if (key === "cartesian placement") {
+    scope.placementMode = "cartesian";
+    return true;
+  }
+  if (key === "grid placement") {
+    scope.placementMode = "grid";
+    return true;
+  }
+  if (key === "circular placement") {
+    scope.placementMode = "circular";
+    return true;
+  }
+  if (key === "clockwise") {
+    applyClockwisePlacement(scope, undefined, true);
+    return true;
+  }
+  if (key === "counterclockwise") {
+    applyClockwisePlacement(scope, undefined, false);
+    return true;
+  }
+  if (applyGrowBranchPlacement(scope, key, undefined, false)) {
+    return true;
+  }
+  return false;
+}
+
+function applyGrowBranchPlacement(
+  scope: GraphScopeState,
+  key: string,
+  rawValue: string | undefined,
+  allowBooleanDisable: boolean
+): boolean {
+  const normalized = key.trim().toLowerCase();
+
+  if (normalized === "grow right") {
+    return setDirectionalShift(scope, "chain", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "grow left") {
+    return setDirectionalShift(scope, "chain", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "grow up") {
+    return setDirectionalShift(scope, "chain", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "grow down") {
+    return setDirectionalShift(scope, "chain", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "branch right") {
+    return setDirectionalShift(scope, "group", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "branch left") {
+    return setDirectionalShift(scope, "group", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "branch up") {
+    return setDirectionalShift(scope, "group", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "branch down") {
+    return setDirectionalShift(scope, "group", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+  }
+  if (normalized === "grow right sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "chain",
+      { x: 1, y: 0 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "grow left sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "chain",
+      { x: -1, y: 0 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "grow up sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "chain",
+      { x: 0, y: 1 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "grow down sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "chain",
+      { x: 0, y: -1 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "branch right sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "group",
+      { x: 1, y: 0 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "branch left sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "group",
+      { x: -1, y: 0 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "branch up sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "group",
+      { x: 0, y: 1 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+  if (normalized === "branch down sep") {
+    const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
+    return setDirectionalShift(
+      scope,
+      "group",
+      { x: 0, y: -1 },
+      rawValue,
+      DEFAULT_GRAPH_STEP_PT + sepDistance,
+      allowBooleanDisable,
+      sepDistance
+    );
+  }
+
+  return false;
+}
+
+function setDirectionalShift(
+  scope: GraphScopeState,
+  axis: "chain" | "group",
+  unitDirection: GraphVector2,
+  rawValue: string | undefined,
+  defaultMagnitude: number,
+  allowBooleanDisable: boolean,
+  sepDistance: number | null
+): boolean {
+  if (rawValue != null && allowBooleanDisable) {
+    const boolean = parseGraphBoolean(rawValue, true);
+    if (boolean === false) {
+      return true;
+    }
+  }
+
+  const magnitude = parseGraphLength(rawValue) ?? defaultMagnitude;
+  const vector = {
+    x: unitDirection.x * magnitude,
+    y: unitDirection.y * magnitude
+  };
+  if (axis === "chain") {
+    scope.chainShift = vector;
+    scope.chainSepDistance = sepDistance;
+  } else {
+    scope.groupShift = vector;
+    scope.groupSepDistance = sepDistance;
+  }
+  return true;
+}
+
+function applyClockwisePlacement(scope: GraphScopeState, rawValue: string | undefined, clockwise: boolean): void {
+  scope.placementMode = "circular";
+  let count = parseGraphPositiveInteger(rawValue);
+  if (count == null || count <= 0) {
+    count = scope.nodeCountHint ?? 0;
+  }
+  if (count <= 0) {
+    count = 8;
+  }
+  scope.circularPlacement.groupAngle = (clockwise ? -1 : 1) * (360 / count);
+  scope.circularPlacement.groupRadius = 0;
+}
+
+function parseGraphScalar(raw: string): number | null {
+  const normalized = stripWrappingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  const value = Number(stripMatchingQuotes(normalized));
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+function parseGraphLength(raw: string | undefined): number | null {
+  if (raw == null) {
+    return null;
+  }
+  const normalized = stripWrappingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  return parseLength(stripMatchingQuotes(normalized), "cm");
+}
+
+function parseGraphPositiveInteger(raw: string | undefined): number | null {
+  if (raw == null) {
+    return null;
+  }
+  const parsed = parseGraphNumber(raw);
+  if (parsed == null || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function resolveGridColumns(wrapAfter: number | null, nodeCountHint: number | null): number {
+  if (wrapAfter != null && Number.isFinite(wrapAfter) && wrapAfter > 0) {
+    return Math.max(1, Math.floor(wrapAfter));
+  }
+  if (nodeCountHint != null && Number.isFinite(nodeCountHint) && nodeCountHint > 0) {
+    return Math.max(1, Math.round(Math.sqrt(nodeCountHint)));
+  }
+  return 1;
+}
+
+function cloneOperatorInvocation(operator: GraphOperatorInvocation): GraphOperatorInvocation {
+  if (operator.kind === "clique" || operator.kind === "cycle" || operator.kind === "path") {
+    return { ...operator };
+  }
+  return { ...operator };
+}
+
+function orientEdgeByKind(from: string, to: string, edgeKind: ConnectorOperator): { from: string; to: string } {
+  if (edgeKind === "<-") {
+    return { from: to, to: from };
+  }
+  return { from, to };
+}
+
+function edgeKindOptionLists(edgeKind: ConnectorOperator): OptionListAst[] {
+  const option = connectorToOptionList(edgeKind);
+  return option ? [option] : [];
 }
 
 function parseDirectionalEdgeShortcut(rawToken: string, span: Span): GraphNodeAccumulatorOp[] {
@@ -1277,6 +2584,71 @@ function pairMatchingAndStar(left: string[], right: string[]): Array<{ from: str
   return pairs;
 }
 
+function buildPathPairs(nodes: string[]): Array<{ from: string; to: string }> {
+  const pairs: Array<{ from: string; to: string }> = [];
+  for (let index = 1; index < nodes.length; index += 1) {
+    pairs.push({ from: nodes[index - 1]!, to: nodes[index]! });
+  }
+  return pairs;
+}
+
+function buildCyclePairs(nodes: string[]): Array<{ from: string; to: string }> {
+  if (nodes.length <= 1) {
+    return [];
+  }
+  const pairs = buildPathPairs(nodes);
+  pairs.push({ from: nodes[nodes.length - 1]!, to: nodes[0]! });
+  return pairs;
+}
+
+function buildCliquePairs(nodes: string[]): Array<{ from: string; to: string }> {
+  const pairs: Array<{ from: string; to: string }> = [];
+  for (let left = 0; left < nodes.length; left += 1) {
+    for (let right = left + 1; right < nodes.length; right += 1) {
+      pairs.push({ from: nodes[left]!, to: nodes[right]! });
+    }
+  }
+  return pairs;
+}
+
+function buildCompleteBipartitePairs(fromNodes: string[], toNodes: string[]): Array<{ from: string; to: string }> {
+  const pairs: Array<{ from: string; to: string }> = [];
+  for (const from of fromNodes) {
+    for (const to of toNodes) {
+      pairs.push({ from, to });
+    }
+  }
+  return pairs;
+}
+
+function buildGridPairs(nodes: string[], wrapAfter: number | null): Array<{ from: string; to: string }> {
+  if (nodes.length <= 1) {
+    return [];
+  }
+
+  const wrap =
+    wrapAfter != null && Number.isFinite(wrapAfter) && wrapAfter > 0
+      ? Math.max(1, Math.floor(wrapAfter))
+      : Math.max(1, Math.round(Math.sqrt(nodes.length)));
+
+  const pairs: Array<{ from: string; to: string }> = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const row = Math.floor(index / wrap);
+    const col = index % wrap;
+
+    const rightIndex = index + 1;
+    if (col + 1 < wrap && rightIndex < nodes.length && Math.floor(rightIndex / wrap) === row) {
+      pairs.push({ from: nodes[index]!, to: nodes[rightIndex]! });
+    }
+
+    const downIndex = index + wrap;
+    if (downIndex < nodes.length) {
+      pairs.push({ from: nodes[index]!, to: nodes[downIndex]! });
+    }
+  }
+  return pairs;
+}
+
 function connectorToOptionList(operator: ConnectorOperator): OptionListAst | undefined {
   if (operator === "--" || operator === "-!-") {
     return undefined;
@@ -1589,14 +2961,6 @@ function skipWhitespace(raw: string, cursor: number): number {
   return index;
 }
 
-function appendUnique(target: string[], values: string[]): void {
-  for (const value of values) {
-    if (!target.includes(value)) {
-      target.push(value);
-    }
-  }
-}
-
 function dedupeSimpleEdges(edges: GraphPlannedEdgeInternal[]): GraphPlannedEdgeInternal[] {
   const lastByPair = new Map<string, number>();
   for (let index = 0; index < edges.length; index += 1) {
@@ -1686,4 +3050,502 @@ function readQuotedText(raw: string, start: number): { text: string; next: numbe
   }
 
   return null;
+}
+
+function normalizeColorClassName(raw: string): string {
+  return normalizeGraphText(raw).toLowerCase();
+}
+
+function createEmptyColorMap(): GraphColorMap {
+  return new Map();
+}
+
+function createColorMapFromNodes(nodes: string[]): GraphColorMap {
+  const map = createEmptyColorMap();
+  setColorNodes(map, "all", nodes);
+  setColorNodes(map, "source", nodes);
+  setColorNodes(map, "target", nodes);
+  return map;
+}
+
+function cloneColorMap(colors: GraphColorMap): GraphColorMap {
+  const cloned = createEmptyColorMap();
+  for (const [key, values] of colors.entries()) {
+    cloned.set(key, [...values]);
+  }
+  return cloned;
+}
+
+function mergeColorMaps(left: GraphColorMap, right: GraphColorMap): GraphColorMap {
+  const merged = cloneColorMap(left);
+  for (const [key, values] of right.entries()) {
+    const existing = merged.get(key) ?? [];
+    merged.set(key, mergeUnique(existing, values));
+  }
+  return merged;
+}
+
+function colorNodes(colors: GraphColorMap, color: string): string[] {
+  return [...(colors.get(color.toLowerCase()) ?? [])];
+}
+
+function setColorNodes(colors: GraphColorMap, color: string, nodes: string[]): void {
+  colors.set(color.toLowerCase(), mergeUnique([], nodes));
+}
+
+function addNodesToColor(colors: GraphColorMap, color: string, nodes: string[]): void {
+  const key = color.toLowerCase();
+  const existing = colors.get(key) ?? [];
+  colors.set(key, mergeUnique(existing, nodes));
+}
+
+function removeNodesFromColor(colors: GraphColorMap, color: string, nodes: string[]): void {
+  const key = color.toLowerCase();
+  const existing = colors.get(key);
+  if (!existing) {
+    return;
+  }
+  const toRemove = new Set(nodes);
+  colors.set(
+    key,
+    existing.filter((node) => !toRemove.has(node))
+  );
+}
+
+function applyColorOperationsToNodes(colors: GraphColorMap, ops: GraphColorOp[], nodes: string[]): void {
+  for (const op of ops) {
+    if (op.kind === "add") {
+      addNodesToColor(colors, op.color, nodes);
+      continue;
+    }
+    if (op.kind === "remove") {
+      removeNodesFromColor(colors, op.color, nodes);
+      continue;
+    }
+
+    const fromNodes = colorNodes(colors, op.from).filter((node) => nodes.includes(node));
+    removeNodesFromColor(colors, op.from, fromNodes);
+    addNodesToColor(colors, op.to, fromNodes);
+  }
+}
+
+function parseColorOpFromEntry(entry: OptionEntry, declaredColorClasses: Set<string>): GraphColorOp | undefined {
+  if (entry.kind === "kv") {
+    const key = normalizeGraphOptionKey(entry.key);
+    const recolorMatch = key.match(/^recolor\s+(.+)\s+by$/);
+    if (!recolorMatch) {
+      return undefined;
+    }
+
+    const from = normalizeColorClassName(recolorMatch[1]!);
+    const to = normalizeColorClassName(entry.valueRaw);
+    if (from.length === 0 || to.length === 0) {
+      return undefined;
+    }
+
+    return {
+      kind: "recolor",
+      from,
+      to
+    };
+  }
+
+  if (entry.kind === "flag") {
+    const key = normalizeGraphOptionKey(entry.key);
+    const removeByNotMatch = key.match(/^not\s+(.+)$/);
+    if (removeByNotMatch) {
+      const color = normalizeColorClassName(removeByNotMatch[1]!);
+      if (color.length > 0 && isKnownColorClass(color, declaredColorClasses)) {
+        return { kind: "remove", color };
+      }
+      return undefined;
+    }
+
+    if (key.startsWith("!")) {
+      const color = normalizeColorClassName(key.slice(1));
+      if (color.length > 0 && isKnownColorClass(color, declaredColorClasses)) {
+        return { kind: "remove", color };
+      }
+      return undefined;
+    }
+
+    const color = normalizeColorClassName(key);
+    if (color.length > 0 && isKnownColorClass(color, declaredColorClasses)) {
+      return { kind: "add", color };
+    }
+  }
+
+  return undefined;
+}
+
+function isKnownColorClass(color: string, declaredColorClasses: Set<string>): boolean {
+  if (declaredColorClasses.has(color)) {
+    return true;
+  }
+  return BUILTIN_COLOR_CLASSES.includes(color as (typeof BUILTIN_COLOR_CLASSES)[number]);
+}
+
+function parseOperatorInvocationsFromEntry(
+  entry: OptionEntry,
+  scope: GraphScopeState,
+  context: GraphOperatorContext
+): GraphOperatorInvocation[] {
+  if (entry.kind === "kv") {
+    const key = normalizeGraphOptionKey(entry.key);
+
+    if (key === "operator") {
+      const parsed = parseOperatorsFromRaw(entry.valueRaw, scope, context);
+      return parsed;
+    }
+
+    if (key === "clique") {
+      return [{ kind: "clique", color: parseSingleColor(entry.valueRaw, "all") }];
+    }
+    if (key === "cycle") {
+      return [{ kind: "cycle", color: parseSingleColor(entry.valueRaw, "all") }];
+    }
+    if (key === "path") {
+      return [{ kind: "path", color: parseSingleColor(entry.valueRaw, "all") }];
+    }
+    if (key === "complete bipartite") {
+      const pair = parseColorPair(entry.valueRaw, context === "edge" ? "target'" : "all", context === "edge" ? "source'" : "all");
+      return [{ kind: "complete-bipartite", fromColor: pair.from, toColor: pair.to }];
+    }
+    if (key === "matching") {
+      const pair = parseColorPair(entry.valueRaw, context === "edge" ? "target'" : "all", context === "edge" ? "source'" : "all");
+      return [{ kind: "matching", fromColor: pair.from, toColor: pair.to }];
+    }
+    if (key === "matching and star") {
+      const pair = parseColorPair(entry.valueRaw, context === "edge" ? "target'" : "all", context === "edge" ? "source'" : "all");
+      return [{ kind: "matching-star", fromColor: pair.from, toColor: pair.to }];
+    }
+
+    return [];
+  }
+
+  if (entry.kind === "flag") {
+    const key = normalizeGraphOptionKey(entry.key);
+    if (key === "clique") {
+      return [{ kind: "clique", color: "all" }];
+    }
+    if (key === "cycle") {
+      return [{ kind: "cycle", color: "all" }];
+    }
+    if (key === "path") {
+      return [{ kind: "path", color: "all" }];
+    }
+    if (key === "complete bipartite") {
+      return [{ kind: "complete-bipartite", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+    }
+    if (key === "matching") {
+      return [{ kind: "matching", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+    }
+    if (key === "matching and star") {
+      return [{ kind: "matching-star", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+    }
+  }
+
+  return [];
+}
+
+function parseOperatorFromRaw(raw: string, scope: GraphScopeState, context: GraphOperatorContext): GraphOperatorInvocation | null {
+  const parsed = parseOperatorsFromRaw(raw, scope, context);
+  if (parsed.length === 0) {
+    return null;
+  }
+  return parsed[0]!;
+}
+
+function parseOperatorsFromRaw(raw: string, scope: GraphScopeState, context: GraphOperatorContext): GraphOperatorInvocation[] {
+  const normalized = stripWrappingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  const optionList = parseGraphValueAsOptionList(normalized, 0);
+  if (optionList) {
+    const collected: GraphOperatorInvocation[] = [];
+    for (const entry of optionList.entries) {
+      collected.push(...parseOperatorInvocationsFromEntry(entry, scope, context));
+    }
+    if (collected.length > 0) {
+      return collected;
+    }
+  }
+
+  const key = normalizeGraphOptionKey(normalized);
+  if (key === "clique") {
+    return [{ kind: "clique", color: "all" }];
+  }
+  if (key === "cycle") {
+    return [{ kind: "cycle", color: "all" }];
+  }
+  if (key === "path") {
+    return [{ kind: "path", color: "all" }];
+  }
+  if (key === "complete bipartite") {
+    return [{ kind: "complete-bipartite", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+  }
+  if (key === "matching") {
+    return [{ kind: "matching", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+  }
+  if (key === "matching and star") {
+    return [{ kind: "matching-star", fromColor: context === "edge" ? "target'" : "all", toColor: context === "edge" ? "source'" : "all" }];
+  }
+  return [];
+}
+
+function parseSingleColor(raw: string, defaultColor: string): string {
+  const normalized = normalizeColorClassName(raw);
+  return normalized.length > 0 ? normalized : defaultColor;
+}
+
+function parseColorPair(raw: string, defaultFrom: string, defaultTo: string): { from: string; to: string } {
+  const trimmed = stripWrappingBraces(raw).trim();
+  if (trimmed.length === 0) {
+    return { from: defaultFrom, to: defaultTo };
+  }
+
+  const braces: string[] = [];
+  let cursor = 0;
+  while (cursor < trimmed.length) {
+    cursor = skipWhitespace(trimmed, cursor);
+    if (cursor >= trimmed.length || trimmed[cursor] !== "{") {
+      break;
+    }
+    const segment = readBalancedSegment(trimmed, cursor, "{", "}");
+    if (!segment) {
+      break;
+    }
+    braces.push(segment.raw.slice(1, -1));
+    cursor = segment.next;
+  }
+
+  if (braces.length >= 2) {
+    const from = normalizeColorClassName(braces[0]!);
+    const to = normalizeColorClassName(braces[1]!);
+    return {
+      from: from.length > 0 ? from : defaultFrom,
+      to: to.length > 0 ? to : defaultTo
+    };
+  }
+
+  const commaParts = splitTopLevel(trimmed, [","], 0)
+    .map((part) => part.raw.trim())
+    .filter((part) => part.length > 0);
+  if (commaParts.length >= 2) {
+    const from = normalizeColorClassName(commaParts[0]!);
+    const to = normalizeColorClassName(commaParts[1]!);
+    return {
+      from: from.length > 0 ? from : defaultFrom,
+      to: to.length > 0 ? to : defaultTo
+    };
+  }
+
+  return {
+    from: defaultFrom,
+    to: defaultTo
+  };
+}
+
+function buildOperatorPairs(operator: GraphOperatorInvocation, colors: GraphColorMap): Array<{ from: string; to: string }> {
+  if (operator.kind === "clique") {
+    return buildCliquePairs(colorNodes(colors, operator.color));
+  }
+  if (operator.kind === "cycle") {
+    return buildCyclePairs(colorNodes(colors, operator.color));
+  }
+  if (operator.kind === "path") {
+    return buildPathPairs(colorNodes(colors, operator.color));
+  }
+
+  const fromNodes = colorNodes(colors, operator.fromColor);
+  const toNodes = colorNodes(colors, operator.toColor);
+
+  if (operator.kind === "complete-bipartite") {
+    return buildCompleteBipartitePairs(fromNodes, toNodes);
+  }
+  if (operator.kind === "matching") {
+    const pairs: Array<{ from: string; to: string }> = [];
+    const min = Math.min(fromNodes.length, toNodes.length);
+    for (let index = 0; index < min; index += 1) {
+      pairs.push({ from: fromNodes[index]!, to: toNodes[index]! });
+    }
+    return pairs;
+  }
+  return pairMatchingAndStar(fromNodes, toNodes);
+}
+
+function isEdgeKindFlag(key: string): boolean {
+  return key === "--" || key === "->" || key === "<-" || key === "<->" || key === "-!-";
+}
+
+function isDefaultEdgeKindKey(key: string): boolean {
+  return key === "default edge kind" || key === "edge kind";
+}
+
+function parseDefaultEdgeKind(raw: string): ConnectorOperator | null {
+  const normalized = stripWrappingBraces(raw).trim();
+  if (isEdgeKindFlag(normalized)) {
+    return normalized as ConnectorOperator;
+  }
+  return null;
+}
+
+function parseSubgraphStructure(options: OptionListAst | undefined): ParsedSubgraphStructure {
+  let verticesV: string[] = [];
+  let verticesW: string[] = [];
+  let n: number | null = null;
+  let m: number | null = null;
+  let wrapAfter: number | null = null;
+  let nameShoreV = "";
+  let nameShoreW = "";
+
+  for (const entry of options?.entries ?? []) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = normalizeGraphOptionKey(entry.key);
+    if (key === "v") {
+      verticesV = parseVertexList(entry.valueRaw);
+      continue;
+    }
+    if (key === "w") {
+      verticesW = parseVertexList(entry.valueRaw);
+      continue;
+    }
+    if (key === "n") {
+      n = parseGraphNumber(entry.valueRaw);
+      continue;
+    }
+    if (key === "m") {
+      m = parseGraphNumber(entry.valueRaw);
+      continue;
+    }
+    if (key === "wrap after") {
+      wrapAfter = parseGraphNumber(entry.valueRaw);
+      continue;
+    }
+    if (key === "name shore v") {
+      nameShoreV = parseShoreName(entry.valueRaw);
+      continue;
+    }
+    if (key === "name shore w") {
+      nameShoreW = parseShoreName(entry.valueRaw);
+    }
+  }
+
+  if (verticesV.length === 0 && n != null && n > 0) {
+    verticesV = sequenceLabels(n);
+    if (nameShoreV.length === 0) {
+      nameShoreV = "V";
+    }
+  }
+
+  if (verticesW.length === 0 && m != null && m > 0) {
+    verticesW = sequenceLabels(m);
+    if (nameShoreW.length === 0) {
+      nameShoreW = "W";
+    }
+  }
+
+  return {
+    verticesV,
+    verticesW,
+    nameShoreV,
+    nameShoreW,
+    wrapAfter
+  };
+}
+
+function parseShoreName(raw: string): string {
+  const nested = parseGraphValueAsOptionList(raw, 0);
+  if (nested) {
+    for (const entry of nested.entries) {
+      if (entry.kind === "kv" && entry.key === "name") {
+        return normalizeGraphText(entry.valueRaw);
+      }
+    }
+  }
+  return normalizeGraphText(raw);
+}
+
+function parseVertexList(raw: string): string[] {
+  const normalized = stripWrappingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return [];
+  }
+
+  const parts = splitTopLevel(normalized, [","], 0)
+    .map((segment) => segment.raw.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (parts.length === 3 && parts[1] === "...") {
+    const expanded = expandRange(parts[0]!, parts[2]!);
+    if (expanded.length > 0) {
+      return expanded;
+    }
+  }
+
+  return parts.map((part) => parseGraphTextToken(part).text);
+}
+
+function expandRange(leftRaw: string, rightRaw: string): string[] {
+  const left = normalizeGraphText(leftRaw);
+  const right = normalizeGraphText(rightRaw);
+
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+    const from = Math.floor(leftNumber);
+    const to = Math.floor(rightNumber);
+    const result: string[] = [];
+    if (from <= to) {
+      for (let current = from; current <= to; current += 1) {
+        result.push(String(current));
+      }
+    } else {
+      for (let current = from; current >= to; current -= 1) {
+        result.push(String(current));
+      }
+    }
+    return result;
+  }
+
+  if (left.length === 1 && right.length === 1) {
+    const leftCode = left.codePointAt(0)!;
+    const rightCode = right.codePointAt(0)!;
+    const result: string[] = [];
+    if (leftCode <= rightCode) {
+      for (let code = leftCode; code <= rightCode; code += 1) {
+        result.push(String.fromCodePoint(code));
+      }
+    } else {
+      for (let code = leftCode; code >= rightCode; code -= 1) {
+        result.push(String.fromCodePoint(code));
+      }
+    }
+    return result;
+  }
+
+  return [];
+}
+
+function sequenceLabels(count: number): string[] {
+  const labels: string[] = [];
+  for (let index = 1; index <= count; index += 1) {
+    labels.push(String(index));
+  }
+  return labels;
+}
+
+function mergeUnique(base: string[], next: string[]): string[] {
+  const merged = [...base];
+  for (const value of next) {
+    if (!merged.includes(value)) {
+      merged.push(value);
+    }
+  }
+  return merged;
 }
