@@ -271,22 +271,52 @@ function resolveDefaultGridStep(transform: { a: number; b: number; c: number; d:
 }
 
 type PlotSettings = {
+  handler:
+    | "sharp"
+    | "sharp-cycle"
+    | "smooth"
+    | "smooth-cycle"
+    | "const-left"
+    | "const-right"
+    | "const-mid"
+    | "jump-left"
+    | "jump-right"
+    | "jump-mid"
+    | "ycomb"
+    | "xcomb"
+    | "polar-comb"
+    | "ybar"
+    | "xbar"
+    | "ybar-interval"
+    | "xbar-interval"
+    | "only-marks";
   domainStart: number;
   domainEnd: number;
   samples: number;
   samplesAt: number[] | null;
   variable: string;
   mark: string | null;
+  tension: number;
+  barWidth: number;
+  barShift: number;
+  barIntervalWidth: number;
+  barIntervalShift: number;
 };
 
 function createDefaultPlotSettings(): PlotSettings {
   return {
+    handler: "sharp",
     domainStart: -5,
     domainEnd: 5,
     samples: 25,
     samplesAt: null,
     variable: "\\x",
-    mark: null
+    mark: null,
+    tension: 0.55,
+    barWidth: parseLength("10pt", "pt") ?? 10,
+    barShift: 0,
+    barIntervalWidth: 1,
+    barIntervalShift: 0.5
   };
 }
 
@@ -321,10 +351,19 @@ function applyPlotOptionList(
 ): PlotSettings {
   const settings = { ...base };
   for (const entry of optionList.entries) {
-    if (entry.kind !== "kv") {
+    if (entry.kind === "flag") {
+      applyPlotFlag(settings, entry.key);
       continue;
     }
-    const key = entry.key.toLowerCase();
+
+    if (entry.kind !== "kv" && entry.kind !== "unknown") {
+      continue;
+    }
+    if (entry.kind === "unknown") {
+      continue;
+    }
+
+    const key = entry.key.toLowerCase().trim();
     const valueRaw = expandPlotOptionValue(entry.valueRaw, bindings);
 
     if (key === "domain") {
@@ -364,10 +403,125 @@ function applyPlotOptionList(
 
     if (key === "mark") {
       settings.mark = parsePlotMark(valueRaw);
+      continue;
+    }
+
+    if (key === "tension") {
+      const parsed = parsePlotScalar(valueRaw);
+      if (parsed != null && Number.isFinite(parsed)) {
+        settings.tension = parsed;
+      }
+      continue;
+    }
+
+    if (key === "bar width") {
+      const parsed = parsePlotLength(valueRaw, "pt");
+      if (parsed != null && Number.isFinite(parsed)) {
+        settings.barWidth = parsed;
+      }
+      continue;
+    }
+
+    if (key === "bar shift") {
+      const parsed = parsePlotLength(valueRaw, "pt");
+      if (parsed != null && Number.isFinite(parsed)) {
+        settings.barShift = parsed;
+      }
+      continue;
+    }
+
+    if (key === "bar interval width") {
+      const parsed = parsePlotScalar(valueRaw);
+      if (parsed != null && Number.isFinite(parsed)) {
+        settings.barIntervalWidth = parsed;
+      }
+      continue;
+    }
+
+    if (key === "bar interval shift") {
+      const parsed = parsePlotScalar(valueRaw);
+      if (parsed != null && Number.isFinite(parsed)) {
+        settings.barIntervalShift = parsed;
+      }
     }
   }
 
   return settings;
+}
+
+function applyPlotFlag(settings: PlotSettings, rawKey: string): void {
+  const key = rawKey.toLowerCase().trim();
+  if (key === "smooth") {
+    settings.handler = "smooth";
+    return;
+  }
+  if (key === "smooth cycle") {
+    settings.handler = "smooth-cycle";
+    return;
+  }
+  if (key === "sharp plot") {
+    settings.handler = "sharp";
+    return;
+  }
+  if (key === "sharp cycle") {
+    settings.handler = "sharp-cycle";
+    return;
+  }
+  if (key === "const plot" || key === "const plot mark left") {
+    settings.handler = "const-left";
+    return;
+  }
+  if (key === "const plot mark right") {
+    settings.handler = "const-right";
+    return;
+  }
+  if (key === "const plot mark mid") {
+    settings.handler = "const-mid";
+    return;
+  }
+  if (key === "jump mark left") {
+    settings.handler = "jump-left";
+    return;
+  }
+  if (key === "jump mark right") {
+    settings.handler = "jump-right";
+    return;
+  }
+  if (key === "jump mark mid") {
+    settings.handler = "jump-mid";
+    return;
+  }
+  if (key === "ycomb") {
+    settings.handler = "ycomb";
+    return;
+  }
+  if (key === "xcomb") {
+    settings.handler = "xcomb";
+    return;
+  }
+  if (key === "polar comb") {
+    settings.handler = "polar-comb";
+    return;
+  }
+  if (key === "ybar") {
+    settings.handler = "ybar";
+    return;
+  }
+  if (key === "xbar") {
+    settings.handler = "xbar";
+    return;
+  }
+  if (key === "ybar interval") {
+    settings.handler = "ybar-interval";
+    return;
+  }
+  if (key === "xbar interval") {
+    settings.handler = "xbar-interval";
+    return;
+  }
+  if (key === "only marks") {
+    settings.handler = "only-marks";
+  }
 }
 
 function parsePlotDomain(raw: string): { start: number; end: number } | null {
@@ -427,6 +581,14 @@ function parsePlotVariable(raw: string): string | null {
 function parsePlotMark(raw: string): string | null {
   const normalized = stripBalancedOuterBraces(raw).trim();
   return normalized.length > 0 ? normalized : null;
+}
+
+function parsePlotLength(raw: string, defaultUnit: "cm" | "pt"): number | null {
+  const normalized = stripBalancedOuterBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  return parseLength(normalized, defaultUnit);
 }
 
 function parsePlotScalar(raw: string): number | null {
@@ -756,6 +918,33 @@ export function evaluatePathStatement(
       });
     }
   };
+  const appendPlotPlusMarks = (commands: ScenePath["commands"], points: Point[]): void => {
+    const halfSize = parseLength("2pt", "pt") ?? 2;
+    for (const point of points) {
+      commands.push({
+        kind: "M",
+        to: { x: point.x - halfSize, y: point.y }
+      });
+      commands.push({
+        kind: "L",
+        to: { x: point.x + halfSize, y: point.y }
+      });
+      commands.push({
+        kind: "M",
+        to: { x: point.x, y: point.y - halfSize }
+      });
+      commands.push({
+        kind: "L",
+        to: { x: point.x, y: point.y + halfSize }
+      });
+    }
+  };
+  const appendPlotAsteriskMarks = (commands: ScenePath["commands"], points: Point[]): void => {
+    const radius = parseLength("2pt", "pt") ?? 2;
+    for (const point of points) {
+      appendCircleSubpath(commands, point, radius);
+    }
+  };
   const evaluatePlotCoordinatePoints = (
     entries: Array<{ raw: string; relativePrefix?: "+" | "++" }>,
     span: { from: number; to: number },
@@ -784,7 +973,7 @@ export function evaluatePathStatement(
   const emitPlotPath = (
     item: PlotOperationItem,
     points: Point[],
-    mark: string | null,
+    settings: PlotSettings,
     connectFrom: Point | null
   ): void => {
     if (points.length === 0) {
@@ -795,45 +984,313 @@ export function evaluatePathStatement(
 
     activePath = flushDrawableActivePath(geometryElements, activePath);
 
-    const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
-    if (connectFrom) {
-      plotPath.commands.push({ kind: "M", to: connectFrom });
-      if (!pointsClose(connectFrom, points[0])) {
-        plotPath.commands.push({ kind: "L", to: points[0] });
+    const commands: ScenePath["commands"] = [];
+    let lastSegment: { from: Point; to: Point } | null = null;
+    const markPoints: Point[] = [];
+    const tensionFactor = 0.2775 * settings.tension;
+
+    const addConnectionToFirstPoint = (target: Point): void => {
+      if (!connectFrom) {
+        return;
       }
+      commands.push({ kind: "M", to: connectFrom });
+      if (!pointsClose(connectFrom, target)) {
+        commands.push({ kind: "L", to: target });
+        lastSegment = { from: connectFrom, to: target };
+      }
+    };
+
+    const addLine = (from: Point, to: Point): void => {
+      commands.push({ kind: "L", to });
+      if (!pointsClose(from, to)) {
+        lastSegment = { from, to };
+      }
+    };
+
+    const addCurve = (from: Point, c1: Point, c2: Point, to: Point): void => {
+      commands.push({ kind: "C", c1, c2, to });
+      if (!pointsClose(from, to)) {
+        lastSegment = { from, to };
+      }
+    };
+
+    if (settings.handler === "sharp") {
+      const first = points[0]!;
+      if (connectFrom) {
+        addConnectionToFirstPoint(first);
+      } else {
+        commands.push({ kind: "M", to: first });
+      }
+      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+        addLine(points[pointIndex - 1]!, points[pointIndex]!);
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "sharp-cycle") {
+      const first = points[0]!;
+      if (connectFrom) {
+        addConnectionToFirstPoint(first);
+      }
+      commands.push({ kind: "M", to: first });
+      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+        addLine(points[pointIndex - 1]!, points[pointIndex]!);
+      }
+      if (points.length > 1) {
+        lastSegment = { from: points[points.length - 1]!, to: first };
+      }
+      commands.push({ kind: "Z" });
+      markPoints.push(...points);
+    } else if (settings.handler === "smooth") {
+      const first = points[0]!;
+      if (connectFrom) {
+        addConnectionToFirstPoint(first);
+      } else {
+        commands.push({ kind: "M", to: first });
+      }
+      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
+        const prev = pointIndex > 0 ? points[pointIndex - 1]! : points[pointIndex]!;
+        const current = points[pointIndex]!;
+        const next = points[pointIndex + 1]!;
+        const nextNext = pointIndex + 2 < points.length ? points[pointIndex + 2]! : points[pointIndex + 1]!;
+        const c1 =
+          pointIndex === 0
+            ? current
+            : {
+                x: current.x + tensionFactor * (next.x - prev.x),
+                y: current.y + tensionFactor * (next.y - prev.y)
+              };
+        const c2 =
+          pointIndex === points.length - 2
+            ? next
+            : {
+                x: next.x - tensionFactor * (nextNext.x - current.x),
+                y: next.y - tensionFactor * (nextNext.y - current.y)
+              };
+        addCurve(current, c1, c2, next);
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "smooth-cycle") {
+      const first = points[0]!;
+      if (connectFrom) {
+        addConnectionToFirstPoint(first);
+      }
+      commands.push({ kind: "M", to: first });
+      if (points.length > 1) {
+        const count = points.length;
+        for (let pointIndex = 0; pointIndex < count; pointIndex += 1) {
+          const previous = points[(pointIndex - 1 + count) % count]!;
+          const current = points[pointIndex]!;
+          const next = points[(pointIndex + 1) % count]!;
+          const nextNext = points[(pointIndex + 2) % count]!;
+          const c1 = {
+            x: current.x + tensionFactor * (next.x - previous.x),
+            y: current.y + tensionFactor * (next.y - previous.y)
+          };
+          const c2 = {
+            x: next.x - tensionFactor * (nextNext.x - current.x),
+            y: next.y - tensionFactor * (nextNext.y - current.y)
+          };
+          addCurve(current, c1, c2, next);
+        }
+        lastSegment = { from: points[count - 1]!, to: first };
+        commands.push({ kind: "Z" });
+      }
+      markPoints.push(...points);
+    } else if (
+      settings.handler === "const-left" ||
+      settings.handler === "const-right" ||
+      settings.handler === "const-mid" ||
+      settings.handler === "jump-left" ||
+      settings.handler === "jump-right" ||
+      settings.handler === "jump-mid"
+    ) {
+      const first = points[0]!;
+      if (connectFrom) {
+        addConnectionToFirstPoint(first);
+      } else {
+        commands.push({ kind: "M", to: first });
+      }
+
+      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+        const previous = points[pointIndex - 1]!;
+        const current = points[pointIndex]!;
+        if (settings.handler === "const-left") {
+          const step = { x: current.x, y: previous.y };
+          addLine(previous, step);
+          addLine(step, current);
+          continue;
+        }
+        if (settings.handler === "const-right") {
+          const step = { x: previous.x, y: current.y };
+          addLine(previous, step);
+          addLine(step, current);
+          continue;
+        }
+        if (settings.handler === "const-mid") {
+          const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
+          const midTop = { x: mid.x, y: current.y };
+          addLine(previous, mid);
+          addLine(mid, midTop);
+          addLine(midTop, current);
+          continue;
+        }
+        if (settings.handler === "jump-left") {
+          const end = { x: current.x, y: previous.y };
+          addLine(previous, end);
+          commands.push({ kind: "M", to: current });
+          continue;
+        }
+        if (settings.handler === "jump-right") {
+          const start = { x: previous.x, y: current.y };
+          commands.push({ kind: "M", to: start });
+          addLine(start, current);
+          continue;
+        }
+        const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
+        const midTop = { x: mid.x, y: current.y };
+        addLine(previous, mid);
+        commands.push({ kind: "M", to: midTop });
+        addLine(midTop, current);
+      }
+
+      if (settings.handler === "const-left" || settings.handler === "jump-left") {
+        if (points.length > 1) {
+          markPoints.push(...points.slice(0, -1));
+        } else {
+          markPoints.push(...points);
+        }
+      } else if (settings.handler === "const-right" || settings.handler === "jump-right") {
+        if (points.length > 1) {
+          markPoints.push(...points.slice(1));
+        } else {
+          markPoints.push(...points);
+        }
+      } else if (settings.handler === "const-mid" || settings.handler === "jump-mid") {
+        if (points.length > 1) {
+          for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+            const previous = points[pointIndex - 1]!;
+            const current = points[pointIndex]!;
+            markPoints.push({
+              x: 0.5 * (previous.x + current.x),
+              y: previous.y
+            });
+          }
+        } else {
+          markPoints.push(...points);
+        }
+      }
+    } else if (settings.handler === "ycomb") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (const point of points) {
+        const base = { x: point.x, y: 0 };
+        commands.push({ kind: "M", to: base });
+        addLine(base, point);
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "xcomb") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (const point of points) {
+        const base = { x: 0, y: point.y };
+        commands.push({ kind: "M", to: base });
+        addLine(base, point);
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "polar-comb") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      const origin = { x: 0, y: 0 };
+      for (const point of points) {
+        commands.push({ kind: "M", to: origin });
+        addLine(origin, point);
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "ybar") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (const point of points) {
+        const left = point.x - 0.5 * settings.barWidth + settings.barShift;
+        const from = { x: left, y: 0 };
+        const to = { x: left + settings.barWidth, y: point.y };
+        appendRectangleSubpath(commands, from, to);
+        if (!pointsClose(from, { x: left, y: point.y })) {
+          lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: point.y } };
+        }
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "xbar") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (const point of points) {
+        const bottom = point.y - 0.5 * settings.barWidth + settings.barShift;
+        const from = { x: 0, y: bottom };
+        const to = { x: point.x, y: bottom + settings.barWidth };
+        appendRectangleSubpath(commands, from, to);
+        if (!pointsClose(from, { x: point.x, y: bottom })) {
+          lastSegment = { from: { x: 0, y: bottom }, to: { x: point.x, y: bottom } };
+        }
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "ybar-interval") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
+        const current = points[pointIndex]!;
+        const next = points[pointIndex + 1]!;
+        const interval = next.x - current.x;
+        const center = current.x + settings.barIntervalShift * interval;
+        const width = settings.barIntervalWidth * interval;
+        const left = center - 0.5 * width;
+        const from = { x: left, y: 0 };
+        const to = { x: left + width, y: current.y };
+        appendRectangleSubpath(commands, from, to);
+        if (!pointsClose(from, { x: left, y: current.y })) {
+          lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: current.y } };
+        }
+      }
+      markPoints.push(...points);
+    } else if (settings.handler === "xbar-interval") {
+      if (connectFrom) {
+        addConnectionToFirstPoint(points[0]!);
+      }
+      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
+        const current = points[pointIndex]!;
+        const next = points[pointIndex + 1]!;
+        const interval = next.y - current.y;
+        const center = current.y + settings.barIntervalShift * interval;
+        const width = settings.barIntervalWidth * interval;
+        const bottom = center - 0.5 * width;
+        const from = { x: 0, y: bottom };
+        const to = { x: current.x, y: bottom + width };
+        appendRectangleSubpath(commands, from, to);
+        if (!pointsClose(from, { x: current.x, y: bottom })) {
+          lastSegment = { from: { x: 0, y: bottom }, to: { x: current.x, y: bottom } };
+        }
+      }
+      markPoints.push(...points);
     } else {
-      plotPath.commands.push({ kind: "M", to: points[0] });
+      markPoints.push(...points);
     }
 
-    for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-      plotPath.commands.push({ kind: "L", to: points[pointIndex] });
-    }
+    const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
+    plotPath.commands.push(...commands);
 
     if (hasDrawablePathSegments(plotPath)) {
       geometryElements.push(plotPath);
       markFeature("svg_path", "supported");
     }
 
-    let segmentFrom: Point | null = null;
-    let segmentTo: Point | null = null;
-    if (connectFrom && !pointsClose(connectFrom, points[0])) {
-      segmentFrom = connectFrom;
-      segmentTo = points[0];
-    }
-    for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-      const from = points[pointIndex - 1]!;
-      const to = points[pointIndex]!;
-      if (pointsClose(from, to)) {
-        continue;
-      }
-      segmentFrom = from;
-      segmentTo = to;
-    }
-    if (segmentFrom && segmentTo) {
+    if (lastSegment) {
       lastPlacementSegment = {
         kind: "line",
-        from: segmentFrom,
-        to: segmentTo
+        from: lastSegment.from,
+        to: lastSegment.to
       };
       previousSegmentRoundedCorners = activeRoundedCorners;
     } else {
@@ -841,13 +1298,27 @@ export function evaluatePathStatement(
       previousSegmentRoundedCorners = null;
     }
 
-    if ((mark ?? "").trim().toLowerCase() === "x") {
-      const markerPathStyle: ResolvedStyle = {
-        ...style,
-        fill: "none"
-      };
+    const markName = (settings.mark ?? "").trim().toLowerCase();
+    if (markPoints.length > 0 && (markName === "x" || markName === "+" || markName === "*")) {
+      const markerPathStyle: ResolvedStyle =
+        markName === "*"
+          ? {
+              ...style,
+              stroke: style.stroke ?? style.fill ?? style.textColor ?? "black",
+              fill: style.fill ?? style.stroke ?? style.textColor ?? "black"
+            }
+          : {
+              ...style,
+              fill: "none"
+            };
       const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, statementStyleChain, item.span);
-      appendPlotXMarks(markerPath.commands, points);
+      if (markName === "x") {
+        appendPlotXMarks(markerPath.commands, markPoints);
+      } else if (markName === "+") {
+        appendPlotPlusMarks(markerPath.commands, markPoints);
+      } else {
+        appendPlotAsteriskMarks(markerPath.commands, markPoints);
+      }
       if (hasDrawablePathSegments(markerPath)) {
         geometryElements.push(markerPath);
         markFeature("svg_path", "supported");
@@ -1622,7 +2093,7 @@ export function evaluatePathStatement(
           continue;
         }
         const points = evaluatePlotCoordinatePoints(coordinateEntries, item.span, "Plot coordinate issue");
-        emitPlotPath(item, points, localPlotSettings.mark, connectFrom);
+        emitPlotPath(item, points, localPlotSettings, connectFrom);
         markFeature("plot_operation", "supported");
         currentOperator = null;
         continue;
@@ -1664,7 +2135,7 @@ export function evaluatePathStatement(
           currentOperator = null;
           continue;
         }
-        emitPlotPath(item, points, localPlotSettings.mark, connectFrom);
+        emitPlotPath(item, points, localPlotSettings, connectFrom);
         markFeature("plot_operation", "supported");
         currentOperator = null;
         continue;

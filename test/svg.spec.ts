@@ -141,6 +141,35 @@ describe("svg emitter", () => {
     expect(emitted.svg.match(/<path /g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
+  it("emits smooth and bar plot handler geometries as SVG paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[smooth] coordinates {(0,0) (1,1) (2,0)};
+  \draw[fill=blue!30,bar width=6pt] plot[ybar] coordinates {(0,1) (1,2) (2,1)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-option-flag:"))).toBe(false);
+    expect(emitted.svg).toContain("<path");
+    expect(emitted.svg).toContain(" C ");
+    expect(emitted.svg).toContain(" Z");
+  });
+
+  it("emits `mark=+` and `mark=*` plot markers as SVG path geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[mark=+] coordinates {(0,0) (1,1) (2,0)};
+  \draw plot[mark=*] coordinates {(0,1) (1,2) (2,1)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code === "invalid-plot-coordinates")).toBe(false);
+    expect(emitted.svg.match(/<path /g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+    expect(emitted.svg).toContain(" A ");
+  });
+
   it("includes arc extrema in bounds so the viewBox does not clip half-circle arcs", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (1,0) arc (0:180:1cm);

@@ -423,6 +423,155 @@ describe("semantic evaluator", () => {
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:mark")).toBe(false);
   });
 
+  it("supports smooth and smooth-cycle plot handlers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[smooth,tension=1] coordinates {(0,0) (1,1) (2,0) (3,1)};
+  \draw plot[smooth cycle,tension=0.5] coordinates {(0,0) (1,0) (1,1) (0,1)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    const smoothPath = paths[0];
+    const smoothCyclePath = paths[1];
+    if (smoothPath?.kind === "Path") {
+      expect(smoothPath.commands.some((command) => command.kind === "C")).toBe(true);
+    }
+    if (smoothCyclePath?.kind === "Path") {
+      expect(smoothCyclePath.commands.some((command) => command.kind === "C")).toBe(true);
+      expect(smoothCyclePath.commands.some((command) => command.kind === "Z")).toBe(true);
+    }
+  });
+
+  it("supports const and jump plot handlers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[const plot] coordinates {(0,0) (1,1) (2,0)};
+  \draw plot[jump mark mid] coordinates {(0,0) (1,1) (2,0)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:const plot")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:jump mark mid")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    const constPath = paths[0];
+    const jumpPath = paths[1];
+    if (constPath?.kind === "Path") {
+      expect(constPath.commands.filter((command) => command.kind === "L").length).toBeGreaterThanOrEqual(4);
+    }
+    if (jumpPath?.kind === "Path") {
+      const moveCommands = jumpPath.commands.filter((command) => command.kind === "M");
+      expect(moveCommands.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("supports comb and bar plot handlers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[ycomb] coordinates {(0,1) (1,2) (2,1)};
+  \draw plot[xcomb] coordinates {(1,0) (2,1) (1.5,2)};
+  \draw[fill=blue!30,bar width=6pt,bar shift=2pt] plot[ybar] coordinates {(0,1) (1,2) (2,1)};
+  \draw[fill=red!30,bar width=6pt,bar shift=-1pt] plot[xbar] coordinates {(1,0) (2,1) (1.5,2)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:bar width")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:bar shift")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:ycomb")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:xbar")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(4);
+    const yBarPath = paths[2];
+    const xBarPath = paths[3];
+    if (yBarPath?.kind === "Path") {
+      expect(yBarPath.commands.some((command) => command.kind === "Z")).toBe(true);
+    }
+    if (xBarPath?.kind === "Path") {
+      expect(xBarPath.commands.some((command) => command.kind === "Z")).toBe(true);
+    }
+  });
+
+  it("supports interval bar plot handlers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[bar interval width=0.8,bar interval shift=0.5] plot[ybar interval] coordinates {(0,1) (1,2) (3,1) (4,0.5)};
+  \draw[bar interval width=0.8,bar interval shift=0.5] plot[xbar interval] coordinates {(1,0) (2,1) (1.5,2) (1,3)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:bar interval width")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:bar interval shift")).toBe(false);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+    const yInterval = paths[0];
+    const xInterval = paths[1];
+    if (yInterval?.kind === "Path") {
+      const closedSubpaths = yInterval.commands.filter((command) => command.kind === "Z");
+      expect(closedSubpaths).toHaveLength(3);
+    }
+    if (xInterval?.kind === "Path") {
+      const closedSubpaths = xInterval.commands.filter((command) => command.kind === "Z");
+      expect(closedSubpaths).toHaveLength(3);
+    }
+  });
+
+  it("supports `only marks` plot handler (no connecting polyline)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[only marks,mark=x] coordinates {(0,0) (1,1) (2,0)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:only marks")).toBe(false);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(1);
+    const markerPath = paths[0];
+    if (markerPath?.kind === "Path") {
+      expect(markerPath.commands.some((command) => command.kind === "C")).toBe(false);
+      expect(markerPath.commands.some((command) => command.kind === "Z")).toBe(false);
+      expect(markerPath.commands.filter((command) => command.kind === "L").length).toBe(6);
+    }
+  });
+
+  it("supports `mark=+` and `mark=*` plot markers", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[mark=+] coordinates {(0,0) (1,1) (2,0)};
+  \draw plot[mark=*] coordinates {(0,1) (1,2) (2,1)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(4);
+
+    const plusMarkerPath = paths.find((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const hasArc = element.commands.some((command) => command.kind === "A");
+      const hasCurve = element.commands.some((command) => command.kind === "C");
+      const hasClose = element.commands.some((command) => command.kind === "Z");
+      const lineCount = element.commands.filter((command) => command.kind === "L").length;
+      return !hasArc && !hasCurve && !hasClose && lineCount >= 6;
+    });
+    const starMarkerPath = paths.find((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const arcCount = element.commands.filter((command) => command.kind === "A").length;
+      const closeCount = element.commands.filter((command) => command.kind === "Z").length;
+      return arcCount >= 6 && closeCount >= 3;
+    });
+
+    expect(plusMarkerPath?.kind).toBe("Path");
+    expect(starMarkerPath?.kind).toBe("Path");
+  });
+
   it("emits explicit diagnostics for currently unsupported path keywords", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) bend (1,1);
