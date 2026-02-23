@@ -258,6 +258,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["coordinate_operation"]
   },
+  graph_operation: {
+    parser: "stable",
+    semantic: "partial",
+    svg: "partial",
+    edit: "none",
+    fixtures: ["graph_operation"]
+  },
   plot_operation: {
     parser: "stable",
     semantic: "partial",

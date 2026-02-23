@@ -4,6 +4,8 @@ import type {
   CoordinateItem,
   EdgeFromParentOperationItem,
   EdgeOperationItem,
+  GraphOperationItem,
+  NodeItem,
   PathItem,
   PathStatement,
   PlotOperationItem,
@@ -84,6 +86,7 @@ import {
   sanitizeGeneratedNodeName,
   splitChildBodyAndTrailingEdgeFromParent
 } from "./tree-child.js";
+import { buildGraphPlan } from "./graph.js";
 
 type EllipseGeometry = {
   rx: number;
@@ -987,6 +990,181 @@ export function evaluatePathStatement(
           item.span.from,
           item.span.to
         );
+        currentOperator = null;
+      }
+    ],
+    [
+      "GraphOperation",
+      (pathItem) => {
+        const item = pathItem as GraphOperationItem;
+        const plan = buildGraphPlan(item);
+        if (plan.diagnostics.length > 0) {
+          for (const diagnostic of plan.diagnostics) {
+            pushDiagnostic(
+              "invalid-graph-syntax",
+              `Graph syntax issue: ${diagnostic}`,
+              item.specSpan.from,
+              item.specSpan.to
+            );
+          }
+        }
+
+        const graphStatement: PathStatement = {
+          kind: "Path",
+          id: `${statement.id}:${item.id}:graph`,
+          span: item.span,
+          command: "path",
+          options: undefined,
+          items: []
+        };
+
+        const plannedBehindNodeElements: SceneElement[] = [];
+        const plannedFrontNodeElements: SceneElement[] = [];
+
+        for (let nodeIndex = 0; nodeIndex < plan.nodes.length; nodeIndex += 1) {
+          const node = plan.nodes[nodeIndex]!;
+          const scoped = applyNameScope(node.name, context);
+          if (context.namedCoordinates.has(scoped) || context.namedCoordinates.has(node.name)) {
+            continue;
+          }
+
+          const syntheticNode: NodeItem = {
+            kind: "Node",
+            id: `${item.id}:graph-node:${nodeIndex}`,
+            span: node.span,
+            raw: node.name,
+            templateRaw: node.name,
+            name: node.name,
+            optionsSpan: node.options?.span,
+            options: node.options,
+            textSource: "group",
+            textSpan: node.span,
+            text: node.text
+          };
+          const evaluatedNode = evaluateNodeItem(
+            syntheticNode,
+            graphStatement,
+            context,
+            style,
+            markFeature,
+            pushDiagnostic,
+            null,
+            undefined,
+            undefined,
+            node.defaultPoint,
+            statementStyleChain
+          );
+          plannedBehindNodeElements.push(...evaluatedNode.behindElements);
+          plannedFrontNodeElements.push(...evaluatedNode.frontElements);
+        }
+
+        const edgeElements: SceneElement[] = [];
+        for (let edgeIndex = 0; edgeIndex < plan.edges.length; edgeIndex += 1) {
+          const edge = plan.edges[edgeIndex]!;
+          const startCoordinateRaw = `(${edge.from})`;
+          const targetCoordinateRaw = `(${edge.to})`;
+          const startEvaluation = evaluateRawCoordinate(startCoordinateRaw, context);
+          for (const code of startEvaluation.diagnostics) {
+            pushDiagnostic(code, `Graph edge start issue: ${code}`, edge.span.from, edge.span.to);
+          }
+          if (!startEvaluation.world) {
+            pushDiagnostic(
+              "graph-edge-without-start",
+              `Graph edge source \`${edge.from}\` is not available.`,
+              edge.span.from,
+              edge.span.to
+            );
+            continue;
+          }
+
+          const edgeItem: EdgeOperationItem = {
+            kind: "EdgeOperation",
+            id: `${item.id}:graph-edge:${edgeIndex}`,
+            span: edge.span,
+            optionsSpan: edge.options?.span,
+            options: edge.options,
+            target: {
+              kind: "coordinate",
+              raw: targetCoordinateRaw,
+              span: edge.span
+            },
+            raw: `${edge.from} ${edge.operator} ${edge.to}`
+          };
+
+          const edgeOptionLayers: StyleTraceLayerInput[] = [];
+          if (everyEdgeOptions) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: edgeItem.id,
+                sourceSpan: edge.span,
+                sourceKind: "edge-default",
+                label: "every edge"
+              },
+              rawOptions: [everyEdgeOptions]
+            });
+          }
+          if (drawEdgeOptions) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: edgeItem.id,
+                sourceSpan: edge.span,
+                sourceKind: "edge-default",
+                label: "draw"
+              },
+              rawOptions: [drawEdgeOptions]
+            });
+          }
+          if (edgeItem.options) {
+            edgeOptionLayers.push({
+              kind: "command",
+              sourceRef: {
+                sourceId: edgeItem.id,
+                sourceSpan: edgeItem.optionsSpan ?? edge.span,
+                sourceKind: "edge-options",
+                label: "graph edge"
+              },
+              rawOptions: [edgeItem.options]
+            });
+          }
+
+          const resolvedEdgeStyle = resolveContextDelta(
+            style,
+            frameTransform,
+            edgeOptionLayers,
+            frame.customStyles,
+            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+            statementStyleChain
+          );
+          for (const code of resolvedEdgeStyle.diagnostics) {
+            if (code === "unsupported-option-flag:every edge") {
+              continue;
+            }
+            pushDiagnostic(code, `Graph edge option issue: ${code}`, edge.span.from, edge.span.to);
+          }
+
+          const handled = applyEdgeOperation(
+            edgeItem,
+            context,
+            graphStatement,
+            resolvedEdgeStyle.style,
+            resolvedEdgeStyle.chain,
+            markFeature,
+            pushDiagnostic,
+            startEvaluation.world,
+            startCoordinateRaw
+          );
+          if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
+            edgeElements.push(...handled.behindNodeElements, handled.activePath, ...handled.frontNodeElements);
+          } else {
+            edgeElements.push(...handled.behindNodeElements, ...handled.frontNodeElements);
+          }
+        }
+
+        markFeature("graph_operation", "supported");
+        behindNodeElements.push(...plannedBehindNodeElements);
+        frontNodeElements.push(...edgeElements, ...plannedFrontNodeElements);
         currentOperator = null;
       }
     ],

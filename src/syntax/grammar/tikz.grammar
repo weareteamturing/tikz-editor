@@ -80,6 +80,7 @@ PathStatement {
 }
 
 PathCommand {
+  GraphCmd |
   DrawCmd |
   PathCmd |
   FillDrawCmd |
@@ -563,6 +564,7 @@ IdentifierLike {
 }
 
 KnownCommand {
+  GraphCmd |
   DrawCmd |
   PathCmd |
   FillDrawCmd |
@@ -639,6 +641,7 @@ StrayToken {
     FillCmd,
     PatternCmd,
     DrawCmd,
+    GraphCmd,
     PathCmd,
     ClipCmd,
     ShadeDrawCmd,
@@ -702,6 +705,7 @@ StrayToken {
   EndTikz { "\\end{tikzpicture}" }
 
   DrawCmd { "\\draw" }
+  GraphCmd { "\\graph" }
   PathCmd { "\\path" }
   FillDrawCmd { "\\filldraw" }
   FillCmd { "\\fill" }

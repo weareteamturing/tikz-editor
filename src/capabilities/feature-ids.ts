@@ -35,6 +35,7 @@ export const FEATURE_IDS = [
   "shape_double_arrow",
   "matrix_node",
   "named_coordinates",
+  "graph_operation",
   "plot_operation",
   "to_operation",
   "edge_operation",

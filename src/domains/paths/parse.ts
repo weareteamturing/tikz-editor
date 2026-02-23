@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "@lezer/common";
 
-import { pathCommentItemId, pathStatementId, plotOperationItemId } from "../../ast/ids.js";
+import { graphOperationItemId, pathCommentItemId, pathStatementId, plotOperationItemId } from "../../ast/ids.js";
 import type { ChildForeachClause, PathCommand, PathItem, PathStatement } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -29,6 +29,7 @@ type PathItemContext = {
   syntheticNodeEmitted: boolean;
   pendingNodeOptions: SyntaxNode[];
   syntheticNodeImplicitFlags: string[];
+  graphCommandConsumed: boolean;
 };
 
 export function mapPathStatement(node: SyntaxNode, source: string, statementIndex: number): PathStatement {
@@ -41,7 +42,8 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
     command,
     syntheticNodeEmitted: false,
     pendingNodeOptions: [],
-    syntheticNodeImplicitFlags
+    syntheticNodeImplicitFlags,
+    graphCommandConsumed: false
   };
 
   const items: PathItem[] = [];
@@ -49,6 +51,21 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
   const pathItemNodes = collectPathItemNodes(node);
   let nodeIndex = 0;
   while (nodeIndex < pathItemNodes.length) {
+    const mappedGraph = tryMapGraphOperation(pathItemNodes, nodeIndex, source, statementIndex, itemIndex, context);
+    if (mappedGraph) {
+      if (context.pendingNodeOptions.length > 0) {
+        for (const optionNode of context.pendingNodeOptions) {
+          items.push(mapPathOptionItem(optionNode, source, statementIndex, itemIndex));
+          itemIndex += 1;
+        }
+        context.pendingNodeOptions = [];
+      }
+      items.push(mappedGraph.item);
+      itemIndex += 1;
+      nodeIndex += mappedGraph.consumed;
+      continue;
+    }
+
     const mappedDecorate = tryMapDecorateOperation(pathItemNodes, nodeIndex, source, statementIndex, itemIndex);
     if (mappedDecorate) {
       if (context.pendingNodeOptions.length > 0) {
@@ -291,6 +308,7 @@ function normalizePathCommand(commandText: string): PathCommand {
   const normalized = commandText.trim().replace(/^\\/, "").toLowerCase();
 
   switch (normalized) {
+    case "graph":
     case "draw":
     case "path":
     case "fill":
@@ -364,6 +382,97 @@ function collectPathItemNodes(node: SyntaxNode): SyntaxNode[] {
     }
   });
   return nodes;
+}
+
+function tryMapGraphOperation(
+  nodes: SyntaxNode[],
+  startIndex: number,
+  source: string,
+  statementIndex: number,
+  itemIndex: number,
+  context: PathItemContext
+): { item: PathItem; consumed: number } | null {
+  const firstNode = unwrapPathItemNode(nodes[startIndex]);
+  const firstRaw = source.slice(firstNode.from, firstNode.to).trim().toLowerCase();
+
+  // `\graph [..] { ... };` command form where the keyword is encoded in PathCommand.
+  if (context.command === "graph" && !context.graphCommandConsumed) {
+    let consumeCount = 0;
+    let optionsNode: SyntaxNode | null = null;
+    let specNode: SyntaxNode | null = null;
+
+    if (firstNode.type.name === "OptionList") {
+      optionsNode = firstNode;
+      consumeCount += 1;
+      const maybeSpecNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+      if (maybeSpecNode && isGraphSpecNode(maybeSpecNode, source)) {
+        specNode = maybeSpecNode;
+        consumeCount += 1;
+      }
+    } else if (isGraphSpecNode(firstNode, source)) {
+      specNode = firstNode;
+      consumeCount += 1;
+    }
+
+    if (!specNode) {
+      return null;
+    }
+
+    context.graphCommandConsumed = true;
+    const from = optionsNode?.from ?? specNode.from;
+    const to = specNode.to;
+    return {
+      item: {
+        kind: "GraphOperation",
+        id: graphOperationItemId(statementIndex, itemIndex),
+        span: { from, to },
+        raw: source.slice(from, to),
+        optionsSpan: toSpan(optionsNode),
+        options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+        specSpan: { from: specNode.from, to: specNode.to },
+        specRaw: source.slice(specNode.from, specNode.to)
+      },
+      consumed: consumeCount
+    };
+  }
+
+  // `\path graph [..] { ... };` operation form where `graph` appears as a path item token.
+  if (firstRaw !== "graph") {
+    return null;
+  }
+
+  let consumeCount = 1;
+  let optionsNode: SyntaxNode | null = null;
+  const maybeOptionsNode = nodes[startIndex + consumeCount];
+  if (maybeOptionsNode) {
+    const unwrapped = unwrapPathItemNode(maybeOptionsNode);
+    if (unwrapped.type.name === "OptionList") {
+      optionsNode = unwrapped;
+      consumeCount += 1;
+    }
+  }
+
+  const specNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+  if (!specNode || !isGraphSpecNode(specNode, source)) {
+    return null;
+  }
+
+  consumeCount += 1;
+  const from = firstNode.from;
+  const to = specNode.to;
+  return {
+    item: {
+      kind: "GraphOperation",
+      id: graphOperationItemId(statementIndex, itemIndex),
+      span: { from, to },
+      raw: source.slice(from, to),
+      optionsSpan: toSpan(optionsNode),
+      options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+      specSpan: { from: specNode.from, to: specNode.to },
+      specRaw: source.slice(specNode.from, specNode.to)
+    },
+    consumed: consumeCount
+  };
 }
 
 function tryMapDecorateOperation(
@@ -486,6 +595,14 @@ function isDecorateKeywordNode(node: SyntaxNode, source: string): boolean {
 function isPlotKeywordNode(node: SyntaxNode, source: string): boolean {
   const raw = source.slice(node.from, node.to).trim().toLowerCase();
   return raw === "plot";
+}
+
+function isGraphSpecNode(node: SyntaxNode, source: string): boolean {
+  if (node.type.name === "Group") {
+    return true;
+  }
+  const raw = source.slice(node.from, node.to).trim();
+  return raw.startsWith("{") && raw.endsWith("}");
 }
 
 function isPlotDataGroupNode(node: SyntaxNode, source: string): boolean {

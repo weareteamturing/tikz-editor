@@ -90,6 +90,7 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
         drawExplicit: true
       };
     case "path":
+    case "graph":
       return {
         stroke: null,
         fill: null,

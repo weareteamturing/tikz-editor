@@ -92,6 +92,7 @@ export type MacroCommandDefinitionStatement = {
 
 export type PathCommand =
   | "path"
+  | "graph"
   | "draw"
   | "fill"
   | "filldraw"
@@ -110,6 +111,7 @@ export type PathItem =
   | PathCommentItem
   | PathOptionItem
   | PathKeywordItem
+  | GraphOperationItem
   | PlotOperationItem
   | ToOperationItem
   | EdgeOperationItem
@@ -201,6 +203,17 @@ export type PathKeywordItem = {
 };
 
 export type PlotOperationMode = "coordinates" | "expression" | "function" | "file" | "unknown";
+
+export type GraphOperationItem = {
+  kind: "GraphOperation";
+  id: string;
+  span: Span;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  specSpan: Span;
+  specRaw: string;
+  raw: string;
+};
 
 export type PlotOperationItem = {
   kind: "PlotOperation";

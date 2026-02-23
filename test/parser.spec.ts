@@ -34,6 +34,28 @@ describe("parseTikz", () => {
     expect(result.figure.body.some((statement) => statement.kind === "Path")).toBe(true);
   });
 
+  it("parses graph command forms into GraphOperation path items", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [nodes={draw}] { a -> b -> {c, d} };
+  \path graph [nodes={circle}] { x -- y };
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(2);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    expect(result.figure.body[1]?.kind).toBe("Path");
+
+    if (result.figure.body[0]?.kind === "Path") {
+      expect(result.figure.body[0].command).toBe("graph");
+      expect(result.figure.body[0].items.some((item) => item.kind === "GraphOperation")).toBe(true);
+    }
+    if (result.figure.body[1]?.kind === "Path") {
+      expect(result.figure.body[1].command).toBe("path");
+      expect(result.figure.body[1].items.some((item) => item.kind === "GraphOperation")).toBe(true);
+    }
+  });
+
   it("parses node text with nested braces", () => {
     const source = `\\begin{tikzpicture}\\draw (0,0) node {A {B} C};\\end{tikzpicture}`;
     const result = parseTikz(source);

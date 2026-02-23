@@ -108,6 +108,9 @@ export const capabilityFixtures: Record<string, string> = {
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);
 \end{tikzpicture}`,
+  graph_operation: String.raw`\begin{tikzpicture}
+  \graph [nodes={draw,circle}] { a -> b -> {c, d} };
+\end{tikzpicture}`,
   plot_operation: String.raw`\begin{tikzpicture}
   \draw plot coordinates {(0,0) (1,1) (2,0)};
   \draw[domain=0:2,samples=5] plot (\x,{exp(\x/2)});
