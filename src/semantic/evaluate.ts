@@ -44,6 +44,7 @@ import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/cu
 import { expandOptionListMacros } from "./style/macro-options.js";
 import { readBalancedBlock } from "./style/option-utils.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
+import { resolveDefineColorModel } from "./style/colors.js";
 import { identityMatrix } from "./transform.js";
 import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
 import type {
@@ -612,6 +613,35 @@ function applyStandaloneCommandStatement(
     return true;
   }
 
+  const defineColor = parseDefineColorDefinition(raw);
+  if (defineColor) {
+    const frame = currentFrame(context);
+    const expandedModel = expandMacroBindings(defineColor.modelRaw, frame.macroBindings, {
+      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+      trace: context.macroTraceCollector ?? undefined
+    });
+    const expandedSpecification = expandMacroBindings(defineColor.specificationRaw, frame.macroBindings, {
+      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+      trace: context.macroTraceCollector ?? undefined
+    });
+    const resolvedValue = resolveDefineColorModel(expandedModel, expandedSpecification);
+    if (!resolvedValue) {
+      return false;
+    }
+
+    frame.colorAliases.set(defineColor.name, resolvedValue);
+    const optionList = parseStyleValueAsOptionList(resolvedValue);
+    if (optionList) {
+      applyCustomStyleDefinition(frame.customStyles, defineColor.name, "style", optionList, {
+        sourceId: `standalone:${span.from}:${span.to}`,
+        sourceSpan: span,
+        sourceKind: "definecolor",
+        label: defineColor.name
+      });
+    }
+    return true;
+  }
+
   const legacyStyle = parseLegacyTikzStyleDefinition(raw);
   if (legacyStyle) {
     const frame = currentFrame(context);
@@ -990,6 +1020,50 @@ function parseColorletDefinition(raw: string): { name: string; valueRaw: string 
   return {
     name: normalizedName,
     valueRaw
+  };
+}
+
+function parseDefineColorDefinition(raw: string): { name: string; modelRaw: string; specificationRaw: string } | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  if (!stripped.startsWith("\\definecolor")) {
+    return null;
+  }
+
+  let cursor = "\\definecolor".length;
+  cursor = skipWhitespace(stripped, cursor);
+  const nameBlock = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!nameBlock) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, nameBlock.nextIndex);
+  const modelBlock = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!modelBlock) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, modelBlock.nextIndex);
+  const specificationBlock = readBalancedBlock(stripped, cursor, "{", "}");
+  if (!specificationBlock) {
+    return null;
+  }
+
+  cursor = skipWhitespace(stripped, specificationBlock.nextIndex);
+  if (cursor !== stripped.length) {
+    return null;
+  }
+
+  const normalizedName = normalizeColorAliasName(nameBlock.content);
+  const modelRaw = modelBlock.content.trim();
+  const specificationRaw = specificationBlock.content.trim();
+  if (!normalizedName || modelRaw.length === 0 || specificationRaw.length === 0) {
+    return null;
+  }
+
+  return {
+    name: normalizedName,
+    modelRaw,
+    specificationRaw
   };
 }
 

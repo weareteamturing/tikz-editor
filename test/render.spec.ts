@@ -191,6 +191,36 @@ describe("render pipeline", () => {
     }
   });
 
+  it("resolves definecolor HTML aliases before MathJax text rendering", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{brand}{HTML}{1A2B3C}
+  \node at (0,0) {\textcolor{brand}{this}};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toContain(String.raw`\textcolor{#1a2b3c}{this}`);
+    }
+  });
+
+  it("resolves definecolor rgb aliases before MathJax text rendering", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{brand}{rgb}{0.1,0.2,0.3}
+  \node at (0,0) {\textcolor{brand}{this}};
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+    const label = result.semantic.scene.elements.find((element) => element.kind === "Text");
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toContain(String.raw`\textcolor{#1a334d}{this}`);
+    }
+  });
+
   it("renders foreach \\textsf labels through MathJax in async mode", async () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \label in {1,2,3}

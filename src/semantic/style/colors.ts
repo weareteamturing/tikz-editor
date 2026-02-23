@@ -27,6 +27,121 @@ export function normalizeColor(raw: string, opts: { currentColor?: string | null
   return normalized || "black";
 }
 
+export function resolveDefineColorModel(modelRaw: string, specificationRaw: string): string | null {
+  const model = modelRaw.trim();
+  if (model.length === 0) {
+    return null;
+  }
+
+  if (model === "RGB") {
+    const components = parseComponentList(specificationRaw, 3);
+    if (!components) {
+      return null;
+    }
+    return rgbToHex({
+      r: clamp01(components[0] / 255) * 255,
+      g: clamp01(components[1] / 255) * 255,
+      b: clamp01(components[2] / 255) * 255
+    });
+  }
+
+  if (model === "HSB") {
+    const components = parseComponentList(specificationRaw, 3);
+    if (!components) {
+      return null;
+    }
+    return hsbToHex(components[0] / 240, components[1] / 240, components[2] / 240);
+  }
+
+  if (model === "Gray") {
+    const components = parseComponentList(specificationRaw, 1);
+    if (!components) {
+      return null;
+    }
+    return rgbToHex({
+      r: clamp01(components[0] / 15) * 255,
+      g: clamp01(components[0] / 15) * 255,
+      b: clamp01(components[0] / 15) * 255
+    });
+  }
+
+  const normalizedModel = model.toLowerCase();
+  if (normalizedModel === "html") {
+    const normalizedSpec = specificationRaw.trim().replace(/\s+/g, "").replace(/^#/, "");
+    if (!/^[0-9a-f]{6}$/i.test(normalizedSpec)) {
+      return null;
+    }
+    return `#${normalizedSpec.toLowerCase()}`;
+  }
+
+  if (normalizedModel === "rgb") {
+    const components = parseComponentList(specificationRaw, 3);
+    if (!components) {
+      return null;
+    }
+    return rgbToHex({
+      r: clamp01(components[0]) * 255,
+      g: clamp01(components[1]) * 255,
+      b: clamp01(components[2]) * 255
+    });
+  }
+
+  if (normalizedModel === "gray") {
+    const components = parseComponentList(specificationRaw, 1);
+    if (!components) {
+      return null;
+    }
+    return rgbToHex({
+      r: clamp01(components[0]) * 255,
+      g: clamp01(components[0]) * 255,
+      b: clamp01(components[0]) * 255
+    });
+  }
+
+  if (normalizedModel === "cmy") {
+    const components = parseComponentList(specificationRaw, 3);
+    if (!components) {
+      return null;
+    }
+
+    const c = clamp01(components[0]);
+    const m = clamp01(components[1]);
+    const y = clamp01(components[2]);
+    return rgbToHex({
+      r: (1 - c) * 255,
+      g: (1 - m) * 255,
+      b: (1 - y) * 255
+    });
+  }
+
+  if (normalizedModel === "cmyk") {
+    const components = parseComponentList(specificationRaw, 4);
+    if (!components) {
+      return null;
+    }
+
+    const c = clamp01(components[0]);
+    const m = clamp01(components[1]);
+    const y = clamp01(components[2]);
+    const k = clamp01(components[3]);
+    return rgbToHex({
+      r: (1 - c) * (1 - k) * 255,
+      g: (1 - m) * (1 - k) * 255,
+      b: (1 - y) * (1 - k) * 255
+    });
+  }
+
+  if (normalizedModel === "hsb") {
+    const components = parseComponentList(specificationRaw, 3);
+    if (!components) {
+      return null;
+    }
+    return hsbToHex(components[0], components[1], components[2]);
+  }
+
+  return null;
+}
+
 export function normalizeShadingName(raw: string): string {
   const normalized = normalizeOptionValue(raw).toLowerCase();
   return normalized.replace(/\s+/g, " ").trim();
@@ -66,6 +181,75 @@ export function clamp01(value: number): number {
     return 1;
   }
   return value;
+}
+
+function parseComponentList(raw: string, count: number): number[] | null {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length !== count) {
+    return null;
+  }
+
+  const values = parts.map((part) => Number(part));
+  if (values.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+  return values;
+}
+
+function hsbToHex(hueRaw: number, saturationRaw: number, brightnessRaw: number): string {
+  const hue = (((hueRaw % 1) + 1) % 1) * 6;
+  const saturation = clamp01(saturationRaw);
+  const brightness = clamp01(brightnessRaw);
+  const section = Math.floor(hue);
+  const fraction = hue - section;
+  const p = brightness * (1 - saturation);
+  const q = brightness * (1 - saturation * fraction);
+  const t = brightness * (1 - saturation * (1 - fraction));
+
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  switch (section % 6) {
+    case 0:
+      r = brightness;
+      g = t;
+      b = p;
+      break;
+    case 1:
+      r = q;
+      g = brightness;
+      b = p;
+      break;
+    case 2:
+      r = p;
+      g = brightness;
+      b = t;
+      break;
+    case 3:
+      r = p;
+      g = q;
+      b = brightness;
+      break;
+    case 4:
+      r = t;
+      g = p;
+      b = brightness;
+      break;
+    default:
+      r = brightness;
+      g = p;
+      b = q;
+      break;
+  }
+
+  return rgbToHex({
+    r: r * 255,
+    g: g * 255,
+    b: b * 255
+  });
 }
 
 function parseMixedColor(raw: string, currentColor: string | null): string | null {

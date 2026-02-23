@@ -4013,6 +4013,73 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("applies definecolor HTML aliases to both style options and node text colors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{brand}{HTML}{1A2B3C}
+  \fill[brand] (0,0) rectangle (1,1);
+  \node at (0, -1) {Brand is \textcolor{brand}{this}.};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-flag:brand")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-statement")).toBe(false);
+
+    const filledPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.fill != null);
+    expect(filledPath?.kind).toBe("Path");
+    if (filledPath?.kind === "Path") {
+      expect(filledPath.style.fill).toBe("#1a2b3c");
+    }
+
+    const label = result.scene.elements.find((element) => element.kind === "Text" && element.text.includes("Brand is"));
+    expect(label?.kind).toBe("Text");
+    if (label?.kind === "Text") {
+      expect(label.text).toContain(String.raw`\textcolor{#1a2b3c}{this}`);
+    }
+  });
+
+  it("supports definecolor aliases across common xcolor models", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{fromrgbdecimal}{rgb}{0.1,0.2,0.3}
+  \definecolor{fromrgbint}{RGB}{26,43,60}
+  \definecolor{fromgraydecimal}{gray}{0.5}
+  \definecolor{fromgrayint}{Gray}{8}
+  \definecolor{fromcmy}{cmy}{0.1,0.2,0.3}
+  \definecolor{fromcmyk}{cmyk}{0,0.5,0.5,0}
+  \definecolor{fromhsb}{hsb}{0,1,1}
+  \definecolor{fromhsbint}{HSB}{80,240,240}
+  \fill[fromrgbdecimal] (0,0) rectangle +(1,1);
+  \fill[fromrgbint] (2,0) rectangle +(1,1);
+  \fill[fromgraydecimal] (4,0) rectangle +(1,1);
+  \fill[fromgrayint] (6,0) rectangle +(1,1);
+  \fill[fromcmy] (8,0) rectangle +(1,1);
+  \fill[fromcmyk] (10,0) rectangle +(1,1);
+  \fill[fromhsb] (12,0) rectangle +(1,1);
+  \fill[fromhsbint] (14,0) rectangle +(1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const unsupportedAliasDiagnostics = result.diagnostics.filter((diagnostic) =>
+      diagnostic.code.startsWith("unsupported-option-flag:from")
+    );
+    expect(unsupportedAliasDiagnostics).toHaveLength(0);
+
+    const fillColors = result.scene.elements
+      .filter((element) => element.kind === "Path" && element.style.fill != null)
+      .map((element) => (element.kind === "Path" ? element.style.fill : null))
+      .filter((value): value is string => value != null);
+
+    expect(fillColors).toContain("#1a334d");
+    expect(fillColors).toContain("#1a2b3c");
+    expect(fillColors).toContain("#808080");
+    expect(fillColors).toContain("#888888");
+    expect(fillColors).toContain("#e6ccb3");
+    expect(fillColors).toContain("#ff8080");
+    expect(fillColors).toContain("#ff0000");
+    expect(fillColors).toContain("#00ff00");
+  });
+
   it("applies dimensionless rounded corners values to rectangle path geometry", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rounded corners=0.5] (0,0) rectangle (1,1);

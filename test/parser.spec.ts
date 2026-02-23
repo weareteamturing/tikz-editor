@@ -137,6 +137,21 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone definecolor commands without requiring semicolons", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{brand}{HTML}{1A2B3C}
+  \fill[brand] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(2);
+    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
+    if (result.figure.body[0]?.kind === "UnknownStatement") {
+      expect(result.figure.body[0].raw).toContain("\\definecolor");
+    }
+  });
+
   it("parses standalone \\usetikzlibrary commands with or without spacing before groups", () => {
     const source = String.raw`\begin{tikzpicture}
   \usetikzlibrary{shapes.geometric}

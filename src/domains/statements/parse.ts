@@ -59,6 +59,10 @@ function mapStatementNode(node: SyntaxNode, source: string, state: StatementMapp
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }
 
+  if (node.type.name === "DefineColorStatement") {
+    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+  }
+
   if (node.type.name === "TikzLibraryStatement") {
     return mapUnknownStatement(node, source, allocateStatementIndex(state));
   }

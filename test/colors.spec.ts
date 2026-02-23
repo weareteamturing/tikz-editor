@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeColor } from "../src/semantic/style/colors.js";
+import { normalizeColor, resolveDefineColorModel } from "../src/semantic/style/colors.js";
 import { COLOR_HEX, NAMED_COLORS } from "../src/semantic/style/constants.js";
 
 describe("color normalization", () => {
@@ -67,5 +67,24 @@ describe("color normalization", () => {
     expect(COLOR_HEX.violet).toBe("#800080");
     expect(COLOR_HEX.purple).toBe("#bf0040");
     expect(COLOR_HEX.brown).toBe("#bf8040");
+  });
+
+  it("resolves definecolor core xcolor models to normalized hex", () => {
+    expect(resolveDefineColorModel("HTML", "1A2B3C")).toBe("#1a2b3c");
+    expect(resolveDefineColorModel("rgb", "0.1,0.2,0.3")).toBe("#1a334d");
+    expect(resolveDefineColorModel("RGB", "26,43,60")).toBe("#1a2b3c");
+    expect(resolveDefineColorModel("gray", "0.5")).toBe("#808080");
+    expect(resolveDefineColorModel("Gray", "8")).toBe("#888888");
+    expect(resolveDefineColorModel("cmy", "0.1,0.2,0.3")).toBe("#e6ccb3");
+    expect(resolveDefineColorModel("cmyk", "0,0.5,0.5,0")).toBe("#ff8080");
+    expect(resolveDefineColorModel("hsb", "0,1,1")).toBe("#ff0000");
+    expect(resolveDefineColorModel("HSB", "80,240,240")).toBe("#00ff00");
+  });
+
+  it("returns null for unsupported or malformed definecolor model specs", () => {
+    expect(resolveDefineColorModel("wave", "500")).toBeNull();
+    expect(resolveDefineColorModel("HTML", "XYZ123")).toBeNull();
+    expect(resolveDefineColorModel("rgb", "0.1,0.2")).toBeNull();
+    expect(resolveDefineColorModel("cmyk", "0,0,0")).toBeNull();
   });
 });

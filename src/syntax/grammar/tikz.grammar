@@ -29,6 +29,7 @@ Statement {
   StyleDefinitionStatement |
   TikzLibraryStatement |
   ColorletStatement |
+  DefineColorStatement |
   MacroDefinitionStatement |
   MacroAliasStatement |
   MacroCommandDefinitionStatement |
@@ -269,6 +270,10 @@ PgfkeysStatement {
 
 ColorletStatement {
   ColorletCmd Group Group
+}
+
+DefineColorStatement {
+  DefineColorCmd Group Group Group
 }
 
 TikzLibraryStatement {
@@ -622,6 +627,7 @@ StrayToken {
     BeginTikz,
     TikzSetCmd,
     TikzStyleCmd,
+    DefineColorCmd,
     DefCmd,
     ColorletCmd,
     LetDefCmd,
@@ -715,6 +721,7 @@ StrayToken {
   TikzStyleCmd { "\\tikzstyle" }
   DefCmd { "\\def" }
   ColorletCmd { "\\colorlet" }
+  DefineColorCmd { "\\definecolor" }
   LetDefCmd { "\\let" }
   NewCommandCmd { "\\newcommand" }
   RenewCommandCmd { "\\renewcommand" }
