@@ -45,6 +45,7 @@ import type { CanvasTransform, ToolMode } from "../store/types";
 import { requestSourceSelection } from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import {
+  buildValueSequence,
   buildTicks,
   clamp,
   clientToSvgPoint,
@@ -52,6 +53,7 @@ import {
   computeVisibleRanges,
   distanceSquared,
   fmt,
+  isMultipleOfStep,
   pickStepPt,
   resizeCursorForVector,
   rotatePointAroundCenter,
@@ -76,6 +78,13 @@ import {
   type SnapDebugOverlayRect,
   type SnapDebugPoint
 } from "./canvas-panel/snap-debug";
+import {
+  HandleOverlay,
+  HitRegionLayer,
+  SelectionOverlay,
+  SnapOverlay,
+  ToolPreviewOverlay
+} from "./canvas-panel/overlays";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -293,9 +302,7 @@ const ZOOM_EXP_FACTOR = 0.0045;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
-const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
-const SNAP_GAP_ARROW_MARKER_ID = "snap-gap-arrow-marker";
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
 
@@ -1994,377 +2001,30 @@ export function CanvasPanel() {
     autoFitDoneRef.current = true;
   }, [fitToContent, svgResult, viewportSize]);
 
-  useEffect(() => {
-    function onPointerMove(event: PointerEvent) {
-      const drag = dragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
-      const ctrlOrMeta = event.ctrlKey || event.metaKey;
-
-      if (drag.kind === "pan") {
-        const deltaX = event.clientX - drag.startClientX;
-        const deltaY = event.clientY - drag.startClientY;
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-pan-move",
-          snapshotMatchesSource: snapshot.source === source,
-          dragKind: "pan",
-          rawDelta: { x: deltaX, y: deltaY },
-          lines: []
-        });
-
-        dispatch({
-          type: "SET_CANVAS_TRANSFORM",
-          transform: {
-            ...drag.startTransform,
-            translateX: drag.startTransform.translateX + deltaX,
-            translateY: drag.startTransform.translateY + deltaY
-          }
-        });
-        return;
-      }
-
-      if (drag.kind === "text-select") {
-        if (snapshot.source !== source) {
-          return;
-        }
-        const nextIndex = textIndexFromClient(
-          event.clientX,
-          event.clientY,
-          {
-            textLength: drag.textLength,
-            totalWidth: drag.totalWidth,
-            region: {
-              shape: "rect",
-              key: "",
-              sourceId: drag.sourceId,
-              x: drag.cx - drag.width / 2,
-              y: drag.cy - drag.height / 2,
-              width: drag.width,
-              height: drag.height,
-              cx: drag.cx,
-              cy: drag.cy,
-              rotation: drag.rotation
-            }
-          },
-          drag.prefixTable
-        );
-        if (nextIndex == null || nextIndex === drag.headIndex) {
-          return;
-        }
-        drag.headIndex = nextIndex;
-        const anchorOffset = drag.sourceSpan.from + drag.anchorIndex;
-        const headOffset = drag.sourceSpan.from + drag.headIndex;
-        requestSourceSelection({
-          from: Math.min(anchorOffset, headOffset),
-          to: Math.max(anchorOffset, headOffset),
-          anchor: anchorOffset,
-          head: headOffset,
-          sourceId: drag.sourceId,
-          focus: true
-        });
-        setTextSelectionOverlay({
-          sourceId: drag.sourceId,
-          textLength: drag.textLength,
-          totalWidth: drag.totalWidth,
-          fontSizePt: drag.fontSizePt,
-          startIndex: drag.anchorIndex,
-          endIndex: drag.headIndex,
-          rotation: drag.rotation,
-          cx: drag.cx,
-          cy: drag.cy,
-          width: drag.width,
-          height: drag.height,
-          prefixTable: drag.prefixTable
-        });
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-text-select-move",
-          snapshotMatchesSource: true,
-          dragKind: "text-select",
-          lines: []
-        });
-        return;
-      }
-
-      const currentSvg = svgResultRef.current;
-      if (!currentSvg) {
-        return;
-      }
-
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
-      if (!world) return;
-
-      if (drag.kind === "tool-create") {
-        const snapKind =
-          drag.toolMode === "addRect"
-            ? "rect-corner"
-            : drag.toolMode === "addCircle"
-              ? "circle-edge"
-              : "line-end";
-        const snapped = drag.snapContext
-          ? snapToolPointer({
-              context: drag.snapContext,
-              pointer: world,
-              kind: snapKind,
-              anchor: drag.startWorld,
-              modifiers: { ctrlOrMeta }
-            })
-          : { snappedPoint: world, lines: [] as SnapLine[] };
-        drag.currentWorld = snapped.snappedPoint ?? world;
-        setToolDraft({ ...drag });
-        setToolCursorWorld(drag.currentWorld);
-        setSnapLines(snapped.lines);
-        logSnapDebug({
-          phase: "drag-tool-create-move",
-          snapshotMatchesSource: snapshot.source === source,
-          dragKind: "tool-create",
-          context: drag.snapContext,
-          rawPoint: world,
-          snappedPoint: drag.currentWorld,
-          offset: snapped.offset,
-          lines: snapped.lines
-        });
-        return;
-      }
-
-      if (drag.kind === "marquee") {
-        drag.currentWorld = world;
-        setMarqueeDraft({ ...drag });
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-marquee-move",
-          snapshotMatchesSource: snapshot.source === source,
-          dragKind: "marquee",
-          rawPoint: world,
-          lines: []
-        });
-        return;
-      }
-
-      if (!svgResult || snapshot.source !== source) {
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-move",
-          note: "blocked: snapshot/source mismatch",
-          snapshotMatchesSource: snapshot.source === source,
-          dragKind: drag.kind,
-          rawPoint: world,
-          lines: []
-        });
-        return;
-      }
-
-      if (drag.kind === "element") {
-        const rawTotalDelta = {
-          x: world.x - drag.startWorld.x,
-          y: world.y - drag.startWorld.y
-        };
-        const snapped = drag.snapContext && drag.initialSelection
-          ? snapSelectionTranslation({
-              context: drag.snapContext,
-              selection: drag.initialSelection,
-              rawDelta: rawTotalDelta,
-              modifiers: { ctrlOrMeta }
-            })
-          : {
-              snappedDelta: rawTotalDelta,
-              lines: [] as SnapLine[]
-            };
-        const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
-        const actualTotalDelta = drag.initialSelection && snapshot.scene
-          ? deriveSelectionTranslationDeltaFromAnchor(
-              drag.initialSelection,
-              collectSelectionGeometry(snapshot.scene.elements, drag.elementIds),
-              drag.selectionAnchorRatio
-            )
-          : { x: 0, y: 0 };
-        const incremental = {
-          x: totalDelta.x - actualTotalDelta.x,
-          y: totalDelta.y - actualTotalDelta.y
-        };
-        setSnapLines(snapped.lines);
-        logSnapDebug({
-          phase: "drag-element-move",
-          snapshotMatchesSource: true,
-          dragKind: "element",
-          context: drag.snapContext,
-          rawDelta: rawTotalDelta,
-          snappedDelta: totalDelta,
-          offset: snapped.offset,
-          lines: snapped.lines
-        });
-
-        if (Math.abs(incremental.x) < 1e-6 && Math.abs(incremental.y) < 1e-6) {
-          return;
-        }
-
-        applyActionWithFeedback(
-          {
-            kind: "moveElements",
-            elementIds: drag.elementIds,
-            delta: incremental
-          },
-          drag.historyMergeKey
-        );
-        return;
-      }
-
-      const resolvedHandleId = resolveHandleIdForDrag(drag, snapshot.editHandles);
-      if (!resolvedHandleId) {
-        setWarning("Handle is no longer available after recompute. Release and drag again.");
-        return;
-      }
-
-      const snapped = drag.snapContext
-        ? snapHandlePosition({
-            context: drag.snapContext,
-            point: world,
-            sourceId: drag.sourceId,
-            modifiers: { ctrlOrMeta }
-          })
-        : { snappedPoint: world, lines: [] as SnapLine[] };
-      const nextWorld = snapped.snappedPoint ?? world;
-      setSnapLines(snapped.lines);
-      logSnapDebug({
-        phase: "drag-handle-move",
-        snapshotMatchesSource: true,
-        dragKind: "handle",
-        context: drag.snapContext,
-        rawPoint: world,
-        snappedPoint: nextWorld,
-        offset: snapped.offset,
-        lines: snapped.lines
-      });
-
-      const ok = applyActionWithFeedback(
-        {
-          kind: "moveHandle",
-          handleId: resolvedHandleId,
-          newWorld: nextWorld
-        },
-        drag.historyMergeKey
-      );
-      if (ok.sourceChanged) {
-        drag.lastKnownWorld = nextWorld;
-      }
-    }
-
-    function onPointerUp(event: PointerEvent) {
-      const drag = dragRef.current;
-      if (!drag || event.pointerId !== drag.pointerId) return;
-      const ctrlOrMeta = event.ctrlKey || event.metaKey;
-
-      const currentSvg = svgResultRef.current;
-      const world =
-        currentSvg == null
-          ? null
-          : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
-
-      if (drag.kind === "marquee") {
-        const finalWorld = world ?? drag.currentWorld;
-        const deltaSq = distanceSquared(finalWorld, drag.startWorld);
-        const isClickOnly = deltaSq <= 0.25;
-
-        if (isClickOnly) {
-          if (!drag.additive) {
-            dispatch({ type: "CLEAR_SELECTION" });
-          }
-        } else if (currentSvg) {
-          const selection = boundsFromPoints(
-            worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
-            worldToSvgPoint(finalWorld, currentSvg.viewBox)
-          );
-          const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
-          if (drag.additive) {
-            const merged = new Set(selectedElementIdsRef.current);
-            for (const id of hitIds) {
-              merged.add(id);
-            }
-            dispatch({ type: "SELECT_RANGE", ids: [...merged] });
-          } else {
-            dispatch({ type: "SELECT_RANGE", ids: hitIds });
-          }
-        }
-
-        setMarqueeDraft(null);
-        setSnapLines([]);
-        dragRef.current = null;
-        return;
-      }
-
-      if (drag.kind === "tool-create") {
-        const rawFinalWorld = world ?? drag.currentWorld;
-        const snapKind =
-          drag.toolMode === "addRect"
-            ? "rect-corner"
-            : drag.toolMode === "addCircle"
-              ? "circle-edge"
-              : "line-end";
-        const snapped = drag.snapContext
-          ? snapToolPointer({
-              context: drag.snapContext,
-              pointer: rawFinalWorld,
-              kind: snapKind,
-              anchor: drag.startWorld,
-              modifiers: { ctrlOrMeta }
-            })
-          : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
-        const finalWorld = snapped.snappedPoint ?? rawFinalWorld;
-        setSnapLines(snapped.lines);
-        setToolCursorWorld(finalWorld);
-
-        queueSelectionForAddedElement({
-          x: (drag.startWorld.x + finalWorld.x) / 2,
-          y: (drag.startWorld.y + finalWorld.y) / 2
-        });
-        const template = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
-        const ok = applyActionWithFeedback({
-          kind: "addElement",
-          template,
-          at: drag.startWorld
-        });
-        if (!ok.sourceChanged) {
-          pendingAddedSelectionRef.current = null;
-        }
-
-        if (ok.sourceChanged) {
-          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
-          setToolCursorWorld(null);
-        }
-        setToolDraft(null);
-        setSnapLines([]);
-      }
-
-      if (drag.kind === "text-select") {
-        setSnapLines([]);
-        dragRef.current = null;
-        return;
-      }
-
-      setSnapLines([]);
-      dragRef.current = null;
-    }
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
-
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [
+  useCanvasDragController({
     applyActionWithFeedback,
     dispatch,
     logSnapDebug,
     queueSelectionForAddedElement,
-    snapshot.editHandles,
-    snapshot.source,
+    snapshotSource: snapshot.source,
+    snapshotScene: snapshot.scene,
+    snapshotEditHandles: snapshot.editHandles,
     source,
     svgResult,
+    dragRef,
+    svgResultRef,
+    interactionSvgRef,
+    selectedElementIdsRef,
+    sourceBoundsRef,
+    pendingAddedSelectionRef,
+    setSnapLines,
+    setToolDraft,
+    setToolCursorWorld,
+    setMarqueeDraft,
+    setWarning,
+    setTextSelectionOverlay,
     textIndexFromClient
-  ]);
+  });
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
@@ -2579,416 +2239,44 @@ export function CanvasPanel() {
                   </g>
                 )}
 
-                {snapLines.length > 0 && (
-                  <g className={css.snapOverlay}>
-                    <defs>
-                      <marker
-                        id={SNAP_GAP_ARROW_MARKER_ID}
-                        markerWidth={6}
-                        markerHeight={6}
-                        refX={10}
-                        refY={5}
-                        orient="auto-start-reverse"
-                        viewBox="0 0 10 10"
-                      >
-                        <path d="M 0 0 L 10 5 L 0 10 z" className={css.snapGapArrowHead} />
-                      </marker>
-                    </defs>
-                    {snapLines.map((line, index) => {
-                      if (line.type === "points") {
-                        const points = line.points.map((point) => worldToSvgPoint(point, svgResult.viewBox));
-                        const first = points[0];
-                        const last = points[points.length - 1];
-                        return (
-                          <g key={`snap-points-${index}`}>
-                            {first && last && points.length > 1 && (
-                              <line
-                                x1={first.x}
-                                y1={first.y}
-                                x2={last.x}
-                                y2={last.y}
-                                className={css.snapLine}
-                                strokeWidth={snapStrokeWidth}
-                              />
-                            )}
-                            {points.map((point, pointIndex) => (
-                              <g key={`snap-point-${index}-${pointIndex}`}>
-                                <line
-                                  x1={point.x - snapCrossSize}
-                                  y1={point.y - snapCrossSize}
-                                  x2={point.x + snapCrossSize}
-                                  y2={point.y + snapCrossSize}
-                                  className={css.snapLine}
-                                  strokeWidth={snapStrokeWidth}
-                                />
-                                <line
-                                  x1={point.x - snapCrossSize}
-                                  y1={point.y + snapCrossSize}
-                                  x2={point.x + snapCrossSize}
-                                  y2={point.y - snapCrossSize}
-                                  className={css.snapLine}
-                                  strokeWidth={snapStrokeWidth}
-                                />
-                              </g>
-                            ))}
-                          </g>
-                        );
-                      }
+                <SnapOverlay
+                  snapLines={snapLines}
+                  viewBox={svgResult.viewBox}
+                  snapStrokeWidth={snapStrokeWidth}
+                  snapCrossSize={snapCrossSize}
+                />
 
-                      if (line.type === "pointer") {
-                        const from = worldToSvgPoint(line.from, svgResult.viewBox);
-                        const to = worldToSvgPoint(line.to, svgResult.viewBox);
-                        return (
-                          <g key={`snap-pointer-${index}`}>
-                            <line
-                              x1={from.x}
-                              y1={from.y}
-                              x2={to.x}
-                              y2={to.y}
-                              className={css.snapLine}
-                              strokeWidth={snapStrokeWidth}
-                            />
-                            <line
-                              x1={from.x - snapCrossSize}
-                              y1={from.y - snapCrossSize}
-                              x2={from.x + snapCrossSize}
-                              y2={from.y + snapCrossSize}
-                              className={css.snapLine}
-                              strokeWidth={snapStrokeWidth}
-                            />
-                            <line
-                              x1={from.x - snapCrossSize}
-                              y1={from.y + snapCrossSize}
-                              x2={from.x + snapCrossSize}
-                              y2={from.y - snapCrossSize}
-                              className={css.snapLine}
-                              strokeWidth={snapStrokeWidth}
-                            />
-                          </g>
-                        );
-                      }
+                <ToolPreviewOverlay
+                  toolPreview={toolPreview}
+                  scale={canvasTransform.scale}
+                  handleStrokeWidth={handleStrokeWidth}
+                  previewArrowPoints={previewArrowPoints}
+                />
 
-                      return (
-                        <g key={`snap-gap-${index}`}>
-                          {line.segments.map((segment, segmentIndex) => {
-                            const a = worldToSvgPoint(segment[0], svgResult.viewBox);
-                            const b = worldToSvgPoint(segment[1], svgResult.viewBox);
-                            const isEqualGap = line.gapKind === "equal";
-                            return (
-                              <line
-                                key={`snap-gap-segment-${index}-${segmentIndex}`}
-                                x1={a.x}
-                                y1={a.y}
-                                x2={b.x}
-                                y2={b.y}
-                                className={`${css.snapLine} ${css.snapGapLine}`}
-                                strokeWidth={snapStrokeWidth}
-                                markerStart={isEqualGap ? `url(#${SNAP_GAP_ARROW_MARKER_ID})` : undefined}
-                                markerEnd={isEqualGap ? `url(#${SNAP_GAP_ARROW_MARKER_ID})` : undefined}
-                              />
-                            );
-                          })}
-                        </g>
-                      );
-                    })}
-                  </g>
-                )}
+                <HitRegionLayer
+                  hitRegions={hitRegions}
+                  hoveredElementId={hoveredElementId}
+                  toolMode={toolMode}
+                  editableTextRegionKeys={editableTextRegionKeys}
+                  onElementPointerDown={onElementPointerDown}
+                  onElementDoubleClick={onElementDoubleClick}
+                  onHoverChange={(id) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
+                />
 
-                {toolPreview && (
-                  <g className={css.toolPreview}>
-                    {toolPreview.kind === "cursor" && (
-                      <g>
-                        <line
-                          x1={toolPreview.x - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          y1={toolPreview.y}
-                          x2={toolPreview.x + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          y2={toolPreview.y}
-                          className={css.toolPreviewStroke}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                        <line
-                          x1={toolPreview.x}
-                          y1={toolPreview.y - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          x2={toolPreview.x}
-                          y2={toolPreview.y + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          className={css.toolPreviewStroke}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                      </g>
-                    )}
-                    {toolPreview.kind === "node" && (
-                      <g>
-                        <circle
-                          cx={toolPreview.x}
-                          cy={toolPreview.y}
-                          r={TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          className={css.toolPreviewFill}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                        <line
-                          x1={toolPreview.x - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          y1={toolPreview.y}
-                          x2={toolPreview.x + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          y2={toolPreview.y}
-                          className={css.toolPreviewStroke}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                        <line
-                          x1={toolPreview.x}
-                          y1={toolPreview.y - TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          x2={toolPreview.x}
-                          y2={toolPreview.y + TOOL_PREVIEW_NODE_RADIUS_PX / Math.max(canvasTransform.scale, 1e-3)}
-                          className={css.toolPreviewStroke}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                      </g>
-                    )}
-                    {toolPreview.kind === "line" && (
-                      <g>
-                        <line
-                          x1={toolPreview.x1}
-                          y1={toolPreview.y1}
-                          x2={toolPreview.x2}
-                          y2={toolPreview.y2}
-                          className={css.toolPreviewStroke}
-                          strokeWidth={handleStrokeWidth}
-                        />
-                        {toolPreview.arrow && (
-                          <polygon
-                            points={previewArrowPoints(
-                              toolPreview.x1,
-                              toolPreview.y1,
-                              toolPreview.x2,
-                              toolPreview.y2,
-                              10 / Math.max(canvasTransform.scale, 1e-3)
-                            )}
-                            className={css.toolPreviewStroke}
-                          />
-                        )}
-                      </g>
-                    )}
-                    {toolPreview.kind === "rect" && (
-                      <rect
-                        x={toolPreview.x}
-                        y={toolPreview.y}
-                        width={toolPreview.width}
-                        height={toolPreview.height}
-                        className={css.toolPreviewFill}
-                        strokeWidth={handleStrokeWidth}
-                      />
-                    )}
-                    {toolPreview.kind === "circle" && (
-                      <circle
-                        cx={toolPreview.cx}
-                        cy={toolPreview.cy}
-                        r={toolPreview.r}
-                        className={css.toolPreviewFill}
-                        strokeWidth={handleStrokeWidth}
-                      />
-                    )}
-                  </g>
-                )}
-
-                <g className={css.hitRegions}>
-                  {hitRegions.map((region) => {
-                    const isHovered = hoveredElementId === region.sourceId;
-                    const cursor = toolMode === "select" ? (editableTextRegionKeys.has(region.key) ? "text" : "move") : undefined;
-                    const className = [
-                      css.hitRegion,
-                      isHovered ? css.hitRegionHovered : ""
-                    ]
-                      .filter(Boolean)
-                      .join(" ");
-
-                    if (region.shape === "path") {
-                      return (
-                        <path
-                          key={region.key}
-                          className={className}
-                          d={region.d}
-                          fill={region.pointerMode === "fill" ? "transparent" : "none"}
-                          stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
-                          strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          style={cursor ? { cursor } : undefined}
-                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
-                          onPointerEnter={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
-                            }
-                          }}
-                          onPointerLeave={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
-                            }
-                          }}
-                        />
-                      );
-                    }
-
-                    if (region.shape === "circle") {
-                      return (
-                        <circle
-                          key={region.key}
-                          className={className}
-                          cx={region.cx}
-                          cy={region.cy}
-                          r={region.r}
-                          fill={region.pointerMode === "fill" ? "transparent" : "none"}
-                          stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
-                          strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          style={cursor ? { cursor } : undefined}
-                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
-                          onPointerEnter={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
-                            }
-                          }}
-                          onPointerLeave={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
-                            }
-                          }}
-                        />
-                      );
-                    }
-
-                    if (region.shape === "ellipse") {
-                      const transform =
-                        Math.abs(region.rotation) > 1e-6
-                          ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
-                          : undefined;
-                      return (
-                        <ellipse
-                          key={region.key}
-                          className={className}
-                          cx={region.cx}
-                          cy={region.cy}
-                          rx={region.rx}
-                          ry={region.ry}
-                          transform={transform}
-                          fill={region.pointerMode === "fill" ? "transparent" : "none"}
-                          stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
-                          strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
-                          style={cursor ? { cursor } : undefined}
-                          pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-                          onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-                          onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
-                          onPointerEnter={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
-                            }
-                          }}
-                          onPointerLeave={() => {
-                            if (toolMode === "select") {
-                              dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
-                            }
-                          }}
-                        />
-                      );
-                    }
-
-                    return (
-                      <rect
-                        key={region.key}
-                        className={className}
-                        x={region.x}
-                        y={region.y}
-                        width={region.width}
-                        height={region.height}
-                        transform={
-                          Math.abs(region.rotation) > 1e-6
-                            ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
-                            : undefined
-                        }
-                        fill="transparent"
-                        style={cursor ? { cursor } : undefined}
-                        pointerEvents={toolMode === "select" ? "all" : "none"}
-                        onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-                        onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
-                        onPointerEnter={() => {
-                          if (toolMode === "select") {
-                            dispatch({ type: "SET_HOVERED_ELEMENT", id: region.sourceId });
-                          }
-                        }}
-                        onPointerLeave={() => {
-                          if (toolMode === "select") {
-                            dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
-                          }
-                        }}
-                      />
-                    );
-                  })}
-                </g>
-
-                <g className={css.selectionOverlay}>
-                  {marqueeBounds && (
-                    <rect
-                      className={css.marqueeRect}
-                      x={marqueeBounds.minX}
-                      y={marqueeBounds.minY}
-                      width={Math.max(0.001, marqueeBounds.maxX - marqueeBounds.minX)}
-                      height={Math.max(0.001, marqueeBounds.maxY - marqueeBounds.minY)}
-                      strokeWidth={selectionStrokeWidth}
-                    />
-                  )}
-                </g>
-
-                {textSelectionVisual && (
-                  <g
-                    className={css.textSelectionOverlay}
-                    transform={
-                      Math.abs(textSelectionVisual.rotation) > 1e-6
-                        ? `rotate(${fmt(-textSelectionVisual.rotation)} ${fmt(textSelectionVisual.cx)} ${fmt(textSelectionVisual.cy)})`
-                        : undefined
-                    }
-                  >
-                    {textSelectionVisual.collapsed ? (
-                      <line
-                        className={css.textCaret}
-                        x1={textSelectionVisual.x1}
-                        y1={textSelectionVisual.yTop}
-                        x2={textSelectionVisual.x1}
-                        y2={textSelectionVisual.yTop + textSelectionVisual.height}
-                        strokeWidth={textSelectionVisual.caretStrokeWidth}
-                      />
-                    ) : (
-                      <rect
-                        className={css.textSelectionRect}
-                        x={Math.min(textSelectionVisual.x1, textSelectionVisual.x2)}
-                        y={textSelectionVisual.yTop}
-                        width={Math.max(1e-3, Math.abs(textSelectionVisual.x2 - textSelectionVisual.x1))}
-                        height={textSelectionVisual.height}
-                      />
-                    )}
-                  </g>
-                )}
+                <SelectionOverlay
+                  marqueeBounds={marqueeBounds}
+                  selectionStrokeWidth={selectionStrokeWidth}
+                  textSelectionVisual={textSelectionVisual}
+                />
 
                 {toolMode === "select" && (
-                  <g className={css.handleOverlay}>
-                    {handleDisplays.map((display) => {
-                      return (
-                        <rect
-                          key={display.key}
-                          className={css.handle}
-                          x={display.x - handleHalfSize}
-                          y={display.y - handleHalfSize}
-                          width={handleHalfSize * 2}
-                          height={handleHalfSize * 2}
-                          strokeWidth={handleStrokeWidth}
-                          style={{ cursor: display.cursor }}
-                          onPointerDown={(event) =>
-                            display.kind === "move-handle"
-                              ? onHandlePointerDown(event, display.handle)
-                              : onElementPointerDown(event, display.elementId)
-                          }
-                        />
-                      );
-                    })}
-                  </g>
+                  <HandleOverlay
+                    handleDisplays={handleDisplays}
+                    handleHalfSize={handleHalfSize}
+                    handleStrokeWidth={handleStrokeWidth}
+                    onHandlePointerDown={onHandlePointerDown}
+                    onElementPointerDown={onElementPointerDown}
+                  />
                 )}
               </svg>
             </div>
@@ -3034,6 +2322,446 @@ function CanvasSVGLayer({ svg }: { svg: string }) {
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
+}
+
+function useCanvasDragController(params: {
+  applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
+  dispatch: (action: any) => void;
+  logSnapDebug: (input: SnapDebugLogInput) => void;
+  queueSelectionForAddedElement: (preferredWorld: Point) => void;
+  snapshotSource: string;
+  snapshotScene: { elements: SceneElement[] } | null;
+  snapshotEditHandles: EditHandle[];
+  source: string;
+  svgResult: { viewBox: SvgViewBox } | null;
+  dragRef: { current: DragState | null };
+  svgResultRef: { current: { viewBox: SvgViewBox } | null };
+  interactionSvgRef: { current: SVGSVGElement | null };
+  selectedElementIdsRef: { current: ReadonlySet<string> };
+  sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
+  pendingAddedSelectionRef: { current: PendingAddedSelection | null };
+  setSnapLines: (lines: SnapLine[]) => void;
+  setToolDraft: (draft: Extract<DragState, { kind: "tool-create" }> | null) => void;
+  setToolCursorWorld: (point: Point | null) => void;
+  setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
+  setWarning: (warning: string | null) => void;
+  setTextSelectionOverlay: (overlay: TextSelectionOverlay | null) => void;
+  textIndexFromClient: (
+    clientX: number,
+    clientY: number,
+    target: TextIndexMappingTarget,
+    prefixTable: readonly number[] | null
+  ) => number | null;
+}) {
+  const {
+    applyActionWithFeedback,
+    dispatch,
+    logSnapDebug,
+    queueSelectionForAddedElement,
+    snapshotSource,
+    snapshotScene,
+    snapshotEditHandles,
+    source,
+    svgResult,
+    dragRef,
+    svgResultRef,
+    interactionSvgRef,
+    selectedElementIdsRef,
+    sourceBoundsRef,
+    pendingAddedSelectionRef,
+    setSnapLines,
+    setToolDraft,
+    setToolCursorWorld,
+    setMarqueeDraft,
+    setWarning,
+    setTextSelectionOverlay,
+    textIndexFromClient
+  } = params;
+
+  useEffect(() => {
+    function onPointerMove(event: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const ctrlOrMeta = event.ctrlKey || event.metaKey;
+
+      if (drag.kind === "pan") {
+        const deltaX = event.clientX - drag.startClientX;
+        const deltaY = event.clientY - drag.startClientY;
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-pan-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "pan",
+          rawDelta: { x: deltaX, y: deltaY },
+          lines: []
+        });
+
+        dispatch({
+          type: "SET_CANVAS_TRANSFORM",
+          transform: {
+            ...drag.startTransform,
+            translateX: drag.startTransform.translateX + deltaX,
+            translateY: drag.startTransform.translateY + deltaY
+          }
+        });
+        return;
+      }
+
+      if (drag.kind === "text-select") {
+        if (snapshotSource !== source) {
+          return;
+        }
+        const nextIndex = textIndexFromClient(
+          event.clientX,
+          event.clientY,
+          {
+            textLength: drag.textLength,
+            totalWidth: drag.totalWidth,
+            region: {
+              shape: "rect",
+              key: "",
+              sourceId: drag.sourceId,
+              x: drag.cx - drag.width / 2,
+              y: drag.cy - drag.height / 2,
+              width: drag.width,
+              height: drag.height,
+              cx: drag.cx,
+              cy: drag.cy,
+              rotation: drag.rotation
+            }
+          },
+          drag.prefixTable
+        );
+        if (nextIndex == null || nextIndex === drag.headIndex) {
+          return;
+        }
+        drag.headIndex = nextIndex;
+        const anchorOffset = drag.sourceSpan.from + drag.anchorIndex;
+        const headOffset = drag.sourceSpan.from + drag.headIndex;
+        requestSourceSelection({
+          from: Math.min(anchorOffset, headOffset),
+          to: Math.max(anchorOffset, headOffset),
+          anchor: anchorOffset,
+          head: headOffset,
+          sourceId: drag.sourceId,
+          focus: true
+        });
+        setTextSelectionOverlay({
+          sourceId: drag.sourceId,
+          textLength: drag.textLength,
+          totalWidth: drag.totalWidth,
+          fontSizePt: drag.fontSizePt,
+          startIndex: drag.anchorIndex,
+          endIndex: drag.headIndex,
+          rotation: drag.rotation,
+          cx: drag.cx,
+          cy: drag.cy,
+          width: drag.width,
+          height: drag.height,
+          prefixTable: drag.prefixTable
+        });
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-text-select-move",
+          snapshotMatchesSource: true,
+          dragKind: "text-select",
+          lines: []
+        });
+        return;
+      }
+
+      const currentSvg = svgResultRef.current;
+      if (!currentSvg) {
+        return;
+      }
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+      if (!world) return;
+
+      if (drag.kind === "tool-create") {
+        const snapKind =
+          drag.toolMode === "addRect"
+            ? "rect-corner"
+            : drag.toolMode === "addCircle"
+              ? "circle-edge"
+              : "line-end";
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: world,
+              kind: snapKind,
+              anchor: drag.startWorld,
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: world, lines: [] as SnapLine[] };
+        drag.currentWorld = snapped.snappedPoint ?? world;
+        setToolDraft({ ...drag });
+        setToolCursorWorld(drag.currentWorld);
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-tool-create-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "tool-create",
+          context: drag.snapContext,
+          rawPoint: world,
+          snappedPoint: drag.currentWorld,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
+        return;
+      }
+
+      if (drag.kind === "marquee") {
+        drag.currentWorld = world;
+        setMarqueeDraft({ ...drag });
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-marquee-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "marquee",
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      if (!svgResult || snapshotSource !== source) {
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-move",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: drag.kind,
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      if (drag.kind === "element") {
+        const rawTotalDelta = {
+          x: world.x - drag.startWorld.x,
+          y: world.y - drag.startWorld.y
+        };
+        const snapped = drag.snapContext && drag.initialSelection
+          ? snapSelectionTranslation({
+              context: drag.snapContext,
+              selection: drag.initialSelection,
+              rawDelta: rawTotalDelta,
+              modifiers: { ctrlOrMeta }
+            })
+          : {
+              snappedDelta: rawTotalDelta,
+              lines: [] as SnapLine[]
+            };
+        const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
+        const actualTotalDelta = drag.initialSelection && snapshotScene
+          ? deriveSelectionTranslationDeltaFromAnchor(
+              drag.initialSelection,
+              collectSelectionGeometry(snapshotScene.elements, drag.elementIds),
+              drag.selectionAnchorRatio
+            )
+          : { x: 0, y: 0 };
+        const incremental = {
+          x: totalDelta.x - actualTotalDelta.x,
+          y: totalDelta.y - actualTotalDelta.y
+        };
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-element-move",
+          snapshotMatchesSource: true,
+          dragKind: "element",
+          context: drag.snapContext,
+          rawDelta: rawTotalDelta,
+          snappedDelta: totalDelta,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
+
+        if (Math.abs(incremental.x) < 1e-6 && Math.abs(incremental.y) < 1e-6) {
+          return;
+        }
+
+        applyActionWithFeedback(
+          {
+            kind: "moveElements",
+            elementIds: drag.elementIds,
+            delta: incremental
+          },
+          drag.historyMergeKey
+        );
+        return;
+      }
+
+      const resolvedHandleId = resolveHandleIdForDrag(drag, snapshotEditHandles);
+      if (!resolvedHandleId) {
+        setWarning("Handle is no longer available after recompute. Release and drag again.");
+        return;
+      }
+
+      const snapped = drag.snapContext
+        ? snapHandlePosition({
+            context: drag.snapContext,
+            point: world,
+            sourceId: drag.sourceId,
+            modifiers: { ctrlOrMeta }
+          })
+        : { snappedPoint: world, lines: [] as SnapLine[] };
+      const nextWorld = snapped.snappedPoint ?? world;
+      setSnapLines(snapped.lines);
+      logSnapDebug({
+        phase: "drag-handle-move",
+        snapshotMatchesSource: true,
+        dragKind: "handle",
+        context: drag.snapContext,
+        rawPoint: world,
+        snappedPoint: nextWorld,
+        offset: snapped.offset,
+        lines: snapped.lines
+      });
+
+      const ok = applyActionWithFeedback(
+        {
+          kind: "moveHandle",
+          handleId: resolvedHandleId,
+          newWorld: nextWorld
+        },
+        drag.historyMergeKey
+      );
+      if (ok.sourceChanged) {
+        drag.lastKnownWorld = nextWorld;
+      }
+    }
+
+    function onPointerUp(event: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const ctrlOrMeta = event.ctrlKey || event.metaKey;
+
+      const currentSvg = svgResultRef.current;
+      const world =
+        currentSvg == null
+          ? null
+          : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
+
+      if (drag.kind === "marquee") {
+        const finalWorld = world ?? drag.currentWorld;
+        const deltaSq = distanceSquared(finalWorld, drag.startWorld);
+        const isClickOnly = deltaSq <= 0.25;
+
+        if (isClickOnly) {
+          if (!drag.additive) {
+            dispatch({ type: "CLEAR_SELECTION" });
+          }
+        } else if (currentSvg) {
+          const selection = boundsFromPoints(
+            worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
+            worldToSvgPoint(finalWorld, currentSvg.viewBox)
+          );
+          const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
+          if (drag.additive) {
+            const merged = new Set(selectedElementIdsRef.current);
+            for (const id of hitIds) {
+              merged.add(id);
+            }
+            dispatch({ type: "SELECT_RANGE", ids: [...merged] });
+          } else {
+            dispatch({ type: "SELECT_RANGE", ids: hitIds });
+          }
+        }
+
+        setMarqueeDraft(null);
+        setSnapLines([]);
+        dragRef.current = null;
+        return;
+      }
+
+      if (drag.kind === "tool-create") {
+        const rawFinalWorld = world ?? drag.currentWorld;
+        const snapKind =
+          drag.toolMode === "addRect"
+            ? "rect-corner"
+            : drag.toolMode === "addCircle"
+              ? "circle-edge"
+              : "line-end";
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: rawFinalWorld,
+              kind: snapKind,
+              anchor: drag.startWorld,
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
+        const finalWorld = snapped.snappedPoint ?? rawFinalWorld;
+        setSnapLines(snapped.lines);
+        setToolCursorWorld(finalWorld);
+
+        queueSelectionForAddedElement({
+          x: (drag.startWorld.x + finalWorld.x) / 2,
+          y: (drag.startWorld.y + finalWorld.y) / 2
+        });
+        const template = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
+        const ok = applyActionWithFeedback({
+          kind: "addElement",
+          template,
+          at: drag.startWorld
+        });
+        if (!ok.sourceChanged) {
+          pendingAddedSelectionRef.current = null;
+        }
+
+        if (ok.sourceChanged) {
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          setToolCursorWorld(null);
+        }
+        setToolDraft(null);
+        setSnapLines([]);
+      }
+
+      if (drag.kind === "text-select") {
+        setSnapLines([]);
+        dragRef.current = null;
+        return;
+      }
+
+      setSnapLines([]);
+      dragRef.current = null;
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [
+    applyActionWithFeedback,
+    dispatch,
+    dragRef,
+    interactionSvgRef,
+    logSnapDebug,
+    pendingAddedSelectionRef,
+    queueSelectionForAddedElement,
+    selectedElementIdsRef,
+    setMarqueeDraft,
+    setSnapLines,
+    setTextSelectionOverlay,
+    setToolCursorWorld,
+    setToolDraft,
+    setWarning,
+    snapshotEditHandles,
+    snapshotScene,
+    snapshotSource,
+    source,
+    sourceBoundsRef,
+    svgResult,
+    svgResultRef,
+    textIndexFromClient
+  ]);
 }
 
 function collectSelectionBounds(

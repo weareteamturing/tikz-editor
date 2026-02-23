@@ -2,6 +2,7 @@ import type {
   ChildOperationItem,
   CoordinateForm,
   CoordinateItem,
+  EdgeFromParentOperationItem,
   EdgeOperationItem,
   PathItem,
   PathStatement,
@@ -892,6 +893,197 @@ export function evaluatePathStatement(
     }
     geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, statementStyleChain, span, geometry.rotation));
   };
+
+  const tailItemHandlers = new Map<PathItem["kind"], (item: PathItem) => void>([
+    [
+      "UnknownPathItem",
+      () => {}
+    ],
+    [
+      "ToOperation",
+      (pathItem) => {
+        const item = pathItem as ToOperationItem;
+        const toPlan = extractToLikeOptionPlan(item);
+        const toItem: ToOperationItem =
+          toPlan.generatedNodes.length > 0
+            ? {
+                ...toPlan.item,
+                nodes: [...(toPlan.item.nodes ?? []), ...toPlan.generatedNodes]
+              }
+            : toPlan.item;
+        let toStartCoordinateRaw: string | null = null;
+        if (currentPointCoordinate) {
+          const namedCoordinate = currentPointCoordinate as { form: string; x: string };
+          if (namedCoordinate.form === "named") {
+            toStartCoordinateRaw = `(${namedCoordinate.x.trim()})`;
+          }
+        }
+        const handled = applyToOperation(
+          toItem,
+          context,
+          statement,
+          style,
+          statementStyleChain,
+          activePath,
+          previousSegmentRoundedCorners,
+          markFeature,
+          pushDiagnostic,
+          toStartCoordinateRaw
+        );
+        activePath = handled.activePath;
+        if (handled.segment) {
+          lastPlacementSegment = handled.segment;
+        }
+        behindNodeElements.push(...handled.behindNodeElements);
+        frontNodeElements.push(...handled.frontNodeElements);
+        if (handled.previousSegmentRoundedCorners !== undefined) {
+          previousSegmentRoundedCorners = handled.previousSegmentRoundedCorners;
+        }
+        setCurrentPoint(context.currentPoint);
+      }
+    ],
+    [
+      "EdgeOperation",
+      (pathItem) => {
+        const item = pathItem as EdgeOperationItem;
+        const edgePlan = extractToLikeOptionPlan(item);
+        const edgeItem: EdgeOperationItem =
+          edgePlan.generatedNodes.length > 0
+            ? {
+                ...edgePlan.item,
+                nodes: [...(edgePlan.item.nodes ?? []), ...edgePlan.generatedNodes]
+              }
+            : edgePlan.item;
+        if (!edgeOperationStart) {
+          let coordinateRaw = pendingEdgeStartCoordinateRaw;
+          if (!coordinateRaw && currentPointCoordinate) {
+            const namedCoordinate = currentPointCoordinate as { form: string; x: string };
+            if (namedCoordinate.form === "named") {
+              coordinateRaw = `(${namedCoordinate.x.trim()})`;
+            }
+          }
+          let startPoint = context.currentPoint;
+          if (!startPoint && coordinateRaw) {
+            const resolvedStart = evaluateRawCoordinate(coordinateRaw, context);
+            for (const code of resolvedStart.diagnostics) {
+              pushDiagnostic(code, `Edge start issue: ${code}`, item.span.from, item.span.to);
+            }
+            if (resolvedStart.world) {
+              startPoint = resolvedStart.world;
+            }
+          }
+          if (!startPoint) {
+            pushDiagnostic("edge-without-start", "`edge` operation requires a current point.", item.span.from, item.span.to);
+            return;
+          }
+          edgeOperationStart = {
+            point: startPoint,
+            coordinateRaw
+          };
+        }
+
+        const edgeOptionLayers: StyleTraceLayerInput[] = [];
+        if (everyEdgeOptions) {
+          edgeOptionLayers.push({
+            kind: "command",
+            sourceRef: {
+              sourceId: edgeItem.id,
+              sourceSpan: item.span,
+              sourceKind: "edge-default",
+              label: "every edge"
+            },
+            rawOptions: [everyEdgeOptions]
+          });
+        }
+        if (drawEdgeOptions) {
+          edgeOptionLayers.push({
+            kind: "command",
+            sourceRef: {
+              sourceId: edgeItem.id,
+              sourceSpan: item.span,
+              sourceKind: "edge-default",
+              label: "draw"
+            },
+            rawOptions: [drawEdgeOptions]
+          });
+        }
+        if (edgeItem.options) {
+          edgeOptionLayers.push({
+            kind: "command",
+            sourceRef: {
+              sourceId: edgeItem.id,
+              sourceSpan: edgeItem.optionsSpan ?? item.span,
+              sourceKind: "edge-options",
+              label: "edge"
+            },
+            rawOptions: [edgeItem.options]
+          });
+        }
+        const resolvedEdgeStyle = resolveContextDelta(
+          style,
+          frameTransform,
+          edgeOptionLayers,
+          frame.customStyles,
+          (raw) => evaluateRawCoordinate(raw, context).world,
+          statementStyleChain
+        );
+        for (const code of resolvedEdgeStyle.diagnostics) {
+          if (code === "unsupported-option-flag:every edge") {
+            continue;
+          }
+          pushDiagnostic(code, `Edge option issue: ${code}`, item.span.from, item.span.to);
+        }
+
+        const handled = applyEdgeOperation(
+          edgeItem,
+          context,
+          statement,
+          resolvedEdgeStyle.style,
+          resolvedEdgeStyle.chain,
+          markFeature,
+          pushDiagnostic,
+          edgeOperationStart.point,
+          edgeOperationStart.coordinateRaw
+        );
+        if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
+          frontNodeElements.push(...handled.behindNodeElements);
+          frontNodeElements.push(handled.activePath);
+          frontNodeElements.push(...handled.frontNodeElements);
+        } else {
+          frontNodeElements.push(...handled.behindNodeElements, ...handled.frontNodeElements);
+        }
+      }
+    ],
+    [
+      "EdgeFromParentOperation",
+      (pathItem) => {
+        const item = pathItem as EdgeFromParentOperationItem;
+        markFeature("edge_from_parent_operation", "unsupported");
+        pushDiagnostic(
+          "edge-from-parent-outside-child",
+          "`edge from parent`/`edge to parent` operations are only supported inside `child` bodies.",
+          item.span.from,
+          item.span.to
+        );
+      }
+    ],
+    [
+      "SvgOperation",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "SvgOperation" }>;
+        markFeature("svg_operation", "unsupported");
+        pushDiagnostic("unsupported-svg-operation", "`svg` operations are not semantically implemented yet.", item.span.from, item.span.to);
+      }
+    ],
+    [
+      "LetOperation",
+      (pathItem) => {
+        const item = pathItem as Extract<PathItem, { kind: "LetOperation" }>;
+        markFeature("let_operation", "unsupported");
+        pushDiagnostic("unsupported-let-operation", "`let` operations are not semantically implemented yet.", item.span.from, item.span.to);
+      }
+    ]
+  ]);
 
   for (let index = 0; index < statement.items.length; index += 1) {
     const item = statement.items[index];
@@ -2537,181 +2729,9 @@ export function evaluatePathStatement(
       continue;
     }
 
-    if (item.kind === "UnknownPathItem") {
-      continue;
-    }
-
-    if (item.kind === "ToOperation") {
-      const toPlan = extractToLikeOptionPlan(item);
-      const toItem: ToOperationItem =
-        toPlan.generatedNodes.length > 0
-          ? {
-              ...toPlan.item,
-              nodes: [...(toPlan.item.nodes ?? []), ...toPlan.generatedNodes]
-            }
-          : toPlan.item;
-      let toStartCoordinateRaw: string | null = null;
-      if (currentPointCoordinate) {
-        const namedCoordinate = currentPointCoordinate as { form: string; x: string };
-        if (namedCoordinate.form === "named") {
-          toStartCoordinateRaw = `(${namedCoordinate.x.trim()})`;
-        }
-      }
-      const handled = applyToOperation(
-        toItem,
-        context,
-        statement,
-        style,
-        statementStyleChain,
-        activePath,
-        previousSegmentRoundedCorners,
-        markFeature,
-        pushDiagnostic,
-        toStartCoordinateRaw
-      );
-      activePath = handled.activePath;
-      if (handled.segment) {
-        lastPlacementSegment = handled.segment;
-      }
-      behindNodeElements.push(...handled.behindNodeElements);
-      frontNodeElements.push(...handled.frontNodeElements);
-      if (handled.previousSegmentRoundedCorners !== undefined) {
-        previousSegmentRoundedCorners = handled.previousSegmentRoundedCorners;
-      }
-      setCurrentPoint(context.currentPoint);
-      continue;
-    }
-
-    if (item.kind === "EdgeOperation") {
-      const edgePlan = extractToLikeOptionPlan(item);
-      const edgeItem: EdgeOperationItem =
-        edgePlan.generatedNodes.length > 0
-          ? {
-              ...edgePlan.item,
-              nodes: [...(edgePlan.item.nodes ?? []), ...edgePlan.generatedNodes]
-            }
-          : edgePlan.item;
-      if (!edgeOperationStart) {
-        let coordinateRaw = pendingEdgeStartCoordinateRaw;
-        if (!coordinateRaw && currentPointCoordinate) {
-          const namedCoordinate = currentPointCoordinate as { form: string; x: string };
-          if (namedCoordinate.form === "named") {
-            coordinateRaw = `(${namedCoordinate.x.trim()})`;
-          }
-        }
-        let startPoint = context.currentPoint;
-        if (!startPoint && coordinateRaw) {
-          const resolvedStart = evaluateRawCoordinate(coordinateRaw, context);
-          for (const code of resolvedStart.diagnostics) {
-            pushDiagnostic(code, `Edge start issue: ${code}`, item.span.from, item.span.to);
-          }
-          if (resolvedStart.world) {
-            startPoint = resolvedStart.world;
-          }
-        }
-        if (!startPoint) {
-          pushDiagnostic("edge-without-start", "`edge` operation requires a current point.", item.span.from, item.span.to);
-          continue;
-        }
-        edgeOperationStart = {
-          point: startPoint,
-          coordinateRaw
-        };
-      }
-
-      const edgeOptionLayers: StyleTraceLayerInput[] = [];
-      if (everyEdgeOptions) {
-        edgeOptionLayers.push({
-          kind: "command",
-          sourceRef: {
-            sourceId: edgeItem.id,
-            sourceSpan: item.span,
-            sourceKind: "edge-default",
-            label: "every edge"
-          },
-          rawOptions: [everyEdgeOptions]
-        });
-      }
-      if (drawEdgeOptions) {
-        edgeOptionLayers.push({
-          kind: "command",
-          sourceRef: {
-            sourceId: edgeItem.id,
-            sourceSpan: item.span,
-            sourceKind: "edge-default",
-            label: "draw"
-          },
-          rawOptions: [drawEdgeOptions]
-        });
-      }
-      if (edgeItem.options) {
-        edgeOptionLayers.push({
-          kind: "command",
-          sourceRef: {
-            sourceId: edgeItem.id,
-            sourceSpan: edgeItem.optionsSpan ?? item.span,
-            sourceKind: "edge-options",
-            label: "edge"
-          },
-          rawOptions: [edgeItem.options]
-        });
-      }
-      const resolvedEdgeStyle = resolveContextDelta(
-        style,
-        frameTransform,
-        edgeOptionLayers,
-        frame.customStyles,
-        (raw) => evaluateRawCoordinate(raw, context).world,
-        statementStyleChain
-      );
-      for (const code of resolvedEdgeStyle.diagnostics) {
-        if (code === "unsupported-option-flag:every edge") {
-          continue;
-        }
-        pushDiagnostic(code, `Edge option issue: ${code}`, item.span.from, item.span.to);
-      }
-
-      const handled = applyEdgeOperation(
-        edgeItem,
-        context,
-        statement,
-        resolvedEdgeStyle.style,
-        resolvedEdgeStyle.chain,
-        markFeature,
-        pushDiagnostic,
-        edgeOperationStart.point,
-        edgeOperationStart.coordinateRaw
-      );
-      if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
-        frontNodeElements.push(...handled.behindNodeElements);
-        frontNodeElements.push(handled.activePath);
-        frontNodeElements.push(...handled.frontNodeElements);
-      } else {
-        frontNodeElements.push(...handled.behindNodeElements, ...handled.frontNodeElements);
-      }
-      continue;
-    }
-
-    if (item.kind === "EdgeFromParentOperation") {
-      markFeature("edge_from_parent_operation", "unsupported");
-      pushDiagnostic(
-        "edge-from-parent-outside-child",
-        "`edge from parent`/`edge to parent` operations are only supported inside `child` bodies.",
-        item.span.from,
-        item.span.to
-      );
-      continue;
-    }
-
-    if (item.kind === "SvgOperation") {
-      markFeature("svg_operation", "unsupported");
-      pushDiagnostic("unsupported-svg-operation", "`svg` operations are not semantically implemented yet.", item.span.from, item.span.to);
-      continue;
-    }
-
-    if (item.kind === "LetOperation") {
-      markFeature("let_operation", "unsupported");
-      pushDiagnostic("unsupported-let-operation", "`let` operations are not semantically implemented yet.", item.span.from, item.span.to);
+    const tailHandler = tailItemHandlers.get(item.kind);
+    if (tailHandler) {
+      tailHandler(item);
       continue;
     }
   }

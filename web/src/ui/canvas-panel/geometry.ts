@@ -64,7 +64,7 @@ export function buildTicks(
   return ticks;
 }
 
-function buildValueSequence(min: number, max: number, step: number, maxCount: number): number[] {
+export function buildValueSequence(min: number, max: number, step: number, maxCount: number): number[] {
   if (!(step > 0) || !Number.isFinite(min) || !Number.isFinite(max)) return [];
 
   let startIndex = Math.floor(min / step) - 1;
@@ -203,7 +203,7 @@ export function pickStepPt(scale: number, targetPixels: number): number {
   return cmSteps[cmSteps.length - 1]! * PT_PER_CM;
 }
 
-function isMultipleOfStep(value: number, step: number): boolean {
+export function isMultipleOfStep(value: number, step: number): boolean {
   if (!(step > 0)) return false;
   const q = value / step;
   return Math.abs(q - Math.round(q)) < 1e-4;
