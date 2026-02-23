@@ -237,9 +237,194 @@ describe("semantic evaluator", () => {
     }
   });
 
+  it("emits polyline geometry for `plot coordinates` and advances the current point", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot coordinates {(0,0) (1,1) (2,0)} -- (3,0);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-plot-coordinates")).toBe(false);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(2);
+
+    const hasPlotPolyline = paths.some((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const commands = element.commands;
+      return commands.length >= 3 && commands[0]?.kind === "M" && commands[1]?.kind === "L" && commands[2]?.kind === "L";
+    });
+    expect(hasPlotPolyline).toBe(true);
+
+    const hasTrailingSegmentFromPlotEnd = paths.some((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      if (element.commands.length < 2) {
+        return false;
+      }
+      const move = element.commands[0];
+      const line = element.commands[1];
+      if (move?.kind !== "M" || line?.kind !== "L") {
+        return false;
+      }
+      return (
+        Math.abs(move.to.x - 56.9055) <= 1e-2 &&
+        Math.abs(move.to.y) <= 1e-6 &&
+        Math.abs(line.to.x - 85.3583) <= 1e-2 &&
+        Math.abs(line.to.y) <= 1e-6
+      );
+    });
+    expect(hasTrailingSegmentFromPlotEnd).toBe(true);
+  });
+
+  it("distinguishes `plot` vs `-- plot` connection behavior", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) plot coordinates {(1,0) (2,0)};
+  \draw (0,0) -- plot coordinates {(1,0) (2,0)};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    const hasDisconnectedPlot = paths.some((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const move = element.commands[0];
+      return move?.kind === "M" && Math.abs(move.to.x - 28.4528) <= 1e-2 && Math.abs(move.to.y) <= 1e-6;
+    });
+    const hasConnectedPlot = paths.some((element) => {
+      if (element.kind !== "Path") {
+        return false;
+      }
+      const move = element.commands[0];
+      const firstLine = element.commands.find((command) => command.kind === "L");
+      if (move?.kind !== "M" || firstLine?.kind !== "L") {
+        return false;
+      }
+      return (
+        Math.abs(move.to.x) <= 1e-6 &&
+        Math.abs(move.to.y) <= 1e-6 &&
+        Math.abs(firstLine.to.x - 28.4528) <= 1e-2 &&
+        Math.abs(firstLine.to.y) <= 1e-6
+      );
+    });
+    expect(hasDisconnectedPlot).toBe(true);
+    expect(hasConnectedPlot).toBe(true);
+  });
+
+  it("samples expression plots using domain/samples", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[domain=0:2,samples=5] plot (\x,{2*\x});
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.length).toBe(5);
+      const first = path.commands[0];
+      const last = path.commands[path.commands.length - 1];
+      expect(first?.kind).toBe("M");
+      expect(last?.kind).toBe("L");
+      if (first?.kind === "M") {
+        expect(first.to.x).toBeCloseTo(0, 6);
+      }
+      if (last?.kind === "L") {
+        expect(last.to.x).toBeCloseTo(56.9055, 2);
+        expect(last.to.y).toBeCloseTo(113.811, 2);
+      }
+    }
+  });
+
+  it("samples expression plots using `samples at` and custom variables", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[samples at={0,0.5,1,2},variable=\t] ({\t},{\t*\t});
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    const path = result.scene.elements.find((element) => element.kind === "Path");
+    expect(path?.kind).toBe("Path");
+    if (path?.kind === "Path") {
+      expect(path.commands.length).toBe(4);
+      const commands = path.commands.filter((command) => command.kind === "M" || command.kind === "L");
+      expect(commands).toHaveLength(4);
+      const third = commands[2];
+      const fourth = commands[3];
+      if (third?.kind === "L") {
+        expect(third.to.x).toBeCloseTo(28.4528, 2);
+        expect(third.to.y).toBeCloseTo(28.4528, 2);
+      }
+      if (fourth?.kind === "L") {
+        expect(fourth.to.x).toBeCloseTo(56.9055, 2);
+        expect(fourth.to.y).toBeCloseTo(113.811, 2);
+      }
+    }
+  });
+
+  it("supports `sin(\\x r)` and `exp(\\x)` inside plot expressions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[domain=0:3.1415926535,samples=3] plot (\x,{sin(\x r)});
+  \draw[domain=0:1,samples=3] plot (\x,{exp(\x)});
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-plot-expression")).toBe(false);
+    const paths = result.scene.elements.filter((element) => element.kind === "Path");
+    expect(paths.length).toBe(2);
+
+    const sinPath = paths[0];
+    const expPath = paths[1];
+    if (sinPath?.kind === "Path") {
+      const commands = sinPath.commands.filter((command) => command.kind === "M" || command.kind === "L");
+      expect(commands).toHaveLength(3);
+      const middle = commands[1];
+      if (middle?.kind === "L") {
+        expect(middle.to.y).toBeCloseTo(28.4528, 1);
+      }
+    }
+    if (expPath?.kind === "Path") {
+      const last = expPath.commands[expPath.commands.length - 1];
+      expect(last?.kind).toBe("L");
+      if (last?.kind === "L") {
+        expect(last.to.y).toBeGreaterThan(70);
+      }
+    }
+  });
+
+  it("emits explicit diagnostics for unsupported plot modes (`function` and `file`)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot function{sin(\x)};
+  \draw plot file{data.dat};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-plot-mode:function")).toBe(true);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-plot-mode:file")).toBe(true);
+  });
+
+  it("does not emit unsupported-option-key diagnostics for plot control keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[domain=0:1,samples=5,samples at={0,0.25,0.5,0.75,1},variable=\t,mark=x] plot ({\t},{exp(\t)});
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const result = evaluateTikzFigure(parsed.figure, source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:domain")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:samples")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:samples at")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:variable")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:mark")).toBe(false);
+  });
+
   it("emits explicit diagnostics for currently unsupported path keywords", () => {
     const source = String.raw`\begin{tikzpicture}
-  \draw (0,0) plot (1,1);
   \draw (0,0) bend (1,1);
 \end{tikzpicture}`;
     const parsed = parseTikz(source);

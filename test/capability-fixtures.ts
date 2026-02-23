@@ -108,6 +108,10 @@ export const capabilityFixtures: Record<string, string> = {
   \path coordinate (p1) at (1,0);
   \draw (0,0) -- (p1);
 \end{tikzpicture}`,
+  plot_operation: String.raw`\begin{tikzpicture}
+  \draw plot coordinates {(0,0) (1,1) (2,0)};
+  \draw[domain=0:2,samples=5] plot (\x,{exp(\x/2)});
+\end{tikzpicture}`,
   to_operation: String.raw`\begin{tikzpicture}
   \draw (0,0) to (1,1);
 \end{tikzpicture}`,

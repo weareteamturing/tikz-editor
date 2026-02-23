@@ -829,6 +829,74 @@ describe("parseTikz", () => {
     expect(unknown).toHaveLength(0);
   });
 
+  it("maps `plot coordinates {...}` to a typed PlotOperation item", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot coordinates {(0,0) (1,1) (2,0)};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const plot = statement.items.find((item) => item.kind === "PlotOperation");
+    expect(plot?.kind).toBe("PlotOperation");
+    if (plot?.kind === "PlotOperation") {
+      expect(plot.mode).toBe("coordinates");
+      expect(plot.dataRaw?.trim().startsWith("{")).toBe(true);
+      expect(plot.dataRaw?.trim().endsWith("}")).toBe(true);
+    }
+
+    expect(statement.items.some((item) => item.kind === "PathKeyword" && item.keyword === "plot")).toBe(false);
+  });
+
+  it("maps `plot[domain=...,samples=...] (...)` to expression PlotOperation", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot[domain=0:2,samples=7] (\x,{exp(\x/2)});
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    const statement = result.figure.body.find((item) => item.kind === "Path");
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      return;
+    }
+
+    const plot = statement.items.find((item) => item.kind === "PlotOperation");
+    expect(plot?.kind).toBe("PlotOperation");
+    if (plot?.kind === "PlotOperation") {
+      expect(plot.mode).toBe("expression");
+      const keys = plot.options?.entries
+        .filter((entry) => entry.kind === "kv")
+        .map((entry) => (entry.kind === "kv" ? entry.key : ""));
+      expect(keys).toEqual(expect.arrayContaining(["domain", "samples"]));
+      expect(plot.dataRaw).toContain("(");
+      expect(plot.dataRaw).toContain(")");
+    }
+  });
+
+  it("maps `plot function{...}` and `plot file{...}` to typed PlotOperation modes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot function{sin(\x)};
+  \draw plot file{data.dat};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+    const plots = result.figure.body
+      .filter((statement) => statement.kind === "Path")
+      .flatMap((statement) => (statement.kind === "Path" ? statement.items : []))
+      .filter((item) => item.kind === "PlotOperation");
+
+    expect(plots.length).toBe(2);
+    const modes = plots.map((item) => (item.kind === "PlotOperation" ? item.mode : "unknown"));
+    expect(modes).toEqual(expect.arrayContaining(["function", "file"]));
+  });
+
   it("parses to, edge, svg, let, decorate, and coordinate operations with typed IR items", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) to [edge label=x, edge label'=y] node [above] {t} (3,2);

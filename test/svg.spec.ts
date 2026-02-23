@@ -128,6 +128,19 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain(" A ");
   });
 
+  it("emits SVG path geometry for coordinate and expression plot operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw plot coordinates {(0,0) (1,1) (2,0)};
+  \draw[domain=0:2,samples=5] plot (\x,{sin(\x r)});
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-plot-mode:"))).toBe(false);
+    expect(emitted.svg.match(/<path /g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
   it("includes arc extrema in bounds so the viewBox does not clip half-circle arcs", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (1,0) arc (0:180:1cm);

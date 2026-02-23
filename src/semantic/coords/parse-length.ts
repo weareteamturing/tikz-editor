@@ -30,12 +30,12 @@ type Token =
     };
 
 export function parseLength(input: string, defaultUnit: "cm" | "pt"): number | null {
-  const trimmed = input.trim();
-  if (trimmed.length === 0) {
+  const normalized = normalizeQuantityInput(input);
+  if (normalized.length === 0) {
     return null;
   }
 
-  const quantity = parseQuantityExpression(trimmed);
+  const quantity = parseQuantityExpression(normalized);
   if (!quantity) {
     return null;
   }
@@ -53,7 +53,12 @@ export function parseLength(input: string, defaultUnit: "cm" | "pt"): number | n
 }
 
 export function parseQuantityExpression(input: string): ParsedQuantity | null {
-  const tokenStream = tokenizeQuantityExpression(input);
+  const normalizedInput = normalizeQuantityInput(input);
+  if (normalizedInput.length === 0) {
+    return null;
+  }
+
+  const tokenStream = tokenizeQuantityExpression(normalizedInput);
   if (!tokenStream) {
     return null;
   }
@@ -144,13 +149,20 @@ export function parseQuantityExpression(input: string): ParsedQuantity | null {
     if (token.kind === "number") {
       index += 1;
       if (!token.unit) {
-        return { kind: "scalar", value: token.value };
+        return applyRadianSuffixes({ kind: "scalar", value: token.value });
       }
-      const factor = UNIT_FACTORS[token.unit.toLowerCase()];
+      const normalizedUnit = token.unit.toLowerCase();
+      if (normalizedUnit === "r") {
+        return applyRadianSuffixes({
+          kind: "scalar",
+          value: radiansToDegrees(token.value)
+        });
+      }
+      const factor = UNIT_FACTORS[normalizedUnit];
       if (factor == null) {
         return null;
       }
-      return { kind: "length", value: token.value * factor };
+      return applyRadianSuffixes({ kind: "length", value: token.value * factor });
     }
 
     if (token.kind === "ident") {
@@ -167,14 +179,18 @@ export function parseQuantityExpression(input: string): ParsedQuantity | null {
         if (arg.kind !== "scalar") {
           return null;
         }
-        return evaluateScalarFunction(normalized, arg.value);
+        const evaluated = evaluateScalarFunction(normalized, arg.value);
+        if (!evaluated) {
+          return null;
+        }
+        return applyRadianSuffixes(evaluated);
       }
 
       if (normalized === "pi") {
-        return { kind: "scalar", value: Math.PI };
+        return applyRadianSuffixes({ kind: "scalar", value: Math.PI });
       }
       if (normalized === "e") {
-        return { kind: "scalar", value: Math.E };
+        return applyRadianSuffixes({ kind: "scalar", value: Math.E });
       }
       return null;
     }
@@ -186,7 +202,7 @@ export function parseQuantityExpression(input: string): ParsedQuantity | null {
         return null;
       }
       index += 1;
-      return nested;
+      return applyRadianSuffixes(nested);
     }
 
     return null;
@@ -216,6 +232,25 @@ export function parseQuantityExpression(input: string): ParsedQuantity | null {
       }
     }
     return null;
+  }
+
+  function applyRadianSuffixes(value: ParsedQuantity): ParsedQuantity | null {
+    let current = value;
+    while (true) {
+      const suffix = tokens[index];
+      if (!suffix || suffix.kind !== "ident" || suffix.value.toLowerCase() !== "r") {
+        break;
+      }
+      if (current.kind !== "scalar") {
+        return null;
+      }
+      current = {
+        kind: "scalar",
+        value: radiansToDegrees(current.value)
+      };
+      index += 1;
+    }
+    return current;
   }
 }
 
@@ -384,7 +419,61 @@ function evaluateScalarFunction(name: string, value: number): ParsedQuantity | n
   if (name === "abs") {
     return { kind: "scalar", value: Math.abs(value) };
   }
+  if (name === "exp") {
+    return { kind: "scalar", value: Math.exp(value) };
+  }
   return null;
+}
+
+function normalizeQuantityInput(input: string): string {
+  let normalized = input.trim();
+  while (normalized.length >= 2 && normalized.startsWith("{") && normalized.endsWith("}")) {
+    const unwrapped = unwrapSingleOuterBracePair(normalized);
+    if (!unwrapped) {
+      break;
+    }
+    normalized = unwrapped.trim();
+  }
+  return normalized;
+}
+
+function unwrapSingleOuterBracePair(raw: string): string | null {
+  if (!(raw.startsWith("{") && raw.endsWith("}"))) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && index !== raw.length - 1) {
+        return null;
+      }
+      if (depth < 0) {
+        return null;
+      }
+    }
+  }
+
+  if (depth !== 0) {
+    return null;
+  }
+  return raw.slice(1, -1);
+}
+
+function radiansToDegrees(value: number): number {
+  return (value * 180) / Math.PI;
 }
 
 export function parseCoordinateLike(raw: string): { x: string; y: string } | null {

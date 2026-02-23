@@ -110,6 +110,7 @@ export type PathItem =
   | PathCommentItem
   | PathOptionItem
   | PathKeywordItem
+  | PlotOperationItem
   | ToOperationItem
   | EdgeOperationItem
   | ChildOperationItem
@@ -197,6 +198,20 @@ export type PathKeywordItem = {
   id: string;
   span: Span;
   keyword: string;
+};
+
+export type PlotOperationMode = "coordinates" | "expression" | "function" | "file" | "unknown";
+
+export type PlotOperationItem = {
+  kind: "PlotOperation";
+  id: string;
+  span: Span;
+  raw: string;
+  optionsSpan?: Span;
+  options?: OptionListAst;
+  mode: PlotOperationMode;
+  dataSpan?: Span;
+  dataRaw?: string;
 };
 
 export type PathForeachItem = {

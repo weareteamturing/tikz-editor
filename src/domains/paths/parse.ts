@@ -1,7 +1,8 @@
 import type { SyntaxNode } from "@lezer/common";
 
-import { pathCommentItemId, pathStatementId } from "../../ast/ids.js";
+import { pathCommentItemId, pathStatementId, plotOperationItemId } from "../../ast/ids.js";
 import type { ChildForeachClause, PathCommand, PathItem, PathStatement } from "../../ast/types.js";
+import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { parsePathItemsFromFragment } from "../../foreach/snippet-parse.js";
 import { mapCoordinateItem, mapRelativeCoordinateItem } from "../coordinates/parse.js";
@@ -60,6 +61,21 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
       items.push(mappedDecorate.item);
       itemIndex += 1;
       nodeIndex += mappedDecorate.consumed;
+      continue;
+    }
+
+    const mappedPlot = tryMapPlotOperation(pathItemNodes, nodeIndex, source, statementIndex, itemIndex);
+    if (mappedPlot) {
+      if (context.pendingNodeOptions.length > 0) {
+        for (const optionNode of context.pendingNodeOptions) {
+          items.push(mapPathOptionItem(optionNode, source, statementIndex, itemIndex));
+          itemIndex += 1;
+        }
+        context.pendingNodeOptions = [];
+      }
+      items.push(mappedPlot.item);
+      itemIndex += 1;
+      nodeIndex += mappedPlot.consumed;
       continue;
     }
 
@@ -388,9 +404,96 @@ function tryMapDecorateOperation(
   };
 }
 
+function tryMapPlotOperation(
+  nodes: SyntaxNode[],
+  startIndex: number,
+  source: string,
+  statementIndex: number,
+  itemIndex: number
+): { item: PathItem; consumed: number } | null {
+  const keywordNode = unwrapPathItemNode(nodes[startIndex]);
+  if (!isPlotKeywordNode(keywordNode, source)) {
+    return null;
+  }
+
+  let consumeCount = 1;
+  let optionsNode: SyntaxNode | null = null;
+  const maybeOptionsNode = nodes[startIndex + consumeCount];
+  if (maybeOptionsNode) {
+    const unwrapped = unwrapPathItemNode(maybeOptionsNode);
+    if (unwrapped.type.name === "OptionList") {
+      optionsNode = unwrapped;
+      consumeCount += 1;
+    }
+  }
+
+  let mode: "coordinates" | "expression" | "function" | "file" | "unknown" = "unknown";
+  let dataNode: SyntaxNode | null = null;
+  const payloadNode = nodes[startIndex + consumeCount] ? unwrapPathItemNode(nodes[startIndex + consumeCount]!) : null;
+
+  if (payloadNode) {
+    const payloadRaw = source.slice(payloadNode.from, payloadNode.to).trim().toLowerCase();
+
+    if (payloadRaw === "coordinates") {
+      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]!) : null;
+      if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
+        mode = "coordinates";
+        dataNode = maybeDataNode;
+        consumeCount += 2;
+      } else {
+        mode = "unknown";
+        consumeCount += 1;
+      }
+    } else if (payloadNode.type.name === "Coordinate") {
+      mode = "expression";
+      dataNode = payloadNode;
+      consumeCount += 1;
+    } else if (payloadRaw === "function" || payloadRaw === "file") {
+      mode = payloadRaw;
+      const maybeDataNode = nodes[startIndex + consumeCount + 1] ? unwrapPathItemNode(nodes[startIndex + consumeCount + 1]!) : null;
+      if (maybeDataNode && isPlotDataGroupNode(maybeDataNode, source)) {
+        dataNode = maybeDataNode;
+        consumeCount += 2;
+      } else {
+        consumeCount += 1;
+      }
+    }
+  }
+
+  const from = keywordNode.from;
+  const to = dataNode?.to ?? optionsNode?.to ?? payloadNode?.to ?? keywordNode.to;
+  return {
+    item: {
+      kind: "PlotOperation",
+      id: plotOperationItemId(statementIndex, itemIndex),
+      span: { from, to },
+      raw: source.slice(from, to),
+      optionsSpan: toSpan(optionsNode),
+      options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+      mode,
+      dataSpan: toSpan(dataNode),
+      dataRaw: dataNode ? source.slice(dataNode.from, dataNode.to) : undefined
+    },
+    consumed: consumeCount
+  };
+}
+
 function isDecorateKeywordNode(node: SyntaxNode, source: string): boolean {
   const raw = source.slice(node.from, node.to).trim().toLowerCase();
   return raw === "decorate";
+}
+
+function isPlotKeywordNode(node: SyntaxNode, source: string): boolean {
+  const raw = source.slice(node.from, node.to).trim().toLowerCase();
+  return raw === "plot";
+}
+
+function isPlotDataGroupNode(node: SyntaxNode, source: string): boolean {
+  if (node.type.name === "Group") {
+    return true;
+  }
+  const raw = source.slice(node.from, node.to).trim();
+  return raw.startsWith("{") && raw.endsWith("}");
 }
 
 function isDecorationSubpathNode(node: SyntaxNode, source: string): boolean {
@@ -403,6 +506,16 @@ function unwrapPathItemNode(node: SyntaxNode): SyntaxNode {
     return firstNamedChild(node) ?? node;
   }
   return node;
+}
+
+function toSpan(node: SyntaxNode | null): { from: number; to: number } | undefined {
+  if (!node) {
+    return undefined;
+  }
+  return {
+    from: node.from,
+    to: node.to
+  };
 }
 
 function findStatementOptions(items: PathItem[]) {

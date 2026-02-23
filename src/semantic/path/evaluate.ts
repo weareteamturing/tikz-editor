@@ -6,9 +6,14 @@ import type {
   EdgeOperationItem,
   PathItem,
   PathStatement,
+  PlotOperationItem,
   ToOperationItem
 } from "../../ast/types.js";
+import type { OptionListAst } from "../../options/types.js";
 import { parseTikz } from "../../parser/index.js";
+import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
+import type { MacroBinding } from "../../macros/index.js";
+import { expandForeachList } from "../../foreach/list.js";
 import type { SemanticContext } from "../context.js";
 import {
   applyNameScope,
@@ -52,7 +57,7 @@ import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.
 import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
-import type { StyleTraceLayerInput } from "../style-chain.js";
+import type { StyleChainEntry, StyleTraceLayerInput } from "../style-chain.js";
 import { applyDecorationToPath } from "../decorations/index.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { resolveFrameMeta } from "../evaluate.js";
@@ -265,6 +270,323 @@ function resolveDefaultGridStep(transform: { a: number; b: number; c: number; d:
   return Number.isFinite(magnitude) && magnitude > 1e-9 ? magnitude : DEFAULT_GRID_STEP;
 }
 
+type PlotSettings = {
+  domainStart: number;
+  domainEnd: number;
+  samples: number;
+  samplesAt: number[] | null;
+  variable: string;
+  mark: string | null;
+};
+
+function createDefaultPlotSettings(): PlotSettings {
+  return {
+    domainStart: -5,
+    domainEnd: 5,
+    samples: 25,
+    samplesAt: null,
+    variable: "\\x",
+    mark: null
+  };
+}
+
+function applyPlotSettingsFromStyleChain(
+  base: PlotSettings,
+  styleChain: StyleChainEntry[],
+  bindings: ReadonlyMap<string, MacroBinding>
+): PlotSettings {
+  let settings = { ...base };
+  for (const layer of styleChain) {
+    settings = applyPlotOptionLists(settings, layer.rawOptions, bindings);
+  }
+  return settings;
+}
+
+function applyPlotOptionLists(
+  base: PlotSettings,
+  optionLists: OptionListAst[],
+  bindings: ReadonlyMap<string, MacroBinding>
+): PlotSettings {
+  let settings = { ...base };
+  for (const optionList of optionLists) {
+    settings = applyPlotOptionList(settings, optionList, bindings);
+  }
+  return settings;
+}
+
+function applyPlotOptionList(
+  base: PlotSettings,
+  optionList: OptionListAst,
+  bindings: ReadonlyMap<string, MacroBinding>
+): PlotSettings {
+  const settings = { ...base };
+  for (const entry of optionList.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const key = entry.key.toLowerCase();
+    const valueRaw = expandPlotOptionValue(entry.valueRaw, bindings);
+
+    if (key === "domain") {
+      const parsed = parsePlotDomain(valueRaw);
+      if (parsed) {
+        settings.domainStart = parsed.start;
+        settings.domainEnd = parsed.end;
+        settings.samplesAt = null;
+      }
+      continue;
+    }
+
+    if (key === "samples") {
+      const parsed = parsePlotSamples(valueRaw);
+      if (parsed != null) {
+        settings.samples = parsed;
+        settings.samplesAt = null;
+      }
+      continue;
+    }
+
+    if (key === "samples at") {
+      const parsed = parsePlotSamplesAt(valueRaw);
+      if (parsed.length > 0) {
+        settings.samplesAt = parsed;
+      }
+      continue;
+    }
+
+    if (key === "variable") {
+      const parsed = parsePlotVariable(valueRaw);
+      if (parsed) {
+        settings.variable = parsed;
+      }
+      continue;
+    }
+
+    if (key === "mark") {
+      settings.mark = parsePlotMark(valueRaw);
+    }
+  }
+
+  return settings;
+}
+
+function parsePlotDomain(raw: string): { start: number; end: number } | null {
+  const normalized = stripBalancedOuterBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const split = splitTopLevelOnce(normalized, ":");
+  if (!split) {
+    return null;
+  }
+
+  const start = parsePlotScalar(split.left);
+  const end = parsePlotScalar(split.right);
+  if (start == null || end == null) {
+    return null;
+  }
+  return { start, end };
+}
+
+function parsePlotSamples(raw: string): number | null {
+  const scalar = parsePlotScalar(raw);
+  if (scalar == null) {
+    return null;
+  }
+  if (!Number.isFinite(scalar)) {
+    return null;
+  }
+  return Math.max(2, Math.round(scalar));
+}
+
+function parsePlotSamplesAt(raw: string): number[] {
+  const expanded = expandForeachList(stripBalancedOuterBraces(raw), { parseExpressions: true });
+  const values: number[] = [];
+  for (const candidate of expanded) {
+    const parsed = parsePlotScalar(candidate);
+    if (parsed == null || !Number.isFinite(parsed)) {
+      continue;
+    }
+    values.push(parsed);
+  }
+  return values;
+}
+
+function parsePlotVariable(raw: string): string | null {
+  const normalized = stripBalancedOuterBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized.startsWith("\\")) {
+    return normalized;
+  }
+  return `\\${normalized}`;
+}
+
+function parsePlotMark(raw: string): string | null {
+  const normalized = stripBalancedOuterBraces(raw).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function parsePlotScalar(raw: string): number | null {
+  const normalized = stripBalancedOuterBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const parsed = parseQuantityExpression(normalized);
+  if (parsed && parsed.kind === "scalar" && Number.isFinite(parsed.value)) {
+    return parsed.value;
+  }
+
+  const asNumber = Number(normalized);
+  return Number.isFinite(asNumber) ? asNumber : null;
+}
+
+function resolvePlotSampleValues(settings: PlotSettings): number[] {
+  if (settings.samplesAt && settings.samplesAt.length > 0) {
+    return [...settings.samplesAt];
+  }
+
+  const count = Math.max(2, Math.round(settings.samples));
+  if (count <= 2) {
+    return [settings.domainStart, settings.domainEnd];
+  }
+
+  const diff = (settings.domainEnd - settings.domainStart) / (count - 1);
+  if (!Number.isFinite(diff)) {
+    return [settings.domainStart, settings.domainEnd];
+  }
+  if (Math.abs(diff) <= 1e-12) {
+    return [settings.domainStart, settings.domainEnd];
+  }
+
+  const values: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    values.push(settings.domainStart + diff * index);
+  }
+  values[count - 1] = settings.domainEnd;
+  return values;
+}
+
+function formatPlotSampleValue(value: number): string {
+  if (Math.abs(value) <= 1e-12) {
+    return "0";
+  }
+  if (Math.abs(value - Math.round(value)) <= 1e-9) {
+    return String(Math.round(value));
+  }
+  return value
+    .toFixed(12)
+    .replace(/\.?0+$/, "")
+    .replace(/^-0$/, "0");
+}
+
+function expandPlotOptionValue(raw: string, bindings: ReadonlyMap<string, MacroBinding>): string {
+  if (raw.length === 0) {
+    return raw;
+  }
+  return expandMacroBindings(raw, bindings, {
+    maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
+  });
+}
+
+function stripBalancedOuterBraces(raw: string): string {
+  let normalized = raw.trim();
+  while (normalized.startsWith("{") && normalized.endsWith("}") && normalized.length >= 2) {
+    const unwrapped = unwrapSingleOuterBracePair(normalized);
+    if (!unwrapped) {
+      break;
+    }
+    normalized = unwrapped.trim();
+  }
+  return normalized;
+}
+
+function unwrapSingleOuterBracePair(raw: string): string | null {
+  if (!(raw.startsWith("{") && raw.endsWith("}"))) {
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && index !== raw.length - 1) {
+        return null;
+      }
+      if (depth < 0) {
+        return null;
+      }
+    }
+  }
+
+  if (depth !== 0) {
+    return null;
+  }
+  return raw.slice(1, -1);
+}
+
+function splitTopLevelOnce(input: string, separator: string): { left: string; right: string } | null {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (char === separator && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      return {
+        left: input.slice(0, index).trim(),
+        right: input.slice(index + 1).trim()
+      };
+    }
+  }
+
+  return null;
+}
+
 export function evaluatePathStatement(
   statement: PathStatement,
   context: SemanticContext,
@@ -290,7 +612,6 @@ export function evaluatePathStatement(
   let pendingEllipseRadii: { rx: number; ry: number } | null = null;
   let pendingArc: { from: Point } | null = null;
   let pendingGrid: { from: Point; stepX: number; stepY: number } | null = null;
-  let pendingPlot: { mark: string | null; expectsCoordinates: boolean } | null = null;
   let pendingNamedCoordinate: { name: string } | null = null;
   let pendingSegmentPlacements: Array<{ name: string; fraction: number }> = [];
   let pendingNodeNameForNodeCommand: string | null = null;
@@ -309,6 +630,11 @@ export function evaluatePathStatement(
   let treeFrameState = frame;
   const frameTransform = frame.transform;
   let statementStyleChain = frame.styleChain;
+  let plotSettings = applyPlotSettingsFromStyleChain(
+    createDefaultPlotSettings(),
+    statementStyleChain,
+    treeFrameState.macroBindings
+  );
   const pointsClose = (left: Point, right: Point): boolean => Math.hypot(left.x - right.x, left.y - right.y) <= 1e-6;
   const defaultPathOrigin = applyMatrix(frameTransform, { x: 0, y: 0 });
   const setCurrentPoint = (
@@ -346,22 +672,6 @@ export function evaluatePathStatement(
   const drawEdgeOptions = parseStyleValueAsOptionList("draw");
   const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
   const edgeFromParentStyleOptions = parseStyleValueAsOptionList("edge from parent");
-  const resolvePlotMark = (options: { entries: Array<{ kind: string; key?: string; valueRaw?: string }> } | undefined): string | null => {
-    if (!options) {
-      return null;
-    }
-    for (const entry of options.entries) {
-      if (entry.kind !== "kv" || entry.key !== "mark") {
-        continue;
-      }
-      const raw = (entry.valueRaw ?? "").trim();
-      if (raw.length === 0) {
-        continue;
-      }
-      return raw;
-    }
-    return null;
-  };
   const extractPlotCoordinateEntries = (rawGroup: string): Array<{ raw: string; relativePrefix?: "+" | "++" }> => {
     const trimmed = rawGroup.trim();
     const content =
@@ -445,6 +755,108 @@ export function evaluatePathStatement(
         to: { x: point.x + halfSize, y: point.y - halfSize }
       });
     }
+  };
+  const evaluatePlotCoordinatePoints = (
+    entries: Array<{ raw: string; relativePrefix?: "+" | "++" }>,
+    span: { from: number; to: number },
+    issuePrefix: string
+  ): Point[] => {
+    const savedCurrentPoint = context.currentPoint;
+    let iterationCurrentPoint = context.currentPoint;
+    const points: Point[] = [];
+    for (const entry of entries) {
+      context.currentPoint = iterationCurrentPoint;
+      const evaluated = evaluateRawCoordinate(entry.raw, context, entry.relativePrefix);
+      for (const code of evaluated.diagnostics) {
+        pushDiagnostic(code, `${issuePrefix}: ${code}`, span.from, span.to);
+      }
+      if (!evaluated.world) {
+        continue;
+      }
+      points.push(evaluated.world);
+      if (evaluated.advancesCurrentPoint || iterationCurrentPoint == null) {
+        iterationCurrentPoint = evaluated.world;
+      }
+    }
+    context.currentPoint = savedCurrentPoint;
+    return points;
+  };
+  const emitPlotPath = (
+    item: PlotOperationItem,
+    points: Point[],
+    mark: string | null,
+    connectFrom: Point | null
+  ): void => {
+    if (points.length === 0) {
+      lastPlacementSegment = null;
+      previousSegmentRoundedCorners = null;
+      return;
+    }
+
+    activePath = flushDrawableActivePath(geometryElements, activePath);
+
+    const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
+    if (connectFrom) {
+      plotPath.commands.push({ kind: "M", to: connectFrom });
+      if (!pointsClose(connectFrom, points[0])) {
+        plotPath.commands.push({ kind: "L", to: points[0] });
+      }
+    } else {
+      plotPath.commands.push({ kind: "M", to: points[0] });
+    }
+
+    for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+      plotPath.commands.push({ kind: "L", to: points[pointIndex] });
+    }
+
+    if (hasDrawablePathSegments(plotPath)) {
+      geometryElements.push(plotPath);
+      markFeature("svg_path", "supported");
+    }
+
+    let segmentFrom: Point | null = null;
+    let segmentTo: Point | null = null;
+    if (connectFrom && !pointsClose(connectFrom, points[0])) {
+      segmentFrom = connectFrom;
+      segmentTo = points[0];
+    }
+    for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
+      const from = points[pointIndex - 1]!;
+      const to = points[pointIndex]!;
+      if (pointsClose(from, to)) {
+        continue;
+      }
+      segmentFrom = from;
+      segmentTo = to;
+    }
+    if (segmentFrom && segmentTo) {
+      lastPlacementSegment = {
+        kind: "line",
+        from: segmentFrom,
+        to: segmentTo
+      };
+      previousSegmentRoundedCorners = activeRoundedCorners;
+    } else {
+      lastPlacementSegment = null;
+      previousSegmentRoundedCorners = null;
+    }
+
+    if ((mark ?? "").trim().toLowerCase() === "x") {
+      const markerPathStyle: ResolvedStyle = {
+        ...style,
+        fill: "none"
+      };
+      const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, statementStyleChain, item.span);
+      appendPlotXMarks(markerPath.commands, points);
+      if (hasDrawablePathSegments(markerPath)) {
+        geometryElements.push(markerPath);
+        markFeature("svg_path", "supported");
+      }
+    }
+
+    const finalPoint = points[points.length - 1]!;
+    setCurrentPoint(finalPoint);
+    context.pathStartPoint = connectFrom ?? points[0];
   };
 
   const emitCircleOrEllipse = (
@@ -1043,23 +1455,10 @@ export function evaluatePathStatement(
         continue;
       }
 
-      if (item.keyword === "plot") {
-        activePath = flushDrawableActivePath(geometryElements, activePath);
-        previousSegmentRoundedCorners = null;
-        lastPlacementSegment = null;
-        pendingPlot = { mark: null, expectsCoordinates: false };
-        currentOperator = null;
-        continue;
-      }
-
       if (item.keyword === "coordinates") {
-        if (pendingPlot) {
-          pendingPlot.expectsCoordinates = true;
-          continue;
-        }
         pushDiagnostic(
           "unsupported-path-keyword",
-          "Path keyword `coordinates` is currently implemented only after `plot`.",
+          "Path keyword `coordinates` is currently implemented only as part of a typed `plot` operation.",
           item.span.from,
           item.span.to
         );
@@ -1202,6 +1601,98 @@ export function evaluatePathStatement(
       continue;
     }
 
+    if (item.kind === "PlotOperation") {
+      const connectFrom = currentOperator === "--" ? context.currentPoint ?? currentPointLogical : null;
+      const localPlotSettings = applyPlotOptionLists(
+        { ...plotSettings },
+        item.options ? [item.options] : [],
+        treeFrameState.macroBindings
+      );
+
+      if (item.mode === "coordinates") {
+        const coordinateEntries = extractPlotCoordinateEntries(item.dataRaw ?? "");
+        if (coordinateEntries.length === 0) {
+          pushDiagnostic(
+            "invalid-plot-coordinates",
+            "Plot coordinates require at least one coordinate entry.",
+            item.span.from,
+            item.span.to
+          );
+          currentOperator = null;
+          continue;
+        }
+        const points = evaluatePlotCoordinatePoints(coordinateEntries, item.span, "Plot coordinate issue");
+        emitPlotPath(item, points, localPlotSettings.mark, connectFrom);
+        markFeature("plot_operation", "supported");
+        currentOperator = null;
+        continue;
+      }
+
+      if (item.mode === "expression") {
+        const expressionRaw = item.dataRaw?.trim() ?? "";
+        if (expressionRaw.length === 0) {
+          pushDiagnostic("invalid-plot-expression", "Plot expression requires a coordinate expression.", item.span.from, item.span.to);
+          currentOperator = null;
+          continue;
+        }
+
+        const variableName = localPlotSettings.variable;
+        const plotMacroBindings = treeFrameState.macroBindings;
+        const sampleValues = resolvePlotSampleValues(localPlotSettings);
+        const entries = sampleValues.map((sampleValue) => {
+          const sampleBinding: MacroBinding = {
+            kind: "text",
+            value: formatPlotSampleValue(sampleValue),
+            provenance: []
+          };
+          const previousBinding = plotMacroBindings.get(variableName);
+          plotMacroBindings.set(variableName, sampleBinding);
+          const expandedExpression = expandMacroBindings(expressionRaw, plotMacroBindings, {
+            maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
+          });
+          if (previousBinding) {
+            plotMacroBindings.set(variableName, previousBinding);
+          } else {
+            plotMacroBindings.delete(variableName);
+          }
+          return { raw: expandedExpression };
+        });
+
+        const points = evaluatePlotCoordinatePoints(entries, item.span, "Plot expression issue");
+        if (points.length === 0) {
+          pushDiagnostic("invalid-plot-expression", "Plot expression did not produce any valid coordinate points.", item.span.from, item.span.to);
+          currentOperator = null;
+          continue;
+        }
+        emitPlotPath(item, points, localPlotSettings.mark, connectFrom);
+        markFeature("plot_operation", "supported");
+        currentOperator = null;
+        continue;
+      }
+
+      if (item.mode === "function" || item.mode === "file") {
+        markFeature("plot_operation", "unsupported");
+        pushDiagnostic(
+          `unsupported-plot-mode:${item.mode}`,
+          `Plot mode \`${item.mode}\` is not supported yet.`,
+          item.span.from,
+          item.span.to
+        );
+        currentOperator = null;
+        continue;
+      }
+
+      markFeature("plot_operation", "unsupported");
+      pushDiagnostic(
+        "invalid-plot-operation",
+        "Could not parse this plot operation.",
+        item.span.from,
+        item.span.to
+      );
+      currentOperator = null;
+      continue;
+    }
+
     if (item.kind === "PathOption") {
       if (pendingCircleCenter) {
         const parsed = extractCircleShapeOptions(item);
@@ -1252,13 +1743,6 @@ export function evaluatePathStatement(
         }
       }
 
-      if (pendingPlot) {
-        const plotMark = resolvePlotMark(item.options);
-        if (plotMark) {
-          pendingPlot.mark = plotMark;
-        }
-      }
-
       const rounded = extractRoundedCorners(item.options, activeRoundedCorners);
       if (rounded !== undefined) {
         activeRoundedCorners = rounded;
@@ -1302,6 +1786,11 @@ export function evaluatePathStatement(
         };
         style = treeFrameState.style;
         statementStyleChain = treeFrameState.styleChain;
+        plotSettings = applyPlotSettingsFromStyleChain(
+          createDefaultPlotSettings(),
+          treeFrameState.styleChain,
+          treeFrameState.macroBindings
+        );
         shouldCompoundFilledSubpaths = computeShouldCompoundFilledSubpaths(style);
       }
       continue;
@@ -1913,7 +2402,6 @@ export function evaluatePathStatement(
       pendingEllipseRadii = null;
       pendingArc = null;
       pendingGrid = null;
-      pendingPlot = null;
 
       const raw = item.subpathRaw.trim();
       const subpathBody = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
@@ -2045,84 +2533,6 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "UnknownPathItem") {
-      if (pendingPlot?.expectsCoordinates) {
-        const coordinateEntries = extractPlotCoordinateEntries(item.raw);
-        if (coordinateEntries.length === 0) {
-          pushDiagnostic(
-            "invalid-plot-coordinates",
-            "Plot coordinates require at least one coordinate entry.",
-            item.span.from,
-            item.span.to
-          );
-          pendingPlot = null;
-          continue;
-        }
-
-        const savedCurrentPoint = context.currentPoint;
-        let iterationCurrentPoint = context.currentPoint;
-        const points: Point[] = [];
-        const plotMark = pendingPlot.mark;
-        for (const entry of coordinateEntries) {
-          context.currentPoint = iterationCurrentPoint;
-          const evaluated = evaluateRawCoordinate(entry.raw, context, entry.relativePrefix);
-          for (const code of evaluated.diagnostics) {
-            pushDiagnostic(code, `Plot coordinate issue: ${code}`, item.span.from, item.span.to);
-          }
-          if (!evaluated.world) {
-            continue;
-          }
-
-          points.push(evaluated.world);
-          if (evaluated.advancesCurrentPoint || iterationCurrentPoint == null) {
-            iterationCurrentPoint = evaluated.world;
-          }
-        }
-        context.currentPoint = savedCurrentPoint;
-        pendingPlot = null;
-
-        if (points.length === 0) {
-          continue;
-        }
-
-        activePath = flushDrawableActivePath(geometryElements, activePath);
-
-        if (points.length >= 2) {
-          const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
-          plotPath.commands.push({ kind: "M", to: points[0] });
-          for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-            plotPath.commands.push({ kind: "L", to: points[pointIndex] });
-          }
-          geometryElements.push(plotPath);
-          markFeature("svg_path", "supported");
-          lastPlacementSegment = {
-            kind: "line",
-            from: points[points.length - 2],
-            to: points[points.length - 1]
-          };
-          previousSegmentRoundedCorners = activeRoundedCorners;
-        } else {
-          lastPlacementSegment = null;
-          previousSegmentRoundedCorners = null;
-        }
-
-        if ((plotMark ?? "").trim().toLowerCase() === "x") {
-          const markerPathStyle: ResolvedStyle = {
-            ...style,
-            fill: "none"
-          };
-          const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, statementStyleChain, item.span);
-          appendPlotXMarks(markerPath.commands, points);
-          if (hasDrawablePathSegments(markerPath)) {
-            geometryElements.push(markerPath);
-            markFeature("svg_path", "supported");
-          }
-        }
-
-        const finalPoint = points[points.length - 1];
-        setCurrentPoint(finalPoint);
-        context.pathStartPoint = points[0];
-        currentOperator = null;
-      }
       continue;
     }
 

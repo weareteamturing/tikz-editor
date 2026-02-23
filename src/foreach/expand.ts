@@ -17,6 +17,7 @@ import {
   pathForeachItemId,
   pathKeywordItemId,
   pathOptionItemId,
+  plotOperationItemId,
   pathStatementId,
   scopeStatementId,
   svgOperationItemId,
@@ -651,6 +652,10 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
       item.id = pathKeywordItemId(statementIndex, itemIndex);
       continue;
     }
+    if (item.kind === "PlotOperation") {
+      item.id = plotOperationItemId(statementIndex, itemIndex);
+      continue;
+    }
     if (item.kind === "ToOperation") {
       item.id = toOperationItemId(statementIndex, itemIndex);
       continue;
@@ -748,6 +753,10 @@ function reindexNestedPathItems(items: PathItem[], statementIndex: number, paren
     }
     if (item.kind === "PathKeyword") {
       item.id = `path-keyword:${statementIndex}:${nestedPrefix}`;
+      continue;
+    }
+    if (item.kind === "PlotOperation") {
+      item.id = `plot-operation:${statementIndex}:${nestedPrefix}`;
       continue;
     }
     if (item.kind === "ToOperation") {

@@ -50,6 +50,10 @@ export function pathKeywordItemId(statementIndex: number, itemIndex: number): st
   return `path-keyword:${statementIndex}:${itemIndex}`;
 }
 
+export function plotOperationItemId(statementIndex: number, itemIndex: number): string {
+  return `plot-operation:${statementIndex}:${itemIndex}`;
+}
+
 export function pathForeachItemId(statementIndex: number, itemIndex: number): string {
   return `path-foreach:${statementIndex}:${itemIndex}`;
 }
