@@ -1,4 +1,4 @@
-import type { PathItem } from "../../ast/types.js";
+import type { NodeItem, PathItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate } from "../coords/evaluate.js";
 import type { Point, ScenePathCommand } from "../types.js";
@@ -21,6 +21,7 @@ export function parseBezierFromItems(
   consumedIndex: number;
   control1: Point;
   control2: Point;
+  nodes: NodeItem[];
   endPoint: Point | null;
   endAdvancesCurrentPoint: boolean;
   endClosesPath: boolean;
@@ -68,6 +69,16 @@ export function parseBezierFromItems(
   }
   cursor += 1;
 
+  const nodes: NodeItem[] = [];
+  while (cursor < items.length) {
+    const maybeNode = items[cursor];
+    if (!maybeNode || maybeNode.kind !== "Node") {
+      break;
+    }
+    nodes.push(maybeNode);
+    cursor += 1;
+  }
+
   const targetItem = items[cursor];
   if (!targetItem) {
     return null;
@@ -78,6 +89,7 @@ export function parseBezierFromItems(
       consumedIndex: cursor,
       control1: control1Eval.world,
       control2,
+      nodes,
       endPoint: context.pathStartPoint,
       endAdvancesCurrentPoint: true,
       endClosesPath: true,
@@ -94,6 +106,7 @@ export function parseBezierFromItems(
     consumedIndex: cursor,
     control1: control1Eval.world,
     control2,
+    nodes,
     endPoint: targetEval.world,
     endAdvancesCurrentPoint: targetEval.advancesCurrentPoint,
     endClosesPath: false,

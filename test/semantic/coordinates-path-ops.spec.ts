@@ -1163,6 +1163,128 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("curves edge operations when only `out` is set", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) edge[out=45] (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:out")).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(cubic?.kind).toBe("C");
+      if (cubic?.kind === "C") {
+        expect(cubic.c1.y).toBeGreaterThan(0);
+        expect(cubic.c2.y).toBeGreaterThan(0);
+      }
+    });
+
+    it("accepts `to path` edge options without unsupported-style diagnostics", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) edge[to path={-- (\tikztotarget) \tikztonodes}] (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:to path")).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+    });
+
+    it("interprets `relative` to-angles against the start-to-target direction", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=0,in=180] (1,1);
+    \draw (0,-2) to[out=0,in=180,relative] (1,-1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const curvePaths = elementsOfKind(result.scene.elements, "Path")
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> => element.kind === "Path")
+        .filter((element) => element.commands.some((command) => command.kind === "C"));
+      expect(curvePaths.length).toBeGreaterThanOrEqual(2);
+
+      const first = curvePaths[0];
+      const second = curvePaths[1];
+      expect(first?.commands[0]?.kind).toBe("M");
+      expect(second?.commands[0]?.kind).toBe("M");
+      const firstCubic = first?.commands.find((command) => command.kind === "C");
+      const secondCubic = second?.commands.find((command) => command.kind === "C");
+      expect(firstCubic?.kind).toBe("C");
+      expect(secondCubic?.kind).toBe("C");
+      if (first?.commands[0]?.kind === "M" && second?.commands[0]?.kind === "M" && firstCubic?.kind === "C" && secondCubic?.kind === "C") {
+        expect(firstCubic.c1.y).toBeCloseTo(first.commands[0].to.y, 4);
+        expect(secondCubic.c1.y).toBeGreaterThan(second.commands[0].to.y + 0.1);
+      }
+    });
+
+    it("applies `bend angle` when used with `bend left`", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[bend angle=45,bend left] (2,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+      const move = path.commands[0];
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(move?.kind).toBe("M");
+      expect(cubic?.kind).toBe("C");
+      if (move?.kind === "M" && cubic?.kind === "C") {
+        const outDx = cubic.c1.x - move.to.x;
+        const outDy = cubic.c1.y - move.to.y;
+        expect(outDx).toBeGreaterThan(0);
+        expect(outDy).toBeGreaterThan(0);
+        expect(outDy / outDx).toBeCloseTo(1, 2);
+      }
+    });
+
+    it("applies `distance` to both control-point radii for to-curves", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) to[out=45,in=135,distance=2cm] (4,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind !== "Path") {
+        return;
+      }
+      const move = path.commands[0];
+      const cubic = path.commands.find((command) => command.kind === "C");
+      expect(move?.kind).toBe("M");
+      expect(cubic?.kind).toBe("C");
+      if (move?.kind === "M" && cubic?.kind === "C") {
+        const outDistance = Math.hypot(cubic.c1.x - move.to.x, cubic.c1.y - move.to.y);
+        const inDistance = Math.hypot(cubic.c2.x - cubic.to.x, cubic.c2.y - cubic.to.y);
+        expect(outDistance).toBeCloseTo(56.9055, 2);
+        expect(inDistance).toBeCloseTo(56.9055, 2);
+      }
+    });
+
+    it("supports nodes between closing `..` and a curve target coordinate", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw (0,0) .. controls (1,1) and (2,1) .. node[above]{mid} (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-path-operator")).toBe(false);
+      const label = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> =>
+          element.kind === "Text" && element.text === "mid"
+      );
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expect(label.position.x).toBeGreaterThan(0);
+      }
+    });
+
     it("falls back with diagnostics for unsupported curve pattern variants", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) .. (2,0);

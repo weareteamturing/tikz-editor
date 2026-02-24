@@ -2480,7 +2480,7 @@ export function evaluatePathStatement(
           markFeature("path_operator_curves", "unsupported");
           pushDiagnostic(
             "unsupported-path-operator",
-            "Curve operator `..` currently supports only `.. controls (...) and (...) .. (...)` patterns.",
+            "Curve operator `..` currently supports only `.. controls (...) [and (...)] .. [node ...] (...)` patterns.",
             item.span.from,
             item.span.to
           );
@@ -2514,14 +2514,18 @@ export function evaluatePathStatement(
           c2: parsedCurve.control2,
           to: parsedCurve.endPoint
         });
-        if (curveFrom) {
-          lastPlacementSegment = {
-            kind: "cubic",
-            from: curveFrom,
-            c1: parsedCurve.control1,
-            c2: parsedCurve.control2,
-            to: parsedCurve.endPoint
-          };
+        const curveSegment: PlacementSegment | null =
+          curveFrom
+            ? {
+                kind: "cubic",
+                from: curveFrom,
+                c1: parsedCurve.control1,
+                c2: parsedCurve.control2,
+                to: parsedCurve.endPoint
+              }
+            : null;
+        if (curveSegment) {
+          lastPlacementSegment = curveSegment;
         }
         previousSegmentRoundedCorners = activeRoundedCorners;
         markFeature("path_operator_curves", "supported");
@@ -2530,6 +2534,24 @@ export function evaluatePathStatement(
           markFeature("keyword_and", "supported");
         }
         markFeature("svg_path", "supported");
+
+        for (const node of parsedCurve.nodes) {
+          const resolvedNode = evaluateNodeItem(
+            node,
+            statement,
+            context,
+            style,
+            markFeature,
+            pushDiagnostic,
+            curveSegment,
+            undefined,
+            0.5,
+            undefined,
+            statementStyleChain
+          );
+          behindNodeElements.push(...resolvedNode.behindElements);
+          frontNodeElements.push(...resolvedNode.frontElements);
+        }
 
         if (parsedCurve.endAdvancesCurrentPoint) {
           setCurrentPoint(parsedCurve.endPoint);

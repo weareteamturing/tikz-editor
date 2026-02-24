@@ -1,5 +1,6 @@
 import type { EdgeOperationItem, ToOperationItem, PathStatement } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
+import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import {
   evaluateNodeItem,
@@ -317,27 +318,42 @@ function extractToCurveOptions(
   in: number;
   outLooseness: number;
   inLooseness: number;
+  outMinDistance: number;
+  outMaxDistance: number;
+  inMinDistance: number;
+  inMaxDistance: number;
 } | null {
   if (!options) {
     return null;
   }
 
-  let out: number | null = null;
-  let inAngle: number | null = null;
+  let out = 45;
+  let inAngle = 135;
   let looseness: number | null = null;
   let outLooseness: number | null = null;
   let inLooseness: number | null = null;
-  let bendDirection: "left" | "right" | null = null;
+  let outMinDistance = 0;
+  let outMaxDistance = Number.POSITIVE_INFINITY;
+  let inMinDistance = 0;
+  let inMaxDistance = Number.POSITIVE_INFINITY;
+  let curveRequested = false;
+  let relative = false;
   let bendAngle = 30;
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
       if (entry.key === "bend left") {
-        bendDirection = "left";
-        bendAngle = 30;
+        out = bendAngle;
+        inAngle = 180 - out;
+        relative = true;
+        curveRequested = true;
       } else if (entry.key === "bend right") {
-        bendDirection = "right";
-        bendAngle = 30;
+        out = -bendAngle;
+        inAngle = 180 - out;
+        relative = true;
+        curveRequested = true;
+      } else if (entry.key === "relative") {
+        relative = true;
       }
       continue;
     }
@@ -347,66 +363,181 @@ function extractToCurveOptions(
     }
 
     if (entry.key === "out") {
-      const parsed = Number(normalizeOptionValue(entry.valueRaw));
-      if (Number.isFinite(parsed)) {
+      const parsed = parseCurveAngleOption(entry.valueRaw);
+      if (parsed != null) {
         out = parsed;
+        curveRequested = true;
       }
       continue;
     }
 
     if (entry.key === "in") {
-      const parsed = Number(normalizeOptionValue(entry.valueRaw));
-      if (Number.isFinite(parsed)) {
+      const parsed = parseCurveAngleOption(entry.valueRaw);
+      if (parsed != null) {
         inAngle = parsed;
+        curveRequested = true;
       }
       continue;
     }
 
     if (entry.key === "looseness") {
-      const parsed = Number(normalizeOptionValue(entry.valueRaw));
-      if (Number.isFinite(parsed) && parsed >= 0) {
+      const parsed = parseNonNegativeScalarOption(entry.valueRaw);
+      if (parsed != null) {
         looseness = parsed;
+        curveRequested = true;
       }
       continue;
     }
 
     if (entry.key === "out looseness") {
-      const parsed = Number(normalizeOptionValue(entry.valueRaw));
-      if (Number.isFinite(parsed) && parsed >= 0) {
+      const parsed = parseNonNegativeScalarOption(entry.valueRaw);
+      if (parsed != null) {
         outLooseness = parsed;
+        curveRequested = true;
       }
       continue;
     }
 
     if (entry.key === "in looseness") {
-      const parsed = Number(normalizeOptionValue(entry.valueRaw));
-      if (Number.isFinite(parsed) && parsed >= 0) {
+      const parsed = parseNonNegativeScalarOption(entry.valueRaw);
+      if (parsed != null) {
         inLooseness = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "bend angle") {
+      const parsed = parseCurveAngleOption(entry.valueRaw);
+      if (parsed != null) {
+        bendAngle = parsed;
       }
       continue;
     }
 
     if (entry.key === "bend left" || entry.key === "bend right") {
       const normalized = normalizeOptionValue(entry.valueRaw);
-      const parsed = normalized.length === 0 ? 30 : Number(normalized);
-      bendDirection = entry.key === "bend left" ? "left" : "right";
-      if (Number.isFinite(parsed)) {
-        bendAngle = parsed;
+      if (normalized.length > 0) {
+        const parsed = parseCurveAngleOption(normalized);
+        if (parsed != null) {
+          bendAngle = parsed;
+        }
+      }
+      if (entry.key === "bend left") {
+        out = bendAngle;
       } else {
-        bendAngle = 30;
+        out = -bendAngle;
+      }
+      inAngle = 180 - out;
+      relative = true;
+      curveRequested = true;
+      continue;
+    }
+
+    if (entry.key === "relative") {
+      const parsed = parseRelativeBooleanOption(entry.valueRaw);
+      if (parsed != null) {
+        relative = parsed;
+      }
+      continue;
+    }
+
+    if (entry.key === "distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMinDistance = parsed;
+        inMaxDistance = parsed;
+        outMinDistance = parsed;
+        outMaxDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "min distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMinDistance = parsed;
+        outMinDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "max distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMaxDistance = parsed;
+        outMaxDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "in min distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMinDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "in max distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMaxDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "in distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        inMinDistance = parsed;
+        inMaxDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "out min distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        outMinDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "out max distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        outMaxDistance = parsed;
+        curveRequested = true;
+      }
+      continue;
+    }
+
+    if (entry.key === "out distance") {
+      const parsed = parseNonNegativeLengthOption(entry.valueRaw);
+      if (parsed != null) {
+        outMinDistance = parsed;
+        outMaxDistance = parsed;
+        curveRequested = true;
       }
     }
   }
 
-  if ((out == null || inAngle == null) && bendDirection) {
-    const baseHeading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
-    const sign = bendDirection === "left" ? 1 : -1;
-    out = baseHeading + sign * bendAngle;
-    inAngle = baseHeading + 180 - sign * bendAngle;
+  if (!curveRequested) {
+    return null;
   }
 
-  if (out == null || inAngle == null) {
-    return null;
+  if (relative) {
+    const baseHeading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
+    out += baseHeading;
+    inAngle += baseHeading;
   }
 
   const shared = looseness ?? 1;
@@ -414,7 +545,11 @@ function extractToCurveOptions(
     out,
     in: inAngle,
     outLooseness: outLooseness ?? shared,
-    inLooseness: inLooseness ?? shared
+    inLooseness: inLooseness ?? shared,
+    outMinDistance,
+    outMaxDistance,
+    inMinDistance,
+    inMaxDistance
   };
 }
 
@@ -422,14 +557,25 @@ function appendToCurve(
   commands: ScenePathCommand[],
   from: Point,
   to: Point,
-  options: { out: number; in: number; outLooseness: number; inLooseness: number }
+  options: {
+    out: number;
+    in: number;
+    outLooseness: number;
+    inLooseness: number;
+    outMinDistance: number;
+    outMaxDistance: number;
+    inMinDistance: number;
+    inMaxDistance: number;
+  }
 ): PlacementSegment {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const baseDistance = Math.hypot(dx, dy) * 0.3915;
 
-  const outDistance = baseDistance * options.outLooseness;
-  const inDistance = baseDistance * options.inLooseness;
+  let outDistance = baseDistance * options.outLooseness;
+  let inDistance = baseDistance * options.inLooseness;
+  outDistance = Math.min(Math.max(outDistance, options.outMinDistance), options.outMaxDistance);
+  inDistance = Math.min(Math.max(inDistance, options.inMinDistance), options.inMaxDistance);
 
   const outRadians = toRadians(options.out);
   const inRadians = toRadians(options.in);
@@ -456,6 +602,58 @@ function appendToCurve(
     c2,
     to
   };
+}
+
+function parseCurveAngleOption(valueRaw: string): number | null {
+  const normalized = normalizeOptionValue(valueRaw);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const quantity = parseQuantityExpression(normalized);
+  if (quantity?.kind === "scalar" && Number.isFinite(quantity.value)) {
+    return quantity.value;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseNonNegativeScalarOption(valueRaw: string): number | null {
+  const normalized = normalizeOptionValue(valueRaw);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const quantity = parseQuantityExpression(normalized);
+  if (quantity?.kind === "scalar" && Number.isFinite(quantity.value) && quantity.value >= 0) {
+    return quantity.value;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseNonNegativeLengthOption(valueRaw: string): number | null {
+  const parsed = parseLength(valueRaw, "pt");
+  if (parsed == null || !Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function parseRelativeBooleanOption(valueRaw: string): boolean | null {
+  const normalized = normalizeOptionValue(valueRaw).toLowerCase();
+  if (normalized.length === 0) {
+    return true;
+  }
+  if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+    return false;
+  }
+  return null;
 }
 
 function alignPathToStart(commands: ScenePathCommand[], start: Point): boolean {

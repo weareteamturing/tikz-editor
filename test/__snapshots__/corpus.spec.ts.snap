@@ -21,19 +21,19 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "semantic": {
     "elementTotals": {
       "circles": 466,
-      "ellipses": 43,
-      "paths": 7336,
-      "texts": 3923,
-      "total": 11768,
+      "ellipses": 42,
+      "paths": 7326,
+      "texts": 4187,
+      "total": 12021,
     },
     "semanticEmptySceneRate": 0.3192,
     "semanticEmptySceneSnippets": 698,
     "semanticErrorRate": 0.0599,
     "semanticErrorSnippets": 131,
-    "semanticUnsupportedRate": 0.5121,
-    "semanticUnsupportedSnippets": 1120,
-    "semanticWarningRate": 0.5226,
-    "semanticWarningSnippets": 1143,
+    "semanticUnsupportedRate": 0.4998,
+    "semanticUnsupportedSnippets": 1093,
+    "semanticWarningRate": 0.5103,
+    "semanticWarningSnippets": 1116,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.1916,
@@ -150,11 +150,11 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "unsupported-path-operator",
-      "count": 229,
+      "count": 227,
     },
     {
       "code": "unsupported-path-keyword",
-      "count": 225,
+      "count": 223,
     },
     {
       "code": "invalid-cartesian-coordinate:(rand,rand)",
@@ -196,11 +196,11 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "unsupported-path-operator",
-      "count": 229,
+      "count": 227,
     },
     {
       "code": "unsupported-path-keyword",
-      "count": 225,
+      "count": 223,
     },
     {
       "code": "unsupported-option-key:sibling angle",
@@ -257,7 +257,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-base-animations.tex",
     },
     {
-      "count": 47,
+      "count": 39,
       "filePath": "pgfmanual-en-library-decorations.tex",
     },
     {
@@ -269,16 +269,16 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-tikz-transparency.tex",
     },
     {
-      "count": 28,
-      "filePath": "pgfmanual-en-tikz-graphs.tex",
-    },
-    {
       "count": 26,
       "filePath": "pgfmanual-en-tikz-actions.tex",
     },
     {
-      "count": 25,
+      "count": 24,
       "filePath": "pgfmanual-en-tikz-arrows.tex",
+    },
+    {
+      "count": 23,
+      "filePath": "pgfmanual-en-library-plot-handlers.tex",
     },
   ],
   "topSvgDiagnosticCodes": [
