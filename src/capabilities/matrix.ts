@@ -352,8 +352,8 @@ export const capabilityMatrix: CapabilityMatrix = {
   },
   svg_operation: {
     parser: "stable",
-    semantic: "none",
-    svg: "none",
+    semantic: "partial",
+    svg: "partial",
     edit: "none",
     fixtures: ["svg_operation"]
   },

@@ -49,6 +49,7 @@ import { parseCircleRadiusFromCoordinateRaw, parseCoordinateOperation, parseElli
 import { parseParabolaFromItems } from "./parabola.js";
 import { extractCircleShapeOptions, extractEllipseRadii, extractRoundedCorners } from "./shape-options.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
+import { parseSvgPathOperation } from "./svg.js";
 import { applyEdgeOperation, applyToOperation } from "./to-operation.js";
 import {
   extractNodeAdornmentPlan,
@@ -2009,8 +2010,89 @@ export function evaluatePathStatement(
       "SvgOperation",
       (pathItem) => {
         const item = pathItem as Extract<PathItem, { kind: "SvgOperation" }>;
-        markFeature("svg_operation", "unsupported");
-        pushDiagnostic("unsupported-svg-operation", "`svg` operations are not semantically implemented yet.", item.span.from, item.span.to);
+        if (item.options) {
+          markFeature("options_structured", "supported");
+        }
+
+        let operationTransform = treeFrameState.transform;
+        if (item.options) {
+          const optionSourceRef = {
+            sourceId: item.id,
+            sourceSpan: item.optionsSpan ?? item.span,
+            sourceKind: "svg-operation-options",
+            label: "svg"
+          } as const;
+          const optionCustomStyles = cloneCustomStyleRegistry(treeFrameState.customStyles);
+          const optionResolved = resolveContextDelta(
+            style,
+            treeFrameState.transform,
+            [
+              {
+                kind: "scope",
+                sourceRef: optionSourceRef,
+                rawOptions: [item.options]
+              }
+            ],
+            optionCustomStyles,
+            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+            statementStyleChain
+          );
+          operationTransform = optionResolved.transform;
+          for (const code of optionResolved.diagnostics) {
+            pushDiagnostic(code, `SVG option issue: ${code}`, item.span.from, item.span.to);
+          }
+        }
+
+        const fallbackStart = applyMatrix(treeFrameState.transform, { x: 0, y: 0 });
+        const startPoint = context.currentPoint ?? currentPointLogical ?? fallbackStart;
+        if (!context.currentPoint && !currentPointLogical) {
+          setCurrentPoint(startPoint);
+        }
+
+        const parsed = parseSvgPathOperation({
+          payloadRaw: item.dataRaw,
+          transform: operationTransform,
+          startPoint,
+          subpathStartPoint: context.pathStartPoint
+        });
+        if (!activePath && parsed.commands.length > 0) {
+          activePath = makePath(statement.id, item.id, style, statementStyleChain, statement.span);
+          if (parsed.commands[0]?.kind !== "M") {
+            activePath.commands.push({ kind: "M", to: startPoint });
+          }
+        }
+        if (activePath && parsed.commands.length > 0) {
+          activePath.commands.push(...parsed.commands);
+        }
+
+        if (parsed.subpathStartPoint) {
+          context.pathStartPoint = parsed.subpathStartPoint;
+        }
+        setCurrentPoint(parsed.endPoint);
+        currentOperator = null;
+        pendingEdgeStartCoordinateRaw = null;
+
+        if (parsed.lastSegment) {
+          lastPlacementSegment = parsed.lastSegment;
+          previousSegmentRoundedCorners = activeRoundedCorners;
+        } else {
+          lastPlacementSegment = null;
+          previousSegmentRoundedCorners = null;
+        }
+
+        if (parsed.commands.some((command) => command.kind === "L" || command.kind === "C" || command.kind === "A")) {
+          markFeature("svg_path", "supported");
+        }
+
+        if (parsed.diagnostics.length === 0 || parsed.commands.length > 0) {
+          markFeature("svg_operation", "supported");
+        } else {
+          markFeature("svg_operation", "unsupported");
+        }
+
+        for (const issue of parsed.diagnostics) {
+          pushDiagnostic("invalid-svg-path-data", `SVG path issue: ${issue}`, item.span.from, item.span.to);
+        }
       }
     ],
     [
