@@ -66,6 +66,10 @@ import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export type NodeAnchorExtents = {
+  left: number;
+  right: number;
+  up: number;
+  down: number;
   halfWidth: number;
   halfHeight: number;
 };
@@ -151,10 +155,35 @@ export function measureNodeAnchorExtents(
   const resolvedNodeText = resolveTextColorAliases(expandedNodeText, frame.colorAliases);
   const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, transformScale, context.textEngine);
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
+  const anchor = resolveNodeAnchor(expandedNodeOptions);
+  const directionalExtents = resolveDirectionalAnchorExtents(anchor, nodeLayout.anchorHalfWidth, nodeLayout.anchorHalfHeight);
   return {
+    left: directionalExtents.left,
+    right: directionalExtents.right,
+    up: directionalExtents.up,
+    down: directionalExtents.down,
     halfWidth: nodeLayout.anchorHalfWidth,
     halfHeight: nodeLayout.anchorHalfHeight
   };
+}
+
+function resolveDirectionalAnchorExtents(
+  anchor: string,
+  halfWidth: number,
+  halfHeight: number
+): { left: number; right: number; up: number; down: number } {
+  const normalized = anchor.trim().toLowerCase().replaceAll("_", " ");
+  const hasEast = normalized.includes("east");
+  const hasWest = normalized.includes("west");
+  const hasNorth = normalized.includes("north");
+  const hasSouth = normalized.includes("south");
+
+  const left = hasEast ? halfWidth * 2 : hasWest ? 0 : halfWidth;
+  const right = hasWest ? halfWidth * 2 : hasEast ? 0 : halfWidth;
+  const up = hasSouth ? halfHeight * 2 : hasNorth ? 0 : halfHeight;
+  const down = hasNorth ? halfHeight * 2 : hasSouth ? 0 : halfHeight;
+
+  return { left, right, up, down };
 }
 
 export function evaluateNodeItem(

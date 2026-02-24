@@ -161,6 +161,99 @@ describe("semantic evaluator / graph operations", () => {
     expect(edges.length).toBeGreaterThanOrEqual(6 + 6 + 3 + 4 + 4);
   });
 
+  it("supports clockwise circular placement in subgraph options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph { subgraph K_n [n=6, clockwise] };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").map((text) => ({ text: text.text, pos: text.position }));
+    expect(labels.length).toBeGreaterThanOrEqual(6);
+    const uniqueX = new Set(labels.map((entry) => Math.round(entry.pos.x)));
+    const uniqueY = new Set(labels.map((entry) => Math.round(entry.pos.y)));
+    expect(uniqueX.size).toBeGreaterThan(2);
+    expect(uniqueY.size).toBeGreaterThan(2);
+    expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThan(6);
+  });
+
+  it("keeps last-edge-wins direction for simple K_nm overlaps", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [simple, branch right, grow down]
+  {
+    subgraph K_nm [V={1,2,3}, W={a,b,c,d}, ->];
+    subgraph K_nm [V={2,3},   W={b,c},     <-];
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").filter(
+      (text) => text.text === "1" || text.text === "2" || text.text === "3" || text.text === "a" || text.text === "b" || text.text === "c" || text.text === "d"
+    );
+    const segments = elementsOfKind(result.scene.elements, "Path")
+      .map((path) => {
+        const first = path.commands[0];
+        const second = path.commands[1];
+        if (!first || !second || first.kind !== "M" || second.kind !== "L") {
+          return null;
+        }
+        return { start: first.to, end: second.to };
+      })
+      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+
+    const nearestLabel = (point: { x: number; y: number }): string | null => {
+      let nearest: string | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const label of labels) {
+        const dx = point.x - label.position.x;
+        const dy = point.y - label.position.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = label.text;
+        }
+      }
+      return nearest;
+    };
+
+    const directedPairs = new Set<string>();
+    for (const segment of segments) {
+      const from = nearestLabel(segment.start);
+      const to = nearestLabel(segment.end);
+      if (!from || !to || from === to) {
+        continue;
+      }
+      directedPairs.add(`${from}->${to}`);
+    }
+
+    expect(directedPairs.has("b->2")).toBe(true);
+    expect(directedPairs.has("b->3")).toBe(true);
+    expect(directedPairs.has("c->2")).toBe(true);
+    expect(directedPairs.has("c->3")).toBe(true);
+    expect(directedPairs.has("2->b")).toBe(false);
+    expect(directedPairs.has("2->c")).toBe(false);
+    expect(directedPairs.has("3->b")).toBe(false);
+    expect(directedPairs.has("3->c")).toBe(false);
+  });
+
+  it("keeps center targets centered for circular C_n subgraphs", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph { subgraph C_n [n=5, clockwise] -> mid };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text");
+    const mid = labels.find((text) => text.text === "mid");
+    const cycleNodes = labels.filter((text) => text.text === "1" || text.text === "2" || text.text === "3" || text.text === "4" || text.text === "5");
+
+    expect(mid).toBeDefined();
+    expect(cycleNodes).toHaveLength(5);
+    if (!mid || cycleNodes.length !== 5) {
+      return;
+    }
+
+    const cx = cycleNodes.reduce((sum, node) => sum + node.position.x, 0) / cycleNodes.length;
+    const cy = cycleNodes.reduce((sum, node) => sum + node.position.y, 0) / cycleNodes.length;
+    expect(Math.abs(mid.position.x - cx)).toBeLessThan(1);
+    expect(Math.abs(mid.position.y - cy)).toBeLessThan(1);
+  });
+
   it("supports join-operator keys on edge specifications", () => {
     const source = String.raw`\begin{tikzpicture}
   \graph {
@@ -371,6 +464,39 @@ describe("semantic evaluator / graph operations", () => {
     expect(c.position.x).toBeGreaterThan(a.position.x + 20);
   });
 
+  it("inherits level styles to deeper descendants when no deeper override exists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [
+    branch down=5mm,
+    level 1/.style={nodes=red},
+    level 2/.style={nodes=green!50!black},
+    level 3/.style={nodes=blue}
+  ] {
+    a -> {
+      b,
+      c -> {
+        d,
+        e -> {f,g},
+        h
+      },
+      j
+    }
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const texts = elementsOfKind(result.scene.elements, "Text");
+    const colorByText = new Map(texts.map((text) => [text.text, text.style.textColor]));
+
+    expect(colorByText.get("a")).toBe("#ff0000");
+    expect(colorByText.get("b")).toBe("#008000");
+    expect(colorByText.get("c")).toBe("#008000");
+    expect(colorByText.get("d")).toBe("#0000ff");
+    expect(colorByText.get("e")).toBe("#0000ff");
+    expect(colorByText.get("h")).toBe("#0000ff");
+    expect(colorByText.get("f")).toBe("#0000ff");
+    expect(colorByText.get("g")).toBe("#0000ff");
+  });
+
   it("supports grow/branch sep spacing refinement controls", () => {
     const regularSource = String.raw`\begin{tikzpicture}
   \graph [grow right] { a -> b -> c };
@@ -403,36 +529,56 @@ describe("semantic evaluator / graph operations", () => {
     expect(sepDx).toBeGreaterThan(regularDx + 10);
   });
 
+  it("keeps branch-left sep layouts from overlapping long sibling labels", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [grow down sep, branch left sep] {
+    start -- {
+      an even longer text -- {short, very long text} -- more text,
+      long -- longer,
+      some text -- a -- b
+    } -- end
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const textByLabel = new Map(elementsOfKind(result.scene.elements, "Text").map((text) => [text.text, text]));
+    const longer = textByLabel.get("longer");
+    const veryLong = textByLabel.get("very long text");
+    expect(longer).toBeDefined();
+    expect(veryLong).toBeDefined();
+    if (!longer || !veryLong) {
+      return;
+    }
+
+    expect(Math.abs(longer.position.y - veryLong.position.y)).toBeLessThan(2);
+    expect(veryLong.position.x - longer.position.x).toBeGreaterThan(60);
+  });
+
   it("makes sep spacing depend on measured node size", () => {
     const shortSource = String.raw`\begin{tikzpicture}
   \graph [grow right sep] { a -> b };
 \end{tikzpicture}`;
     const shortResult = evaluateSemantic(shortSource);
-    const shortText = new Map(elementsOfKind(shortResult.scene.elements, "Text").map((text) => [text.text, text]));
-    const shortA = shortText.get("a");
-    const shortB = shortText.get("b");
-    expect(shortA).toBeDefined();
-    expect(shortB).toBeDefined();
+    const shortTextByLabel = new Map(elementsOfKind(shortResult.scene.elements, "Text").map((text) => [text.text, text]));
+    const shortA = shortTextByLabel.get("a");
+    const shortB = shortTextByLabel.get("b");
     if (!shortA || !shortB) {
       return;
     }
-    const shortDx = shortB.position.x - shortA.position.x;
+    const shortDistance = Math.hypot(shortB.position.x - shortA.position.x, shortB.position.y - shortA.position.y);
 
     const longSource = String.raw`\begin{tikzpicture}
   \graph [grow right sep] { veryverylonglabel -> b };
 \end{tikzpicture}`;
     const longResult = evaluateSemantic(longSource);
-    const longText = new Map(elementsOfKind(longResult.scene.elements, "Text").map((text) => [text.text, text]));
-    const longA = longText.get("veryverylonglabel");
-    const longB = longText.get("b");
-    expect(longA).toBeDefined();
-    expect(longB).toBeDefined();
+    const longTextByLabel = new Map(elementsOfKind(longResult.scene.elements, "Text").map((text) => [text.text, text]));
+    const longA = longTextByLabel.get("veryverylonglabel");
+    const longB = longTextByLabel.get("b");
     if (!longA || !longB) {
       return;
     }
-    const longDx = longB.position.x - longA.position.x;
+    const longDistance = Math.hypot(longB.position.x - longA.position.x, longB.position.y - longA.position.y);
 
-    expect(longDx).toBeGreaterThan(shortDx + 20);
+    expect(longDistance).toBeGreaterThan(shortDistance + 20);
   });
 
   it("resolves quoted graph names with spaces when connecting edges", () => {
@@ -491,6 +637,84 @@ describe("semantic evaluator / graph operations", () => {
     expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThanOrEqual(6);
   });
 
+  it("applies left/right anchor keys to keep complete-bipartite edge endpoints stable per source node", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [left anchor=east, right anchor=west] {
+    {a,b,c} -- [complete bipartite] {e,f,g}
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    const leftNodes = new Map(
+      elementsOfKind(result.scene.elements, "Text")
+        .filter((text) => text.text === "a" || text.text === "b" || text.text === "c")
+        .map((text) => [text.text, text.position] as const)
+    );
+    expect(leftNodes.size).toBe(3);
+
+    const segments = elementsOfKind(result.scene.elements, "Path")
+      .map((path) => {
+        const first = path.commands[0];
+        const second = path.commands[1];
+        if (!first || !second || first.kind !== "M" || second.kind !== "L") {
+          return null;
+        }
+        return { start: first.to, end: second.to };
+      })
+      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+    expect(segments.length).toBeGreaterThanOrEqual(9);
+
+    const startsBySource = new Map<string, Array<{ x: number; y: number }>>();
+    for (const segment of segments) {
+      let nearest: string | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+      for (const [label, position] of leftNodes.entries()) {
+        const dx = segment.start.x - position.x;
+        const dy = segment.start.y - position.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = label;
+        }
+      }
+      if (!nearest) {
+        continue;
+      }
+      const bucket = startsBySource.get(nearest) ?? [];
+      bucket.push(segment.start);
+      startsBySource.set(nearest, bucket);
+    }
+
+    for (const starts of startsBySource.values()) {
+      if (starts.length < 2) {
+        continue;
+      }
+      const yMin = Math.min(...starts.map((point) => point.y));
+      const yMax = Math.max(...starts.map((point) => point.y));
+      expect(yMax - yMin).toBeLessThan(2.5);
+    }
+  });
+
+  it("supports trie naming so repeated labels create path-distinct nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [trie] {
+    a -> {
+      a,
+      c -> {a, b},
+      b
+    }
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-graph-syntax")).toBe(false);
+    const texts = elementsOfKind(result.scene.elements, "Text").map((text) => text.text);
+    expect(texts.filter((text) => text === "a")).toHaveLength(3);
+    expect(texts.filter((text) => text === "b")).toHaveLength(2);
+    expect(texts.filter((text) => text === "c")).toHaveLength(1);
+    expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThanOrEqual(5);
+  });
+
   it("materializes connector quote labels and edge-label keys in graph edges", () => {
     const source = String.raw`\begin{tikzpicture}
   \graph [edge label=x] {
@@ -503,6 +727,37 @@ describe("semantic evaluator / graph operations", () => {
     expect(labels).toContain("foo");
     expect(labels).toContain("bar");
     expect(labels.filter((text) => text === "x").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("applies edge quotes defaults to graph quote labels", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [edge quotes={blue,auto}] {
+    a ->["x"] b ->["y"'] c ->["b" red] d;
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").filter((text) => text.text === "x" || text.text === "y" || text.text === "b");
+    const x = labels.find((text) => text.text === "x");
+    const y = labels.find((text) => text.text === "y");
+    const b = labels.find((text) => text.text === "b");
+    expect(x?.style.textColor).toBe("#0000ff");
+    expect(y?.style.textColor).toBe("#0000ff");
+    expect(b?.style.textColor).toBe("#ff0000");
+  });
+
+  it("keeps node option parsing stable with trailing comments", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph {
+    a [source edge style=red] ->[green]
+    b [target edge style=blue]  % blue wins
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").map((text) => text.text);
+    expect(labels.some((text) => text.includes("target edge style"))).toBe(false);
+    const edges = elementsOfKind(result.scene.elements, "Path");
+    expect(edges).toHaveLength(1);
+    expect(edges[0]?.style.stroke).toBe("#0000ff");
   });
 
   it("handles apostrophe swap in directional graph edge label shortcuts", () => {

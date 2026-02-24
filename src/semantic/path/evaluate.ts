@@ -157,15 +157,17 @@ function resolveSizeAwareGraphNodePoints(
   const columnKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalWidth));
   const rowKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalDepth));
 
-  const columnExtent = new Map<number, number>();
-  const rowExtent = new Map<number, number>();
+  const columnExtent = new Map<number, AxisSupport>();
+  const rowExtent = new Map<number, AxisSupport>();
   for (const entry of measured) {
     const widthKey = entry.node.placementHint.logicalWidth;
     const depthKey = entry.node.placementHint.logicalDepth;
-    const projectedChain = projectedExtentAlongAxis(chainUnit, entry.extents.halfWidth, entry.extents.halfHeight);
-    const projectedGroup = projectedExtentAlongAxis(groupUnit, entry.extents.halfWidth, entry.extents.halfHeight);
-    columnExtent.set(widthKey, Math.max(columnExtent.get(widthKey) ?? 0, projectedChain));
-    rowExtent.set(depthKey, Math.max(rowExtent.get(depthKey) ?? 0, projectedGroup));
+    const projectedChain = projectedAxisSupport(chainUnit, entry.extents);
+    const projectedGroup = projectedAxisSupport(groupUnit, entry.extents);
+    const existingColumn = columnExtent.get(widthKey);
+    const existingRow = rowExtent.get(depthKey);
+    columnExtent.set(widthKey, mergeAxisSupport(existingColumn, projectedChain));
+    rowExtent.set(depthKey, mergeAxisSupport(existingRow, projectedGroup));
   }
 
   const columnOffset = buildAxisOffsets(columnKeys, columnExtent, chainSep, chainStep);
@@ -218,8 +220,37 @@ function normalizeVector(vector: Point): Point | null {
   };
 }
 
-function projectedExtentAlongAxis(axis: Point, halfWidth: number, halfHeight: number): number {
-  return Math.abs(axis.x) * halfWidth + Math.abs(axis.y) * halfHeight;
+type AxisSupport = {
+  forward: number;
+  backward: number;
+};
+
+function projectedAxisSupport(
+  axis: Point,
+  extents: { left: number; right: number; up: number; down: number }
+): AxisSupport {
+  const absX = Math.abs(axis.x);
+  const absY = Math.abs(axis.y);
+
+  const horizontalForward = axis.x >= 0 ? extents.right : extents.left;
+  const horizontalBackward = axis.x >= 0 ? extents.left : extents.right;
+  const verticalForward = axis.y >= 0 ? extents.up : extents.down;
+  const verticalBackward = axis.y >= 0 ? extents.down : extents.up;
+
+  return {
+    forward: horizontalForward * absX + verticalForward * absY,
+    backward: horizontalBackward * absX + verticalBackward * absY
+  };
+}
+
+function mergeAxisSupport(existing: AxisSupport | undefined, next: AxisSupport): AxisSupport {
+  if (!existing) {
+    return { ...next };
+  }
+  return {
+    forward: Math.max(existing.forward, next.forward),
+    backward: Math.max(existing.backward, next.backward)
+  };
 }
 
 function sortedUnique(values: number[]): number[] {
@@ -228,7 +259,7 @@ function sortedUnique(values: number[]): number[] {
 
 function buildAxisOffsets(
   keys: number[],
-  extentByKey: Map<number, number>,
+  extentByKey: Map<number, AxisSupport>,
   sepDistance: number | null,
   fallbackStep: number
 ): Map<number, number> {
@@ -246,9 +277,11 @@ function buildAxisOffsets(
 
     let delta = fallbackStep * keyGap;
     if (sepDistance != null) {
-      const previousExtent = extentByKey.get(previousKey) ?? 0;
-      const currentExtent = extentByKey.get(currentKey) ?? 0;
-      delta = previousExtent + currentExtent + sepDistance;
+      const previousExtent = extentByKey.get(previousKey);
+      const currentExtent = extentByKey.get(currentKey);
+      const previousForward = previousExtent?.forward ?? 0;
+      const currentBackward = currentExtent?.backward ?? 0;
+      delta = previousForward + currentBackward + sepDistance;
     }
 
     offsets.set(currentKey, previousOffset + delta);
@@ -1228,8 +1261,8 @@ export function evaluatePathStatement(
         const edgeElements: SceneElement[] = [];
         for (let edgeIndex = 0; edgeIndex < plan.edges.length; edgeIndex += 1) {
           const edge = plan.edges[edgeIndex]!;
-          const startCoordinateRaw = `(${edge.from})`;
-          const targetCoordinateRaw = `(${edge.to})`;
+          const startCoordinateRaw = `(${edge.from}${edge.fromAnchor ? `.${edge.fromAnchor}` : ""})`;
+          const targetCoordinateRaw = `(${edge.to}${edge.toAnchor ? `.${edge.toAnchor}` : ""})`;
           const graphEdgeNodes: NodeItem[] | undefined =
             edge.nodes && edge.nodes.length > 0
               ? edge.nodes.map((node, nodeIndex): NodeItem => ({

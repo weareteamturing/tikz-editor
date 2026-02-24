@@ -4,7 +4,7 @@ import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import { parseLength } from "../coords/parse-length.js";
 
 const CONNECTOR_OPERATORS = ["<->", "-!-", "->", "<-", "--"] as const;
-const DEFAULT_GRAPH_STEP_PT = 36;
+const DEFAULT_GRAPH_STEP_PT = parseLength("1cm", "cm") ?? 28.45274;
 const DEFAULT_GRAPH_SEP_PT = parseLength("1em", "cm") ?? 10;
 const DEFAULT_GRAPH_RADIUS_PT = parseLength("1cm", "cm") ?? DEFAULT_GRAPH_STEP_PT;
 const BUILTIN_COLOR_CLASSES = ["all", "source", "target", "source'", "target'"] as const;
@@ -61,9 +61,15 @@ type GraphScopeState = {
   mathNodes: boolean;
   putNodeTextIncomingOptions: string[];
   putNodeTextOutgoingOptions: string[];
+  trieEnabled: boolean;
   declaredColorClasses: Set<string>;
   defaultOperatorEdgeKind: ConnectorOperator;
   defaultJoinOperator: GraphOperatorInvocation;
+  sourceAnchor: string | null;
+  targetAnchor: string | null;
+  chainSepAnchor: string | null;
+  groupSepAnchor: string | null;
+  autoNodeAnchor: string | null;
   placementMode: GraphPlacementMode;
   chainShift: GraphVector2;
   groupShift: GraphVector2;
@@ -75,6 +81,9 @@ type GraphScopeState = {
   levelStyleOptionLists: Map<number, OptionListAst[]>;
   chainSepDistance: number | null;
   groupSepDistance: number | null;
+  placementBaseChainShift: GraphVector2;
+  placementBaseGroupShift: GraphVector2;
+  placementResetsCounters: boolean;
 };
 
 type GraphNodeAccumulatorOp =
@@ -125,6 +134,8 @@ export type GraphPlannedEdgeNode = {
 export type GraphPlannedEdge = {
   from: string;
   to: string;
+  fromAnchor?: string;
+  toAnchor?: string;
   operator: ConnectorOperator;
   options?: OptionListAst;
   nodes?: GraphPlannedEdgeNode[];
@@ -254,6 +265,8 @@ class GraphPlanner {
       this.edges.push({
         from: edge.from,
         to: edge.to,
+        fromAnchor: edge.fromAnchor,
+        toAnchor: edge.toAnchor,
         operator: edge.operator,
         options: edge.options,
         nodes: edge.nodes,
@@ -280,6 +293,7 @@ class GraphPlanner {
       mathNodes: false,
       putNodeTextIncomingOptions: [],
       putNodeTextOutgoingOptions: [],
+      trieEnabled: false,
       declaredColorClasses: new Set(BUILTIN_COLOR_CLASSES),
       defaultOperatorEdgeKind: "--",
       defaultJoinOperator: {
@@ -287,6 +301,11 @@ class GraphPlanner {
         fromColor: "target'",
         toColor: "source'"
       },
+      sourceAnchor: null,
+      targetAnchor: null,
+      chainSepAnchor: null,
+      groupSepAnchor: null,
+      autoNodeAnchor: null,
       placementMode: "cartesian",
       chainShift: { x: DEFAULT_GRAPH_STEP_PT, y: 0 },
       groupShift: { x: 0, y: -DEFAULT_GRAPH_STEP_PT },
@@ -296,7 +315,7 @@ class GraphPlanner {
       nodeCountHint: null,
       circularPlacement: {
         chainAngle: 0,
-        chainRadius: DEFAULT_GRAPH_STEP_PT,
+        chainRadius: 0,
         groupAngle: 45,
         groupRadius: 0,
         radius: DEFAULT_GRAPH_RADIUS_PT,
@@ -304,7 +323,10 @@ class GraphPlanner {
       },
       levelStyleOptionLists: new Map(),
       chainSepDistance: null,
-      groupSepDistance: null
+      groupSepDistance: null,
+      placementBaseChainShift: { x: DEFAULT_GRAPH_STEP_PT, y: 0 },
+      placementBaseGroupShift: { x: 0, y: -DEFAULT_GRAPH_STEP_PT },
+      placementResetsCounters: false
     };
   }
 
@@ -323,9 +345,15 @@ class GraphPlanner {
       mathNodes: scope.mathNodes,
       putNodeTextIncomingOptions: [...scope.putNodeTextIncomingOptions],
       putNodeTextOutgoingOptions: [...scope.putNodeTextOutgoingOptions],
+      trieEnabled: scope.trieEnabled,
       declaredColorClasses: new Set(scope.declaredColorClasses),
       defaultOperatorEdgeKind: scope.defaultOperatorEdgeKind,
       defaultJoinOperator: cloneOperatorInvocation(scope.defaultJoinOperator),
+      sourceAnchor: scope.sourceAnchor,
+      targetAnchor: scope.targetAnchor,
+      chainSepAnchor: scope.chainSepAnchor,
+      groupSepAnchor: scope.groupSepAnchor,
+      autoNodeAnchor: scope.autoNodeAnchor,
       placementMode: scope.placementMode,
       chainShift: { ...scope.chainShift },
       groupShift: { ...scope.groupShift },
@@ -336,7 +364,10 @@ class GraphPlanner {
       circularPlacement: { ...scope.circularPlacement },
       levelStyleOptionLists: cloneLevelStyleOptionLists(scope.levelStyleOptionLists),
       chainSepDistance: scope.chainSepDistance,
-      groupSepDistance: scope.groupSepDistance
+      groupSepDistance: scope.groupSepDistance,
+      placementBaseChainShift: { ...scope.placementBaseChainShift },
+      placementBaseGroupShift: { ...scope.placementBaseGroupShift },
+      placementResetsCounters: scope.placementResetsCounters
     };
   }
 
@@ -357,6 +388,15 @@ class GraphPlanner {
     if (leadingOptions) {
       scope = this.applyGroupOptionControls(scope, leadingOptions.options);
     }
+    const resetPlacement = scope.placementResetsCounters;
+    scope.placementResetsCounters = false;
+    const groupLayout = resetPlacement
+      ? {
+          logicalWidth: 0,
+          logicalDepth: 0,
+          level: layout.level
+        }
+      : layout;
     const groupOptionPlan = this.extractGroupOptionPlan(leadingOptions?.options, scope);
 
     const content = leadingOptions ? bodyText.slice(leadingOptions.length).trim() : bodyText.trim();
@@ -391,9 +431,9 @@ class GraphPlanner {
         continue;
       }
       const chainResult = this.parseChain(segment.raw, segment.from, scope, {
-        logicalWidth: layout.logicalWidth,
-        logicalDepth: layout.logicalDepth + logicalDepth,
-        level: layout.level
+        logicalWidth: groupLayout.logicalWidth,
+        logicalDepth: groupLayout.logicalDepth + logicalDepth,
+        level: groupLayout.level
       }, segment.chain);
       edges.push(...chainResult.edges);
       colors = mergeColorMaps(colors, chainResult.colors);
@@ -457,7 +497,8 @@ class GraphPlanner {
     let levelOffset = 0;
 
     let cursor = 0;
-    const first = this.parseNodeSpec(raw, from, cursor, scope, {
+    let chainScope = scope;
+    const first = this.parseNodeSpec(raw, from, cursor, chainScope, {
       logicalWidth: layout.logicalWidth,
       logicalDepth: layout.logicalDepth,
       level: layout.level
@@ -476,6 +517,7 @@ class GraphPlanner {
     chainWidth += first.term.logicalWidth;
     chainDepth = Math.max(chainDepth, first.term.logicalDepth);
     levelOffset += 1;
+    chainScope = this.applyTrieChainPrefix(chainScope, first.term);
 
     const chainSources = [...first.term.entries];
     let chainTargets = [...first.term.exits];
@@ -495,9 +537,9 @@ class GraphPlanner {
       if (edgeOptionRead) {
         cursor = edgeOptionRead.next;
       }
-      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, scope);
+      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, chainScope);
 
-      const nextNode = this.parseNodeSpec(raw, from, cursor, scope, {
+      const nextNode = this.parseNodeSpec(raw, from, cursor, chainScope, {
         logicalWidth: layout.logicalWidth + chainWidth,
         logicalDepth: layout.logicalDepth,
         level: layout.level + levelOffset
@@ -515,13 +557,13 @@ class GraphPlanner {
       const nextSources = colorNodes(nextNode.term.colors, "source");
       const nextTargets = colorNodes(nextNode.term.colors, "target");
 
-      const includeConnectorEdge = connector.operator !== "-!-" || scope.mode === "simple";
+      const includeConnectorEdge = connector.operator !== "-!-" || chainScope.mode === "simple";
       if (includeConnectorEdge) {
         const operatorColors = mergeColorMaps(chainColors, nextNode.term.colors);
         setColorNodes(operatorColors, "target'", chainTargets);
         setColorNodes(operatorColors, "source'", nextSources);
 
-        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [scope.defaultJoinOperator];
+        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [chainScope.defaultJoinOperator];
         for (const operator of operators) {
           edges.push(
             ...this.buildEdgesForOperators(
@@ -532,7 +574,7 @@ class GraphPlanner {
                 from: from + connector.index,
                 to: from + nextNode.next
               },
-              scope,
+              chainScope,
               edgePlan.styleOptions
             )
           );
@@ -543,6 +585,7 @@ class GraphPlanner {
       setColorNodes(chainColors, "source", chainSources);
       setColorNodes(chainColors, "target", nextTargets);
       chainTargets = [...nextTargets];
+      chainScope = this.applyTrieChainPrefix(chainScope, nextNode.term);
     }
 
     return {
@@ -572,7 +615,8 @@ class GraphPlanner {
       };
     }
 
-    const firstTerm = this.parseNodeTerm(firstNodeSpec.raw, firstNodeSpec.span.from, scope, {
+    let chainScope = scope;
+    const firstTerm = this.parseNodeTerm(firstNodeSpec.raw, firstNodeSpec.span.from, chainScope, {
       logicalWidth: layout.logicalWidth,
       logicalDepth: layout.logicalDepth,
       level: layout.level
@@ -591,6 +635,7 @@ class GraphPlanner {
     chainWidth += firstTerm.logicalWidth;
     chainDepth = Math.max(chainDepth, firstTerm.logicalDepth);
     levelOffset += 1;
+    chainScope = this.applyTrieChainPrefix(chainScope, firstTerm);
 
     const chainSources = [...firstTerm.entries];
     let chainTargets = [...firstTerm.exits];
@@ -605,9 +650,9 @@ class GraphPlanner {
         connector.optionsRaw && connector.optionsSpan
           ? parseOptionListRaw(connector.optionsRaw, connector.optionsSpan.from)
           : undefined;
-      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, scope);
+      const edgePlan = this.extractEdgeOptionPlan(edgeLocalOptions, chainScope);
 
-      const nextTerm = this.parseNodeTerm(nextNodeSpec.raw, nextNodeSpec.span.from, scope, {
+      const nextTerm = this.parseNodeTerm(nextNodeSpec.raw, nextNodeSpec.span.from, chainScope, {
         logicalWidth: layout.logicalWidth + chainWidth,
         logicalDepth: layout.logicalDepth,
         level: layout.level + levelOffset
@@ -625,13 +670,13 @@ class GraphPlanner {
       const nextSources = colorNodes(nextTerm.colors, "source");
       const nextTargets = colorNodes(nextTerm.colors, "target");
 
-      const includeConnectorEdge = connector.operator !== "-!-" || scope.mode === "simple";
+      const includeConnectorEdge = connector.operator !== "-!-" || chainScope.mode === "simple";
       if (includeConnectorEdge) {
         const operatorColors = mergeColorMaps(chainColors, nextTerm.colors);
         setColorNodes(operatorColors, "target'", chainTargets);
         setColorNodes(operatorColors, "source'", nextSources);
 
-        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [scope.defaultJoinOperator];
+        const operators = edgePlan.operators.length > 0 ? edgePlan.operators : [chainScope.defaultJoinOperator];
         for (const operator of operators) {
           edges.push(
             ...this.buildEdgesForOperators(
@@ -642,7 +687,7 @@ class GraphPlanner {
                 from: connector.span.from,
                 to: nextNodeSpec.span.to
               },
-              scope,
+              chainScope,
               edgePlan.styleOptions
             )
           );
@@ -653,6 +698,7 @@ class GraphPlanner {
       setColorNodes(chainColors, "source", chainSources);
       setColorNodes(chainColors, "target", nextTargets);
       chainTargets = [...nextTargets];
+      chainScope = this.applyTrieChainPrefix(chainScope, nextTerm);
     }
 
     return {
@@ -663,6 +709,21 @@ class GraphPlanner {
       logicalWidth: chainWidth,
       logicalDepth: chainDepth
     };
+  }
+
+  private applyTrieChainPrefix(scope: GraphScopeState, term: GraphTermResult): GraphScopeState {
+    if (!scope.trieEnabled) {
+      return scope;
+    }
+
+    const candidateName = term.exits.length === 1 ? term.exits[0] : term.entries.length === 1 ? term.entries[0] : null;
+    if (!candidateName || candidateName.length === 0) {
+      return scope;
+    }
+
+    const nextScope = this.cloneScope(scope);
+    nextScope.namePrefix = candidateName;
+    return nextScope;
   }
 
   private parseNodeSpec(
@@ -735,6 +796,7 @@ class GraphPlanner {
     this.applyNodeAccumulatorOps(record, nodePlan.accumulatorOps);
 
     const mergedOptions = mergeOptionLists([
+      ...optionListIfPresent(this.implicitNodeAnchorOption(localScope, parsedNode.span.from)),
       ...localScope.nodeOptionLists,
       ...(nodePlan.styleOptions ? [nodePlan.styleOptions] : [])
     ]);
@@ -760,8 +822,8 @@ class GraphPlanner {
         exits: colorNodes(colors, "target"),
         edges,
         colors,
-        logicalWidth: referencedSetMembers.length > 0 ? 1 : 0,
-        logicalDepth: referencedSetMembers.length > 0 ? 1 : 0
+        logicalWidth: 0,
+        logicalDepth: 0
       };
     }
 
@@ -794,8 +856,8 @@ class GraphPlanner {
       exits: colorNodes(colors, "target"),
       edges,
       colors,
-      logicalWidth: 1,
-      logicalDepth: 1
+      logicalWidth: shouldCreateFreshNode ? 1 : 0,
+      logicalDepth: shouldCreateFreshNode ? 1 : 0
     };
   }
 
@@ -932,25 +994,16 @@ class GraphPlanner {
       edges.push(...this.buildEdgesForOperators(groupPlan.operators, colors, kind, spec.span, localScope));
     }
 
+    const hasAnyNode = vNames.length + wNames.length > 0;
+    const consumesOuterPlacementSlot = !(localScope.placementMode === "circular" && spec.macro === "C_n");
+
     return {
       entries: colorNodes(colors, "source"),
       exits: colorNodes(colors, "target"),
       edges: this.finalizeGroupEdges(localScope.mode, scope.mode, edges),
       colors,
-      logicalWidth:
-        isBipartiteShoreLayout
-          ? vNames.length + wNames.length > 0
-            ? 2
-            : 0
-          : Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0),
-      logicalDepth:
-        isBipartiteShoreLayout
-          ? Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0)
-          : wNames.length > 0
-            ? 2
-            : vNames.length > 0
-              ? 1
-              : 0
+      logicalWidth: hasAnyNode && consumesOuterPlacementSlot ? 1 : 0,
+      logicalDepth: hasAnyNode && consumesOuterPlacementSlot ? 1 : 0
     };
   }
 
@@ -993,7 +1046,10 @@ class GraphPlanner {
       const resolvedName = this.resolveDirectNodeName(parsedNode, styledScope);
       const existingRecord = this.nodeRecords.get(resolvedName);
       const record = existingRecord ?? this.ensureNodeRecord(resolvedName);
-      const mergedOptions = mergeOptionLists(styledScope.nodeOptionLists);
+      const mergedOptions = mergeOptionLists([
+        ...optionListIfPresent(this.implicitNodeAnchorOption(styledScope, span.from)),
+        ...styledScope.nodeOptionLists
+      ]);
       this.addNodeToSets(resolvedName, mergedOptions);
       const shouldCreateFreshNode = this.shouldCreateFreshNode(parsedNode, styledScope, existingRecord != null);
       if (shouldCreateFreshNode) {
@@ -1029,7 +1085,7 @@ class GraphPlanner {
   }
 
   private parseDirectNode(raw: string, from: number): ParsedDirectNodeSpec {
-    let working = raw.trim();
+    let working = stripTrailingGraphComment(raw).trim();
     let nodeOptions: OptionListAst | undefined;
 
     const trailingOptions = readTrailingOptionList(working);
@@ -1197,6 +1253,18 @@ class GraphPlanner {
             scope.mathNodes = enabled;
           }
           consumed = true;
+        } else if (key === "trie") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.trieEnabled = enabled;
+          }
+          consumed = true;
+        } else if (key === "left anchor" || key === "source anchor") {
+          scope.sourceAnchor = parseGraphAnchor(entry.valueRaw);
+          consumed = true;
+        } else if (key === "right anchor" || key === "target anchor") {
+          scope.targetAnchor = parseGraphAnchor(entry.valueRaw);
+          consumed = true;
         } else if (key === "edge label" || key === "edge label'" || key === "edge node") {
           const parsed = parseOptionListRaw(`[${entry.raw}]`, entry.span.from);
           scope.edgeOptionLists.push(parsed);
@@ -1308,7 +1376,7 @@ class GraphPlanner {
         }
 
         if (!consumed) {
-          consumed = applyPlacementControlFromKv(scope, key, entry.valueRaw);
+          consumed = applyPlacementControlFromKv(scope, key, entry.valueRaw, true);
         }
 
         if (!consumed) {
@@ -1361,6 +1429,9 @@ class GraphPlanner {
         } else if (key === "math nodes") {
           scope.mathNodes = true;
           consumed = true;
+        } else if (key === "trie") {
+          scope.trieEnabled = true;
+          consumed = true;
         } else if (key === "number nodes") {
           scope = applyNumberNodes(scope, undefined);
           consumed = true;
@@ -1370,7 +1441,7 @@ class GraphPlanner {
         }
 
         if (!consumed) {
-          consumed = applyPlacementControlFromFlag(scope, key);
+          consumed = applyPlacementControlFromFlag(scope, key, true);
         }
 
         if (!consumed) {
@@ -1413,7 +1484,7 @@ class GraphPlanner {
         }
 
         if (!consumed) {
-          consumed = applyPlacementControlFromFlag(scope, normalizedRaw);
+          consumed = applyPlacementControlFromFlag(scope, normalizedRaw, true);
         }
       }
 
@@ -1432,7 +1503,11 @@ class GraphPlanner {
     };
   }
 
-  private applyGroupOptionControls(baseScope: GraphScopeState, options: OptionListAst | undefined): GraphScopeState {
+  private applyGroupOptionControls(
+    baseScope: GraphScopeState,
+    options: OptionListAst | undefined,
+    updatePlacementBase = true
+  ): GraphScopeState {
     if (!options) {
       return baseScope;
     }
@@ -1451,6 +1526,13 @@ class GraphPlanner {
         }
         if (key === "edge" || key === "edges") {
           const parsed = parseGraphValueAsOptionList(entry.valueRaw, entry.span.from);
+          if (parsed) {
+            scope.edgeOptionLists.push(parsed);
+          }
+          continue;
+        }
+        if (key === "edge quotes") {
+          const parsed = makeEdgeQuotesAppendStyleOption(entry.valueRaw, entry.span.from);
           if (parsed) {
             scope.edgeOptionLists.push(parsed);
           }
@@ -1481,6 +1563,21 @@ class GraphPlanner {
           if (enabled != null) {
             scope.mathNodes = enabled;
           }
+          continue;
+        }
+        if (key === "trie") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.trieEnabled = enabled;
+          }
+          continue;
+        }
+        if (key === "left anchor" || key === "source anchor") {
+          scope.sourceAnchor = parseGraphAnchor(entry.valueRaw);
+          continue;
+        }
+        if (key === "right anchor" || key === "target anchor") {
+          scope.targetAnchor = parseGraphAnchor(entry.valueRaw);
           continue;
         }
         if (key === "edge label" || key === "edge label'" || key === "edge node") {
@@ -1563,7 +1660,7 @@ class GraphPlanner {
           addLevelStyleOption(scope.levelStyleOptionLists, levelStyle.level, levelStyle.options);
           continue;
         }
-        if (applyPlacementControlFromKv(scope, key, entry.valueRaw)) {
+        if (applyPlacementControlFromKv(scope, key, entry.valueRaw, updatePlacementBase)) {
           continue;
         }
       } else if (entry.kind === "flag") {
@@ -1592,6 +1689,10 @@ class GraphPlanner {
           scope.mathNodes = true;
           continue;
         }
+        if (key === "trie") {
+          scope.trieEnabled = true;
+          continue;
+        }
         if (key === "number nodes") {
           scope = applyNumberNodes(scope, undefined);
           continue;
@@ -1610,7 +1711,7 @@ class GraphPlanner {
           scope.defaultOperatorEdgeKind = key as ConnectorOperator;
           continue;
         }
-        if (applyPlacementControlFromFlag(scope, key)) {
+        if (applyPlacementControlFromFlag(scope, key, updatePlacementBase)) {
           continue;
         }
       } else {
@@ -1631,7 +1732,11 @@ class GraphPlanner {
           scope.mathNodes = true;
           continue;
         }
-        if (applyPlacementControlFromFlag(scope, rawToken)) {
+        if (rawToken === "trie") {
+          scope.trieEnabled = true;
+          continue;
+        }
+        if (applyPlacementControlFromFlag(scope, rawToken, updatePlacementBase)) {
           continue;
         }
       }
@@ -1823,16 +1928,58 @@ class GraphPlanner {
   }
 
   private applyLevelStyles(baseScope: GraphScopeState, level: number): GraphScopeState {
-    const optionLists = baseScope.levelStyleOptionLists.get(level);
-    if (!optionLists || optionLists.length === 0) {
+    if (level <= 0 || baseScope.levelStyleOptionLists.size === 0) {
       return baseScope;
     }
 
     let scope = this.cloneScope(baseScope);
-    for (const optionList of optionLists) {
-      scope = this.applyGroupOptionControls(scope, optionList);
+    let applied = false;
+    for (let currentLevel = 1; currentLevel <= level; currentLevel += 1) {
+      const optionLists = baseScope.levelStyleOptionLists.get(currentLevel);
+      if (!optionLists || optionLists.length === 0) {
+        continue;
+      }
+      applied = true;
+      for (const optionList of optionLists) {
+        scope = this.applyGroupOptionControls(scope, optionList, false);
+      }
     }
-    return scope;
+    return applied ? scope : baseScope;
+  }
+
+  private implicitNodeAnchorOption(scope: GraphScopeState, from: number): OptionListAst | undefined {
+    if (!scope.autoNodeAnchor) {
+      return undefined;
+    }
+    return parseOptionListRaw(`[anchor=${scope.autoNodeAnchor}]`, from);
+  }
+
+  private resolveCumulativeCartesianChainOffset(scope: GraphScopeState, logicalWidth: number): GraphVector2 {
+    const steps = Math.max(0, Math.floor(logicalWidth));
+    if (steps === 0) {
+      return { x: 0, y: 0 };
+    }
+
+    let simulationScope = this.cloneScope(scope);
+    simulationScope.chainShift = { ...scope.placementBaseChainShift };
+    simulationScope.groupShift = { ...scope.placementBaseGroupShift };
+    simulationScope.placementBaseChainShift = { ...scope.placementBaseChainShift };
+    simulationScope.placementBaseGroupShift = { ...scope.placementBaseGroupShift };
+
+    const offset: GraphVector2 = { x: 0, y: 0 };
+    for (let step = 1; step <= steps; step += 1) {
+      const levelOptionLists = scope.levelStyleOptionLists.get(step);
+      if (levelOptionLists && levelOptionLists.length > 0) {
+        for (const optionList of levelOptionLists) {
+          simulationScope = this.applyGroupOptionControls(simulationScope, optionList, false);
+        }
+      }
+
+      offset.x += simulationScope.chainShift.x;
+      offset.y += simulationScope.chainShift.y;
+    }
+
+    return offset;
   }
 
   private resolvePlacementPoint(
@@ -1844,8 +1991,9 @@ class GraphPlanner {
     let y = 0;
 
     if (scope.placementMode === "cartesian") {
-      x = layout.logicalWidth * scope.chainShift.x + layout.logicalDepth * scope.groupShift.x;
-      y = layout.logicalWidth * scope.chainShift.y + layout.logicalDepth * scope.groupShift.y;
+      const chainOffset = this.resolveCumulativeCartesianChainOffset(scope, layout.logicalWidth);
+      x = chainOffset.x + layout.logicalDepth * scope.groupShift.x;
+      y = chainOffset.y + layout.logicalDepth * scope.groupShift.y;
     } else if (scope.placementMode === "grid") {
       const columns = resolveGridColumns(scope.wrapAfter, scope.nodeCountHint);
       const col = placementSlot % columns;
@@ -1885,13 +2033,14 @@ class GraphPlanner {
     edgeStyleOptions?: OptionListAst
   ): GraphPlannedEdgeInternal {
     const oriented = orientEdgeByKind(from, to, edgeKind);
+    const normalizedKind = normalizeEdgeKindForOrientedPair(edgeKind);
 
     const sourceRecord = this.ensureNodeRecord(oriented.from);
     const targetRecord = this.ensureNodeRecord(oriented.to);
 
     const edgeOptions = mergeOptionLists([
       ...scope.edgeOptionLists,
-      ...edgeKindOptionLists(edgeKind),
+      ...edgeKindOptionLists(normalizedKind),
       ...(edgeStyleOptions ? [edgeStyleOptions] : []),
       ...sourceRecord.sourceEdgeOptionLists,
       ...targetRecord.targetEdgeOptionLists
@@ -1905,7 +2054,9 @@ class GraphPlanner {
     return {
       from: oriented.from,
       to: oriented.to,
-      operator: edgeKind,
+      fromAnchor: scope.sourceAnchor ?? undefined,
+      toAnchor: scope.targetAnchor ?? undefined,
+      operator: normalizedKind,
       options: edgeOptions,
       nodes: edgeNodes.length > 0 ? edgeNodes : undefined,
       span
@@ -2068,11 +2219,12 @@ function parseLevelStyleDefinition(entry: OptionEntry): { level: number; options
   };
 }
 
-function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawValue: string): boolean {
+function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawValue: string, updatePlacementBase: boolean): boolean {
   if (key === "no placement") {
     const enabled = parseGraphBoolean(rawValue, true);
     if (enabled === true) {
       scope.placementMode = "none";
+      scope.placementResetsCounters = true;
     } else if (enabled === false && scope.placementMode === "none") {
       scope.placementMode = "cartesian";
     }
@@ -2082,6 +2234,7 @@ function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawVal
     const enabled = parseGraphBoolean(rawValue, true);
     if (enabled === true) {
       scope.placementMode = "cartesian";
+      scope.placementResetsCounters = true;
     }
     return enabled != null;
   }
@@ -2089,6 +2242,7 @@ function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawVal
     const enabled = parseGraphBoolean(rawValue, true);
     if (enabled === true) {
       scope.placementMode = "grid";
+      scope.placementResetsCounters = true;
     }
     return enabled != null;
   }
@@ -2096,6 +2250,7 @@ function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawVal
     const enabled = parseGraphBoolean(rawValue, true);
     if (enabled === true) {
       scope.placementMode = "circular";
+      scope.placementResetsCounters = true;
     }
     return enabled != null;
   }
@@ -2132,7 +2287,7 @@ function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawVal
     return false;
   }
 
-  if (applyGrowBranchPlacement(scope, key, rawValue, true)) {
+  if (applyGrowBranchPlacement(scope, key, rawValue, true, updatePlacementBase)) {
     return true;
   }
 
@@ -2164,21 +2319,25 @@ function applyPlacementControlFromKv(scope: GraphScopeState, key: string, rawVal
   return false;
 }
 
-function applyPlacementControlFromFlag(scope: GraphScopeState, key: string): boolean {
+function applyPlacementControlFromFlag(scope: GraphScopeState, key: string, updatePlacementBase: boolean): boolean {
   if (key === "no placement") {
     scope.placementMode = "none";
+    scope.placementResetsCounters = true;
     return true;
   }
   if (key === "cartesian placement") {
     scope.placementMode = "cartesian";
+    scope.placementResetsCounters = true;
     return true;
   }
   if (key === "grid placement") {
     scope.placementMode = "grid";
+    scope.placementResetsCounters = true;
     return true;
   }
   if (key === "circular placement") {
     scope.placementMode = "circular";
+    scope.placementResetsCounters = true;
     return true;
   }
   if (key === "clockwise") {
@@ -2189,7 +2348,7 @@ function applyPlacementControlFromFlag(scope: GraphScopeState, key: string): boo
     applyClockwisePlacement(scope, undefined, false);
     return true;
   }
-  if (applyGrowBranchPlacement(scope, key, undefined, false)) {
+  if (applyGrowBranchPlacement(scope, key, undefined, false, updatePlacementBase)) {
     return true;
   }
   return false;
@@ -2199,33 +2358,34 @@ function applyGrowBranchPlacement(
   scope: GraphScopeState,
   key: string,
   rawValue: string | undefined,
-  allowBooleanDisable: boolean
+  allowBooleanDisable: boolean,
+  updatePlacementBase: boolean
 ): boolean {
   const normalized = key.trim().toLowerCase();
 
   if (normalized === "grow right") {
-    return setDirectionalShift(scope, "chain", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "chain", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "grow left") {
-    return setDirectionalShift(scope, "chain", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "chain", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "grow up") {
-    return setDirectionalShift(scope, "chain", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "chain", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "grow down") {
-    return setDirectionalShift(scope, "chain", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "chain", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "branch right") {
-    return setDirectionalShift(scope, "group", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "group", { x: 1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "branch left") {
-    return setDirectionalShift(scope, "group", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "group", { x: -1, y: 0 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "branch up") {
-    return setDirectionalShift(scope, "group", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "group", { x: 0, y: 1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "branch down") {
-    return setDirectionalShift(scope, "group", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null);
+    return setDirectionalShift(scope, "group", { x: 0, y: -1 }, rawValue, DEFAULT_GRAPH_STEP_PT, allowBooleanDisable, null, updatePlacementBase);
   }
   if (normalized === "grow right sep") {
     const sepDistance = parseGraphLength(rawValue) ?? DEFAULT_GRAPH_SEP_PT;
@@ -2236,7 +2396,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "grow left sep") {
@@ -2248,7 +2409,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "grow up sep") {
@@ -2260,7 +2422,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "grow down sep") {
@@ -2272,7 +2435,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "branch right sep") {
@@ -2284,7 +2448,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "branch left sep") {
@@ -2296,7 +2461,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "branch up sep") {
@@ -2308,7 +2474,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
   if (normalized === "branch down sep") {
@@ -2320,7 +2487,8 @@ function applyGrowBranchPlacement(
       rawValue,
       DEFAULT_GRAPH_STEP_PT + sepDistance,
       allowBooleanDisable,
-      sepDistance
+      sepDistance,
+      updatePlacementBase
     );
   }
 
@@ -2334,7 +2502,8 @@ function setDirectionalShift(
   rawValue: string | undefined,
   defaultMagnitude: number,
   allowBooleanDisable: boolean,
-  sepDistance: number | null
+  sepDistance: number | null,
+  updatePlacementBase: boolean
 ): boolean {
   if (rawValue != null && allowBooleanDisable) {
     const boolean = parseGraphBoolean(rawValue, true);
@@ -2350,16 +2519,26 @@ function setDirectionalShift(
   };
   if (axis === "chain") {
     scope.chainShift = vector;
+    if (updatePlacementBase) {
+      scope.placementBaseChainShift = { ...vector };
+    }
     scope.chainSepDistance = sepDistance;
+    scope.chainSepAnchor = sepDistance != null ? anchorOppositeDirection(unitDirection) : null;
   } else {
     scope.groupShift = vector;
+    if (updatePlacementBase) {
+      scope.placementBaseGroupShift = { ...vector };
+    }
     scope.groupSepDistance = sepDistance;
+    scope.groupSepAnchor = sepDistance != null ? anchorOppositeDirection(unitDirection) : null;
   }
+  scope.autoNodeAnchor = combineSepAnchors(scope.chainSepAnchor, scope.groupSepAnchor);
   return true;
 }
 
 function applyClockwisePlacement(scope: GraphScopeState, rawValue: string | undefined, clockwise: boolean): void {
   scope.placementMode = "circular";
+  scope.placementResetsCounters = true;
   let count = parseGraphPositiveInteger(rawValue);
   if (count == null || count <= 0) {
     count = scope.nodeCountHint ?? 0;
@@ -2367,7 +2546,12 @@ function applyClockwisePlacement(scope: GraphScopeState, rawValue: string | unde
   if (count <= 0) {
     count = 8;
   }
-  scope.circularPlacement.groupAngle = (clockwise ? -1 : 1) * (360 / count);
+  const step = (clockwise ? -1 : 1) * (360 / count);
+  // Different graph constructions advance either along chain slots
+  // (subgraph expansions) or group depth (comma/semicolon lists),
+  // so apply the circular step to both axes.
+  scope.circularPlacement.chainAngle = step;
+  scope.circularPlacement.groupAngle = step;
   scope.circularPlacement.groupRadius = 0;
 }
 
@@ -2392,6 +2576,37 @@ function parseGraphLength(raw: string | undefined): number | null {
     return null;
   }
   return parseLength(stripMatchingQuotes(normalized), "cm");
+}
+
+function parseGraphAnchor(raw: string | undefined): string | null {
+  if (raw == null) {
+    return null;
+  }
+  const normalized = stripMatchingQuotes(stripWrappingBraces(raw).trim());
+  return normalized.length > 0 ? normalized : null;
+}
+
+function anchorOppositeDirection(direction: GraphVector2): "east" | "west" | "north" | "south" {
+  if (Math.abs(direction.x) >= Math.abs(direction.y)) {
+    return direction.x >= 0 ? "west" : "east";
+  }
+  return direction.y >= 0 ? "south" : "north";
+}
+
+function combineSepAnchors(chainAnchor: string | null, groupAnchor: string | null): string | null {
+  const vertical = [chainAnchor, groupAnchor].find((anchor) => anchor === "north" || anchor === "south") ?? null;
+  const horizontal = [chainAnchor, groupAnchor].find((anchor) => anchor === "east" || anchor === "west") ?? null;
+
+  if (vertical && horizontal) {
+    return `${vertical} ${horizontal}`;
+  }
+  if (horizontal) {
+    return horizontal;
+  }
+  if (vertical) {
+    return vertical;
+  }
+  return groupAnchor ?? chainAnchor;
 }
 
 function parseGraphPositiveInteger(raw: string | undefined): number | null {
@@ -2427,6 +2642,10 @@ function orientEdgeByKind(from: string, to: string, edgeKind: ConnectorOperator)
     return { from: to, to: from };
   }
   return { from, to };
+}
+
+function normalizeEdgeKindForOrientedPair(edgeKind: ConnectorOperator): ConnectorOperator {
+  return edgeKind === "<-" ? "->" : edgeKind;
 }
 
 function edgeKindOptionLists(edgeKind: ConnectorOperator): OptionListAst[] {
@@ -2618,6 +2837,14 @@ function parseGraphBoolean(raw: string, defaultWhenOmitted: boolean): boolean | 
   return null;
 }
 
+function makeEdgeQuotesAppendStyleOption(valueRaw: string, spanFrom: number): OptionListAst | null {
+  const normalizedValue = stripWrappingBraces(valueRaw).trim();
+  if (normalizedValue.length === 0) {
+    return null;
+  }
+  return parseOptionListRaw(`[every edge quotes/.append style={${normalizedValue}}]`, spanFrom);
+}
+
 function parseGraphNumber(raw: string): number | null {
   const normalized = stripWrappingBraces(raw).trim();
   if (normalized.length === 0) {
@@ -2629,6 +2856,59 @@ function parseGraphNumber(raw: string): number | null {
     return null;
   }
   return Math.floor(value);
+}
+
+function stripTrailingGraphComment(raw: string): string {
+  let depthBrace = 0;
+  let depthSquare = 0;
+  let depthParen = 0;
+  let inQuote = false;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]!;
+    if (char === "\\" && index + 1 < raw.length) {
+      index += 1;
+      continue;
+    }
+    if (char === '"' && raw[index - 1] !== "\\") {
+      if (inQuote && raw[index + 1] === '"') {
+        index += 1;
+        continue;
+      }
+      inQuote = !inQuote;
+      continue;
+    }
+    if (inQuote) {
+      continue;
+    }
+    if (char === "{") {
+      depthBrace += 1;
+      continue;
+    }
+    if (char === "}") {
+      depthBrace = Math.max(0, depthBrace - 1);
+      continue;
+    }
+    if (char === "[") {
+      depthSquare += 1;
+      continue;
+    }
+    if (char === "]") {
+      depthSquare = Math.max(0, depthSquare - 1);
+      continue;
+    }
+    if (char === "(") {
+      depthParen += 1;
+      continue;
+    }
+    if (char === ")") {
+      depthParen = Math.max(0, depthParen - 1);
+      continue;
+    }
+    if (char === "%" && depthBrace === 0 && depthSquare === 0 && depthParen === 0) {
+      return raw.slice(0, index).trimEnd();
+    }
+  }
+  return raw;
 }
 
 function parseGraphNameToken(raw: string): { text: string; quoted: boolean } {
@@ -3166,6 +3446,10 @@ function mergeOptionLists(optionLists: OptionListAst[]): OptionListAst | undefin
     raw: `[${optionLists.map((entry) => stripOptionListBrackets(entry.raw)).join(",")}]`,
     entries: optionLists.flatMap((entry) => entry.entries)
   };
+}
+
+function optionListIfPresent(optionList: OptionListAst | undefined): OptionListAst[] {
+  return optionList ? [optionList] : [];
 }
 
 function optionListFromEntries(entries: OptionEntry[], base: OptionListAst): OptionListAst | undefined {
