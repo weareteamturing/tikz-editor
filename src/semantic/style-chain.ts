@@ -78,7 +78,8 @@ export function cloneStyleSourceRef(sourceRef: StyleSourceRef | undefined): Styl
 }
 
 export function cloneStyleChain(chain: StyleChainEntry[]): StyleChainEntry[] {
-  return chain.map((entry) => cloneStyleChainEntry(entry));
+  // Keep array isolation so callers can append safely, while sharing immutable entries.
+  return chain.slice();
 }
 
 export function cloneStyleChainEntry(entry: StyleChainEntry): StyleChainEntry {
@@ -106,7 +107,8 @@ function cloneStyleChainEntryBase(entry: StyleChainEntryBase): StyleChainEntryBa
   return {
     kind: entry.kind,
     sourceRef: cloneStyleSourceRef(entry.sourceRef),
-    rawOptions: entry.rawOptions.map((list) => cloneOptionList(list)),
+    // Copy only the outer list; option AST nodes are treated as immutable.
+    rawOptions: entry.rawOptions.slice(),
     before: cloneResolvedStyle(entry.before),
     after: cloneResolvedStyle(entry.after),
     resolvedContributions: cloneResolvedStyleContributions(entry.resolvedContributions)
@@ -119,31 +121,15 @@ function cloneResolvedStyleContributions(contributions: Partial<ResolvedStyle>):
   for (const key of Object.keys(contributions) as Array<keyof ResolvedStyle>) {
     const value = contributions[key];
     if (value !== undefined) {
-      clonedRecord[key] = cloneDeepValue(value) as ResolvedStyle[keyof ResolvedStyle];
+      clonedRecord[key] = value as ResolvedStyle[keyof ResolvedStyle];
     }
   }
   return cloned;
 }
 
-function cloneOptionList(optionList: OptionListAst): OptionListAst {
-  return {
-    span: {
-      from: optionList.span.from,
-      to: optionList.span.to
-    },
-    raw: optionList.raw,
-    entries: optionList.entries.map((entry) => ({
-      ...entry,
-      span: {
-        from: entry.span.from,
-        to: entry.span.to
-      }
-    }))
-  };
-}
-
 export function cloneResolvedStyle(style: ResolvedStyle): ResolvedStyle {
-  return cloneDeepValue(style);
+  // Resolved styles are immutable snapshots; sharing avoids repeated deep-clone churn.
+  return style;
 }
 
 export function diffResolvedStyle(before: ResolvedStyle, after: ResolvedStyle): Partial<ResolvedStyle> {
@@ -152,7 +138,7 @@ export function diffResolvedStyle(before: ResolvedStyle, after: ResolvedStyle): 
   for (const key of Object.keys(after) as Array<keyof ResolvedStyle>) {
     const nextValue = after[key];
     if (nextValue !== undefined && !resolvedStyleValueEquals(before[key], nextValue)) {
-      diffRecord[key] = cloneDeepValue(nextValue) as ResolvedStyle[keyof ResolvedStyle];
+      diffRecord[key] = nextValue as ResolvedStyle[keyof ResolvedStyle];
     }
   }
   return diff;
@@ -200,18 +186,4 @@ export function resolvedStyleValueEquals(left: unknown, right: unknown): boolean
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
-}
-
-function cloneDeepValue<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneDeepValue(item)) as T;
-  }
-  if (isPlainObject(value)) {
-    const cloned: Record<string, unknown> = {};
-    for (const [key, nested] of Object.entries(value)) {
-      cloned[key] = cloneDeepValue(nested);
-    }
-    return cloned as T;
-  }
-  return value;
 }
