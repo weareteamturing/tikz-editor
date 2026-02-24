@@ -1,10 +1,12 @@
 import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
 import { multiplyMatrix, rotationMatrix, scaleMatrix, translationMatrix } from "../transform.js";
-import type { DecorationStyle, Matrix2D, Point, ScenePath, ScenePathCommand } from "../types.js";
+import type { DecorationStyle, Matrix2D, Point, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import { normalizeColor } from "../style/colors.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList } from "../style/option-utils.js";
 import {
   commandsToSegments,
   hasDrawablePathCommands,
+  sampleFrameFromEndExtrapolated,
   sampleFrameFromStartExtrapolated,
   splitPathIntoSubpaths,
   totalSegmentLength,
@@ -23,7 +25,7 @@ type DecorationTransformSpec = {
   shiftOnly: boolean;
 };
 
-const DEFERRED_DECORATIONS = new Set(["markings", "show path construction", "text along path", "text effects along path"]);
+const DEFERRED_DECORATIONS = new Set(["markings", "show path construction", "text effects along path"]);
 
 const SUPPORTED_DECORATIONS = new Set([
   "lineto",
@@ -49,19 +51,20 @@ const SUPPORTED_DECORATIONS = new Set([
   "koch snowflake",
   "cantor set",
   "footprints",
-  "shape backgrounds"
+  "shape backgrounds",
+  "text along path"
 ]);
 
 export type DecorationApplyResult =
   | {
       kind: "decorated";
-      paths: ScenePath[];
+      elements: SceneElement[];
     }
   | {
       kind: "unsupported";
       reason: "deferred" | "unknown";
       name: string;
-      paths: ScenePath[];
+      elements: SceneElement[];
     };
 
 export function applyDecorationToPath(path: ScenePath, decoration: DecorationStyle, seedRaw: string): DecorationApplyResult {
@@ -69,7 +72,7 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
   if (!name || name === "none") {
     return {
       kind: "decorated",
-      paths: [clonePath(path)]
+      elements: [clonePath(path)]
     };
   }
 
@@ -78,7 +81,7 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
       kind: "unsupported",
       reason: "deferred",
       name,
-      paths: [clonePath(path)]
+      elements: [clonePath(path)]
     };
   }
 
@@ -87,7 +90,14 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
       kind: "unsupported",
       reason: "unknown",
       name,
-      paths: [clonePath(path)]
+      elements: [clonePath(path)]
+    };
+  }
+
+  if (name === "text along path") {
+    return {
+      kind: "decorated",
+      elements: decorateTextAlongPath(path, decoration, seedRaw)
     };
   }
 
@@ -108,7 +118,7 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
 
   return {
     kind: "decorated",
-    paths: [decoratedPath]
+    elements: [decoratedPath]
   };
 }
 
@@ -213,6 +223,272 @@ function decorateCommands(commands: ScenePathCommand[], decoration: DecorationSt
     return commands.map((command) => cloneCommand(command));
   }
   return allCommands;
+}
+
+type TextAlongPathAlign = "left" | "right" | "center";
+
+type TextAlongPathOptions = {
+  text: string;
+  reversePath: boolean;
+  textColor: string | null;
+  align: TextAlongPathAlign;
+  leftIndent: number;
+  rightIndent: number;
+};
+
+function decorateTextAlongPath(path: ScenePath, decoration: DecorationStyle, seedRaw: string): SceneElement[] {
+  const textOptions = parseTextAlongPathOptions(path, decoration);
+  if (textOptions.text.length === 0) {
+    return [];
+  }
+
+  const characters = Array.from(textOptions.text);
+  if (characters.length === 0) {
+    return [];
+  }
+
+  const transformSpec = parseDecorationTransform(decoration.transformRaw);
+  const subpaths = splitPathIntoSubpaths(path.commands).filter(hasDrawablePathCommands);
+  const elements: SceneElement[] = [];
+
+  for (let subpathIndex = 0; subpathIndex < subpaths.length; subpathIndex += 1) {
+    const subpath = subpaths[subpathIndex];
+    const expandedSubpath = expandSubpathForDecoration(subpath);
+    const segments = commandsToSegments(expandedSubpath);
+    if (segments.length === 0) {
+      continue;
+    }
+
+    const totalLength = totalSegmentLength(segments);
+    if (totalLength <= 1e-6) {
+      continue;
+    }
+
+    const leftIndent = clampLength(textOptions.leftIndent, 0, totalLength);
+    const rightIndent = clampLength(textOptions.rightIndent, 0, totalLength - leftIndent);
+    const startLimit = leftIndent;
+    const endLimit = totalLength - rightIndent;
+    const availableLength = endLimit - startLimit;
+    if (availableLength <= 1e-6) {
+      continue;
+    }
+
+    const advances = characters.map((character) => estimateTextAlongPathAdvance(character, path.style.fontSize));
+    const textLength = advances.reduce((sum, advance) => sum + advance, 0);
+    let cursor = startLimit;
+    if (textOptions.align === "right") {
+      cursor += Math.max(0, availableLength - textLength);
+    } else if (textOptions.align === "center") {
+      cursor += Math.max(0, (availableLength - textLength) / 2);
+    }
+
+    for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
+      const character = characters[characterIndex];
+      const advance = advances[characterIndex] ?? 0;
+      const centerDistance = cursor + advance / 2;
+      const endDistance = cursor + advance;
+      if (endDistance > endLimit + 1e-6) {
+        break;
+      }
+
+      const frame = sampleTextAlongPathFrame(segments, centerDistance, textOptions.reversePath);
+      if (!frame) {
+        cursor = endDistance;
+        continue;
+      }
+
+      const position = pointFromFrame(frame, 0, 0, decoration, transformSpec);
+      const angle = (Math.atan2(frame.tangent.y, frame.tangent.x) * 180) / Math.PI;
+      const style = cloneStyleForTextAlongPath(path.style, textOptions.textColor);
+      const lineHeight = Math.max(1, style.fontSize * 1.05);
+      elements.push({
+        kind: "Text",
+        id: `${path.id}:decorated:${sanitizeDecorationName(seedRaw)}:text-along-path:${subpathIndex}:${characterIndex}`,
+        sourceId: path.sourceId,
+        sourceSpan: path.sourceSpan,
+        origin: path.origin,
+        style,
+        styleChain: path.styleChain.map((entry) => ({ ...entry })),
+        position,
+        text: character,
+        textBlockWidth: advance,
+        textBlockHeight: lineHeight,
+        rotation: angle
+      });
+
+      cursor = endDistance;
+    }
+  }
+
+  return elements;
+}
+
+function parseTextAlongPathOptions(path: ScenePath, decoration: DecorationStyle): TextAlongPathOptions {
+  const textRaw = decoration.params.text ?? "";
+  const text = normalizeTextAlongPathInput(textRaw);
+  const reversePath = parseBooleanLike(decoration.params["reverse path"], false);
+  const textColor = resolveTextAlongPathColor(path, decoration.params["text color"]);
+
+  let align: TextAlongPathAlign = "left";
+  const directAlign = parseTextAlongPathAlign(decoration.params["text align/align"]);
+  if (directAlign) {
+    align = directAlign;
+  }
+
+  let leftIndent = parseLength(decoration.params["text align/left indent"] ?? "", "pt") ?? 0;
+  let rightIndent = parseLength(decoration.params["text align/right indent"] ?? "", "pt") ?? 0;
+  const textAlignRaw = decoration.params["text align"];
+  if (textAlignRaw) {
+    const nested = parseStyleValueAsOptionList(textAlignRaw);
+    if (nested) {
+      for (const entry of nested.entries) {
+        if (entry.kind === "flag") {
+          const parsedAlign = parseTextAlongPathAlign(entry.key);
+          if (parsedAlign) {
+            align = parsedAlign;
+          }
+          continue;
+        }
+        if (entry.kind !== "kv") {
+          continue;
+        }
+        const key = normalizeOptionValue(entry.key).toLowerCase().replace(/\s+/g, " ");
+        if (key === "align") {
+          const parsedAlign = parseTextAlongPathAlign(entry.valueRaw);
+          if (parsedAlign) {
+            align = parsedAlign;
+          }
+          continue;
+        }
+        if (key === "left indent") {
+          const parsed = parseLength(entry.valueRaw, "pt");
+          if (parsed != null) {
+            leftIndent = parsed;
+          }
+          continue;
+        }
+        if (key === "right indent") {
+          const parsed = parseLength(entry.valueRaw, "pt");
+          if (parsed != null) {
+            rightIndent = parsed;
+          }
+        }
+      }
+    } else {
+      const parsedAlign = parseTextAlongPathAlign(textAlignRaw);
+      if (parsedAlign) {
+        align = parsedAlign;
+      }
+    }
+  }
+
+  return {
+    text,
+    reversePath,
+    textColor,
+    align,
+    leftIndent,
+    rightIndent
+  };
+}
+
+function normalizeTextAlongPathInput(raw: string): string {
+  const escapedSpacePlaceholder = "\u0000";
+  const collapsed = raw
+    .replaceAll("\\space", escapedSpacePlaceholder)
+    .replaceAll("\\ ", escapedSpacePlaceholder)
+    .replace(/\s+/g, " ")
+    .replaceAll(escapedSpacePlaceholder, " ");
+  return collapsed.trim();
+}
+
+function parseTextAlongPathAlign(raw: string | null | undefined): TextAlongPathAlign | null {
+  if (!raw) {
+    return null;
+  }
+  const normalized = normalizeOptionValue(raw).toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "left") {
+    return "left";
+  }
+  if (normalized === "right") {
+    return "right";
+  }
+  if (normalized === "center") {
+    return "center";
+  }
+  return null;
+}
+
+function parseBooleanLike(raw: string | null | undefined, fallback: boolean): boolean {
+  if (!raw) {
+    return fallback;
+  }
+  const normalized = normalizeOptionValue(raw).toLowerCase();
+  if (normalized.length === 0 || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+    return false;
+  }
+  return fallback;
+}
+
+function resolveTextAlongPathColor(path: ScenePath, rawColor: string | undefined): string | null {
+  if (!rawColor) {
+    return path.style.textColor;
+  }
+  const currentColor = path.style.textColor ?? path.style.stroke ?? path.style.fill ?? "black";
+  return normalizeColor(rawColor, { currentColor });
+}
+
+function cloneStyleForTextAlongPath(pathStyle: ScenePath["style"], textColor: string | null): ScenePath["style"] {
+  return {
+    ...pathStyle,
+    textColor,
+    textAlign: "center",
+    decoration: {
+      ...pathStyle.decoration,
+      enabled: false,
+      params: { ...pathStyle.decoration.params }
+    },
+    decorationPreActions: [],
+    decorationPostActions: [],
+    shadowLayers: pathStyle.shadowLayers.map((layer) => ({
+      ...layer,
+      style: { ...layer.style }
+    }))
+  };
+}
+
+function estimateTextAlongPathAdvance(character: string, fontSize: number): number {
+  if (character === " ") {
+    return Math.max(0.5, fontSize * 0.35);
+  }
+  if (character === "." || character === "," || character === ":" || character === ";" || character === "'" || character === "`") {
+    return Math.max(0.5, fontSize * 0.3);
+  }
+  if (character === "!" || character === "|" || character === "i" || character === "l") {
+    return Math.max(0.5, fontSize * 0.33);
+  }
+  if (character >= "A" && character <= "Z") {
+    return Math.max(0.5, fontSize * 0.68);
+  }
+  return Math.max(0.5, fontSize * 0.56);
+}
+
+function sampleTextAlongPathFrame(segments: PathSegment[], distance: number, reversePath: boolean): SampleFrame | null {
+  const sampled = reversePath ? sampleFrameFromEndExtrapolated(segments, distance) : sampleFrameFromStartExtrapolated(segments, distance);
+  if (!sampled) {
+    return null;
+  }
+  if (!reversePath) {
+    return sampled;
+  }
+  return {
+    point: sampled.point,
+    tangent: { x: -sampled.tangent.x, y: -sampled.tangent.y },
+    normal: { x: -sampled.normal.x, y: -sampled.normal.y }
+  };
 }
 
 function decorateSegments(

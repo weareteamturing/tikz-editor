@@ -134,4 +134,75 @@ describe("semantic evaluator / decorations", () => {
         expect(decoratedEllipse.commands.length).toBeGreaterThan(20);
       }
     });
+
+    it("renders text along path as text elements and consumes the decorated path", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[decorate,decoration={text along path,text={ABC},raise=4pt}] (0,0) -- (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-decoration-name:text along path")).toBe(false);
+      expect(result.featureUsage.decoration_pathreplacing).toBe("used-supported");
+      const textElements = result.scene.elements.filter((element) => element.kind === "Text");
+      expect(textElements).toHaveLength(3);
+      expect(textElements.map((element) => (element.kind === "Text" ? element.text : ""))).toEqual(["A", "B", "C"]);
+      expect(result.scene.elements.some((element) => element.kind === "Path")).toBe(false);
+      const first = textElements[0];
+      expect(first?.kind).toBe("Text");
+      if (first?.kind === "Text") {
+        expect(first.position.y).toBeGreaterThan(2);
+      }
+    });
+
+    it("supports reverse path for text along path", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[decorate,decoration={text along path,text={ABC},reverse path}] (0,0) -- (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+      const textElements = result.scene.elements.filter((element) => element.kind === "Text");
+      expect(textElements).toHaveLength(3);
+
+      const positions = textElements.map((element) => (element.kind === "Text" ? element.position.x : Number.NaN));
+      expect(positions[0]).toBeGreaterThan(positions[1] ?? Number.POSITIVE_INFINITY);
+      expect(positions[1]).toBeGreaterThan(positions[2] ?? Number.POSITIVE_INFINITY);
+    });
+
+    it("supports text align and indents for text along path", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[decorate,decoration={text along path,text={LL},text color=red,text align={align=left,left indent=1cm,right indent=1cm}}] (0,0) -- (4,0);
+    \draw[decorate,decoration={text along path,text={CC},text color=blue,text align={align=center,left indent=1cm,right indent=1cm}}] (0,-0.5) -- (4,-0.5);
+    \draw[decorate,decoration={text along path,text={RR},text color=green,text align={align=right,left indent=1cm,right indent=1cm}}] (0,-1) -- (4,-1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const left = result.scene.elements.filter((element) => element.kind === "Text" && element.style.textColor === "#ff0000");
+      const center = result.scene.elements.filter((element) => element.kind === "Text" && element.style.textColor === "#0000ff");
+      const right = result.scene.elements.filter((element) => element.kind === "Text" && element.style.textColor === "#00ff00");
+      expect(left).toHaveLength(2);
+      expect(center).toHaveLength(2);
+      expect(right).toHaveLength(2);
+
+      const leftStart = left[0];
+      const centerStart = center[0];
+      const rightStart = right[0];
+      expect(leftStart?.kind).toBe("Text");
+      expect(centerStart?.kind).toBe("Text");
+      expect(rightStart?.kind).toBe("Text");
+      if (leftStart?.kind === "Text" && centerStart?.kind === "Text" && rightStart?.kind === "Text") {
+        expect(leftStart.position.x).toBeGreaterThan(20);
+        expect(leftStart.position.x).toBeLessThan(centerStart.position.x);
+        expect(centerStart.position.x).toBeLessThan(rightStart.position.x);
+      }
+    });
+
+    it("keeps the original path for postaction text-along-path decorations", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[postaction={decorate,decoration={text along path,text={AB}}}] (0,0) -- (3,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.scene.elements.some((element) => element.kind === "Path")).toBe(true);
+      const textElements = result.scene.elements.filter((element) => element.kind === "Text");
+      expect(textElements).toHaveLength(2);
+    });
 });

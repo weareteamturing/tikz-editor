@@ -40,12 +40,12 @@ export function decoratePathElements(
       if (mode === "replace") {
         output.push(element);
       } else {
-        output.push(...outcome.paths);
+        output.push(...outcome.elements);
       }
       continue;
     }
 
-    output.push(...outcome.paths);
+    output.push(...outcome.elements);
   }
 
   return output;
@@ -147,7 +147,8 @@ export function markDecorationFeature(nameRaw: string, status: "supported" | "un
     name === "expanding waves" ||
     name === "waves" ||
     name === "border" ||
-    name === "brace"
+    name === "brace" ||
+    name === "text along path"
   ) {
     markFeature("decoration_pathreplacing", status);
     return;
