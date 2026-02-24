@@ -213,6 +213,12 @@ function splitTopLevel(raw: string, separators: string[], from: number): Array<{
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
 
     if (char === "{") {
       depthBrace += 1;
@@ -291,6 +297,12 @@ function findNextConnector(raw: string, start: number): { operator: GraphConnect
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
 
     if (char === "{") {
       depthBrace += 1;
@@ -358,6 +370,12 @@ function readBalancedSegment(
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
     if (char === open) {
       depth += 1;
       continue;
@@ -378,10 +396,31 @@ function readBalancedSegment(
 
 function skipWhitespace(raw: string, cursor: number): number {
   let index = cursor;
-  while (index < raw.length && /\s/.test(raw[index]!)) {
-    index += 1;
+  while (index < raw.length) {
+    const char = raw[index]!;
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
+    break;
   }
   return index;
+}
+
+function isCommentStart(raw: string, index: number): boolean {
+  if (raw[index] !== "%") {
+    return false;
+  }
+  if (index > 0 && raw[index - 1] === "\\") {
+    return false;
+  }
+  return true;
 }
 
 function trimSlice(raw: string, from: number): { raw: string; from: number; to: number } | null {

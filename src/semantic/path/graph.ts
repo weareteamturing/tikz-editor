@@ -57,6 +57,8 @@ type GraphScopeState = {
   numbering: GraphNumberingState;
   mode: GraphMode;
   asTextOverride?: string;
+  emptyNodes: boolean;
+  mathNodes: boolean;
   putNodeTextIncomingOptions: string[];
   putNodeTextOutgoingOptions: string[];
   declaredColorClasses: Set<string>;
@@ -183,8 +185,11 @@ type ParsedSubgraphStructure = {
   wrapAfter: number | null;
 };
 
-export function buildGraphPlan(operation: GraphOperationItem): GraphPlan {
-  const planner = new GraphPlanner(operation);
+export function buildGraphPlan(
+  operation: GraphOperationItem,
+  existingNodeSets?: ReadonlyMap<string, ReadonlySet<string> | readonly string[]>
+): GraphPlan {
+  const planner = new GraphPlanner(operation, existingNodeSets);
   planner.build();
   return {
     nodes: planner.nodes,
@@ -200,11 +205,34 @@ class GraphPlanner {
 
   private readonly operation: GraphOperationItem;
   private readonly nodeRecords = new Map<string, GraphNodeRecord>();
+  private readonly nodeSets = new Map<string, Set<string>>();
   private placementIndex = 0;
   private anonymousNodeCounter = 1;
 
-  constructor(operation: GraphOperationItem) {
+  constructor(
+    operation: GraphOperationItem,
+    existingNodeSets?: ReadonlyMap<string, ReadonlySet<string> | readonly string[]>
+  ) {
     this.operation = operation;
+    if (existingNodeSets) {
+      for (const [setName, rawMembers] of existingNodeSets.entries()) {
+        const normalizedSetName = normalizeGraphText(setName);
+        if (normalizedSetName.length === 0) {
+          continue;
+        }
+        let members = this.nodeSets.get(normalizedSetName);
+        if (!members) {
+          members = new Set<string>();
+          this.nodeSets.set(normalizedSetName, members);
+        }
+        for (const member of rawMembers) {
+          const normalizedMember = normalizeGraphText(member);
+          if (normalizedMember.length > 0) {
+            members.add(normalizedMember);
+          }
+        }
+      }
+    }
   }
 
   build(): void {
@@ -248,6 +276,8 @@ class GraphPlanner {
       },
       mode: "multi",
       asTextOverride: undefined,
+      emptyNodes: false,
+      mathNodes: false,
       putNodeTextIncomingOptions: [],
       putNodeTextOutgoingOptions: [],
       declaredColorClasses: new Set(BUILTIN_COLOR_CLASSES),
@@ -289,6 +319,8 @@ class GraphPlanner {
       numbering: scope.numbering,
       mode: scope.mode,
       asTextOverride: scope.asTextOverride,
+      emptyNodes: scope.emptyNodes,
+      mathNodes: scope.mathNodes,
       putNodeTextIncomingOptions: [...scope.putNodeTextIncomingOptions],
       putNodeTextOutgoingOptions: [...scope.putNodeTextOutgoingOptions],
       declaredColorClasses: new Set(scope.declaredColorClasses),
@@ -702,12 +734,39 @@ class GraphPlanner {
     const record = existingRecord ?? this.ensureNodeRecord(resolvedName);
     this.applyNodeAccumulatorOps(record, nodePlan.accumulatorOps);
 
+    const mergedOptions = mergeOptionLists([
+      ...localScope.nodeOptionLists,
+      ...(nodePlan.styleOptions ? [nodePlan.styleOptions] : [])
+    ]);
+    this.addNodeToSets(resolvedName, mergedOptions);
+
+    const referencedSetMembers = parsedNode.explicitReference ? this.resolveNodeSetMembers(resolvedName) : null;
+    if (parsedNode.explicitReference && referencedSetMembers && referencedSetMembers.length > 0) {
+      for (const memberName of referencedSetMembers) {
+        const memberRecord = this.ensureNodeRecord(memberName);
+        this.applyNodeAccumulatorOps(memberRecord, nodePlan.accumulatorOps);
+      }
+      const colors = createColorMapFromNodes(referencedSetMembers);
+      applyColorOperationsToNodes(colors, nodePlan.colorOps, referencedSetMembers);
+      const edges = this.buildEdgesForOperators(
+        nodePlan.operators,
+        colors,
+        localScope.defaultOperatorEdgeKind,
+        parsedNode.span,
+        localScope
+      );
+      return {
+        entries: colorNodes(colors, "source"),
+        exits: colorNodes(colors, "target"),
+        edges,
+        colors,
+        logicalWidth: referencedSetMembers.length > 0 ? 1 : 0,
+        logicalDepth: referencedSetMembers.length > 0 ? 1 : 0
+      };
+    }
+
     const shouldCreateFreshNode = this.shouldCreateFreshNode(parsedNode, localScope, existingRecord != null);
     if (shouldCreateFreshNode) {
-      const mergedOptions = mergeOptionLists([
-        ...localScope.nodeOptionLists,
-        ...(nodePlan.styleOptions ? [nodePlan.styleOptions] : [])
-      ]);
       this.ensurePlannedNode(
         record,
         resolvedName,
@@ -796,6 +855,7 @@ class GraphPlanner {
 
     const verticesV = structure.verticesV;
     const verticesW = structure.verticesW;
+    const isBipartiteShoreLayout = spec.macro === "I_nm" || spec.macro === "K_nm";
 
     const vNames = this.createSubgraphNodes(
       verticesV,
@@ -807,19 +867,25 @@ class GraphPlanner {
         logicalDepth: layout.logicalDepth,
         level: layout.level
       },
-      spec.macro === "Grid_n" ? structure.wrapAfter : null
+      spec.macro === "Grid_n" ? structure.wrapAfter : isBipartiteShoreLayout ? 1 : null
     );
     const wNames = this.createSubgraphNodes(
       verticesW,
       localScope,
       spec.span,
       structure.nameShoreW,
-      {
-        logicalWidth: layout.logicalWidth,
-        logicalDepth: layout.logicalDepth + (verticesV.length > 0 ? 1 : 0),
-        level: layout.level
-      },
-      null
+      isBipartiteShoreLayout
+        ? {
+            logicalWidth: layout.logicalWidth + (verticesV.length > 0 ? 1 : 0),
+            logicalDepth: layout.logicalDepth,
+            level: layout.level + (verticesV.length > 0 ? 1 : 0)
+          }
+        : {
+            logicalWidth: layout.logicalWidth,
+            logicalDepth: layout.logicalDepth + (verticesV.length > 0 ? 1 : 0),
+            level: layout.level
+          },
+      isBipartiteShoreLayout ? 1 : null
     );
 
     const colors = createColorMapFromNodes([...vNames, ...wNames]);
@@ -871,8 +937,20 @@ class GraphPlanner {
       exits: colorNodes(colors, "target"),
       edges: this.finalizeGroupEdges(localScope.mode, scope.mode, edges),
       colors,
-      logicalWidth: Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0),
-      logicalDepth: wNames.length > 0 ? 2 : vNames.length > 0 ? 1 : 0
+      logicalWidth:
+        isBipartiteShoreLayout
+          ? vNames.length + wNames.length > 0
+            ? 2
+            : 0
+          : Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0),
+      logicalDepth:
+        isBipartiteShoreLayout
+          ? Math.max(vNames.length, wNames.length, vNames.length + wNames.length > 0 ? 1 : 0)
+          : wNames.length > 0
+            ? 2
+            : vNames.length > 0
+              ? 1
+              : 0
     };
   }
 
@@ -915,13 +993,15 @@ class GraphPlanner {
       const resolvedName = this.resolveDirectNodeName(parsedNode, styledScope);
       const existingRecord = this.nodeRecords.get(resolvedName);
       const record = existingRecord ?? this.ensureNodeRecord(resolvedName);
+      const mergedOptions = mergeOptionLists(styledScope.nodeOptionLists);
+      this.addNodeToSets(resolvedName, mergedOptions);
       const shouldCreateFreshNode = this.shouldCreateFreshNode(parsedNode, styledScope, existingRecord != null);
       if (shouldCreateFreshNode) {
         this.ensurePlannedNode(
           record,
           resolvedName,
-          styledScope.asTextOverride ?? parsedNode.textCandidate,
-          mergeOptionLists(styledScope.nodeOptionLists),
+          this.resolveNodeText(styledScope, parsedNode.textCandidate),
+          mergedOptions,
           span,
           styledScope,
           nodeLayout
@@ -1061,7 +1141,7 @@ class GraphPlanner {
       return {
         scope,
         accumulatorOps,
-        finalNodeText: scope.asTextOverride ?? baseNodeText,
+        finalNodeText: this.resolveNodeText(scope, baseNodeText),
         colorOps,
         operators
       };
@@ -1104,6 +1184,22 @@ class GraphPlanner {
           consumed = true;
         } else if (key === "as") {
           scope.asTextOverride = normalizeGraphText(entry.valueRaw);
+          consumed = true;
+        } else if (key === "empty nodes") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.emptyNodes = enabled;
+          }
+          consumed = true;
+        } else if (key === "math nodes") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.mathNodes = enabled;
+          }
+          consumed = true;
+        } else if (key === "edge label" || key === "edge label'" || key === "edge node") {
+          const parsed = parseOptionListRaw(`[${entry.raw}]`, entry.span.from);
+          scope.edgeOptionLists.push(parsed);
           consumed = true;
         } else if (key === "use existing nodes") {
           const enabled = parseGraphBoolean(entry.valueRaw, true);
@@ -1259,6 +1355,12 @@ class GraphPlanner {
         } else if (key === "use existing nodes") {
           scope.nodeResolution = "existing";
           consumed = true;
+        } else if (key === "empty nodes") {
+          scope.emptyNodes = true;
+          consumed = true;
+        } else if (key === "math nodes") {
+          scope.mathNodes = true;
+          consumed = true;
         } else if (key === "number nodes") {
           scope = applyNumberNodes(scope, undefined);
           consumed = true;
@@ -1324,7 +1426,7 @@ class GraphPlanner {
       scope,
       styleOptions: optionListFromEntries(retainedEntries, options),
       accumulatorOps,
-      finalNodeText: scope.asTextOverride ?? baseNodeText,
+      finalNodeText: this.resolveNodeText(scope, baseNodeText),
       colorOps,
       operators
     };
@@ -1365,6 +1467,24 @@ class GraphPlanner {
         }
         if (key === "as") {
           scope.asTextOverride = normalizeGraphText(entry.valueRaw);
+          continue;
+        }
+        if (key === "empty nodes") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.emptyNodes = enabled;
+          }
+          continue;
+        }
+        if (key === "math nodes") {
+          const enabled = parseGraphBoolean(entry.valueRaw, true);
+          if (enabled != null) {
+            scope.mathNodes = enabled;
+          }
+          continue;
+        }
+        if (key === "edge label" || key === "edge label'" || key === "edge node") {
+          scope.edgeOptionLists.push(parseOptionListRaw(`[${entry.raw}]`, entry.span.from));
           continue;
         }
         if (key === "use existing nodes") {
@@ -1464,6 +1584,14 @@ class GraphPlanner {
           scope.nodeResolution = "existing";
           continue;
         }
+        if (key === "empty nodes") {
+          scope.emptyNodes = true;
+          continue;
+        }
+        if (key === "math nodes") {
+          scope.mathNodes = true;
+          continue;
+        }
         if (key === "number nodes") {
           scope = applyNumberNodes(scope, undefined);
           continue;
@@ -1493,6 +1621,14 @@ class GraphPlanner {
         }
         if (rawToken === "multi") {
           scope.mode = "multi";
+          continue;
+        }
+        if (rawToken === "empty nodes") {
+          scope.emptyNodes = true;
+          continue;
+        }
+        if (rawToken === "math nodes") {
+          scope.mathNodes = true;
           continue;
         }
         if (applyPlacementControlFromFlag(scope, rawToken)) {
@@ -1554,6 +1690,47 @@ class GraphPlanner {
       styleOptions: optionListFromEntries(retainedEntries, options),
       operators
     };
+  }
+
+  private addNodeToSets(nodeName: string, options: OptionListAst | undefined): void {
+    if (!options || nodeName.length === 0) {
+      return;
+    }
+
+    for (const setName of parseGraphSetNames(options)) {
+      let members = this.nodeSets.get(setName);
+      if (!members) {
+        members = new Set<string>();
+        this.nodeSets.set(setName, members);
+      }
+      members.add(nodeName);
+    }
+  }
+
+  private resolveNodeSetMembers(setName: string): string[] | null {
+    const normalizedSetName = normalizeGraphText(setName);
+    if (normalizedSetName.length === 0) {
+      return null;
+    }
+    const members = this.nodeSets.get(normalizedSetName);
+    if (!members || members.size === 0) {
+      return null;
+    }
+    return [...members];
+  }
+
+  private resolveNodeText(scope: GraphScopeState, baseText: string): string {
+    if (scope.emptyNodes) {
+      return "";
+    }
+    const rawText = scope.asTextOverride ?? baseText;
+    if (scope.mathNodes && rawText.length > 0) {
+      const trimmed = rawText.trim();
+      if (!(trimmed.startsWith("$") && trimmed.endsWith("$"))) {
+        return `$${rawText}$`;
+      }
+    }
+    return rawText;
   }
 
   private ensureNodeRecord(name: string): GraphNodeRecord {
@@ -2270,13 +2447,11 @@ function parseDirectionalEdgeShortcut(rawToken: string, span: Span): GraphNodeAc
   }
 
   if (payload.startsWith("\"")) {
-    const quote = readQuotedText(payload, 0);
-    if (!quote) {
+    const quotedNode = parseQuotedEdgeNodePayload(payload);
+    if (!quotedNode) {
       return [];
     }
-    const text = quote.text;
-    const trailingOptions = payload.slice(quote.next).trim();
-    const node = makeGraphEdgeNode(text, trailingOptions, span, true);
+    const node = makeGraphEdgeNode(quotedNode.text, quotedNode.optionsRaw, span, true);
     return [direction === ">" ? { kind: "add-target-node", node } : { kind: "add-source-node", node }];
   }
 
@@ -2353,14 +2528,42 @@ function parseGraphEdgeNodeValue(valueRaw: string, span: Span, defaultAuto: bool
   }
 
   if (working.startsWith("\"")) {
-    const quoted = readQuotedText(working, 0);
-    if (quoted) {
-      const trailingOptions = working.slice(quoted.next).trim();
-      return makeGraphEdgeNode(quoted.text, trailingOptions, span, defaultAuto);
+    const quotedNode = parseQuotedEdgeNodePayload(working);
+    if (quotedNode) {
+      return makeGraphEdgeNode(quotedNode.text, quotedNode.optionsRaw, span, defaultAuto);
     }
   }
 
   return makeGraphEdgeNode(working, "", span, defaultAuto);
+}
+
+function parseQuotedEdgeNodePayload(raw: string): { text: string; optionsRaw: string } | null {
+  const quoted = readQuotedText(raw, 0);
+  if (!quoted) {
+    return null;
+  }
+
+  let trailingOptions = raw.slice(quoted.next).trim();
+  let swap = false;
+  if (trailingOptions.startsWith("'")) {
+    swap = true;
+    trailingOptions = trailingOptions.slice(1).trim();
+  }
+
+  if (trailingOptions.startsWith("{")) {
+    const block = readBalancedSegment(trailingOptions, 0, "{", "}");
+    if (block) {
+      const wrapped = stripWrappingBraces(block.raw).trim();
+      trailingOptions = trailingOptions.slice(block.next).trim();
+      trailingOptions = wrapped.length > 0 ? `${wrapped}${trailingOptions.length > 0 ? `,${trailingOptions}` : ""}` : trailingOptions;
+    }
+  }
+
+  const normalizedOptions = swap ? (trailingOptions.length > 0 ? `swap,${trailingOptions}` : "swap") : trailingOptions;
+  return {
+    text: quoted.text,
+    optionsRaw: normalizedOptions
+  };
 }
 
 function parseGraphValueAsOptionList(valueRaw: string, from: number): OptionListAst | undefined {
@@ -2369,6 +2572,23 @@ function parseGraphValueAsOptionList(valueRaw: string, from: number): OptionList
     return undefined;
   }
   return parseOptionListRaw(`[${normalized}]`, from);
+}
+
+function parseGraphSetNames(options: OptionListAst): string[] {
+  const names: string[] = [];
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || normalizeGraphOptionKey(entry.key) !== "set") {
+      continue;
+    }
+    const parts = splitTopLevel(stripWrappingBraces(entry.valueRaw), [","], 0);
+    for (const part of parts) {
+      const normalized = normalizeGraphText(part.raw);
+      if (normalized.length > 0) {
+        names.push(normalized);
+      }
+    }
+  }
+  return Array.from(new Set(names));
 }
 
 function normalizeGraphOptionKey(raw: string): string {
@@ -2442,7 +2662,7 @@ function parseGraphTextToken(raw: string): { text: string } {
 function canonicalizeQuotedNodeName(raw: string): string {
   let encoded = "";
   for (const character of raw) {
-    if (/^[A-Za-z0-9 ]$/.test(character)) {
+    if (/^[A-Za-z0-9]$/.test(character)) {
       encoded += character;
       continue;
     }
@@ -2685,6 +2905,12 @@ function splitTopLevel(
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
 
     if (char === "{") {
       depthBrace += 1;
@@ -2763,6 +2989,12 @@ function findNextConnector(raw: string, start: number): { operator: ConnectorOpe
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
 
     if (char === "{") {
       depthBrace += 1;
@@ -2830,6 +3062,12 @@ function readBalancedSegment(
     if (inQuote) {
       continue;
     }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
     if (char === open) {
       depth += 1;
       continue;
@@ -2868,6 +3106,12 @@ function findTopLevelChar(raw: string, needle: string): number {
       continue;
     }
     if (inQuote) {
+      continue;
+    }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
       continue;
     }
 
@@ -2953,10 +3197,31 @@ function trimRightIndex(raw: string): number {
   return -1;
 }
 
+function isCommentStart(raw: string, index: number): boolean {
+  if (raw[index] !== "%") {
+    return false;
+  }
+  if (index > 0 && raw[index - 1] === "\\") {
+    return false;
+  }
+  return true;
+}
+
 function skipWhitespace(raw: string, cursor: number): number {
   let index = cursor;
-  while (index < raw.length && /\s/.test(raw[index]!)) {
-    index += 1;
+  while (index < raw.length) {
+    const char = raw[index]!;
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+    if (isCommentStart(raw, index)) {
+      while (index < raw.length && raw[index] !== "\n" && raw[index] !== "\r") {
+        index += 1;
+      }
+      continue;
+    }
+    break;
   }
   return index;
 }

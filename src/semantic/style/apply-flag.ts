@@ -14,7 +14,15 @@ export function applyFlagEntry(
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   const normalizedColorCandidate = normalizeColor(key, { currentColor });
   if (key === "draw") {
-    return { style: { ...style, stroke: style.stroke ?? "black", drawExplicit: true }, transform, diagnostics: [] };
+    return {
+      style: {
+        ...style,
+        stroke: style.stroke ?? style.textColor ?? "black",
+        drawExplicit: true
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "fill") {
     return { style: { ...style, fill: style.fill ?? "black" }, transform, diagnostics: [] };

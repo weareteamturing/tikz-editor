@@ -1151,7 +1151,7 @@ export function evaluatePathStatement(
       "GraphOperation",
       (pathItem) => {
         const item = pathItem as GraphOperationItem;
-        const plan = buildGraphPlan(item);
+        const plan = buildGraphPlan(item, context.namedNodeSets);
         if (plan.diagnostics.length > 0) {
           for (const diagnostic of plan.diagnostics) {
             pushDiagnostic(
@@ -1259,7 +1259,7 @@ export function evaluatePathStatement(
             continue;
           }
 
-          const edgeItem: EdgeOperationItem = {
+          const baseEdgeItem: EdgeOperationItem = {
             kind: "EdgeOperation",
             id: `${item.id}:graph-edge:${edgeIndex}`,
             span: edge.span,
@@ -1273,6 +1273,14 @@ export function evaluatePathStatement(
             },
             raw: `${edge.from} ${edge.operator} ${edge.to}`
           };
+          const edgePlan = extractToLikeOptionPlan(baseEdgeItem);
+          const edgeItem: EdgeOperationItem =
+            edgePlan.generatedNodes.length > 0
+              ? {
+                  ...edgePlan.item,
+                  nodes: [...(edgePlan.item.nodes ?? []), ...edgePlan.generatedNodes]
+                }
+              : edgePlan.item;
 
           const edgeOptionLayers: StyleTraceLayerInput[] = [];
           if (everyEdgeOptions) {

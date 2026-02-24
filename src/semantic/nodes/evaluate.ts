@@ -315,13 +315,18 @@ export function evaluateNodeItem(
     nodeLayout,
     resolvedPositioning.anchorOverride ?? anchor,
     expandedNodeOptions,
-    slopedRotation ?? 0
+    textRotation ?? 0
   );
-  const scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
+  const setNames = collectSetNames(expandedNodeOptions);
+  let scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
+  if (scopedNames.length === 0 && setNames.length > 0) {
+    scopedNames = collectScopedNodeNames(makeGeneratedSetMemberName(item), undefined, context);
+  }
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, textRotation ?? 0);
   }
+  registerNodeSetMembership(scopedNames, setNames, context);
 
   const nodeElements: SceneElement[] = [];
   const pushNodeElement = (element: SceneElement): void => {
@@ -1483,6 +1488,103 @@ function markNodeDecorationFeature(nameRaw: string, status: "supported" | "unsup
   if (name === "shape backgrounds") {
     markFeature("decoration_shape_backgrounds", status);
   }
+}
+
+function registerNodeSetMembership(nodeNames: string[], setNames: string[], context: SemanticContext): void {
+  if (nodeNames.length === 0 || setNames.length === 0) {
+    return;
+  }
+
+  for (const setName of setNames) {
+    let members = context.namedNodeSets.get(setName);
+    if (!members) {
+      members = new Set<string>();
+      context.namedNodeSets.set(setName, members);
+    }
+    for (const nodeName of nodeNames) {
+      members.add(nodeName);
+    }
+  }
+}
+
+function collectSetNames(options: OptionListAst | undefined): string[] {
+  if (!options) {
+    return [];
+  }
+  const names: string[] = [];
+  for (const entry of options.entries) {
+    if (entry.kind !== "kv" || entry.key !== "set") {
+      continue;
+    }
+    const parts = splitTopLevelCommas(entry.valueRaw);
+    for (const part of parts) {
+      const normalized = normalizeOptionValue(part).trim();
+      if (normalized.length > 0) {
+        names.push(normalized);
+      }
+    }
+  }
+  return Array.from(new Set(names));
+}
+
+function splitTopLevelCommas(raw: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  let depthBrace = 0;
+  let depthSquare = 0;
+  let depthParen = 0;
+  let inQuote = false;
+
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index]!;
+    if (char === "\\" && index + 1 < raw.length) {
+      index += 1;
+      continue;
+    }
+    if (char === '"' && raw[index - 1] !== "\\") {
+      inQuote = !inQuote;
+      continue;
+    }
+    if (inQuote) {
+      continue;
+    }
+    if (char === "{") {
+      depthBrace += 1;
+      continue;
+    }
+    if (char === "}") {
+      depthBrace = Math.max(0, depthBrace - 1);
+      continue;
+    }
+    if (char === "[") {
+      depthSquare += 1;
+      continue;
+    }
+    if (char === "]") {
+      depthSquare = Math.max(0, depthSquare - 1);
+      continue;
+    }
+    if (char === "(") {
+      depthParen += 1;
+      continue;
+    }
+    if (char === ")") {
+      depthParen = Math.max(0, depthParen - 1);
+      continue;
+    }
+    if (char === "," && depthBrace === 0 && depthSquare === 0 && depthParen === 0) {
+      parts.push(raw.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(raw.slice(start));
+  return parts;
+}
+
+function makeGeneratedSetMemberName(item: NodeItem): string {
+  const from = Math.max(0, item.span.from);
+  const to = Math.max(0, item.span.to);
+  return `graph_set_node_${from}_${to}`;
 }
 
 export {

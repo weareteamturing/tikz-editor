@@ -137,6 +137,7 @@ export type SemanticContext = {
   source: string;
   sourceFingerprint: string;
   namedCoordinates: Map<string, Point>;
+  namedNodeSets: Map<string, Set<string>>;
   namedCoordinateRewriteHandles: Map<string, string>;
   namedNodeGeometries: Map<string, NamedNodeGeometry>;
   namedPaths: Map<string, SceneElement[]>;
@@ -236,6 +237,7 @@ export function createSemanticContext(
     source,
     sourceFingerprint: computeSourceFingerprint(source),
     namedCoordinates: new Map<string, Point>(),
+    namedNodeSets: new Map<string, Set<string>>(),
     namedCoordinateRewriteHandles: new Map<string, string>(),
     namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
     namedPaths: new Map<string, SceneElement[]>(),

@@ -178,6 +178,17 @@ function intersectNodeBorder(
     return null;
   }
 
+  if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
+    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
+    if (!border) {
+      return null;
+    }
+    return {
+      x: geometry.center.x + border.x,
+      y: geometry.center.y + border.y
+    };
+  }
+
   if (geometry.shape === "circle") {
     const radius = geometry.anchorRadius;
     if (!Number.isFinite(radius) || radius <= 1e-9) {
@@ -216,17 +227,6 @@ function intersectNodeBorder(
     return {
       x: geometry.center.x + dx * scale,
       y: geometry.center.y + dy * scale
-    };
-  }
-
-  if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {
-    const border = intersectRayWithPolygon({ x: 0, y: 0 }, { x: dx, y: dy }, geometry.anchorPolygon);
-    if (!border) {
-      return null;
-    }
-    return {
-      x: geometry.center.x + border.x,
-      y: geometry.center.y + border.y
     };
   }
 

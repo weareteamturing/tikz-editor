@@ -1012,10 +1012,28 @@ export function registerNamedNodeAnchors(
   center: Point,
   shape: NodeShape,
   layout: NodeLayout,
-  options: OptionListAst | undefined = undefined
+  options: OptionListAst | undefined = undefined,
+  nodeRotation = 0
 ): void {
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
-  const anchorPolygon = resolveAnchorPolygon(shape, layout, shapeGeometry);
+  let anchorPolygon = resolveAnchorPolygon(shape, layout, shapeGeometry);
+  if (!anchorPolygon && Math.abs(nodeRotation) > 1e-6) {
+    if (shape === "rectangle") {
+      anchorPolygon = [
+        { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+        { x: layout.anchorHalfWidth, y: layout.anchorHalfHeight },
+        { x: layout.anchorHalfWidth, y: -layout.anchorHalfHeight },
+        { x: -layout.anchorHalfWidth, y: -layout.anchorHalfHeight }
+      ];
+    } else if (shape === "circle") {
+      anchorPolygon = makeEllipseAnchorPolygon(layout.anchorRadius, layout.anchorRadius);
+    } else if (shape === "ellipse") {
+      anchorPolygon = makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
+    }
+  }
+  if (anchorPolygon && Math.abs(nodeRotation) > 1e-6) {
+    anchorPolygon = anchorPolygon.map((point) => rotatePoint(point, nodeRotation));
+  }
 
   context.namedNodeGeometries.set(name, {
     shape,
@@ -1221,9 +1239,10 @@ export function registerNamedNodeAnchors(
   }
 
   for (const [anchor, offset] of Object.entries(offsets)) {
+    const rotatedOffset = Math.abs(nodeRotation) > 1e-6 ? rotatePoint(offset, nodeRotation) : offset;
     const point = {
-      x: center.x + offset.x,
-      y: center.y + offset.y
+      x: center.x + rotatedOffset.x,
+      y: center.y + rotatedOffset.y
     };
     if (anchor === "center") {
       context.namedCoordinates.set(name, point);

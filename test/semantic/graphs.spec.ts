@@ -434,4 +434,133 @@ describe("semantic evaluator / graph operations", () => {
 
     expect(longDx).toBeGreaterThan(shortDx + 20);
   });
+
+  it("resolves quoted graph names with spaces when connecting edges", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [grow right=2cm] {
+    "Hi, World!" -> "It's \emph{important}!"[red,rotate=-45];
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "graph-edge-without-start")).toBe(false);
+    const paths = elementsOfKind(result.scene.elements, "Path");
+    expect(paths.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps graph edge direction stable for rotated target nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [grow right=2cm] {
+    "Hi, World!" -> "It's \emph{important}!"[red,rotate=-45];
+    "name"/actual text -> "It's \emph{important}!";
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const segments = elementsOfKind(result.scene.elements, "Path")
+      .map((path) => {
+        const first = path.commands[0];
+        const second = path.commands[1];
+        if (!first || !second || first.kind !== "M" || second.kind !== "L") {
+          return null;
+        }
+        return { start: first.to, end: second.to };
+      })
+      .filter((segment): segment is { start: { x: number; y: number }; end: { x: number; y: number } } => segment != null);
+
+    const horizontalTopEdge = segments.find(
+      (segment) => Math.abs(segment.start.y - segment.end.y) < 1e-6 && Math.abs(segment.start.y) < 1e-6
+    );
+    expect(horizontalTopEdge).toBeDefined();
+    if (!horizontalTopEdge) {
+      return;
+    }
+    expect(horizontalTopEdge.end.x).toBeGreaterThan(horizontalTopEdge.start.x);
+  });
+
+  it("supports set references like (set name) in graph terms", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [set=red] (r1) at (0,0) {r1};
+  \node [set=red] (r2) at (1,0) {r2};
+  \node [set=green] (g1) at (0,1) {g1};
+  \node [set=green] (g2) at (1,1) {g2};
+  \graph { root -> (red) ->[complete bipartite] (green) };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "graph-edge-without-start")).toBe(false);
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:red")).toBe(false);
+    expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("materializes connector quote labels and edge-label keys in graph edges", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph [edge label=x] {
+    a ->[red, "foo"] b --[thick, "bar"] {c, d};
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").map((text) => text.text);
+
+    expect(labels).toContain("foo");
+    expect(labels).toContain("bar");
+    expect(labels.filter((text) => text === "x").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("handles apostrophe swap in directional graph edge label shortcuts", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph { a -> b -- {c [> "foo"], d [> "bar"']} };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+    const labels = elementsOfKind(result.scene.elements, "Text").filter((text) => text.text === "foo" || text.text === "bar");
+    expect(labels).toHaveLength(2);
+    const foo = labels.find((label) => label.text === "foo");
+    const bar = labels.find((label) => label.text === "bar");
+    expect(foo).toBeDefined();
+    expect(bar).toBeDefined();
+    if (!foo || !bar) {
+      return;
+    }
+
+    expect(Math.abs(foo.position.y - bar.position.y)).toBeGreaterThan(10);
+  });
+
+  it("ignores comments inside graph groups and preserves local node options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \graph {
+    a -> { [nodes=red] % the option is local to these nodes:
+      b, c
+    } ->
+    d
+  };
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-polar-coordinate:(% the option is local to these nodes:\n      b)")).toBe(
+      false
+    );
+    const labels = elementsOfKind(result.scene.elements, "Text");
+    const b = labels.find((text) => text.text === "b");
+    const c = labels.find((text) => text.text === "c");
+    expect(b?.style.textColor).toBe("#ff0000");
+    expect(c?.style.textColor).toBe("#ff0000");
+    expect(elementsOfKind(result.scene.elements, "Path").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("supports empty nodes and math nodes controls", () => {
+    const emptySource = String.raw`\begin{tikzpicture}
+  \graph [empty nodes, nodes={circle, draw}] { a -> {b, c} };
+\end{tikzpicture}`;
+    const emptyResult = evaluateSemantic(emptySource);
+    const emptyTexts = elementsOfKind(emptyResult.scene.elements, "Text").map((text) => text.text);
+    expect(emptyTexts.length).toBe(0);
+    expect(elementsOfKind(emptyResult.scene.elements, "Circle").length).toBeGreaterThanOrEqual(3);
+
+    const mathSource = String.raw`\begin{tikzpicture}
+  \graph [math nodes, nodes={circle, draw}] { a_1 -> {b^2, c_3^n} };
+\end{tikzpicture}`;
+    const mathResult = evaluateSemantic(mathSource);
+    const mathTexts = elementsOfKind(mathResult.scene.elements, "Text").map((text) => text.text);
+    expect(mathTexts).toContain("$a_1$");
+    expect(mathTexts).toContain("$b^2$");
+    expect(mathTexts).toContain("$c_3^n$");
+  });
 });
