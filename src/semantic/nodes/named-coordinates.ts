@@ -1,6 +1,10 @@
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import type { CoordinateItem, PathItem } from "../../ast/types.js";
-import type { NamedNodeGeometry, SemanticContext } from "../context.js";
+import {
+  readNamedNodeGeometry,
+  type NamedNodeGeometry,
+  type SemanticContext
+} from "../context.js";
 import type { Point } from "../types.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
 
@@ -159,7 +163,7 @@ function resolveNamedNodeGeometry(rawName: string, context: SemanticContext): Na
   const scoped = applyNameScope(rawName, context);
   const candidates = scoped === rawName ? [rawName] : [scoped, rawName];
   for (const candidate of candidates) {
-    const geometry = context.namedNodeGeometries.get(candidate);
+    const geometry = readNamedNodeGeometry(context, candidate);
     if (geometry) {
       return geometry;
     }

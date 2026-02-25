@@ -1,7 +1,13 @@
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
-import { currentFrame, type SemanticContext } from "../context.js";
+import {
+  appendNamedPathElements,
+  currentFrame,
+  readNamedPath,
+  type SemanticContext,
+  writeNamedCoordinate
+} from "../context.js";
 import { applyNameScope } from "../nodes/named-coordinates.js";
 import type { Point, SceneElement, SceneEllipse, ScenePath } from "../types.js";
 
@@ -108,7 +114,7 @@ export function applyNameIntersectionsDirective(directive: NameIntersectionsDire
   for (let i = 0; i < intersections.length; i += 1) {
     const point = intersections[i].point;
     const generatedName = `${directive.prefix}-${i + 1}`;
-    context.namedCoordinates.set(applyNameScope(generatedName, context), point);
+    writeNamedCoordinate(context, applyNameScope(generatedName, context), point);
   }
 
   for (let i = 0; i < directive.byNames.length && i < intersections.length; i += 1) {
@@ -116,7 +122,7 @@ export function applyNameIntersectionsDirective(directive: NameIntersectionsDire
     if (alias.length === 0) {
       continue;
     }
-    context.namedCoordinates.set(applyNameScope(alias, context), intersections[i].point);
+    writeNamedCoordinate(context, applyNameScope(alias, context), intersections[i].point);
   }
 
   if (directive.totalMacro) {
@@ -134,8 +140,8 @@ export function registerNamedPath(pathName: string, elements: SceneElement[], co
 
   const scopedName = applyNameScope(normalizedName, context);
   const geometryElements = elements.filter(isGeometricElement);
-  const existing = context.namedPaths.get(scopedName) ?? [];
-  context.namedPaths.set(scopedName, [...existing, ...geometryElements]);
+  const producerSourceIds = new Set(geometryElements.map((element) => element.sourceId));
+  appendNamedPathElements(context, scopedName, geometryElements, producerSourceIds);
   return true;
 }
 
@@ -375,7 +381,7 @@ function resolveNamedPath(rawName: string, context: SemanticContext): { name: st
   const scoped = applyNameScope(normalized, context);
   const candidates = scoped === normalized ? [normalized] : [scoped, normalized];
   for (const candidate of candidates) {
-    const elements = context.namedPaths.get(candidate);
+    const elements = readNamedPath(context, candidate);
     if (elements) {
       return { name: candidate, elements };
     }

@@ -15,7 +15,12 @@ import { parseTikz } from "../../parser/index.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { MacroBinding } from "../../macros/index.js";
 import { expandForeachList } from "../../foreach/list.js";
-import type { SemanticContext } from "../context.js";
+import {
+  readNamedCoordinate,
+  withDependencySource,
+  writeNamedCoordinate,
+  type SemanticContext
+} from "../context.js";
 import {
   applyNameScope,
   evaluateNodeItem,
@@ -546,7 +551,7 @@ export function evaluatePathStatement(
     }
     for (const pending of pendingSegmentPlacements) {
       const point = pointAtPlacementSegment(segment, pending.fraction);
-      context.namedCoordinates.set(applyNameScope(pending.name, context), point);
+      writeNamedCoordinate(context, applyNameScope(pending.name, context), point);
     }
     pendingSegmentPlacements = [];
   };
@@ -1213,8 +1218,12 @@ export function evaluatePathStatement(
 
         for (let nodeIndex = 0; nodeIndex < plan.nodes.length; nodeIndex += 1) {
           const node = plan.nodes[nodeIndex]!;
-          const scoped = applyNameScope(node.name, context);
-          if (context.namedCoordinates.has(scoped) || context.namedCoordinates.has(node.name)) {
+          const existingNodeCoordinate = withDependencySource(context, graphStatement.id, () => {
+            const scoped = applyNameScope(node.name, context);
+            const scopedMatch = readNamedCoordinate(context, scoped);
+            return scopedMatch ? scopedMatch : readNamedCoordinate(context, node.name);
+          });
+          if (existingNodeCoordinate) {
             continue;
           }
 
@@ -1242,18 +1251,20 @@ export function evaluatePathStatement(
         const sizeAwarePoints = resolveSizeAwareGraphNodePoints(runtimeGraphNodes, graphStatement, context, style);
         for (const runtimeNode of runtimeGraphNodes) {
           const defaultPoint = sizeAwarePoints.get(runtimeNode.nodeIndex) ?? runtimeNode.defaultPoint;
-          const evaluatedNode = evaluateNodeItem(
-            runtimeNode.syntheticNode,
-            graphStatement,
-            context,
-            style,
-            markFeature,
-            pushDiagnostic,
-            null,
-            undefined,
-            undefined,
-            defaultPoint,
-            statementStyleChain
+          const evaluatedNode = withDependencySource(context, graphStatement.id, () =>
+            evaluateNodeItem(
+              runtimeNode.syntheticNode,
+              graphStatement,
+              context,
+              style,
+              markFeature,
+              pushDiagnostic,
+              null,
+              undefined,
+              undefined,
+              defaultPoint,
+              statementStyleChain
+            )
           );
           plannedBehindNodeElements.push(...evaluatedNode.behindElements);
           plannedFrontNodeElements.push(...evaluatedNode.frontElements);
@@ -1279,7 +1290,9 @@ export function evaluatePathStatement(
                   text: node.text
                 }))
               : undefined;
-          const startEvaluation = evaluateRawCoordinate(startCoordinateRaw, context);
+          const startEvaluation = withDependencySource(context, graphStatement.id, () =>
+            evaluateRawCoordinate(startCoordinateRaw, context)
+          );
           for (const code of startEvaluation.diagnostics) {
             pushDiagnostic(code, `Graph edge start issue: ${code}`, edge.span.from, edge.span.to);
           }
@@ -1354,13 +1367,15 @@ export function evaluatePathStatement(
             });
           }
 
-          const resolvedEdgeStyle = resolveContextDelta(
-            style,
-            frameTransform,
-            edgeOptionLayers,
-            frame.customStyles,
-            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            statementStyleChain
+          const resolvedEdgeStyle = withDependencySource(context, graphStatement.id, () =>
+            resolveContextDelta(
+              style,
+              frameTransform,
+              edgeOptionLayers,
+              frame.customStyles,
+              (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
+              statementStyleChain
+            )
           );
           for (const code of resolvedEdgeStyle.diagnostics) {
             if (code === "unsupported-option-flag:every edge") {
@@ -1369,16 +1384,18 @@ export function evaluatePathStatement(
             pushDiagnostic(code, `Graph edge option issue: ${code}`, edge.span.from, edge.span.to);
           }
 
-          const handled = applyEdgeOperation(
-            edgeItem,
-            context,
-            graphStatement,
-            resolvedEdgeStyle.style,
-            resolvedEdgeStyle.chain,
-            markFeature,
-            pushDiagnostic,
-            startEvaluation.world,
-            startCoordinateRaw
+          const handled = withDependencySource(context, graphStatement.id, () =>
+            applyEdgeOperation(
+              edgeItem,
+              context,
+              graphStatement,
+              resolvedEdgeStyle.style,
+              resolvedEdgeStyle.chain,
+              markFeature,
+              pushDiagnostic,
+              startEvaluation.world,
+              startCoordinateRaw
+            )
           );
           if (handled.activePath && hasDrawablePathSegments(handled.activePath)) {
             edgeElements.push(...handled.behindNodeElements, handled.activePath, ...handled.frontNodeElements);
@@ -1560,8 +1577,8 @@ export function evaluatePathStatement(
         if (treeParentNameCandidate && treeParentNameCandidate.trim().length > 0) {
           const scopedTreeParentName = applyNameScope(treeParentNameCandidate, context);
           const treeParentPoint: Point | undefined =
-            context.namedCoordinates.get(scopedTreeParentName) ??
-            context.namedCoordinates.get(treeParentNameCandidate) ??
+            readNamedCoordinate(context, scopedTreeParentName) ??
+            readNamedCoordinate(context, treeParentNameCandidate) ??
             existingTreeParent?.point;
           if (treeParentPoint) {
             treeParentCandidate = {
@@ -1789,7 +1806,9 @@ export function evaluatePathStatement(
           if (nestedStatement.kind !== "Path") {
             continue;
           }
-          const nestedElements = evaluatePathStatement(nestedStatement, context, operationStyle, markFeature, pushDiagnostic);
+          const nestedElements = withDependencySource(context, nestedStatement.id, () =>
+            evaluatePathStatement(nestedStatement, context, operationStyle, markFeature, pushDiagnostic)
+          );
           geometryElements.push(...nestedElements);
         }
       }
@@ -1821,7 +1840,7 @@ export function evaluatePathStatement(
               ? pointAtPlacementSegment(lastPlacementSegment, placementFraction)
               : currentPointLogical ?? context.currentPoint;
           if (capturePoint) {
-            context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
+            writeNamedCoordinate(context, applyNameScope(parsedName, context), capturePoint);
           } else {
             pushDiagnostic(
               "invalid-coordinate-operation",
@@ -2241,7 +2260,7 @@ export function evaluatePathStatement(
             pendingNamedCoordinate = { name: rawName };
           } else {
             const fallbackPoint = hasPathCurrentPoint ? (currentPointLogical ?? context.currentPoint ?? defaultPathOrigin) : defaultPathOrigin;
-            context.namedCoordinates.set(applyNameScope(rawName, context), fallbackPoint);
+            writeNamedCoordinate(context, applyNameScope(rawName, context), fallbackPoint);
             if (!context.currentPoint) {
               setCurrentPoint(fallbackPoint, fallbackPoint, {
                 form: item.form,
@@ -2284,7 +2303,7 @@ export function evaluatePathStatement(
 
       if (pendingNamedCoordinate) {
         const scopedName = applyNameScope(pendingNamedCoordinate.name, context);
-        context.namedCoordinates.set(scopedName, evaluated.world);
+        writeNamedCoordinate(context, scopedName, evaluated.world);
         if (handle && handle.rewriteMode !== "unsupported" && !handle.rewriteTargetHandleId) {
           context.namedCoordinateRewriteHandles.set(scopedName, handle.id);
         }
@@ -2365,7 +2384,7 @@ export function evaluatePathStatement(
       const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.world;
       if (!hasOperatorSegment && pendingSegmentPlacements.length > 0) {
         for (const pending of pendingSegmentPlacements) {
-          context.namedCoordinates.set(applyNameScope(pending.name, context), evaluated.world);
+          writeNamedCoordinate(context, applyNameScope(pending.name, context), evaluated.world);
         }
         pendingSegmentPlacements = [];
       }
@@ -3107,12 +3126,14 @@ export function evaluatePathStatement(
             options: undefined,
             items: splitBody.body
           };
-          const childElements = evaluatePathStatement(childStatement, context, resolvedChildStyle.style, markFeature, pushDiagnostic, {
-            honorInitialCurrentPoint: true
-          });
+          const childElements = withDependencySource(context, childStatement.id, () =>
+            evaluatePathStatement(childStatement, context, resolvedChildStyle.style, markFeature, pushDiagnostic, {
+              honorInitialCurrentPoint: true
+            })
+          );
           frontNodeElements.push(...childElements);
 
-          const childRootPoint = context.namedCoordinates.get(scopedChildRootName) ?? childOrigin;
+          const childRootPoint = readNamedCoordinate(context, scopedChildRootName) ?? childOrigin;
           const parentAnchorPoint =
             treeParentCandidate.nameRaw && treeParentCandidate.nameRaw.trim().length > 0
               ? resolveNamedTreeAnchorPoint(
@@ -3236,7 +3257,7 @@ export function evaluatePathStatement(
             const capturePoint = handledEdge.segment
               ? pointAtPlacementSegment(handledEdge.segment, placementFraction)
               : childAnchorPoint;
-            context.namedCoordinates.set(applyNameScope(parsedName, context), capturePoint);
+            writeNamedCoordinate(context, applyNameScope(parsedName, context), capturePoint);
             markFeature("named_coordinates", "supported");
           }
         } finally {

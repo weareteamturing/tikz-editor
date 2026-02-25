@@ -26,6 +26,11 @@
 4. Path semantics for `--`, `-|`, `|-`, `cycle`, `rectangle`, `circle`.
 5. Scene provenance metadata (`origin.foreachStack`) that links expanded instances back to loop bindings.
 6. Unsupported-feature diagnostics for still-partial slices (`to`, `svg`, `let`, some advanced keywords).
+7. Geometry dependency graph output on every semantic evaluation (`EvaluateTikzResult.dependencies`).
+8. Source/resource dependency modeling with producer edges (`source -> resource`) and consumer edges (`resource -> source`) for named coordinates, named node geometry, and named paths.
+9. Local opaque fallback boundaries on source nodes (currently foreach/macro-origin): invalidation traversal includes opaque nodes, records them, and stops past that boundary.
+
+Dependency traversal is exposed via `collectGeometryInvalidation` (`/Users/dominik/GitHub/tikz-editor/src/semantic/dependencies.ts`), which computes transitive geometry impact from changed `sourceId`s.
 
 Internal units use `pt` and y-up geometry; y inversion happens only in SVG emission.
 

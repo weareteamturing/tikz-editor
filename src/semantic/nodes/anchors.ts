@@ -1,5 +1,9 @@
 import type { OptionListAst } from "../../options/types.js";
-import type { SemanticContext } from "../context.js";
+import {
+  writeNamedCoordinate,
+  writeNamedNodeGeometry,
+  type SemanticContext
+} from "../context.js";
 import type { Point } from "../types.js";
 import {
   makeCircularSector,
@@ -1013,7 +1017,8 @@ export function registerNamedNodeAnchors(
   shape: NodeShape,
   layout: NodeLayout,
   options: OptionListAst | undefined = undefined,
-  nodeRotation = 0
+  nodeRotation = 0,
+  producerSourceId?: string
 ): void {
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
   let anchorPolygon = resolveAnchorPolygon(shape, layout, shapeGeometry);
@@ -1035,20 +1040,25 @@ export function registerNamedNodeAnchors(
     anchorPolygon = anchorPolygon.map((point) => rotatePoint(point, nodeRotation));
   }
 
-  context.namedNodeGeometries.set(name, {
-    shape,
-    center,
-    anchorHalfWidth: layout.anchorHalfWidth,
-    anchorHalfHeight: layout.anchorHalfHeight,
-    anchorRadius: layout.anchorRadius,
-    diamondAspect: shapeGeometry.diamondAspect,
-    trapeziumLeftAngle: shapeGeometry.trapeziumLeftAngle,
-    trapeziumRightAngle: shapeGeometry.trapeziumRightAngle,
-    shapeBorderRotate: shapeGeometry.shapeBorderRotate,
-    trapeziumStretches: shapeGeometry.trapeziumStretches,
-    trapeziumStretchesBody: shapeGeometry.trapeziumStretchesBody,
-    anchorPolygon
-  });
+  writeNamedNodeGeometry(
+    context,
+    name,
+    {
+      shape,
+      center,
+      anchorHalfWidth: layout.anchorHalfWidth,
+      anchorHalfHeight: layout.anchorHalfHeight,
+      anchorRadius: layout.anchorRadius,
+      diamondAspect: shapeGeometry.diamondAspect,
+      trapeziumLeftAngle: shapeGeometry.trapeziumLeftAngle,
+      trapeziumRightAngle: shapeGeometry.trapeziumRightAngle,
+      shapeBorderRotate: shapeGeometry.shapeBorderRotate,
+      trapeziumStretches: shapeGeometry.trapeziumStretches,
+      trapeziumStretchesBody: shapeGeometry.trapeziumStretchesBody,
+      anchorPolygon
+    },
+    producerSourceId
+  );
 
   const offsets: Record<string, Point> = {
     center: nodeAnchorOffset(shape, layout, "center", options),
@@ -1245,8 +1255,8 @@ export function registerNamedNodeAnchors(
       y: center.y + rotatedOffset.y
     };
     if (anchor === "center") {
-      context.namedCoordinates.set(name, point);
+      writeNamedCoordinate(context, name, point, producerSourceId);
     }
-    context.namedCoordinates.set(`${name}.${anchor}`, point);
+    writeNamedCoordinate(context, `${name}.${anchor}`, point, producerSourceId);
   }
 }

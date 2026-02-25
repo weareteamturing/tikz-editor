@@ -353,7 +353,7 @@ export function evaluateNodeItem(
   }
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, textRotation ?? 0);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, textRotation ?? 0, statement.id);
   }
   registerNodeSetMembership(scopedNames, setNames, context);
 

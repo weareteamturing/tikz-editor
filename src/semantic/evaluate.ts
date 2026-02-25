@@ -28,12 +28,15 @@ import type { OptionListAst } from "../options/types.js";
 import {
   createSemanticContext,
   currentFrame,
+  markDependencyOpaque,
   popFrame,
   pushFrame,
+  withDependencySource,
   type ProvenanceOptionList,
   type NodeDistanceSpec,
   type NodeQuotesMode
 } from "./context.js";
+import type { SemanticDependencyGraph } from "./dependencies.js";
 import { evaluateRawCoordinate } from "./coords/evaluate.js";
 import { parseLength } from "./coords/parse-length.js";
 import { evaluatePathStatement } from "./path/evaluate.js";
@@ -63,6 +66,7 @@ export type EvaluateTikzResult = {
   diagnostics: Diagnostic[];
   featureUsage: FeatureUsage;
   editHandles: EditHandle[];
+  dependencies: SemanticDependencyGraph;
 };
 
 export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
@@ -183,7 +187,9 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
   const statementMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
   for (const statement of expanded.figureBody) {
     const statementHandleStart = context.editHandles.length;
-    const statementElements = evaluateStatement(statement, context, diagnostics, featureUsage, statementMacroAttribution);
+    const statementElements = withDependencySource(context, statement.id, () =>
+      evaluateStatement(statement, context, diagnostics, featureUsage, statementMacroAttribution)
+    );
     const attributedElements = applyForeachAttributionToElements(
       statement,
       statementElements,
@@ -199,6 +205,8 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
     popFrame(context);
   }
 
+  markOpaqueDependencySources(elements, context);
+
   return {
     scene: {
       kind: "SceneFigure",
@@ -208,8 +216,42 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
     },
     diagnostics,
     featureUsage,
-    editHandles: context.editHandles
+    editHandles: context.editHandles,
+    dependencies: context.dependencyBuilder.build()
   };
+}
+
+function markOpaqueDependencySources(
+  elements: SceneElement[],
+  context: ReturnType<typeof createSemanticContext>
+): void {
+  const reasonsBySource = new Map<string, Set<"foreach-origin" | "macro-origin">>();
+
+  for (const element of elements) {
+    const origin = element.origin;
+    if (!origin) {
+      continue;
+    }
+
+    let reasons = reasonsBySource.get(element.sourceId);
+    if (!reasons) {
+      reasons = new Set();
+      reasonsBySource.set(element.sourceId, reasons);
+    }
+
+    if (origin.foreachStack.length > 0) {
+      reasons.add("foreach-origin");
+    }
+    if (origin.macroStack && origin.macroStack.length > 0) {
+      reasons.add("macro-origin");
+    }
+  }
+
+  for (const [sourceId, reasons] of reasonsBySource) {
+    for (const reason of reasons) {
+      markDependencyOpaque(context, sourceId, reason);
+    }
+  }
 }
 
 function evaluateStatement(

@@ -1,7 +1,13 @@
 import type { EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { NamedNodeGeometry, NodeQuotesMode, SemanticContext } from "../context.js";
+import {
+  readNamedCoordinate,
+  readNamedNodeGeometry,
+  type NamedNodeGeometry,
+  type NodeQuotesMode,
+  type SemanticContext
+} from "../context.js";
 import { parseLength } from "../coords/parse-length.js";
 import { applyNameScope } from "../nodes/named-coordinates.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
@@ -825,7 +831,7 @@ function resolveNamedPoint(nameRaw: string, context: SemanticContext): Point | n
   const scoped = applyNameScope(nameRaw, context);
   const candidates = scoped === nameRaw ? [nameRaw] : [scoped, nameRaw];
   for (const candidate of candidates) {
-    const point = context.namedCoordinates.get(candidate);
+    const point = readNamedCoordinate(context, candidate);
     if (point) {
       return point;
     }
@@ -837,7 +843,7 @@ function resolveNamedGeometry(nameRaw: string, context: SemanticContext): NamedN
   const scoped = applyNameScope(nameRaw, context);
   const candidates = scoped === nameRaw ? [nameRaw] : [scoped, nameRaw];
   for (const candidate of candidates) {
-    const geometry = context.namedNodeGeometries.get(candidate);
+    const geometry = readNamedNodeGeometry(context, candidate);
     if (geometry) {
       return geometry;
     }

@@ -7,6 +7,11 @@ import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import type { StyleChainEntry, StyleSourceRef } from "./style-chain.js";
 import { cloneResolvedStyle } from "./style-chain.js";
+import {
+  SemanticDependencyGraphBuilder,
+  type SemanticDependencyOpaqueReason,
+  type SemanticDependencyResourceKind
+} from "./dependencies.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -146,6 +151,8 @@ export type SemanticContext = {
   textEngine: NodeTextEngine | null;
   macroTraceCollector: MacroExpansionTraceEvent[] | null;
   editHandles: EditHandle[];
+  dependencyBuilder: SemanticDependencyGraphBuilder;
+  dependencyActiveSourceId: string | null;
 };
 
 export function createSemanticContext(
@@ -245,7 +252,9 @@ export function createSemanticContext(
     pathStartPoint: null,
     textEngine,
     macroTraceCollector: null,
-    editHandles: []
+    editHandles: [],
+    dependencyBuilder: new SemanticDependencyGraphBuilder(),
+    dependencyActiveSourceId: null
   };
 }
 
@@ -261,4 +270,122 @@ export function popFrame(context: SemanticContext): void {
   if (context.stack.length > 1) {
     context.stack.pop();
   }
+}
+
+export function withDependencySource<T>(
+  context: SemanticContext,
+  sourceId: string,
+  fn: () => T
+): T {
+  const previous = context.dependencyActiveSourceId;
+  context.dependencyBuilder.ensureSourceNode(sourceId);
+  context.dependencyActiveSourceId = sourceId;
+  try {
+    return fn();
+  } finally {
+    context.dependencyActiveSourceId = previous;
+  }
+}
+
+export function recordDependencyProducer(
+  context: SemanticContext,
+  resourceKind: SemanticDependencyResourceKind,
+  resourceKey: string,
+  explicitSourceId?: string
+): void {
+  const sourceId = explicitSourceId ?? context.dependencyActiveSourceId;
+  if (!sourceId) {
+    return;
+  }
+  context.dependencyBuilder.addProducer(sourceId, resourceKind, resourceKey);
+}
+
+export function recordDependencyConsumer(
+  context: SemanticContext,
+  resourceKind: SemanticDependencyResourceKind,
+  resourceKey: string,
+  explicitSourceId?: string
+): void {
+  const sourceId = explicitSourceId ?? context.dependencyActiveSourceId;
+  if (!sourceId) {
+    return;
+  }
+  context.dependencyBuilder.addConsumer(sourceId, resourceKind, resourceKey);
+}
+
+export function markDependencyOpaque(
+  context: SemanticContext,
+  sourceId: string,
+  reason: SemanticDependencyOpaqueReason
+): void {
+  context.dependencyBuilder.markSourceOpaque(sourceId, reason);
+}
+
+export function writeNamedCoordinate(
+  context: SemanticContext,
+  name: string,
+  point: Point,
+  explicitSourceId?: string
+): void {
+  context.namedCoordinates.set(name, point);
+  recordDependencyProducer(context, "named-coordinate", name, explicitSourceId);
+}
+
+export function readNamedCoordinate(
+  context: SemanticContext,
+  name: string,
+  explicitSourceId?: string
+): Point | undefined {
+  const point = context.namedCoordinates.get(name);
+  if (point != null) {
+    recordDependencyConsumer(context, "named-coordinate", name, explicitSourceId);
+  }
+  return point;
+}
+
+export function writeNamedNodeGeometry(
+  context: SemanticContext,
+  name: string,
+  geometry: NamedNodeGeometry,
+  explicitSourceId?: string
+): void {
+  context.namedNodeGeometries.set(name, geometry);
+  recordDependencyProducer(context, "named-node-geometry", name, explicitSourceId);
+}
+
+export function readNamedNodeGeometry(
+  context: SemanticContext,
+  name: string,
+  explicitSourceId?: string
+): NamedNodeGeometry | undefined {
+  const geometry = context.namedNodeGeometries.get(name);
+  if (geometry != null) {
+    recordDependencyConsumer(context, "named-node-geometry", name, explicitSourceId);
+  }
+  return geometry;
+}
+
+export function appendNamedPathElements(
+  context: SemanticContext,
+  name: string,
+  elements: SceneElement[],
+  producerSourceIds: Iterable<string>
+): void {
+  const existing = context.namedPaths.get(name) ?? [];
+  context.namedPaths.set(name, [...existing, ...elements]);
+  for (const sourceId of producerSourceIds) {
+    context.dependencyBuilder.addProducer(sourceId, "named-path", name);
+  }
+}
+
+export function readNamedPath(
+  context: SemanticContext,
+  name: string,
+  explicitSourceId?: string
+): SceneElement[] | undefined {
+  const elements = context.namedPaths.get(name);
+  if (elements != null) {
+    recordDependencyConsumer(context, "named-path", name, explicitSourceId);
+  }
+  return elements;
 }

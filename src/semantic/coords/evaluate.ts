@@ -2,7 +2,12 @@ import type { CoordinateForm, CoordinateItem } from "../../ast/types.js";
 import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings, type MacroBinding } from "../../macros/index.js";
-import type { NamedNodeGeometry, SemanticContext } from "../context.js";
+import {
+  readNamedCoordinate,
+  readNamedNodeGeometry,
+  type NamedNodeGeometry,
+  type SemanticContext
+} from "../context.js";
 import type { Matrix2D, Point } from "../types.js";
 import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
@@ -62,7 +67,7 @@ export function evaluateCoordinate(item: CoordinateItem, context: SemanticContex
     }
 
     const candidates = scopedNameCandidates(rawName, frame.namePrefix, frame.nameSuffix);
-    const named = candidates.map((candidate) => context.namedCoordinates.get(candidate)).find((candidate) => candidate != null) ?? null;
+    const named = candidates.map((candidate) => readNamedCoordinate(context, candidate)).find((candidate) => candidate != null) ?? null;
     if (named) {
       return {
         world: named,
@@ -352,7 +357,7 @@ function tryResolveNumericNodeAnchor(
 
   const geometry =
     scopedNameCandidates(parsed.baseName, prefix, suffix)
-      .map((candidate) => context.namedNodeGeometries.get(candidate))
+      .map((candidate) => readNamedNodeGeometry(context, candidate))
       .find((candidate): candidate is NamedNodeGeometry => candidate != null) ?? null;
   if (!geometry) {
     return null;
