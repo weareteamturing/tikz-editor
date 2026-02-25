@@ -1285,7 +1285,7 @@ export function CanvasPanel() {
       sourceId: string,
       region: HitRegion | undefined
     ): boolean => {
-      if (event.shiftKey || event.button !== 0) {
+      if (event.shiftKey || event.ctrlKey || event.metaKey || event.button !== 0) {
         return false;
       }
       if (!svgResult || snapshot.source !== source) {
@@ -1355,6 +1355,7 @@ export function CanvasPanel() {
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
@@ -1369,7 +1370,7 @@ export function CanvasPanel() {
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
 
-      if (event.shiftKey) {
+      if (additiveSelection) {
         dispatch({ type: "SELECT", id: sourceId, additive: true });
         return;
       }
@@ -1513,13 +1514,14 @@ export function CanvasPanel() {
   const onHandlePointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
       setTextSelectionOverlay(null);
 
-      if (event.shiftKey) {
+      if (additiveSelection) {
         dispatch({ type: "SELECT", id: handle.sourceId, additive: true });
         return;
       }
@@ -1592,6 +1594,7 @@ export function CanvasPanel() {
     (event: ReactPointerEvent<SVGSVGElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
       setTextSelectionOverlay(null);
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       if (!svgResult) return;
 
@@ -1715,7 +1718,7 @@ export function CanvasPanel() {
         dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
         const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
         if (!world) {
-          if (!event.shiftKey) {
+          if (!additiveSelection) {
             dispatch({ type: "CLEAR_SELECTION" });
           }
           return;
@@ -1726,7 +1729,7 @@ export function CanvasPanel() {
           pointerId: event.pointerId,
           startWorld: world,
           currentWorld: world,
-          additive: event.shiftKey
+          additive: additiveSelection
         };
         setDragState(nextMarquee);
         setMarqueeDraft(nextMarquee);
