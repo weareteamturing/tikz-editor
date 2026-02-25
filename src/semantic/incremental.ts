@@ -13,7 +13,7 @@ import {
   finalizeSemanticEvaluationRun,
   type EvaluateTikzResult
 } from "./evaluate.js";
-import type { EvaluateOptions, FeatureUsage, SceneElement } from "./types.js";
+import type { EditHandle, EvaluateOptions, FeatureUsage, SceneElement } from "./types.js";
 
 export type IncrementalSemanticTrigger = "drag-element" | "drag-handle" | "other";
 
@@ -68,6 +68,7 @@ type CachedSemanticRun = {
   statementIds: string[];
   elementsByStatement: SceneElement[][];
   handleRangesByStatement: HandleRange[];
+  editHandles: readonly EditHandle[];
   diagnosticsByStatement: Diagnostic[][];
   checkpointInterval: number;
   checkpointsBeforeStatement: Map<number, SemanticContextSnapshot>;
@@ -153,7 +154,9 @@ export function createIncrementalSemanticSession(
     }
 
     try {
-      restoreSemanticContext(run.context, startCheckpoint);
+      restoreSemanticContext(run.context, startCheckpoint, {
+        editHandleSource: previous.editHandles
+      });
       retargetEditHandlesSourceFingerprint(run.context.editHandles, run.context.sourceFingerprint);
     } catch (_error) {
       const full = evaluateFullyAndCache(run, statementIds, "restore-failed");
@@ -182,7 +185,10 @@ export function createIncrementalSemanticSession(
 
       for (let statementIndex = restoreIndex; statementIndex < statementCount; statementIndex += 1) {
         if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
-          checkpointsBeforeStatement.set(statementIndex, snapshotSemanticContext(run.context));
+          checkpointsBeforeStatement.set(
+            statementIndex,
+            snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+          );
           featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
         }
         const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
@@ -196,7 +202,10 @@ export function createIncrementalSemanticSession(
           evaluated.diagnosticsEnd
         );
       }
-      checkpointsBeforeStatement.set(statementCount, snapshotSemanticContext(run.context));
+      checkpointsBeforeStatement.set(
+        statementCount,
+        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+      );
       featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
 
       const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
@@ -204,6 +213,7 @@ export function createIncrementalSemanticSession(
         statementIds,
         elementsByStatement,
         handleRangesByStatement,
+        editHandles: semantic.editHandles,
         diagnosticsByStatement,
         checkpointInterval,
         checkpointsBeforeStatement,
@@ -257,7 +267,10 @@ function evaluateFullyAndCache(
 
   for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
     if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
-      checkpointsBeforeStatement.set(statementIndex, snapshotSemanticContext(run.context));
+      checkpointsBeforeStatement.set(
+        statementIndex,
+        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+      );
       featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
     }
     const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
@@ -270,7 +283,10 @@ function evaluateFullyAndCache(
       run.diagnostics.slice(evaluated.diagnosticsStart, evaluated.diagnosticsEnd)
     );
   }
-  checkpointsBeforeStatement.set(statementCount, snapshotSemanticContext(run.context));
+  checkpointsBeforeStatement.set(
+    statementCount,
+    snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+  );
   featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
 
   const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
@@ -278,6 +294,7 @@ function evaluateFullyAndCache(
     statementIds,
     elementsByStatement,
     handleRangesByStatement,
+    editHandles: semantic.editHandles,
     diagnosticsByStatement,
     checkpointInterval,
     checkpointsBeforeStatement,

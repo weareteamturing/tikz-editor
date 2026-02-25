@@ -7,6 +7,7 @@ import { createDefaultCustomStyleRegistry } from "./style/custom-styles.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import type { StyleChainEntry, StyleSourceRef } from "./style-chain.js";
 import { cloneResolvedStyle } from "./style-chain.js";
+import { PersistentMap, type PersistentMapSnapshot } from "./persistent-map.js";
 import {
   SemanticDependencyGraphBuilder,
   type SemanticDependencyGraphBuilderState,
@@ -142,11 +143,11 @@ export type SemanticContext = {
   stack: SemanticContextFrame[];
   source: string;
   sourceFingerprint: string;
-  namedCoordinates: Map<string, Point>;
-  namedNodeSets: Map<string, Set<string>>;
-  namedCoordinateRewriteHandles: Map<string, string>;
-  namedNodeGeometries: Map<string, NamedNodeGeometry>;
-  namedPaths: Map<string, SceneElement[]>;
+  namedCoordinates: PersistentMap<string, Point>;
+  namedNodeSets: PersistentMap<string, Set<string>>;
+  namedCoordinateRewriteHandles: PersistentMap<string, string>;
+  namedNodeGeometries: PersistentMap<string, NamedNodeGeometry>;
+  namedPaths: PersistentMap<string, SceneElement[]>;
   currentPoint: Point | null;
   pathStartPoint: Point | null;
   textEngine: NodeTextEngine | null;
@@ -158,16 +159,25 @@ export type SemanticContext = {
 
 export type SemanticContextSnapshot = {
   stack: SemanticContextFrame[];
-  namedCoordinates: Map<string, Point>;
-  namedNodeSets: Map<string, Set<string>>;
-  namedCoordinateRewriteHandles: Map<string, string>;
-  namedNodeGeometries: Map<string, NamedNodeGeometry>;
-  namedPaths: Map<string, SceneElement[]>;
+  namedCoordinatesState: PersistentMapSnapshot<string, Point>;
+  namedNodeSetsState: PersistentMapSnapshot<string, Set<string>>;
+  namedCoordinateRewriteHandlesState: PersistentMapSnapshot<string, string>;
+  namedNodeGeometriesState: PersistentMapSnapshot<string, NamedNodeGeometry>;
+  namedPathsState: PersistentMapSnapshot<string, SceneElement[]>;
   currentPoint: Point | null;
   pathStartPoint: Point | null;
-  editHandles: EditHandle[];
+  editHandles: EditHandle[] | null;
+  editHandlesLength: number;
   dependencyBuilderState: SemanticDependencyGraphBuilderState;
   dependencyActiveSourceId: string | null;
+};
+
+export type SnapshotSemanticContextOptions = {
+  editHandlesMode?: "clone" | "length";
+};
+
+export type RestoreSemanticContextOptions = {
+  editHandleSource?: readonly EditHandle[];
 };
 
 export function createSemanticContext(
@@ -258,11 +268,11 @@ export function createSemanticContext(
     ],
     source,
     sourceFingerprint: computeSourceFingerprint(source),
-    namedCoordinates: new Map<string, Point>(),
-    namedNodeSets: new Map<string, Set<string>>(),
-    namedCoordinateRewriteHandles: new Map<string, string>(),
-    namedNodeGeometries: new Map<string, NamedNodeGeometry>(),
-    namedPaths: new Map<string, SceneElement[]>(),
+    namedCoordinates: new PersistentMap<string, Point>(),
+    namedNodeSets: new PersistentMap<string, Set<string>>(),
+    namedCoordinateRewriteHandles: new PersistentMap<string, string>(),
+    namedNodeGeometries: new PersistentMap<string, NamedNodeGeometry>(),
+    namedPaths: new PersistentMap<string, SceneElement[]>(),
     currentPoint: null,
     pathStartPoint: null,
     textEngine,
@@ -287,17 +297,23 @@ export function popFrame(context: SemanticContext): void {
   }
 }
 
-export function snapshotSemanticContext(context: SemanticContext): SemanticContextSnapshot {
+export function snapshotSemanticContext(
+  context: SemanticContext,
+  options: SnapshotSemanticContextOptions = {}
+): SemanticContextSnapshot {
+  const editHandlesMode = options.editHandlesMode ?? "clone";
   return {
     stack: structuredClone(context.stack),
-    namedCoordinates: structuredClone(context.namedCoordinates),
-    namedNodeSets: structuredClone(context.namedNodeSets),
-    namedCoordinateRewriteHandles: structuredClone(context.namedCoordinateRewriteHandles),
-    namedNodeGeometries: structuredClone(context.namedNodeGeometries),
-    namedPaths: structuredClone(context.namedPaths),
+    namedCoordinatesState: context.namedCoordinates.snapshot(),
+    namedNodeSetsState: context.namedNodeSets.snapshot(),
+    namedCoordinateRewriteHandlesState: context.namedCoordinateRewriteHandles.snapshot(),
+    namedNodeGeometriesState: context.namedNodeGeometries.snapshot(),
+    namedPathsState: context.namedPaths.snapshot(),
     currentPoint: context.currentPoint ? { ...context.currentPoint } : null,
     pathStartPoint: context.pathStartPoint ? { ...context.pathStartPoint } : null,
-    editHandles: structuredClone(context.editHandles),
+    editHandles:
+      editHandlesMode === "clone" ? structuredClone(context.editHandles) : null,
+    editHandlesLength: context.editHandles.length,
     dependencyBuilderState: context.dependencyBuilder.exportState(),
     dependencyActiveSourceId: context.dependencyActiveSourceId
   };
@@ -305,17 +321,26 @@ export function snapshotSemanticContext(context: SemanticContext): SemanticConte
 
 export function restoreSemanticContext(
   context: SemanticContext,
-  snapshot: SemanticContextSnapshot
+  snapshot: SemanticContextSnapshot,
+  options: RestoreSemanticContextOptions = {}
 ): void {
   context.stack = structuredClone(snapshot.stack);
-  context.namedCoordinates = structuredClone(snapshot.namedCoordinates);
-  context.namedNodeSets = structuredClone(snapshot.namedNodeSets);
-  context.namedCoordinateRewriteHandles = structuredClone(snapshot.namedCoordinateRewriteHandles);
-  context.namedNodeGeometries = structuredClone(snapshot.namedNodeGeometries);
-  context.namedPaths = structuredClone(snapshot.namedPaths);
+  context.namedCoordinates.restore(snapshot.namedCoordinatesState);
+  context.namedNodeSets.restore(snapshot.namedNodeSetsState);
+  context.namedCoordinateRewriteHandles.restore(snapshot.namedCoordinateRewriteHandlesState);
+  context.namedNodeGeometries.restore(snapshot.namedNodeGeometriesState);
+  context.namedPaths.restore(snapshot.namedPathsState);
   context.currentPoint = snapshot.currentPoint ? { ...snapshot.currentPoint } : null;
   context.pathStartPoint = snapshot.pathStartPoint ? { ...snapshot.pathStartPoint } : null;
-  context.editHandles = structuredClone(snapshot.editHandles);
+  if (snapshot.editHandles) {
+    context.editHandles = structuredClone(snapshot.editHandles);
+  } else {
+    const source = options.editHandleSource;
+    if (!source || snapshot.editHandlesLength > source.length) {
+      throw new Error("Missing edit handle source for compact semantic context restore");
+    }
+    context.editHandles = structuredClone(source.slice(0, snapshot.editHandlesLength));
+  }
   context.dependencyBuilder.importState(snapshot.dependencyBuilderState);
   context.dependencyActiveSourceId = snapshot.dependencyActiveSourceId;
 }

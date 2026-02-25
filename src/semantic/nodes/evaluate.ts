@@ -1526,13 +1526,18 @@ function registerNodeSetMembership(nodeNames: string[], setNames: string[], cont
   }
 
   for (const setName of setNames) {
-    let members = context.namedNodeSets.get(setName);
-    if (!members) {
-      members = new Set<string>();
-      context.namedNodeSets.set(setName, members);
-    }
+    const existingMembers = context.namedNodeSets.get(setName);
+    const members = existingMembers ? new Set(existingMembers) : new Set<string>();
+    let changed = !existingMembers;
     for (const nodeName of nodeNames) {
+      if (members.has(nodeName)) {
+        continue;
+      }
       members.add(nodeName);
+      changed = true;
+    }
+    if (changed) {
+      context.namedNodeSets.set(setName, members);
     }
   }
 }
