@@ -69,12 +69,14 @@ type CachedSemanticRun = {
   elementsByStatement: SceneElement[][];
   handleRangesByStatement: HandleRange[];
   diagnosticsByStatement: Diagnostic[][];
-  checkpointsBeforeStatement: SemanticContextSnapshot[];
-  featureUsageBeforeStatement: FeatureUsage[];
+  checkpointInterval: number;
+  checkpointsBeforeStatement: Map<number, SemanticContextSnapshot>;
+  featureUsageBeforeStatement: Map<number, FeatureUsage>;
   dependencies: EvaluateTikzResult["dependencies"];
 };
 
 const STATEMENT_INDEX_PATTERN = /^[^:]+:(\d+)(?::|$)/;
+const DEFAULT_CHECKPOINT_INTERVAL = 8;
 
 export function createIncrementalSemanticSession(
   defaultOptions: EvaluateOptions = {}
@@ -126,14 +128,24 @@ export function createIncrementalSemanticSession(
       return full.output;
     }
     const startIndex = Math.min(...affectedStatementIndices);
+    const checkpointInterval = previous.checkpointInterval;
+    const restoreIndex = findCheckpointIndexAtOrBefore(
+      previous.checkpointsBeforeStatement,
+      startIndex
+    );
+    if (restoreIndex == null) {
+      const full = evaluateFullyAndCache(run, statementIds, "checkpoint-missing");
+      cached = full.cached;
+      return full.output;
+    }
 
-    const startCheckpoint = previous.checkpointsBeforeStatement[startIndex];
+    const startCheckpoint = previous.checkpointsBeforeStatement.get(restoreIndex);
     if (!startCheckpoint) {
       const full = evaluateFullyAndCache(run, statementIds, "checkpoint-missing");
       cached = full.cached;
       return full.output;
     }
-    const startFeatureUsage = previous.featureUsageBeforeStatement[startIndex];
+    const startFeatureUsage = previous.featureUsageBeforeStatement.get(restoreIndex);
     if (!startFeatureUsage) {
       const full = evaluateFullyAndCache(run, statementIds, "feature-checkpoint-missing");
       cached = full.cached;
@@ -152,19 +164,27 @@ export function createIncrementalSemanticSession(
     try {
       assignFeatureUsage(run.featureUsage, startFeatureUsage);
       run.diagnostics.length = run.baseDiagnosticsCount;
-      const diagnosticsByStatement = previous.diagnosticsByStatement.slice(0, startIndex);
+      const diagnosticsByStatement = previous.diagnosticsByStatement.slice(0, restoreIndex);
       for (const statementDiagnostics of diagnosticsByStatement) {
         run.diagnostics.push(...statementDiagnostics);
       }
 
-      const elementsByStatement = previous.elementsByStatement.slice(0, startIndex);
-      const handleRangesByStatement = previous.handleRangesByStatement.slice(0, startIndex);
-      const checkpointsBeforeStatement = previous.checkpointsBeforeStatement.slice(0, startIndex);
-      const featureUsageBeforeStatement = previous.featureUsageBeforeStatement.slice(0, startIndex);
+      const elementsByStatement = previous.elementsByStatement.slice(0, restoreIndex);
+      const handleRangesByStatement = previous.handleRangesByStatement.slice(0, restoreIndex);
+      const checkpointsBeforeStatement = cloneCheckpointsBefore(
+        previous.checkpointsBeforeStatement,
+        restoreIndex
+      );
+      const featureUsageBeforeStatement = cloneCheckpointsBefore(
+        previous.featureUsageBeforeStatement,
+        restoreIndex
+      );
 
-      for (let statementIndex = startIndex; statementIndex < statementCount; statementIndex += 1) {
-        checkpointsBeforeStatement[statementIndex] = snapshotSemanticContext(run.context);
-        featureUsageBeforeStatement[statementIndex] = cloneFeatureUsage(run.featureUsage);
+      for (let statementIndex = restoreIndex; statementIndex < statementCount; statementIndex += 1) {
+        if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
+          checkpointsBeforeStatement.set(statementIndex, snapshotSemanticContext(run.context));
+          featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
+        }
         const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
         elementsByStatement[statementIndex] = evaluated.elements;
         handleRangesByStatement[statementIndex] = {
@@ -176,8 +196,8 @@ export function createIncrementalSemanticSession(
           evaluated.diagnosticsEnd
         );
       }
-      checkpointsBeforeStatement[statementCount] = snapshotSemanticContext(run.context);
-      featureUsageBeforeStatement[statementCount] = cloneFeatureUsage(run.featureUsage);
+      checkpointsBeforeStatement.set(statementCount, snapshotSemanticContext(run.context));
+      featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
 
       const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
       cached = {
@@ -185,6 +205,7 @@ export function createIncrementalSemanticSession(
         elementsByStatement,
         handleRangesByStatement,
         diagnosticsByStatement,
+        checkpointInterval,
         checkpointsBeforeStatement,
         featureUsageBeforeStatement,
         dependencies: semantic.dependencies
@@ -194,9 +215,9 @@ export function createIncrementalSemanticSession(
         semantic,
         stats: {
           strategy: "incremental",
-          recomputeFromStatementIndex: startIndex,
-          recomputedStatementCount: statementCount - startIndex,
-          reusedStatementCount: startIndex
+          recomputeFromStatementIndex: restoreIndex,
+          recomputedStatementCount: statementCount - restoreIndex,
+          reusedStatementCount: restoreIndex
         }
       };
     } catch (_error) {
@@ -227,15 +248,18 @@ function evaluateFullyAndCache(
   cached: CachedSemanticRun;
 } {
   const statementCount = run.expandedFigureBody.length;
+  const checkpointInterval = DEFAULT_CHECKPOINT_INTERVAL;
   const elementsByStatement: SceneElement[][] = [];
   const handleRangesByStatement: HandleRange[] = [];
   const diagnosticsByStatement: Diagnostic[][] = [];
-  const checkpointsBeforeStatement: SemanticContextSnapshot[] = [];
-  const featureUsageBeforeStatement: FeatureUsage[] = [];
+  const checkpointsBeforeStatement = new Map<number, SemanticContextSnapshot>();
+  const featureUsageBeforeStatement = new Map<number, FeatureUsage>();
 
   for (let statementIndex = 0; statementIndex < statementCount; statementIndex += 1) {
-    checkpointsBeforeStatement[statementIndex] = snapshotSemanticContext(run.context);
-    featureUsageBeforeStatement[statementIndex] = cloneFeatureUsage(run.featureUsage);
+    if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
+      checkpointsBeforeStatement.set(statementIndex, snapshotSemanticContext(run.context));
+      featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
+    }
     const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
     elementsByStatement.push(evaluated.elements);
     handleRangesByStatement.push({
@@ -246,8 +270,8 @@ function evaluateFullyAndCache(
       run.diagnostics.slice(evaluated.diagnosticsStart, evaluated.diagnosticsEnd)
     );
   }
-  checkpointsBeforeStatement[statementCount] = snapshotSemanticContext(run.context);
-  featureUsageBeforeStatement[statementCount] = cloneFeatureUsage(run.featureUsage);
+  checkpointsBeforeStatement.set(statementCount, snapshotSemanticContext(run.context));
+  featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
 
   const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
   const nextCached: CachedSemanticRun = {
@@ -255,6 +279,7 @@ function evaluateFullyAndCache(
     elementsByStatement,
     handleRangesByStatement,
     diagnosticsByStatement,
+    checkpointInterval,
     checkpointsBeforeStatement,
     featureUsageBeforeStatement,
     dependencies: semantic.dependencies
@@ -320,6 +345,50 @@ function parseStatementIndexFromSourceId(sourceId: string): number | null {
     return null;
   }
   return parsed;
+}
+
+function shouldCaptureCheckpoint(
+  statementIndex: number,
+  checkpointInterval: number
+): boolean {
+  if (statementIndex === 0) {
+    return true;
+  }
+  return statementIndex % checkpointInterval === 0;
+}
+
+function findCheckpointIndexAtOrBefore(
+  checkpoints: ReadonlyMap<number, unknown>,
+  statementIndex: number
+): number | null {
+  if (checkpoints.has(statementIndex)) {
+    return statementIndex;
+  }
+
+  let best: number | null = null;
+  for (const index of checkpoints.keys()) {
+    if (index > statementIndex) {
+      continue;
+    }
+    if (best == null || index > best) {
+      best = index;
+    }
+  }
+  return best;
+}
+
+function cloneCheckpointsBefore<T>(
+  checkpoints: ReadonlyMap<number, T>,
+  statementIndexExclusive: number
+): Map<number, T> {
+  const cloned = new Map<number, T>();
+  for (const [checkpointIndex, value] of checkpoints) {
+    if (checkpointIndex >= statementIndexExclusive) {
+      continue;
+    }
+    cloned.set(checkpointIndex, value);
+  }
+  return cloned;
 }
 
 function cloneFeatureUsage(featureUsage: FeatureUsage): FeatureUsage {
