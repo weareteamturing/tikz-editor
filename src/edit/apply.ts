@@ -141,6 +141,7 @@ function applyMoveIntent(
   return {
     kind: "success",
     newSource: updated.source,
+    changedSourceIds: [handle.sourceId],
     patches: [
       {
         oldSpan: rewriteHandle.sourceSpan,

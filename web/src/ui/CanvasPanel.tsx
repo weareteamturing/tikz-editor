@@ -8,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
+import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
 import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
 import {
@@ -39,11 +40,18 @@ import type {
   ScenePathCommand,
   SceneText
 } from "tikz-editor/semantic/types";
-import type { SvgViewBox } from "tikz-editor/svg/types";
+import {
+  diffSvgModels,
+  type SvgDiffHints,
+  type SvgPatchOp,
+  type SvgRenderModel,
+  type SvgViewBox
+} from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform, ToolMode } from "../store/types";
 import { requestSourceSelection } from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
+import { SvgDomPatcher } from "./canvas-panel/svg-dom-patcher";
 import {
   buildValueSequence,
   buildTicks,
@@ -312,6 +320,9 @@ export function CanvasPanel() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
+  const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
@@ -335,6 +346,8 @@ export function CanvasPanel() {
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
+  const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
+  const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
@@ -1855,6 +1868,10 @@ export function CanvasPanel() {
     const sameH = Math.abs(previous.height - svgResult.viewBox.height) < 1e-6;
     if (sameX && sameY && sameW && sameH) return;
 
+    if (activeCanvasDragKind) {
+      setDragPatchMode("full");
+    }
+
     const currentTransform = canvasTransformRef.current;
     const scale = currentTransform.scale;
 
@@ -1868,7 +1885,7 @@ export function CanvasPanel() {
       type: "SET_CANVAS_TRANSFORM",
       transform: { translateX, translateY, scale }
     });
-  }, [dispatch, svgResult]);
+  }, [activeCanvasDragKind, dispatch, svgResult]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -1961,6 +1978,45 @@ export function CanvasPanel() {
   }, [snapshot.source, source]);
 
   useEffect(() => {
+    if (activeCanvasDragKind) {
+      return;
+    }
+    setDragPatchMode("partial");
+    setDragAffectedSourceIds(null);
+  }, [activeCanvasDragKind]);
+
+  useEffect(() => {
+    if (!activeCanvasDragKind || dragPatchMode === "full") {
+      return;
+    }
+    const dependencies = snapshot.semanticResult?.dependencies;
+    if (!dependencies) {
+      return;
+    }
+    const changedSourceIds = lastEditChangedSourceIds;
+    if (!changedSourceIds || changedSourceIds.length === 0) {
+      setDragAffectedSourceIds(null);
+      return;
+    }
+
+    const invalidation = collectGeometryInvalidation(dependencies, {
+      changedSourceIds
+    });
+    if (invalidation.reachedOpaque) {
+      setDragPatchMode("full");
+      setDragAffectedSourceIds(null);
+      return;
+    }
+    setDragAffectedSourceIds(invalidation.affectedSourceIds.length > 0 ? invalidation.affectedSourceIds : null);
+  }, [
+    activeCanvasDragKind,
+    dragPatchMode,
+    lastEditChangeToken,
+    lastEditChangedSourceIds,
+    snapshot.semanticResult
+  ]);
+
+  useEffect(() => {
     if (toolMode === "select") {
       setToolDraft(null);
       setToolCursorWorld(null);
@@ -2048,6 +2104,33 @@ export function CanvasPanel() {
   });
 
   useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);
+
+  const svgDiffHints = useMemo<SvgDiffHints | undefined>(() => {
+    if (!activeCanvasDragKind || dragPatchMode !== "partial") {
+      return undefined;
+    }
+    if (!dragAffectedSourceIds || dragAffectedSourceIds.length === 0) {
+      return undefined;
+    }
+    return {
+      affectedSourceIds: dragAffectedSourceIds
+    };
+  }, [activeCanvasDragKind, dragAffectedSourceIds, dragPatchMode]);
+
+  const forceSvgReplaceAll = activeCanvasDragKind != null && dragPatchMode === "full";
+
+  const onSvgPatchFallback = useCallback(
+    (reason: "replaceDefs" | "replaceAll" | "patch-failure") => {
+      if (!activeCanvasDragKind) {
+        return;
+      }
+      setDragPatchMode("full");
+      if (reason === "patch-failure") {
+        setWarning("SVG patching invariant failed; using full updates for this drag.");
+      }
+    },
+    [activeCanvasDragKind]
+  );
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
@@ -2202,7 +2285,12 @@ export function CanvasPanel() {
                 transform: `translate(${canvasTransform.translateX}px, ${canvasTransform.translateY}px) scale(${canvasTransform.scale})`
               }}
             >
-              <CanvasSVGLayer svg={svgResult.svg} />
+              <CanvasSVGLayer
+                model={snapshot.svgModel}
+                diffHints={svgDiffHints}
+                forceReplaceAll={forceSvgReplaceAll}
+                onFallback={onSvgPatchFallback}
+              />
 
               <svg
                 ref={interactionSvgRef}
@@ -2337,14 +2425,63 @@ export function CanvasPanel() {
   );
 }
 
-function CanvasSVGLayer({ svg }: { svg: string }) {
-  return (
-    <div
-      className={css.svgLayer}
-      // eslint-disable-next-line react/no-danger
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
-  );
+function CanvasSVGLayer(params: {
+  model: SvgRenderModel | null;
+  diffHints?: SvgDiffHints;
+  forceReplaceAll: boolean;
+  onFallback: (reason: "replaceDefs" | "replaceAll" | "patch-failure") => void;
+}) {
+  const { model, diffHints, forceReplaceAll, onFallback } = params;
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const patcherRef = useRef<SvgDomPatcher | null>(null);
+  const previousModelRef = useRef<SvgRenderModel | null>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+    const patcher = new SvgDomPatcher(host);
+    patcherRef.current = patcher;
+    return () => {
+      patcher.dispose();
+      patcherRef.current = null;
+      previousModelRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!model || !patcherRef.current) {
+      return;
+    }
+
+    const patcher = patcherRef.current;
+    try {
+      let operations: SvgPatchOp[];
+      if (forceReplaceAll) {
+        operations = [{ kind: "replaceAll", model }];
+      } else {
+        operations = diffSvgModels(previousModelRef.current, model, diffHints);
+      }
+      if (operations.some((operation) => operation.kind === "replaceDefs")) {
+        onFallback("replaceDefs");
+      }
+      if (operations.some((operation) => operation.kind === "replaceAll") && !forceReplaceAll) {
+        onFallback("replaceAll");
+      }
+      patcher.applyOperations(operations);
+      previousModelRef.current = model;
+    } catch (error) {
+      if (typeof console !== "undefined" && typeof console.warn === "function") {
+        console.warn("[tikz-editor] SVG patch operation failed; falling back to replaceAll for this frame.", error);
+      }
+      onFallback("patch-failure");
+      patcher.applyOperations([{ kind: "replaceAll", model }]);
+      previousModelRef.current = model;
+    }
+  }, [diffHints, forceReplaceAll, model, onFallback]);
+
+  return <div className={css.svgLayer} ref={hostRef} />;
 }
 
 function useCanvasDragController(params: {

@@ -1,6 +1,6 @@
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
-import type { EmitSvgResult } from "tikz-editor/svg/index";
+import type { EmitSvgResult, SvgRenderModel } from "tikz-editor/svg/index";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 
@@ -14,6 +14,7 @@ export type SessionSnapshot = {
   editHandles: EditHandle[];
   scene: SceneFigure | null;
   svg: EmitSvgResult | null;
+  svgModel: SvgRenderModel | null;
   parseResult: ParseTikzResult | null;
   semanticResult: EvaluateTikzResult | null;
 };
@@ -40,6 +41,7 @@ export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
     editHandles: [],
     scene: null,
     svg: null,
+    svgModel: null,
     parseResult: null,
     semanticResult: null
   };
@@ -66,6 +68,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       editHandles: result.semantic.editHandles,
       scene: result.semantic.scene,
       svg: result.svg,
+      svgModel: result.svg.model,
       parseResult: result.parse,
       semanticResult: result.semantic
     };
@@ -82,6 +85,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       editHandles: [],
       scene: null,
       svg: null,
+      svgModel: null,
       parseResult: null,
       semanticResult: null
     };

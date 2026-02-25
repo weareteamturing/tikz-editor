@@ -37,6 +37,10 @@ export type EditorState = {
   snapshot: SessionSnapshot;
   /** Request ID of the most recently triggered compute; null if up-to-date. */
   pendingRequestId: string | null;
+  /** Latest edit-derived source ids changed by WYSIWYG actions (used for drag invalidation hints). */
+  lastEditChangedSourceIds: string[] | null;
+  /** Monotonic token incremented when `lastEditChangedSourceIds` is updated. */
+  lastEditChangeToken: number;
 
   // ── history slice ────────────────────────────────────────────────────────────
   /** WYSIWYG undo history (code edits use CodeMirror's built-in history). */

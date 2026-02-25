@@ -7,6 +7,54 @@ export type SvgViewBox = {
   height: number;
 };
 
+export type SvgRenderPart = {
+  partId: string;
+  sourceId: string;
+  elementId: string | null;
+  order: number;
+  markup: string;
+  fingerprint: string;
+};
+
+export type SvgRenderModel = {
+  viewBox: SvgViewBox;
+  defs: string[];
+  defsFingerprint: string;
+  parts: SvgRenderPart[];
+  diagnostics: Array<{
+    code: string;
+    message: string;
+  }>;
+};
+
+export type SvgDiffHints = {
+  affectedSourceIds?: readonly string[];
+};
+
+export type SvgPatchOp =
+  | {
+      kind: "upsertPart";
+      part: SvgRenderPart;
+      afterPartId: string | null;
+    }
+  | {
+      kind: "removePart";
+      partId: string;
+    }
+  | {
+      kind: "setViewBox";
+      viewBox: SvgViewBox;
+    }
+  | {
+      kind: "replaceDefs";
+      defs: string[];
+      defsFingerprint: string;
+    }
+  | {
+      kind: "replaceAll";
+      model: SvgRenderModel;
+    };
+
 export type EmitSvgOptions = {
   padding?: number;
   includeXmlns?: boolean;
@@ -16,6 +64,7 @@ export type EmitSvgOptions = {
 export type EmitSvgResult = {
   svg: string;
   viewBox: SvgViewBox;
+  model: SvgRenderModel;
   diagnostics: Array<{
     code: string;
     message: string;

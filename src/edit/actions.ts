@@ -61,7 +61,7 @@ export type EditAction =
   | { kind: "resizeElement"; elementId: string; role: ResizeRole; newWorld: Point };
 
 export type EditActionResult =
-  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
   | {
       kind: "partial";
       newSource: string;
@@ -69,6 +69,7 @@ export type EditActionResult =
       skippedHandles: string[];
       reason: string;
       selectedSourceIds?: string[];
+      changedSourceIds?: string[];
     }
   | { kind: "unsupported"; reason: string }
   | { kind: "error"; message: string };
@@ -81,34 +82,37 @@ export function applyEditAction(
   editHandles: EditHandle[],
   action: EditAction
 ): EditActionResult {
-  switch (action.kind) {
-    case "moveHandle":
-      return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
-    case "moveElement":
-      return applyMoveElements(source, editHandles, [action.elementId], action.delta);
-    case "moveElements":
-      return applyMoveElements(source, editHandles, action.elementIds, action.delta);
-    case "alignElements":
-      return applyAlignElements(source, action);
-    case "distributeElements":
-      return applyDistributeElements(source, action);
-    case "setProperty":
-      return applySetProperty(source, action);
-    case "addElement":
-      return applyAddElement(source, action.template, action.at);
-    case "deleteElement":
-      return applyDeleteElements(source, [action.elementId]);
-    case "deleteElements":
-      return applyDeleteElements(source, action.elementIds);
-    case "pasteStatements":
-      return applyPasteStatements(source, action);
-    case "duplicateElements":
-      return applyDuplicateElements(source, action);
-    case "reorderElements":
-      return applyReorderElements(source, action.elementIds, action.direction);
-    case "resizeElement":
-      return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
-  }
+  const result = (() : EditActionResult => {
+    switch (action.kind) {
+      case "moveHandle":
+        return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
+      case "moveElement":
+        return applyMoveElements(source, editHandles, [action.elementId], action.delta);
+      case "moveElements":
+        return applyMoveElements(source, editHandles, action.elementIds, action.delta);
+      case "alignElements":
+        return applyAlignElements(source, action);
+      case "distributeElements":
+        return applyDistributeElements(source, action);
+      case "setProperty":
+        return applySetProperty(source, action);
+      case "addElement":
+        return applyAddElement(source, action.template, action.at);
+      case "deleteElement":
+        return applyDeleteElements(source, [action.elementId]);
+      case "deleteElements":
+        return applyDeleteElements(source, action.elementIds);
+      case "pasteStatements":
+        return applyPasteStatements(source, action);
+      case "duplicateElements":
+        return applyDuplicateElements(source, action);
+      case "reorderElements":
+        return applyReorderElements(source, action.elementIds, action.direction);
+      case "resizeElement":
+        return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
+    }
+  })();
+  return withChangedSourceIds(result, action, editHandles);
 }
 
 function applyMoveHandle(
@@ -119,7 +123,12 @@ function applyMoveHandle(
 ): EditActionResult {
   const result = applyEditIntent(source, editHandles, { kind: "move", handleId, newWorld });
   if (result.kind === "success") {
-    return { kind: "success", newSource: result.newSource, patches: result.patches };
+    return {
+      kind: "success",
+      newSource: result.newSource,
+      patches: result.patches,
+      changedSourceIds: result.changedSourceIds
+    };
   }
   if (result.kind === "unsupported") {
     return { kind: "unsupported", reason: result.reason };
@@ -1043,6 +1052,65 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
     normalized.push(id);
   }
   return normalized;
+}
+
+function withChangedSourceIds(
+  result: EditActionResult,
+  action: EditAction,
+  editHandles: EditHandle[]
+): EditActionResult {
+  if (result.kind !== "success" && result.kind !== "partial") {
+    return result;
+  }
+
+  if (result.changedSourceIds && result.changedSourceIds.length > 0) {
+    return result;
+  }
+
+  const changedSourceIds = inferChangedSourceIds(result, action, editHandles);
+  if (changedSourceIds.length === 0) {
+    return result;
+  }
+
+  return {
+    ...result,
+    changedSourceIds
+  };
+}
+
+function inferChangedSourceIds(
+  result: Extract<EditActionResult, { kind: "success" | "partial" }>,
+  action: EditAction,
+  editHandles: EditHandle[]
+): string[] {
+  switch (action.kind) {
+    case "moveElement":
+      return normalizeElementIds([action.elementId]);
+    case "moveElements":
+      return normalizeElementIds(action.elementIds);
+    case "alignElements":
+      return normalizeElementIds(action.elementIds);
+    case "distributeElements":
+      return normalizeElementIds(action.elementIds);
+    case "moveHandle": {
+      const handle = editHandles.find((candidate) => candidate.id === action.handleId);
+      return handle ? normalizeElementIds([handle.sourceId]) : [];
+    }
+    case "addElement":
+    case "pasteStatements":
+      return normalizeElementIds(result.selectedSourceIds ?? []);
+    case "duplicateElements":
+      return normalizeElementIds(result.selectedSourceIds ?? action.elementIds);
+    case "deleteElement":
+      return normalizeElementIds([action.elementId]);
+    case "deleteElements":
+      return normalizeElementIds(action.elementIds);
+    case "reorderElements":
+      return normalizeElementIds(action.elementIds);
+    case "setProperty":
+    case "resizeElement":
+      return [];
+  }
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

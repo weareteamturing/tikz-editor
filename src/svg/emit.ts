@@ -9,8 +9,9 @@ import { COLOR_HEX } from "../semantic/style/constants.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
 import { renderPathWithArrows } from "./arrows/render.js";
 import type { RenderedArrowTipPath } from "./arrows/types.js";
+import { createSvgModelBuilder, serializeSvgModel } from "./model.js";
 import { computeViewBox } from "./viewbox.js";
-import type { EmitSvgOptions, EmitSvgResult } from "./types.js";
+import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "./types.js";
 
 type ShadowRenderableStyle = Pick<
   ResolvedStyle,
@@ -50,15 +51,39 @@ type ElementBounds = {
 };
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
+  const model = emitSvgModel(scene, opts);
+  return {
+    svg: serializeSvgModel(model, opts.includeXmlns !== false),
+    viewBox: model.viewBox,
+    model,
+    diagnostics: model.diagnostics
+  };
+}
+
+export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): SvgRenderModel {
   const padding = opts.padding ?? 12;
   const viewBox = computeViewBox(scene, padding);
 
   const diagnostics: EmitSvgResult["diagnostics"] = [];
-  const body: string[] = [];
+  const modelBuilder = createSvgModelBuilder();
   const gradientIdBySignature = new Map<string, string>();
   const gradientDefById = new Map<string, string>();
   const shadowMaskDefById = new Map<string, string>();
   const unsupportedShadingNames = new Set<string>();
+
+  const appendPart = (
+    basePartId: string,
+    sourceId: string,
+    elementId: string | null,
+    markup: string
+  ): void => {
+    modelBuilder.addPart({
+      basePartId,
+      sourceId,
+      elementId,
+      markup
+    });
+  };
 
   const ensureGradientDefinition = (signature: string, kind: string, buildDef: (id: string) => string): string => {
     const existing = gradientIdBySignature.get(signature);
@@ -151,8 +176,9 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         if (d.length > 0) {
           const pathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
           emitShadowPathPart({
-            body,
+            appendPart,
             sourceId: element.sourceId,
+            elementId: element.id,
             d,
             bounds: pathBounds,
             shadowLayers: element.style.shadowLayers,
@@ -167,19 +193,34 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
               lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
               fill: outerFill ?? undefined
             });
-            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`);
+            appendPart(
+              `${element.id}:shaft:outer`,
+              element.sourceId,
+              element.id,
+              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`
+            );
             const innerAttrs = styleAttributes(element.style, false, {
               stroke: "#ffffff",
               fill: "none",
               lineWidth: element.style.doubleDistance
             });
-            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`);
+            appendPart(
+              `${element.id}:shaft:inner`,
+              element.sourceId,
+              element.id,
+              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`
+            );
           } else {
             const shadingFill = resolveShadingFill(element.style, element.sourceId);
             const attrs = styleAttributes(element.style, false, {
               fill: shadingFill ?? undefined
             });
-            body.push(`<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`);
+            appendPart(
+              `${element.id}:shaft`,
+              element.sourceId,
+              element.id,
+              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`
+            );
           }
         }
       }
@@ -190,7 +231,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           continue;
         }
         const attrs = arrowTipAttributes(element.style, tipPath);
-        body.push(
+        appendPart(
+          `${element.id}:tip:${tipPath.side}:${tipPath.index}:${tipPath.tipKind}:${tipPath.bend ? "bend" : "flat"}`,
+          element.sourceId,
+          element.id,
           `<path data-source-id="${escapeAttr(element.sourceId)}" data-arrow-tip-kind="${escapeAttr(tipPath.tipKind)}" ` +
             `data-arrow-side="${tipPath.side}" data-arrow-index="${tipPath.index}" data-arrow-bend="${tipPath.bend ? "true" : "false"}" ` +
             `d="${escapeAttr(d)}" ${attrs.join(" ")} />`
@@ -208,8 +252,9 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         maxY: center.y + element.radius
       };
       emitShadowCircle({
-        body,
+        appendPart,
         sourceId: element.sourceId,
+        elementId: element.id,
         cx: center.x,
         cy: center.y,
         radius: element.radius,
@@ -225,7 +270,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
         });
-        body.push(
+        appendPart(
+          `${element.id}:circle:outer`,
+          element.sourceId,
+          element.id,
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
@@ -233,7 +281,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
           fill: "none",
           lineWidth: element.style.doubleDistance
         });
-        body.push(
+        appendPart(
+          `${element.id}:circle:inner`,
+          element.sourceId,
+          element.id,
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
@@ -241,7 +292,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         const attrs = styleAttributes(element.style, false, {
           fill: shadingFill ?? undefined
         });
-        body.push(
+        appendPart(
+          `${element.id}:circle`,
+          element.sourceId,
+          element.id,
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${attrs.join(" ")} />`
         );
       }
@@ -252,8 +306,9 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
       const center = toSvgPoint(element.center, viewBox);
       const ellipseBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
       emitShadowEllipse({
-        body,
+        appendPart,
         sourceId: element.sourceId,
+        elementId: element.id,
         cx: center.x,
         cy: center.y,
         rx: element.rx,
@@ -274,7 +329,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           outerAttrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
         }
-        body.push(
+        appendPart(
+          `${element.id}:ellipse:outer`,
+          element.sourceId,
+          element.id,
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
@@ -285,7 +343,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           innerAttrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
         }
-        body.push(
+        appendPart(
+          `${element.id}:ellipse:inner`,
+          element.sourceId,
+          element.id,
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
@@ -296,7 +357,10 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           attrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
         }
-        body.push(
+        appendPart(
+          `${element.id}:ellipse`,
+          element.sourceId,
+          element.id,
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${attrs.join(" ")} />`
         );
       }
@@ -323,9 +387,14 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
         const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
         if (hasRotation) {
-          body.push(`<g transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})">${renderedSvg}</g>`);
+          appendPart(
+            `${element.id}:text:mathjax:rotated`,
+            element.sourceId,
+            element.id,
+            `<g transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})">${renderedSvg}</g>`
+          );
         } else {
-          body.push(renderedSvg);
+          appendPart(`${element.id}:text:mathjax`, element.sourceId, element.id, renderedSvg);
         }
         continue;
       }
@@ -336,20 +405,20 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
       attrs.push(`transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})"`);
     }
     const textBody = encodeTextBody(element.text, textX, position.y);
-    body.push(`<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`);
+    appendPart(
+      `${element.id}:text`,
+      element.sourceId,
+      element.id,
+      `<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`
+    );
   }
 
   const defsParts = [...gradientDefById.values(), ...shadowMaskDefById.values()];
-  const defs = defsParts.length > 0 ? `<defs>${defsParts.join("")}</defs>` : "";
-
-  const xmlns = opts.includeXmlns === false ? "" : ` xmlns="http://www.w3.org/2000/svg"`;
-  const svg =
-    `<svg${xmlns} viewBox="${fmt(viewBox.x)} ${fmt(viewBox.y)} ${fmt(viewBox.width)} ${fmt(viewBox.height)}" role="img" aria-label="TikZ SVG preview">` +
-    defs +
-    body.join("") +
-    `</svg>`;
-
-  return { svg, viewBox, diagnostics };
+  return modelBuilder.build({
+    viewBox,
+    defs: defsParts,
+    diagnostics
+  });
 }
 
 function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; height: number }): string {
@@ -385,8 +454,9 @@ function encodePathData(commands: ScenePathCommand[], viewBox: { y: number; heig
 }
 
 function emitShadowPathPart(args: {
-  body: string[];
+  appendPart: (basePartId: string, sourceId: string, elementId: string | null, markup: string) => void;
   sourceId: string;
+  elementId: string | null;
   d: string;
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
@@ -423,13 +493,19 @@ function emitShadowPathPart(args: {
     }
 
     const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
-    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+    args.appendPart(
+      `${args.elementId ?? args.sourceId}:shadow:path:${index + 1}`,
+      args.sourceId,
+      args.elementId,
+      `<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`
+    );
   }
 }
 
 function emitShadowCircle(args: {
-  body: string[];
+  appendPart: (basePartId: string, sourceId: string, elementId: string | null, markup: string) => void;
   sourceId: string;
+  elementId: string | null;
   cx: number;
   cy: number;
   radius: number;
@@ -474,13 +550,19 @@ function emitShadowCircle(args: {
     }
 
     const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
-    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+    args.appendPart(
+      `${args.elementId ?? args.sourceId}:shadow:circle:${index + 1}`,
+      args.sourceId,
+      args.elementId,
+      `<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`
+    );
   }
 }
 
 function emitShadowEllipse(args: {
-  body: string[];
+  appendPart: (basePartId: string, sourceId: string, elementId: string | null, markup: string) => void;
   sourceId: string;
+  elementId: string | null;
   cx: number;
   cy: number;
   rx: number;
@@ -536,7 +618,12 @@ function emitShadowEllipse(args: {
     }
 
     const groupAttrs = shadowGroupAttributes(args.sourceId, index + 1, layer, groupTransform, maskId);
-    args.body.push(`<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`);
+    args.appendPart(
+      `${args.elementId ?? args.sourceId}:shadow:ellipse:${index + 1}`,
+      args.sourceId,
+      args.elementId,
+      `<g ${groupAttrs.join(" ")}>${shapes.join("")}</g>`
+    );
   }
 }
 

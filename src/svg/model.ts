@@ -1,0 +1,99 @@
+import type {
+  SvgRenderModel,
+  SvgRenderPart,
+  SvgViewBox
+} from "./types.js";
+
+export type SvgModelPartInput = {
+  basePartId: string;
+  sourceId: string;
+  elementId: string | null;
+  markup: string;
+};
+
+export type SvgModelBuilder = {
+  addPart: (input: SvgModelPartInput) => SvgRenderPart;
+  build: (input: {
+    viewBox: SvgViewBox;
+    defs: string[];
+    diagnostics: Array<{ code: string; message: string }>;
+  }) => SvgRenderModel;
+};
+
+export function createSvgModelBuilder(): SvgModelBuilder {
+  const parts: SvgRenderPart[] = [];
+  const baseIdCounts = new Map<string, number>();
+  const usedPartIds = new Set<string>();
+
+  const addPart = (input: SvgModelPartInput): SvgRenderPart => {
+    const base = sanitizePartIdBase(input.basePartId);
+    const seenCount = baseIdCounts.get(base) ?? 0;
+    baseIdCounts.set(base, seenCount + 1);
+    const partId = seenCount === 0 ? base : `${base}#${seenCount + 1}`;
+    if (usedPartIds.has(partId)) {
+      throw new Error(`Duplicate svg part id generated: ${partId}`);
+    }
+    usedPartIds.add(partId);
+
+    const part: SvgRenderPart = {
+      partId,
+      sourceId: input.sourceId,
+      elementId: input.elementId,
+      order: parts.length,
+      markup: input.markup,
+      fingerprint: input.markup
+    };
+    parts.push(part);
+    return part;
+  };
+
+  const build = (input: {
+    viewBox: SvgViewBox;
+    defs: string[];
+    diagnostics: Array<{ code: string; message: string }>;
+  }): SvgRenderModel => {
+    return {
+      viewBox: input.viewBox,
+      defs: [...input.defs],
+      defsFingerprint: fingerprintDefs(input.defs),
+      parts: [...parts],
+      diagnostics: [...input.diagnostics]
+    };
+  };
+
+  return {
+    addPart,
+    build
+  };
+}
+
+export function serializeSvgModel(
+  model: SvgRenderModel,
+  includeXmlns = true
+): string {
+  const xmlns = includeXmlns ? ` xmlns="http://www.w3.org/2000/svg"` : "";
+  const defs = model.defs.length > 0 ? `<defs>${model.defs.join("")}</defs>` : "";
+  const body = model.parts.map((part) => part.markup).join("");
+  return (
+    `<svg${xmlns} viewBox="${fmt(model.viewBox.x)} ${fmt(model.viewBox.y)} ${fmt(model.viewBox.width)} ${fmt(model.viewBox.height)}" role="img" aria-label="TikZ SVG preview">` +
+    defs +
+    body +
+    `</svg>`
+  );
+}
+
+export function fingerprintDefs(defs: readonly string[]): string {
+  return defs.join("");
+}
+
+function sanitizePartIdBase(base: string): string {
+  const trimmed = base.trim();
+  if (trimmed.length === 0) {
+    return "part";
+  }
+  return trimmed.replace(/\s+/g, "_");
+}
+
+function fmt(value: number): string {
+  return Number(value.toFixed(4)).toString();
+}

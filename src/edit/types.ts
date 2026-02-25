@@ -15,7 +15,7 @@ export type EditIntent = { kind: "move"; handleId: string; newWorld: Point };
 
 /** Result of applying an edit intent. */
 export type EditIntentResult =
-  | { kind: "success"; newSource: string; patches: SourcePatch[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; changedSourceIds?: string[] }
   | { kind: "unsupported"; reason: string; handleId: string }
   | { kind: "error"; message: string };
 

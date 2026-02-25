@@ -27,6 +27,8 @@ export function makeInitialState(): EditorState {
     source: DEFAULT_SOURCE,
     snapshot: makeEmptySnapshot(DEFAULT_SOURCE),
     pendingRequestId: null,
+    lastEditChangedSourceIds: null,
+    lastEditChangeToken: 0,
 
     history: [],
     historyIndex: -1,
@@ -72,6 +74,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         source: action.source,
+        lastEditChangedSourceIds: null,
+        lastEditChangeToken: state.lastEditChangeToken + 1,
         history: [],
         historyIndex: -1
       };
@@ -140,13 +144,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           sourceAfter: result.newSource
         };
 
-        return {
-          ...state,
-          source: result.newSource,
-          selectedElementIds: nextSelection,
-          history: nextHistory,
-          historyIndex: lastIndex
-        };
+      return {
+        ...state,
+        source: result.newSource,
+        lastEditChangedSourceIds: result.changedSourceIds ?? null,
+        lastEditChangeToken: state.lastEditChangeToken + 1,
+        selectedElementIds: nextSelection,
+        history: nextHistory,
+        historyIndex: lastIndex
+      };
       }
 
       const entry: HistoryEntry = {
@@ -162,6 +168,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         source: result.newSource,
+        lastEditChangedSourceIds: result.changedSourceIds ?? null,
+        lastEditChangeToken: state.lastEditChangeToken + 1,
         selectedElementIds: nextSelection,
         history: [...truncated, entry],
         historyIndex: truncated.length
@@ -178,6 +186,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         source: entry.sourceBefore,
+        lastEditChangedSourceIds: null,
+        lastEditChangeToken: state.lastEditChangeToken + 1,
         historyIndex: state.historyIndex - 1
       };
     }
@@ -190,6 +200,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         source: entry.sourceAfter,
+        lastEditChangedSourceIds: null,
+        lastEditChangeToken: state.lastEditChangeToken + 1,
         historyIndex: state.historyIndex + 1
       };
     }
