@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useRef } from "react";
 import { useEditorStore } from "../store/store";
-import { computeSnapshot } from "../compute";
+import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
 import { InspectorPanel } from "./InspectorPanel";
@@ -11,6 +11,8 @@ import {
   isCodeMirrorEventTarget,
   pasteSelectionAnchor
 } from "./editor-commands";
+import { createSingleFlightScheduler } from "./compute-scheduler";
+import type { CanvasDragKind } from "../store/types";
 import css from "./App.module.css";
 
 const SourcePanel = lazy(async () => {
@@ -33,20 +35,52 @@ export function App() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
+  const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+
+  useEffect(() => {
+    const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
+      run: (request) => computeSnapshot(request),
+      onSuccess: (_request, response) => {
+        dispatch({
+          type: "SNAPSHOT_READY",
+          requestId: response.id,
+          snapshot: response.snapshot
+        });
+      },
+      onError: (request) => {
+        dispatch({
+          type: "SNAPSHOT_READY",
+          requestId: request.id,
+          snapshot: makeEmptySnapshot(request.source)
+        });
+      }
+    });
+    computeSchedulerRef.current = scheduler;
+    return () => {
+      scheduler.dispose();
+      computeSchedulerRef.current = null;
+    };
+  }, [dispatch]);
 
   // ── Compute pipeline ─────────────────────────────────────────────────────────
-  // Whenever source changes, kick off a new compute. The request ID lets the store
-  // discard stale responses (important for the eventual Web Worker migration).
+  // Keep at most one in-flight compute; while in-flight, coalesce to the latest source.
   useEffect(() => {
+    const scheduler = computeSchedulerRef.current;
+    if (!scheduler) {
+      return;
+    }
     const requestId = crypto.randomUUID();
     dispatch({ type: "COMPUTE_REQUESTED", requestId });
-
-    computeSnapshot({ id: requestId, source }).then((response) => {
-      dispatch({ type: "SNAPSHOT_READY", requestId: response.id, snapshot: response.snapshot });
+    scheduler.schedule({
+      id: requestId,
+      source,
+      changedSourceIds: lastEditChangedSourceIds,
+      trigger: dragKindToComputeTrigger(activeCanvasDragKind)
     });
-    // Note: we don't await here; the SNAPSHOT_READY handler in the reducer checks requestId
-  }, [source, dispatch]);
+  }, [activeCanvasDragKind, dispatch, lastEditChangedSourceIds, source]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -176,4 +210,16 @@ export function App() {
       </Suspense>
     </div>
   );
+}
+
+function dragKindToComputeTrigger(
+  dragKind: CanvasDragKind | null
+): "drag-element" | "drag-handle" | "other" {
+  if (dragKind === "element") {
+    return "drag-element";
+  }
+  if (dragKind === "handle") {
+    return "drag-handle";
+  }
+  return "other";
 }

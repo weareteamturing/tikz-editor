@@ -54,6 +54,19 @@ export type GeometryInvalidationResult = {
   reachedOpaque: boolean;
 };
 
+export type SemanticDependencyGraphBuilderState = {
+  sourceNodes: Array<{
+    sourceId: string;
+    opaqueReasons: SemanticDependencyOpaqueReason[];
+  }>;
+  resourceNodes: Array<{
+    id: string;
+    resourceKind: SemanticDependencyResourceKind;
+    resourceKey: string;
+  }>;
+  edges: SemanticDependencyEdge[];
+};
+
 type MutableSourceNodeState = {
   sourceId: string;
   opaqueReasons: Set<SemanticDependencyOpaqueReason>;
@@ -67,9 +80,9 @@ type MutableResourceNodeState = {
 const GEOMETRY_CATEGORY: SemanticDependencyCategory = "geometry";
 
 export class SemanticDependencyGraphBuilder {
-  private readonly sourceNodes = new Map<string, MutableSourceNodeState>();
-  private readonly resourceNodes = new Map<string, MutableResourceNodeState>();
-  private readonly edges = new Map<string, SemanticDependencyEdge>();
+  private sourceNodes = new Map<string, MutableSourceNodeState>();
+  private resourceNodes = new Map<string, MutableResourceNodeState>();
+  private edges = new Map<string, SemanticDependencyEdge>();
 
   ensureSourceNode(sourceId: string): string {
     const existing = this.sourceNodes.get(sourceId);
@@ -154,6 +167,67 @@ export class SemanticDependencyGraphBuilder {
       nodes,
       edges
     };
+  }
+
+  exportState(): SemanticDependencyGraphBuilderState {
+    const sourceNodes = [...this.sourceNodes.values()]
+      .map((sourceNode) => ({
+        sourceId: sourceNode.sourceId,
+        opaqueReasons: [...sourceNode.opaqueReasons].sort()
+      }))
+      .sort((left, right) => left.sourceId.localeCompare(right.sourceId));
+    const resourceNodes = [...this.resourceNodes.entries()]
+      .map(([id, node]) => ({
+        id,
+        resourceKind: node.resourceKind,
+        resourceKey: node.resourceKey
+      }))
+      .sort((left, right) => left.id.localeCompare(right.id));
+    const edges = [...this.edges.values()].sort(compareEdges);
+    return {
+      sourceNodes,
+      resourceNodes,
+      edges
+    };
+  }
+
+  importState(state: SemanticDependencyGraphBuilderState): void {
+    const nextSourceNodes = new Map<string, MutableSourceNodeState>();
+    for (const sourceNode of state.sourceNodes) {
+      nextSourceNodes.set(sourceNode.sourceId, {
+        sourceId: sourceNode.sourceId,
+        opaqueReasons: new Set(sourceNode.opaqueReasons)
+      });
+    }
+
+    const nextResourceNodes = new Map<string, MutableResourceNodeState>();
+    for (const resourceNode of state.resourceNodes) {
+      nextResourceNodes.set(resourceNode.id, {
+        resourceKind: resourceNode.resourceKind,
+        resourceKey: resourceNode.resourceKey
+      });
+    }
+
+    const nextEdges = new Map<string, SemanticDependencyEdge>();
+    for (const edge of state.edges) {
+      const edgeKey = `${edge.from}|${edge.to}|${edge.category}|${edge.relation}`;
+      nextEdges.set(edgeKey, {
+        from: edge.from,
+        to: edge.to,
+        category: edge.category,
+        relation: edge.relation
+      });
+    }
+
+    this.sourceNodes = nextSourceNodes;
+    this.resourceNodes = nextResourceNodes;
+    this.edges = nextEdges;
+  }
+
+  clone(): SemanticDependencyGraphBuilder {
+    const cloned = new SemanticDependencyGraphBuilder();
+    cloned.importState(this.exportState());
+    return cloned;
   }
 
   private addEdge(edge: SemanticDependencyEdge): void {

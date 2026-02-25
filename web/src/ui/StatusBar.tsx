@@ -14,6 +14,7 @@ export function StatusBar() {
 
   const parseResult = snapshot.parseResult;
   const semanticResult = snapshot.semanticResult;
+  const incrementalInfo = snapshot.incremental;
 
   const parseDiags = parseResult?.diagnostics ?? [];
   const semanticDiags = semanticResult?.diagnostics ?? [];
@@ -36,6 +37,17 @@ export function StatusBar() {
   const dragSummary = perfStats.dragFrameCount > 0
     ? ` · drag max ${formatPerf(perfStats.dragMaxFrameMs)} ms${activeCanvasDragKind ? ` (${activeCanvasDragKind})` : ""}`
     : "";
+  const showIncrementalFallback =
+    showPerf &&
+    incrementalInfo != null &&
+    incrementalInfo.strategy === "full" &&
+    incrementalInfo.fallbackReason !== "no-previous-cache";
+  const incrementalFallbackClass =
+    incrementalInfo?.fallbackReason === "runtime-error" ||
+    incrementalInfo?.fallbackReason === "restore-failed"
+      ? css.error
+      : css.warning;
+  const incrementalFallbackReason = incrementalInfo?.fallbackReason ?? "unknown";
 
   return (
     <div className={css.bar}>
@@ -62,6 +74,15 @@ export function StatusBar() {
           <span className={perfClassName}>
             {perfSummary}
             {dragSummary}
+          </span>
+        </div>
+      )}
+
+      {showIncrementalFallback && (
+        <div className={css.cell}>
+          <span className={css.label}>Inc:</span>
+          <span className={incrementalFallbackClass}>
+            fallback ({incrementalFallbackReason})
           </span>
         </div>
       )}

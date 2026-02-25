@@ -32,6 +32,7 @@ import {
   popFrame,
   pushFrame,
   withDependencySource,
+  type SemanticContext,
   type ProvenanceOptionList,
   type NodeDistanceSpec,
   type NodeQuotesMode
@@ -69,7 +70,44 @@ export type EvaluateTikzResult = {
   dependencies: SemanticDependencyGraph;
 };
 
+export type SemanticStatementEvaluationRecord = {
+  statementId: string;
+  elements: SceneElement[];
+  handleStart: number;
+  handleEnd: number;
+  diagnosticsStart: number;
+  diagnosticsEnd: number;
+};
+
+export type SemanticEvaluationRun = {
+  figure: TikzFigure;
+  source: string;
+  context: SemanticContext;
+  diagnostics: Diagnostic[];
+  featureUsage: FeatureUsage;
+  expandedFigureBody: Statement[];
+  statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
+  pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
+  rootFramePushed: boolean;
+  baseDiagnosticsCount: number;
+};
+
 export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: EvaluateOptions = {}): EvaluateTikzResult {
+  const run = createSemanticEvaluationRun(figure, source, opts);
+  const elementsByStatement: SceneElement[][] = [];
+  for (let statementIndex = 0; statementIndex < run.expandedFigureBody.length; statementIndex += 1) {
+    const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
+    elementsByStatement.push(evaluated.elements);
+  }
+  return finalizeSemanticEvaluationRun(run, elementsByStatement);
+}
+
+export function createSemanticEvaluationRun(
+  figure: TikzFigure,
+  source: string,
+  opts: EvaluateOptions = {}
+): SemanticEvaluationRun {
   const diagnostics: Diagnostic[] = [];
   const featureUsage = initializeFeatureUsage();
   markForeachFeaturesFromFigure(figure, featureUsage);
@@ -84,6 +122,7 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
   }
   const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null, source);
 
+  const rootFramePushed = figure.options != null;
   if (figure.options) {
     markFeature(featureUsage, "options_structured", "supported");
     const parent = currentFrame(context);
@@ -183,41 +222,79 @@ export function evaluateTikzFigure(figure: TikzFigure, source: string, opts: Eva
     }
   }
 
-  const elements: SceneElement[] = [];
   const statementMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
-  for (const statement of expanded.figureBody) {
-    const statementHandleStart = context.editHandles.length;
-    const statementElements = withDependencySource(context, statement.id, () =>
-      evaluateStatement(statement, context, diagnostics, featureUsage, statementMacroAttribution)
-    );
-    const attributedElements = applyForeachAttributionToElements(
-      statement,
-      statementElements,
-      expanded.statementAttribution,
-      expanded.pathItemForeachStack,
-      statementMacroAttribution
-    );
-    elements.push(...attributedElements);
-    applyForeachAttributionToHandles(statement, context.editHandles, statementHandleStart, expanded.statementAttribution);
+  return {
+    figure,
+    source,
+    context,
+    diagnostics,
+    featureUsage,
+    expandedFigureBody: expanded.figureBody,
+    statementAttribution: expanded.statementAttribution,
+    pathItemForeachStack: expanded.pathItemForeachStack,
+    statementMacroAttribution,
+    rootFramePushed,
+    baseDiagnosticsCount: diagnostics.length
+  };
+}
+
+export function evaluateSemanticStatementByIndex(
+  run: SemanticEvaluationRun,
+  statementIndex: number
+): SemanticStatementEvaluationRecord {
+  const statement = run.expandedFigureBody[statementIndex];
+  if (!statement) {
+    throw new Error(`Statement index ${statementIndex} is out of bounds`);
+  }
+  const handleStart = run.context.editHandles.length;
+  const diagnosticsStart = run.diagnostics.length;
+  const statementElements = withDependencySource(run.context, statement.id, () =>
+    evaluateStatement(statement, run.context, run.diagnostics, run.featureUsage, run.statementMacroAttribution)
+  );
+  const elements = applyForeachAttributionToElements(
+    statement,
+    statementElements,
+    run.statementAttribution,
+    run.pathItemForeachStack,
+    run.statementMacroAttribution
+  );
+  applyForeachAttributionToHandles(statement, run.context.editHandles, handleStart, run.statementAttribution);
+  return {
+    statementId: statement.id,
+    elements,
+    handleStart,
+    handleEnd: run.context.editHandles.length,
+    diagnosticsStart,
+    diagnosticsEnd: run.diagnostics.length
+  };
+}
+
+export function finalizeSemanticEvaluationRun(
+  run: SemanticEvaluationRun,
+  elementsByStatement: readonly SceneElement[][]
+): EvaluateTikzResult {
+  const elements: SceneElement[] = [];
+  for (const statementElements of elementsByStatement) {
+    elements.push(...statementElements);
   }
 
-  if (figure.options) {
-    popFrame(context);
+  if (run.rootFramePushed) {
+    popFrame(run.context);
   }
 
-  markOpaqueDependencySources(elements, context);
+  markOpaqueDependencySources(elements, run.context);
 
   return {
     scene: {
       kind: "SceneFigure",
-      span: figure.span,
+      span: run.figure.span,
       elements,
       bounds: computeBounds(elements)
     },
-    diagnostics,
-    featureUsage,
-    editHandles: context.editHandles,
-    dependencies: context.dependencyBuilder.build()
+    diagnostics: run.diagnostics,
+    featureUsage: run.featureUsage,
+    editHandles: run.context.editHandles,
+    dependencies: run.context.dependencyBuilder.build()
   };
 }
 

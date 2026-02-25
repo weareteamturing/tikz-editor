@@ -3,7 +3,11 @@ export { parseTikz } from "./parser/index.js";
 export { applyEdit, applyEditIntent } from "./edit/apply.js";
 export { EditorSession } from "./edit/session.js";
 export { collectTikzSnippetsFromDocs, extractTikzSnippetsFromSource } from "./corpus/extract.js";
-export { evaluateTikzFigure, collectGeometryInvalidation } from "./semantic/index.js";
+export {
+  evaluateTikzFigure,
+  createIncrementalSemanticSession,
+  collectGeometryInvalidation
+} from "./semantic/index.js";
 export { emitSvg, emitSvgModel, serializeSvgModel, diffSvgModels } from "./svg/index.js";
 export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
