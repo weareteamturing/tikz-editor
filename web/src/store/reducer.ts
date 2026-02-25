@@ -37,6 +37,7 @@ export function makeInitialState(): EditorState {
     toolMode: "select",
     canvasTransform: DEFAULT_CANVAS_TRANSFORM,
     hoveredElementId: null,
+    activeCanvasDragKind: null,
 
     leftPanelWidth: 340,
     rightPanelWidth: 280,
@@ -249,6 +250,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_HOVERED_ELEMENT": {
       if (state.hoveredElementId === action.id) return state;
       return { ...state, hoveredElementId: action.id };
+    }
+
+    case "SET_ACTIVE_CANVAS_DRAG": {
+      if (state.activeCanvasDragKind === action.kind) return state;
+      return { ...state, activeCanvasDragKind: action.kind };
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────

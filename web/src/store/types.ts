@@ -2,6 +2,7 @@ import type { SessionSnapshot } from "../compute";
 import type { EditAction } from "tikz-editor/edit/actions";
 
 export type ToolMode = "select" | "addNode" | "addLine" | "addRect" | "addCircle" | "addArrow";
+export type CanvasDragKind = "element" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
 
 export type CanvasTransform = {
   translateX: number;
@@ -51,6 +52,7 @@ export type EditorState = {
   toolMode: ToolMode;
   canvasTransform: CanvasTransform;
   hoveredElementId: string | null;
+  activeCanvasDragKind: CanvasDragKind | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   leftPanelWidth: number;
@@ -80,6 +82,7 @@ export type EditorAction =
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }
   | { type: "SET_HOVERED_ELEMENT"; id: string | null }
+  | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }

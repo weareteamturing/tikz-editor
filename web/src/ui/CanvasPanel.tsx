@@ -41,7 +41,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { useEditorStore } from "../store/store";
-import type { CanvasTransform, ToolMode } from "../store/types";
+import type { CanvasDragKind, CanvasTransform, ToolMode } from "../store/types";
 import { requestSourceSelection } from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import {
@@ -349,6 +349,21 @@ export function CanvasPanel() {
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
+
+  const setActiveCanvasDragKind = useCallback(
+    (kind: CanvasDragKind | null) => {
+      dispatch({ type: "SET_ACTIVE_CANVAS_DRAG", kind });
+    },
+    [dispatch]
+  );
+
+  const setDragState = useCallback(
+    (next: DragState | null) => {
+      dragRef.current = next;
+      setActiveCanvasDragKind(next?.kind ?? null);
+    },
+    [setActiveCanvasDragKind]
+  );
 
   const logSnapDebug = useCallback(
     (input: SnapDebugLogInput) => {
@@ -1087,7 +1102,7 @@ export function CanvasPanel() {
 
       dispatch({ type: "SELECT", id: sourceId, additive: false });
       applyCanvasTextSelection(target, clickIndex, clickIndex, prefixTable);
-      dragRef.current = {
+      setDragState({
         kind: "text-select",
         pointerId: event.pointerId,
         sourceId: target.sourceId,
@@ -1103,7 +1118,7 @@ export function CanvasPanel() {
         anchorIndex: clickIndex,
         headIndex: clickIndex,
         prefixTable
-      };
+      });
       setSnapLines([]);
       logSnapDebug({
         phase: "drag-start-text-select",
@@ -1119,6 +1134,7 @@ export function CanvasPanel() {
       logSnapDebug,
       resolveEditableTextTarget,
       resolvePrefixTableForTarget,
+      setDragState,
       snapshot.source,
       source,
       svgResult,
@@ -1184,7 +1200,7 @@ export function CanvasPanel() {
         : null;
       setSnapLines([]);
 
-      dragRef.current = {
+      setDragState({
         kind: "element",
         pointerId: event.pointerId,
         elementIds: draggedIds,
@@ -1197,7 +1213,7 @@ export function CanvasPanel() {
           draggedIds.slice().sort().join(","),
           event.pointerId
         )
-      };
+      });
       logSnapDebug({
         phase: "drag-start-element",
         snapshotMatchesSource: true,
@@ -1212,6 +1228,7 @@ export function CanvasPanel() {
       canvasTransform.scale,
       dispatch,
       logSnapDebug,
+      setDragState,
       selectedElementIds,
       snapshot.scene,
       snapshot.source,
@@ -1323,7 +1340,7 @@ export function CanvasPanel() {
         : null;
       setSnapLines([]);
 
-      dragRef.current = {
+      setDragState({
         kind: "handle",
         pointerId: event.pointerId,
         handleId: handle.id,
@@ -1332,7 +1349,7 @@ export function CanvasPanel() {
         lastKnownWorld: { ...handle.world },
         snapContext,
         historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId)
-      };
+      });
       logSnapDebug({
         phase: "drag-start-handle",
         snapshotMatchesSource: true,
@@ -1346,6 +1363,7 @@ export function CanvasPanel() {
       canvasTransform.scale,
       dispatch,
       logSnapDebug,
+      setDragState,
       selectedElementIds,
       snapshot.scene,
       snapshot.source,
@@ -1365,13 +1383,13 @@ export function CanvasPanel() {
 
       const canPan = event.button === 1 || (event.button === 0 && event.altKey);
       if (canPan) {
-        dragRef.current = {
+        setDragState({
           kind: "pan",
           pointerId: event.pointerId,
           startClientX: event.clientX,
           startClientY: event.clientY,
           startTransform: canvasTransform
-        };
+        });
         event.preventDefault();
         return;
       }
@@ -1416,13 +1434,13 @@ export function CanvasPanel() {
 
         if (toolMode === "addNode") {
           const snapResult = toolSnapContext
-            ? snapToolPointer({
-                context: toolSnapContext,
-                pointer: world,
-                kind: "node",
-                modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
-              })
-            : { snappedPoint: world, lines: [] as SnapLine[] };
+              ? snapToolPointer({
+                  context: toolSnapContext,
+                  pointer: world,
+                  kind: "node",
+                  modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+                })
+              : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
           const nodeAt = snapResult.snappedPoint ?? world;
           setSnapLines(snapResult.lines);
           logSnapDebug({
@@ -1463,7 +1481,7 @@ export function CanvasPanel() {
             currentWorld: snappedStart,
             snapContext: toolSnapContext
           };
-          dragRef.current = nextDraft;
+          setDragState(nextDraft);
           setToolDraft(nextDraft);
           logSnapDebug({
             phase: "tool-start",
@@ -1495,7 +1513,7 @@ export function CanvasPanel() {
           currentWorld: world,
           additive: event.shiftKey
         };
-        dragRef.current = nextMarquee;
+        setDragState(nextMarquee);
         setMarqueeDraft(nextMarquee);
         setSnapLines([]);
         logSnapDebug({
@@ -1514,6 +1532,7 @@ export function CanvasPanel() {
       dispatch,
       logSnapDebug,
       queueSelectionForAddedElement,
+      setDragState,
       snapshot.scene,
       snapshot.source,
       source,
@@ -1666,7 +1685,7 @@ export function CanvasPanel() {
         }
         setMarqueeDraft(null);
         if (dragRef.current?.kind === "marquee") {
-          dragRef.current = null;
+          setDragState(null);
         }
         dispatch({ type: "CLEAR_SELECTION" });
         setWarning(null);
@@ -1775,6 +1794,7 @@ export function CanvasPanel() {
       applyActionWithFeedback,
       dispatch,
       logSnapDebug,
+      setDragState,
       selectedElementIds,
       snapshot.editHandles,
       snapshot.scene,
@@ -1946,19 +1966,19 @@ export function CanvasPanel() {
       setToolCursorWorld(null);
       setSnapLines([]);
       if (dragRef.current?.kind === "tool-create") {
-        dragRef.current = null;
+        setDragState(null);
       }
       return;
     }
 
     setTextSelectionOverlay(null);
     if (dragRef.current?.kind === "marquee") {
-      dragRef.current = null;
+      setDragState(null);
       setMarqueeDraft(null);
     } else if (dragRef.current?.kind === "text-select") {
-      dragRef.current = null;
+      setDragState(null);
     }
-  }, [toolMode]);
+  }, [setDragState, toolMode]);
 
   useEffect(() => {
     if (!textSelectionOverlay) {
@@ -2017,6 +2037,7 @@ export function CanvasPanel() {
     selectedElementIdsRef,
     sourceBoundsRef,
     pendingAddedSelectionRef,
+    setDragState,
     setSnapLines,
     setToolDraft,
     setToolCursorWorld,
@@ -2025,6 +2046,8 @@ export function CanvasPanel() {
     setTextSelectionOverlay,
     textIndexFromClient
   });
+
+  useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
@@ -2340,6 +2363,7 @@ function useCanvasDragController(params: {
   selectedElementIdsRef: { current: ReadonlySet<string> };
   sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
   pendingAddedSelectionRef: { current: PendingAddedSelection | null };
+  setDragState: (drag: DragState | null) => void;
   setSnapLines: (lines: SnapLine[]) => void;
   setToolDraft: (draft: Extract<DragState, { kind: "tool-create" }> | null) => void;
   setToolCursorWorld: (point: Point | null) => void;
@@ -2369,6 +2393,7 @@ function useCanvasDragController(params: {
     selectedElementIdsRef,
     sourceBoundsRef,
     pendingAddedSelectionRef,
+    setDragState,
     setSnapLines,
     setToolDraft,
     setToolCursorWorld,
@@ -2493,7 +2518,7 @@ function useCanvasDragController(params: {
               anchor: drag.startWorld,
               modifiers: { ctrlOrMeta }
             })
-          : { snappedPoint: world, lines: [] as SnapLine[] };
+          : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
         drag.currentWorld = snapped.snappedPoint ?? world;
         setToolDraft({ ...drag });
         setToolCursorWorld(drag.currentWorld);
@@ -2552,6 +2577,7 @@ function useCanvasDragController(params: {
             })
           : {
               snappedDelta: rawTotalDelta,
+              offset: undefined,
               lines: [] as SnapLine[]
             };
         const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
@@ -2606,7 +2632,7 @@ function useCanvasDragController(params: {
             sourceId: drag.sourceId,
             modifiers: { ctrlOrMeta }
           })
-        : { snappedPoint: world, lines: [] as SnapLine[] };
+        : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
       const nextWorld = snapped.snappedPoint ?? world;
       setSnapLines(snapped.lines);
       logSnapDebug({
@@ -2672,7 +2698,7 @@ function useCanvasDragController(params: {
 
         setMarqueeDraft(null);
         setSnapLines([]);
-        dragRef.current = null;
+        setDragState(null);
         return;
       }
 
@@ -2721,12 +2747,12 @@ function useCanvasDragController(params: {
 
       if (drag.kind === "text-select") {
         setSnapLines([]);
-        dragRef.current = null;
+        setDragState(null);
         return;
       }
 
       setSnapLines([]);
-      dragRef.current = null;
+      setDragState(null);
     }
 
     window.addEventListener("pointermove", onPointerMove);
@@ -2748,6 +2774,7 @@ function useCanvasDragController(params: {
     queueSelectionForAddedElement,
     selectedElementIdsRef,
     setMarqueeDraft,
+    setDragState,
     setSnapLines,
     setTextSelectionOverlay,
     setToolCursorWorld,
