@@ -165,6 +165,23 @@ describe("edit snapping core", () => {
     expect(snapped.lines).toEqual([]);
   });
 
+  it("snaps to explicit guide lines", () => {
+    const context = buildSnapContext({
+      sceneElements: [],
+      selectedSourceIds: [],
+      zoom: 1,
+      guides: { x: [40], y: [15] },
+      settings: { points: { enabled: false }, grid: { enabled: false }, gaps: { enabled: false } }
+    });
+
+    const snapped = snapHandlePosition({
+      context,
+      point: { x: 44.2, y: 12.8 }
+    });
+
+    expect(snapped.snappedPoint).toEqual({ x: 40, y: 15 });
+  });
+
   it("supports gap center snapping", () => {
     const scene = [
       makeCircle("a", 5, 5, 5),   // bounds x=[0,10]

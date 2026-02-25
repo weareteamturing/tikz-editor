@@ -6,6 +6,7 @@ import {
 } from "./geometry.js";
 import { collectGridSnaps, pickGridStepPt, snapToNextMultiple } from "./grid-snaps.js";
 import {
+  collectGuideSnaps,
   collectPointSnaps,
   createEmptySnapBuckets,
   createMinOffset,
@@ -292,6 +293,14 @@ function collectPointGridAndGapSnaps({
     });
   }
 
+  collectGuideSnaps({
+    selectionPoints: selection.snapPoints,
+    guides: context.guides,
+    minOffset,
+    nearest,
+    enabledAxis
+  });
+
   if (settings.grid.enabled) {
     collectGridSnaps({
       selectionPoints: selection.snapPoints,
@@ -345,6 +354,14 @@ function collectPointAndGridSnaps({
       enabledAxis
     });
   }
+
+  collectGuideSnaps({
+    selectionPoints,
+    guides: context.guides,
+    minOffset,
+    nearest,
+    enabledAxis
+  });
 
   if (settings.grid.enabled) {
     collectGridSnaps({

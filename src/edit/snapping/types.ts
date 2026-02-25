@@ -67,10 +67,21 @@ export type Gap = {
   length: number;
 };
 
+export type SnapGuides = {
+  x: number[];
+  y: number[];
+};
+
+export type SnapGuideInput = {
+  x?: readonly number[];
+  y?: readonly number[];
+};
+
 export type SnapContext = {
   zoom: number;
   viewportWorld: Bounds | null;
   selectedSourceIds: string[];
+  guides: SnapGuides;
   referencePoints: SnapPoint[];
   referenceBounds: SnapBounds[];
   visibleGaps: {
@@ -107,6 +118,7 @@ export type BuildSnapContextInput = {
   selectedSourceIds: readonly string[];
   zoom: number;
   viewportWorld?: Bounds | null;
+  guides?: SnapGuideInput;
   settings?: SnapSettingsPatch;
 };
 
@@ -147,7 +159,7 @@ export type SnapToolPointerInput = {
 };
 
 export type PointSnapCandidate = {
-  kind: "point" | "grid";
+  kind: "point" | "grid" | "guide";
   axis: Axis;
   from: Point;
   to: Point;

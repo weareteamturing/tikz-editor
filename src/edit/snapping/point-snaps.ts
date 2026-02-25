@@ -69,6 +69,66 @@ export function collectPointSnaps({
   }
 }
 
+export function collectGuideSnaps({
+  selectionPoints,
+  guides,
+  minOffset,
+  nearest,
+  enabledAxis
+}: {
+  selectionPoints: readonly { x: number; y: number }[];
+  guides: { x: readonly number[]; y: readonly number[] };
+  minOffset: AxisMinOffset;
+  nearest: AxisSnapBuckets;
+  enabledAxis?: Axis | null;
+}): void {
+  for (const from of selectionPoints) {
+    if (enabledAxis !== "y") {
+      for (const guideX of guides.x) {
+        const offsetX = guideX - from.x;
+        const absX = Math.abs(offsetX);
+        if (absX <= minOffset.x + SNAP_EPSILON) {
+          if (absX + SNAP_EPSILON < minOffset.x) {
+            nearest.x.length = 0;
+          }
+
+          nearest.x.push({
+            kind: "guide",
+            axis: "x",
+            from: { x: from.x, y: from.y },
+            to: { x: guideX, y: from.y },
+            offset: offsetX,
+            key: roundSnapValue(guideX)
+          });
+          minOffset.x = absX;
+        }
+      }
+    }
+
+    if (enabledAxis !== "x") {
+      for (const guideY of guides.y) {
+        const offsetY = guideY - from.y;
+        const absY = Math.abs(offsetY);
+        if (absY <= minOffset.y + SNAP_EPSILON) {
+          if (absY + SNAP_EPSILON < minOffset.y) {
+            nearest.y.length = 0;
+          }
+
+          nearest.y.push({
+            kind: "guide",
+            axis: "y",
+            from: { x: from.x, y: from.y },
+            to: { x: from.x, y: guideY },
+            offset: offsetY,
+            key: roundSnapValue(guideY)
+          });
+          minOffset.y = absY;
+        }
+      }
+    }
+  }
+}
+
 export function pointSnapOffset(nearest: AxisSnapBuckets): { x: number; y: number } {
   const xSnap = nearest.x.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");
   const ySnap = nearest.y.find((snap): snap is PointSnapCandidate => snap.kind !== "gap");

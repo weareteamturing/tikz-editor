@@ -211,6 +211,30 @@ type ToolPreview =
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
 
+type GuideOrientation = "vertical" | "horizontal";
+
+type GuidesState = {
+  vertical: number[];
+  horizontal: number[];
+};
+
+type GuidePreview = {
+  orientation: GuideOrientation;
+  value: number;
+  hideValue?: number;
+  visible?: boolean;
+};
+
+type GuideDragState = {
+  pointerId: number;
+  orientation: GuideOrientation;
+  source: "ruler" | "guide";
+  sourceValue?: number;
+  value: number;
+  overViewport: boolean;
+  overDeleteZone: boolean;
+};
+
 type PendingAddedSelection = {
   beforeIds: Set<string>;
   preferredWorld: Point;
@@ -311,6 +335,7 @@ const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
+const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
 
@@ -341,6 +366,8 @@ export function CanvasPanel() {
     height: 220
   });
   const [showGrid, setShowGrid] = useState(true);
+  const [guides, setGuides] = useState<GuidesState>({ vertical: [], horizontal: [] });
+  const [guidePreview, setGuidePreview] = useState<GuidePreview | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
@@ -350,6 +377,8 @@ export function CanvasPanel() {
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const topRulerRef = useRef<SVGSVGElement | null>(null);
+  const leftRulerRef = useRef<SVGSVGElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
@@ -359,6 +388,7 @@ export function CanvasPanel() {
   const svgResultRef = useRef(svgResult);
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
+  const guideDragRef = useRef<GuideDragState | null>(null);
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
@@ -718,6 +748,42 @@ export function CanvasPanel() {
     [visibleRanges]
   );
 
+  const snapGuideInput = useMemo(
+    () => ({
+      x: guides.vertical,
+      y: guides.horizontal
+    }),
+    [guides.horizontal, guides.vertical]
+  );
+
+  const renderedGuides = useMemo(() => {
+    const vertical = [...guides.vertical];
+    const horizontal = [...guides.horizontal];
+
+    if (guidePreview) {
+      if (guidePreview.hideValue != null) {
+        if (guidePreview.orientation === "vertical") {
+          removeGuideValue(vertical, guidePreview.hideValue);
+        } else {
+          removeGuideValue(horizontal, guidePreview.hideValue);
+        }
+      }
+
+      if (guidePreview.visible !== false) {
+        if (guidePreview.orientation === "vertical") {
+          upsertGuideValue(vertical, guidePreview.value);
+        } else {
+          upsertGuideValue(horizontal, guidePreview.value);
+        }
+      }
+    }
+
+    return {
+      vertical: vertical.sort((a, b) => a - b),
+      horizontal: horizontal.sort((a, b) => a - b)
+    };
+  }, [guidePreview, guides.horizontal, guides.vertical]);
+
   const rulers = useMemo(() => {
     if (!svgResult || !visibleRanges) {
       return {
@@ -916,6 +982,137 @@ export function CanvasPanel() {
       pendingAddedSelectionRef.current = { beforeIds, preferredWorld };
     },
     [snapshot.scene]
+  );
+
+  const resolveGuideFromClient = useCallback(
+    (orientation: GuideOrientation, clientX: number, clientY: number): { value: number; overViewport: boolean } | null => {
+      const viewport = viewportRef.current;
+      const currentSvg = svgResultRef.current;
+      if (!viewport || !currentSvg) {
+        return null;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      const world = viewportToWorldPoint(localX, localY, canvasTransformRef.current, currentSvg.viewBox);
+      return {
+        value: orientation === "vertical" ? world.x : world.y,
+        overViewport: isPointInsideRect(clientX, clientY, rect)
+      };
+    },
+    []
+  );
+
+  const isPointerOverGuideDeleteZone = useCallback(
+    (orientation: GuideOrientation, clientX: number, clientY: number): boolean => {
+      const viewportRect = viewportRef.current?.getBoundingClientRect();
+      if (!viewportRect) {
+        return false;
+      }
+      if (orientation === "horizontal") {
+        return clientY <= viewportRect.top + 0.5;
+      }
+      return clientX <= viewportRect.left + 0.5;
+    },
+    []
+  );
+
+  const onGuidePointerDown = useCallback(
+    (event: ReactPointerEvent<SVGLineElement>, orientation: GuideOrientation, value: number) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const guide = resolveGuideFromClient(orientation, event.clientX, event.clientY);
+      if (!guide) {
+        return;
+      }
+
+      viewportRef.current?.focus({ preventScroll: true });
+      guideDragRef.current = {
+        pointerId: event.pointerId,
+        orientation,
+        source: "guide",
+        sourceValue: value,
+        value: guide.value,
+        overViewport: guide.overViewport,
+        overDeleteZone: isPointerOverGuideDeleteZone(orientation, event.clientX, event.clientY)
+      };
+      setGuidePreview(
+        guide.overViewport
+          ? { orientation, value: guide.value, hideValue: value }
+          : null
+      );
+      document.body.classList.add(
+        orientation === "horizontal" ? "is-dragging-guide-horizontal" : "is-dragging-guide-vertical"
+      );
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [isPointerOverGuideDeleteZone, resolveGuideFromClient]
+  );
+
+  const onTopRulerPointerDown = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      const guide = resolveGuideFromClient("horizontal", event.clientX, event.clientY);
+      if (!guide) {
+        return;
+      }
+
+      viewportRef.current?.focus({ preventScroll: true });
+      guideDragRef.current = {
+        pointerId: event.pointerId,
+        orientation: "horizontal",
+        source: "ruler",
+        value: guide.value,
+        overViewport: guide.overViewport,
+        overDeleteZone: false
+      };
+      setGuidePreview(guide.overViewport ? { orientation: "horizontal", value: guide.value } : null);
+      document.body.classList.add("is-dragging-guide-horizontal");
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [resolveGuideFromClient]
+  );
+
+  const onLeftRulerPointerDown = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      // Keep guide drags on the canvas-adjacent side so the code-panel splitter
+      // can still be grabbed reliably near the outer edge.
+      if (localX < rect.width - LEFT_RULER_DRAG_SOURCE_WIDTH_PX) {
+        return;
+      }
+
+      const guide = resolveGuideFromClient("vertical", event.clientX, event.clientY);
+      if (!guide) {
+        return;
+      }
+
+      viewportRef.current?.focus({ preventScroll: true });
+      guideDragRef.current = {
+        pointerId: event.pointerId,
+        orientation: "vertical",
+        source: "ruler",
+        value: guide.value,
+        overViewport: guide.overViewport,
+        overDeleteZone: false
+      };
+      setGuidePreview(guide.overViewport ? { orientation: "vertical", value: guide.value } : null);
+      document.body.classList.add("is-dragging-guide-vertical");
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [resolveGuideFromClient]
   );
 
   const resolveEditableTextTarget = useCallback(
@@ -1201,6 +1398,7 @@ export function CanvasPanel() {
         ? buildSnapContext({
             sceneElements: snapshot.scene.elements,
             selectedSourceIds: draggedIds,
+            guides: snapGuideInput,
             zoom: canvasTransform.scale,
             viewportWorld: viewportWorldBounds
           })
@@ -1248,6 +1446,7 @@ export function CanvasPanel() {
       source,
       svgResult,
       toolMode,
+      snapGuideInput,
       viewportWorldBounds
     ]
   );
@@ -1347,6 +1546,7 @@ export function CanvasPanel() {
         ? buildSnapContext({
             sceneElements: snapshot.scene.elements,
             selectedSourceIds: [handle.sourceId],
+            guides: snapGuideInput,
             zoom: canvasTransform.scale,
             viewportWorld: viewportWorldBounds
           })
@@ -1383,6 +1583,7 @@ export function CanvasPanel() {
       source,
       svgResult,
       toolMode,
+      snapGuideInput,
       viewportWorldBounds
     ]
   );
@@ -1429,6 +1630,7 @@ export function CanvasPanel() {
           ? buildSnapContext({
               sceneElements: snapshot.scene.elements,
               selectedSourceIds: [],
+              guides: snapGuideInput,
               zoom: canvasTransform.scale,
               viewportWorld: viewportWorldBounds
             })
@@ -1551,6 +1753,7 @@ export function CanvasPanel() {
       source,
       svgResult,
       toolMode,
+      snapGuideInput,
       viewportWorldBounds
     ]
   );
@@ -1582,6 +1785,7 @@ export function CanvasPanel() {
       const snapContext = buildSnapContext({
         sceneElements: snapshot.scene.elements,
         selectedSourceIds: [],
+        guides: snapGuideInput,
         zoom: canvasTransform.scale,
         viewportWorld: viewportWorldBounds
       });
@@ -1615,6 +1819,7 @@ export function CanvasPanel() {
       svgResult,
       toolDraft,
       toolMode,
+      snapGuideInput,
       viewportWorldBounds
     ]
   );
@@ -1651,6 +1856,7 @@ export function CanvasPanel() {
       const snapContext = buildSnapContext({
         sceneElements: snapshot.scene.elements,
         selectedSourceIds: [],
+        guides: snapGuideInput,
         zoom: canvasTransform.scale,
         viewportWorld: viewportWorldBounds
       });
@@ -1684,6 +1890,7 @@ export function CanvasPanel() {
       svgResult,
       toolDraft,
       toolMode,
+      snapGuideInput,
       viewportWorldBounds
     ]
   );
@@ -1953,6 +2160,102 @@ export function CanvasPanel() {
   }, [dispatch]);
 
   useEffect(() => {
+    function clearGuideDragState() {
+      if (!guideDragRef.current) {
+        return;
+      }
+      guideDragRef.current = null;
+      setGuidePreview(null);
+      document.body.classList.remove("is-dragging-guide-horizontal");
+      document.body.classList.remove("is-dragging-guide-vertical");
+    }
+
+    function onPointerMove(event: PointerEvent) {
+      const drag = guideDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) {
+        return;
+      }
+
+      const guide = resolveGuideFromClient(drag.orientation, event.clientX, event.clientY);
+      if (!guide) {
+        drag.overViewport = false;
+        drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+        setGuidePreview(
+          drag.source === "guide"
+            ? {
+                orientation: drag.orientation,
+                value: drag.value,
+                hideValue: drag.sourceValue,
+                visible: false
+              }
+            : null
+        );
+        return;
+      }
+      drag.value = guide.value;
+      drag.overViewport = guide.overViewport;
+      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+      setGuidePreview(
+        drag.source === "guide"
+          ? {
+              orientation: drag.orientation,
+              value: guide.value,
+              hideValue: drag.sourceValue,
+              visible: guide.overViewport && !drag.overDeleteZone
+            }
+          : guide.overViewport
+            ? {
+                orientation: drag.orientation,
+                value: guide.value
+              }
+            : null
+      );
+    }
+
+    function onPointerUp(event: PointerEvent) {
+      const drag = guideDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) {
+        return;
+      }
+
+      const guide = resolveGuideFromClient(drag.orientation, event.clientX, event.clientY);
+      if (guide) {
+        drag.value = guide.value;
+        drag.overViewport = guide.overViewport;
+      } else {
+        drag.overViewport = false;
+      }
+      drag.overDeleteZone = isPointerOverGuideDeleteZone(drag.orientation, event.clientX, event.clientY);
+
+      if (drag.source === "ruler") {
+        if (drag.overViewport) {
+          setGuides((current) => addGuide(current, drag.orientation, drag.value));
+        }
+      } else if (drag.source === "guide" && drag.sourceValue != null) {
+        if (drag.overDeleteZone) {
+          setGuides((current) => removeGuide(current, drag.orientation, drag.sourceValue!));
+        } else if (drag.overViewport) {
+          setGuides((current) =>
+            moveGuide(current, drag.orientation, drag.sourceValue!, drag.value)
+          );
+        }
+      }
+      clearGuideDragState();
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      clearGuideDragState();
+    };
+  }, [isPointerOverGuideDeleteZone, resolveGuideFromClient]);
+
+  useEffect(() => {
     if (!warning) return;
 
     const timer = window.setTimeout(() => setWarning(null), 3200);
@@ -2137,6 +2440,8 @@ export function CanvasPanel() {
   const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const gridMinorStrokeWidth = 0.6 / Math.max(canvasTransform.scale, 1e-3);
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
+  const guideStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
+  const guideHitStrokeWidth = 12 / Math.max(canvasTransform.scale, 1e-3);
   const snapStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
   const snapCrossSize = 3 / Math.max(canvasTransform.scale, 1e-3);
   const textSelectionVisual = useMemo(() => {
@@ -2227,7 +2532,12 @@ export function CanvasPanel() {
       <div className={css.canvasGrid}>
         <div className={css.rulerCorner}>cm</div>
 
-        <svg className={css.topRuler} viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}>
+        <svg
+          ref={topRulerRef}
+          className={css.topRuler}
+          viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
+          onPointerDown={onTopRulerPointerDown}
+        >
           <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
           {rulers.topTicks.map((tick, index) => (
             <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
@@ -2247,7 +2557,12 @@ export function CanvasPanel() {
           ))}
         </svg>
 
-        <svg className={css.leftRuler} viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}>
+        <svg
+          ref={leftRulerRef}
+          className={css.leftRuler}
+          viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
+          onPointerDown={onLeftRulerPointerDown}
+        >
           <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
           {rulers.leftTicks.map((tick, index) => (
             <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
@@ -2265,6 +2580,14 @@ export function CanvasPanel() {
               )}
             </g>
           ))}
+          <rect
+            x={RULER_SIZE - LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+            y={0}
+            width={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+            height={Math.max(1, viewportSize.height)}
+            className={css.leftRulerGuideStrip}
+            fill="transparent"
+          />
         </svg>
 
         <div
@@ -2347,6 +2670,56 @@ export function CanvasPanel() {
                         strokeWidth={gridMajorStrokeWidth}
                       />
                     ))}
+                  </g>
+                )}
+
+                {(renderedGuides.vertical.length > 0 || renderedGuides.horizontal.length > 0) && (
+                  <g className={css.guideOverlay}>
+                    {renderedGuides.vertical.map((x) => (
+                      <g key={`guide-v-${fmt(x)}`}>
+                        <line
+                          x1={x}
+                          x2={x}
+                          y1={visibleRanges?.svgMinY ?? svgResult.viewBox.y}
+                          y2={visibleRanges?.svgMaxY ?? (svgResult.viewBox.y + svgResult.viewBox.height)}
+                          className={css.guideLine}
+                          strokeWidth={guideStrokeWidth}
+                        />
+                        <line
+                          x1={x}
+                          x2={x}
+                          y1={visibleRanges?.svgMinY ?? svgResult.viewBox.y}
+                          y2={visibleRanges?.svgMaxY ?? (svgResult.viewBox.y + svgResult.viewBox.height)}
+                          className={`${css.guideHitLine} ${css.guideLineVertical}`}
+                          strokeWidth={guideHitStrokeWidth}
+                          onPointerDown={(event) => onGuidePointerDown(event, "vertical", x)}
+                        />
+                      </g>
+                    ))}
+                    {renderedGuides.horizontal.map((worldY) => {
+                      const y = worldToSvgY(worldY, svgResult.viewBox);
+                      return (
+                        <g key={`guide-h-${fmt(worldY)}`}>
+                          <line
+                            x1={visibleRanges?.worldMinX ?? svgResult.viewBox.x}
+                            x2={visibleRanges?.worldMaxX ?? (svgResult.viewBox.x + svgResult.viewBox.width)}
+                            y1={y}
+                            y2={y}
+                            className={css.guideLine}
+                            strokeWidth={guideStrokeWidth}
+                          />
+                          <line
+                            x1={visibleRanges?.worldMinX ?? svgResult.viewBox.x}
+                            x2={visibleRanges?.worldMaxX ?? (svgResult.viewBox.x + svgResult.viewBox.width)}
+                            y1={y}
+                            y2={y}
+                            className={`${css.guideHitLine} ${css.guideLineHorizontal}`}
+                            strokeWidth={guideHitStrokeWidth}
+                            onPointerDown={(event) => onGuidePointerDown(event, "horizontal", worldY)}
+                          />
+                        </g>
+                      );
+                    })}
                   </g>
                 )}
 
@@ -3616,4 +3989,79 @@ function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | null {
     return null;
   }
   return handles.find((handle) => handle.kind === "node-position") ?? handles[0]!;
+}
+
+function isPointInsideRect(clientX: number, clientY: number, rect: DOMRect): boolean {
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+}
+
+function addGuide(guides: GuidesState, orientation: GuideOrientation, value: number): GuidesState {
+  if (orientation === "vertical") {
+    const nextVertical = [...guides.vertical];
+    const added = upsertGuideValue(nextVertical, value);
+    if (!added) {
+      return guides;
+    }
+    nextVertical.sort((a, b) => a - b);
+    return { ...guides, vertical: nextVertical };
+  }
+
+  const nextHorizontal = [...guides.horizontal];
+  const added = upsertGuideValue(nextHorizontal, value);
+  if (!added) {
+    return guides;
+  }
+  nextHorizontal.sort((a, b) => a - b);
+  return { ...guides, horizontal: nextHorizontal };
+}
+
+function removeGuide(guides: GuidesState, orientation: GuideOrientation, value: number): GuidesState {
+  if (orientation === "vertical") {
+    const nextVertical = [...guides.vertical];
+    const removed = removeGuideValue(nextVertical, value);
+    if (!removed) {
+      return guides;
+    }
+    return { ...guides, vertical: nextVertical };
+  }
+
+  const nextHorizontal = [...guides.horizontal];
+  const removed = removeGuideValue(nextHorizontal, value);
+  if (!removed) {
+    return guides;
+  }
+  return { ...guides, horizontal: nextHorizontal };
+}
+
+function moveGuide(
+  guides: GuidesState,
+  orientation: GuideOrientation,
+  sourceValue: number,
+  targetValue: number
+): GuidesState {
+  const withoutSource = removeGuide(guides, orientation, sourceValue);
+  return addGuide(withoutSource, orientation, targetValue);
+}
+
+function upsertGuideValue(values: number[], value: number): boolean {
+  const normalized = normalizeGuideValue(value);
+  if (values.some((existing) => Math.abs(existing - normalized) <= 1e-4)) {
+    return false;
+  }
+  values.push(normalized);
+  return true;
+}
+
+function removeGuideValue(values: number[], value: number): boolean {
+  const normalized = normalizeGuideValue(value);
+  const index = values.findIndex((existing) => Math.abs(existing - normalized) <= 1e-4);
+  if (index < 0) {
+    return false;
+  }
+  values.splice(index, 1);
+  return true;
+}
+
+function normalizeGuideValue(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
 }

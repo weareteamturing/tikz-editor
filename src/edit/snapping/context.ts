@@ -69,14 +69,39 @@ export function buildSnapContext(input: BuildSnapContextInput): SnapContext {
   const visibleGaps = settings.gaps.enabled
     ? buildVisibleGaps(referenceBounds, settings.gaps.maxPairsPerAxis)
     : { horizontal: [], vertical: [] };
+  const guides = {
+    x: normalizeGuideValues(input.guides?.x),
+    y: normalizeGuideValues(input.guides?.y)
+  };
 
   return {
     zoom,
     viewportWorld,
     selectedSourceIds: [...input.selectedSourceIds],
+    guides,
     referencePoints,
     referenceBounds,
     visibleGaps,
     settings
   };
+}
+
+function normalizeGuideValues(values: readonly number[] | undefined): number[] {
+  if (!values || values.length === 0) {
+    return [];
+  }
+
+  const deduped = new Set<number>();
+  for (const value of values) {
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    deduped.add(roundGuideValue(value));
+  }
+
+  return [...deduped].sort((a, b) => a - b);
+}
+
+function roundGuideValue(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
 }
