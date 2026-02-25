@@ -99,9 +99,9 @@ describe("render pipeline", () => {
         flushCalls += 1;
         if (!ready) {
           ready = true;
-          return true;
+          return ["ready-cache"];
         }
-        return false;
+        return [];
       }
     };
 

@@ -11,7 +11,7 @@ import { renderPathWithArrows } from "./arrows/render.js";
 import type { RenderedArrowTipPath } from "./arrows/types.js";
 import { createSvgModelBuilder, serializeSvgModel } from "./model.js";
 import { computeViewBox } from "./viewbox.js";
-import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "./types.js";
+import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel, SvgRenderPart } from "./types.js";
 
 type ShadowRenderableStyle = Pick<
   ResolvedStyle,
@@ -48,6 +48,11 @@ type ElementBounds = {
   minY: number;
   maxX: number;
   maxY: number;
+};
+
+type SvgModelReuseContext = {
+  affectedSourceIds: Set<string>;
+  previousPartsByElementId: Map<string, SvgRenderPart[]>;
 };
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
@@ -159,7 +164,43 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return null;
   };
 
+  const reuseContext = createSvgModelReuseContext(opts.reuse, viewBox);
+
+  const registerDefsForElement = (element: SceneElement): void => {
+    if (element.kind === "Path") {
+      if (!hasDrawablePathCommands(element.commands)) {
+        return;
+      }
+      const renderedPath = renderPathWithArrows(element);
+      if (!hasDrawablePathCommands(renderedPath.shaftCommands)) {
+        return;
+      }
+      const d = encodePathData(renderedPath.shaftCommands, viewBox);
+      if (d.length === 0) {
+        return;
+      }
+    } else if (element.kind === "Text") {
+      return;
+    }
+
+    for (const layer of element.style.shadowLayers) {
+      const layerStyle = resolveShadowLayerStyle(layer.style as ShadowRenderableStyle, element.style);
+      if (layer.fade === "circle-fuzzy-edge-15") {
+        ensureCircularShadowMaskDefinition();
+      }
+      resolveShadingFill(layerStyle, element.sourceId);
+    }
+    resolveShadingFill(element.style, element.sourceId);
+  };
+
   for (const element of scene.elements) {
+    if (reuseContext) {
+      registerDefsForElement(element);
+      if (tryReuseElementParts(modelBuilder, reuseContext, element)) {
+        continue;
+      }
+    }
+
     if (element.kind === "Path") {
       if (!hasDrawablePathCommands(element.commands)) {
         diagnostics.push({
@@ -1007,4 +1048,87 @@ function encodeTextBody(text: string, x: number, y: number): string {
 
 function hasDrawablePathCommands(commands: ScenePathCommand[]): boolean {
   return commands.some((command) => command.kind === "L" || command.kind === "C" || command.kind === "A");
+}
+
+function createSvgModelReuseContext(
+  reuse: EmitSvgOptions["reuse"] | undefined,
+  viewBox: SvgRenderModel["viewBox"]
+): SvgModelReuseContext | null {
+  if (!reuse?.previousModel || !reuse.affectedSourceIds || reuse.affectedSourceIds.length === 0) {
+    return null;
+  }
+  if (!hasReusableModelInvariants(reuse.previousModel)) {
+    return null;
+  }
+  if (!sameViewBox(reuse.previousModel.viewBox, viewBox)) {
+    return null;
+  }
+
+  const previousPartsByElementId = new Map<string, SvgRenderPart[]>();
+  for (const part of reuse.previousModel.parts) {
+    if (!part.elementId) {
+      return null;
+    }
+    const existing = previousPartsByElementId.get(part.elementId);
+    if (existing) {
+      existing.push(part);
+    } else {
+      previousPartsByElementId.set(part.elementId, [part]);
+    }
+  }
+
+  return {
+    affectedSourceIds: new Set(reuse.affectedSourceIds),
+    previousPartsByElementId
+  };
+}
+
+function tryReuseElementParts(
+  modelBuilder: ReturnType<typeof createSvgModelBuilder>,
+  context: SvgModelReuseContext,
+  element: SceneElement
+): boolean {
+  if (context.affectedSourceIds.has(element.sourceId)) {
+    return false;
+  }
+  const reusableParts = context.previousPartsByElementId.get(element.id);
+  if (!reusableParts || reusableParts.length === 0) {
+    return false;
+  }
+  for (const part of reusableParts) {
+    if (part.sourceId !== element.sourceId || part.elementId !== element.id) {
+      return false;
+    }
+  }
+  for (const part of reusableParts) {
+    modelBuilder.addExistingPart(part);
+  }
+  return true;
+}
+
+function hasReusableModelInvariants(model: SvgRenderModel): boolean {
+  const partIds = new Set<string>();
+  for (let index = 0; index < model.parts.length; index += 1) {
+    const part = model.parts[index];
+    if (!part) {
+      return false;
+    }
+    if (part.order !== index) {
+      return false;
+    }
+    if (partIds.has(part.partId)) {
+      return false;
+    }
+    partIds.add(part.partId);
+  }
+  return true;
+}
+
+function sameViewBox(left: SvgRenderModel["viewBox"], right: SvgRenderModel["viewBox"]): boolean {
+  return (
+    Math.abs(left.x - right.x) <= 1e-9 &&
+    Math.abs(left.y - right.y) <= 1e-9 &&
+    Math.abs(left.width - right.width) <= 1e-9 &&
+    Math.abs(left.height - right.height) <= 1e-9
+  );
 }

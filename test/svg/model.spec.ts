@@ -39,4 +39,67 @@ describe("svg render model", () => {
     expect(emitted.model).toEqual(model);
     expect(emitted.diagnostics).toEqual(model.diagnostics);
   });
+
+  it("matches full emission when reusing unaffected source parts", () => {
+    const previousSource = String.raw`\begin{tikzpicture}
+  \draw (-3,1) -- (3,1);
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const nextSource = String.raw`\begin{tikzpicture}
+  \draw (-3,1) -- (3,1);
+  \draw (0.2,0) -- (1.2,0);
+\end{tikzpicture}`;
+
+    const previousParsed = parseTikz(previousSource);
+    const previousSemantic = evaluateTikzFigure(previousParsed.figure, previousSource);
+    const nextParsed = parseTikz(nextSource);
+    const nextSemantic = evaluateTikzFigure(nextParsed.figure, nextSource);
+
+    const previousModel = emitSvgModel(previousSemantic.scene, { padding: 8 });
+    const fullNextModel = emitSvgModel(nextSemantic.scene, { padding: 8 });
+    const movedSourceId = previousSemantic.scene.elements[1]?.sourceId;
+    expect(movedSourceId).toBeDefined();
+
+    const incrementalNextModel = emitSvgModel(nextSemantic.scene, {
+      padding: 8,
+      reuse: {
+        previousModel,
+        affectedSourceIds: movedSourceId ? [movedSourceId] : []
+      }
+    });
+
+    expect(incrementalNextModel).toEqual(fullNextModel);
+  });
+
+  it("falls back to full emission when viewBox changes under reuse hints", () => {
+    const previousSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+    const nextSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (5,0);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const previousParsed = parseTikz(previousSource);
+    const previousSemantic = evaluateTikzFigure(previousParsed.figure, previousSource);
+    const nextParsed = parseTikz(nextSource);
+    const nextSemantic = evaluateTikzFigure(nextParsed.figure, nextSource);
+
+    const previousModel = emitSvgModel(previousSemantic.scene, { padding: 8 });
+    const fullNextModel = emitSvgModel(nextSemantic.scene, { padding: 8 });
+    const movedSourceId = previousSemantic.scene.elements[0]?.sourceId;
+    expect(movedSourceId).toBeDefined();
+    expect(fullNextModel.viewBox).not.toEqual(previousModel.viewBox);
+
+    const incrementalNextModel = emitSvgModel(nextSemantic.scene, {
+      padding: 8,
+      reuse: {
+        previousModel,
+        affectedSourceIds: movedSourceId ? [movedSourceId] : []
+      }
+    });
+
+    expect(incrementalNextModel).toEqual(fullNextModel);
+  });
 });

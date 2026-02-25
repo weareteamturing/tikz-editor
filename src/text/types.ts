@@ -48,5 +48,9 @@ export type NodeTextEngine = {
   validate(text: string): NodeTextValidationIssue | null;
   measure(request: NodeTextMeasureRequest): NodeTextMetrics | null;
   renderFromCache(cacheKey: string): NodeTextRenderPayload | null;
-  flushPending?(): Promise<boolean>;
+  /**
+   * Resolve pending async renders and return the cache keys that became available
+   * during this flush. Returns an empty list when nothing changed.
+   */
+  flushPending?(): Promise<readonly string[]>;
 };

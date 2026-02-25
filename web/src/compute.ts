@@ -1,6 +1,6 @@
 import type { ParseTikzResult } from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
-import type { EmitSvgResult, SvgRenderModel } from "tikz-editor/svg/index";
+import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "tikz-editor/svg/index";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 import type { NodeTextEngine } from "tikz-editor/text/types";
@@ -54,6 +54,7 @@ export type ComputeResponse = {
 let revisionCounter = 0;
 let incrementalSession: IncrementalSemanticSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
+let previousSvgModel: SvgRenderModel | null = null;
 
 export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
   return {
@@ -117,6 +118,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     // Non-drag requests currently bypass the incremental session.
     // Reset to avoid reusing stale cached prefixes on the next drag.
     incrementalSession?.reset();
+    previousSvgModel = result.svg.model;
 
     const snapshot: SessionSnapshot = {
       source: request.source,
@@ -137,6 +139,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     };
   } catch (error) {
     incrementalSession?.reset();
+    previousSvgModel = null;
     const snapshot: SessionSnapshot = {
       source: request.source,
       revision,
@@ -174,13 +177,15 @@ async function computeSnapshotIncremental(
   stats: IncrementalSemanticStats;
   renderDiagnostics: RenderDiagnostic[];
 }> {
-  const [{ parseTikz }, { emitSvg }] = await Promise.all([
+  const [{ parseTikz }, { emitSvg }, { collectGeometryInvalidation }] = await Promise.all([
     import("tikz-editor/parser/index"),
-    import("tikz-editor/svg/index")
+    import("tikz-editor/svg/index"),
+    import("tikz-editor/semantic/index")
   ]);
   const textEngine = await getOptionalTextEngine();
   const parseResult = parseTikz(source, { recover: true });
   const session = await getIncrementalSemanticSession();
+  let reusePreviousModel = previousSvgModel;
 
   let incremental = session.evaluate({
     figure: parseResult.figure,
@@ -193,14 +198,21 @@ async function computeSnapshotIncremental(
   });
   let semanticResult = incremental.semantic;
   let incrementalStats = incremental.stats;
+  let affectedSourceIdsForReuse = collectSvgReuseAffectedSourceIds(
+    semanticResult,
+    changedSourceIds,
+    collectGeometryInvalidation
+  );
 
   let svgResult = emitSvg(semanticResult.scene, {
     padding: 18,
-    textEngine
+    textEngine,
+    reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
   });
+  reusePreviousModel = svgResult.model;
 
-  const flushedPendingText = await textEngine?.flushPending?.();
-  if (flushedPendingText) {
+  const flushedPendingTextKeys = await textEngine?.flushPending?.();
+  if (flushedPendingTextKeys && flushedPendingTextKeys.length > 0) {
     incremental = session.evaluate({
       figure: parseResult.figure,
       source: parseResult.source,
@@ -212,11 +224,22 @@ async function computeSnapshotIncremental(
     });
     semanticResult = incremental.semantic;
     incrementalStats = incremental.stats;
+    const dependencyAffectedSourceIds = collectSvgReuseAffectedSourceIds(
+      semanticResult,
+      changedSourceIds,
+      collectGeometryInvalidation
+    );
+    const mathJaxAffectedSourceIds = collectMathJaxTextSourceIdsByCacheKeys(semanticResult, flushedPendingTextKeys);
+    affectedSourceIdsForReuse = mergeSourceIds(dependencyAffectedSourceIds, mathJaxAffectedSourceIds);
     svgResult = emitSvg(semanticResult.scene, {
       padding: 18,
-      textEngine
+      textEngine,
+      reuse: buildSvgReuseHints(reusePreviousModel, affectedSourceIdsForReuse)
     });
+    reusePreviousModel = svgResult.model;
   }
+
+  previousSvgModel = reusePreviousModel;
 
   return {
     parse: parseResult,
@@ -224,6 +247,74 @@ async function computeSnapshotIncremental(
     svg: svgResult,
     stats: incrementalStats,
     renderDiagnostics: []
+  };
+}
+
+function collectMathJaxTextSourceIdsByCacheKeys(
+  semanticResult: EvaluateTikzResult,
+  changedCacheKeys: readonly string[]
+): string[] {
+  if (changedCacheKeys.length === 0) {
+    return [];
+  }
+  const changed = new Set(changedCacheKeys);
+  const sourceIds = new Set<string>();
+  for (const element of semanticResult.scene.elements) {
+    if (element.kind !== "Text" || element.textRenderInfo?.mode !== "mathjax") {
+      continue;
+    }
+    if (!changed.has(element.textRenderInfo.cacheKey)) {
+      continue;
+    }
+    sourceIds.add(element.sourceId);
+  }
+  return [...sourceIds].sort();
+}
+
+function mergeSourceIds(left: string[] | null, right: string[] | null): string[] | null {
+  if ((!left || left.length === 0) && (!right || right.length === 0)) {
+    return null;
+  }
+  const merged = new Set<string>();
+  for (const sourceId of left ?? []) {
+    merged.add(sourceId);
+  }
+  for (const sourceId of right ?? []) {
+    merged.add(sourceId);
+  }
+  return [...merged].sort();
+}
+
+function collectSvgReuseAffectedSourceIds(
+  semanticResult: EvaluateTikzResult,
+  changedSourceIds: string[],
+  collectGeometryInvalidation: (
+    graph: EvaluateTikzResult["dependencies"],
+    query: { changedSourceIds: readonly string[] }
+  ) => { affectedSourceIds: string[]; reachedOpaque: boolean }
+): string[] | null {
+  const invalidation = collectGeometryInvalidation(semanticResult.dependencies, {
+    changedSourceIds
+  });
+  if (invalidation.reachedOpaque) {
+    return null;
+  }
+  if (invalidation.affectedSourceIds.length === 0) {
+    return null;
+  }
+  return invalidation.affectedSourceIds;
+}
+
+function buildSvgReuseHints(
+  previousModel: SvgRenderModel | null,
+  affectedSourceIds: string[] | null
+): EmitSvgOptions["reuse"] | undefined {
+  if (!previousModel || !affectedSourceIds || affectedSourceIds.length === 0) {
+    return undefined;
+  }
+  return {
+    previousModel,
+    affectedSourceIds
   };
 }
 

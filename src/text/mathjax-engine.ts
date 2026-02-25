@@ -120,6 +120,7 @@ async function initializeEngine(): Promise<NodeTextEngine> {
   const cache = new Map<string, CachedRenderEntry>();
   const validationCache = new Map<string, NodeTextValidationIssue | null>();
   const pendingAsyncRenders = new Set<Promise<void>>();
+  const finalizedPendingCacheKeys = new Set<string>();
 
   return {
     validate(text: string): NodeTextValidationIssue | null {
@@ -147,7 +148,7 @@ async function initializeEngine(): Promise<NodeTextEngine> {
         return null;
       } catch (error) {
         if (isMathJaxAsyncRetryError(error)) {
-          queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, defaultMeasureKey, tex);
+          queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, defaultMeasureKey, tex);
           validationCache.set(text, null);
           return null;
         }
@@ -182,7 +183,7 @@ async function initializeEngine(): Promise<NodeTextEngine> {
           validationCache.set(request.text, null);
         } catch (error) {
           if (isMathJaxAsyncRetryError(error)) {
-            queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, cacheKey, tex);
+            queueAsyncCachePopulate(runtime, cache, pendingAsyncRenders, finalizedPendingCacheKeys, cacheKey, tex);
             validationCache.set(request.text, null);
           }
           return null;
@@ -200,16 +201,19 @@ async function initializeEngine(): Promise<NodeTextEngine> {
     renderFromCache(cacheKey: string): NodeTextRenderPayload | null {
       return cache.get(cacheKey)?.payload ?? null;
     },
-    async flushPending(): Promise<boolean> {
-      if (pendingAsyncRenders.size === 0) {
-        return false;
+    async flushPending(): Promise<readonly string[]> {
+      if (pendingAsyncRenders.size > 0) {
+        do {
+          const batch = [...pendingAsyncRenders];
+          await Promise.allSettled(batch);
+        } while (pendingAsyncRenders.size > 0);
       }
-
-      do {
-        const batch = [...pendingAsyncRenders];
-        await Promise.allSettled(batch);
-      } while (pendingAsyncRenders.size > 0);
-      return true;
+      if (finalizedPendingCacheKeys.size === 0) {
+        return [];
+      }
+      const changedKeys = [...finalizedPendingCacheKeys].sort();
+      finalizedPendingCacheKeys.clear();
+      return changedKeys;
     }
   };
 }
@@ -587,6 +591,7 @@ function queueAsyncCachePopulate(
   runtime: MathJaxRuntime,
   cache: Map<string, CachedRenderEntry>,
   pendingAsyncRenders: Set<Promise<void>>,
+  finalizedPendingCacheKeys: Set<string>,
   cacheKey: string,
   tex: string
 ): void {
@@ -603,6 +608,7 @@ function queueAsyncCachePopulate(
       const entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
       if (entry) {
         cache.set(cacheKey, entry);
+        finalizedPendingCacheKeys.add(cacheKey);
       }
     })
     .catch(() => {

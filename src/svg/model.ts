@@ -13,6 +13,7 @@ export type SvgModelPartInput = {
 
 export type SvgModelBuilder = {
   addPart: (input: SvgModelPartInput) => SvgRenderPart;
+  addExistingPart: (part: SvgRenderPart) => SvgRenderPart;
   build: (input: {
     viewBox: SvgViewBox;
     defs: string[];
@@ -25,26 +26,48 @@ export function createSvgModelBuilder(): SvgModelBuilder {
   const baseIdCounts = new Map<string, number>();
   const usedPartIds = new Set<string>();
 
-  const addPart = (input: SvgModelPartInput): SvgRenderPart => {
-    const base = sanitizePartIdBase(input.basePartId);
-    const seenCount = baseIdCounts.get(base) ?? 0;
-    baseIdCounts.set(base, seenCount + 1);
-    const partId = seenCount === 0 ? base : `${base}#${seenCount + 1}`;
+  const addPartWithId = (partId: string, input: Omit<SvgRenderPart, "partId" | "order">): SvgRenderPart => {
     if (usedPartIds.has(partId)) {
       throw new Error(`Duplicate svg part id generated: ${partId}`);
     }
     usedPartIds.add(partId);
-
     const part: SvgRenderPart = {
       partId,
       sourceId: input.sourceId,
       elementId: input.elementId,
       order: parts.length,
       markup: input.markup,
-      fingerprint: input.markup
+      fingerprint: input.fingerprint
     };
     parts.push(part);
     return part;
+  };
+
+  const addPart = (input: SvgModelPartInput): SvgRenderPart => {
+    const base = sanitizePartIdBase(input.basePartId);
+    let seenCount = baseIdCounts.get(base) ?? 0;
+    let partId = seenCount === 0 ? base : `${base}#${seenCount + 1}`;
+    while (usedPartIds.has(partId)) {
+      seenCount += 1;
+      partId = `${base}#${seenCount + 1}`;
+    }
+    baseIdCounts.set(base, seenCount + 1);
+
+    return addPartWithId(partId, {
+      sourceId: input.sourceId,
+      elementId: input.elementId,
+      markup: input.markup,
+      fingerprint: input.markup
+    });
+  };
+
+  const addExistingPart = (part: SvgRenderPart): SvgRenderPart => {
+    return addPartWithId(part.partId, {
+      sourceId: part.sourceId,
+      elementId: part.elementId,
+      markup: part.markup,
+      fingerprint: part.fingerprint
+    });
   };
 
   const build = (input: {
@@ -63,6 +86,7 @@ export function createSvgModelBuilder(): SvgModelBuilder {
 
   return {
     addPart,
+    addExistingPart,
     build
   };
 }

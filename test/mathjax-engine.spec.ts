@@ -114,4 +114,46 @@ describe("mathjax node text engine", () => {
       message: "Undefined control sequence"
     });
   });
+
+  it("reports finalized cache keys from flushPending", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+    };
+
+    target.window = {};
+    target.document = {};
+    target.MathJax = {
+      tex2svg: () => {
+        throw new Error(RETRY_MESSAGE);
+      },
+      tex2svgPromise: async () => ({
+        tagName: "svg",
+        getAttribute: (name: string) => (name === "viewBox" ? "0 0 1000 500" : null),
+        innerHTML: "<g data-test='pending'></g>"
+      }),
+      startup: {}
+    };
+
+    const { createMathJaxNodeTextEngine } = await import("../src/text/mathjax-engine.js");
+    const engine = await createMathJaxNodeTextEngine();
+
+    const measured = engine.measure({
+      text: String.raw`$\ell^2$`,
+      textWidthPt: null,
+      fontStyle: "normal",
+      fontWeight: "normal",
+      fontFamily: "serif",
+      fontSizePt: 10
+    });
+    expect(measured).toBeNull();
+
+    const changedKeys = await engine.flushPending?.();
+    expect(changedKeys).toBeDefined();
+    expect(changedKeys?.length ?? 0).toBeGreaterThan(0);
+    for (const cacheKey of changedKeys ?? []) {
+      expect(engine.renderFromCache(cacheKey)).not.toBeNull();
+    }
+  });
 });

@@ -59,6 +59,14 @@ export type EmitSvgOptions = {
   padding?: number;
   includeXmlns?: boolean;
   textEngine?: NodeTextEngine | null;
+  /**
+   * Optional render-model reuse hints for exact incremental SVG emission.
+   * If invariants do not hold, emitter falls back to full model emission.
+   */
+  reuse?: {
+    previousModel?: SvgRenderModel | null;
+    affectedSourceIds?: readonly string[] | null;
+  };
 };
 
 export type EmitSvgResult = {
