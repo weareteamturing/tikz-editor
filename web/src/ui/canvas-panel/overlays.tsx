@@ -412,6 +412,7 @@ export function SelectionOverlay({
   textSelectionVisual:
     | {
         collapsed: boolean;
+        caretAnimationKey: string;
         x1: number;
         x2: number;
         yTop: number;
@@ -449,6 +450,7 @@ export function SelectionOverlay({
         >
           {textSelectionVisual.collapsed ? (
             <line
+              key={textSelectionVisual.caretAnimationKey}
               className={css.textCaret}
               x1={textSelectionVisual.x1}
               y1={textSelectionVisual.yTop}

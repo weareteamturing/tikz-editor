@@ -30,6 +30,7 @@ import { tikzLanguage } from "../codemirror-tikz";
 import { numberScrubber } from "../number-scrubber";
 import { useEditorStore } from "../store/store";
 import {
+  notifySourceSelectionChanged,
   SOURCE_SELECTION_REQUEST_EVENT,
   type SourceSelectionRequestDetail
 } from "./source-sync";
@@ -286,6 +287,15 @@ export function SourcePanel() {
         },
         dispatch
       );
+
+      const selection = update.state.selection.main;
+      notifySourceSelectionChanged({
+        from: selection.from,
+        to: selection.to,
+        anchor: selection.anchor,
+        head: selection.head,
+        sourceId: findSelectionSourceId(selection.anchor, selection.head, update.state.doc.length, spanIndexRef.current)
+      });
     });
 
     const sourceHoverBridge = EditorView.domEventHandlers({
@@ -727,6 +737,23 @@ function syncSelectionFromSourceCursor(
 
 function shouldSuppressStoreSelectionSync(sourceId: string, selectedElementIds: ReadonlySet<string>): boolean {
   return !(selectedElementIds.size === 1 && selectedElementIds.has(sourceId));
+}
+
+function findSelectionSourceId(
+  anchor: number,
+  head: number,
+  docLength: number,
+  spanIndex: SourceSpanIndex
+): string | null {
+  const headSourceId = findSourceIdAtPosition(head, docLength, spanIndex);
+  const anchorSourceId = findSourceIdAtPosition(anchor, docLength, spanIndex);
+  if (headSourceId && anchorSourceId && headSourceId === anchorSourceId) {
+    return headSourceId;
+  }
+  if (headSourceId) {
+    return headSourceId;
+  }
+  return anchorSourceId;
 }
 
 function findSourceIdAtPosition(

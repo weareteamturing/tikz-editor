@@ -49,7 +49,11 @@ import {
 } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform, ToolMode } from "../store/types";
-import { requestSourceSelection } from "./source-sync";
+import {
+  requestSourceSelection,
+  SOURCE_SELECTION_CHANGED_EVENT,
+  type SourceSelectionChangeDetail
+} from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { SvgDomPatcher } from "./canvas-panel/svg-dom-patcher";
 import {
@@ -2352,6 +2356,63 @@ export function CanvasPanel() {
   }, [selectedElementIds, textSelectionOverlay]);
 
   useEffect(() => {
+    const handleSelectionChanged = (rawEvent: Event) => {
+      if (toolMode !== "select") {
+        return;
+      }
+
+      const event = rawEvent as CustomEvent<SourceSelectionChangeDetail>;
+      const detail = event.detail;
+      const sourceId = detail?.sourceId?.trim();
+      if (!sourceId) {
+        setTextSelectionOverlay(null);
+        return;
+      }
+
+      const region = hitRegions.find(
+        (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
+          candidate.sourceId === sourceId && candidate.shape === "rect"
+      );
+      const target = resolveEditableTextTarget(sourceId, region);
+      if (!target) {
+        setTextSelectionOverlay(null);
+        return;
+      }
+
+      const anchorOffset = Math.floor(detail.anchor);
+      const headOffset = Math.floor(detail.head);
+      if (
+        anchorOffset < target.sourceSpan.from ||
+        anchorOffset > target.sourceSpan.to ||
+        headOffset < target.sourceSpan.from ||
+        headOffset > target.sourceSpan.to
+      ) {
+        setTextSelectionOverlay(null);
+        return;
+      }
+
+      const prefixTable = resolvePrefixTableForTarget(target);
+      setTextSelectionOverlay({
+        sourceId,
+        textLength: target.text.length,
+        totalWidth: target.totalWidth,
+        fontSizePt: target.style.fontSize,
+        startIndex: clamp(anchorOffset - target.sourceSpan.from, 0, target.text.length),
+        endIndex: clamp(headOffset - target.sourceSpan.from, 0, target.text.length),
+        rotation: target.region.rotation,
+        cx: target.region.cx,
+        cy: target.region.cy,
+        width: target.region.width,
+        height: target.region.height,
+        prefixTable
+      });
+    };
+
+    window.addEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
+    return () => window.removeEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
+  }, [hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget, toolMode]);
+
+  useEffect(() => {
     const pending = pendingAddedSelectionRef.current;
     if (!pending) {
       return;
@@ -2472,6 +2533,7 @@ export function CanvasPanel() {
     const mappedEnd = clamp(leftEdge + (unitsEnd / textSelectionOverlay.totalWidth) * textSelectionOverlay.width, leftEdge, rightEdge);
     return {
       collapsed: textSelectionOverlay.startIndex === textSelectionOverlay.endIndex,
+      caretAnimationKey: `${textSelectionOverlay.sourceId}:${textSelectionOverlay.startIndex}:${textSelectionOverlay.endIndex}`,
       x1: mappedStart,
       x2: mappedEnd,
       yTop: textSelectionOverlay.cy - textSelectionOverlay.height / 2,
