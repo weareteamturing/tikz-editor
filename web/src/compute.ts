@@ -42,6 +42,7 @@ export type ComputeRequest = {
   source: string;
   changedSourceIds?: string[] | null;
   trigger?: IncrementalSemanticTrigger;
+  kind?: "render" | "prewarm";
 };
 
 export type ComputeResponse = {
@@ -55,6 +56,7 @@ let revisionCounter = 0;
 let incrementalSession: IncrementalSemanticSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
 let previousSvgModel: SvgRenderModel | null = null;
+let incrementalWarmSource: string | null = null;
 
 export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
   return {
@@ -77,11 +79,19 @@ export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
  */
 export async function computeSnapshot(request: ComputeRequest): Promise<ComputeResponse> {
   const revision = ++revisionCounter;
+  const requestKind = request.kind ?? "render";
 
   try {
     const trigger = request.trigger ?? "other";
     const changedSourceIds = normalizeChangedSourceIds(request.changedSourceIds ?? []);
     const isDragTrigger = trigger === "drag-element" || trigger === "drag-handle";
+    if (requestKind === "prewarm" && incrementalWarmSource === request.source) {
+      return {
+        id: request.id,
+        snapshot: makeEmptySnapshot(request.source),
+        diagnostics: []
+      };
+    }
     if (isDragTrigger && changedSourceIds.length > 0) {
       const result = await computeSnapshotIncremental(request.source, changedSourceIds, trigger);
       const snapshot: SessionSnapshot = {
@@ -118,6 +128,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     // Non-drag requests currently bypass the incremental session.
     // Reset to avoid reusing stale cached prefixes on the next drag.
     incrementalSession?.reset();
+    incrementalWarmSource = null;
     previousSvgModel = result.svg.model;
 
     const snapshot: SessionSnapshot = {
@@ -139,6 +150,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     };
   } catch (error) {
     incrementalSession?.reset();
+    incrementalWarmSource = null;
     previousSvgModel = null;
     const snapshot: SessionSnapshot = {
       source: request.source,
@@ -240,6 +252,7 @@ async function computeSnapshotIncremental(
   }
 
   previousSvgModel = reusePreviousModel;
+  incrementalWarmSource = source;
 
   return {
     parse: parseResult,

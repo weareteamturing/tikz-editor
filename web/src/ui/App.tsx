@@ -33,10 +33,12 @@ const DevPanel = lazy(async () => {
 export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
+  const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const dispatch = useEditorStore((s) => s.dispatch);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
 
@@ -44,6 +46,9 @@ export function App() {
     const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
       run: (request) => computeSnapshot(request),
       onSuccess: (_request, response) => {
+        if ((_request.kind ?? "render") === "prewarm") {
+          return;
+        }
         dispatch({
           type: "SNAPSHOT_READY",
           requestId: response.id,
@@ -51,6 +56,9 @@ export function App() {
         });
       },
       onError: (request) => {
+        if ((request.kind ?? "render") === "prewarm") {
+          return;
+        }
         dispatch({
           type: "SNAPSHOT_READY",
           requestId: request.id,
@@ -76,11 +84,45 @@ export function App() {
     dispatch({ type: "COMPUTE_REQUESTED", requestId });
     scheduler.schedule({
       id: requestId,
+      kind: "render",
       source,
       changedSourceIds: lastEditChangedSourceIds,
       trigger: dragKindToComputeTrigger(activeCanvasDragKind)
     });
   }, [activeCanvasDragKind, dispatch, lastEditChangedSourceIds, source]);
+
+  useEffect(() => {
+    const scheduler = computeSchedulerRef.current;
+    if (!scheduler) {
+      return;
+    }
+    if (activeCanvasDragKind) {
+      return;
+    }
+    if (pendingRequestId != null) {
+      return;
+    }
+    if (!hoveredElementId) {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      scheduler.schedule({
+        id: crypto.randomUUID(),
+        kind: "prewarm",
+        source,
+        changedSourceIds: [hoveredElementId],
+        trigger: "drag-element"
+      });
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeCanvasDragKind, hoveredElementId, pendingRequestId, snapshot.source, source]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
