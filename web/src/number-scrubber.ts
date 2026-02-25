@@ -4,7 +4,7 @@ import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 
 interface NumberScrubberOptions {
-  onScrubStateChange?: (isActive: boolean) => void;
+  onScrubStateChange?: (state: { isActive: boolean; from: number | null; to: number | null }) => void;
 }
 
 type ScrubKind = "coordinate" | "length" | "angle" | "scale" | "opacity" | "numeric";
@@ -211,7 +211,11 @@ export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
         };
 
         document.body.classList.add("is-scrubbing");
-        this.onScrubStateChange?.(true);
+        this.onScrubStateChange?.({
+          isActive: true,
+          from: this.active.from,
+          to: this.active.to
+        });
         this.updateHoverCursorClass();
         this.applyScrubDrag(event);
       }
@@ -243,7 +247,11 @@ export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
         if (this.active) {
           this.active = null;
           document.body.classList.remove("is-scrubbing");
-          this.onScrubStateChange?.(false);
+          this.onScrubStateChange?.({
+            isActive: false,
+            from: null,
+            to: null
+          });
         }
         this.removeWindowListenersIfIdle();
         this.updateHoverCursorClass();

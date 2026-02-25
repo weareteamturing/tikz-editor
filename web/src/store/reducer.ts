@@ -40,6 +40,7 @@ export function makeInitialState(): EditorState {
     canvasTransform: DEFAULT_CANVAS_TRANSFORM,
     hoveredElementId: null,
     activeCanvasDragKind: null,
+    activeSourceScrubSourceId: null,
 
     leftPanelWidth: 340,
     rightPanelWidth: 280,
@@ -71,10 +72,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (action.source === state.source) return state;
       // Canvas/WYSIWYG history entries are source-versioned snapshots.
       // Drop them on direct code edits to avoid stale undo restoring old text.
+      const scrubChangedSourceIds = state.activeSourceScrubSourceId ? [state.activeSourceScrubSourceId] : null;
       return {
         ...state,
         source: action.source,
-        lastEditChangedSourceIds: null,
+        lastEditChangedSourceIds: scrubChangedSourceIds,
         lastEditChangeToken: state.lastEditChangeToken + 1,
         history: [],
         historyIndex: -1
@@ -267,6 +269,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_ACTIVE_CANVAS_DRAG": {
       if (state.activeCanvasDragKind === action.kind) return state;
       return { ...state, activeCanvasDragKind: action.kind };
+    }
+
+    case "SET_ACTIVE_SOURCE_SCRUB": {
+      if (state.activeSourceScrubSourceId === action.sourceId) return state;
+      return { ...state, activeSourceScrubSourceId: action.sourceId };
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────

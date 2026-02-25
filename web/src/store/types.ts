@@ -57,6 +57,8 @@ export type EditorState = {
   canvasTransform: CanvasTransform;
   hoveredElementId: string | null;
   activeCanvasDragKind: CanvasDragKind | null;
+  /** Source id currently being edited via source-number scrubbing. */
+  activeSourceScrubSourceId: string | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   leftPanelWidth: number;
@@ -87,6 +89,7 @@ export type EditorAction =
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }
   | { type: "SET_HOVERED_ELEMENT"; id: string | null }
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
+  | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }

@@ -318,7 +318,19 @@ export function SourcePanel() {
         editorKeymap,
         ...completionExtensions,
         tikzLanguage(),
-        numberScrubber(),
+        numberScrubber({
+          onScrubStateChange: (scrub) => {
+            if (!scrub.isActive || scrub.from == null) {
+              dispatch({ type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: null });
+              return;
+            }
+            const sourceId = findSourceIdAtPosition(scrub.from, view.state.doc.length, spanIndexRef.current);
+            dispatch({
+              type: "SET_ACTIVE_SOURCE_SCRUB",
+              sourceId
+            });
+          }
+        }),
         highlightField,
         diagnosticsField,
         diagnosticTooltip,
@@ -331,6 +343,7 @@ export function SourcePanel() {
     viewRef.current = view;
 
     return () => {
+      dispatch({ type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: null });
       if (diagnosticTimerRef.current != null) {
         clearTimeout(diagnosticTimerRef.current);
         diagnosticTimerRef.current = null;

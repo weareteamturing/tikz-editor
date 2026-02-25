@@ -38,6 +38,7 @@ export function App() {
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const dispatch = useEditorStore((s) => s.dispatch);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
@@ -82,14 +83,15 @@ export function App() {
     }
     const requestId = crypto.randomUUID();
     dispatch({ type: "COMPUTE_REQUESTED", requestId });
+    const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
     scheduler.schedule({
       id: requestId,
       kind: "render",
       source,
-      changedSourceIds: lastEditChangedSourceIds,
-      trigger: dragKindToComputeTrigger(activeCanvasDragKind)
+      changedSourceIds,
+      trigger: computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId)
     });
-  }, [activeCanvasDragKind, dispatch, lastEditChangedSourceIds, source]);
+  }, [activeCanvasDragKind, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
 
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;
@@ -97,6 +99,9 @@ export function App() {
       return;
     }
     if (activeCanvasDragKind) {
+      return;
+    }
+    if (activeSourceScrubSourceId) {
       return;
     }
     if (pendingRequestId != null) {
@@ -122,7 +127,7 @@ export function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeCanvasDragKind, hoveredElementId, pendingRequestId, snapshot.source, source]);
+  }, [activeCanvasDragKind, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -262,6 +267,20 @@ function dragKindToComputeTrigger(
   }
   if (dragKind === "handle") {
     return "drag-handle";
+  }
+  return "other";
+}
+
+function computeTrigger(
+  dragKind: CanvasDragKind | null,
+  sourceScrubSourceId: string | null
+): "drag-element" | "drag-handle" | "other" {
+  const dragTrigger = dragKindToComputeTrigger(dragKind);
+  if (dragTrigger !== "other") {
+    return dragTrigger;
+  }
+  if (sourceScrubSourceId) {
+    return "drag-element";
   }
   return "other";
 }
