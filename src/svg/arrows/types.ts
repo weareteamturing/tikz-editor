@@ -1,5 +1,7 @@
 import type { ArrowTip, Point, ScenePath, ScenePathCommand } from "../../semantic/types.js";
 
+export type { Frame } from "../../geometry/path-sampler.js";
+
 export type ArrowSide = "start" | "end";
 
 export type NormalizedArrowTip = ArrowTip & {
@@ -32,12 +34,6 @@ export type ArrowShorteningResult = {
   lineEndShortening: number;
   totalLength: number;
   plans: ArrowTipPlan[];
-};
-
-export type Frame = {
-  point: Point;
-  tangent: Point;
-  normal: Point;
 };
 
 export type RenderedArrowTipPath = {

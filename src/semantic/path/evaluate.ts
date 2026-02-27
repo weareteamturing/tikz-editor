@@ -9,6 +9,7 @@ import type {
   PathItem,
   PathStatement,
   PlotOperationItem,
+  Span,
   ToOperationItem
 } from "../../ast/types.js";
 import { parseTikz } from "../../parser/index.js";
@@ -554,6 +555,31 @@ export function evaluatePathStatement(
       writeNamedCoordinate(context, applyNameScope(pending.name, context), point);
     }
     pendingSegmentPlacements = [];
+  };
+  const flushPendingCircle = (sourceId: string, span: Span): void => {
+    if (!pendingCircleCenter) {
+      return;
+    }
+    const fallbackRadius = pendingCircleRadius ?? style.radius;
+    if (fallbackRadius != null) {
+      emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, sourceId, span);
+    } else {
+      const fallbackRadii = pendingCircleRadii ?? {
+        rx: style.xRadius ?? DEFAULT_GRID_STEP,
+        ry: style.yRadius ?? DEFAULT_GRID_STEP
+      };
+      emitCircleOrEllipse(
+        { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+        pendingCircleCenter,
+        sourceId,
+        span
+      );
+    }
+    pendingCircleCenter = null;
+    pendingCircleRadius = null;
+    pendingCircleRadii = null;
+    pendingCircleRotation = 0;
+    lastPlacementSegment = null;
   };
   const computeShouldCompoundFilledSubpaths = (candidateStyle: ResolvedStyle): boolean => {
     const hasFilledShadowLayer = candidateStyle.shadowLayers.some(
@@ -2144,43 +2170,23 @@ export function evaluatePathStatement(
       treeParentCandidate = null;
     }
 
-    if (item.kind === "Coordinate") {
+      if (item.kind === "Coordinate") {
       if (statement.command === "node" && item.raw.trim() === "()") {
         continue;
       }
 
-      if (pendingCircleCenter) {
-        const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
-        if (radius != null) {
-          emitCircleOrEllipse(transformCircleGeometry(radius, frameTransform), pendingCircleCenter, item.id, item.span);
-          pendingCircleCenter = null;
-          pendingCircleRadius = null;
-          pendingCircleRadii = null;
-          pendingCircleRotation = 0;
-          continue;
+        if (pendingCircleCenter) {
+          const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
+          if (radius != null) {
+            emitCircleOrEllipse(transformCircleGeometry(radius, frameTransform), pendingCircleCenter, item.id, item.span);
+            pendingCircleCenter = null;
+            pendingCircleRadius = null;
+            pendingCircleRadii = null;
+            pendingCircleRotation = 0;
+            continue;
+          }
+          flushPendingCircle(item.id, item.span);
         }
-
-        const fallbackRadius = pendingCircleRadius ?? style.radius;
-        if (fallbackRadius != null) {
-          emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, item.id, item.span);
-        } else {
-          const fallbackRadii = pendingCircleRadii ?? {
-            rx: style.xRadius ?? DEFAULT_GRID_STEP,
-            ry: style.yRadius ?? DEFAULT_GRID_STEP
-          };
-          emitCircleOrEllipse(
-            { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
-            pendingCircleCenter,
-            item.id,
-            item.span
-          );
-        }
-        pendingCircleCenter = null;
-        pendingCircleRadius = null;
-        pendingCircleRadii = null;
-        pendingCircleRotation = 0;
-        lastPlacementSegment = null;
-      }
 
       if (pendingEllipseCenter) {
         const parsedRadii = parseEllipseRadiiFromCoordinateRaw(item.raw);
@@ -2464,29 +2470,10 @@ export function evaluatePathStatement(
       continue;
     }
 
-    if (item.kind === "PathKeyword") {
-      if (pendingCircleCenter) {
-        const fallbackRadius = pendingCircleRadius ?? style.radius;
-        if (fallbackRadius != null) {
-          emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, item.id, item.span);
-        } else {
-          const fallbackRadii = pendingCircleRadii ?? {
-            rx: style.xRadius ?? DEFAULT_GRID_STEP,
-            ry: style.yRadius ?? DEFAULT_GRID_STEP
-          };
-          emitCircleOrEllipse(
-            { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
-            pendingCircleCenter,
-            item.id,
-            item.span
-          );
+      if (item.kind === "PathKeyword") {
+        if (pendingCircleCenter) {
+          flushPendingCircle(item.id, item.span);
         }
-        pendingCircleCenter = null;
-        pendingCircleRadius = null;
-        pendingCircleRadii = null;
-        pendingCircleRotation = 0;
-        lastPlacementSegment = null;
-      }
 
       if (item.keyword === "--" || item.keyword === "-|" || item.keyword === "|-") {
         currentOperator = item.keyword;
@@ -3293,22 +3280,7 @@ export function evaluatePathStatement(
   }
 
   if (pendingCircleCenter) {
-    const fallbackRadius = pendingCircleRadius ?? style.radius;
-    if (fallbackRadius != null) {
-      emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, statement.id, statement.span);
-    } else {
-      const fallbackRadii = pendingCircleRadii ?? {
-        rx: style.xRadius ?? DEFAULT_GRID_STEP,
-        ry: style.yRadius ?? DEFAULT_GRID_STEP
-      };
-      emitCircleOrEllipse(
-        { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
-        pendingCircleCenter,
-        statement.id,
-        statement.span
-      );
-    }
-    lastPlacementSegment = null;
+    flushPendingCircle(statement.id, statement.span);
   }
 
   if (pendingEllipseCenter) {

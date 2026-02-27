@@ -2539,9 +2539,6 @@ function resolveOptionValueStartOffset(entry: Extract<OptionListAst["entries"][n
   return entry.span.from;
 }
 
-/* legacy kept for context in git history:
-  old resolveFrameMeta implementation replaced by provenance-aware bucket maps
-*/
 function parseBoolish(raw: string): boolean | null {
   const normalized = raw.trim().toLowerCase();
   if (normalized === "true" || normalized === "yes" || normalized === "1") {
