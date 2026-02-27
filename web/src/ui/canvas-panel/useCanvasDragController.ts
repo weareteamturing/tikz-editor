@@ -88,6 +88,38 @@ export function useCanvasDragController(params: {
   } = params;
 
   useEffect(() => {
+    function sameIdsAsCurrentSelection(ids: readonly string[]): boolean {
+      const currentSelection = selectedElementIdsRef.current;
+      if (currentSelection.size !== ids.length) {
+        return false;
+      }
+      for (const id of ids) {
+        if (!currentSelection.has(id)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function commitMarqueeSelection(
+      drag: Extract<DragState, { kind: "marquee" }>,
+      world: Point,
+      currentSvg: { viewBox: SvgViewBox }
+    ) {
+      const selection = boundsFromPoints(
+        worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
+        worldToSvgPoint(world, currentSvg.viewBox)
+      );
+      const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
+      const nextIds = drag.additive
+        ? [...new Set([...drag.baseSelectedIds, ...hitIds])]
+        : hitIds;
+      if (sameIdsAsCurrentSelection(nextIds)) {
+        return;
+      }
+      dispatch({ type: "SELECT_RANGE", ids: nextIds });
+    }
+
     function onPointerMove(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
@@ -224,6 +256,9 @@ export function useCanvasDragController(params: {
       if (drag.kind === "marquee") {
         drag.currentWorld = world;
         setMarqueeDraft({ ...drag });
+        if (distanceSquared(world, drag.startWorld) > 0.25) {
+          commitMarqueeSelection(drag, world, currentSvg);
+        }
         setSnapLines([]);
         logSnapDebug({
           phase: "drag-marquee-move",
@@ -389,20 +424,7 @@ export function useCanvasDragController(params: {
             dispatch({ type: "CLEAR_SELECTION" });
           }
         } else if (currentSvg) {
-          const selection = boundsFromPoints(
-            worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
-            worldToSvgPoint(finalWorld, currentSvg.viewBox)
-          );
-          const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
-          if (drag.additive) {
-            const merged = new Set(selectedElementIdsRef.current);
-            for (const id of hitIds) {
-              merged.add(id);
-            }
-            dispatch({ type: "SELECT_RANGE", ids: [...merged] });
-          } else {
-            dispatch({ type: "SELECT_RANGE", ids: hitIds });
-          }
+          commitMarqueeSelection(drag, finalWorld, currentSvg);
         }
 
         setMarqueeDraft(null);

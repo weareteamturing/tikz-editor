@@ -1671,6 +1671,80 @@ export function CanvasPanel() {
     ]
   );
 
+  const resolveWorldFromViewportClient = useCallback(
+    (clientX: number, clientY: number): Point | null => {
+      if (!svgResult) {
+        return null;
+      }
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return null;
+      }
+      const rect = viewport.getBoundingClientRect();
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      return viewportToWorldPoint(localX, localY, canvasTransform, svgResult.viewBox);
+    },
+    [canvasTransform, svgResult]
+  );
+
+  const startMarqueeSelection = useCallback(
+    (pointerId: number, clientX: number, clientY: number, additiveSelection: boolean): boolean => {
+      const world = resolveWorldFromViewportClient(clientX, clientY);
+      if (!world) {
+        if (!additiveSelection) {
+          dispatch({ type: "CLEAR_SELECTION" });
+        }
+        return false;
+      }
+
+      dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
+      const nextMarquee: Extract<DragState, { kind: "marquee" }> = {
+        kind: "marquee",
+        pointerId,
+        startWorld: world,
+        currentWorld: world,
+        additive: additiveSelection,
+        baseSelectedIds: additiveSelection ? [...selectedElementIds] : []
+      };
+      setDragState(nextMarquee);
+      setMarqueeDraft(nextMarquee);
+      setSnapLines([]);
+      logSnapDebug({
+        phase: "marquee-start",
+        snapshotMatchesSource: snapshot.source === source,
+        dragKind: "marquee",
+        rawPoint: world,
+        lines: []
+      });
+      return true;
+    },
+    [
+      dispatch,
+      logSnapDebug,
+      resolveWorldFromViewportClient,
+      selectedElementIds,
+      setDragState,
+      snapshot.source,
+      source
+    ]
+  );
+
+  const onViewportPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      viewportRef.current?.focus({ preventScroll: true });
+      if (toolMode !== "select" || event.button !== 0 || event.target !== event.currentTarget) {
+        return;
+      }
+      setTextSelectionOverlay(null);
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+      if (startMarqueeSelection(event.pointerId, event.clientX, event.clientY, additiveSelection)) {
+        event.preventDefault();
+      }
+    },
+    [startMarqueeSelection, toolMode]
+  );
+
   const onInteractionPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
@@ -1797,38 +1871,14 @@ export function CanvasPanel() {
       }
 
       if (toolMode === "select" && event.button === 0 && event.target === event.currentTarget) {
-        dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
-        const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
-        if (!world) {
-          if (!additiveSelection) {
-            dispatch({ type: "CLEAR_SELECTION" });
-          }
-          return;
+        if (startMarqueeSelection(event.pointerId, event.clientX, event.clientY, additiveSelection)) {
+          event.preventDefault();
         }
-
-        const nextMarquee: Extract<DragState, { kind: "marquee" }> = {
-          kind: "marquee",
-          pointerId: event.pointerId,
-          startWorld: world,
-          currentWorld: world,
-          additive: additiveSelection
-        };
-        setDragState(nextMarquee);
-        setMarqueeDraft(nextMarquee);
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "marquee-start",
-          snapshotMatchesSource: snapshot.source === source,
-          dragKind: "marquee",
-          rawPoint: world,
-          lines: []
-        });
-        event.preventDefault();
       }
     },
     [
       applyActionWithFeedback,
-      canvasTransform.scale,
+      canvasTransform,
       dispatch,
       logSnapDebug,
       queueSelectionForAddedElement,
@@ -1837,6 +1887,7 @@ export function CanvasPanel() {
       snapshot.source,
       source,
       svgResult,
+      startMarqueeSelection,
       toolMode,
       snapGuideInput,
       viewportWorldBounds
@@ -2816,7 +2867,7 @@ export function CanvasPanel() {
           ref={viewportRef}
           tabIndex={0}
           onKeyDown={onViewportKeyDown}
-          onPointerDown={() => viewportRef.current?.focus({ preventScroll: true })}
+          onPointerDown={onViewportPointerDown}
         >
           {!svgResult ? (
             <div className={css.noSvg}>{snapshot.source ? "Computing…" : "No source"}</div>

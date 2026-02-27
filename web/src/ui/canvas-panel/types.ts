@@ -57,6 +57,7 @@ export type DragState =
       startWorld: Point;
       currentWorld: Point;
       additive: boolean;
+      baseSelectedIds: string[];
     }
   | {
       kind: "tool-create";
