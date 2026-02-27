@@ -34,6 +34,10 @@ export function diffSvgModels(
     });
   }
 
+  if (hasUnscopedPartDrift(previous, next, hints)) {
+    return diffSvgModels(previous, next, {});
+  }
+
   const previousById = new Map(previous.parts.map((part) => [part.partId, part] as const));
   const nextById = new Map(next.parts.map((part) => [part.partId, part] as const));
   const candidatePartIds = resolveCandidatePartIds(previous, next, hints);
@@ -66,6 +70,40 @@ export function diffSvgModels(
   }
 
   return operations;
+}
+
+function hasUnscopedPartDrift(
+  previous: SvgRenderModel,
+  next: SvgRenderModel,
+  hints: SvgDiffHints
+): boolean {
+  const affectedSourceIds = hints.affectedSourceIds;
+  if (!affectedSourceIds || affectedSourceIds.length === 0) {
+    return false;
+  }
+
+  const affected = new Set(affectedSourceIds);
+  const previousUnscoped = previous.parts.filter((part) => !affected.has(part.sourceId));
+  const nextUnscoped = next.parts.filter((part) => !affected.has(part.sourceId));
+  if (previousUnscoped.length !== nextUnscoped.length) {
+    return true;
+  }
+
+  for (let index = 0; index < previousUnscoped.length; index += 1) {
+    const previousPart = previousUnscoped[index];
+    const nextPart = nextUnscoped[index];
+    if (!previousPart || !nextPart) {
+      return true;
+    }
+    if (
+      previousPart.partId !== nextPart.partId ||
+      previousPart.fingerprint !== nextPart.fingerprint
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function resolveCandidatePartIds(

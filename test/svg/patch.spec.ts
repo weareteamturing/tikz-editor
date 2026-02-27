@@ -26,6 +26,28 @@ describe("svg model diff", () => {
     ]);
   });
 
+  it("falls back to a full diff when scoped hints miss changes", () => {
+    const previous = modelFromParts([
+      part("p:a", "source-a", 0, "<path d='M 0 0 L 1 0' />"),
+      part("p:b", "source-b", 1, "<path d='M 0 1 L 1 1' />")
+    ]);
+    const next = modelFromParts([
+      part("p:a", "source-a", 0, "<path d='M 0 0 L 1 0' />"),
+      part("p:b", "source-b", 1, "<path d='M 0 1 L 2 1' />")
+    ]);
+
+    const scoped = diffSvgModels(previous, next, {
+      affectedSourceIds: ["source-a"]
+    });
+    const full = diffSvgModels(previous, next);
+    expect(scoped).toEqual(full);
+    expect(scoped).toContainEqual({
+      kind: "upsertPart",
+      part: next.parts[1],
+      afterPartId: "p:a"
+    });
+  });
+
   it("emits add/remove/reorder operations for changed parts", () => {
     const previous = modelFromParts([
       part("p:a", "source-a", 0, "<path d='M 0 0 L 1 0' />"),
