@@ -1,6 +1,6 @@
 import { useEditorStore } from "../store/store";
 import { getToolCapabilityStatus } from "./capabilities";
-import { TOOL_BUTTONS } from "./tool-config";
+import { resolveToolbarToolMode, TOOL_BUTTONS } from "./tool-config";
 import css from "./Toolbar.module.css";
 
 export function Toolbar() {
@@ -33,7 +33,12 @@ export function Toolbar() {
               ].filter(Boolean).join(" ")}
               title={buttonTitle}
               disabled={unsupported}
-              onClick={() => dispatch({ type: "SET_TOOL_MODE", mode })}
+              onClick={() =>
+                dispatch({
+                  type: "SET_TOOL_MODE",
+                  mode: resolveToolbarToolMode(toolMode, mode)
+                })
+              }
             >
               {label}
             </button>

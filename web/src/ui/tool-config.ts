@@ -32,6 +32,13 @@ export function toolModeFromShortcut(key: string): ToolMode | null {
   return TOOL_SHORTCUT_MAP.get(key.toLowerCase()) ?? null;
 }
 
+export function resolveToolbarToolMode(currentMode: ToolMode, clickedMode: ToolMode): ToolMode {
+  if (clickedMode !== "select" && clickedMode === currentMode) {
+    return "select";
+  }
+  return clickedMode;
+}
+
 export function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {
   return TOOL_CREATE_MODE_SET.has(mode as ToolCreateMode);
 }

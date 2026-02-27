@@ -37,6 +37,7 @@ export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
+  const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
@@ -135,6 +136,10 @@ export function App() {
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented) {
+        return;
+      }
+
       // Ctrl+Shift+D: toggle dev panel
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "d") {
         dispatch({ type: "TOGGLE_DEV_PANEL" });
@@ -165,6 +170,12 @@ export function App() {
       };
 
       const key = e.key.toLowerCase();
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && key === "escape" && toolMode !== "select") {
+        dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+        e.preventDefault();
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (!e.shiftKey && key === "c") {
           void copySelection(commandContext);
@@ -216,7 +227,7 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, internalClipboard, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]);
+  }, [dispatch, internalClipboard, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source, toolMode]);
 
   return (
     <div className={css.app}>
