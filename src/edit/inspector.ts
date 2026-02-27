@@ -127,7 +127,7 @@ const HEX_TO_NAMED_COLOR: Record<string, string> = {
   "#bf8040": "brown"
 };
 
-const LINE_WIDTH_PRESETS: Array<{ label: string; value: number }> = [
+export const LINE_WIDTH_PRESETS: Array<{ label: string; value: number }> = [
   { label: "ultra thin", value: 0.1 },
   { label: "very thin", value: 0.2 },
   { label: "thin", value: 0.4 },

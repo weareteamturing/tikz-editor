@@ -149,6 +149,36 @@
   width: 100%;
 }
 
+.lineWidthOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineWidthOptionLabel {
+  min-width: 68px;
+}
+
+.lineWidthOptionRail {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.lineWidthOptionStroke {
+  width: 100%;
+  min-height: 1px;
+  border-radius: 999px;
+  background: var(--text);
+}
+
+.lineWidthCustomOption {
+  width: 100%;
+}
+
 .linePreviewRow {
   display: flex;
   align-items: center;

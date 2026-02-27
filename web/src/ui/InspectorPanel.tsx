@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   getInspectorDescriptor,
+  LINE_WIDTH_PRESETS,
   type ArrowDirectionPreset,
   type InspectorDescriptor,
   type InspectorProperty,
@@ -10,6 +11,7 @@ import {
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
+import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
 import css from "./InspectorPanel.module.css";
 
 type MultiInspectorNumberProperty = {
@@ -39,6 +41,7 @@ type MultiInspectorLineWidthProperty = {
   id: string;
   label: string;
   value: number;
+  averageValue: number;
   mixed: boolean;
   min: number;
   max: number;
@@ -78,11 +81,31 @@ type MultiInspectorModel = {
 };
 
 const VALUE_EPSILON = 1e-6;
+const LINE_WIDTH_CUSTOM_OPTION_VALUE = "__custom-line-width__";
+const LINE_WIDTH_MIXED_OPTION_VALUE = "__mixed-line-width__";
+const LINE_WIDTH_PRESET_EPSILON = 0.02;
+type LineWidthDropdownValue = string;
+const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
+  LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
+);
+const LINE_WIDTH_DROPDOWN_OPTIONS: Array<CustomDropdownOption<LineWidthDropdownValue>> = [
+  ...LINE_WIDTH_PRESETS.map((preset) => ({
+    value: preset.label,
+    label: preset.label
+  })),
+  {
+    value: LINE_WIDTH_CUSTOM_OPTION_VALUE,
+    label: "Custom line width"
+  }
+];
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const snapshot = useEditorStore((s) => s.snapshot);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
 
@@ -176,6 +199,28 @@ export function InspectorPanel() {
     });
   }
 
+  function enableManualCustomLineWidth(key: string): void {
+    setManualLineWidthCustomKeys((current) => {
+      if (current.has(key)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.add(key);
+      return next;
+    });
+  }
+
+  function disableManualCustomLineWidth(key: string): void {
+    setManualLineWidthCustomKeys((current) => {
+      if (!current.has(key)) {
+        return current;
+      }
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  }
+
   function renderProperty(property: InspectorProperty) {
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
@@ -240,23 +285,68 @@ export function InspectorPanel() {
 
     if (property.kind === "lineWidth") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const lineWidthKey = `${property.write.elementId}:${property.id}`;
+      const showCustomRange = property.presetLabel == null || manualLineWidthCustomKeys.has(lineWidthKey);
+      const dropdownValue: LineWidthDropdownValue = showCustomRange
+        ? LINE_WIDTH_CUSTOM_OPTION_VALUE
+        : (property.presetLabel ?? LINE_WIDTH_CUSTOM_OPTION_VALUE);
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <input
-            className={css.rangeInput}
-            type="range"
-            min={property.min}
-            max={property.max}
-            step={property.step}
-            value={property.value}
+          <CustomDropdown
+            ariaLabel={`${property.label} preset`}
+            value={dropdownValue}
+            options={LINE_WIDTH_DROPDOWN_OPTIONS}
             disabled={!writable}
-            onChange={(event) => {
-              const next = Number(event.currentTarget.value);
-              if (!Number.isFinite(next)) return;
-              applySetProperty(property.write, `${formatNumber(next)}pt`);
+            onChange={(nextValue) => {
+              if (!writable) {
+                return;
+              }
+              if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                enableManualCustomLineWidth(lineWidthKey);
+                return;
+              }
+              const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+              if (presetValue == null) {
+                return;
+              }
+              disableManualCustomLineWidth(lineWidthKey);
+              applySetProperty(property.write, `${formatNumber(presetValue)}pt`);
+            }}
+            renderOption={(option) => {
+              if (option.value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                return <span className={css.lineWidthCustomOption}>{option.label}</span>;
+              }
+              const previewValue = LINE_WIDTH_PRESET_BY_LABEL.get(option.value) ?? property.value;
+              return (
+                <span className={css.lineWidthOption}>
+                  <span className={css.lineWidthOptionLabel}>{option.label}</span>
+                  <span className={css.lineWidthOptionRail}>
+                    <span
+                      className={css.lineWidthOptionStroke}
+                      style={{ height: `${Math.max(1, Math.min(12, previewValue * 2))}px` }}
+                    />
+                  </span>
+                </span>
+              );
             }}
           />
+          {showCustomRange ? (
+            <input
+              className={css.rangeInput}
+              type="range"
+              min={property.min}
+              max={property.max}
+              step={property.step}
+              value={property.value}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) return;
+                applySetProperty(property.write, `${formatNumber(next)}pt`);
+              }}
+            />
+          ) : null}
           <div className={css.linePreviewRow}>
             <span className={css.linePreviewRail}>
               <span
@@ -354,27 +444,100 @@ export function InspectorPanel() {
 
     if (property.kind === "lineWidth") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const elementIds = property.writes
+        .map((write) => write.elementId)
+        .filter((id) => id.length > 0)
+        .sort();
+      const lineWidthKey = `multi:${property.id}:${elementIds.join("|")}`;
+      const presetLabel = property.mixed ? null : lineWidthPresetLabelFromValue(property.value);
+      const showCustomRange =
+        manualLineWidthCustomKeys.has(lineWidthKey) || (!property.mixed && presetLabel == null);
+      const dropdownValue: LineWidthDropdownValue = showCustomRange
+        ? LINE_WIDTH_CUSTOM_OPTION_VALUE
+        : property.mixed
+          ? LINE_WIDTH_MIXED_OPTION_VALUE
+          : (presetLabel ?? LINE_WIDTH_CUSTOM_OPTION_VALUE);
+      const sliderValue = property.mixed ? property.averageValue : property.value;
+      const summaryLabel = property.mixed
+        ? "Mixed values"
+        : `${formatNumber(property.value)}pt${presetLabel ? ` (${presetLabel})` : ""}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              min={property.min}
-              max={property.max}
-              step={property.step}
-              value={property.mixed ? "" : formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => {
-                if (!writable) return;
-                const next = Number(event.currentTarget.value);
-                if (!Number.isFinite(next)) return;
-                applySetPropertyMany(property.writes, `${formatNumber(next)}pt`);
-              }}
-            />
-            <span className={css.unitLabel}>pt</span>
-          </div>
+          <CustomDropdown
+            ariaLabel={`${property.label} preset`}
+            value={dropdownValue}
+            options={LINE_WIDTH_DROPDOWN_OPTIONS}
+            disabled={!writable}
+            onChange={(nextValue) => {
+              if (!writable) {
+                return;
+              }
+              if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                enableManualCustomLineWidth(lineWidthKey);
+                return;
+              }
+              const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+              if (presetValue == null) {
+                return;
+              }
+              disableManualCustomLineWidth(lineWidthKey);
+              applySetPropertyMany(property.writes, `${formatNumber(presetValue)}pt`);
+            }}
+            renderValue={(option) => {
+              if (property.mixed && !showCustomRange) {
+                return "Mixed";
+              }
+              return option?.label ?? "";
+            }}
+            renderOption={(option) => {
+              if (option.value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                return <span className={css.lineWidthCustomOption}>{option.label}</span>;
+              }
+              const previewValue = LINE_WIDTH_PRESET_BY_LABEL.get(option.value) ?? property.value;
+              return (
+                <span className={css.lineWidthOption}>
+                  <span className={css.lineWidthOptionLabel}>{option.label}</span>
+                  <span className={css.lineWidthOptionRail}>
+                    <span
+                      className={css.lineWidthOptionStroke}
+                      style={{ height: `${Math.max(1, Math.min(12, previewValue * 2))}px` }}
+                    />
+                  </span>
+                </span>
+              );
+            }}
+          />
+          {showCustomRange ? (
+            <>
+              <input
+                className={css.rangeInput}
+                type="range"
+                min={property.min}
+                max={property.max}
+                step={property.step}
+                value={sliderValue}
+                disabled={!writable}
+                onChange={(event) => {
+                  if (!writable) return;
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) return;
+                  applySetPropertyMany(property.writes, `${formatNumber(next)}pt`);
+                }}
+              />
+              <div className={css.linePreviewRow}>
+                <span className={css.linePreviewRail}>
+                  <span
+                    className={css.linePreviewStroke}
+                    style={{ height: `${Math.max(1, Math.min(12, sliderValue * 2))}px` }}
+                  />
+                </span>
+                <span className={css.valueLabel}>{formatNumber(sliderValue)}pt</span>
+              </div>
+            </>
+          ) : (
+            <div className={css.valueLabel}>{summaryLabel}</div>
+          )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
@@ -575,6 +738,7 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       id: base.id,
       label: base.label,
       value: values[0] ?? 0,
+      averageValue: averageNumbers(values),
       mixed: !numbersAreEqual(values),
       min: base.min,
       max: base.max,
@@ -621,10 +785,30 @@ function numbersAreEqual(values: readonly number[]): boolean {
   return values.every((value) => Math.abs(value - first) <= VALUE_EPSILON);
 }
 
+function averageNumbers(values: readonly number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  let total = 0;
+  for (const value of values) {
+    total += value;
+  }
+  return total / values.length;
+}
+
 function allValuesEqual<T>(values: readonly T[]): boolean {
   if (values.length <= 1) return true;
   const first = values[0];
   return values.every((value) => value === first);
+}
+
+function lineWidthPresetLabelFromValue(value: number): string | null {
+  for (const preset of LINE_WIDTH_PRESETS) {
+    if (Math.abs(preset.value - value) <= LINE_WIDTH_PRESET_EPSILON) {
+      return preset.label;
+    }
+  }
+  return null;
 }
 
 function dedupeStrings(values: readonly string[]): string[] {
