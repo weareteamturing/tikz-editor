@@ -525,6 +525,31 @@ export function CanvasPanel() {
     return bySource;
   }, [selectionBounds]);
 
+  const resizablePathShapeSourceIds = useMemo(() => {
+    if (!snapshot.scene) {
+      return new Set<string>();
+    }
+
+    const result = new Set<string>();
+    for (const sourceId of selectionBoundsBySource.keys()) {
+      if (sourceHasSingleResizablePathShape(snapshot.scene.elements, sourceId)) {
+        result.add(sourceId);
+      }
+    }
+    return result;
+  }, [selectionBoundsBySource, snapshot.scene]);
+
+  const selectionBoxes = useMemo(
+    () =>
+      [...resizablePathShapeSourceIds]
+        .map((sourceId) => {
+          const bounds = selectionBoundsBySource.get(sourceId);
+          return bounds ? { key: `selection-box:${sourceId}`, ...bounds } : null;
+        })
+        .filter((bounds): bounds is { key: string; minX: number; minY: number; maxX: number; maxY: number } => bounds != null),
+    [resizablePathShapeSourceIds, selectionBoundsBySource]
+  );
+
   const marqueeBounds = useMemo(() => {
     if (!svgResult || !marqueeDraft) return null;
     return boundsFromPoints(
@@ -537,11 +562,15 @@ export function CanvasPanel() {
     if (!svgResult) return [];
 
     const displays: HandleDisplay[] = [];
-    const nodeSourceIds = new Set<string>();
+    const resizeHandleSourceIds = new Set<string>(resizablePathShapeSourceIds);
 
     for (const handle of selectedHandles) {
       if (handle.kind === "node-position") {
-        nodeSourceIds.add(handle.sourceId);
+        resizeHandleSourceIds.add(handle.sourceId);
+        continue;
+      }
+
+      if (handle.kind === "path-point" && resizablePathShapeSourceIds.has(handle.sourceId)) {
         continue;
       }
 
@@ -556,7 +585,7 @@ export function CanvasPanel() {
       });
     }
 
-    for (const sourceId of nodeSourceIds) {
+    for (const sourceId of resizeHandleSourceIds) {
       const fallbackBounds = selectionBoundsBySource.get(sourceId) ?? null;
       const bounds = preferredNodeBoundsForSource(
         snapshot.scene?.elements ?? [],
@@ -565,6 +594,9 @@ export function CanvasPanel() {
         fallbackBounds
       );
       if (!bounds) {
+        if (resizablePathShapeSourceIds.has(sourceId)) {
+          continue;
+        }
         const fallback = selectedHandles.find((handle) => handle.sourceId === sourceId && handle.kind === "node-position");
         if (!fallback) continue;
         const point = worldToSvgPoint(fallback.world, svgResult.viewBox);
@@ -620,7 +652,7 @@ export function CanvasPanel() {
     }
 
     return displays;
-  }, [selectedHandles, selectionBoundsBySource, snapshot.scene, svgResult]);
+  }, [resizablePathShapeSourceIds, selectedHandles, selectionBoundsBySource, snapshot.scene, svgResult]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -2880,6 +2912,7 @@ export function CanvasPanel() {
 
                 <SelectionOverlay
                   marqueeBounds={marqueeBounds}
+                  selectionBoxes={selectionBoxes}
                   selectionStrokeWidth={selectionStrokeWidth}
                   textSelectionVisual={textSelectionVisual}
                 />
@@ -3261,6 +3294,40 @@ function hasTextWidthOption(
     }
   }
   return false;
+}
+
+function sourceHasSingleResizablePathShape(
+  elements: readonly SceneElement[],
+  sourceId: string
+): boolean {
+  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const nonText = sourceElements.filter((element) => element.kind !== "Text");
+  const shapes = nonText.filter((element) => element.kind === "Circle" || element.kind === "Ellipse");
+  if (shapes.length !== 1) {
+    return false;
+  }
+
+  const element = shapes[0];
+  if (!element) {
+    return false;
+  }
+  if (element.kind === "Circle") {
+    return true;
+  }
+  if (element.kind === "Ellipse") {
+    return isOrthogonalEllipseRotation(element.rotation ?? 0);
+  }
+  return false;
+}
+
+function isOrthogonalEllipseRotation(rotation: number): boolean {
+  const normalized = ((rotation % 360) + 360) % 360;
+  return (
+    Math.abs(normalized - 0) <= 1e-6 ||
+    Math.abs(normalized - 90) <= 1e-6 ||
+    Math.abs(normalized - 180) <= 1e-6 ||
+    Math.abs(normalized - 270) <= 1e-6
+  );
 }
 
 function findWordRangeAtIndex(text: string, index: number): { start: number; end: number } | null {

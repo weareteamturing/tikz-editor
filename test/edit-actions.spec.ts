@@ -576,6 +576,76 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum width=90pt");
   });
 
+  it("resizes circle statements that use coordinate radius payloads", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) circle (1cm);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1.2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle (2cm)");
+  });
+
+  it("resizes ellipse statements that use explicit x/y radius options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2cm");
+    expect(result.newSource).toContain("y radius=1cm");
+  });
+
+  it("resizes ellipse statements where y radius is larger than x radius", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-1.88,1.26) ellipse [x radius=0.38cm, y radius=0.88cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(-0.68), y: cm(2.76) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=1.2cm");
+    expect(result.newSource).toContain("y radius=1.5cm");
+  });
+
+  it("inserts per-shape radius options when circle radius is inherited from statement options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[radius=1cm] (0,0) circle;
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(1.5), y: cm(1.5) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle[radius=1.5cm]");
+  });
+
   it("returns unsupported for non-node elements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

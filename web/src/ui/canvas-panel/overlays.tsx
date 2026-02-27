@@ -425,10 +425,18 @@ export function HitRegionLayer({
 
 export function SelectionOverlay({
   marqueeBounds,
+  selectionBoxes,
   selectionStrokeWidth,
   textSelectionVisual
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  selectionBoxes: ReadonlyArray<{
+    key: string;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  }>;
   selectionStrokeWidth: number;
   textSelectionVisual:
     | {
@@ -448,6 +456,17 @@ export function SelectionOverlay({
   return (
     <>
       <g className={css.selectionOverlay}>
+        {selectionBoxes.map((bounds) => (
+          <rect
+            key={bounds.key}
+            className={css.selectionRect}
+            x={bounds.minX}
+            y={bounds.minY}
+            width={Math.max(0.001, bounds.maxX - bounds.minX)}
+            height={Math.max(0.001, bounds.maxY - bounds.minY)}
+            strokeWidth={selectionStrokeWidth}
+          />
+        ))}
         {marqueeBounds && (
           <rect
             className={css.marqueeRect}

@@ -1,10 +1,10 @@
-import type { EditHandle, EvaluateOptions, Point } from "../semantic/types.js";
-import type { PathItem, Statement, Span } from "../ast/types.js";
+import type { EditHandle, EvaluateOptions, Point, SceneCircle, SceneElement, SceneEllipse } from "../semantic/types.js";
+import type { CoordinateItem, PathItem, PathOptionItem, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
-import { PT_PER_CM, formatNumber } from "./format.js";
+import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
@@ -14,8 +14,11 @@ import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { resolvePropertyTarget, type PropertyTarget } from "./property-target.js";
 import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
+import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
+import { parseLength } from "../semantic/coords/parse-length.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
+import { worldToLocal } from "./coords.js";
 import { renameSnippetDeclaredNames } from "./name-conflicts.js";
 import {
   applyTextReplacements,
@@ -1196,15 +1199,21 @@ function applyResizeElement(
   }
 
   const parsed = parseTikz(source, { recover: true });
-  const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
   const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
   const hasNodePositionHandle = semantic.editHandles.some(
     (handle) => handle.sourceId === elementId && handle.kind === "node-position"
   );
   if (!hasNodePositionHandle) {
-    return { kind: "unsupported", reason: "resizeElement currently supports only node-like elements." };
+    return applyResizePathCircleOrEllipse(
+      source,
+      action,
+      parsed.figure.body,
+      semantic.scene.elements,
+      semantic.editHandles
+    );
   }
 
+  const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
   const currentBoundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const currentBounds = currentBoundsBySource.get(elementId);
   if (!currentBounds) {
@@ -1268,6 +1277,445 @@ function applyResizeElement(
     newSource: rewritten.source,
     patches: [rewritten.patch]
   };
+}
+
+type PathShapeResizeSyntax = {
+  keyword: "circle" | "ellipse";
+  keywordSpan: Span;
+  optionItems: PathOptionItem[];
+  payloadCoordinate: CoordinateItem | null;
+};
+
+type PathShapeResizeContext = {
+  kind: "found";
+  shape: SceneCircle | SceneEllipse;
+  syntax: PathShapeResizeSyntax;
+  centerHandle: EditHandle;
+};
+
+function applyResizePathCircleOrEllipse(
+  source: string,
+  action: Extract<EditAction, { kind: "resizeElement" }>,
+  statements: readonly Statement[],
+  elements: readonly SceneElement[],
+  editHandles: readonly EditHandle[]
+): EditActionResult {
+  const elementId = action.elementId.trim();
+  const context = resolvePathShapeResizeContext(statements, elements, editHandles, elementId);
+  if (context.kind === "unsupported") {
+    return context;
+  }
+
+  if (context.shape.kind === "Ellipse" && !isOrthogonalEllipseRotation(context.shape.rotation ?? 0)) {
+    return { kind: "unsupported", reason: "Resizing non-orthogonally rotated ellipses is not supported yet." };
+  }
+
+  const affectsWidth = action.role.includes("left") || action.role.includes("right");
+  const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
+  if (!affectsWidth && !affectsHeight) {
+    return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
+  }
+
+  const localPointer = worldToLocal(action.newWorld, context.centerHandle.transform);
+  const localCenter =
+    context.centerHandle.local ?? worldToLocal(context.shape.center, context.centerHandle.transform);
+  if (!localPointer || !localCenter) {
+    return { kind: "unsupported", reason: "Could not resolve local geometry for circle/ellipse resize." };
+  }
+
+  const localDx = Math.abs(localPointer.x - localCenter.x);
+  const localDy = Math.abs(localPointer.y - localCenter.y);
+  const currentLocalRadii = resolveCurrentLocalShapeRadii(context.syntax);
+  if ((!affectsWidth || !affectsHeight) && !currentLocalRadii) {
+    return { kind: "unsupported", reason: "Resize requires explicit circle/ellipse radii for single-axis drags." };
+  }
+
+  let nextRxLocal = affectsWidth ? localDx : (currentLocalRadii?.rx ?? localDx);
+  let nextRyLocal = affectsHeight ? localDy : (currentLocalRadii?.ry ?? localDy);
+  if (context.shape.kind === "Circle") {
+    const currentRadius = currentLocalRadii?.rx ?? Math.max(nextRxLocal, nextRyLocal);
+    const nextRadius = Math.max(
+      affectsWidth ? localDx : currentRadius,
+      affectsHeight ? localDy : currentRadius
+    );
+    nextRxLocal = nextRadius;
+    nextRyLocal = nextRadius;
+  }
+
+  nextRxLocal = Math.max(nextRxLocal, RESIZE_EPSILON);
+  nextRyLocal = Math.max(nextRyLocal, RESIZE_EPSILON);
+
+  const payloadRewrite = rewriteShapePayloadCoordinate(context.syntax, nextRxLocal, nextRyLocal);
+  if (payloadRewrite) {
+    const rewritten = applySpanTextReplacement(source, payloadRewrite.span, payloadRewrite.text);
+    if (!rewritten) {
+      return { kind: "unsupported", reason: "Resize would not change node constraints." };
+    }
+    return {
+      kind: "success",
+      newSource: rewritten.source,
+      patches: [rewritten.patch]
+    };
+  }
+
+  const radiusMutations = buildShapeRadiusMutations(context, nextRxLocal, nextRyLocal);
+  const optionTarget = pickPathShapeResizeOptionTarget(context.syntax.optionItems);
+  if (optionTarget) {
+    const replacement = rewriteOptionListMutations(optionTarget.options, radiusMutations);
+    const rewritten = applySpanTextReplacement(source, optionTarget.span, replacement);
+    if (!rewritten) {
+      return { kind: "unsupported", reason: "Resize would not change node constraints." };
+    }
+    return {
+      kind: "success",
+      newSource: rewritten.source,
+      patches: [rewritten.patch]
+    };
+  }
+
+  const entries: string[] = [];
+  for (const [key, mutation] of radiusMutations.entries()) {
+    if (mutation.kind === "set") {
+      entries.push(serializeOptionEntry(key, mutation.value));
+    }
+  }
+  if (entries.length === 0) {
+    return { kind: "unsupported", reason: "Resize would not change node constraints." };
+  }
+
+  const inserted = `[${entries.join(", ")}]`;
+  const rewritten = applySpanTextReplacement(source, {
+    from: context.syntax.keywordSpan.to,
+    to: context.syntax.keywordSpan.to
+  }, inserted);
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "Resize would not change node constraints." };
+  }
+
+  return {
+    kind: "success",
+    newSource: rewritten.source,
+    patches: [rewritten.patch]
+  };
+}
+
+function resolvePathShapeResizeContext(
+  statements: readonly Statement[],
+  elements: readonly SceneElement[],
+  editHandles: readonly EditHandle[],
+  elementId: string
+): PathShapeResizeContext | { kind: "unsupported"; reason: string } {
+  const pathStatement = findPathStatementById(statements, elementId);
+  if (!pathStatement) {
+    return { kind: "unsupported", reason: "resizeElement currently supports only node-like or shape-path elements." };
+  }
+
+  const sourceElements = elements.filter((element) => element.sourceId === elementId);
+  const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
+  const shapeElements = nonTextElements.filter(
+    (element): element is SceneCircle | SceneEllipse => element.kind === "Circle" || element.kind === "Ellipse"
+  );
+  if (shapeElements.length !== 1 || nonTextElements.length !== 1) {
+    return { kind: "unsupported", reason: "Resize supports exactly one circle/ellipse primitive per statement." };
+  }
+
+  const syntax = resolvePathShapeResizeSyntax(pathStatement.items);
+  if (!syntax) {
+    return { kind: "unsupported", reason: "Could not resolve editable circle/ellipse source syntax." };
+  }
+
+  const candidateHandles = editHandles.filter(
+    (handle) => handle.sourceId === elementId && handle.kind === "path-point"
+  );
+  if (candidateHandles.length === 0) {
+    return { kind: "unsupported", reason: "No editable center handle was found for this circle/ellipse." };
+  }
+
+  let centerHandle = candidateHandles[0]!;
+  let bestDistanceSq = Number.POSITIVE_INFINITY;
+  for (const handle of candidateHandles) {
+    const dx = handle.world.x - shapeElements[0]!.center.x;
+    const dy = handle.world.y - shapeElements[0]!.center.y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq < bestDistanceSq) {
+      bestDistanceSq = distanceSq;
+      centerHandle = handle;
+    }
+  }
+
+  return {
+    kind: "found",
+    shape: shapeElements[0]!,
+    syntax,
+    centerHandle
+  };
+}
+
+function resolvePathShapeResizeSyntax(items: readonly PathItem[]): PathShapeResizeSyntax | null {
+  const keywordItems = items.filter(
+    (item): item is Extract<PathItem, { kind: "PathKeyword" }> =>
+      item.kind === "PathKeyword" && (item.keyword === "circle" || item.keyword === "ellipse")
+  );
+  if (keywordItems.length !== 1) {
+    return null;
+  }
+  const keywordItem = keywordItems[0]!;
+  const keywordIndex = items.findIndex((item) => item.id === keywordItem.id);
+  if (keywordIndex < 0) {
+    return null;
+  }
+
+  const optionItems: PathOptionItem[] = [];
+  let payloadCoordinate: CoordinateItem | null = null;
+  for (let index = keywordIndex + 1; index < items.length; index += 1) {
+    const next = items[index];
+    if (!next || next.kind === "PathComment") {
+      continue;
+    }
+    if (next.kind === "PathOption" && !payloadCoordinate) {
+      optionItems.push(next);
+      continue;
+    }
+    if (next.kind === "Coordinate" && !payloadCoordinate) {
+      const parsed =
+        keywordItem.keyword === "circle"
+          ? parseCircleRadiusFromCoordinateRaw(next.raw) != null
+          : parseEllipseRadiiFromCoordinateRaw(next.raw) != null;
+      if (parsed) {
+        payloadCoordinate = next;
+      }
+      break;
+    }
+    break;
+  }
+
+  return {
+    keyword: keywordItem.keyword === "ellipse" ? "ellipse" : "circle",
+    keywordSpan: keywordItem.span,
+    optionItems,
+    payloadCoordinate
+  };
+}
+
+function resolveCurrentLocalShapeRadii(
+  syntax: PathShapeResizeSyntax
+): { rx: number; ry: number } | null {
+  const payload = syntax.payloadCoordinate;
+  if (payload) {
+    if (syntax.keyword === "circle") {
+      const radius = parseCircleRadiusFromCoordinateRaw(payload.raw);
+      if (radius != null) {
+        return { rx: radius, ry: radius };
+      }
+    } else {
+      const radii = parseEllipseRadiiFromCoordinateRaw(payload.raw);
+      if (radii) {
+        return radii;
+      }
+    }
+  }
+
+  if (syntax.keyword === "circle") {
+    let radius: number | null = null;
+    let radii: { rx: number; ry: number } | null = null;
+    for (const item of syntax.optionItems) {
+      const parsed = parseCircleRadiiFromOptionItem(item);
+      if (parsed.kind === "radius") {
+        radius = parsed.radius;
+        radii = null;
+      } else if (parsed.kind === "radii") {
+        radius = null;
+        radii = { rx: parsed.rx, ry: parsed.ry };
+      }
+    }
+    if (radius != null) {
+      return { rx: radius, ry: radius };
+    }
+    return radii;
+  }
+
+  let radii: { rx: number; ry: number } | null = null;
+  for (const item of syntax.optionItems) {
+    const parsed = parseEllipseRadiiFromOptionItem(item);
+    if (parsed) {
+      radii = parsed;
+    }
+  }
+  return radii;
+}
+
+function parseCircleRadiiFromOptionItem(
+  item: PathOptionItem
+): { kind: "none" } | { kind: "radius"; radius: number } | { kind: "radii"; rx: number; ry: number } {
+  let radius: number | null = null;
+  let rx: number | null = null;
+  let ry: number | null = null;
+
+  for (const entry of item.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "radius") {
+      radius = parseLength(entry.valueRaw, "cm");
+    } else if (entry.key === "x radius") {
+      rx = parseLength(entry.valueRaw, "cm");
+    } else if (entry.key === "y radius") {
+      ry = parseLength(entry.valueRaw, "cm");
+    }
+  }
+
+  if (radius != null) {
+    return { kind: "radius", radius };
+  }
+  if (rx != null && ry != null) {
+    return { kind: "radii", rx, ry };
+  }
+  return { kind: "none" };
+}
+
+function parseEllipseRadiiFromOptionItem(item: PathOptionItem): { rx: number; ry: number } | null {
+  let rx: number | null = null;
+  let ry: number | null = null;
+  let radius: number | null = null;
+  for (const entry of item.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "x radius") {
+      rx = parseLength(entry.valueRaw, "cm");
+    } else if (entry.key === "y radius") {
+      ry = parseLength(entry.valueRaw, "cm");
+    } else if (entry.key === "radius") {
+      radius = parseLength(entry.valueRaw, "cm");
+    }
+  }
+  if (radius != null) {
+    return { rx: radius, ry: radius };
+  }
+  if (rx != null && ry != null) {
+    return { rx, ry };
+  }
+  return null;
+}
+
+function rewriteShapePayloadCoordinate(
+  syntax: PathShapeResizeSyntax,
+  nextRxLocal: number,
+  nextRyLocal: number
+): { span: Span; text: string } | null {
+  if (!syntax.payloadCoordinate) {
+    return null;
+  }
+
+  if (syntax.keyword === "circle") {
+    if (parseCircleRadiusFromCoordinateRaw(syntax.payloadCoordinate.raw) == null) {
+      return null;
+    }
+    return {
+      span: syntax.payloadCoordinate.span,
+      text: formatCircleRadiusCoordinateRaw(syntax.payloadCoordinate.raw, nextRxLocal)
+    };
+  }
+
+  if (parseEllipseRadiiFromCoordinateRaw(syntax.payloadCoordinate.raw) == null) {
+    return null;
+  }
+  return {
+    span: syntax.payloadCoordinate.span,
+    text: formatEllipseRadiiCoordinateRaw(syntax.payloadCoordinate.raw, nextRxLocal, nextRyLocal)
+  };
+}
+
+function formatCircleRadiusCoordinateRaw(oldRaw: string, radiusPt: number): string {
+  const value = `${formatNumber(radiusPt * CM_PER_PT)}cm`;
+  const exact = oldRaw.match(/^\((\s*)([^)]*)(\s*)\)$/s);
+  if (exact) {
+    return `(${exact[1]}${value}${exact[3]})`;
+  }
+  return `(${value})`;
+}
+
+function formatEllipseRadiiCoordinateRaw(oldRaw: string, rxPt: number, ryPt: number): string {
+  const rx = `${formatNumber(rxPt * CM_PER_PT)}cm`;
+  const ry = `${formatNumber(ryPt * CM_PER_PT)}cm`;
+  const exact = oldRaw.match(/^\((\s*)([^)]*?)(\s+and\s+)([^)]*?)(\s*)\)$/is);
+  if (exact) {
+    return `(${exact[1]}${rx}${exact[3]}${ry}${exact[5]})`;
+  }
+  return `(${rx} and ${ry})`;
+}
+
+function buildShapeRadiusMutations(
+  context: PathShapeResizeContext,
+  nextRxLocal: number,
+  nextRyLocal: number
+): Map<string, OptionMutation> {
+  const mutations = new Map<string, OptionMutation>();
+  if (context.shape.kind === "Circle") {
+    const radiusValue = `${formatNumber(nextRxLocal * CM_PER_PT)}cm`;
+    mutations.set("radius", { kind: "set", value: radiusValue });
+    mutations.set("x radius", { kind: "remove" });
+    mutations.set("y radius", { kind: "remove" });
+    return mutations;
+  }
+
+  mutations.set("x radius", { kind: "set", value: `${formatNumber(nextRxLocal * CM_PER_PT)}cm` });
+  mutations.set("y radius", { kind: "set", value: `${formatNumber(nextRyLocal * CM_PER_PT)}cm` });
+  mutations.set("radius", { kind: "remove" });
+  return mutations;
+}
+
+function pickPathShapeResizeOptionTarget(
+  optionItems: readonly PathOptionItem[]
+): PathOptionItem | null {
+  if (optionItems.length === 0) {
+    return null;
+  }
+  for (let index = optionItems.length - 1; index >= 0; index -= 1) {
+    const item = optionItems[index];
+    if (!item) {
+      continue;
+    }
+    const hasRadiusEntry = item.options.entries.some(
+      (entry) =>
+        entry.kind === "kv" &&
+        (entry.key === "radius" || entry.key === "x radius" || entry.key === "y radius")
+    );
+    if (hasRadiusEntry) {
+      return item;
+    }
+  }
+  return optionItems[optionItems.length - 1] ?? null;
+}
+
+function applySpanTextReplacement(
+  source: string,
+  span: Span,
+  replacement: string
+): OptionMutationApplyResult | null {
+  const previous = source.slice(span.from, span.to);
+  if (previous === replacement) {
+    return null;
+  }
+  const updated = replaceSpan(source, span, replacement);
+  return {
+    source: updated.source,
+    patch: {
+      oldSpan: span,
+      newSpan: updated.changedSpan,
+      replacement
+    }
+  };
+}
+
+function isOrthogonalEllipseRotation(rotation: number): boolean {
+  const normalized = ((rotation % 360) + 360) % 360;
+  return (
+    Math.abs(normalized - 0) <= 1e-6 ||
+    Math.abs(normalized - 90) <= 1e-6 ||
+    Math.abs(normalized - 180) <= 1e-6 ||
+    Math.abs(normalized - 270) <= 1e-6
+  );
 }
 
 function resolveResizePropertyTarget(
