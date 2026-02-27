@@ -54,6 +54,7 @@ import {
   SOURCE_SELECTION_CHANGED_EVENT,
   type SourceSelectionChangeDetail
 } from "./source-sync";
+import { resolveTextSelectionOverlayResolution } from "./text-selection-overlay-policy";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { SvgDomPatcher } from "./canvas-panel/svg-dom-patcher";
 import {
@@ -396,6 +397,7 @@ export function CanvasPanel() {
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
+  const lastSourceSelectionDetailRef = useRef<SourceSelectionChangeDetail | null>(null);
 
   const setActiveCanvasDragKind = useCallback(
     (kind: CanvasDragKind | null) => {
@@ -2284,7 +2286,9 @@ export function CanvasPanel() {
       return;
     }
     setSnapLines([]);
-    setTextSelectionOverlay(null);
+    // Keep the current text caret/selection overlay visible while async
+    // recompute catches up; we'll resync from the last source selection event
+    // once snapshot.source matches source again.
   }, [snapshot.source, source]);
 
   useEffect(() => {
@@ -2337,6 +2341,7 @@ export function CanvasPanel() {
       return;
     }
 
+    lastSourceSelectionDetailRef.current = null;
     setTextSelectionOverlay(null);
     if (dragRef.current?.kind === "marquee") {
       setDragState(null);
@@ -2355,40 +2360,39 @@ export function CanvasPanel() {
     }
   }, [selectedElementIds, textSelectionOverlay]);
 
-  useEffect(() => {
-    const handleSelectionChanged = (rawEvent: Event) => {
-      if (toolMode !== "select") {
-        return;
-      }
+  const syncTextSelectionOverlayFromDetail = useCallback(
+    (detail: SourceSelectionChangeDetail | null | undefined, allowTransientPreserve: boolean): boolean => {
+      const anchorOffset = Math.floor(detail?.anchor ?? 0);
+      const headOffset = Math.floor(detail?.head ?? 0);
+      const sourceId = detail?.sourceId?.trim() ?? "";
+      const hasSourceId = sourceId.length > 0;
+      const region = hasSourceId
+        ? hitRegions.find(
+            (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
+              candidate.sourceId === sourceId && candidate.shape === "rect"
+          )
+        : undefined;
+      const target = hasSourceId ? resolveEditableTextTarget(sourceId, region) : null;
+      const offsetsInRange =
+        target != null &&
+        anchorOffset >= target.sourceSpan.from &&
+        anchorOffset <= target.sourceSpan.to &&
+        headOffset >= target.sourceSpan.from &&
+        headOffset <= target.sourceSpan.to;
 
-      const event = rawEvent as CustomEvent<SourceSelectionChangeDetail>;
-      const detail = event.detail;
-      const sourceId = detail?.sourceId?.trim();
-      if (!sourceId) {
-        setTextSelectionOverlay(null);
-        return;
+      const resolution = resolveTextSelectionOverlayResolution({
+        hasSourceId,
+        hasTarget: target != null,
+        offsetsInRange,
+        allowTransientPreserve,
+        snapshotMatchesSource: snapshot.source === source
+      });
+      if (resolution === "preserve") {
+        return false;
       }
-
-      const region = hitRegions.find(
-        (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
-          candidate.sourceId === sourceId && candidate.shape === "rect"
-      );
-      const target = resolveEditableTextTarget(sourceId, region);
-      if (!target) {
+      if (resolution === "clear" || !target) {
         setTextSelectionOverlay(null);
-        return;
-      }
-
-      const anchorOffset = Math.floor(detail.anchor);
-      const headOffset = Math.floor(detail.head);
-      if (
-        anchorOffset < target.sourceSpan.from ||
-        anchorOffset > target.sourceSpan.to ||
-        headOffset < target.sourceSpan.from ||
-        headOffset > target.sourceSpan.to
-      ) {
-        setTextSelectionOverlay(null);
-        return;
+        return false;
       }
 
       const prefixTable = resolvePrefixTableForTarget(target);
@@ -2406,11 +2410,39 @@ export function CanvasPanel() {
         height: target.region.height,
         prefixTable
       });
+      return true;
+    },
+    [hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget, snapshot.source, source]
+  );
+
+  useEffect(() => {
+    const handleSelectionChanged = (rawEvent: Event) => {
+      if (toolMode !== "select") {
+        return;
+      }
+
+      const event = rawEvent as CustomEvent<SourceSelectionChangeDetail>;
+      lastSourceSelectionDetailRef.current = event.detail ?? null;
+      syncTextSelectionOverlayFromDetail(event.detail, true);
     };
 
     window.addEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
     return () => window.removeEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
-  }, [hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget, toolMode]);
+  }, [syncTextSelectionOverlayFromDetail, toolMode]);
+
+  useEffect(() => {
+    if (toolMode !== "select") {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+    const detail = lastSourceSelectionDetailRef.current;
+    if (!detail) {
+      return;
+    }
+    syncTextSelectionOverlayFromDetail(detail, false);
+  }, [snapshot.source, source, syncTextSelectionOverlayFromDetail, toolMode]);
 
   useEffect(() => {
     const pending = pendingAddedSelectionRef.current;
