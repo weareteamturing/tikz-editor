@@ -176,7 +176,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           value: metrics.width,
           step: 0.1,
           unit: "pt",
-          readOnlyReason: "Resize editing is planned for Phase 4."
+          readOnlyReason: "Resize from canvas corner handles."
         },
         {
           kind: "number",
@@ -185,7 +185,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           value: metrics.height,
           step: 0.1,
           unit: "pt",
-          readOnlyReason: "Resize editing is planned for Phase 4."
+          readOnlyReason: "Resize from canvas corner handles."
         }
       ]
     },

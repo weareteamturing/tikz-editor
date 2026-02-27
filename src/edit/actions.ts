@@ -1,17 +1,17 @@
-import type { EditHandle, Point } from "../semantic/types.js";
+import type { EditHandle, EvaluateOptions, Point } from "../semantic/types.js";
 import type { PathItem, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
 import { replaceSpan } from "./patch.js";
-import { PT_PER_CM } from "./format.js";
+import { PT_PER_CM, formatNumber } from "./format.js";
 import {
   generateElementSource,
   insertElementIntoSource,
   type ElementTemplate
 } from "./element-templates.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
-import { resolvePropertyTarget } from "./property-target.js";
+import { resolvePropertyTarget, type PropertyTarget } from "./property-target.js";
 import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
@@ -76,12 +76,19 @@ export type EditActionResult =
 
 const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
 const ARRANGE_EPSILON = 1e-6;
+const RESIZE_EPSILON = 1e-3;
+
+type EditActionApplyOptions = {
+  evaluateOptions?: EvaluateOptions;
+};
 
 export function applyEditAction(
   source: string,
   editHandles: EditHandle[],
-  action: EditAction
+  action: EditAction,
+  options: EditActionApplyOptions = {}
 ): EditActionResult {
+  const evaluateOptions = options.evaluateOptions;
   const result = (() : EditActionResult => {
     switch (action.kind) {
       case "moveHandle":
@@ -109,7 +116,7 @@ export function applyEditAction(
       case "reorderElements":
         return applyReorderElements(source, action.elementIds, action.direction);
       case "resizeElement":
-        return { kind: "unsupported", reason: `${action.kind} is not yet implemented` };
+        return applyResizeElement(source, action, evaluateOptions);
     }
   })();
   return withChangedSourceIds(result, action, editHandles);
@@ -1108,8 +1115,9 @@ function inferChangedSourceIds(
     case "reorderElements":
       return normalizeElementIds(action.elementIds);
     case "setProperty":
-    case "resizeElement":
       return [];
+    case "resizeElement":
+      return normalizeElementIds([action.elementId]);
   }
 }
 
@@ -1126,6 +1134,15 @@ function uniqueStrings(values: readonly string[]): string[] {
   }
   return unique;
 }
+
+type OptionMutation =
+  | { kind: "set"; value: string }
+  | { kind: "remove" };
+
+type OptionMutationApplyResult = {
+  source: string;
+  patch: SourcePatch;
+};
 
 function applySetProperty(
   source: string,
@@ -1148,40 +1165,179 @@ function applySetProperty(
     return { kind: "unsupported", reason: resolved.reason };
   }
 
-  const target = resolved.target;
-  if (target.options && target.optionsSpan) {
-    const replacement = rewriteOptionList(target.options, key, action.value);
-    const updated = replaceSpan(source, target.optionsSpan, replacement);
-    return {
-      kind: "success",
-      newSource: updated.source,
-      patches: [
-        {
-          oldSpan: target.optionsSpan,
-          newSpan: updated.changedSpan,
-          replacement
-        }
-      ]
-    };
+  const mutations = new Map<string, OptionMutation>([
+    [key, { kind: "set", value: action.value }]
+  ]);
+  const rewritten = applyOptionMutationsToTarget(source, resolved.target, mutations);
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "setProperty would not change the source." };
   }
 
-  const replacement = `[${serializeOptionEntry(key, action.value)}]`;
-  const insertionSpan = {
-    from: target.insertOffset,
-    to: target.insertOffset
-  };
-  const updated = replaceSpan(source, insertionSpan, replacement);
   return {
     kind: "success",
-    newSource: updated.source,
-    patches: [
-      {
-        oldSpan: insertionSpan,
-        newSpan: updated.changedSpan,
-        replacement
-      }
-    ]
+    newSource: rewritten.source,
+    patches: [rewritten.patch]
   };
+}
+
+function applyResizeElement(
+  source: string,
+  action: Extract<EditAction, { kind: "resizeElement" }>,
+  evaluateOptions: EvaluateOptions | undefined
+): EditActionResult {
+  const elementId = action.elementId.trim();
+  if (elementId.length === 0) {
+    return { kind: "unsupported", reason: "Missing element id for resizeElement." };
+  }
+
+  const resolved = resolvePropertyTarget(source, elementId);
+  if (resolved.kind === "not-found") {
+    return { kind: "unsupported", reason: resolved.reason };
+  }
+
+  const parsed = parseTikz(source, { recover: true });
+  const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
+  const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
+  const hasNodePositionHandle = semantic.editHandles.some(
+    (handle) => handle.sourceId === elementId && handle.kind === "node-position"
+  );
+  if (!hasNodePositionHandle) {
+    return { kind: "unsupported", reason: "resizeElement currently supports only node-like elements." };
+  }
+
+  const currentBoundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+  const currentBounds = currentBoundsBySource.get(elementId);
+  if (!currentBounds) {
+    return { kind: "unsupported", reason: "No geometry bounds were found for the selected node." };
+  }
+
+  const center = {
+    x: (currentBounds.minX + currentBounds.maxX) / 2,
+    y: (currentBounds.minY + currentBounds.maxY) / 2
+  };
+
+  const floorMutations = new Map<string, OptionMutation>([
+    ["minimum width", { kind: "remove" }],
+    ["minimum height", { kind: "remove" }]
+  ]);
+  const floorRewrite = applyOptionMutationsToTarget(source, resizeTarget, floorMutations);
+  const floorSource = floorRewrite ? floorRewrite.source : source;
+  const floorParsed = parseTikz(floorSource, { recover: true });
+  const floorSemantic = evaluateTikzFigure(floorParsed.figure, floorSource, evaluateOptions);
+  const floorBoundsBySource = collectSourceWorldBounds(floorSemantic.scene.elements);
+  const floorBounds = floorBoundsBySource.get(elementId);
+  if (!floorBounds) {
+    return { kind: "unsupported", reason: "Could not resolve intrinsic node bounds for resize." };
+  }
+
+  const affectsWidth = action.role.includes("left") || action.role.includes("right");
+  const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
+  if (!affectsWidth && !affectsHeight) {
+    return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
+  }
+
+  const requestedWidth = 2 * Math.abs(action.newWorld.x - center.x);
+  const requestedHeight = 2 * Math.abs(action.newWorld.y - center.y);
+  const intrinsicWidth = floorBounds.maxX - floorBounds.minX;
+  const intrinsicHeight = floorBounds.maxY - floorBounds.minY;
+
+  const resizeMutations = new Map<string, OptionMutation>();
+  if (affectsWidth) {
+    if (requestedWidth > intrinsicWidth + RESIZE_EPSILON) {
+      resizeMutations.set("minimum width", { kind: "set", value: `${formatNumber(requestedWidth)}pt` });
+    } else {
+      resizeMutations.set("minimum width", { kind: "remove" });
+    }
+  }
+
+  if (affectsHeight) {
+    if (requestedHeight > intrinsicHeight + RESIZE_EPSILON) {
+      resizeMutations.set("minimum height", { kind: "set", value: `${formatNumber(requestedHeight)}pt` });
+    } else {
+      resizeMutations.set("minimum height", { kind: "remove" });
+    }
+  }
+
+  const rewritten = applyOptionMutationsToTarget(source, resizeTarget, resizeMutations);
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "Resize would not change node constraints." };
+  }
+
+  return {
+    kind: "success",
+    newSource: rewritten.source,
+    patches: [rewritten.patch]
+  };
+}
+
+function resolveResizePropertyTarget(
+  source: string,
+  statements: readonly Statement[],
+  elementId: string,
+  defaultTarget: PropertyTarget
+): PropertyTarget {
+  if (defaultTarget.kind !== "path-statement") {
+    return defaultTarget;
+  }
+
+  const pathStatement = findPathStatementById(statements, elementId);
+  if (!pathStatement) {
+    return defaultTarget;
+  }
+
+  const nodeIds = collectPathNodeIds(pathStatement.items);
+  if (nodeIds.length !== 1) {
+    return defaultTarget;
+  }
+
+  const nodeTarget = resolvePropertyTarget(source, nodeIds[0]!);
+  if (nodeTarget.kind === "found") {
+    return nodeTarget.target;
+  }
+
+  return defaultTarget;
+}
+
+function findPathStatementById(
+  statements: readonly Statement[],
+  elementId: string
+): Extract<Statement, { kind: "Path" }> | null {
+  for (const statement of statements) {
+    if (statement.kind === "Path" && statement.id === elementId) {
+      return statement;
+    }
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, elementId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function collectPathNodeIds(items: readonly PathItem[]): string[] {
+  const ids: string[] = [];
+  for (const item of items) {
+    if (item.kind === "Node") {
+      ids.push(item.id);
+      continue;
+    }
+
+    if (
+      (item.kind === "ToOperation" || item.kind === "EdgeOperation" || item.kind === "EdgeFromParentOperation") &&
+      item.nodes
+    ) {
+      ids.push(...item.nodes.map((node) => node.id));
+      continue;
+    }
+
+    if (item.kind === "ChildOperation") {
+      ids.push(...collectPathNodeIds(item.body));
+    }
+  }
+
+  return [...new Set(ids)];
 }
 
 function applyAddElement(
@@ -1206,17 +1362,97 @@ function applyAddElement(
   };
 }
 
+function applyOptionMutationsToTarget(
+  source: string,
+  target: PropertyTarget,
+  mutations: ReadonlyMap<string, OptionMutation>
+): OptionMutationApplyResult | null {
+  if (mutations.size === 0) {
+    return null;
+  }
+
+  if (target.options && target.optionsSpan) {
+    const replacement = rewriteOptionListMutations(target.options, mutations);
+    if (replacement.length === 0) {
+      const oldSpan = target.optionsSpan;
+      const updated = replaceSpan(source, oldSpan, "");
+      if (updated.source === source) {
+        return null;
+      }
+      return {
+        source: updated.source,
+        patch: {
+          oldSpan,
+          newSpan: updated.changedSpan,
+          replacement: ""
+        }
+      };
+    }
+
+    const oldSpan = target.optionsSpan;
+    const previous = source.slice(oldSpan.from, oldSpan.to);
+    if (previous === replacement) {
+      return null;
+    }
+
+    const updated = replaceSpan(source, oldSpan, replacement);
+    return {
+      source: updated.source,
+      patch: {
+        oldSpan,
+        newSpan: updated.changedSpan,
+        replacement
+      }
+    };
+  }
+
+  const entriesToInsert: string[] = [];
+  for (const [key, mutation] of mutations.entries()) {
+    if (mutation.kind === "set") {
+      entriesToInsert.push(serializeOptionEntry(key, mutation.value));
+    }
+  }
+  if (entriesToInsert.length === 0) {
+    return null;
+  }
+
+  const replacement = `[${entriesToInsert.join(", ")}]`;
+  const oldSpan = {
+    from: target.insertOffset,
+    to: target.insertOffset
+  };
+  const updated = replaceSpan(source, oldSpan, replacement);
+  if (updated.source === source) {
+    return null;
+  }
+  return {
+    source: updated.source,
+    patch: {
+      oldSpan,
+      newSpan: updated.changedSpan,
+      replacement
+    }
+  };
+}
+
 function rewriteOptionList(options: OptionListAst, key: string, value: string): string {
-  const replacementEntry = serializeOptionEntry(key, value);
+  return rewriteOptionListMutations(options, new Map([[key, { kind: "set", value }]]));
+}
+
+function rewriteOptionListMutations(
+  options: OptionListAst,
+  mutations: ReadonlyMap<string, OptionMutation>
+): string {
   const parts: string[] = [];
-  let replaced = false;
+  const emitted = new Set<string>();
 
   for (const entry of options.entries) {
     const entryKey = optionEntryKey(entry);
-    if (entryKey === key) {
-      if (!replaced) {
-        parts.push(replacementEntry);
-        replaced = true;
+    const mutation = entryKey ? mutations.get(entryKey) : undefined;
+    if (entryKey && mutation) {
+      if (mutation.kind === "set" && !emitted.has(entryKey)) {
+        parts.push(serializeOptionEntry(entryKey, mutation.value));
+        emitted.add(entryKey);
       }
       continue;
     }
@@ -1227,8 +1463,16 @@ function rewriteOptionList(options: OptionListAst, key: string, value: string): 
     }
   }
 
-  if (!replaced) {
-    parts.push(replacementEntry);
+  for (const [key, mutation] of mutations.entries()) {
+    if (mutation.kind !== "set" || emitted.has(key)) {
+      continue;
+    }
+    parts.push(serializeOptionEntry(key, mutation.value));
+    emitted.add(key);
+  }
+
+  if (parts.length === 0) {
+    return "";
   }
 
   return `[${parts.join(", ")}]`;

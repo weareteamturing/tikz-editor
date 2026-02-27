@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EditHandle, Point } from "../src/semantic/types.js";
+import type { NodeTextEngine } from "../src/text/types.js";
 import { identityMatrix } from "../src/semantic/transform.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import { PT_PER_CM } from "../src/edit/format.js";
@@ -466,6 +467,145 @@ describe("applyEditAction – setProperty", () => {
       value: "red"
     });
     expect(result.kind).toBe("unsupported");
+  });
+});
+
+describe("applyEditAction – resizeElement", () => {
+  it("writes minimum width and minimum height when growing from a corner", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 100, y: 100 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).toContain("minimum height=");
+  });
+
+  it("removes minimum width/height when shrinking below the intrinsic floor", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum width=100pt,minimum height=80pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-left",
+      newWorld: { x: 0, y: 0 }
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("minimum width");
+    expect(result.newSource).not.toContain("minimum height");
+  });
+
+  it("updates only the axis targeted by the resize role", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum height=40pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: { x: 90, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).toContain("minimum height=40pt");
+  });
+
+  it("removes the full option list when resize drops the last minimum constraints", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[minimum width=100pt,minimum height=80pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 0, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("minimum width");
+    expect(result.newSource).not.toContain("minimum height");
+    expect(result.newSource).not.toContain("[]");
+  });
+
+  it("uses the provided text engine when computing intrinsic resize floors", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,minimum width=120pt] at (0,0) {Long label text};
+\end{tikzpicture}`;
+    const fakeTextEngine: NodeTextEngine = {
+      validate: () => null,
+      measure: () => ({
+        cacheKey: "fake-measure",
+        width: 40,
+        height: 10,
+        baselineY: -2,
+        midLineY: 0
+      }),
+      renderFromCache: () => null
+    };
+
+    const result = applyEditAction(
+      source,
+      [],
+      {
+        kind: "resizeElement",
+        elementId: "path:0",
+        role: "right",
+        newWorld: { x: 45, y: 0 }
+      },
+      { evaluateOptions: { textEngine: fakeTextEngine } }
+    );
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("minimum width=90pt");
+  });
+
+  it("returns unsupported for non-node elements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: { x: 10, y: 0 }
+    });
+
+    expect(result.kind).toBe("unsupported");
+  });
+
+  it("reports changedSourceIds for successful resize edits", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 120, y: 120 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.changedSourceIds).toEqual(["path:0"]);
   });
 });
 

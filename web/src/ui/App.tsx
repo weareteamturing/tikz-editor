@@ -262,7 +262,7 @@ export function App() {
 function dragKindToComputeTrigger(
   dragKind: CanvasDragKind | null
 ): "drag-element" | "drag-handle" | "other" {
-  if (dragKind === "element") {
+  if (dragKind === "element" || dragKind === "resize") {
     return "drag-element";
   }
   if (dragKind === "handle") {

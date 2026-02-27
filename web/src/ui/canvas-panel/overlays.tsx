@@ -1,5 +1,6 @@
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import type { EditHandle, Point } from "tikz-editor/semantic/types";
+import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SnapLine } from "tikz-editor/edit/snapping";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ToolMode } from "../../store/types";
@@ -33,6 +34,15 @@ type HandleDisplay =
       cursor: string;
       kind: "move-element";
       elementId: string;
+    }
+  | {
+      key: string;
+      x: number;
+      y: number;
+      cursor: string;
+      kind: "resize-element";
+      elementId: string;
+      role: ResizeRole;
     };
 
 export function SnapOverlay({
@@ -478,13 +488,15 @@ export function HandleOverlay({
   handleHalfSize,
   handleStrokeWidth,
   onHandlePointerDown,
-  onElementPointerDown
+  onElementPointerDown,
+  onResizeHandlePointerDown
 }: {
   handleDisplays: readonly HandleDisplay[];
   handleHalfSize: number;
   handleStrokeWidth: number;
   onHandlePointerDown: (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => void;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onResizeHandlePointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole) => void;
 }) {
   return (
     <g className={css.handleOverlay}>
@@ -501,7 +513,9 @@ export function HandleOverlay({
           onPointerDown={(event) =>
             display.kind === "move-handle"
               ? onHandlePointerDown(event, display.handle)
-              : onElementPointerDown(event, display.elementId)
+              : display.kind === "move-element"
+                ? onElementPointerDown(event, display.elementId)
+                : onResizeHandlePointerDown(event, display.elementId, display.role)
           }
         />
       ))}

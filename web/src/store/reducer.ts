@@ -97,11 +97,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "APPLY_EDIT_ACTION": {
-      const result = applyEditAction(
-        state.source,
-        state.snapshot.editHandles,
-        action.action
-      );
+      const result =
+        action.precomputedResult ??
+        applyEditAction(
+          state.source,
+          state.snapshot.editHandles,
+          action.action
+        );
 
       if (result.kind !== "success" && result.kind !== "partial") {
         return state;

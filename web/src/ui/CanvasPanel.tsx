@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
-import { applyEditAction, type EditAction, type ElementTemplate } from "tikz-editor/edit/actions";
+import { applyEditAction, type EditAction, type ElementTemplate, type ResizeRole } from "tikz-editor/edit/actions";
 import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
 import {
   buildSnapContext,
@@ -126,6 +126,13 @@ type DragState =
       historyMergeKey: string;
     }
   | {
+      kind: "resize";
+      pointerId: number;
+      elementId: string;
+      role: ResizeRole;
+      historyMergeKey: string;
+    }
+  | {
       kind: "handle";
       pointerId: number;
       handleId: string;
@@ -196,6 +203,15 @@ type HandleDisplay =
       cursor: string;
       kind: "move-element";
       elementId: string;
+    }
+  | {
+      key: string;
+      x: number;
+      y: number;
+      cursor: string;
+      kind: "resize-element";
+      elementId: string;
+      role: ResizeRole;
     };
 
 type GridLines = {
@@ -343,6 +359,7 @@ const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
+const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
 
 export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
@@ -698,32 +715,36 @@ export function CanvasPanel() {
           x: bounds.minX,
           y: bounds.minY,
           cursor: "nw-resize",
-          kind: "move-element",
-          elementId: sourceId
+          kind: "resize-element",
+          elementId: sourceId,
+          role: "top-left"
         },
         {
           key: `node-handle:${sourceId}:top-right`,
           x: bounds.maxX,
           y: bounds.minY,
           cursor: "ne-resize",
-          kind: "move-element",
-          elementId: sourceId
+          kind: "resize-element",
+          elementId: sourceId,
+          role: "top-right"
         },
         {
           key: `node-handle:${sourceId}:bottom-left`,
           x: bounds.minX,
           y: bounds.maxY,
           cursor: "sw-resize",
-          kind: "move-element",
-          elementId: sourceId
+          kind: "resize-element",
+          elementId: sourceId,
+          role: "bottom-left"
         },
         {
           key: `node-handle:${sourceId}:bottom-right`,
           x: bounds.maxX,
           y: bounds.maxY,
           cursor: "se-resize",
-          kind: "move-element",
-          elementId: sourceId
+          kind: "resize-element",
+          elementId: sourceId,
+          role: "bottom-right"
         }
       );
     }
@@ -951,9 +972,32 @@ export function CanvasPanel() {
     });
   }, [dispatch, svgResult]);
 
+  const copyWarningToClipboard = useCallback(() => {
+    if (!warning) {
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      return;
+    }
+    void navigator.clipboard.writeText(warning);
+  }, [warning]);
+
+  const onWarningBarKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      copyWarningToClipboard();
+    },
+    [copyWarningToClipboard]
+  );
+
   const applyActionWithFeedback = useCallback(
     (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
-      const result = applyEditAction(source, snapshot.editHandles, action);
+      const result = applyEditAction(source, snapshot.editHandles, action, {
+        evaluateOptions: { textEngine: textEngineRef.current }
+      });
 
       if (result.kind === "success" || result.kind === "partial") {
         if (result.kind === "partial") {
@@ -963,12 +1007,20 @@ export function CanvasPanel() {
 
         const sourceChanged = result.newSource !== source;
         if (sourceChanged) {
-          dispatch({ type: "APPLY_EDIT_ACTION", action, historyMergeKey });
+          dispatch({
+            type: "APPLY_EDIT_ACTION",
+            action,
+            historyMergeKey,
+            precomputedResult: result
+          });
         }
         return { sourceChanged };
       }
 
       if (result.kind === "unsupported") {
+        if (action.kind === "resizeElement" && result.reason === RESIZE_NOOP_REASON) {
+          return { sourceChanged: false };
+        }
         setWarning(result.reason);
       } else {
         setWarning(result.message);
@@ -1593,6 +1645,72 @@ export function CanvasPanel() {
       toolMode,
       snapGuideInput,
       viewportWorldBounds
+    ]
+  );
+
+  const onResizeHandlePointerDown = useCallback(
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole) => {
+      if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+
+      viewportRef.current?.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopPropagation();
+      setTextSelectionOverlay(null);
+
+      if (additiveSelection) {
+        dispatch({ type: "SELECT", id: sourceId, additive: true });
+        return;
+      }
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+
+      if (snapshot.source !== source) {
+        setWarning("Wait for recompute to finish before dragging.");
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-start-resize",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: "resize",
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(sourceId)) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+      }
+
+      setSnapLines([]);
+      setDragState({
+        kind: "resize",
+        pointerId: event.pointerId,
+        elementId: sourceId,
+        role,
+        historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
+      });
+      logSnapDebug({
+        phase: "drag-start-resize",
+        snapshotMatchesSource: true,
+        dragKind: "resize",
+        rawPoint: world,
+        lines: []
+      });
+    },
+    [
+      dispatch,
+      logSnapDebug,
+      selectedElementIds,
+      setDragState,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode
     ]
   );
 
@@ -2857,13 +2975,26 @@ export function CanvasPanel() {
                     handleStrokeWidth={handleStrokeWidth}
                     onHandlePointerDown={onHandlePointerDown}
                     onElementPointerDown={onElementPointerDown}
+                    onResizeHandlePointerDown={onResizeHandlePointerDown}
                   />
                 )}
               </svg>
             </div>
           )}
 
-          {warning && <div className={css.warningBar}>{warning}</div>}
+          {warning && (
+            <div
+              className={css.warningBar}
+              onClick={copyWarningToClipboard}
+              onKeyDown={onWarningBarKeyDown}
+              role="button"
+              tabIndex={0}
+              title="Click to copy message"
+              aria-label="Warning message. Click to copy."
+            >
+              {warning}
+            </div>
+          )}
           {showDevPanel && (
             <div
               className={css.snapDebugOverlay}
@@ -3167,6 +3298,28 @@ function useCanvasDragController(params: {
           rawPoint: world,
           lines: []
         });
+        return;
+      }
+
+      if (drag.kind === "resize") {
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-resize-move",
+          snapshotMatchesSource: true,
+          dragKind: "resize",
+          rawPoint: world,
+          lines: []
+        });
+
+        applyActionWithFeedback(
+          {
+            kind: "resizeElement",
+            elementId: drag.elementId,
+            role: drag.role,
+            newWorld: world
+          },
+          drag.historyMergeKey
+        );
         return;
       }
 

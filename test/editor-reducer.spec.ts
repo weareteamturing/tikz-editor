@@ -229,6 +229,41 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next).toBe(initial);
   });
 
+  it("applies precomputed edit results without recomputing the action", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source, editHandles: [] }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: "missing-handle-id",
+        newWorld: { x: cm(5), y: cm(6) }
+      },
+      precomputedResult: {
+        kind: "success",
+        newSource: "\\draw (5,6) -- (3,4);",
+        patches: [
+          {
+            oldSpan: { from: 6, to: 11 },
+            newSpan: { from: 6, to: 11 },
+            replacement: "(5,6)"
+          }
+        ],
+        changedSourceIds: ["elem-1"]
+      }
+    });
+
+    expect(next.source).toBe("\\draw (5,6) -- (3,4);");
+    expect(next.history).toHaveLength(1);
+    expect(next.history[0]?.kind).toBe("move-handle");
+    expect(next.lastEditChangedSourceIds).toEqual(["elem-1"]);
+  });
+
   it("is a no-op when an edit action rewrites to the same source text", () => {
     const { state: initial } = makeStateWithHandle();
 
@@ -344,6 +379,34 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next.history).toHaveLength(1);
     expect(next.history[0]?.kind).toBe("distribute");
     expect(next.history[0]?.label).toBe("Distributed elements");
+  });
+
+  it("records resize actions with resize history kind and updates source", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "resizeElement",
+        elementId: "path:0",
+        role: "bottom-right",
+        newWorld: { x: 100, y: 100 }
+      }
+    });
+
+    expect(next.source).not.toBe(source);
+    expect(next.source).toContain("minimum width=");
+    expect(next.source).toContain("minimum height=");
+    expect(next.history).toHaveLength(1);
+    expect(next.history[0]?.kind).toBe("resize");
+    expect(next.history[0]?.label).toBe("Resized element");
   });
 });
 

@@ -1,8 +1,8 @@
 import type { SessionSnapshot } from "../compute";
-import type { EditAction } from "tikz-editor/edit/actions";
+import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
 
 export type ToolMode = "select" | "addNode" | "addLine" | "addRect" | "addCircle" | "addArrow";
-export type CanvasDragKind = "element" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
+export type CanvasDragKind = "element" | "resize" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
 
 export type CanvasTransform = {
   translateX: number;
@@ -73,7 +73,12 @@ export type EditorState = {
 export type EditorAction =
   // Document
   | { type: "CODE_EDITED"; source: string }
-  | { type: "APPLY_EDIT_ACTION"; action: EditAction; historyMergeKey?: string }
+  | {
+      type: "APPLY_EDIT_ACTION";
+      action: EditAction;
+      historyMergeKey?: string;
+      precomputedResult?: Extract<EditActionResult, { kind: "success" | "partial" }>;
+    }
   | { type: "COMPUTE_REQUESTED"; requestId: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot }
   // History

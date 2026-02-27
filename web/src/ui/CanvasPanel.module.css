@@ -353,7 +353,7 @@
   right: 10px;
   bottom: 10px;
   z-index: 5;
-  pointer-events: none;
+  pointer-events: auto;
   padding: 5px 8px;
   font-size: 10px;
   color: #6a4700;
@@ -361,6 +361,8 @@
   border: 1px solid rgba(160, 96, 16, 0.38);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   font-family: var(--font-mono);
+  cursor: copy;
+  user-select: text;
 }
 
 .snapDebugOverlay {
