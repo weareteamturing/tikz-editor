@@ -245,7 +245,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
           params.item.span
         )
       );
-      params.markFeature("keyword_ellipse", "supported");
+      params.markFeature("shape_ellipse", "supported");
     } else if (params.nodeShape === "diamond") {
       pushMatrixNodeElement(
         makeNodeDiamondElement(

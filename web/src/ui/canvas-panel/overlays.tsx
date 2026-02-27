@@ -16,6 +16,7 @@ type ToolPreview =
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
+  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
 
 type HandleDisplay =
@@ -270,6 +271,16 @@ export function ToolPreviewOverlay({
           y={toolPreview.y}
           width={toolPreview.width}
           height={toolPreview.height}
+          className={css.toolPreviewFill}
+          strokeWidth={handleStrokeWidth}
+        />
+      )}
+      {toolPreview.kind === "ellipse" && (
+        <ellipse
+          cx={toolPreview.cx}
+          cy={toolPreview.cy}
+          rx={toolPreview.rx}
+          ry={toolPreview.ry}
           className={css.toolPreviewFill}
           strokeWidth={handleStrokeWidth}
         />

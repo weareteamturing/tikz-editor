@@ -1080,7 +1080,7 @@ export function evaluatePathStatement(
         return;
       }
 
-    markFeature("keyword_ellipse", "supported");
+    markFeature("shape_ellipse", "supported");
     if (shouldCompoundFilledSubpaths) {
       activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
       appendEllipseSubpath(activePath.commands, center, geometry.rx, geometry.ry, geometry.rotation);
@@ -2187,6 +2187,7 @@ export function evaluatePathStatement(
         if (parsedRadii) {
           const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
           markFeature("keyword_ellipse", "supported");
+          markFeature("shape_ellipse", "supported");
           if (shouldCompoundFilledSubpaths) {
             activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
             appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
@@ -2681,6 +2682,7 @@ export function evaluatePathStatement(
         pendingEllipseRadii = null;
         lastPlacementSegment = null;
         markFeature("keyword_ellipse", "supported");
+        markFeature("shape_ellipse", "supported");
         continue;
       }
 

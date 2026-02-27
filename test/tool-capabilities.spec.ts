@@ -15,6 +15,7 @@ describe("tool capability status", () => {
     expect(getToolCapabilityStatus("addLine").status).toBe("supported");
     expect(getToolCapabilityStatus("addArrow").status).toBe("supported");
     expect(getToolCapabilityStatus("addRect").status).toBe("supported");
+    expect(getToolCapabilityStatus("addEllipse").status).toBe("supported");
     expect(getToolCapabilityStatus("addCircle").status).toBe("supported");
   });
 });

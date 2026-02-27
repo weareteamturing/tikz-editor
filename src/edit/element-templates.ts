@@ -5,6 +5,7 @@ export type ElementTemplate =
   | { kind: "node"; text?: string }
   | { kind: "line"; hasArrow?: boolean; to?: Point }
   | { kind: "rectangle"; corner?: Point }
+  | { kind: "ellipse"; corner?: Point }
   | { kind: "circle"; edge?: Point }
   | { kind: "filledCircle"; edge?: Point };
 
@@ -37,6 +38,13 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
         y: at.y + DEFAULT_RECT_HEIGHT_PT
       };
       return `\\draw ${atCoord} rectangle ${formatPointCm(corner)};`;
+    }
+
+    case "ellipse": {
+      const { center, xRadiusPt, yRadiusPt } = ellipseFromCorner(at, template.corner);
+      const xRadiusCm = formatNumber(xRadiusPt * CM_PER_PT);
+      const yRadiusCm = formatNumber(yRadiusPt * CM_PER_PT);
+      return `\\draw ${formatPointCm(center)} ellipse [x radius=${xRadiusCm}cm, y radius=${yRadiusCm}cm];`;
     }
 
     case "circle": {
@@ -95,6 +103,23 @@ function circleRadiusPt(center: Point, edge: Point | undefined): number {
   const dy = edge.y - center.y;
   const radius = Math.hypot(dx, dy);
   return radius > 1e-4 ? radius : DEFAULT_CIRCLE_RADIUS_PT;
+}
+
+function ellipseFromCorner(anchor: Point, corner: Point | undefined): { center: Point; xRadiusPt: number; yRadiusPt: number } {
+  const resolvedCorner = corner ?? {
+    x: anchor.x + DEFAULT_RECT_WIDTH_PT,
+    y: anchor.y + DEFAULT_RECT_HEIGHT_PT
+  };
+  const dx = resolvedCorner.x - anchor.x;
+  const dy = resolvedCorner.y - anchor.y;
+  return {
+    center: {
+      x: anchor.x + dx / 2,
+      y: anchor.y + dy / 2
+    },
+    xRadiusPt: Math.abs(dx) / 2,
+    yRadiusPt: Math.abs(dy) / 2
+  };
 }
 
 function sanitizeNodeText(raw: string): string {

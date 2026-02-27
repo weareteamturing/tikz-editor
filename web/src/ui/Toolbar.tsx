@@ -1,7 +1,7 @@
 import { useEditorStore } from "../store/store";
-import type { ToolMode } from "../store/types";
 import type { ReorderDirection } from "tikz-editor/edit/actions";
 import { getToolCapabilityStatus } from "./capabilities";
+import { TOOL_BUTTONS } from "./tool-config";
 import {
   actionAvailability,
   alignSelection,
@@ -12,21 +12,6 @@ import {
   reorderSelection
 } from "./editor-commands";
 import css from "./Toolbar.module.css";
-
-type ToolButtonDef = {
-  mode: ToolMode;
-  label: string;
-  title: string;
-};
-
-const TOOL_BUTTONS: ToolButtonDef[] = [
-  { mode: "select", label: "↖ Select", title: "Select and move elements (V)" },
-  { mode: "addNode", label: "+ Node", title: "Place a text node (N)" },
-  { mode: "addLine", label: "/ Line", title: "Draw a line (L)" },
-  { mode: "addArrow", label: "→ Arrow", title: "Draw an arrow (A)" },
-  { mode: "addRect", label: "□ Rect", title: "Draw a rectangle (R)" },
-  { mode: "addCircle", label: "○ Circle", title: "Draw a circle (C)" }
-];
 
 export function Toolbar() {
   const source = useEditorStore((s) => s.source);

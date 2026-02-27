@@ -98,6 +98,12 @@ import {
   SnapOverlay,
   ToolPreviewOverlay
 } from "./canvas-panel/overlays";
+import {
+  isToolCreateMode,
+  shouldConstrainToolCreateToSquare,
+  toolCreateSnapKind,
+  type ToolCreateMode
+} from "./tool-config";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -161,6 +167,7 @@ type DragState =
       pointerId: number;
       toolMode: ToolCreateMode;
       startWorld: Point;
+      rawCurrentWorld: Point;
       currentWorld: Point;
       snapContext: SnapContext | null;
     }
@@ -223,13 +230,12 @@ type GridLines = {
   yMax: number;
 };
 
-type ToolCreateMode = "addLine" | "addArrow" | "addRect" | "addCircle";
-
 type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
+  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
 
 type GuideOrientation = "vertical" | "horizontal";
@@ -915,15 +921,26 @@ export function CanvasPanel() {
       };
     }
 
-    if (toolDraft.toolMode === "addRect") {
+    if (toolDraft.toolMode === "addRect" || toolDraft.toolMode === "addEllipse") {
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      if (toolDraft.toolMode === "addRect") {
+        return {
+          kind: "rect",
+          x,
+          y,
+          width,
+          height
+        };
+      }
       return {
-        kind: "rect",
-        x,
-        y,
-        width: Math.abs(end.x - start.x),
-        height: Math.abs(end.y - start.y)
+        kind: "ellipse",
+        cx: x + width / 2,
+        cy: y + height / 2,
+        rx: width / 2,
+        ry: height / 2
       };
     }
 
@@ -1820,6 +1837,7 @@ export function CanvasPanel() {
             pointerId: event.pointerId,
             toolMode,
             startWorld: snappedStart,
+            rawCurrentWorld: snappedStart,
             currentWorld: snappedStart,
             snapContext: toolSnapContext
           };
@@ -2150,6 +2168,40 @@ export function CanvasPanel() {
       toolMode
     ]
   );
+
+  useEffect(() => {
+    const onModifierKeyChange = (event: KeyboardEvent) => {
+      if (event.key !== "Shift") {
+        return;
+      }
+
+      const drag = dragRef.current;
+      if (!drag || drag.kind !== "tool-create") {
+        return;
+      }
+
+      const nextWorld = resolveToolCreateCurrentWorld(
+        drag.startWorld,
+        drag.rawCurrentWorld,
+        drag.toolMode,
+        event.type === "keydown"
+      );
+      if (distanceSquared(nextWorld, drag.currentWorld) <= 1e-12) {
+        return;
+      }
+
+      drag.currentWorld = nextWorld;
+      setToolDraft({ ...drag });
+      setToolCursorWorld(nextWorld);
+    };
+
+    window.addEventListener("keydown", onModifierKeyChange);
+    window.addEventListener("keyup", onModifierKeyChange);
+    return () => {
+      window.removeEventListener("keydown", onModifierKeyChange);
+      window.removeEventListener("keyup", onModifierKeyChange);
+    };
+  }, [setToolDraft]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -3242,12 +3294,7 @@ function useCanvasDragController(params: {
       if (!world) return;
 
       if (drag.kind === "tool-create") {
-        const snapKind =
-          drag.toolMode === "addRect"
-            ? "rect-corner"
-            : drag.toolMode === "addCircle"
-              ? "circle-edge"
-              : "line-end";
+        const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
@@ -3257,11 +3304,13 @@ function useCanvasDragController(params: {
               modifiers: { ctrlOrMeta }
             })
           : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
-        const snappedWorld = snapped.snappedPoint ?? world;
-        drag.currentWorld =
-          drag.toolMode === "addRect" && event.shiftKey
-            ? constrainRectCornerToSquare(drag.startWorld, snappedWorld)
-            : snappedWorld;
+        drag.rawCurrentWorld = snapped.snappedPoint ?? world;
+        drag.currentWorld = resolveToolCreateCurrentWorld(
+          drag.startWorld,
+          drag.rawCurrentWorld,
+          drag.toolMode,
+          event.shiftKey
+        );
         setToolDraft({ ...drag });
         setToolCursorWorld(drag.currentWorld);
         setSnapLines(snapped.lines);
@@ -3467,13 +3516,8 @@ function useCanvasDragController(params: {
       }
 
       if (drag.kind === "tool-create") {
-        const rawFinalWorld = world ?? drag.currentWorld;
-        const snapKind =
-          drag.toolMode === "addRect"
-            ? "rect-corner"
-            : drag.toolMode === "addCircle"
-              ? "circle-edge"
-              : "line-end";
+        const rawFinalWorld = world ?? drag.rawCurrentWorld;
+        const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
@@ -3484,10 +3528,12 @@ function useCanvasDragController(params: {
             })
           : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
         const snappedWorld = snapped.snappedPoint ?? rawFinalWorld;
-        const finalWorld =
-          drag.toolMode === "addRect" && event.shiftKey
-            ? constrainRectCornerToSquare(drag.startWorld, snappedWorld)
-            : snappedWorld;
+        const finalWorld = resolveToolCreateCurrentWorld(
+          drag.startWorld,
+          snappedWorld,
+          drag.toolMode,
+          event.shiftKey
+        );
         setSnapLines(snapped.lines);
         setToolCursorWorld(finalWorld);
 
@@ -3822,10 +3868,6 @@ function makeMergeKey(prefix: string, id: string, pointerId: number): string {
   return `${prefix}:${id}:${pointerId}:${Date.now().toString(36)}`;
 }
 
-function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {
-  return mode === "addLine" || mode === "addArrow" || mode === "addRect" || mode === "addCircle";
-}
-
 function createTemplateForToolDrag(
   mode: ToolCreateMode,
   startWorld: Point,
@@ -3854,9 +3896,26 @@ function createTemplateForToolDrag(
       : { kind: "rectangle" };
   }
 
+  if (mode === "addEllipse") {
+    return hasDrag
+      ? { kind: "ellipse", corner: endWorld }
+      : { kind: "ellipse" };
+  }
+
   return hasDrag
     ? { kind: "circle", edge: endWorld }
     : { kind: "circle" };
+}
+
+function resolveToolCreateCurrentWorld(
+  startWorld: Point,
+  rawCurrentWorld: Point,
+  mode: ToolCreateMode,
+  shiftKey: boolean
+): Point {
+  return shouldConstrainToolCreateToSquare(mode) && shiftKey
+    ? constrainRectCornerToSquare(startWorld, rawCurrentWorld)
+    : rawCurrentWorld;
 }
 
 function constrainRectCornerToSquare(startWorld: Point, cornerWorld: Point): Point {

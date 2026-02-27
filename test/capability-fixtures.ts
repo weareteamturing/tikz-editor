@@ -47,6 +47,9 @@ export const capabilityFixtures: Record<string, string> = {
   circle_shape: String.raw`\begin{tikzpicture}
   \draw (0,0) circle [radius=1cm];
 \end{tikzpicture}`,
+  ellipse_shape: String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1cm,y radius=0.5cm];
+\end{tikzpicture}`,
   diamond_shape: String.raw`\begin{tikzpicture}
   \node[diamond,draw] at (0,0) {D};
 \end{tikzpicture}`,

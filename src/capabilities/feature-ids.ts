@@ -14,6 +14,7 @@ export const FEATURE_IDS = [
   "path_cycle",
   "shape_rectangle",
   "shape_circle",
+  "shape_ellipse",
   "shape_diamond",
   "shape_trapezium",
   "shape_semicircle",

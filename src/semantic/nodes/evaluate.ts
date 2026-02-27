@@ -380,7 +380,7 @@ export function evaluateNodeItem(
       markFeature("svg_circle", "supported");
     } else if (nodeShape === "ellipse") {
       pushNodeElement(makeNodeEllipseElement(statement.id, item.id, center, nodeLayout.visualWidth, nodeLayout.visualHeight, nodeBoxStyle, item.span));
-      markFeature("keyword_ellipse", "supported");
+      markFeature("shape_ellipse", "supported");
     } else if (nodeShape === "diamond") {
       pushNodeElement(
         makeNodeDiamondElement(

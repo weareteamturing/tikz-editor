@@ -31,6 +31,14 @@ describe("element templates", () => {
     );
     expect(snippet).toBe("\\draw (1,1) circle (0.5cm);");
   });
+
+  it("generates an ellipse snippet from dragged bounding corners", () => {
+    const snippet = generateElementSource(
+      { kind: "ellipse", corner: { x: cm(3), y: cm(5) } },
+      { x: cm(1), y: cm(1) }
+    );
+    expect(snippet).toBe("\\draw (2,3) ellipse [x radius=1cm, y radius=2cm];");
+  });
 });
 
 describe("insertElementIntoSource", () => {

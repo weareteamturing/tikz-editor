@@ -40,6 +40,9 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
   addRect: [
     { feature: "shape_rectangle", layers: ["parser", "semantic", "svg"], label: "rectangle shape rendering" }
   ],
+  addEllipse: [
+    { feature: "shape_ellipse", layers: ["parser", "semantic", "svg"], label: "ellipse shape rendering" }
+  ],
   addCircle: [
     { feature: "shape_circle", layers: ["parser", "semantic", "svg"], label: "circle shape rendering" }
   ]

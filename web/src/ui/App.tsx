@@ -11,6 +11,7 @@ import {
   isCodeMirrorEventTarget,
   pasteSelectionAnchor
 } from "./editor-commands";
+import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
 import css from "./App.module.css";
@@ -186,33 +187,9 @@ export function App() {
       }
 
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (key === "v") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
-          e.preventDefault();
-          return;
-        }
-        if (key === "n") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "addNode" });
-          e.preventDefault();
-          return;
-        }
-        if (key === "l") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "addLine" });
-          e.preventDefault();
-          return;
-        }
-        if (key === "a") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "addArrow" });
-          e.preventDefault();
-          return;
-        }
-        if (key === "r") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "addRect" });
-          e.preventDefault();
-          return;
-        }
-        if (key === "c") {
-          dispatch({ type: "SET_TOOL_MODE", mode: "addCircle" });
+        const shortcutMode = toolModeFromShortcut(key);
+        if (shortcutMode) {
+          dispatch({ type: "SET_TOOL_MODE", mode: shortcutMode });
           e.preventDefault();
           return;
         }
