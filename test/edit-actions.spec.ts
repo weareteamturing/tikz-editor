@@ -391,6 +391,16 @@ describe("applyEditAction – distributeElements", () => {
 // ── setProperty ───────────────────────────────────────────────────────────────
 
 describe("applyEditAction – setProperty", () => {
+  const lineWidthPresetKeys = [
+    "ultra thin",
+    "very thin",
+    "thin",
+    "semithick",
+    "thick",
+    "very thick",
+    "ultra thick"
+  ];
+
   it("updates an existing command option key", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[blue, line width=0.4pt] (0,0) -- (1,0);
@@ -407,6 +417,46 @@ describe("applyEditAction – setProperty", () => {
     if (result.kind === "success") {
       expect(result.newSource).toContain("\\draw[blue, line width=1.2pt] (0,0) -- (1,0);");
       expect(result.patches).toHaveLength(1);
+    }
+  });
+
+  it("supports writing named line width flags while clearing numeric line width", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, line width=0.2pt] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "very thin",
+      value: "true",
+      clearKeys: ["line width", ...lineWidthPresetKeys.filter((key) => key !== "very thin")]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[blue, very thin] (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("line width=");
+    }
+  });
+
+  it("supports writing numeric line width while clearing preset flags", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, very thin] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "line width",
+      value: "1.3pt",
+      clearKeys: lineWidthPresetKeys
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[blue, line width=1.3pt] (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("very thin");
     }
   });
 

@@ -54,7 +54,14 @@ export type EditAction =
   | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
   | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
   | { kind: "moveHandle"; handleId: string; newWorld: Point }
-  | { kind: "setProperty"; elementId: string; level: StyleLevel; key: string; value: string }
+  | {
+      kind: "setProperty";
+      elementId: string;
+      level: StyleLevel;
+      key: string;
+      value: string;
+      clearKeys?: string[];
+    }
   | { kind: "addElement"; template: ElementTemplate; at: Point }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
@@ -1178,9 +1185,15 @@ function applySetProperty(
     return { kind: "unsupported", reason: resolved.reason };
   }
 
-  const mutations = new Map<string, OptionMutation>([
-    [key, { kind: "set", value: action.value }]
-  ]);
+  const mutations = new Map<string, OptionMutation>();
+  for (const rawClearKey of action.clearKeys ?? []) {
+    const clearKey = normalizeOptionKey(rawClearKey);
+    if (clearKey.length === 0 || clearKey === key) {
+      continue;
+    }
+    mutations.set(clearKey, { kind: "remove" });
+  }
+  mutations.set(key, { kind: "set", value: action.value });
   const rewritten = applyOptionMutationsToTarget(source, resolved.target, mutations);
   if (!rewritten) {
     return { kind: "unsupported", reason: "setProperty would not change the source." };

@@ -98,6 +98,9 @@ const LINE_WIDTH_DROPDOWN_OPTIONS: Array<CustomDropdownOption<LineWidthDropdownV
     label: "Custom line width"
   }
 ];
+const LINE_WIDTH_NUMERIC_KEY = "line width";
+const LINE_WIDTH_PRESET_KEYS = LINE_WIDTH_PRESETS.map((preset) => preset.label);
+const LINE_WIDTH_ALL_OPTION_KEYS = [LINE_WIDTH_NUMERIC_KEY, ...LINE_WIDTH_PRESET_KEYS];
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
@@ -141,7 +144,11 @@ export function InspectorPanel() {
     return buildMultiInspectorModel(descriptors, selectedSourceIds.length);
   }, [descriptors, selectedSourceIds.length]);
 
-  function applySetProperty(write: SetPropertyWriteTarget, value: string): void {
+  function applySetProperty(
+    write: SetPropertyWriteTarget,
+    value: string,
+    options: { key?: string; clearKeys?: string[] } = {}
+  ): void {
     if (!write.writable || write.elementId.length === 0) return;
     dispatch({
       type: "APPLY_EDIT_ACTION",
@@ -149,13 +156,18 @@ export function InspectorPanel() {
         kind: "setProperty",
         elementId: write.elementId,
         level: write.level,
-        key: write.key,
-        value
+        key: options.key ?? write.key,
+        value,
+        clearKeys: options.clearKeys
       }
     });
   }
 
-  function applySetPropertyMany(writes: readonly SetPropertyWriteTarget[], value: string): void {
+  function applySetPropertyMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: string,
+    options: { key?: string; clearKeys?: string[] } = {}
+  ): void {
     const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
     if (writable.length === 0) {
       return;
@@ -170,8 +182,9 @@ export function InspectorPanel() {
           kind: "setProperty",
           elementId: write.elementId,
           level: write.level,
-          key: write.key,
-          value
+          key: options.key ?? write.key,
+          value,
+          clearKeys: options.clearKeys
         }
       });
     }
@@ -311,7 +324,10 @@ export function InspectorPanel() {
                 return;
               }
               disableManualCustomLineWidth(lineWidthKey);
-              applySetProperty(property.write, `${formatNumber(presetValue)}pt`);
+              applySetProperty(property.write, "true", {
+                key: nextValue,
+                clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+              });
             }}
             renderOption={(option) => {
               if (option.value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
@@ -343,7 +359,10 @@ export function InspectorPanel() {
               onChange={(event) => {
                 const next = Number(event.currentTarget.value);
                 if (!Number.isFinite(next)) return;
-                applySetProperty(property.write, `${formatNumber(next)}pt`);
+                applySetProperty(property.write, `${formatNumber(next)}pt`, {
+                  key: LINE_WIDTH_NUMERIC_KEY,
+                  clearKeys: LINE_WIDTH_PRESET_KEYS
+                });
               }}
             />
           ) : null}
@@ -482,7 +501,10 @@ export function InspectorPanel() {
                 return;
               }
               disableManualCustomLineWidth(lineWidthKey);
-              applySetPropertyMany(property.writes, `${formatNumber(presetValue)}pt`);
+              applySetPropertyMany(property.writes, "true", {
+                key: nextValue,
+                clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+              });
             }}
             renderValue={(option) => {
               if (property.mixed && !showCustomRange) {
@@ -522,7 +544,10 @@ export function InspectorPanel() {
                   if (!writable) return;
                   const next = Number(event.currentTarget.value);
                   if (!Number.isFinite(next)) return;
-                  applySetPropertyMany(property.writes, `${formatNumber(next)}pt`);
+                  applySetPropertyMany(property.writes, `${formatNumber(next)}pt`, {
+                    key: LINE_WIDTH_NUMERIC_KEY,
+                    clearKeys: LINE_WIDTH_PRESET_KEYS
+                  });
                 }}
               />
               <div className={css.linePreviewRow}>
