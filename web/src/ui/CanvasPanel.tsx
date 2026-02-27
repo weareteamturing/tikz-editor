@@ -3257,7 +3257,11 @@ function useCanvasDragController(params: {
               modifiers: { ctrlOrMeta }
             })
           : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
-        drag.currentWorld = snapped.snappedPoint ?? world;
+        const snappedWorld = snapped.snappedPoint ?? world;
+        drag.currentWorld =
+          drag.toolMode === "addRect" && event.shiftKey
+            ? constrainRectCornerToSquare(drag.startWorld, snappedWorld)
+            : snappedWorld;
         setToolDraft({ ...drag });
         setToolCursorWorld(drag.currentWorld);
         setSnapLines(snapped.lines);
@@ -3479,7 +3483,11 @@ function useCanvasDragController(params: {
               modifiers: { ctrlOrMeta }
             })
           : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
-        const finalWorld = snapped.snappedPoint ?? rawFinalWorld;
+        const snappedWorld = snapped.snappedPoint ?? rawFinalWorld;
+        const finalWorld =
+          drag.toolMode === "addRect" && event.shiftKey
+            ? constrainRectCornerToSquare(drag.startWorld, snappedWorld)
+            : snappedWorld;
         setSnapLines(snapped.lines);
         setToolCursorWorld(finalWorld);
 
@@ -3849,6 +3857,22 @@ function createTemplateForToolDrag(
   return hasDrag
     ? { kind: "circle", edge: endWorld }
     : { kind: "circle" };
+}
+
+function constrainRectCornerToSquare(startWorld: Point, cornerWorld: Point): Point {
+  const dx = cornerWorld.x - startWorld.x;
+  const dy = cornerWorld.y - startWorld.y;
+  const side = Math.max(Math.abs(dx), Math.abs(dy));
+  if (side <= 1e-6) {
+    return cornerWorld;
+  }
+
+  const xSign = dx < 0 ? -1 : 1;
+  const ySign = dy < 0 ? -1 : 1;
+  return {
+    x: startWorld.x + xSign * side,
+    y: startWorld.y + ySign * side
+  };
 }
 
 function previewArrowPoints(
