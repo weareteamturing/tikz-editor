@@ -42,6 +42,7 @@ import type { CanvasDragKind, ToolMode } from "../store/types";
 import { requestSourceSelection, SOURCE_SELECTION_CHANGED_EVENT, type SourceSelectionChangeDetail } from "./source-sync";
 import { resolveTextSelectionOverlayResolution } from "./text-selection-overlay-policy";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
+import { computeDragCapability } from "./canvas-panel/drag-capability";
 import {
   boundsFromPoints,
   collectSourceIdsInBounds,
@@ -479,6 +480,10 @@ export function CanvasPanel() {
     () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceId)),
     [snapshot.editHandles, selectedElementIds]
   );
+  const dragCapability = useMemo(
+    () => computeDragCapability(snapshot.editHandles),
+    [snapshot.editHandles]
+  );
 
   const selectionBounds = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -578,11 +583,12 @@ export function CanvasPanel() {
       }
 
       const point = worldToSvgPoint(handle.world, svgResult.viewBox);
+      const isDraggable = dragCapability.draggableHandleIds.has(handle.id);
       displays.push({
         key: `handle:${handle.id}`,
         x: point.x,
         y: point.y,
-        cursor: getHandleCursor(handle, snapshot.scene, snapshot.editHandles),
+        cursor: isDraggable ? getHandleCursor(handle, snapshot.scene, snapshot.editHandles) : "not-allowed",
         kind: "move-handle",
         handle
       });
@@ -607,7 +613,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:center`,
           x: point.x,
           y: point.y,
-          cursor: "move",
+          cursor: dragCapability.draggableSourceIds.has(sourceId) ? "move" : "not-allowed",
           kind: "move-element",
           elementId: sourceId
         });
@@ -655,7 +661,7 @@ export function CanvasPanel() {
     }
 
     return displays;
-  }, [resizablePathShapeSourceIds, selectedHandles, selectionBoundsBySource, snapshot.scene, svgResult]);
+  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -1370,6 +1376,17 @@ export function CanvasPanel() {
         return;
       }
 
+      const alreadySelected = selectedElementIds.has(sourceId);
+      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [sourceId];
+      if (!alreadySelected) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+      }
+
+      if (draggedIds.some((id) => !dragCapability.draggableSourceIds.has(id))) {
+        setSnapLines([]);
+        return;
+      }
+
       if (snapshot.source !== source) {
         setWarning("Wait for recompute to finish before dragging.");
         setSnapLines([]);
@@ -1382,12 +1399,6 @@ export function CanvasPanel() {
           lines: []
         });
         return;
-      }
-
-      const alreadySelected = selectedElementIds.has(sourceId);
-      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [sourceId];
-      if (!alreadySelected) {
-        dispatch({ type: "SELECT", id: sourceId, additive: false });
       }
 
       const snapContext = snapshot.scene
@@ -1434,6 +1445,7 @@ export function CanvasPanel() {
       beginTextSelectionDrag,
       canvasTransform.scale,
       dispatch,
+      dragCapability.draggableSourceIds,
       logSnapDebug,
       setDragState,
       selectedElementIds,
@@ -1521,6 +1533,15 @@ export function CanvasPanel() {
         return;
       }
 
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceId)) {
+        dispatch({ type: "SELECT", id: handle.sourceId, additive: false });
+      }
+
+      if (!dragCapability.draggableHandleIds.has(handle.id)) {
+        setSnapLines([]);
+        return;
+      }
+
       if (snapshot.source !== source) {
         setWarning("Wait for recompute to finish before dragging.");
         setSnapLines([]);
@@ -1533,10 +1554,6 @@ export function CanvasPanel() {
           lines: []
         });
         return;
-      }
-
-      if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceId)) {
-        dispatch({ type: "SELECT", id: handle.sourceId, additive: false });
       }
 
       const snapContext = snapshot.scene
@@ -1572,6 +1589,7 @@ export function CanvasPanel() {
     [
       canvasTransform.scale,
       dispatch,
+      dragCapability.draggableHandleIds,
       logSnapDebug,
       setDragState,
       selectedElementIds,
@@ -2945,6 +2963,7 @@ export function CanvasPanel() {
                   hoveredElementId={hoveredElementId}
                   toolMode={toolMode}
                   editableTextRegionKeys={editableTextRegionKeys}
+                  draggableSourceIds={dragCapability.draggableSourceIds}
                   onElementPointerDown={onElementPointerDown}
                   onElementDoubleClick={onElementDoubleClick}
                   onHoverChange={(id) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}

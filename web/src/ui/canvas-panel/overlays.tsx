@@ -303,6 +303,7 @@ export function HitRegionLayer({
   hoveredElementId,
   toolMode,
   editableTextRegionKeys,
+  draggableSourceIds,
   onElementPointerDown,
   onElementDoubleClick,
   onHoverChange
@@ -311,6 +312,7 @@ export function HitRegionLayer({
   hoveredElementId: string | null;
   toolMode: ToolMode;
   editableTextRegionKeys: ReadonlySet<string>;
+  draggableSourceIds: ReadonlySet<string>;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onHoverChange: (sourceId: string | null) => void;
@@ -319,7 +321,14 @@ export function HitRegionLayer({
     <g className={css.hitRegions}>
       {hitRegions.map((region) => {
         const isHovered = hoveredElementId === region.sourceId;
-        const cursor = toolMode === "select" ? (editableTextRegionKeys.has(region.key) ? "text" : "move") : undefined;
+        const cursor =
+          toolMode === "select"
+            ? editableTextRegionKeys.has(region.key)
+              ? "text"
+              : draggableSourceIds.has(region.sourceId)
+                ? "move"
+                : undefined
+            : undefined;
         const className = [css.hitRegion, isHovered ? css.hitRegionHovered : ""].filter(Boolean).join(" ");
 
         const onEnter = () => {
