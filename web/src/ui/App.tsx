@@ -1,11 +1,13 @@
 import { Suspense, lazy, useEffect, useRef } from "react";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
+import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
 import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
 import {
+  cutSelection,
   copySelection,
   duplicateSelection,
   isCodeMirrorEventTarget,
@@ -170,6 +172,12 @@ export function App() {
           return;
         }
 
+        if (!e.shiftKey && key === "x") {
+          void cutSelection(commandContext);
+          e.preventDefault();
+          return;
+        }
+
         if (!e.shiftKey && key === "v") {
           pasteSelectionAnchor({
             ...commandContext,
@@ -212,6 +220,7 @@ export function App() {
 
   return (
     <div className={css.app}>
+      <AppMenuBar />
       <Toolbar />
       <div className={css.body}>
         <ResizableLayout

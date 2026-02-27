@@ -3,6 +3,7 @@ import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 
 export const EDIT_ACTION_IDS = [
+  "cut",
   "copy",
   "paste",
   "duplicate",
@@ -56,6 +57,10 @@ type AvailabilityFacts = {
 type AvailabilityRule = (facts: AvailabilityFacts) => string | null;
 
 const RULES: Record<EditActionId, AvailabilityRule> = {
+  cut: (facts) =>
+    facts.selectedSourceIds.length > 0
+      ? null
+      : "Select at least one element to cut.",
   copy: (facts) =>
     facts.selectedSourceIds.length > 0
       ? null

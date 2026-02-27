@@ -41,6 +41,10 @@ export function makeInitialState(): EditorState {
     hoveredElementId: null,
     activeCanvasDragKind: null,
     activeSourceScrubSourceId: null,
+    showGrid: true,
+    showRulers: true,
+    showGuides: true,
+    fitToContentRequestToken: 0,
 
     leftPanelWidth: 340,
     rightPanelWidth: 280,
@@ -248,7 +252,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         internalClipboard: {
           snippets: [...action.clipboard.snippets],
           plainText: action.clipboard.plainText,
-          copiedAt: action.clipboard.copiedAt
+          copiedAt: action.clipboard.copiedAt,
+          pasteBehavior: action.clipboard.pasteBehavior ?? "offset"
         }
       };
     }
@@ -276,6 +281,23 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SET_ACTIVE_SOURCE_SCRUB": {
       if (state.activeSourceScrubSourceId === action.sourceId) return state;
       return { ...state, activeSourceScrubSourceId: action.sourceId };
+    }
+
+    case "TOGGLE_CANVAS_AID": {
+      if (action.aid === "grid") {
+        return { ...state, showGrid: !state.showGrid };
+      }
+      if (action.aid === "rulers") {
+        return { ...state, showRulers: !state.showRulers };
+      }
+      return { ...state, showGuides: !state.showGuides };
+    }
+
+    case "REQUEST_FIT_TO_CONTENT": {
+      return {
+        ...state,
+        fitToContentRequestToken: state.fitToContentRequestToken + 1
+      };
     }
 
     // ── Layout ────────────────────────────────────────────────────────────────

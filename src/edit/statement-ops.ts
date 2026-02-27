@@ -157,7 +157,8 @@ export function resolveRootInsertionPoint(source: string): { offset: number; ind
 
 export function formatSnippetsForInsertion(
   snippets: readonly string[],
-  indent: string
+  indent: string,
+  options?: { trailingNewline?: boolean; newline?: string }
 ): { text: string; snippetSpans: Span[] } {
   const normalized = snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
@@ -184,6 +185,11 @@ export function formatSnippetsForInsertion(
     cursor += formatted.length;
 
     snippetSpans.push({ from: start, to: cursor });
+  }
+
+  if (options?.trailingNewline) {
+    const newline = options.newline ?? "\n";
+    text += newline;
   }
 
   return {

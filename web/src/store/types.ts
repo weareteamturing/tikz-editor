@@ -3,6 +3,7 @@ import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
 
 export type ToolMode = "select" | "addNode" | "addLine" | "addRect" | "addEllipse" | "addCircle" | "addArrow";
 export type CanvasDragKind = "element" | "resize" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
+export type CanvasAid = "grid" | "rulers" | "guides";
 
 export type CanvasTransform = {
   translateX: number;
@@ -29,6 +30,8 @@ export type InternalClipboard = {
   snippets: string[];
   plainText: string;
   copiedAt: number;
+  /** How pasted snippets should be positioned relative to their original coordinates. */
+  pasteBehavior?: "offset" | "preserve";
 };
 
 export type EditorState = {
@@ -59,6 +62,11 @@ export type EditorState = {
   activeCanvasDragKind: CanvasDragKind | null;
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
+  showGrid: boolean;
+  showRulers: boolean;
+  showGuides: boolean;
+  /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
+  fitToContentRequestToken: number;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   leftPanelWidth: number;
@@ -95,6 +103,8 @@ export type EditorAction =
   | { type: "SET_HOVERED_ELEMENT"; id: string | null }
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
+  | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
+  | { type: "REQUEST_FIT_TO_CONTENT" }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }

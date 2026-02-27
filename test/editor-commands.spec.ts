@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   alignSelection,
   copySelection,
+  cutSelection,
+  deleteSelection,
   distributeSelection,
   isCodeMirrorEventTarget,
   pasteSelectionAnchor
@@ -66,6 +68,87 @@ describe("editor-commands", () => {
 
     expect(didPaste).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("pasteSelectionAnchor preserves position for cut clipboard payloads", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const didPaste = pasteSelectionAnchor({
+      source: SOURCE,
+      snapshotSource: SOURCE,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(),
+      internalClipboard: {
+        snippets: ["\\draw (0,0) -- (1,0);"],
+        plainText: "\\draw (0,0) -- (1,0);",
+        copiedAt: 1234,
+        pasteBehavior: "preserve"
+      },
+      dispatch
+    });
+
+    expect(didPaste).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "pasteStatements",
+        snippets: ["\\draw (0,0) -- (1,0);"],
+        anchorElementId: undefined,
+        delta: { x: 0, y: 0 }
+      }
+    });
+  });
+
+  it("deleteSelection dispatches delete action and clears selection", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const didDelete = deleteSelection({
+      source: SOURCE,
+      snapshotSource: SOURCE,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0", "path:1"]),
+      dispatch
+    });
+
+    expect(didDelete).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "deleteElements",
+        elementIds: ["path:0", "path:1"]
+      }
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: "CLEAR_SELECTION" });
+  });
+
+  it("cutSelection copies then deletes the selection", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const didCut = await cutSelection({
+      source: SOURCE,
+      snapshotSource: SOURCE,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0"]),
+      dispatch
+    });
+
+    expect(didCut).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "deleteElement",
+        elementId: "path:0"
+      }
+    });
+    expect(dispatch).toHaveBeenCalledWith({ type: "CLEAR_SELECTION" });
   });
 
   it("alignSelection dispatches when availability says the action is enabled", () => {

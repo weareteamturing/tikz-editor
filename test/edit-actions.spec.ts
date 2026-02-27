@@ -1060,6 +1060,7 @@ describe("applyEditAction – pasteStatements", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\draw (2.25,1.75) -- (3.25,1.75);");
+    expect(result.newSource).toContain("\\draw (2.25,1.75) -- (3.25,1.75);\n\\end{tikzpicture}");
     const endIndex = result.newSource.lastIndexOf("\\end{tikzpicture}");
     expect(result.newSource.lastIndexOf("\\draw (2.25,1.75) -- (3.25,1.75);")).toBeLessThan(endIndex);
   });

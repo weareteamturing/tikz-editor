@@ -422,7 +422,10 @@ function applyPasteStatements(
       }
     : resolveRootInsertionPoint(source);
 
-  const insertion = formatSnippetsForInsertion(renamedSnippets, insertionPoint.indent);
+  const insertion = formatSnippetsForInsertion(renamedSnippets, insertionPoint.indent, {
+    trailingNewline: !anchorRef,
+    newline: detectPreferredNewline(source, insertionPoint.offset)
+  });
   if (insertion.text.length === 0 || insertion.snippetSpans.length === 0) {
     return { kind: "unsupported", reason: "No non-empty statements were available to paste." };
   }

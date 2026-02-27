@@ -459,7 +459,8 @@ describe("editorReducer – selection", () => {
     const clipboard = {
       snippets: ["\\draw (0,0) -- (1,0);"],
       plainText: "\\draw (0,0) -- (1,0);",
-      copiedAt: 1234
+      copiedAt: 1234,
+      pasteBehavior: "offset" as const
     };
     const state = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
     expect(state.internalClipboard).toEqual(clipboard);
@@ -470,7 +471,8 @@ describe("editorReducer – selection", () => {
     const clipboard = {
       snippets: ["\\draw (0,0) -- (1,0);"],
       plainText: "\\draw (0,0) -- (1,0);",
-      copiedAt: 1234
+      copiedAt: 1234,
+      pasteBehavior: "offset" as const
     };
     const withClipboard = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
     const cleared = editorReducer(withClipboard, { type: "SET_INTERNAL_CLIPBOARD", clipboard: null });
@@ -556,6 +558,39 @@ describe("editorReducer – layout", () => {
     expect(initial.showInspectorPanel).toBe(true);
     const after = editorReducer(initial, { type: "TOGGLE_PANEL", panel: "inspector" });
     expect(after.showInspectorPanel).toBe(false);
+  });
+
+  it("TOGGLE_CANVAS_AID toggles grid/rulers/guides visibility", () => {
+    const initial = makeInitialState();
+    expect(initial.showGrid).toBe(true);
+    expect(initial.showRulers).toBe(true);
+    expect(initial.showGuides).toBe(true);
+
+    const afterGrid = editorReducer(initial, { type: "TOGGLE_CANVAS_AID", aid: "grid" });
+    expect(afterGrid.showGrid).toBe(false);
+    expect(afterGrid.showRulers).toBe(true);
+    expect(afterGrid.showGuides).toBe(true);
+
+    const afterRulers = editorReducer(afterGrid, { type: "TOGGLE_CANVAS_AID", aid: "rulers" });
+    expect(afterRulers.showGrid).toBe(false);
+    expect(afterRulers.showRulers).toBe(false);
+    expect(afterRulers.showGuides).toBe(true);
+
+    const afterGuides = editorReducer(afterRulers, { type: "TOGGLE_CANVAS_AID", aid: "guides" });
+    expect(afterGuides.showGrid).toBe(false);
+    expect(afterGuides.showRulers).toBe(false);
+    expect(afterGuides.showGuides).toBe(false);
+  });
+
+  it("REQUEST_FIT_TO_CONTENT increments request token", () => {
+    const initial = makeInitialState();
+    expect(initial.fitToContentRequestToken).toBe(0);
+
+    const next = editorReducer(initial, { type: "REQUEST_FIT_TO_CONTENT" });
+    expect(next.fitToContentRequestToken).toBe(1);
+
+    const next2 = editorReducer(next, { type: "REQUEST_FIT_TO_CONTENT" });
+    expect(next2.fitToContentRequestToken).toBe(2);
   });
 });
 

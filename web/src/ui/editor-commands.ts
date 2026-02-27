@@ -25,13 +25,17 @@ type PasteCommandContext = SelectionCommandContext & {
 
 type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
 type DistributeAxis = "horizontal" | "vertical";
+type ClipboardPasteBehavior = NonNullable<InternalClipboard["pasteBehavior"]>;
 
 export function isCodeMirrorEventTarget(target: EventTarget | null): boolean {
   const element = target as { closest?: (selector: string) => unknown } | null;
   return element?.closest?.(".cm-editor") != null;
 }
 
-export async function copySelection(context: SelectionCommandContext): Promise<boolean> {
+export async function copySelection(
+  context: SelectionCommandContext,
+  options?: { pasteBehavior?: ClipboardPasteBehavior }
+): Promise<boolean> {
   if (!canCopySelection(context)) {
     return false;
   }
@@ -48,7 +52,8 @@ export async function copySelection(context: SelectionCommandContext): Promise<b
     clipboard: {
       snippets,
       plainText,
-      copiedAt: Date.now()
+      copiedAt: Date.now(),
+      pasteBehavior: options?.pasteBehavior ?? "offset"
     }
   });
 
@@ -61,6 +66,40 @@ export async function copySelection(context: SelectionCommandContext): Promise<b
   }
 
   return true;
+}
+
+export function deleteSelection(context: SelectionCommandContext): boolean {
+  if (!canDeleteSelection(context)) {
+    return false;
+  }
+
+  const ids = [...context.selectedElementIds];
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: ids.length === 1
+      ? {
+          kind: "deleteElement",
+          elementId: ids[0]!
+        }
+      : {
+          kind: "deleteElements",
+          elementIds: ids
+        }
+  });
+  context.dispatch({ type: "CLEAR_SELECTION" });
+  return true;
+}
+
+export async function cutSelection(context: SelectionCommandContext): Promise<boolean> {
+  if (!canCutSelection(context)) {
+    return false;
+  }
+
+  const didCopy = await copySelection(context, { pasteBehavior: "preserve" });
+  if (!didCopy) {
+    return false;
+  }
+  return deleteSelection(context);
 }
 
 export function pasteSelectionAnchor(context: PasteCommandContext): boolean {
@@ -80,7 +119,8 @@ export function pasteSelectionAnchor(context: PasteCommandContext): boolean {
     action: {
       kind: "pasteStatements",
       snippets: [...clipboard.snippets],
-      anchorElementId: anchor?.id
+      anchorElementId: anchor?.id,
+      delta: clipboard.pasteBehavior === "preserve" ? { x: 0, y: 0 } : undefined
     }
   });
   return true;
@@ -176,6 +216,15 @@ export function canCopySelection(context: SelectionCommandContext): boolean {
 
 export function canDuplicateSelection(context: SelectionCommandContext): boolean {
   return availabilityFor(context, null).duplicate.enabled;
+}
+
+export function canCutSelection(context: SelectionCommandContext): boolean {
+  const availability = availabilityFor(context, null);
+  return availability.cut.enabled && availability.delete.enabled;
+}
+
+export function canDeleteSelection(context: SelectionCommandContext): boolean {
+  return availabilityFor(context, null).delete.enabled;
 }
 
 export function canReorderSelection(

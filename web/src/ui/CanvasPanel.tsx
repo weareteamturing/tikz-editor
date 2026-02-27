@@ -241,6 +241,10 @@ export function CanvasPanel() {
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
+  const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
+  const showGrid = useEditorStore((s) => s.showGrid);
+  const showRulers = useEditorStore((s) => s.showRulers);
+  const showGuides = useEditorStore((s) => s.showGuides);
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
 
@@ -257,7 +261,6 @@ export function CanvasPanel() {
     width: 460,
     height: 220
   });
-  const [showGrid, setShowGrid] = useState(true);
   const [guides, setGuides] = useState<GuidesState>({ vertical: [], horizontal: [] });
   const [guidePreview, setGuidePreview] = useState<GuidePreview | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -679,10 +682,10 @@ export function CanvasPanel() {
 
   const snapGuideInput = useMemo(
     () => ({
-      x: guides.vertical,
-      y: guides.horizontal
+      x: showGuides ? guides.vertical : [],
+      y: showGuides ? guides.horizontal : []
     }),
-    [guides.horizontal, guides.vertical]
+    [guides.horizontal, guides.vertical, showGuides]
   );
 
   const renderedGuides = useMemo(() => {
@@ -885,6 +888,18 @@ export function CanvasPanel() {
     });
   }, [dispatch, svgResult]);
 
+  const handledFitRequestRef = useRef(0);
+  useEffect(() => {
+    if (fitToContentRequestToken <= 0) {
+      return;
+    }
+    if (fitToContentRequestToken === handledFitRequestRef.current) {
+      return;
+    }
+    handledFitRequestRef.current = fitToContentRequestToken;
+    fitToContent();
+  }, [fitToContent, fitToContentRequestToken]);
+
   const copyWarningToClipboard = useCallback(() => {
     if (!warning) {
       return;
@@ -991,6 +1006,9 @@ export function CanvasPanel() {
 
   const onGuidePointerDown = useCallback(
     (event: ReactPointerEvent<SVGLineElement>, orientation: GuideOrientation, value: number) => {
+      if (!showGuides) {
+        return;
+      }
       if (event.button !== 0) {
         return;
       }
@@ -1020,11 +1038,14 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
     },
-    [isPointerOverGuideDeleteZone, resolveGuideFromClient]
+    [isPointerOverGuideDeleteZone, resolveGuideFromClient, showGuides]
   );
 
   const onTopRulerPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!showGuides) {
+        return;
+      }
       if (event.button !== 0) {
         return;
       }
@@ -1047,11 +1068,14 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
     },
-    [resolveGuideFromClient]
+    [resolveGuideFromClient, showGuides]
   );
 
   const onLeftRulerPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!showGuides) {
+        return;
+      }
       if (event.button !== 0) {
         return;
       }
@@ -1083,7 +1107,7 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
     },
-    [resolveGuideFromClient]
+    [resolveGuideFromClient, showGuides]
   );
 
   const resolveEditableTextTarget = useCallback(
@@ -2333,6 +2357,16 @@ export function CanvasPanel() {
   }, [isPointerOverGuideDeleteZone, resolveGuideFromClient]);
 
   useEffect(() => {
+    if (showGuides) {
+      return;
+    }
+    guideDragRef.current = null;
+    setGuidePreview(null);
+    document.body.classList.remove("is-dragging-guide-horizontal");
+    document.body.classList.remove("is-dragging-guide-vertical");
+  }, [showGuides]);
+
+  useEffect(() => {
     if (!warning) return;
 
     const timer = window.setTimeout(() => setWarning(null), 3200);
@@ -2668,7 +2702,7 @@ export function CanvasPanel() {
         )}
 
         <div className={css.headerButtons}>
-          <button className={css.headerBtn} onClick={() => setShowGrid((v) => !v)}>
+          <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })}>
             {showGrid ? "Grid On" : "Grid Off"}
           </button>
           <button className={css.headerBtn} onClick={fitToContent} disabled={!svgResult}>
@@ -2694,66 +2728,70 @@ export function CanvasPanel() {
         </div>
       )}
 
-      <div className={css.canvasGrid}>
-        <div className={css.rulerCorner}>cm</div>
+      <div className={[css.canvasGrid, showRulers ? "" : css.canvasGridNoRulers].filter(Boolean).join(" ")}>
+        {showRulers ? <div className={css.rulerCorner}>cm</div> : null}
 
-        <svg
-          ref={topRulerRef}
-          className={css.topRuler}
-          viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
-          onPointerDown={onTopRulerPointerDown}
-        >
-          <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
-          {rulers.topTicks.map((tick, index) => (
-            <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
-              <line
-                x1={0}
-                y1={RULER_SIZE}
-                x2={0}
-                y2={tick.major ? 5 : 11}
-                className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
-              />
-              {tick.label && (
-                <text className={css.rulerLabel} x={2} y={10}>
-                  {tick.label}
-                </text>
-              )}
-            </g>
-          ))}
-        </svg>
+        {showRulers ? (
+          <svg
+            ref={topRulerRef}
+            className={css.topRuler}
+            viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
+            onPointerDown={onTopRulerPointerDown}
+          >
+            <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
+            {rulers.topTicks.map((tick, index) => (
+              <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
+                <line
+                  x1={0}
+                  y1={RULER_SIZE}
+                  x2={0}
+                  y2={tick.major ? 5 : 11}
+                  className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
+                />
+                {tick.label && (
+                  <text className={css.rulerLabel} x={2} y={10}>
+                    {tick.label}
+                  </text>
+                )}
+              </g>
+            ))}
+          </svg>
+        ) : null}
 
-        <svg
-          ref={leftRulerRef}
-          className={css.leftRuler}
-          viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
-          onPointerDown={onLeftRulerPointerDown}
-        >
-          <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
-          {rulers.leftTicks.map((tick, index) => (
-            <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
-              <line
-                x1={RULER_SIZE}
-                y1={0}
-                x2={tick.major ? 5 : 11}
-                y2={0}
-                className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
-              />
-              {tick.label && (
-                <text className={css.rulerLabel} x={1} y={-2}>
-                  {tick.label}
-                </text>
-              )}
-            </g>
-          ))}
-          <rect
-            x={RULER_SIZE - LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
-            y={0}
-            width={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
-            height={Math.max(1, viewportSize.height)}
-            className={css.leftRulerGuideStrip}
-            fill="transparent"
-          />
-        </svg>
+        {showRulers ? (
+          <svg
+            ref={leftRulerRef}
+            className={css.leftRuler}
+            viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
+            onPointerDown={onLeftRulerPointerDown}
+          >
+            <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
+            {rulers.leftTicks.map((tick, index) => (
+              <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
+                <line
+                  x1={RULER_SIZE}
+                  y1={0}
+                  x2={tick.major ? 5 : 11}
+                  y2={0}
+                  className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
+                />
+                {tick.label && (
+                  <text className={css.rulerLabel} x={1} y={-2}>
+                    {tick.label}
+                  </text>
+                )}
+              </g>
+            ))}
+            <rect
+              x={RULER_SIZE - LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+              y={0}
+              width={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+              height={Math.max(1, viewportSize.height)}
+              className={css.leftRulerGuideStrip}
+              fill="transparent"
+            />
+          </svg>
+        ) : null}
 
         <div
           className={[css.viewport, toolMode === "select" ? "" : css.viewportTool].filter(Boolean).join(" ")}
@@ -2838,7 +2876,7 @@ export function CanvasPanel() {
                   </g>
                 )}
 
-                {(renderedGuides.vertical.length > 0 || renderedGuides.horizontal.length > 0) && (
+                {showGuides && (renderedGuides.vertical.length > 0 || renderedGuides.horizontal.length > 0) && (
                   <g className={css.guideOverlay}>
                     {renderedGuides.vertical.map((x) => (
                       <g key={`guide-v-${fmt(x)}`}>
