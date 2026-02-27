@@ -12,7 +12,7 @@ import {
   pasteSelectionAnchor
 } from "./editor-commands";
 import { createSingleFlightScheduler } from "./compute-scheduler";
-import type { CanvasDragKind } from "../store/types";
+import { computeTrigger } from "./compute-trigger";
 import css from "./App.module.css";
 
 const SourcePanel = lazy(async () => {
@@ -257,30 +257,4 @@ export function App() {
       </Suspense>
     </div>
   );
-}
-
-function dragKindToComputeTrigger(
-  dragKind: CanvasDragKind | null
-): "drag-element" | "drag-handle" | "other" {
-  if (dragKind === "element" || dragKind === "resize") {
-    return "drag-element";
-  }
-  if (dragKind === "handle") {
-    return "drag-handle";
-  }
-  return "other";
-}
-
-function computeTrigger(
-  dragKind: CanvasDragKind | null,
-  sourceScrubSourceId: string | null
-): "drag-element" | "drag-handle" | "other" {
-  const dragTrigger = dragKindToComputeTrigger(dragKind);
-  if (dragTrigger !== "other") {
-    return dragTrigger;
-  }
-  if (sourceScrubSourceId) {
-    return "drag-element";
-  }
-  return "other";
 }
