@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
+    "generate:example-previews": "tsx scripts/generate-open-example-previews.ts",
+    "dev": "npm run generate:example-previews && vite",
+    "build": "npm run generate:example-previews && vite build"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.2",
@@ -24,6 +25,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   }

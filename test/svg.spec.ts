@@ -55,6 +55,8 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("C");
     expect(emitted.svg).toContain("D");
     expect(emitted.svg).toContain("<path");
+    expect(emitted.viewBox.width).toBeLessThan(400);
+    expect(emitted.viewBox.height).toBeLessThan(250);
   });
 
   it("keeps foreach-expanded instances mapped to authored template source IDs", () => {

@@ -19,6 +19,8 @@ import {
   pasteSelectionAnchor,
   reorderSelection
 } from "./editor-commands";
+import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
+import { OpenExampleModal } from "./OpenExampleModal";
 import css from "./AppMenuBar.module.css";
 
 type MenuCommandBinding = {
@@ -146,6 +148,8 @@ export function AppMenuBar() {
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
+  const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
+  const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
 
   const insertBinding = (mode: ToolMode) => {
@@ -158,6 +162,10 @@ export function AppMenuBar() {
   };
 
   const bindings: MenuCommandBindings = {
+    [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE]: {
+      enabled: true,
+      run: () => setShowOpenExampleModal(true)
+    },
     [APP_MENU_COMMAND_IDS.EXPORT_TIKZ]: {
       enabled: false,
       run: () => undefined
@@ -347,45 +355,74 @@ export function AppMenuBar() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openSectionId]);
 
+  useEffect(() => {
+    if (!pendingAutoFit) {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+    dispatch({ type: "REQUEST_FIT_TO_CONTENT" });
+    setPendingAutoFit(false);
+  }, [dispatch, pendingAutoFit, snapshot.source, source]);
+
+  const loadExampleIntoEditor = (example: TikzOpenExample) => {
+    dispatch({ type: "CODE_EDITED", source: example.source });
+    dispatch({ type: "CLEAR_SELECTION" });
+    dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+    setShowOpenExampleModal(false);
+    setPendingAutoFit(true);
+  };
+
   return (
-    <div className={css.menuBar} role="menubar" ref={menuRootRef}>
-      {APP_MENU_DEFINITION.map((section) => {
-        const isOpen = openSectionId === section.id;
-        return (
-          <div
-            key={section.id}
-            className={css.section}
-            onMouseEnter={() => {
-              if (openSectionId && openSectionId !== section.id) {
-                setOpenSectionId(section.id);
-              }
-            }}
-          >
-            <button
-              type="button"
-              className={[css.trigger, isOpen ? css.triggerActive : ""].filter(Boolean).join(" ")}
-              role="menuitem"
-              aria-haspopup="menu"
-              aria-expanded={isOpen}
-              onClick={() => {
-                setOpenSectionId((current) => current === section.id ? null : section.id);
+    <>
+      <div className={css.menuBar} role="menubar" ref={menuRootRef}>
+        {APP_MENU_DEFINITION.map((section) => {
+          const isOpen = openSectionId === section.id;
+          return (
+            <div
+              key={section.id}
+              className={css.section}
+              onMouseEnter={() => {
+                if (openSectionId && openSectionId !== section.id) {
+                  setOpenSectionId(section.id);
+                }
               }}
             >
-              {section.label}
-            </button>
+              <button
+                type="button"
+                className={[css.trigger, isOpen ? css.triggerActive : ""].filter(Boolean).join(" ")}
+                role="menuitem"
+                aria-haspopup="menu"
+                aria-expanded={isOpen}
+                onClick={() => {
+                  setOpenSectionId((current) => current === section.id ? null : section.id);
+                }}
+              >
+                {section.label}
+              </button>
 
-            {isOpen ? (
-              <MenuPopup
-                items={section.items}
-                path={section.id}
-                nested={false}
-                bindings={bindings}
-                onCommandRun={() => setOpenSectionId(null)}
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
+              {isOpen ? (
+                <MenuPopup
+                  items={section.items}
+                  path={section.id}
+                  nested={false}
+                  bindings={bindings}
+                  onCommandRun={() => setOpenSectionId(null)}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {showOpenExampleModal ? (
+        <OpenExampleModal
+          examples={OPEN_EXAMPLE_CATALOG}
+          onClose={() => setShowOpenExampleModal(false)}
+          onSelectExample={loadExampleIntoEditor}
+        />
+      ) : null}
+    </>
   );
 }

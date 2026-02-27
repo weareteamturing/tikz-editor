@@ -7,6 +7,12 @@ export const APP_MENU_DEFINITION = [
     items: [
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE,
+        label: "Open Example..."
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.EXPORT_TIKZ,
         label: "Export TikZ...",
         accelerator: "CmdOrCtrl+Shift+E"

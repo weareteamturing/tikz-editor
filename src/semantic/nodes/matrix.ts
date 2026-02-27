@@ -661,7 +661,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         optionsSpan: resolvedCell.options?.span,
         options: resolvedCell.options,
         atSpan: params.item.span,
-        atRaw: `(${formatCoordinateValue(position.x)},${formatCoordinateValue(position.y)})`,
+        atRaw: `(${formatCoordinateValue(position.x)}pt,${formatCoordinateValue(position.y)}pt)`,
         textSource: "group",
         textSpan: params.item.textSpan,
         text: expandMacroBindings(

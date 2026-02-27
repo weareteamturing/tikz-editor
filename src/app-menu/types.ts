@@ -1,4 +1,5 @@
 export const APP_MENU_COMMAND_IDS = {
+  OPEN_EXAMPLE: "file.open-example",
   EXPORT_TIKZ: "file.export-tikz",
   UNDO: "edit.undo",
   REDO: "edit.redo",
