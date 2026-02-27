@@ -393,7 +393,7 @@ export function SourcePanel() {
     }
 
     ignoreNextSelectionSyncRef.current = true;
-    view.dispatch({
+    dispatchSelectionWithStableHorizontalScroll(view, {
       selection: { anchor: normalized.from, head: normalized.to },
       annotations: [Transaction.addToHistory.of(false)],
       scrollIntoView: true
@@ -408,7 +408,7 @@ export function SourcePanel() {
     if (current === source) return;
 
     ignoreNextDocUpdateRef.current = true;
-    view.dispatch({
+    dispatchSelectionWithStableHorizontalScroll(view, {
       changes: { from: 0, to: current.length, insert: source },
       annotations: [
         Transaction.addToHistory.of(false),
@@ -416,7 +416,7 @@ export function SourcePanel() {
       ]
     });
 
-    view.dispatch({
+    dispatchSelectionWithStableHorizontalScroll(view, {
       annotations: [isolateHistory.of("after")]
     });
   }, [source]);
@@ -498,7 +498,7 @@ export function SourcePanel() {
         view.state.doc.length
       );
       ignoreNextSelectionSyncRef.current = true;
-      view.dispatch({
+      dispatchSelectionWithStableHorizontalScroll(view, {
         selection: { anchor: normalized.anchor, head: normalized.head },
         annotations: [Transaction.addToHistory.of(false)],
         scrollIntoView: true
@@ -809,6 +809,34 @@ function normalizeSelectionAnchorHead(anchor: number, head: number, length: numb
     anchor: clamp(Math.floor(anchor), 0, length),
     head: clamp(Math.floor(head), 0, length)
   };
+}
+
+function dispatchSelectionWithStableHorizontalScroll(
+  view: EditorView,
+  spec: Parameters<EditorView["dispatch"]>[0]
+): void {
+  const previousScrollLeft = view.scrollDOM.scrollLeft;
+  view.dispatch(spec);
+  restoreHorizontalScroll(view, previousScrollLeft);
+  window.requestAnimationFrame(() => {
+    restoreHorizontalScroll(view, previousScrollLeft);
+    window.requestAnimationFrame(() => {
+      restoreHorizontalScroll(view, previousScrollLeft);
+    });
+  });
+  window.setTimeout(() => {
+    restoreHorizontalScroll(view, previousScrollLeft);
+  }, 0);
+}
+
+function restoreHorizontalScroll(view: EditorView, scrollLeft: number): void {
+  if (!view.scrollDOM.isConnected) {
+    return;
+  }
+  if (view.scrollDOM.scrollLeft === scrollLeft) {
+    return;
+  }
+  view.scrollDOM.scrollLeft = scrollLeft;
 }
 
 function buildDecorations(diagnostics: Diagnostic[]): DecorationSet {
