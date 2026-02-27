@@ -31,6 +31,7 @@ export type DragState =
       pointerId: number;
       elementId: string;
       role: ResizeRole;
+      preserveAspectRatio: number | null;
       historyMergeKey: string;
     }
   | {

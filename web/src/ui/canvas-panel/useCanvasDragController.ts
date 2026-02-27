@@ -263,7 +263,9 @@ export function useCanvasDragController(params: {
             kind: "resizeElement",
             elementId: drag.elementId,
             role: drag.role,
-            newWorld: world
+            newWorld: world,
+            preserveAspect: event.shiftKey,
+            preserveAspectRatio: drag.preserveAspectRatio ?? undefined
           },
           drag.historyMergeKey
         );

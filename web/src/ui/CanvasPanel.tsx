@@ -1605,6 +1605,7 @@ export function CanvasPanel() {
         pointerId: event.pointerId,
         elementId: sourceId,
         role,
+        preserveAspectRatio: ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
         historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
       });
       logSnapDebug({
@@ -1620,6 +1621,7 @@ export function CanvasPanel() {
       logSnapDebug,
       selectedElementIds,
       setDragState,
+      snapshot.scene,
       snapshot.source,
       source,
       svgResult,
@@ -3328,6 +3330,33 @@ function isOrthogonalEllipseRotation(rotation: number): boolean {
     Math.abs(normalized - 180) <= 1e-6 ||
     Math.abs(normalized - 270) <= 1e-6
   );
+}
+
+function ellipseAspectRatioForSource(
+  elements: readonly SceneElement[],
+  sourceId: string
+): number | null {
+  const ellipses = elements.filter(
+    (element): element is Extract<SceneElement, { kind: "Ellipse" }> =>
+      element.sourceId === sourceId && element.kind === "Ellipse"
+  );
+  if (ellipses.length !== 1) {
+    return null;
+  }
+
+  const ellipse = ellipses[0];
+  if (!ellipse || !isOrthogonalEllipseRotation(ellipse.rotation ?? 0) || ellipse.rx <= 1e-6 || ellipse.ry <= 1e-6) {
+    return null;
+  }
+
+  const normalized = (((ellipse.rotation ?? 0) % 360) + 360) % 360;
+  const swapAxes = Math.abs(normalized - 90) <= 1e-6 || Math.abs(normalized - 270) <= 1e-6;
+  const horizontalRadius = swapAxes ? ellipse.ry : ellipse.rx;
+  const verticalRadius = swapAxes ? ellipse.rx : ellipse.ry;
+  if (horizontalRadius <= 1e-6 || verticalRadius <= 1e-6) {
+    return null;
+  }
+  return verticalRadius / horizontalRadius;
 }
 
 function findWordRangeAtIndex(text: string, index: number): { start: number; end: number } | null {

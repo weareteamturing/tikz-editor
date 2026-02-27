@@ -61,7 +61,14 @@ export type EditAction =
   | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: Point }
   | { kind: "duplicateElements"; elementIds: string[]; delta?: Point }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
-  | { kind: "resizeElement"; elementId: string; role: ResizeRole; newWorld: Point };
+  | {
+      kind: "resizeElement";
+      elementId: string;
+      role: ResizeRole;
+      newWorld: Point;
+      preserveAspect?: boolean;
+      preserveAspectRatio?: number;
+    };
 
 export type EditActionResult =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -1340,6 +1347,29 @@ function applyResizePathCircleOrEllipse(
     );
     nextRxLocal = nextRadius;
     nextRyLocal = nextRadius;
+  } else if (context.shape.kind === "Ellipse" && action.preserveAspect) {
+    const fallbackAspectRatio =
+      currentLocalRadii && currentLocalRadii.rx > RESIZE_EPSILON && currentLocalRadii.ry > RESIZE_EPSILON
+        ? currentLocalRadii.ry / currentLocalRadii.rx
+        : null;
+    const fixedAspectRatio =
+      Number.isFinite(action.preserveAspectRatio) && (action.preserveAspectRatio ?? 0) > RESIZE_EPSILON
+        ? action.preserveAspectRatio!
+        : fallbackAspectRatio;
+    if (!fixedAspectRatio || fixedAspectRatio <= RESIZE_EPSILON) {
+      return { kind: "unsupported", reason: "Resize requires explicit ellipse radii to preserve aspect ratio." };
+    }
+
+    if (affectsWidth && affectsHeight) {
+      nextRxLocal = Math.max(localDx, localDy / fixedAspectRatio);
+      nextRyLocal = nextRxLocal * fixedAspectRatio;
+    } else if (affectsWidth) {
+      nextRxLocal = localDx;
+      nextRyLocal = nextRxLocal * fixedAspectRatio;
+    } else {
+      nextRyLocal = localDy;
+      nextRxLocal = nextRyLocal / fixedAspectRatio;
+    }
   }
 
   nextRxLocal = Math.max(nextRxLocal, RESIZE_EPSILON);

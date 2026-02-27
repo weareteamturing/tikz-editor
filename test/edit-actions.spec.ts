@@ -611,6 +611,45 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("y radius=1cm");
   });
 
+  it("preserves ellipse aspect ratio when preserveAspect is enabled", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(1.2), y: cm(0.4) },
+      preserveAspect: true
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=1.2cm");
+    expect(result.newSource).toContain("y radius=0.6cm");
+  });
+
+  it("uses the provided preserveAspectRatio instead of the current ratio", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) ellipse [x radius=1.2cm, y radius=0.4cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(0.5) },
+      preserveAspect: true,
+      preserveAspectRatio: 0.5
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2cm");
+    expect(result.newSource).toContain("y radius=1cm");
+  });
+
   it("resizes ellipse statements where y radius is larger than x radius", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (-1.88,1.26) ellipse [x radius=0.38cm, y radius=0.88cm];
