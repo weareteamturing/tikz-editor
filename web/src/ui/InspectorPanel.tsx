@@ -6,8 +6,10 @@ import {
   buildLineCapSetPropertyMutation,
   buildLineJoinSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
+  buildRoundedCornersSetPropertyMutation,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
+  ROUNDED_CORNERS_DEFAULT_RADIUS,
   type ArrowTipPresetId,
   type ArrowTipSide,
   type ArrowTipWriteTarget,
@@ -114,6 +116,23 @@ type MultiInspectorPathMorphingDecorationProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorRoundedCornersProperty = {
+  kind: "roundedCorners";
+  id: string;
+  label: string;
+  enabled: boolean;
+  anyEnabled: boolean;
+  radius: number;
+  averageRadius: number;
+  defaultRadius: number;
+  min: number;
+  max: number;
+  step: number;
+  mixed: boolean;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
@@ -135,6 +154,7 @@ type MultiInspectorProperty =
   | MultiInspectorLineCapProperty
   | MultiInspectorLineJoinProperty
   | MultiInspectorPathMorphingDecorationProperty
+  | MultiInspectorRoundedCornersProperty
   | MultiInspectorArrowTipProperty;
 
 type MultiInspectorSection = {
@@ -159,7 +179,7 @@ const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
 const LINE_CAP_MIXED_OPTION_VALUE = "__mixed-line-cap__";
 const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
 const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
-const OPTIONAL_MULTI_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
+const OPTIONAL_MULTI_PROPERTY_IDS = new Set(["line-cap", "line-join", "rounded-corners"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
@@ -571,6 +591,34 @@ export function InspectorPanel() {
         });
       }
     }
+  }
+
+  function applyRoundedCornersValue(
+    write: SetPropertyWriteTarget,
+    enabled: boolean,
+    radius: number,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyRoundedCornersValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    enabled: boolean,
+    radius: number,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
   }
 
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
@@ -1205,6 +1253,56 @@ export function InspectorPanel() {
       );
     }
 
+    if (property.kind === "roundedCorners") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      const minRadius = property.min;
+      const maxRadius = Math.max(minRadius, property.max);
+      const defaultRadius = clampNumber(property.defaultRadius, minRadius, maxRadius);
+      const currentRadius = clampNumber(property.radius, minRadius, maxRadius);
+      const sliderValue = property.enabled ? currentRadius : defaultRadius;
+      return (
+        <div key={property.id} className={css.property}>
+          <label className={css.checkboxControl}>
+            <input
+              className={css.checkboxInput}
+              type="checkbox"
+              checked={property.enabled}
+              disabled={!writable}
+              onChange={(event) =>
+                applyRoundedCornersValue(
+                  property.write,
+                  event.currentTarget.checked,
+                  event.currentTarget.checked ? sliderValue : defaultRadius
+                )}
+            />
+            <span className={css.checkboxLabel}>{property.label}</span>
+          </label>
+          {property.enabled ? (
+            <div className={css.roundedCornersControl}>
+              <input
+                className={css.rangeInput}
+                type="range"
+                min={minRadius}
+                max={maxRadius}
+                step={property.step}
+                value={currentRadius}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applyRoundedCornersValue(property.write, true, clampNumber(next, minRadius, maxRadius));
+                }}
+              />
+              <span className={css.roundedCornersValue}>{`${formatNumber(currentRadius)}pt`}</span>
+            </div>
+          ) : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
     const writable = property.write.writable && capability.status !== "unsupported";
     const previewOwnerKey = `arrow-tip:${property.write.elementId}:${property.id}`;
     return (
@@ -1513,6 +1611,61 @@ export function InspectorPanel() {
               ),
             () => clearHoverPreviewSession(previewOwnerKey)
           )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "roundedCorners") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const minRadius = property.min;
+      const maxRadius = Math.max(minRadius, property.max);
+      const defaultRadius = clampNumber(property.defaultRadius, minRadius, maxRadius);
+      const selectedRadius = property.mixed ? property.averageRadius : property.radius;
+      const sliderValue = clampNumber(selectedRadius, minRadius, maxRadius);
+      return (
+        <div key={property.id} className={css.property}>
+          <label className={css.checkboxControl}>
+            <input
+              className={css.checkboxInput}
+              type="checkbox"
+              checked={property.mixed ? false : property.enabled}
+              disabled={!writable}
+              ref={(input) => {
+                if (input) {
+                  input.indeterminate = property.mixed;
+                }
+              }}
+              onChange={(event) =>
+                applyRoundedCornersValueMany(
+                  property.writes,
+                  event.currentTarget.checked,
+                  event.currentTarget.checked ? sliderValue : defaultRadius
+                )}
+            />
+            <span className={css.checkboxLabel}>{property.label}</span>
+          </label>
+          {property.enabled || property.anyEnabled ? (
+            <div className={css.roundedCornersControl}>
+              <input
+                className={css.rangeInput}
+                type="range"
+                min={minRadius}
+                max={maxRadius}
+                step={property.step}
+                value={sliderValue}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applyRoundedCornersValueMany(property.writes, true, clampNumber(next, minRadius, maxRadius));
+                }}
+              />
+              <span className={css.roundedCornersValue}>{`${formatNumber(sliderValue)}pt`}</span>
+            </div>
+          ) : null}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
@@ -1835,6 +1988,47 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     };
   }
 
+  if (base.kind === "roundedCorners") {
+    const sameKind = properties.every((property) => property.kind === "roundedCorners");
+    if (!sameKind) return null;
+    const roundedProperties = properties as Array<Extract<InspectorProperty, { kind: "roundedCorners" }>>;
+    const enabledValues = roundedProperties.map((property) => property.enabled);
+    const writes = roundedProperties.map((property) => property.write);
+    const anyEnabled = enabledValues.some(Boolean);
+    const min = Math.max(...roundedProperties.map((property) => property.min));
+    const max = Math.max(min, Math.min(...roundedProperties.map((property) => property.max)));
+    const defaultRadius = clampNumber(
+      roundedProperties[0]?.defaultRadius ?? ROUNDED_CORNERS_DEFAULT_RADIUS,
+      min,
+      max
+    );
+    const enabledRadii = roundedProperties
+      .filter((property) => property.enabled)
+      .map((property) => clampNumber(property.radius, min, max));
+    const averageEnabledRadius = enabledRadii.length > 0 ? averageNumbers(enabledRadii) : defaultRadius;
+    const radiusValues = roundedProperties.map((property) =>
+      property.enabled ? clampNumber(property.radius, min, max) : defaultRadius
+    );
+    const mixed = !allValuesEqual(enabledValues) || (anyEnabled && !numbersAreEqual(enabledRadii));
+
+    return {
+      kind: "roundedCorners",
+      id: base.id,
+      label: base.label,
+      enabled: enabledValues.every(Boolean),
+      anyEnabled,
+      radius: radiusValues[0] ?? defaultRadius,
+      averageRadius: averageEnabledRadius,
+      defaultRadius,
+      min,
+      max,
+      step: base.step,
+      mixed,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   const sameKind = properties.every((property) => property.kind === "arrowTip");
   if (!sameKind) return null;
   const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
@@ -1885,6 +2079,16 @@ function averageNumbers(values: readonly number[]): number {
     total += value;
   }
   return total / values.length;
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  if (max < min) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, value));
 }
 
 function allValuesEqual<T>(values: readonly T[]): boolean {

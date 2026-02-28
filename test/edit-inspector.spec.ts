@@ -3,6 +3,7 @@ import { renderTikzToSvg } from "../src/render/index.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import {
   buildArrowTipSetPropertyMutation,
+  buildRoundedCornersSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   getInspectorDescriptor
 } from "../src/edit/inspector.js";
@@ -354,5 +355,111 @@ describe("getInspectorDescriptor", () => {
 
     expect(dashedStroke.properties.some((property) => property.kind === "lineJoin")).toBe(true);
     expect(dashedStroke.properties.some((property) => property.kind === "lineCap")).toBe(true);
+  });
+
+  it("shows rounded corners in the path section only when the path has joins", () => {
+    const joinedSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const straightSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+
+    const joinedRendered = renderTikzToSvg(joinedSource);
+    const straightRendered = renderTikzToSvg(straightSource);
+    const joinedPath = joinedRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const straightPath = straightRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(joinedPath).toBeDefined();
+    expect(straightPath).toBeDefined();
+    if (!joinedPath || !straightPath) {
+      throw new Error("Expected path elements");
+    }
+
+    const joinedDescriptor = getInspectorDescriptor(joinedPath, {
+      source: joinedSource,
+      editHandles: joinedRendered.semantic.editHandles
+    });
+    const straightDescriptor = getInspectorDescriptor(straightPath, {
+      source: straightSource,
+      editHandles: straightRendered.semantic.editHandles
+    });
+
+    const joinedPathSection = joinedDescriptor.sections.find((section) => section.id === "path");
+    const straightPathSection = straightDescriptor.sections.find((section) => section.id === "path");
+    expect(joinedPathSection).toBeDefined();
+    expect(straightPathSection).toBeDefined();
+    if (!joinedPathSection || !straightPathSection) {
+      throw new Error("Expected path sections");
+    }
+
+    const joinedRoundedCorners = joinedPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+    const straightRoundedCorners = straightPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+
+    expect(joinedRoundedCorners).toBeDefined();
+    if (!joinedRoundedCorners || joinedRoundedCorners.kind !== "roundedCorners") {
+      throw new Error("Expected rounded corners property");
+    }
+    expect(joinedRoundedCorners.enabled).toBe(false);
+    expect(joinedRoundedCorners.radius).toBeCloseTo(4, 6);
+    expect(joinedRoundedCorners.defaultRadius).toBeCloseTo(4, 6);
+    expect(joinedRoundedCorners.max).toBeCloseTo(14.23, 2);
+
+    expect(straightRoundedCorners).toBeUndefined();
+  });
+
+  it("keeps rounded-corner max stable after rounded corners are enabled", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rounded corners=4pt] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(path).toBeDefined();
+    if (!path) {
+      throw new Error("Expected path element");
+    }
+
+    const descriptor = getInspectorDescriptor(path, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+
+    const roundedCorners = pathSection.properties.find((property) => property.kind === "roundedCorners");
+    expect(roundedCorners).toBeDefined();
+    if (!roundedCorners || roundedCorners.kind !== "roundedCorners") {
+      throw new Error("Expected rounded corners property");
+    }
+
+    expect(roundedCorners.enabled).toBe(true);
+    expect(roundedCorners.max).toBeCloseTo(14.23, 2);
+  });
+
+  it("builds rounded-corners mutations for enabling and disabling", () => {
+    const enabled = buildRoundedCornersSetPropertyMutation(true, 6);
+    expect(enabled).toMatchObject({
+      key: "rounded corners",
+      value: "6pt"
+    });
+    expect(enabled.clearKeys).toContain("sharp corners");
+    expect(enabled.clearKeys).not.toContain("rounded corners");
+
+    const enabledDefault = buildRoundedCornersSetPropertyMutation(true);
+    expect(enabledDefault.value).toBe("true");
+
+    const disabled = buildRoundedCornersSetPropertyMutation(false, 6);
+    expect(disabled).toMatchObject({
+      key: "sharp corners",
+      value: "true"
+    });
+    expect(disabled.clearKeys).toContain("rounded corners");
+    expect(disabled.clearKeys).not.toContain("sharp corners");
   });
 });

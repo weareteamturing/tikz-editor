@@ -71,6 +71,9 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
     { feature: "options_structured", layers: ["edit"], label: "decoration option editing" },
     { feature: "decoration_pathmorphing", layers: ["semantic", "svg"], label: "path morphing rendering" }
   ],
+  roundedCorners: [
+    { feature: "options_structured", layers: ["edit"], label: "rounded corners editing" }
+  ],
   arrowTip: [
     { feature: "options_structured", layers: ["edit"], label: "arrow option editing" },
     { feature: "arrow_tips", layers: ["semantic", "svg"], label: "arrow tip rendering" }

@@ -78,5 +78,25 @@ describe("inspector property capability status", () => {
       }
     };
     expect(getInspectorPropertyCapabilityStatus(colorProperty).status).toBe("partial");
+
+    const roundedCornersProperty: InspectorProperty = {
+      kind: "roundedCorners",
+      id: "rounded-corners",
+      label: "Rounded corners",
+      enabled: true,
+      radius: 4,
+      defaultRadius: 4,
+      min: 0.1,
+      max: 24,
+      step: 0.1,
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "rounded corners",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(roundedCornersProperty).status).toBe("partial");
   });
 });
