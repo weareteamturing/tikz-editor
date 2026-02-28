@@ -33,6 +33,7 @@ import type {
   Point,
   SceneElement,
   ScenePath,
+  ScenePathShapeHint,
   ScenePathCommand,
   SceneText
 } from "tikz-editor/semantic/types";
@@ -545,13 +546,14 @@ export function CanvasPanel() {
     }
 
     const result = new Set<string>();
+    const statements = snapshot.parseResult?.figure.body;
     for (const sourceId of selectionBoundsBySource.keys()) {
-      if (sourceHasSingleResizablePathShape(snapshot.scene.elements, snapshot.editHandles, sourceId)) {
+      if (sourceHasSingleResizablePathShape(snapshot.scene.elements, snapshot.editHandles, sourceId, statements)) {
         result.add(sourceId);
       }
     }
     return result;
-  }, [selectionBoundsBySource, snapshot.editHandles, snapshot.scene]);
+  }, [selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
 
   const selectionBoxes = useMemo(
     () =>
@@ -3475,60 +3477,137 @@ function hasTextWidthOption(
 function sourceHasSingleResizablePathShape(
   elements: readonly SceneElement[],
   editHandles: readonly EditHandle[],
-  sourceId: string
+  sourceId: string,
+  statements?: readonly Statement[]
 ): boolean {
   const sourceElements = elements.filter((element) => element.sourceId === sourceId);
   const nonText = sourceElements.filter((element) => element.kind !== "Text");
-  const shapes = nonText.filter((element) => element.kind === "Circle" || element.kind === "Ellipse");
-  if (shapes.length === 1 && nonText.length === 1) {
-    const element = shapes[0];
-    if (!element) {
-      return false;
-    }
-    if (element.kind === "Circle") {
-      return true;
-    }
-    if (element.kind === "Ellipse") {
-      return isOrthogonalEllipseRotation(element.rotation ?? 0);
-    }
-    return false;
-  }
-  if (shapes.length > 0) {
+  if (nonText.length !== 1) {
     return false;
   }
 
-  const rectanglePath = nonText.find(
-    (candidate): candidate is ScenePath =>
-      candidate.kind === "Path" && candidate.id.startsWith(`scene-rectangle:${sourceId}:`)
-  );
-  if (!rectanglePath || nonText.length !== 1) {
+  const shapeElement = nonText[0];
+  if (!shapeElement) {
+    return false;
+  }
+
+  if (shapeElement.kind === "Circle") {
+    return true;
+  }
+  if (shapeElement.kind === "Ellipse") {
+    return isOrthogonalEllipseRotation(shapeElement.rotation ?? 0);
+  }
+  if (shapeElement.kind !== "Path") {
     return false;
   }
 
   const pathHandles = editHandles.filter(
     (handle) => handle.sourceId === sourceId && handle.kind === "path-point"
   );
-  if (pathHandles.length !== 2) {
-    return false;
-  }
-  const [firstHandle, secondHandle] = pathHandles;
-  if (!firstHandle || !secondHandle) {
-    return false;
-  }
-  if (firstHandle.rewriteMode === "unsupported" || secondHandle.rewriteMode === "unsupported") {
-    return false;
-  }
-  if (
-    firstHandle.sourceSpan.from === secondHandle.sourceSpan.from &&
-    firstHandle.sourceSpan.to === secondHandle.sourceSpan.to
-  ) {
-    return false;
-  }
-  if (!transformsApproximatelyEqual(firstHandle.transform, secondHandle.transform)) {
+
+  const pathShapeHint = resolveScenePathShapeHint(shapeElement, statements, sourceId);
+  if (!pathShapeHint) {
     return false;
   }
 
-  return true;
+  if (pathShapeHint === "rectangle") {
+    if (pathHandles.length !== 2) {
+      return false;
+    }
+    const [firstHandle, secondHandle] = pathHandles;
+    if (!firstHandle || !secondHandle) {
+      return false;
+    }
+    if (firstHandle.rewriteMode === "unsupported" || secondHandle.rewriteMode === "unsupported") {
+      return false;
+    }
+    if (
+      firstHandle.sourceSpan.from === secondHandle.sourceSpan.from &&
+      firstHandle.sourceSpan.to === secondHandle.sourceSpan.to
+    ) {
+      return false;
+    }
+    if (!transformsApproximatelyEqual(firstHandle.transform, secondHandle.transform)) {
+      return false;
+    }
+    return true;
+  }
+
+  if (pathShapeHint === "ellipse" && !isOrthogonalEllipseRotation(resolvePathEllipseRotation(shapeElement))) {
+    return false;
+  }
+
+  return pathHandles.length === 1;
+}
+
+function findPathStatementById(
+  statements: readonly Statement[],
+  sourceId: string
+): Extract<Statement, { kind: "Path" }> | null {
+  for (const statement of statements) {
+    if (statement.kind === "Path" && statement.id === sourceId) {
+      return statement;
+    }
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, sourceId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function resolveScenePathShapeHint(
+  path: ScenePath,
+  statements: readonly Statement[] | undefined,
+  sourceId: string
+): ScenePathShapeHint | null {
+  if (path.shapeHint) {
+    return path.shapeHint;
+  }
+  if (!statements) {
+    return null;
+  }
+  const pathStatement = findPathStatementById(statements, sourceId);
+  if (!pathStatement) {
+    return null;
+  }
+  return resolvePathShapeHintFromItems(pathStatement.items);
+}
+
+function resolvePathShapeHintFromItems(items: readonly PathItem[]): ScenePathShapeHint | null {
+  const hints = new Set<ScenePathShapeHint>();
+  collectPathShapeHints(items, hints);
+  if (hints.size !== 1) {
+    return null;
+  }
+  return [...hints][0] ?? null;
+}
+
+function collectPathShapeHints(items: readonly PathItem[], hints: Set<ScenePathShapeHint>): void {
+  for (const item of items) {
+    if (item.kind === "PathKeyword") {
+      if (item.keyword === "rectangle") {
+        hints.add("rectangle");
+      } else if (item.keyword === "circle") {
+        hints.add("circle");
+      } else if (item.keyword === "ellipse") {
+        hints.add("ellipse");
+      }
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      collectPathShapeHints(item.body, hints);
+    }
+  }
+}
+
+function resolvePathEllipseRotation(path: ScenePath): number {
+  const arc = path.commands.find(
+    (command): command is Extract<ScenePathCommand, { kind: "A" }> => command.kind === "A"
+  );
+  return arc?.xAxisRotation ?? 0;
 }
 
 function isOrthogonalEllipseRotation(rotation: number): boolean {

@@ -88,12 +88,15 @@ export type ScenePathCommand =
   | { kind: "A"; rx: number; ry: number; xAxisRotation: number; largeArc: boolean; sweep: boolean; to: Point }
   | { kind: "Z" };
 
+export type ScenePathShapeHint = "rectangle" | "circle" | "ellipse";
+
 export type ScenePath = {
   kind: "Path";
   id: string;
   sourceId: string;
   sourceSpan: Span;
   origin?: SceneElementOrigin;
+  shapeHint?: ScenePathShapeHint | null;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   commands: ScenePathCommand[];

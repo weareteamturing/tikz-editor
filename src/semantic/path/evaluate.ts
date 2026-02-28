@@ -45,6 +45,7 @@ import {
   ensurePathForSubpath,
   flushDrawableActivePath,
   hasDrawablePathSegments,
+  markPathShapeHint,
   makeCircleElement,
   makeEllipseElement,
   makePath,
@@ -1093,22 +1094,24 @@ export function evaluatePathStatement(
     itemId: string,
     span: { from: number; to: number }
   ): void => {
-      if (geometry.kind === "circle") {
-        markFeature("shape_circle", "supported");
-        if (shouldCompoundFilledSubpaths) {
+    if (geometry.kind === "circle") {
+      markFeature("shape_circle", "supported");
+      if (shouldCompoundFilledSubpaths) {
         activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
-          appendCircleSubpath(activePath.commands, center, geometry.radius);
-          markFeature("svg_path", "supported");
-        } else {
-          markFeature("svg_circle", "supported");
-          geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, statementStyleChain, span));
-        }
-        return;
+        markPathShapeHint(activePath, "circle");
+        appendCircleSubpath(activePath.commands, center, geometry.radius);
+        markFeature("svg_path", "supported");
+      } else {
+        markFeature("svg_circle", "supported");
+        geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, statementStyleChain, span));
       }
+      return;
+    }
 
     markFeature("shape_ellipse", "supported");
     if (shouldCompoundFilledSubpaths) {
       activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
+      markPathShapeHint(activePath, "ellipse");
       appendEllipseSubpath(activePath.commands, center, geometry.rx, geometry.ry, geometry.rotation);
       markFeature("svg_path", "supported");
       return;
@@ -2202,6 +2205,7 @@ export function evaluatePathStatement(
           markFeature("shape_ellipse", "supported");
           if (shouldCompoundFilledSubpaths) {
             activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
+            markPathShapeHint(activePath, "ellipse");
             appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
             markFeature("svg_path", "supported");
           } else {
@@ -2352,6 +2356,7 @@ export function evaluatePathStatement(
         markFeature("shape_rectangle", "supported");
         if (shouldCompoundFilledSubpaths) {
           activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
+          markPathShapeHint(activePath, "rectangle");
           appendRectangleSubpath(activePath.commands, pendingRectangleFrom, evaluated.world, activeRoundedCorners, frameTransform);
         } else {
           geometryElements.push(
@@ -3337,6 +3342,7 @@ export function evaluatePathStatement(
     const geometry = transformEllipseGeometry(radii.rx, radii.ry, 0, frameTransform);
     if (shouldCompoundFilledSubpaths) {
       activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statementStyleChain, statement.span);
+      markPathShapeHint(activePath, "ellipse");
       appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
       markFeature("svg_path", "supported");
     } else {

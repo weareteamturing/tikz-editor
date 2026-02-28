@@ -1,4 +1,13 @@
-import type { EditHandle, EvaluateOptions, Point, SceneCircle, SceneElement, SceneEllipse } from "../semantic/types.js";
+import type {
+  EditHandle,
+  EvaluateOptions,
+  Point,
+  SceneCircle,
+  SceneElement,
+  SceneEllipse,
+  ScenePath,
+  ScenePathShapeHint
+} from "../semantic/types.js";
 import type { CoordinateItem, PathItem, PathOptionItem, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
@@ -1229,6 +1238,7 @@ function applyResizeElement(
   );
   if (!hasNodePositionHandle) {
     const rectangleContext = resolvePathRectangleResizeContext(
+      parsed.figure.body,
       semantic.scene.elements,
       semantic.editHandles,
       elementId
@@ -1324,7 +1334,9 @@ type PathShapeResizeSyntax = {
 
 type PathShapeResizeContext = {
   kind: "found";
-  shape: SceneCircle | SceneEllipse;
+  shapeKind: "circle" | "ellipse";
+  center: Point;
+  rotation: number;
   syntax: PathShapeResizeSyntax;
   centerHandle: EditHandle;
 };
@@ -1472,10 +1484,16 @@ function applyResizePathRectangle(
 }
 
 function resolvePathRectangleResizeContext(
+  statements: readonly Statement[],
   elements: readonly SceneElement[],
   editHandles: readonly EditHandle[],
   elementId: string
 ): PathRectangleResizeResolution {
+  const pathStatement = findPathStatementById(statements, elementId);
+  if (!pathStatement) {
+    return { kind: "not-rectangle" };
+  }
+
   const sourceElements = elements.filter((element) => element.sourceId === elementId);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   if (nonTextElements.length !== 1) {
@@ -1483,7 +1501,10 @@ function resolvePathRectangleResizeContext(
   }
 
   const rectangle = nonTextElements[0];
-  if (!rectangle || rectangle.kind !== "Path" || !isSceneRectanglePathId(rectangle.id, elementId)) {
+  if (!rectangle || rectangle.kind !== "Path") {
+    return { kind: "not-rectangle" };
+  }
+  if (resolveScenePathShapeHint(rectangle, pathStatement) !== "rectangle") {
     return { kind: "not-rectangle" };
   }
 
@@ -1536,6 +1557,40 @@ function resolvePathRectangleResizeContext(
   };
 }
 
+function resolveScenePathShapeHint(
+  path: ScenePath,
+  pathStatement: Extract<Statement, { kind: "Path" }>
+): ScenePathShapeHint | null {
+  return path.shapeHint ?? resolvePathShapeHintFromItems(pathStatement.items);
+}
+
+function resolvePathShapeHintFromItems(items: readonly PathItem[]): ScenePathShapeHint | null {
+  const hints = new Set<ScenePathShapeHint>();
+  collectPathShapeHints(items, hints);
+  if (hints.size !== 1) {
+    return null;
+  }
+  return [...hints][0] ?? null;
+}
+
+function collectPathShapeHints(items: readonly PathItem[], hints: Set<ScenePathShapeHint>): void {
+  for (const item of items) {
+    if (item.kind === "PathKeyword") {
+      if (item.keyword === "rectangle") {
+        hints.add("rectangle");
+      } else if (item.keyword === "circle") {
+        hints.add("circle");
+      } else if (item.keyword === "ellipse") {
+        hints.add("ellipse");
+      }
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      collectPathShapeHints(item.body, hints);
+    }
+  }
+}
+
 function applyResizePathCircleOrEllipse(
   source: string,
   action: Extract<EditAction, { kind: "resizeElement" }>,
@@ -1549,7 +1604,7 @@ function applyResizePathCircleOrEllipse(
     return context;
   }
 
-  if (context.shape.kind === "Ellipse" && !isOrthogonalEllipseRotation(context.shape.rotation ?? 0)) {
+  if (context.shapeKind === "ellipse" && !isOrthogonalEllipseRotation(context.rotation)) {
     return { kind: "unsupported", reason: "Resizing non-orthogonally rotated ellipses is not supported yet." };
   }
 
@@ -1561,7 +1616,7 @@ function applyResizePathCircleOrEllipse(
 
   const localPointer = worldToLocal(action.newWorld, context.centerHandle.transform);
   const localCenter =
-    context.centerHandle.local ?? worldToLocal(context.shape.center, context.centerHandle.transform);
+    context.centerHandle.local ?? worldToLocal(context.center, context.centerHandle.transform);
   if (!localPointer || !localCenter) {
     return { kind: "unsupported", reason: "Could not resolve local geometry for circle/ellipse resize." };
   }
@@ -1575,7 +1630,7 @@ function applyResizePathCircleOrEllipse(
 
   let nextRxLocal = affectsWidth ? localDx : (currentLocalRadii?.rx ?? localDx);
   let nextRyLocal = affectsHeight ? localDy : (currentLocalRadii?.ry ?? localDy);
-  if (context.shape.kind === "Circle") {
+  if (context.shapeKind === "circle") {
     const currentRadius = currentLocalRadii?.rx ?? Math.max(nextRxLocal, nextRyLocal);
     const nextRadius = Math.max(
       affectsWidth ? localDx : currentRadius,
@@ -1583,7 +1638,7 @@ function applyResizePathCircleOrEllipse(
     );
     nextRxLocal = nextRadius;
     nextRyLocal = nextRadius;
-  } else if (context.shape.kind === "Ellipse" && action.preserveAspect) {
+  } else if (context.shapeKind === "ellipse" && action.preserveAspect) {
     const fallbackAspectRatio =
       currentLocalRadii && currentLocalRadii.rx > RESIZE_EPSILON && currentLocalRadii.ry > RESIZE_EPSILON
         ? currentLocalRadii.ry / currentLocalRadii.rx
@@ -1678,10 +1733,31 @@ function resolvePathShapeResizeContext(
 
   const sourceElements = elements.filter((element) => element.sourceId === elementId);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
-  const shapeElements = nonTextElements.filter(
+  const explicitShapeElements = nonTextElements.filter(
     (element): element is SceneCircle | SceneEllipse => element.kind === "Circle" || element.kind === "Ellipse"
   );
-  if (shapeElements.length !== 1 || nonTextElements.length !== 1) {
+
+  let shapeKind: "circle" | "ellipse" | null = null;
+  let center: Point | null = null;
+  let rotation = 0;
+  let requireSingleCenterHandle = false;
+
+  if (explicitShapeElements.length === 1 && nonTextElements.length === 1) {
+    const explicitShape = explicitShapeElements[0]!;
+    shapeKind = explicitShape.kind === "Circle" ? "circle" : "ellipse";
+    center = explicitShape.center;
+    rotation = explicitShape.kind === "Ellipse" ? (explicitShape.rotation ?? 0) : 0;
+  } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]?.kind === "Path") {
+    const pathElement = nonTextElements[0];
+    const hint = resolveScenePathShapeHint(pathElement, pathStatement);
+    if (hint === "circle" || hint === "ellipse") {
+      shapeKind = hint;
+      rotation = hint === "ellipse" ? resolvePathEllipseRotation(pathElement) : 0;
+      requireSingleCenterHandle = true;
+    }
+  }
+
+  if (!shapeKind) {
     return { kind: "unsupported", reason: "Resize supports exactly one circle/ellipse primitive per statement." };
   }
 
@@ -1696,25 +1772,39 @@ function resolvePathShapeResizeContext(
   if (candidateHandles.length === 0) {
     return { kind: "unsupported", reason: "No editable center handle was found for this circle/ellipse." };
   }
+  if (requireSingleCenterHandle && candidateHandles.length !== 1) {
+    return { kind: "unsupported", reason: "Resize requires circle/ellipse paths with explicit center coordinates." };
+  }
 
   let centerHandle = candidateHandles[0]!;
-  let bestDistanceSq = Number.POSITIVE_INFINITY;
-  for (const handle of candidateHandles) {
-    const dx = handle.world.x - shapeElements[0]!.center.x;
-    const dy = handle.world.y - shapeElements[0]!.center.y;
-    const distanceSq = dx * dx + dy * dy;
-    if (distanceSq < bestDistanceSq) {
-      bestDistanceSq = distanceSq;
-      centerHandle = handle;
+  if (center) {
+    let bestDistanceSq = Number.POSITIVE_INFINITY;
+    for (const handle of candidateHandles) {
+      const dx = handle.world.x - center.x;
+      const dy = handle.world.y - center.y;
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq < bestDistanceSq) {
+        bestDistanceSq = distanceSq;
+        centerHandle = handle;
+      }
     }
   }
 
   return {
     kind: "found",
-    shape: shapeElements[0]!,
+    shapeKind,
+    center: center ?? centerHandle.world,
+    rotation,
     syntax,
     centerHandle
   };
+}
+
+function resolvePathEllipseRotation(path: ScenePath): number {
+  const arc = path.commands.find(
+    (command): command is Extract<ScenePath["commands"][number], { kind: "A" }> => command.kind === "A"
+  );
+  return arc?.xAxisRotation ?? 0;
 }
 
 function resolvePathShapeResizeSyntax(items: readonly PathItem[]): PathShapeResizeSyntax | null {
@@ -1917,7 +2007,7 @@ function buildShapeRadiusMutations(
   nextRyLocal: number
 ): Map<string, OptionMutation> {
   const mutations = new Map<string, OptionMutation>();
-  if (context.shape.kind === "Circle") {
+  if (context.shapeKind === "circle") {
     const radiusValue = `${formatNumber(nextRxLocal * CM_PER_PT)}cm`;
     mutations.set("radius", { kind: "set", value: radiusValue });
     mutations.set("x radius", { kind: "remove" });
@@ -2057,10 +2147,6 @@ function transformsApproximatelyEqual(
     Math.abs(left.e - right.e) <= epsilon &&
     Math.abs(left.f - right.f) <= epsilon
   );
-}
-
-function isSceneRectanglePathId(pathId: string, sourceId: string): boolean {
-  return pathId.startsWith(`scene-rectangle:${sourceId}:`);
 }
 
 function resolveResizePropertyTarget(

@@ -1458,6 +1458,32 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("tags compounded filled shape paths with semantic shape hints", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[fill=yellow] (0,0) rectangle (1,1);
+    \draw[fill=yellow] (2,0) circle (0.5cm);
+    \draw[fill=yellow] (4,0) ellipse [x radius=0.75cm, y radius=0.4cm];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const rectangle = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.sourceId === "path:0"
+      );
+      const circle = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.sourceId === "path:1"
+      );
+      const ellipse = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.sourceId === "path:2"
+      );
+
+      expect(rectangle?.shapeHint).toBe("rectangle");
+      expect(circle?.shapeHint).toBe("circle");
+      expect(ellipse?.shapeHint).toBe("ellipse");
+    });
+
     it("merges consecutive leading option lists before path geometry", () => {
       const source = String.raw`\usetikzlibrary{decorations.pathmorphing}
   \tikz \fill [decorate,decoration={zigzag}]

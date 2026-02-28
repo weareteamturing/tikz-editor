@@ -643,9 +643,44 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("circle (2cm)");
   });
 
+  it("resizes filled circle statements that are emitted as path geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) circle (1cm);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1.2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("circle (2cm)");
+  });
+
   it("resizes ellipse statements that use explicit x/y radius options", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2cm");
+    expect(result.newSource).toContain("y radius=1cm");
+  });
+
+  it("resizes filled ellipse statements that are emitted as path geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) ellipse [x radius=1cm, y radius=0.5cm];
 \end{tikzpicture}`;
 
     const result = applyEditAction(source, [], {
@@ -750,6 +785,23 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\draw (-1,0) rectangle (2,2);");
+  });
+
+  it("resizes filled rectangle statements using opposite-corner anchoring", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) rectangle (2,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-left",
+      newWorld: { x: cm(-1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw[fill=yellow] (-1,0) rectangle (2,2);");
   });
 
   it("updates rectangle relative target coordinates against the moved start corner", () => {

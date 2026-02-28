@@ -1,4 +1,13 @@
-import type { Point, ResolvedStyle, SceneCircle, SceneElement, SceneEllipse, ScenePath, ScenePathCommand } from "../types.js";
+import type {
+  Point,
+  ResolvedStyle,
+  SceneCircle,
+  SceneElement,
+  SceneEllipse,
+  ScenePath,
+  ScenePathCommand,
+  ScenePathShapeHint
+} from "../types.js";
 import type { Matrix2D } from "../types.js";
 import { applyMatrix, inverseMatrix } from "../transform.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
@@ -10,13 +19,15 @@ export function makePath(
   itemId: string,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  shapeHint?: ScenePathShapeHint | null
 ): ScenePath {
   return {
     kind: "Path",
     id: `scene-path:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    shapeHint: shapeHint ?? null,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     commands: []
@@ -29,12 +40,25 @@ export function ensurePathForSubpath(
   itemId: string,
   style: ResolvedStyle,
   styleChain: StyleChainEntry[],
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  shapeHint?: ScenePathShapeHint | null
 ): ScenePath {
   if (activePath) {
     return activePath;
   }
-  return makePath(sourceId, itemId, style, styleChain, span);
+  return makePath(sourceId, itemId, style, styleChain, span, shapeHint);
+}
+
+export function markPathShapeHint(path: ScenePath, hint: ScenePathShapeHint): void {
+  if (path.shapeHint == null) {
+    if (path.commands.every((command) => command.kind === "M")) {
+      path.shapeHint = hint;
+    }
+    return;
+  }
+  if (path.shapeHint !== hint) {
+    path.shapeHint = null;
+  }
 }
 
 export function appendRectangleSubpath(
@@ -162,6 +186,7 @@ export function makeRectangleElement(
     id: `scene-rectangle:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    shapeHint: "rectangle",
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     commands
