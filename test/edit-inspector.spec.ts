@@ -71,6 +71,26 @@ describe("getInspectorDescriptor", () => {
     expect(endArrow.write.arrowContext.clearKeys).toContain("->");
   });
 
+  it("does not expose arrow tips for closed paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=blue,->] (0,0) -- (2,0) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    const arrowSection = descriptor.sections.find((section) => section.id === "arrows");
+    expect(arrowSection).toBeUndefined();
+  });
+
   it("marks foreach-expanded elements as read-only", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {0,1} {

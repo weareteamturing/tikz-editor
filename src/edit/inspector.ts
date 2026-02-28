@@ -301,7 +301,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
   ];
 
-  if (element.kind === "Path") {
+  if (element.kind === "Path" && pathSupportsArrowTipEditing(element.commands)) {
     const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
     sections.push({
       id: "arrows",
@@ -710,6 +710,14 @@ function normalizeElementKind(kind: SceneElement["kind"]): InspectorDescriptor["
   if (kind === "Circle") return "circle";
   if (kind === "Ellipse") return "ellipse";
   return "text";
+}
+
+function pathSupportsArrowTipEditing(commands: ScenePathCommand[]): boolean {
+  // PGF only applies path arrow tips to open paths with endpoints.
+  if (commands.some((command) => command.kind === "Z")) {
+    return false;
+  }
+  return commands.some((command) => command.kind === "L" || command.kind === "C" || command.kind === "A");
 }
 
 function computeElementMetrics(element: SceneElement): {
