@@ -179,7 +179,9 @@ export function ColorPickerField({
           <span className={css.triggerLabel}>{displayLabel}</span>
         </span>
         <span className={css.triggerCaret} aria-hidden="true">
-          ▾
+          <svg className={css.triggerCaretIcon} viewBox="0 0 12 8" focusable="false">
+            <path d="M1.5 1.5L6 6.5L10.5 1.5" />
+          </svg>
         </span>
       </button>
       {open ? (

@@ -44,9 +44,22 @@
 
 .triggerCaret {
   color: var(--text-faint);
-  font-size: 9px;
-  line-height: 1;
+  width: 12px;
+  height: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.triggerCaretIcon {
+  width: 12px;
+  height: 8px;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
 }
 
 .menu {

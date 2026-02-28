@@ -180,7 +180,8 @@ const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
 const LINE_CAP_MIXED_OPTION_VALUE = "__mixed-line-cap__";
 const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
 const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
-const OPTIONAL_MULTI_PROPERTY_IDS = new Set(["line-cap", "line-join", "rounded-corners"]);
+const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
+const OPTIONAL_MULTI_PROPERTY_IDS = new Set([...STROKE_MORE_OPTIONS_PROPERTY_IDS, "rounded-corners"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
@@ -232,6 +233,7 @@ export function InspectorPanel() {
   const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [strokeMoreOptionsOpen, setStrokeMoreOptionsOpen] = useState(false);
   const [frozenInspectorView, setFrozenInspectorView] = useState<FrozenInspectorView | null>(null);
   const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
 
@@ -362,6 +364,10 @@ export function InspectorPanel() {
       clearHoverPreviewSession();
     };
   }, [clearHoverPreviewSession]);
+
+  useEffect(() => {
+    setStrokeMoreOptionsOpen(false);
+  }, [selectedIds]);
 
   function applySetProperty(
     write: SetPropertyWriteTarget,
@@ -1714,6 +1720,82 @@ export function InspectorPanel() {
     );
   }
 
+  function renderSingleSection(section: InspectorDescriptor["sections"][number]) {
+    const strokeMoreOptionsProperties =
+      section.id === "stroke"
+        ? section.properties.filter((property) => isStrokeMoreOptionsPropertyId(property.id))
+        : [];
+    const forceShowStrokeMoreOptions = strokeMoreOptionsProperties.some((property) =>
+      shouldAutoShowStrokeMoreOptions(property)
+    );
+    const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+    const visibleProperties =
+      section.id === "stroke" && !showStrokeMoreOptions
+        ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
+        : section.properties;
+
+    return (
+      <div key={section.id} className={css.section}>
+        <div className={css.sectionHeader}>
+          <span>{section.title}</span>
+          <span className={css.sectionLevel}>{section.sourceLevel}</span>
+        </div>
+        <div className={css.sectionBody}>
+          {visibleProperties.map((property) => renderProperty(property))}
+          {section.id === "stroke" &&
+          strokeMoreOptionsProperties.length > 0 &&
+          !forceShowStrokeMoreOptions ? (
+            <button
+              type="button"
+              className={css.moreOptionsToggle}
+              onClick={() => setStrokeMoreOptionsOpen((current) => !current)}
+            >
+              {showStrokeMoreOptions ? "fewer options.." : "more options.."}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderMultiSection(section: MultiInspectorSection) {
+    const strokeMoreOptionsProperties =
+      section.id === "stroke"
+        ? section.properties.filter((property) => isStrokeMoreOptionsPropertyId(property.id))
+        : [];
+    const forceShowStrokeMoreOptions = strokeMoreOptionsProperties.some((property) =>
+      shouldAutoShowStrokeMoreOptions(property)
+    );
+    const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+    const visibleProperties =
+      section.id === "stroke" && !showStrokeMoreOptions
+        ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
+        : section.properties;
+
+    return (
+      <div key={section.id} className={css.section}>
+        <div className={css.sectionHeader}>
+          <span>{section.title}</span>
+          <span className={css.sectionLevel}>{section.sourceLevel}</span>
+        </div>
+        <div className={css.sectionBody}>
+          {visibleProperties.map((property) => renderMultiProperty(property))}
+          {section.id === "stroke" &&
+          strokeMoreOptionsProperties.length > 0 &&
+          !forceShowStrokeMoreOptions ? (
+            <button
+              type="button"
+              className={css.moreOptionsToggle}
+              onClick={() => setStrokeMoreOptionsOpen((current) => !current)}
+            >
+              {showStrokeMoreOptions ? "fewer options.." : "more options.."}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Inspector</div>
@@ -1731,17 +1813,7 @@ export function InspectorPanel() {
                 <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
               ) : null}
 
-              {renderedDescriptor.sections.map((section) => (
-                <div key={section.id} className={css.section}>
-                  <div className={css.sectionHeader}>
-                    <span>{section.title}</span>
-                    <span className={css.sectionLevel}>{section.sourceLevel}</span>
-                  </div>
-                  <div className={css.sectionBody}>
-                    {section.properties.map((property) => renderProperty(property))}
-                  </div>
-                </div>
-              ))}
+              {renderedDescriptor.sections.map((section) => renderSingleSection(section))}
             </div>
           )
         ) : !renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
@@ -1752,22 +1824,26 @@ export function InspectorPanel() {
             <div className={css.elementId}>{renderedMultiModel.elementKinds.join(", ")}</div>
             <div className={css.globalNote}>Shared properties are shown. Mixed values appear as blank inputs.</div>
 
-            {renderedMultiModel.sections.map((section) => (
-              <div key={section.id} className={css.section}>
-                <div className={css.sectionHeader}>
-                  <span>{section.title}</span>
-                  <span className={css.sectionLevel}>{section.sourceLevel}</span>
-                </div>
-                <div className={css.sectionBody}>
-                  {section.properties.map((property) => renderMultiProperty(property))}
-                </div>
-              </div>
-            ))}
+            {renderedMultiModel.sections.map((section) => renderMultiSection(section))}
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function isStrokeMoreOptionsPropertyId(propertyId: string): boolean {
+  return STROKE_MORE_OPTIONS_PROPERTY_IDS.has(propertyId);
+}
+
+function shouldAutoShowStrokeMoreOptions(property: InspectorProperty | MultiInspectorProperty): boolean {
+  if (property.kind === "lineCap") {
+    return property.value !== "butt" || ("mixed" in property && property.mixed);
+  }
+  if (property.kind === "lineJoin") {
+    return property.value !== "miter" || ("mixed" in property && property.mixed);
+  }
+  return false;
 }
 
 function buildMultiInspectorModel(descriptors: InspectorDescriptor[], selectionCount: number): MultiInspectorModel {
