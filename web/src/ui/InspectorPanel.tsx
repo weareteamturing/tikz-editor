@@ -3,6 +3,8 @@ import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
   buildDashStyleSetPropertyMutation,
+  buildLineCapSetPropertyMutation,
+  buildLineJoinSetPropertyMutation,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
   type ArrowTipPresetId,
@@ -11,6 +13,8 @@ import {
   type DashStylePresetId,
   type InspectorDescriptor,
   type InspectorProperty,
+  type LineCapPresetId,
+  type LineJoinPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
@@ -69,6 +73,30 @@ type MultiInspectorDashStyleProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorLineCapProperty = {
+  kind: "lineCap";
+  id: string;
+  label: string;
+  value: LineCapPresetId;
+  mixed: boolean;
+  previewLineWidth: number;
+  options: Array<{ value: Exclude<LineCapPresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorLineJoinProperty = {
+  kind: "lineJoin";
+  id: string;
+  label: string;
+  value: LineJoinPresetId;
+  mixed: boolean;
+  previewLineWidth: number;
+  options: Array<{ value: Exclude<LineJoinPresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
@@ -87,6 +115,8 @@ type MultiInspectorProperty =
   | MultiInspectorColorProperty
   | MultiInspectorLineWidthProperty
   | MultiInspectorDashStyleProperty
+  | MultiInspectorLineCapProperty
+  | MultiInspectorLineJoinProperty
   | MultiInspectorArrowTipProperty;
 
 type MultiInspectorSection = {
@@ -108,9 +138,14 @@ const LINE_WIDTH_MIXED_OPTION_VALUE = "__mixed-line-width__";
 const LINE_WIDTH_PRESET_EPSILON = 0.02;
 const ARROW_TIP_MIXED_OPTION_VALUE = "__mixed-arrow-tip__";
 const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
+const LINE_CAP_MIXED_OPTION_VALUE = "__mixed-line-cap__";
+const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
+const OPTIONAL_MULTI_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
+type LineCapDropdownValue = LineCapPresetId | typeof LINE_CAP_MIXED_OPTION_VALUE;
+type LineJoinDropdownValue = LineJoinPresetId | typeof LINE_JOIN_MIXED_OPTION_VALUE;
 
 const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
   LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
@@ -275,6 +310,50 @@ export function InspectorPanel() {
     });
   }
 
+  function applyLineCapValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<LineCapPresetId, "custom">
+  ): void {
+    const mutation = buildLineCapSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
+  function applyLineCapValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<LineCapPresetId, "custom">
+  ): void {
+    const mutation = buildLineCapSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
+  function applyLineJoinValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<LineJoinPresetId, "custom">
+  ): void {
+    const mutation = buildLineJoinSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
+  function applyLineJoinValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<LineJoinPresetId, "custom">
+  ): void {
+    const mutation = buildLineJoinSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
     const write = property.write;
     if (!write || write.mode !== "moveAxis" || !write.writable) return;
@@ -420,6 +499,114 @@ export function InspectorPanel() {
               </span>
               <span className={css.dashStyleOptionLabel}>{option.label}</span>
               <span className={css.dashStyleOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
+  function renderLineCapDropdown(
+    property: {
+      label: string;
+      value: LineCapPresetId;
+      previewLineWidth: number;
+      options: Array<{ value: Exclude<LineCapPresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<LineCapPresetId, "custom">) => void,
+    valueOverride?: LineCapDropdownValue
+  ) {
+    const dropdownValue: LineCapDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toLineCapDropdownOptions(property.options);
+    const displayLabel = lineCapValueLabel(dropdownValue, property.options);
+    const previewPreset = lineCapPreviewPreset(dropdownValue);
+
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableLineCapValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.lineCapValue}>
+            <span className={css.lineCapValuePreview}>
+              <LineCapPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
+            </span>
+            <span className={css.lineCapValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<LineCapPresetId, "custom">;
+          return (
+            <span className={css.lineCapOption}>
+              <span className={css.lineCapOptionPreview}>
+                <LineCapPreview preset={optionPreset} lineWidth={property.previewLineWidth} />
+              </span>
+              <span className={css.lineCapOptionLabel}>{option.label}</span>
+              <span className={css.lineCapOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
+  function renderLineJoinDropdown(
+    property: {
+      label: string;
+      value: LineJoinPresetId;
+      previewLineWidth: number;
+      options: Array<{ value: Exclude<LineJoinPresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<LineJoinPresetId, "custom">) => void,
+    valueOverride?: LineJoinDropdownValue
+  ) {
+    const dropdownValue: LineJoinDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toLineJoinDropdownOptions(property.options);
+    const displayLabel = lineJoinValueLabel(dropdownValue, property.options);
+    const previewPreset = lineJoinPreviewPreset(dropdownValue);
+
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableLineJoinValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.lineJoinValue}>
+            <span className={css.lineJoinValuePreview}>
+              <LineJoinPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
+            </span>
+            <span className={css.lineJoinValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<LineJoinPresetId, "custom">;
+          return (
+            <span className={css.lineJoinOption}>
+              <span className={css.lineJoinOptionPreview}>
+                <LineJoinPreview preset={optionPreset} lineWidth={property.previewLineWidth} />
+              </span>
+              <span className={css.lineJoinOptionLabel}>{option.label}</span>
+              <span className={css.lineJoinOptionCheck} aria-hidden="true">
                 {state.selected ? "✓" : ""}
               </span>
             </span>
@@ -587,6 +774,46 @@ export function InspectorPanel() {
             },
             writable,
             (nextValue) => applyDashStyleValue(property.write, nextValue)
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "lineCap") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderLineCapDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyLineCapValue(property.write, nextValue)
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "lineJoin") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderLineJoinDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyLineJoinValue(property.write, nextValue)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -789,6 +1016,50 @@ export function InspectorPanel() {
       );
     }
 
+    if (property.kind === "lineCap") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: LineCapDropdownValue = property.mixed ? LINE_CAP_MIXED_OPTION_VALUE : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderLineCapDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyLineCapValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "lineJoin") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: LineJoinDropdownValue = property.mixed ? LINE_JOIN_MIXED_OPTION_VALUE : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderLineJoinDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyLineJoinValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
     const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
     const dropdownValue: ArrowTipDropdownValue = property.mixed
       ? ARROW_TIP_MIXED_OPTION_VALUE
@@ -891,15 +1162,37 @@ function buildMultiInspectorModel(descriptors: InspectorDescriptor[], selectionC
       continue;
     }
 
-    const properties: MultiInspectorProperty[] = [];
-    for (const baseProperty of baseSection.properties) {
-      const matchingProperties = matchingSections
-        .map((section) => section.properties.find((property) => property.id === baseProperty.id))
-        .filter((property): property is InspectorProperty => property != null);
-      if (matchingProperties.length !== descriptors.length) {
+    const orderedPropertyIds: string[] = [];
+    const seenPropertyIds = new Set<string>();
+    for (const property of baseSection.properties) {
+      if (seenPropertyIds.has(property.id)) {
         continue;
       }
+      seenPropertyIds.add(property.id);
+      orderedPropertyIds.push(property.id);
+    }
+    for (const section of matchingSections) {
+      for (const property of section.properties) {
+        if (seenPropertyIds.has(property.id)) {
+          continue;
+        }
+        seenPropertyIds.add(property.id);
+        orderedPropertyIds.push(property.id);
+      }
+    }
 
+    const properties: MultiInspectorProperty[] = [];
+    for (const propertyId of orderedPropertyIds) {
+      const matchingProperties = matchingSections
+        .map((section) => section.properties.find((property) => property.id === propertyId))
+        .filter((property): property is InspectorProperty => property != null);
+      if (matchingProperties.length === 0) {
+        continue;
+      }
+      const allowPartial = OPTIONAL_MULTI_PROPERTY_IDS.has(propertyId);
+      if (!allowPartial && matchingProperties.length !== descriptors.length) {
+        continue;
+      }
       const kinds = new Set(matchingProperties.map((property) => property.kind));
       if (kinds.size !== 1) {
         continue;
@@ -1007,6 +1300,46 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       value: values[0] ?? "solid",
       mixed: !allValuesEqual(values),
       previewLineWidth: averageNumbers(dashProperties.map((property) => property.previewLineWidth)),
+      options: base.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "lineCap") {
+    const sameKind = properties.every((property) => property.kind === "lineCap");
+    if (!sameKind) return null;
+    const lineCapProperties = properties as Array<Extract<InspectorProperty, { kind: "lineCap" }>>;
+    const values = lineCapProperties.map((property) => property.value);
+    const writes = lineCapProperties.map((property) => property.write);
+
+    return {
+      kind: "lineCap",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "butt",
+      mixed: !allValuesEqual(values),
+      previewLineWidth: averageNumbers(lineCapProperties.map((property) => property.previewLineWidth)),
+      options: base.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "lineJoin") {
+    const sameKind = properties.every((property) => property.kind === "lineJoin");
+    if (!sameKind) return null;
+    const lineJoinProperties = properties as Array<Extract<InspectorProperty, { kind: "lineJoin" }>>;
+    const values = lineJoinProperties.map((property) => property.value);
+    const writes = lineJoinProperties.map((property) => property.write);
+
+    return {
+      kind: "lineJoin",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "miter",
+      mixed: !allValuesEqual(values),
+      previewLineWidth: averageNumbers(lineJoinProperties.map((property) => property.previewLineWidth)),
       options: base.options,
       writes,
       readOnlyReason: deriveReadOnlyReason(writes)
@@ -1143,6 +1476,76 @@ function dashStylePreviewPreset(value: DashStyleDropdownValue): Exclude<DashStyl
   return value;
 }
 
+function toLineCapDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<LineCapPresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<LineCapDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function lineCapValueLabel(
+  value: LineCapDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<LineCapPresetId, "custom">; label: string }>
+): string {
+  if (value === LINE_CAP_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableLineCapValue(
+  value: LineCapDropdownValue
+): value is Exclude<LineCapPresetId, "custom"> {
+  return value !== "custom" && value !== LINE_CAP_MIXED_OPTION_VALUE;
+}
+
+function lineCapPreviewPreset(value: LineCapDropdownValue): Exclude<LineCapPresetId, "custom"> {
+  if (value === LINE_CAP_MIXED_OPTION_VALUE || value === "custom") {
+    return "butt";
+  }
+  return value;
+}
+
+function toLineJoinDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<LineJoinPresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<LineJoinDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function lineJoinValueLabel(
+  value: LineJoinDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<LineJoinPresetId, "custom">; label: string }>
+): string {
+  if (value === LINE_JOIN_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableLineJoinValue(
+  value: LineJoinDropdownValue
+): value is Exclude<LineJoinPresetId, "custom"> {
+  return value !== "custom" && value !== LINE_JOIN_MIXED_OPTION_VALUE;
+}
+
+function lineJoinPreviewPreset(value: LineJoinDropdownValue): Exclude<LineJoinPresetId, "custom"> {
+  if (value === LINE_JOIN_MIXED_OPTION_VALUE || value === "custom") {
+    return "miter";
+  }
+  return value;
+}
+
 function toArrowTipDropdownOptions(
   options: ReadonlyArray<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>
 ): Array<CustomDropdownOption<ArrowTipDropdownValue>> {
@@ -1233,6 +1636,55 @@ function dashStyleDashArrayForPreview(
     return `${formatNumber(lineWidth)} 1`;
   }
   return `${formatNumber(lineWidth)} 4`;
+}
+
+function LineCapPreview({
+  preset,
+  lineWidth: _lineWidth
+}: {
+  preset: Exclude<LineCapPresetId, "custom">;
+  lineWidth: number;
+}) {
+  const strokeWidth = 8;
+  const baseStart = 18;
+  const baseEnd = 46;
+  const y = 10;
+  return (
+    <svg className={css.lineCapSvg} viewBox="0 0 64 20" aria-hidden="true" focusable="false">
+      <line x1={baseStart} y1={2} x2={baseStart} y2={18} className={css.lineCapSvgGuide} />
+      <line x1={baseEnd} y1={2} x2={baseEnd} y2={18} className={css.lineCapSvgGuide} />
+      <line
+        x1={baseStart}
+        y1={y}
+        x2={baseEnd}
+        y2={y}
+        className={css.lineCapSvgLine}
+        style={{ strokeLinecap: preset, strokeWidth }}
+      />
+      <line x1={baseStart} y1={y} x2={baseEnd} y2={y} className={css.lineCapSvgCenter} />
+    </svg>
+  );
+}
+
+function LineJoinPreview({
+  preset,
+  lineWidth: _lineWidth
+}: {
+  preset: Exclude<LineJoinPresetId, "custom">;
+  lineWidth: number;
+}) {
+  const strokeWidth = 8;
+  const points = "8,16 24,4 40,16 56,4";
+  return (
+    <svg className={css.lineJoinSvg} viewBox="0 0 64 20" aria-hidden="true" focusable="false">
+      <polyline
+        points={points}
+        className={css.lineJoinSvgLine}
+        style={{ strokeLinejoin: preset, strokeWidth, strokeMiterlimit: 10 }}
+      />
+      <polyline points={points} className={css.lineJoinSvgCenter} />
+    </svg>
+  );
 }
 
 function ArrowTipPreview({

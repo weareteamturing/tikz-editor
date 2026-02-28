@@ -217,4 +217,72 @@ describe("getInspectorDescriptor", () => {
     expect(result.newSource).toContain("arrows=Stealth[length=10pt]-");
     expect(result.newSource).not.toContain("Latex");
   });
+
+  it("shows line cap for open paths but hides line join when there are no joins", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+
+    const hasLineCap = strokeSection.properties.some((property) => property.kind === "lineCap");
+    const hasLineJoin = strokeSection.properties.some((property) => property.kind === "lineJoin");
+    expect(hasLineCap).toBe(true);
+    expect(hasLineJoin).toBe(false);
+  });
+
+  it("shows line join for closed paths and line cap only when dashes are active", () => {
+    const undashedSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const dashedSource = String.raw`\begin{tikzpicture}
+  \draw[dashed] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+
+    const undashedRendered = renderTikzToSvg(undashedSource);
+    const dashedRendered = renderTikzToSvg(dashedSource);
+    const undashedPath = undashedRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const dashedPath = dashedRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(undashedPath).toBeDefined();
+    expect(dashedPath).toBeDefined();
+    if (!undashedPath || !dashedPath) {
+      throw new Error("Expected path elements");
+    }
+
+    const undashedDescriptor = getInspectorDescriptor(undashedPath, {
+      source: undashedSource,
+      editHandles: undashedRendered.semantic.editHandles
+    });
+    const dashedDescriptor = getInspectorDescriptor(dashedPath, {
+      source: dashedSource,
+      editHandles: dashedRendered.semantic.editHandles
+    });
+    const undashedStroke = undashedDescriptor.sections.find((section) => section.id === "stroke");
+    const dashedStroke = dashedDescriptor.sections.find((section) => section.id === "stroke");
+    expect(undashedStroke).toBeDefined();
+    expect(dashedStroke).toBeDefined();
+    if (!undashedStroke || !dashedStroke) {
+      throw new Error("Expected stroke sections");
+    }
+
+    expect(undashedStroke.properties.some((property) => property.kind === "lineJoin")).toBe(true);
+    expect(undashedStroke.properties.some((property) => property.kind === "lineCap")).toBe(false);
+
+    expect(dashedStroke.properties.some((property) => property.kind === "lineJoin")).toBe(true);
+    expect(dashedStroke.properties.some((property) => property.kind === "lineCap")).toBe(true);
+  });
 });

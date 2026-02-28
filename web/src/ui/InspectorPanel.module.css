@@ -334,6 +334,151 @@
   stroke-linecap: butt;
 }
 
+.lineCapValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lineCapValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lineCapValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineCapOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineCapOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lineCapOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.lineCapOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lineCapSvg {
+  width: 64px;
+  height: 20px;
+  overflow: visible;
+  background: color-mix(in srgb, #d9dcab 85%, var(--panel-bg));
+  border-radius: 2px;
+}
+
+.lineCapSvgGuide {
+  stroke: color-mix(in srgb, #5b5b5b 65%, #000);
+  stroke-width: 1;
+}
+
+.lineCapSvgLine {
+  stroke: #000;
+  fill: none;
+}
+
+.lineCapSvgCenter {
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-linecap: butt;
+  fill: none;
+}
+
+.lineJoinValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lineJoinValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lineJoinValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lineJoinOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lineJoinOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lineJoinOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.lineJoinOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lineJoinSvg {
+  width: 64px;
+  height: 20px;
+  overflow: visible;
+  background: color-mix(in srgb, #d9dcab 85%, var(--panel-bg));
+  border-radius: 2px;
+}
+
+.lineJoinSvgLine {
+  stroke: #000;
+  fill: none;
+  stroke-linecap: butt;
+}
+
+.lineJoinSvgCenter {
+  stroke: #fff;
+  stroke-width: 1.2;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+  fill: none;
+}
+
 .arrowTipSvg {
   width: 56px;
   height: 16px;

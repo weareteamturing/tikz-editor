@@ -61,6 +61,12 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   dashStyle: [
     { feature: "options_structured", layers: ["edit"], label: "dash style editing" }
   ],
+  lineCap: [
+    { feature: "options_structured", layers: ["edit"], label: "line cap editing" }
+  ],
+  lineJoin: [
+    { feature: "options_structured", layers: ["edit"], label: "line join editing" }
+  ],
   arrowTip: [
     { feature: "options_structured", layers: ["edit"], label: "arrow option editing" },
     { feature: "arrow_tips", layers: ["semantic", "svg"], label: "arrow tip rendering" }

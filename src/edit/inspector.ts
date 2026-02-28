@@ -26,6 +26,10 @@ export type DashStylePresetId =
   | "loosely dotted"
   | "custom";
 
+export type LineCapPresetId = "butt" | "round" | "square" | "custom";
+
+export type LineJoinPresetId = "miter" | "round" | "bevel" | "custom";
+
 export type ArrowTipSide = "start" | "end";
 
 export type ArrowTipPresetOption = {
@@ -35,6 +39,16 @@ export type ArrowTipPresetOption = {
 
 export type DashStylePresetOption = {
   value: Exclude<DashStylePresetId, "custom">;
+  label: string;
+};
+
+export type LineCapPresetOption = {
+  value: Exclude<LineCapPresetId, "custom">;
+  label: string;
+};
+
+export type LineJoinPresetOption = {
+  value: Exclude<LineJoinPresetId, "custom">;
   label: string;
 };
 
@@ -55,6 +69,18 @@ export type ArrowTipSetPropertyMutation = {
 };
 
 export type DashStyleSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type LineCapSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type LineJoinSetPropertyMutation = {
   key: string;
   value: string;
   clearKeys: string[];
@@ -120,6 +146,24 @@ export type InspectorProperty =
       label: string;
       value: DashStylePresetId;
       options: DashStylePresetOption[];
+      previewLineWidth: number;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "lineCap";
+      id: string;
+      label: string;
+      value: LineCapPresetId;
+      options: LineCapPresetOption[];
+      previewLineWidth: number;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "lineJoin";
+      id: string;
+      label: string;
+      value: LineJoinPresetId;
+      options: LineJoinPresetOption[];
       previewLineWidth: number;
       write: SetPropertyWriteTarget;
     }
@@ -241,6 +285,16 @@ const DASH_STYLE_OPTIONS: DashStylePresetOption[] = [
   { value: "densely dotted", label: "Densely dotted" },
   { value: "loosely dotted", label: "Loosely dotted" }
 ];
+const LINE_CAP_OPTIONS: LineCapPresetOption[] = [
+  { value: "butt", label: "Butt" },
+  { value: "round", label: "Round" },
+  { value: "square", label: "Square" }
+];
+const LINE_JOIN_OPTIONS: LineJoinPresetOption[] = [
+  { value: "miter", label: "Miter" },
+  { value: "round", label: "Round" },
+  { value: "bevel", label: "Bevel" }
+];
 
 export function buildArrowTipSetPropertyMutation(
   context: ArrowTipWriteContext,
@@ -268,6 +322,26 @@ export function buildDashStyleSetPropertyMutation(
   };
 }
 
+export function buildLineCapSetPropertyMutation(
+  value: Exclude<LineCapPresetId, "custom">
+): LineCapSetPropertyMutation {
+  return {
+    key: "line cap",
+    value: value === "square" ? "projecting" : value,
+    clearKeys: []
+  };
+}
+
+export function buildLineJoinSetPropertyMutation(
+  value: Exclude<LineJoinPresetId, "custom">
+): LineJoinSetPropertyMutation {
+  return {
+    key: "line join",
+    value,
+    clearKeys: []
+  };
+}
+
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source);
   const metrics = computeElementMetrics(element);
@@ -275,6 +349,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
   const fillColor = normalizeInspectorColorValue(element.style.fill);
   const textColor = normalizeInspectorColorValue(element.style.textColor);
+  const pathStrokeVisibility =
+    element.kind === "Path"
+      ? computePathStrokeControlVisibility(element.commands, element.style.dashArray)
+      : null;
 
   const sections: InspectorSection[] = [
     {
@@ -371,6 +449,32 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       ]
     }
   ];
+
+  const strokeSection = sections.find((section) => section.id === "stroke");
+  if (strokeSection && pathStrokeVisibility) {
+    if (pathStrokeVisibility.showLineCap) {
+      strokeSection.properties.push({
+        kind: "lineCap",
+        id: "line-cap",
+        label: "Line cap",
+        value: lineCapPresetFromStyle(element.style.lineCap),
+        options: LINE_CAP_OPTIONS,
+        previewLineWidth: element.style.lineWidth,
+        write: makeSetPropertyWriteTarget(inlineTarget, "line cap")
+      });
+    }
+    if (pathStrokeVisibility.showLineJoin) {
+      strokeSection.properties.push({
+        kind: "lineJoin",
+        id: "line-join",
+        label: "Line join",
+        value: lineJoinPresetFromStyle(element.style.lineJoin),
+        options: LINE_JOIN_OPTIONS,
+        previewLineWidth: element.style.lineWidth,
+        write: makeSetPropertyWriteTarget(inlineTarget, "line join")
+      });
+    }
+  }
 
   if (element.kind === "Path" && pathSupportsArrowTipEditing(element.commands)) {
     const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
@@ -907,6 +1011,70 @@ function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: number)
 
 function closeEnough(a: number, b: number): boolean {
   return Math.abs(a - b) <= DASH_PATTERN_EPSILON;
+}
+
+function lineCapPresetFromStyle(value: "butt" | "round" | "square"): LineCapPresetId {
+  if (value === "butt" || value === "round" || value === "square") {
+    return value;
+  }
+  return "custom";
+}
+
+function lineJoinPresetFromStyle(value: "miter" | "round" | "bevel"): LineJoinPresetId {
+  if (value === "miter" || value === "round" || value === "bevel") {
+    return value;
+  }
+  return "custom";
+}
+
+function computePathStrokeControlVisibility(
+  commands: ScenePathCommand[],
+  dashArray: number[] | null
+): { showLineCap: boolean; showLineJoin: boolean } {
+  const hasDash = !!dashArray && dashArray.length > 0;
+  let openSubpathHasSegments = false;
+  let hasJoin = false;
+  let segmentCountInSubpath = 0;
+
+  for (const command of commands) {
+    if (command.kind === "M") {
+      if (segmentCountInSubpath >= 1) {
+        openSubpathHasSegments = true;
+      }
+      if (segmentCountInSubpath >= 2) {
+        hasJoin = true;
+      }
+      segmentCountInSubpath = 0;
+      continue;
+    }
+
+    if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
+      segmentCountInSubpath += 1;
+      if (segmentCountInSubpath >= 2) {
+        hasJoin = true;
+      }
+      continue;
+    }
+
+    if (command.kind === "Z") {
+      if (segmentCountInSubpath >= 1) {
+        hasJoin = true;
+      }
+      segmentCountInSubpath = 0;
+    }
+  }
+
+  if (segmentCountInSubpath >= 1) {
+    openSubpathHasSegments = true;
+  }
+  if (segmentCountInSubpath >= 2) {
+    hasJoin = true;
+  }
+
+  return {
+    showLineCap: hasDash || openSubpathHasSegments,
+    showLineJoin: hasJoin
+  };
 }
 
 function normalizeInspectorColorValue(value: string | null): string | null {
