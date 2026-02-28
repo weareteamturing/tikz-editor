@@ -1,6 +1,7 @@
 /* ── Source Panel ──────────────────────────────────────────────────────────── */
 
 .panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -45,6 +46,38 @@
 
 .editorWrap :global(.cm-editor.cm-scrub-hover .cm-scroller) {
   cursor: ew-resize;
+}
+
+.editorWrap :global(.cm-inline-color-swatch) {
+  display: inline-block;
+  width: 0.86em;
+  height: 0.86em;
+  margin-left: 0.12em;
+  margin-right: 0.1em;
+  border: 1px solid #73849a;
+  border-radius: 2px;
+  box-sizing: border-box;
+  vertical-align: middle;
+  transform: translateY(-0.08em);
+  cursor: pointer;
+}
+
+.editorWrap :global(.cm-inline-color-swatch-none) {
+  background:
+    linear-gradient(45deg, #d9e2ec 25%, transparent 25%, transparent 75%, #d9e2ec 75%, #d9e2ec),
+    linear-gradient(45deg, #d9e2ec 25%, transparent 25%, transparent 75%, #d9e2ec 75%, #d9e2ec);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+}
+
+.editorWrap :global(.cm-inline-color-swatch-readonly) {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.editorWrap :global(.cm-inline-color-swatch:not(.cm-inline-color-swatch-readonly):hover) {
+  border-color: #2f7ad8;
+  box-shadow: 0 0 0 2px rgba(47, 122, 216, 0.18);
 }
 
 /* Diagnostic decorations (reused from playground) */
@@ -102,4 +135,16 @@
 
 .editorWrap :global(.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code) {
   color: #d97706;
+}
+
+.inlineColorPickerPopover {
+  position: fixed;
+  z-index: 150;
+  width: 284px;
+  max-width: calc(100vw - 16px);
+  border: 1px solid #c9d6e4;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 16px 30px rgba(16, 33, 52, 0.22);
+  overflow: hidden;
 }

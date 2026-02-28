@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import {
   EditorSelection,
@@ -27,8 +27,10 @@ import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/ind
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tikz-editor/semantic/style/constants";
 import { tikzLanguage } from "../codemirror-tikz";
+import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
 import { useEditorStore } from "../store/store";
+import { ColorPicker } from "./ColorPicker";
 import {
   notifySourceSelectionChanged,
   SOURCE_SELECTION_REQUEST_EVENT,
@@ -69,6 +71,14 @@ type SourceSpanEntry = {
 type SourceSpanIndex = {
   bySourceId: ReadonlyMap<string, SourceSpan>;
   sortedByWidth: SourceSpanEntry[];
+};
+
+type ActiveColorPickerSession = {
+  from: number;
+  to: number;
+  currentToken: string;
+  anchorRect: DOMRectReadOnly;
+  editable: boolean;
 };
 
 const EMPTY_SPAN_INDEX: SourceSpanIndex = {
@@ -154,6 +164,7 @@ const BASE_COMPLETIONS: Completion[] = dedupeCompletions([
   ...COLOR_COMPLETIONS,
   ...COORDINATE_FORM_COMPLETIONS
 ]);
+const SOURCE_PICKER_COLORS = uniqueStrings(["none", ...NAMED_COLORS]);
 const ENABLE_TIKZ_AUTOCOMPLETE = false;
 
 // ── State fields ─────────────────────────────────────────────────────────────
@@ -238,13 +249,16 @@ export function SourcePanel() {
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const colorPickerRef = useRef<HTMLDivElement | null>(null);
   const ignoreNextDocUpdateRef = useRef(false);
   const ignoreNextSelectionSyncRef = useRef(false);
   const suppressStoreSelectionSyncRef = useRef(false);
+  const colorPickerApplyingRef = useRef(false);
   const diagnosticTimerRef = useRef<number | null>(null);
   const spanIndexRef = useRef<SourceSpanIndex>(EMPTY_SPAN_INDEX);
   const symbolsRef = useRef<DocumentSymbols>(EMPTY_SYMBOLS);
   const selectedElementIdsRef = useRef(selectedElementIds);
+  const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
 
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;
@@ -261,6 +275,37 @@ export function SourcePanel() {
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
+        const appliedByColorPicker = colorPickerApplyingRef.current;
+        colorPickerApplyingRef.current = false;
+
+        setActiveColorPicker((current) => {
+          if (!current) {
+            return null;
+          }
+
+          if (!appliedByColorPicker) {
+            return null;
+          }
+
+          const mappedFrom = update.changes.mapPos(current.from, 1);
+          const mappedTo = update.changes.mapPos(current.to, -1);
+          if (mappedTo <= mappedFrom || mappedFrom < 0 || mappedTo > update.state.doc.length) {
+            return null;
+          }
+
+          const nextToken = update.state.doc.sliceString(mappedFrom, mappedTo).trim();
+          if (nextToken.length === 0) {
+            return null;
+          }
+
+          return {
+            ...current,
+            from: mappedFrom,
+            to: mappedTo,
+            currentToken: nextToken
+          };
+        });
+
         if (ignoreNextDocUpdateRef.current) {
           ignoreNextDocUpdateRef.current = false;
         } else {
@@ -338,6 +383,20 @@ export function SourcePanel() {
             dispatch({
               type: "SET_ACTIVE_SOURCE_SCRUB",
               sourceId
+            });
+          }
+        }),
+        colorSwatches({
+          onPickRequest: ({ occurrence, anchorRect }) => {
+            if (!occurrence.editable) {
+              return;
+            }
+            setActiveColorPicker({
+              from: occurrence.from,
+              to: occurrence.to,
+              currentToken: occurrence.token,
+              anchorRect,
+              editable: occurrence.editable
             });
           }
         }),
@@ -420,6 +479,36 @@ export function SourcePanel() {
       annotations: [isolateHistory.of("after")]
     });
   }, [source]);
+
+  useEffect(() => {
+    if (!activeColorPicker) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent): void {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (colorPickerRef.current?.contains(target)) {
+        return;
+      }
+      setActiveColorPicker(null);
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setActiveColorPicker(null);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeColorPicker]);
 
   // ── Canvas hover → source highlight sync ────────────────────────────────────
   useEffect(() => {
@@ -513,10 +602,48 @@ export function SourcePanel() {
     return () => window.removeEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
   }, []);
 
+  const handleInlineColorChange = (nextToken: string): void => {
+    const session = activeColorPicker;
+    const view = viewRef.current;
+    if (!session || !view || !session.editable) {
+      return;
+    }
+
+    colorPickerApplyingRef.current = true;
+    dispatchSelectionWithStableHorizontalScroll(view, {
+      changes: { from: session.from, to: session.to, insert: nextToken },
+      selection: { anchor: session.from + nextToken.length },
+      scrollIntoView: true,
+      userEvent: "input"
+    });
+
+    setActiveColorPicker({
+      ...session,
+      to: session.from + nextToken.length,
+      currentToken: nextToken
+    });
+  };
+
+  const inlineColorPopoverStyle = activeColorPicker
+    ? computeInlineColorPopoverStyle(activeColorPicker.anchorRect)
+    : null;
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Source</div>
       <div className={css.editorWrap} ref={editorRef} />
+      {activeColorPicker && inlineColorPopoverStyle ? (
+        <div className={css.inlineColorPickerPopover} ref={colorPickerRef} style={inlineColorPopoverStyle}>
+          <ColorPicker
+            ariaLabel="Source color"
+            options={SOURCE_PICKER_COLORS}
+            value={activeColorPicker.currentToken}
+            syntaxValue={activeColorPicker.currentToken}
+            disabled={!activeColorPicker.editable}
+            onChange={handleInlineColorChange}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -892,4 +1019,29 @@ function uniqueStrings(values: Iterable<string>): string[] {
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
+}
+
+function computeInlineColorPopoverStyle(anchorRect: DOMRectReadOnly): CSSProperties {
+  const VIEWPORT_PADDING_PX = 8;
+  const POPOVER_WIDTH_PX = 284;
+  const POPOVER_HEIGHT_PX = 320;
+  const POPOVER_GAP_PX = 6;
+
+  const maxLeft = Math.max(VIEWPORT_PADDING_PX, window.innerWidth - POPOVER_WIDTH_PX - VIEWPORT_PADDING_PX);
+  const left = clamp(anchorRect.left, VIEWPORT_PADDING_PX, maxLeft);
+
+  const spaceBelow = window.innerHeight - anchorRect.bottom - POPOVER_GAP_PX - VIEWPORT_PADDING_PX;
+  const spaceAbove = anchorRect.top - POPOVER_GAP_PX - VIEWPORT_PADDING_PX;
+  const openUpward = spaceBelow < POPOVER_HEIGHT_PX && spaceAbove > spaceBelow;
+  const top = openUpward
+    ? Math.max(VIEWPORT_PADDING_PX, anchorRect.top - POPOVER_HEIGHT_PX - POPOVER_GAP_PX)
+    : Math.min(
+        anchorRect.bottom + POPOVER_GAP_PX,
+        Math.max(VIEWPORT_PADDING_PX, window.innerHeight - POPOVER_HEIGHT_PX - VIEWPORT_PADDING_PX)
+      );
+
+  return {
+    left: `${Math.round(left)}px`,
+    top: `${Math.round(top)}px`
+  };
 }
