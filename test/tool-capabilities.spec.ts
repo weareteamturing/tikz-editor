@@ -50,6 +50,7 @@ describe("inspector property capability status", () => {
       id: "stroke-color",
       label: "Color",
       value: "blue",
+      syntaxValue: "blue",
       options: ["blue", "red"],
       write: {
         mode: "setProperty",

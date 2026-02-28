@@ -126,6 +126,7 @@ export type InspectorProperty =
       id: string;
       label: string;
       value: string | null;
+      syntaxValue: string | null;
       options: string[];
       write: SetPropertyWriteTarget;
     }
@@ -347,8 +348,11 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   const metrics = computeElementMetrics(element);
   const moveWrite = resolveMoveWriteTarget(element, snapshot.editHandles, metrics);
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
+  const strokeColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["draw", "color"]);
   const fillColor = normalizeInspectorColorValue(element.style.fill);
+  const fillColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["fill", "color"]);
   const textColor = normalizeInspectorColorValue(element.style.textColor);
+  const textColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["text", "color"]);
   const pathStrokeVisibility =
     element.kind === "Path"
       ? computePathStrokeControlVisibility(element.commands, element.style.dashArray)
@@ -408,6 +412,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           id: "stroke-color",
           label: "Color",
           value: strokeColor,
+          syntaxValue: strokeColorSyntax,
           options: colorOptionsForValue(strokeColor),
           write: makeSetPropertyWriteTarget(inlineTarget, "draw")
         },
@@ -443,6 +448,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           id: "fill-color",
           label: "Color",
           value: fillColor,
+          syntaxValue: fillColorSyntax,
           options: colorOptionsForValue(fillColor),
           write: makeSetPropertyWriteTarget(inlineTarget, "fill")
         }
@@ -518,6 +524,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           id: "text-color",
           label: "Color",
           value: textColor,
+          syntaxValue: textColorSyntax,
           options: colorOptionsForValue(textColor),
           write: makeSetPropertyWriteTarget(inlineTarget, "text")
         }
@@ -1086,6 +1093,39 @@ function normalizeInspectorColorValue(value: string | null): string | null {
     return HEX_TO_NAMED_COLOR[normalized];
   }
   return normalized;
+}
+
+function resolveColorSyntaxValue(source: string, targetId: string | null, keys: readonly string[]): string | null {
+  if (!targetId) {
+    return null;
+  }
+
+  const normalizedKeys = new Set(keys.map((key) => normalizeOptionKey(key)));
+  if (normalizedKeys.size === 0) {
+    return null;
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return null;
+  }
+
+  let colorValue: string | null = null;
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const entryKey = normalizeOptionKey(entry.key);
+    if (!normalizedKeys.has(entryKey)) {
+      continue;
+    }
+    const rawValue = stripEnclosingBraces(entry.valueRaw.trim());
+    if (rawValue.length === 0) {
+      continue;
+    }
+    colorValue = rawValue;
+  }
+  return colorValue;
 }
 
 function colorOptionsForValue(value: string | null): string[] {

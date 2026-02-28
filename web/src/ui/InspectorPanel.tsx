@@ -22,6 +22,7 @@ import type { ArrowTipKind, SceneElement } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
+import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
 import css from "./InspectorPanel.module.css";
 
@@ -41,6 +42,7 @@ type MultiInspectorColorProperty = {
   id: string;
   label: string;
   value: string | null;
+  syntaxValue: string | null;
   mixed: boolean;
   options: string[];
   writes: SetPropertyWriteTarget[];
@@ -647,32 +649,18 @@ export function InspectorPanel() {
     }
 
     if (property.kind === "color") {
-      const selected = property.value ?? "none";
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <div className={css.controlRow}>
-            <span
-              className={css.swatch}
-              style={{
-                background: selected === "none" ? "transparent" : selected,
-                borderStyle: selected === "none" ? "dashed" : "solid"
-              }}
-            />
-            <select
-              className={css.select}
-              value={selected}
-              disabled={!writable}
-              onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
-            >
-              {property.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ColorPickerField
+            ariaLabel={property.label}
+            value={property.value ?? "none"}
+            syntaxValue={property.syntaxValue}
+            options={property.options}
+            disabled={!writable}
+            onChange={(nextValue) => applySetProperty(property.write, nextValue)}
+          />
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
@@ -863,36 +851,18 @@ export function InspectorPanel() {
 
     if (property.kind === "color") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
-      const selected = property.mixed ? "" : (property.value ?? "none");
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <div className={css.controlRow}>
-            <span
-              className={css.swatch}
-              style={{
-                background: selected === "none" || selected.length === 0 ? "transparent" : selected,
-                borderStyle: selected === "none" || selected.length === 0 ? "dashed" : "solid"
-              }}
-            />
-            <select
-              className={css.select}
-              value={selected}
-              disabled={!writable}
-              onChange={(event) => {
-                const next = event.currentTarget.value;
-                if (next.length === 0) return;
-                applySetPropertyMany(property.writes, next);
-              }}
-            >
-              <option value=""> </option>
-              {property.options.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ColorPickerField
+            ariaLabel={property.label}
+            value={property.mixed ? null : (property.value ?? "none")}
+            syntaxValue={property.mixed ? null : property.syntaxValue}
+            mixed={property.mixed}
+            options={property.options}
+            disabled={!writable}
+            onChange={(nextValue) => applySetPropertyMany(property.writes, nextValue)}
+          />
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
@@ -1249,7 +1219,8 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     if (!sameKind) return null;
     const colorProperties = properties as Array<Extract<InspectorProperty, { kind: "color" }>>;
     const values = colorProperties.map((property) => property.value);
-    const mixed = !allValuesEqual(values);
+    const syntaxValues = colorProperties.map((property) => property.syntaxValue);
+    const mixed = !allValuesEqual(values) || !allValuesEqual(syntaxValues);
     const writes = colorProperties.map((property) => property.write);
 
     return {
@@ -1257,6 +1228,7 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       id: base.id,
       label: base.label,
       value: mixed ? null : (values[0] ?? null),
+      syntaxValue: mixed ? null : (syntaxValues[0] ?? null),
       mixed,
       options: dedupeStrings(colorProperties.flatMap((property) => property.options)),
       writes,

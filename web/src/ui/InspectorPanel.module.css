@@ -121,8 +121,7 @@
   gap: 6px;
 }
 
-.numberInput,
-.select {
+.numberInput {
   width: 100%;
   min-height: 22px;
   padding: 2px 5px;
@@ -133,8 +132,7 @@
   border-radius: 2px;
 }
 
-.numberInput:disabled,
-.select:disabled {
+.numberInput:disabled {
   color: var(--text-dim);
   background: #f3f1ec;
 }
@@ -207,21 +205,6 @@
 .lineWidthSvgLine {
   stroke: color-mix(in srgb, var(--text) 72%, #666);
   stroke-linecap: round;
-}
-
-.swatch {
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  flex-shrink: 0;
-  background-size: 6px 6px;
-  background-image:
-    linear-gradient(45deg, #ddd 25%, transparent 25%),
-    linear-gradient(-45deg, #ddd 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ddd 75%),
-    linear-gradient(-45deg, transparent 75%, #ddd 75%);
-  background-position: 0 0, 0 3px, 3px -3px, -3px 0;
 }
 
 .arrowTipValue {
