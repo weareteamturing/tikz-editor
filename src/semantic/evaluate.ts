@@ -150,7 +150,8 @@ export function createSemanticEvaluationRun(
       ],
       rootCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
-      parent.styleChain
+      parent.styleChain,
+      parent.colorAliases
     );
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists, figureSourceRef);
     pushFrame(context, {
@@ -385,7 +386,8 @@ function evaluateStatement(
       ],
       scopedCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
-      baseChain
+      baseChain,
+      parent.colorAliases
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, commandSourceRef);
 
@@ -561,7 +563,8 @@ function evaluateStatement(
       ],
       scopedCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
-      parent.styleChain
+      parent.styleChain,
+      parent.colorAliases
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
     pushFrame(context, {
@@ -803,7 +806,8 @@ function applyOptionListsToCurrentFrame(
     ],
     frame.customStyles,
     (raw) => evaluateRawCoordinate(raw, context).world,
-    frame.styleChain
+    frame.styleChain,
+    frame.colorAliases
   );
   frame.style = resolved.style;
   frame.styleChain = resolved.chain;

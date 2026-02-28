@@ -2,17 +2,18 @@ import { parseLength } from "../coords/parse-length.js";
 import type { Matrix2D, ResolvedStyle } from "../types.js";
 import { parseArrowSpecification } from "./arrows.js";
 import type { ApplyOutcome } from "./apply-types.js";
-import { normalizeColor } from "./colors.js";
+import { normalizeColor, type ColorAliasResolver } from "./colors.js";
 import { COLOR_HEX, NAMED_COLORS, NON_STYLE_OPTION_FLAGS } from "./constants.js";
 
 export function applyFlagEntry(
   key: string,
   raw: string,
   style: ResolvedStyle,
-  transform: Matrix2D
+  transform: Matrix2D,
+  resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
-  const normalizedColorCandidate = normalizeColor(key, { currentColor });
+  const normalizedColorCandidate = normalizeColor(key, { currentColor, resolveAlias: resolveColorAlias });
   if (key === "draw") {
     return {
       style: {

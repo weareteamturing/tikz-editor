@@ -1,14 +1,26 @@
 import { COLOR_HEX, NAMED_COLORS } from "./constants.js";
 import { normalizeOptionValue } from "./option-utils.js";
 
-export function normalizeColor(raw: string, opts: { currentColor?: string | null } = {}): string {
-  const normalized = raw.trim().toLowerCase();
+export type ColorAliasResolver = (rawColorName: string) => string | null;
+
+export function normalizeColor(raw: string, opts: { currentColor?: string | null; resolveAlias?: ColorAliasResolver } = {}): string {
+  const resolveAlias = opts.resolveAlias;
+  const normalizedInput = normalizeOptionValue(raw).toLowerCase();
+  const normalized = resolveAliasesInMixedColorExpression(normalizedInput, resolveAlias);
   const currentColor = resolveCurrentColor(opts.currentColor);
+  const resolvedAlias = resolveAliasReference(normalized, resolveAlias);
+  if (resolvedAlias && resolvedAlias !== normalized) {
+    return normalizeColor(resolvedAlias, opts);
+  }
   if (normalized === "none") {
     return "none";
   }
   if (normalized === ".") {
     return currentColor ?? "black";
+  }
+  const mixed = parseMixedColor(normalized, currentColor, resolveAlias);
+  if (mixed) {
+    return mixed;
   }
   if (NAMED_COLORS.has(normalized)) {
     return COLOR_HEX[normalized] ?? normalized;
@@ -19,10 +31,6 @@ export function normalizeColor(raw: string, opts: { currentColor?: string | null
   const modelColor = parseXcolorModelColor(normalized);
   if (modelColor) {
     return modelColor;
-  }
-  const mixed = parseMixedColor(normalized, currentColor);
-  if (mixed) {
-    return mixed;
   }
   return normalized || "black";
 }
@@ -252,13 +260,13 @@ function hsbToHex(hueRaw: number, saturationRaw: number, brightnessRaw: number):
   });
 }
 
-function parseMixedColor(raw: string, currentColor: string | null): string | null {
+function parseMixedColor(raw: string, currentColor: string | null, resolveAlias?: ColorAliasResolver): string | null {
   const parts = raw.split("!").map((part) => part.trim());
   if (parts.length <= 1 || !parts[0]) {
     return null;
   }
 
-  let current = toRgbColor(resolveRelativeColorReference(parts[0], currentColor, "black"));
+  let current = toRgbColor(resolveMixedColorToken(parts[0], currentColor, "black", resolveAlias));
   if (!current) {
     return null;
   }
@@ -277,7 +285,7 @@ function parseMixedColor(raw: string, currentColor: string | null): string | nul
       cursor += 1;
     }
 
-    const mixColor = toRgbColor(resolveRelativeColorReference(mixColorName, currentColor, "white"));
+    const mixColor = toRgbColor(resolveMixedColorToken(mixColorName, currentColor, "white", resolveAlias));
     if (!mixColor) {
       return null;
     }
@@ -291,6 +299,57 @@ function parseMixedColor(raw: string, currentColor: string | null): string | nul
   }
 
   return rgbToHex(current);
+}
+
+function resolveMixedColorToken(
+  token: string,
+  currentColor: string | null,
+  fallback: string,
+  resolveAlias?: ColorAliasResolver
+): string {
+  const relative = resolveRelativeColorReference(token, currentColor, fallback);
+  const resolvedAlias = resolveAliasReference(relative, resolveAlias);
+  if (!resolvedAlias || resolvedAlias === relative) {
+    return relative;
+  }
+  return normalizeColor(resolvedAlias, { currentColor, resolveAlias });
+}
+
+function resolveAliasesInMixedColorExpression(raw: string, resolveAlias?: ColorAliasResolver): string {
+  if (!resolveAlias || !raw.includes("!")) {
+    return raw;
+  }
+
+  const parts = raw.split("!");
+  let changed = false;
+  for (let index = 0; index < parts.length; index += 2) {
+    const token = parts[index]?.trim() ?? "";
+    if (!token || token === ".") {
+      continue;
+    }
+
+    const resolvedAlias = resolveAliasReference(token, resolveAlias);
+    if (!resolvedAlias || resolvedAlias === token) {
+      continue;
+    }
+
+    parts[index] = resolvedAlias;
+    changed = true;
+  }
+
+  return changed ? parts.join("!") : raw;
+}
+
+function resolveAliasReference(raw: string, resolveAlias?: ColorAliasResolver): string | null {
+  if (!resolveAlias) {
+    return null;
+  }
+  const resolved = resolveAlias(raw);
+  if (!resolved) {
+    return null;
+  }
+  const normalized = normalizeOptionValue(resolved).toLowerCase();
+  return normalized.length > 0 ? normalized : null;
 }
 
 function parseXcolorModelColor(raw: string): string | null {

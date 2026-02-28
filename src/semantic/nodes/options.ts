@@ -81,7 +81,15 @@ export function resolveNodeStyle(
             }
           ]
         : [];
-    const resolved = resolveContextDelta(baseStyle, frame.transform, layers, cloneCustomStyleRegistry(frame.customStyles));
+    const resolved = resolveContextDelta(
+      baseStyle,
+      frame.transform,
+      layers,
+      cloneCustomStyleRegistry(frame.customStyles),
+      undefined,
+      [],
+      frame.colorAliases
+    );
     resolvedStyle = resolved.style;
   }
 
@@ -123,7 +131,15 @@ export function resolveNodeOptionScale(
           }
         ]
       : [];
-  const resolved = resolveContextDelta(baseStyle, frame.transform, layers, cloneCustomStyleRegistry(frame.customStyles));
+  const resolved = resolveContextDelta(
+    baseStyle,
+    frame.transform,
+    layers,
+    cloneCustomStyleRegistry(frame.customStyles),
+    undefined,
+    [],
+    frame.colorAliases
+  );
   return computeRelativeTransformScale(frame.transform, resolved.transform);
 }
 

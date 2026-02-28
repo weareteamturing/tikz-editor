@@ -1400,7 +1400,8 @@ export function evaluatePathStatement(
               edgeOptionLayers,
               frame.customStyles,
               (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-              statementStyleChain
+              statementStyleChain,
+              frame.colorAliases
             )
           );
           for (const code of resolvedEdgeStyle.diagnostics) {
@@ -1515,7 +1516,8 @@ export function evaluatePathStatement(
             ],
             optionCustomStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            treeFrameState.styleChain
+            treeFrameState.styleChain,
+            treeFrameState.colorAliases
           );
           for (const code of optionResolved.diagnostics) {
             pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
@@ -1689,7 +1691,8 @@ export function evaluatePathStatement(
                 pinEdgeOptionLayers,
                 frame.customStyles,
                 (raw) => evaluateRawCoordinate(raw, context).world,
-                statementStyleChain
+                statementStyleChain,
+                frame.colorAliases
               );
               for (const code of resolvedPinEdgeStyle.diagnostics) {
                 pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
@@ -1804,7 +1807,8 @@ export function evaluatePathStatement(
             ],
             frame.customStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            statementStyleChain
+            statementStyleChain,
+            frame.colorAliases
           );
           operationStyle = {
             ...resolvedDecorateOptions.style,
@@ -2009,7 +2013,8 @@ export function evaluatePathStatement(
           edgeOptionLayers,
           frame.customStyles,
           (raw) => evaluateRawCoordinate(raw, context).world,
-          statementStyleChain
+          statementStyleChain,
+          frame.colorAliases
         );
         for (const code of resolvedEdgeStyle.diagnostics) {
           if (code === "unsupported-option-flag:every edge") {
@@ -2080,7 +2085,8 @@ export function evaluatePathStatement(
             ],
             optionCustomStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            statementStyleChain
+            statementStyleChain,
+            treeFrameState.colorAliases
           );
           operationTransform = optionResolved.transform;
           for (const code of optionResolved.diagnostics) {
@@ -2982,7 +2988,8 @@ export function evaluatePathStatement(
           styleLayers,
           childCustomStyles,
           (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-          parentFrame.styleChain
+          parentFrame.styleChain,
+          parentFrame.colorAliases
         );
         for (const code of resolvedChildStyle.diagnostics) {
           pushDiagnostic(code, `Tree child option issue: ${code}`, child.span.from, child.span.to);
@@ -3242,7 +3249,8 @@ export function evaluatePathStatement(
             edgeOptionLayers,
             activeTreeFrame.customStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            activeTreeFrame.styleChain
+            activeTreeFrame.styleChain,
+            activeTreeFrame.colorAliases
           );
           for (const code of resolvedTreeEdgeStyle.diagnostics) {
             if (code === "unsupported-option-flag:edge from parent") {

@@ -14,6 +14,7 @@ import { parseArrowSpecification } from "./arrows.js";
 import { applyFlagEntry } from "./apply-flag.js";
 import type { ApplyOutcome } from "./apply-types.js";
 import { applyKvEntry } from "./apply-kv.js";
+import type { ColorAliasResolver } from "./colors.js";
 import type { CustomStyleRegistry } from "./custom-styles.js";
 import {
   applyCustomStyleDefinition,
@@ -22,7 +23,7 @@ import {
 } from "./custom-styles.js";
 import { commandDefaultStyle, defaultStyle, DEFAULT_TEXT_FONT_SIZE } from "./defaults.js";
 import { extractCircleRadius } from "./extract-circle-radius.js";
-import { parseStyleValueAsOptionList } from "./option-utils.js";
+import { normalizeOptionValue, parseStyleValueAsOptionList } from "./option-utils.js";
 
 export type ResolvedContextDelta = ResolvedStyleTrace;
 
@@ -34,13 +35,15 @@ export function resolveContextDelta(
   optionLayers: StyleTraceLayerInput[],
   customStyles: CustomStyleRegistry = new Map(),
   resolveCoordinate?: CoordinateResolver,
-  baseChain: StyleChainEntry[] = []
+  baseChain: StyleChainEntry[] = [],
+  colorAliases?: ReadonlyMap<string, string>
 ): ResolvedContextDelta {
   const diagnostics: string[] = [];
   let style = cloneResolvedStyle(baseStyle);
   let transform = baseTransform;
   const chain = cloneStyleChain(baseChain);
   const expandedEntries: OptionEntry[] = [];
+  const resolveColorAlias = createColorAliasResolver(colorAliases);
 
   const topLevelLayers = optionLayers;
   const topLevelOptionLists = topLevelLayers.flatMap((layer) => layer.rawOptions);
@@ -112,7 +115,7 @@ export function resolveContextDelta(
     }
 
     layerExpandedEntries.push(entry);
-    const outcome = applyOptionEntry(entry, style, transform, resolveCoordinate);
+    const outcome = applyOptionEntry(entry, style, transform, resolveCoordinate, resolveColorAlias);
     style = outcome.style;
     transform = outcome.transform;
     diagnostics.push(...outcome.diagnostics);
@@ -196,7 +199,8 @@ function applyOptionEntry(
   entry: OptionEntry,
   style: ResolvedStyle,
   transform: Matrix2D,
-  resolveCoordinate?: CoordinateResolver
+  resolveCoordinate?: CoordinateResolver,
+  resolveColorAlias?: ColorAliasResolver
 ): ApplyOutcome {
   if (entry.kind === "unknown") {
     const parsedArrow = parseArrowSpecification(entry.raw, style);
@@ -213,7 +217,7 @@ function applyOptionEntry(
       const diagnostics: string[] = [];
       for (const list of style.everyShadowStyles) {
         for (const nestedEntry of list.entries) {
-          const outcome = applyOptionEntry(nestedEntry, nextStyle, nextTransform, resolveCoordinate);
+          const outcome = applyOptionEntry(nestedEntry, nextStyle, nextTransform, resolveCoordinate, resolveColorAlias);
           nextStyle = outcome.style;
           nextTransform = outcome.transform;
           diagnostics.push(...outcome.diagnostics);
@@ -230,13 +234,55 @@ function applyOptionEntry(
       entry.key === "circular drop shadow" ||
       entry.key === "circular glow"
     ) {
-      return applyKvEntry(entry.key, "", style, transform, applyOptionEntry, resolveCoordinate);
+      return applyKvEntry(entry.key, "", style, transform, applyOptionEntry, resolveCoordinate, resolveColorAlias);
     }
 
-    return applyFlagEntry(entry.key, entry.raw, style, transform);
+    return applyFlagEntry(entry.key, entry.raw, style, transform, resolveColorAlias);
   }
 
-  return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry, resolveCoordinate);
+  return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry, resolveCoordinate, resolveColorAlias);
+}
+
+function createColorAliasResolver(colorAliases?: ReadonlyMap<string, string>): ColorAliasResolver | undefined {
+  if (!colorAliases || colorAliases.size === 0) {
+    return undefined;
+  }
+
+  return (rawColorName: string): string | null => {
+    const initialKey = normalizeColorAliasKey(rawColorName);
+    if (!initialKey) {
+      return null;
+    }
+
+    let resolved = colorAliases.get(initialKey);
+    if (!resolved) {
+      return null;
+    }
+
+    const seen = new Set<string>([initialKey]);
+    while (true) {
+      const nextKey = normalizeColorAliasKey(resolved);
+      if (!nextKey || seen.has(nextKey)) {
+        break;
+      }
+      const nextResolved = colorAliases.get(nextKey);
+      if (!nextResolved) {
+        break;
+      }
+      seen.add(nextKey);
+      resolved = nextResolved;
+    }
+
+    return resolved;
+  };
+}
+
+function normalizeColorAliasKey(raw: string): string | null {
+  const trimmed = normalizeOptionValue(raw).toLowerCase();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed;
 }
 
 function buildExpandedOptionLists(optionLists: OptionListAst[], entries: OptionEntry[]): OptionListAst[] {

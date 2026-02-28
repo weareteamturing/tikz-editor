@@ -191,6 +191,30 @@ describe("render pipeline", () => {
     }
   });
 
+  it("resolves definecolor aliases for fill key values before SVG emission", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{mypink}{rgb}{0.858, 0.188, 0.478}
+  \draw[fill=mypink] (-3,-3) rectangle (3,3);
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.semantic.scene.elements.some((element) => element.kind === "Path" && element.style.fill === "#db307a")).toBe(true);
+    expect(result.svg.svg).toContain('fill="#db307a"');
+    expect(result.svg.svg).not.toContain('fill="mypink"');
+  });
+
+  it("resolves definecolor aliases inside xcolor mixtures for fill key values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{mypink}{rgb}{0.858, 0.188, 0.478}
+  \draw[fill=mypink!20] (-3,-3) rectangle (3,3);
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.semantic.scene.elements.some((element) => element.kind === "Path" && element.style.fill === "#f8d6e4")).toBe(true);
+    expect(result.svg.svg).toContain('fill="#f8d6e4"');
+    expect(result.svg.svg).not.toContain('fill="mypink!20"');
+  });
+
   it("resolves definecolor HTML aliases before MathJax text rendering", async () => {
     const source = String.raw`\begin{tikzpicture}
   \definecolor{brand}{HTML}{1A2B3C}

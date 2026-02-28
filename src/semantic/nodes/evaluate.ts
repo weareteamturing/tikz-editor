@@ -848,7 +848,8 @@ function resolveNodeStyleTrace(params: {
     layers,
     cloneCustomStyleRegistry(frame.customStyles),
     (raw) => evaluateRawCoordinate(raw, params.context).world,
-    params.baseStyleChain
+    params.baseStyleChain,
+    frame.colorAliases
   );
 
   const scaledStyle = applyNodeTransformScale(resolved.style, params.transformScale);
