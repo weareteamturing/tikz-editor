@@ -64,6 +64,10 @@ function MenuPopup({
   bindings: MenuCommandBindings;
   onCommandRun: () => void;
 }) {
+  const hasCheckItems = items.some(
+    (item) => item.kind === "command" && bindings[item.commandId].checked != null
+  );
+
   return (
     <div className={[css.popup, nested ? css.popupNested : ""].filter(Boolean).join(" ")} role="menu">
       {items.map((item, index) => {
@@ -75,8 +79,14 @@ function MenuPopup({
         if (item.kind === "submenu") {
           return (
             <div key={`${itemKey}-submenu`} className={css.submenu}>
-              <div className={[css.item, css.submenuTrigger].join(" ")} role="menuitem" aria-haspopup="menu">
-                <span className={css.check} />
+              <div
+                className={[css.item, css.submenuTrigger, hasCheckItems ? "" : css.itemNoCheck]
+                  .filter(Boolean)
+                  .join(" ")}
+                role="menuitem"
+                aria-haspopup="menu"
+              >
+                {hasCheckItems ? <span className={css.check} /> : null}
                 <span className={css.label}>{item.label}</span>
                 <span className={css.submenuArrow}>›</span>
               </div>
@@ -100,7 +110,7 @@ function MenuPopup({
             role={role}
             aria-checked={binding.checked}
             disabled={!binding.enabled}
-            className={css.item}
+            className={[css.item, hasCheckItems ? "" : css.itemNoCheck].filter(Boolean).join(" ")}
             onClick={() => {
               if (!binding.enabled) {
                 return;
@@ -109,7 +119,7 @@ function MenuPopup({
               onCommandRun();
             }}
           >
-            <span className={css.check}>{binding.checked ? "✓" : ""}</span>
+            {hasCheckItems ? <span className={css.check}>{binding.checked ? "✓" : ""}</span> : null}
             <span className={css.label}>{item.label}</span>
             <span className={css.shortcut}>{formatAccelerator(item.accelerator)}</span>
           </button>
@@ -376,7 +386,16 @@ export function AppMenuBar() {
 
   return (
     <>
-      <div className={css.menuBar} role="menubar" ref={menuRootRef}>
+      <div
+        className={css.menuBar}
+        role="menubar"
+        ref={menuRootRef}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            setOpenSectionId(null);
+          }
+        }}
+      >
         {APP_MENU_DEFINITION.map((section) => {
           const isOpen = openSectionId === section.id;
           return (
