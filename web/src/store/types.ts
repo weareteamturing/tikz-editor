@@ -63,6 +63,7 @@ export type EditorState = {
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
   showGrid: boolean;
+  snapToGrid: boolean;
   showRulers: boolean;
   showGuides: boolean;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
@@ -104,6 +105,7 @@ export type EditorAction =
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
+  | { type: "TOGGLE_SNAP_TO_GRID" }
   | { type: "REQUEST_FIT_TO_CONTENT" }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }

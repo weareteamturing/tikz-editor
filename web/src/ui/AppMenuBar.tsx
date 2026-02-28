@@ -138,6 +138,7 @@ export function AppMenuBar() {
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
   const showGrid = useEditorStore((s) => s.showGrid);
+  const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
@@ -307,6 +308,11 @@ export function AppMenuBar() {
       enabled: true,
       checked: showGrid,
       run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID]: {
+      enabled: true,
+      checked: snapToGrid,
+      run: () => dispatch({ type: "TOGGLE_SNAP_TO_GRID" })
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_RULERS]: {
       enabled: true,

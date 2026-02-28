@@ -563,6 +563,7 @@ describe("editorReducer – layout", () => {
   it("TOGGLE_CANVAS_AID toggles grid/rulers/guides visibility", () => {
     const initial = makeInitialState();
     expect(initial.showGrid).toBe(true);
+    expect(initial.snapToGrid).toBe(true);
     expect(initial.showRulers).toBe(true);
     expect(initial.showGuides).toBe(true);
 
@@ -580,6 +581,24 @@ describe("editorReducer – layout", () => {
     expect(afterGuides.showGrid).toBe(false);
     expect(afterGuides.showRulers).toBe(false);
     expect(afterGuides.showGuides).toBe(false);
+    expect(afterGuides.snapToGrid).toBe(true);
+  });
+
+  it("TOGGLE_SNAP_TO_GRID toggles snapping independently of grid visibility", () => {
+    const initial = makeInitialState();
+    expect(initial.showGrid).toBe(true);
+    expect(initial.snapToGrid).toBe(true);
+
+    const hiddenGrid = editorReducer(initial, { type: "TOGGLE_CANVAS_AID", aid: "grid" });
+    expect(hiddenGrid.showGrid).toBe(false);
+    expect(hiddenGrid.snapToGrid).toBe(true);
+
+    const snapOff = editorReducer(hiddenGrid, { type: "TOGGLE_SNAP_TO_GRID" });
+    expect(snapOff.showGrid).toBe(false);
+    expect(snapOff.snapToGrid).toBe(false);
+
+    const snapOn = editorReducer(snapOff, { type: "TOGGLE_SNAP_TO_GRID" });
+    expect(snapOn.snapToGrid).toBe(true);
   });
 
   it("REQUEST_FIT_TO_CONTENT increments request token", () => {

@@ -42,6 +42,7 @@ export function makeInitialState(): EditorState {
     activeCanvasDragKind: null,
     activeSourceScrubSourceId: null,
     showGrid: true,
+    snapToGrid: true,
     showRulers: true,
     showGuides: true,
     fitToContentRequestToken: 0,
@@ -291,6 +292,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return { ...state, showRulers: !state.showRulers };
       }
       return { ...state, showGuides: !state.showGuides };
+    }
+
+    case "TOGGLE_SNAP_TO_GRID": {
+      return { ...state, snapToGrid: !state.snapToGrid };
     }
 
     case "REQUEST_FIT_TO_CONTENT": {

@@ -207,6 +207,11 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID,
+        label: "Snap to Grid"
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.TOGGLE_RULERS,
         label: "Rulers"
       },

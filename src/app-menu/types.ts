@@ -28,6 +28,7 @@ export const APP_MENU_COMMAND_IDS = {
   INSERT_CIRCLE: "insert.circle",
   FIT_TO_CONTENT: "view.fit-to-content",
   TOGGLE_GRID: "view.toggle-grid",
+  TOGGLE_SNAP_TO_GRID: "view.toggle-snap-to-grid",
   TOGGLE_RULERS: "view.toggle-rulers",
   TOGGLE_GUIDES: "view.toggle-guides",
   TOGGLE_SOURCE_PANEL: "view.toggle-source-panel",

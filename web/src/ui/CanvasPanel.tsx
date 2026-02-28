@@ -244,6 +244,7 @@ export function CanvasPanel() {
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
   const showGrid = useEditorStore((s) => s.showGrid);
+  const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
@@ -692,6 +693,15 @@ export function CanvasPanel() {
       y: showGuides ? guides.horizontal : []
     }),
     [guides.horizontal, guides.vertical, showGuides]
+  );
+
+  const snapSettingsPatch = useMemo(
+    () => ({
+      grid: {
+        enabled: snapToGrid
+      }
+    }),
+    [snapToGrid]
   );
 
   const renderedGuides = useMemo(() => {
@@ -1406,6 +1416,7 @@ export function CanvasPanel() {
             sceneElements: snapshot.scene.elements,
             selectedSourceIds: draggedIds,
             guides: snapGuideInput,
+            settings: snapSettingsPatch,
             zoom: canvasTransform.scale,
             viewportWorld: viewportWorldBounds
           })
@@ -1455,6 +1466,7 @@ export function CanvasPanel() {
       svgResult,
       toolMode,
       snapGuideInput,
+      snapSettingsPatch,
       viewportWorldBounds
     ]
   );
@@ -1561,6 +1573,7 @@ export function CanvasPanel() {
             sceneElements: snapshot.scene.elements,
             selectedSourceIds: [handle.sourceId],
             guides: snapGuideInput,
+            settings: snapSettingsPatch,
             zoom: canvasTransform.scale,
             viewportWorld: viewportWorldBounds
           })
@@ -1599,6 +1612,7 @@ export function CanvasPanel() {
       svgResult,
       toolMode,
       snapGuideInput,
+      snapSettingsPatch,
       viewportWorldBounds
     ]
   );
@@ -1789,6 +1803,7 @@ export function CanvasPanel() {
               sceneElements: snapshot.scene.elements,
               selectedSourceIds: [],
               guides: snapGuideInput,
+              settings: snapSettingsPatch,
               zoom: canvasTransform.scale,
               viewportWorld: viewportWorldBounds
             })
@@ -1890,6 +1905,7 @@ export function CanvasPanel() {
       startMarqueeSelection,
       toolMode,
       snapGuideInput,
+      snapSettingsPatch,
       viewportWorldBounds
     ]
   );
@@ -1922,6 +1938,7 @@ export function CanvasPanel() {
         sceneElements: snapshot.scene.elements,
         selectedSourceIds: [],
         guides: snapGuideInput,
+        settings: snapSettingsPatch,
         zoom: canvasTransform.scale,
         viewportWorld: viewportWorldBounds
       });
@@ -1956,6 +1973,7 @@ export function CanvasPanel() {
       toolDraft,
       toolMode,
       snapGuideInput,
+      snapSettingsPatch,
       viewportWorldBounds
     ]
   );
@@ -1993,6 +2011,7 @@ export function CanvasPanel() {
         sceneElements: snapshot.scene.elements,
         selectedSourceIds: [],
         guides: snapGuideInput,
+        settings: snapSettingsPatch,
         zoom: canvasTransform.scale,
         viewportWorld: viewportWorldBounds
       });
@@ -2027,6 +2046,7 @@ export function CanvasPanel() {
       toolDraft,
       toolMode,
       snapGuideInput,
+      snapSettingsPatch,
       viewportWorldBounds
     ]
   );
@@ -2773,6 +2793,9 @@ export function CanvasPanel() {
         <div className={css.headerButtons}>
           <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })}>
             {showGrid ? "Grid On" : "Grid Off"}
+          </button>
+          <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_SNAP_TO_GRID" })}>
+            {snapToGrid ? "Snap On" : "Snap Off"}
           </button>
           <button className={css.headerBtn} onClick={fitToContent} disabled={!svgResult}>
             Fit
