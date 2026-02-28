@@ -16,10 +16,25 @@ export type ArrowTipPresetId =
   | "hooks"
   | "custom";
 
+export type DashStylePresetId =
+  | "solid"
+  | "dashed"
+  | "densely dashed"
+  | "loosely dashed"
+  | "dotted"
+  | "densely dotted"
+  | "loosely dotted"
+  | "custom";
+
 export type ArrowTipSide = "start" | "end";
 
 export type ArrowTipPresetOption = {
   value: Exclude<ArrowTipPresetId, "custom">;
+  label: string;
+};
+
+export type DashStylePresetOption = {
+  value: Exclude<DashStylePresetId, "custom">;
   label: string;
 };
 
@@ -34,6 +49,12 @@ export type ArrowTipWriteTarget = SetPropertyWriteTarget & {
 };
 
 export type ArrowTipSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type DashStyleSetPropertyMutation = {
   key: string;
   value: string;
   clearKeys: string[];
@@ -91,6 +112,15 @@ export type InspectorProperty =
       max: number;
       step: number;
       presetLabel: string | null;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "dashStyle";
+      id: string;
+      label: string;
+      value: DashStylePresetId;
+      options: DashStylePresetOption[];
+      previewLineWidth: number;
       write: SetPropertyWriteTarget;
     }
   | {
@@ -177,6 +207,19 @@ export const LINE_WIDTH_PRESETS: Array<{ label: string; value: number }> = [
 const ARROW_OPTION_KEY = "arrows";
 const ARROW_SHORTHAND_KEYS = ["-", "->", "<-", "<->"] as const;
 const ARROW_DEFAULT_CLEAR_KEYS = [ARROW_OPTION_KEY, ...ARROW_SHORTHAND_KEYS] as const;
+const DASH_STYLE_PRESET_CLEAR_KEYS = [
+  "solid",
+  "dashed",
+  "densely dashed",
+  "loosely dashed",
+  "dotted",
+  "densely dotted",
+  "loosely dotted",
+  "dash pattern",
+  "dash phase",
+  "dash"
+] as const;
+const DASH_PATTERN_EPSILON = 1e-3;
 const ARROW_TIP_OPTIONS: ArrowTipPresetOption[] = [
   { value: "none", label: "None" },
   { value: "arrow", label: "Arrow" },
@@ -188,6 +231,15 @@ const ARROW_TIP_OPTIONS: ArrowTipPresetOption[] = [
   { value: "kite", label: "Diamond" },
   { value: "bar", label: "Bar" },
   { value: "hooks", label: "Hooks" }
+];
+const DASH_STYLE_OPTIONS: DashStylePresetOption[] = [
+  { value: "solid", label: "Solid" },
+  { value: "dashed", label: "Dashed" },
+  { value: "densely dashed", label: "Densely dashed" },
+  { value: "loosely dashed", label: "Loosely dashed" },
+  { value: "dotted", label: "Dotted" },
+  { value: "densely dotted", label: "Densely dotted" },
+  { value: "loosely dotted", label: "Loosely dotted" }
 ];
 
 export function buildArrowTipSetPropertyMutation(
@@ -203,6 +255,16 @@ export function buildArrowTipSetPropertyMutation(
     key: serialized.key,
     value: serialized.value,
     clearKeys: uniqueStrings([...ARROW_DEFAULT_CLEAR_KEYS, ...context.clearKeys])
+  };
+}
+
+export function buildDashStyleSetPropertyMutation(
+  value: Exclude<DashStylePresetId, "custom">
+): DashStyleSetPropertyMutation {
+  return {
+    key: value,
+    value: "true",
+    clearKeys: uniqueStrings(DASH_STYLE_PRESET_CLEAR_KEYS)
   };
 }
 
@@ -281,6 +343,15 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           step: 0.1,
           presetLabel: lineWidthPresetLabel(element.style.lineWidth),
           write: makeSetPropertyWriteTarget(inlineTarget, "line width")
+        },
+        {
+          kind: "dashStyle",
+          id: "dash-style",
+          label: "Dash style",
+          value: dashStylePresetFromStyle(element.style.dashArray, element.style.lineWidth),
+          options: DASH_STYLE_OPTIONS,
+          previewLineWidth: element.style.lineWidth,
+          write: makeSetPropertyWriteTarget(inlineTarget, "solid")
         }
       ]
     },
@@ -800,6 +871,42 @@ function lineWidthPresetLabel(value: number): string | null {
     }
   }
   return null;
+}
+
+function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: number): DashStylePresetId {
+  if (!dashArray || dashArray.length === 0) {
+    return "solid";
+  }
+  if (dashArray.length !== 2) {
+    return "custom";
+  }
+  const [first, second] = dashArray;
+  if (first == null || second == null) {
+    return "custom";
+  }
+  if (closeEnough(first, 3) && closeEnough(second, 3)) {
+    return "dashed";
+  }
+  if (closeEnough(first, 4) && closeEnough(second, 2)) {
+    return "densely dashed";
+  }
+  if (closeEnough(first, 6) && closeEnough(second, 4)) {
+    return "loosely dashed";
+  }
+  if (closeEnough(first, lineWidth) && closeEnough(second, 2)) {
+    return "dotted";
+  }
+  if (closeEnough(first, lineWidth) && closeEnough(second, 1)) {
+    return "densely dotted";
+  }
+  if (closeEnough(first, lineWidth) && closeEnough(second, 4)) {
+    return "loosely dotted";
+  }
+  return "custom";
+}
+
+function closeEnough(a: number, b: number): boolean {
+  return Math.abs(a - b) <= DASH_PATTERN_EPSILON;
 }
 
 function normalizeInspectorColorValue(value: string | null): string | null {

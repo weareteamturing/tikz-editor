@@ -149,6 +149,27 @@
   width: 100%;
 }
 
+.lineWidthValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lineWidthValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.lineWidthValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .lineWidthOption {
   width: 100%;
   display: flex;
@@ -156,54 +177,36 @@
   gap: 8px;
 }
 
+.lineWidthOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .lineWidthOptionLabel {
-  min-width: 68px;
-}
-
-.lineWidthOptionRail {
-  position: relative;
   flex: 1;
-  height: 14px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.lineWidthOptionStroke {
-  width: 100%;
-  min-height: 1px;
-  border-radius: 999px;
-  background: var(--text);
-}
-
-.lineWidthCustomOption {
-  width: 100%;
-}
-
-.linePreviewRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.linePreviewRail {
-  position: relative;
-  flex: 1;
-  height: 14px;
-  display: inline-flex;
-  align-items: center;
-}
-
-.linePreviewStroke {
-  width: 100%;
-  min-height: 1px;
-  border-radius: 999px;
-  background: var(--text);
-}
-
-.valueLabel {
-  font-size: 10px;
-  color: var(--text-faint);
+  min-width: 0;
   white-space: nowrap;
+}
+
+.lineWidthOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.lineWidthSvg {
+  width: 56px;
+  height: 16px;
+  overflow: visible;
+}
+
+.lineWidthSvgLine {
+  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke-linecap: round;
 }
 
 .swatch {
@@ -268,6 +271,67 @@
   font-size: 11px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.dashStyleValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dashStyleValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dashStyleValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashStyleOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashStyleOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.dashStyleOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.dashStyleOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dashStyleSvg {
+  width: 56px;
+  height: 16px;
+  overflow: visible;
+}
+
+.dashStyleSvgLine {
+  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke-width: 1;
+  stroke-linecap: butt;
 }
 
 .arrowTipSvg {

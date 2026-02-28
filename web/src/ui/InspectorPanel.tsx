@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
+  buildDashStyleSetPropertyMutation,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
   type ArrowTipPresetId,
   type ArrowTipSide,
   type ArrowTipWriteTarget,
+  type DashStylePresetId,
   type InspectorDescriptor,
   type InspectorProperty,
   type SetPropertyWriteTarget
@@ -55,6 +57,18 @@ type MultiInspectorLineWidthProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorDashStyleProperty = {
+  kind: "dashStyle";
+  id: string;
+  label: string;
+  value: DashStylePresetId;
+  mixed: boolean;
+  previewLineWidth: number;
+  options: Array<{ value: Exclude<DashStylePresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
@@ -72,6 +86,7 @@ type MultiInspectorProperty =
   | MultiInspectorNumberProperty
   | MultiInspectorColorProperty
   | MultiInspectorLineWidthProperty
+  | MultiInspectorDashStyleProperty
   | MultiInspectorArrowTipProperty;
 
 type MultiInspectorSection = {
@@ -92,8 +107,10 @@ const LINE_WIDTH_CUSTOM_OPTION_VALUE = "__custom-line-width__";
 const LINE_WIDTH_MIXED_OPTION_VALUE = "__mixed-line-width__";
 const LINE_WIDTH_PRESET_EPSILON = 0.02;
 const ARROW_TIP_MIXED_OPTION_VALUE = "__mixed-arrow-tip__";
+const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
+type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
 
 const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
   LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
@@ -236,6 +253,28 @@ export function InspectorPanel() {
     }
   }
 
+  function applyDashStyleValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<DashStylePresetId, "custom">
+  ): void {
+    const mutation = buildDashStyleSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
+  function applyDashStyleValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<DashStylePresetId, "custom">
+  ): void {
+    const mutation = buildDashStyleSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
     const write = property.write;
     if (!write || write.mode !== "moveAxis" || !write.writable) return;
@@ -336,6 +375,60 @@ export function InspectorPanel() {
     );
   }
 
+  function renderDashStyleDropdown(
+    property: {
+      label: string;
+      value: DashStylePresetId;
+      previewLineWidth: number;
+      options: Array<{ value: Exclude<DashStylePresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<DashStylePresetId, "custom">) => void,
+    valueOverride?: DashStyleDropdownValue
+  ) {
+    const dropdownValue: DashStyleDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toDashStyleDropdownOptions(property.options);
+    const displayLabel = dashStyleValueLabel(dropdownValue, property.options);
+    const previewPreset = dashStylePreviewPreset(dropdownValue);
+
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableDashStyleValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.dashStyleValue}>
+            <span className={css.dashStyleValuePreview}>
+              <DashStylePreview preset={previewPreset} lineWidth={property.previewLineWidth} />
+            </span>
+            <span className={css.dashStyleValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<DashStylePresetId, "custom">;
+          return (
+            <span className={css.dashStyleOption}>
+              <span className={css.dashStyleOptionPreview}>
+                <DashStylePreview preset={optionPreset} lineWidth={property.previewLineWidth} />
+              </span>
+              <span className={css.dashStyleOptionLabel}>{option.label}</span>
+              <span className={css.dashStyleOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
   function renderProperty(property: InspectorProperty) {
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
@@ -405,6 +498,8 @@ export function InspectorPanel() {
       const dropdownValue: LineWidthDropdownValue = showCustomRange
         ? LINE_WIDTH_CUSTOM_OPTION_VALUE
         : (property.presetLabel ?? LINE_WIDTH_CUSTOM_OPTION_VALUE);
+      const dropdownDisplayLabel = lineWidthValueLabel(dropdownValue);
+      const dropdownPreviewLineWidth = lineWidthPreviewLineWidth(dropdownValue, property.value);
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -431,19 +526,24 @@ export function InspectorPanel() {
                 clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
               });
             }}
-            renderOption={(option) => {
-              if (option.value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                return <span className={css.lineWidthCustomOption}>{option.label}</span>;
-              }
-              const previewValue = LINE_WIDTH_PRESET_BY_LABEL.get(option.value) ?? property.value;
+            renderValue={() => (
+              <span className={css.lineWidthValue}>
+                <span className={css.lineWidthValuePreview}>
+                  <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
+                </span>
+                <span className={css.lineWidthValueLabel}>{dropdownDisplayLabel}</span>
+              </span>
+            )}
+            renderOption={(option, state) => {
+              const previewValue = lineWidthPreviewLineWidth(option.value, property.value);
               return (
                 <span className={css.lineWidthOption}>
+                  <span className={css.lineWidthOptionPreview}>
+                    <LineWidthPreview lineWidth={previewValue} />
+                  </span>
                   <span className={css.lineWidthOptionLabel}>{option.label}</span>
-                  <span className={css.lineWidthOptionRail}>
-                    <span
-                      className={css.lineWidthOptionStroke}
-                      style={{ height: `${Math.max(1, Math.min(12, previewValue * 2))}px` }}
-                    />
+                  <span className={css.lineWidthOptionCheck} aria-hidden="true">
+                    {state.selected ? "✓" : ""}
                   </span>
                 </span>
               );
@@ -468,17 +568,26 @@ export function InspectorPanel() {
               }}
             />
           ) : null}
-          <div className={css.linePreviewRow}>
-            <span className={css.linePreviewRail}>
-              <span
-                className={css.linePreviewStroke}
-                style={{ height: `${Math.max(1, Math.min(12, property.value * 2))}px` }}
-              />
-            </span>
-            <span className={css.valueLabel}>
-              {formatNumber(property.value)}pt{property.presetLabel ? ` (${property.presetLabel})` : ""}
-            </span>
-          </div>
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "dashStyle") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderDashStyleDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyDashStyleValue(property.write, nextValue)
+          )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
@@ -578,9 +687,8 @@ export function InspectorPanel() {
           ? LINE_WIDTH_MIXED_OPTION_VALUE
           : (presetLabel ?? LINE_WIDTH_CUSTOM_OPTION_VALUE);
       const sliderValue = property.mixed ? property.averageValue : property.value;
-      const summaryLabel = property.mixed
-        ? "Mixed values"
-        : `${formatNumber(property.value)}pt${presetLabel ? ` (${presetLabel})` : ""}`;
+      const dropdownDisplayLabel = lineWidthValueLabel(dropdownValue);
+      const dropdownPreviewLineWidth = lineWidthPreviewLineWidth(dropdownValue, sliderValue);
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -607,25 +715,26 @@ export function InspectorPanel() {
                 clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
               });
             }}
-            renderValue={(option) => {
-              if (property.mixed && !showCustomRange) {
-                return "Mixed";
-              }
-              return option?.label ?? "";
+            renderValue={() => {
+              return (
+                <span className={css.lineWidthValue}>
+                  <span className={css.lineWidthValuePreview}>
+                    <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
+                  </span>
+                  <span className={css.lineWidthValueLabel}>{dropdownDisplayLabel}</span>
+                </span>
+              );
             }}
-            renderOption={(option) => {
-              if (option.value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                return <span className={css.lineWidthCustomOption}>{option.label}</span>;
-              }
-              const previewValue = LINE_WIDTH_PRESET_BY_LABEL.get(option.value) ?? property.value;
+            renderOption={(option, state) => {
+              const previewValue = lineWidthPreviewLineWidth(option.value, sliderValue);
               return (
                 <span className={css.lineWidthOption}>
+                  <span className={css.lineWidthOptionPreview}>
+                    <LineWidthPreview lineWidth={previewValue} />
+                  </span>
                   <span className={css.lineWidthOptionLabel}>{option.label}</span>
-                  <span className={css.lineWidthOptionRail}>
-                    <span
-                      className={css.lineWidthOptionStroke}
-                      style={{ height: `${Math.max(1, Math.min(12, previewValue * 2))}px` }}
-                    />
+                  <span className={css.lineWidthOptionCheck} aria-hidden="true">
+                    {state.selected ? "✓" : ""}
                   </span>
                 </span>
               );
@@ -651,18 +760,29 @@ export function InspectorPanel() {
                   });
                 }}
               />
-              <div className={css.linePreviewRow}>
-                <span className={css.linePreviewRail}>
-                  <span
-                    className={css.linePreviewStroke}
-                    style={{ height: `${Math.max(1, Math.min(12, sliderValue * 2))}px` }}
-                  />
-                </span>
-                <span className={css.valueLabel}>{formatNumber(sliderValue)}pt</span>
-              </div>
             </>
-          ) : (
-            <div className={css.valueLabel}>{summaryLabel}</div>
+          ) : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "dashStyle") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: DashStyleDropdownValue = property.mixed ? DASH_STYLE_MIXED_OPTION_VALUE : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderDashStyleDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyDashStyleValueMany(property.writes, nextValue),
+            dropdownValue
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -873,6 +993,26 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     };
   }
 
+  if (base.kind === "dashStyle") {
+    const sameKind = properties.every((property) => property.kind === "dashStyle");
+    if (!sameKind) return null;
+    const dashProperties = properties as Array<Extract<InspectorProperty, { kind: "dashStyle" }>>;
+    const values = dashProperties.map((property) => property.value);
+    const writes = dashProperties.map((property) => property.write);
+
+    return {
+      kind: "dashStyle",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "solid",
+      mixed: !allValuesEqual(values),
+      previewLineWidth: averageNumbers(dashProperties.map((property) => property.previewLineWidth)),
+      options: base.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   const sameKind = properties.every((property) => property.kind === "arrowTip");
   if (!sameKind) return null;
   const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
@@ -940,6 +1080,23 @@ function lineWidthPresetLabelFromValue(value: number): string | null {
   return null;
 }
 
+function lineWidthValueLabel(value: LineWidthDropdownValue): string {
+  if (value === LINE_WIDTH_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+    return "Custom line width";
+  }
+  return LINE_WIDTH_PRESET_BY_LABEL.has(value) ? value : "Custom line width";
+}
+
+function lineWidthPreviewLineWidth(value: LineWidthDropdownValue, fallbackLineWidth: number): number {
+  if (value === LINE_WIDTH_CUSTOM_OPTION_VALUE || value === LINE_WIDTH_MIXED_OPTION_VALUE) {
+    return fallbackLineWidth;
+  }
+  return LINE_WIDTH_PRESET_BY_LABEL.get(value) ?? fallbackLineWidth;
+}
+
 function dedupeStrings(values: readonly string[]): string[] {
   const seen = new Set<string>();
   const deduped: string[] = [];
@@ -949,6 +1106,41 @@ function dedupeStrings(values: readonly string[]): string[] {
     deduped.push(value);
   }
   return deduped;
+}
+
+function toDashStyleDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<DashStylePresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<DashStyleDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function dashStyleValueLabel(
+  value: DashStyleDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<DashStylePresetId, "custom">; label: string }>
+): string {
+  if (value === DASH_STYLE_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableDashStyleValue(
+  value: DashStyleDropdownValue
+): value is Exclude<DashStylePresetId, "custom"> {
+  return value !== "custom" && value !== DASH_STYLE_MIXED_OPTION_VALUE;
+}
+
+function dashStylePreviewPreset(value: DashStyleDropdownValue): Exclude<DashStylePresetId, "custom"> {
+  if (value === DASH_STYLE_MIXED_OPTION_VALUE || value === "custom") {
+    return "dashed";
+  }
+  return value;
 }
 
 function toArrowTipDropdownOptions(
@@ -984,6 +1176,63 @@ function arrowTipPreviewPreset(value: ArrowTipDropdownValue): Exclude<ArrowTipPr
     return "arrow";
   }
   return value;
+}
+
+function LineWidthPreview({ lineWidth }: { lineWidth: number }) {
+  const strokeWidth = Math.max(1, Math.min(12, lineWidth * 2));
+  return (
+    <svg className={css.lineWidthSvg} viewBox="0 0 56 16" aria-hidden="true" focusable="false">
+      <line x1={4} y1={8} x2={52} y2={8} className={css.lineWidthSvgLine} style={{ strokeWidth }} />
+    </svg>
+  );
+}
+
+function DashStylePreview({
+  preset,
+  lineWidth
+}: {
+  preset: Exclude<DashStylePresetId, "custom">;
+  lineWidth: number;
+}) {
+  const dashArray = dashStyleDashArrayForPreview(preset, lineWidth);
+  const strokeWidth = Math.max(1, Math.min(3.2, lineWidth * 1.4));
+  return (
+    <svg className={css.dashStyleSvg} viewBox="0 0 56 16" aria-hidden="true" focusable="false">
+      <line
+        x1={4}
+        y1={8}
+        x2={52}
+        y2={8}
+        className={css.dashStyleSvgLine}
+        style={dashArray ? { strokeDasharray: dashArray, strokeWidth } : { strokeWidth }}
+      />
+    </svg>
+  );
+}
+
+function dashStyleDashArrayForPreview(
+  preset: Exclude<DashStylePresetId, "custom">,
+  lineWidth: number
+): string | undefined {
+  if (preset === "solid") {
+    return undefined;
+  }
+  if (preset === "dashed") {
+    return "3 3";
+  }
+  if (preset === "densely dashed") {
+    return "4 2";
+  }
+  if (preset === "loosely dashed") {
+    return "6 4";
+  }
+  if (preset === "dotted") {
+    return `${formatNumber(lineWidth)} 2`;
+  }
+  if (preset === "densely dotted") {
+    return `${formatNumber(lineWidth)} 1`;
+  }
+  return `${formatNumber(lineWidth)} 4`;
 }
 
 function ArrowTipPreview({

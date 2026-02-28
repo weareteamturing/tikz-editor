@@ -58,6 +58,9 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   lineWidth: [
     { feature: "options_structured", layers: ["edit"], label: "line width editing" }
   ],
+  dashStyle: [
+    { feature: "options_structured", layers: ["edit"], label: "dash style editing" }
+  ],
   arrowTip: [
     { feature: "options_structured", layers: ["edit"], label: "arrow option editing" },
     { feature: "arrow_tips", layers: ["semantic", "svg"], label: "arrow tip rendering" }
