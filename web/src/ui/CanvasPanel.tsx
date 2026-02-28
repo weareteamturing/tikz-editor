@@ -43,6 +43,7 @@ import { requestSourceSelection, SOURCE_SELECTION_CHANGED_EVENT, type SourceSele
 import { resolveTextSelectionOverlayResolution } from "./text-selection-overlay-policy";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
+import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
 import {
   boundsFromPoints,
   collectSourceIdsInBounds,
@@ -98,6 +99,7 @@ import {
   type SnapDebugPoint
 } from "./canvas-panel/snap-debug";
 import {
+  CurveControlOverlay,
   HandleOverlay,
   HitRegionLayer,
   SelectionOverlay,
@@ -557,6 +559,13 @@ export function CanvasPanel() {
         })
         .filter((bounds): bounds is { key: string; minX: number; minY: number; maxX: number; maxY: number } => bounds != null),
     [resizablePathShapeSourceIds, selectionBoundsBySource]
+  );
+  const curveControlLines = useMemo(
+    () =>
+      snapshot.scene
+        ? deriveCurveControlLines(snapshot.scene.elements, selectedElementIds, snapshot.editHandles)
+        : [],
+    [selectedElementIds, snapshot.editHandles, snapshot.scene]
   );
 
   const marqueeBounds = useMemo(() => {
@@ -2724,6 +2733,7 @@ export function CanvasPanel() {
 
   const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
+  const curveControlStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const gridMinorStrokeWidth = 0.6 / Math.max(canvasTransform.scale, 1e-3);
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
@@ -3048,6 +3058,12 @@ export function CanvasPanel() {
                   selectionBoxes={selectionBoxes}
                   selectionStrokeWidth={selectionStrokeWidth}
                   textSelectionVisual={textSelectionVisual}
+                />
+
+                <CurveControlOverlay
+                  lines={curveControlLines}
+                  viewBox={svgResult.viewBox}
+                  strokeWidth={curveControlStrokeWidth}
                 />
 
                 {toolMode === "select" && (

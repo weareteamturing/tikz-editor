@@ -7,7 +7,7 @@ export function createEditHandle(
   evaluated: EvaluatedCoordinate,
   sourceSpan: Span,
   sourceId: string,
-  kind: "node-position" | "path-point",
+  kind: "node-position" | "path-point" | "path-control",
   context: SemanticContext,
   opts: {
     rewriteTargetHandleId?: string;

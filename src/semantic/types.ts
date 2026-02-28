@@ -276,7 +276,7 @@ export type { CoordinateForm };
 export type EditHandle = {
   id: string;
   sourceId: string;
-  kind: "node-position" | "path-point";
+  kind: "node-position" | "path-point" | "path-control";
   world: Point;
   local?: Point;
   transform: Matrix2D;

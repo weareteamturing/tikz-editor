@@ -318,6 +318,15 @@
   vector-effect: non-scaling-stroke;
 }
 
+.curveControlOverlay {
+  pointer-events: none;
+}
+
+.curveControlLine {
+  stroke: rgba(13, 95, 182, 0.5);
+  vector-effect: non-scaling-stroke;
+}
+
 .handleOverlay {
   pointer-events: none;
 }
@@ -326,6 +335,10 @@
   pointer-events: all;
   fill: #ffffff;
   stroke: #0d5fb6;
+}
+
+.handleControl {
+  fill: #ffffff;
 }
 
 .toolPreview {

@@ -218,6 +218,7 @@ export const editFeatureRegistry = [
   "scope_statement",
   "options_structured",
   "path_operators_basic",
+  "path_operator_curves",
   "path_cycle",
   "shape_rectangle",
   "shape_circle",

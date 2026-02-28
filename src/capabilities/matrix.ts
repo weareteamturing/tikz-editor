@@ -87,7 +87,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "partial",
     svg: "partial",
-    edit: "none",
+    edit: "partial",
     fixtures: ["curve_operator"]
   },
   path_cycle: {

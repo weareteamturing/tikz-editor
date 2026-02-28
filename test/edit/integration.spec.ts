@@ -95,6 +95,46 @@ describe("edit integration (round-trip)", () => {
     expect(result.newHandle!.world.y).toBeCloseTo(cm(6), 0);
   });
 
+  it("moves the first Bezier control point without changing the second control", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = roundTripMove(source, "(1,1)", { x: cm(1.5), y: cm(2) });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("(1.5,2)");
+    expect(result.newSource).toContain("(2,1)");
+  });
+
+  it("moves the explicit endpoint coordinate of a Bezier curve", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = roundTripMove(source, "(3,0)", { x: cm(4), y: cm(0.5) });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("(4,0.5)");
+    expect(result.newSource).toContain("(1,1)");
+    expect(result.newSource).toContain("(2,1)");
+  });
+
+  it("preserves single-control curve syntax after dragging control point", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) .. controls (1,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = roundTripMove(source, "(1,1)", { x: cm(1.25), y: cm(1.5) });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("controls (1.25,1.5)");
+    expect(result.newSource).not.toContain(" and ");
+  });
+
   it("moves a node inside xscale=2 scope", () => {
     const source = String.raw`\begin{tikzpicture}
 \begin{scope}[xscale=2]

@@ -49,6 +49,52 @@ describe("edit handles", () => {
     expect(target?.world.y).toBeCloseTo(cm(1));
   });
 
+  it("curve operator with controls+and emits path-control handles and curve endpoint handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) .. controls (1,1) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+
+    const controlHandles = result.editHandles.filter((h) => h.kind === "path-control");
+    expect(controlHandles).toHaveLength(2);
+    expect(controlHandles.map((handle) => source.slice(handle.sourceSpan.from, handle.sourceSpan.to))).toEqual(
+      expect.arrayContaining(["(1,1)", "(2,1)"])
+    );
+
+    const pathPointHandles = result.editHandles.filter((h) => h.kind === "path-point");
+    expect(pathPointHandles.map((handle) => source.slice(handle.sourceSpan.from, handle.sourceSpan.to))).toEqual(
+      expect.arrayContaining(["(0,0)", "(3,0)"])
+    );
+  });
+
+  it("single-control curve operator emits exactly one path-control handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) .. controls (1,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+
+    const controlHandles = result.editHandles.filter((h) => h.kind === "path-control");
+    expect(controlHandles).toHaveLength(1);
+    expect(source.slice(controlHandles[0]!.sourceSpan.from, controlHandles[0]!.sourceSpan.to)).toBe("(1,1)");
+  });
+
+  it("named control-point handles resolve rewrite targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+\coordinate (ctrl) at (1,1);
+\draw (0,0) .. controls (ctrl) and (2,1) .. (3,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+
+    const namedControl = result.editHandles.find(
+      (handle) =>
+        handle.kind === "path-control" &&
+        source.slice(handle.sourceSpan.from, handle.sourceSpan.to) === "(ctrl)"
+    );
+    expect(namedControl).toBeDefined();
+    expect(namedControl?.coordinateForm).toBe("named");
+    expect(namedControl?.rewriteTargetHandleId).toBeDefined();
+  });
+
   it("with transform: local is pre-transform, world is rotated", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw[rotate=90] (1,0) -- (0,1);

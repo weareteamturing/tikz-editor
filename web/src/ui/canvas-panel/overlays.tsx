@@ -5,6 +5,7 @@ import type { SnapLine } from "tikz-editor/edit/snapping";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ToolMode } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
+import type { CurveControlLine } from "./curve-controls";
 import { fmt, worldToSvgPoint } from "./geometry";
 import css from "../CanvasPanel.module.css";
 
@@ -298,6 +299,40 @@ export function ToolPreviewOverlay({
   );
 }
 
+export function CurveControlOverlay({
+  lines,
+  viewBox,
+  strokeWidth
+}: {
+  lines: readonly CurveControlLine[];
+  viewBox: SvgViewBox;
+  strokeWidth: number;
+}) {
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <g className={css.curveControlOverlay}>
+      {lines.map((line) => {
+        const from = worldToSvgPoint(line.from, viewBox);
+        const to = worldToSvgPoint(line.to, viewBox);
+        return (
+          <line
+            key={line.key}
+            className={css.curveControlLine}
+            x1={from.x}
+            y1={from.y}
+            x2={to.x}
+            y2={to.y}
+            strokeWidth={strokeWidth}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
 export function HitRegionLayer({
   hitRegions,
   hoveredElementId,
@@ -539,25 +574,43 @@ export function HandleOverlay({
 }) {
   return (
     <g className={css.handleOverlay}>
-      {handleDisplays.map((display) => (
-        <rect
-          key={display.key}
-          className={css.handle}
-          x={display.x - handleHalfSize}
-          y={display.y - handleHalfSize}
-          width={handleHalfSize * 2}
-          height={handleHalfSize * 2}
-          strokeWidth={handleStrokeWidth}
-          style={{ cursor: display.cursor }}
-          onPointerDown={(event) =>
-            display.kind === "move-handle"
-              ? onHandlePointerDown(event, display.handle)
-              : display.kind === "move-element"
-                ? onElementPointerDown(event, display.elementId)
-                : onResizeHandlePointerDown(event, display.elementId, display.role)
-          }
-        />
-      ))}
+      {handleDisplays.map((display) => {
+        const onPointerDown = (event: ReactPointerEvent<SVGElement>) =>
+          display.kind === "move-handle"
+            ? onHandlePointerDown(event, display.handle)
+            : display.kind === "move-element"
+              ? onElementPointerDown(event, display.elementId)
+              : onResizeHandlePointerDown(event, display.elementId, display.role);
+
+        if (display.kind === "move-handle" && display.handle.kind === "path-control") {
+          return (
+            <circle
+              key={display.key}
+              className={`${css.handle} ${css.handleControl}`}
+              cx={display.x}
+              cy={display.y}
+              r={handleHalfSize}
+              strokeWidth={handleStrokeWidth}
+              style={{ cursor: display.cursor }}
+              onPointerDown={onPointerDown}
+            />
+          );
+        }
+
+        return (
+          <rect
+            key={display.key}
+            className={css.handle}
+            x={display.x - handleHalfSize}
+            y={display.y - handleHalfSize}
+            width={handleHalfSize * 2}
+            height={handleHalfSize * 2}
+            strokeWidth={handleStrokeWidth}
+            style={{ cursor: display.cursor }}
+            onPointerDown={onPointerDown}
+          />
+        );
+      })}
     </g>
   );
 }

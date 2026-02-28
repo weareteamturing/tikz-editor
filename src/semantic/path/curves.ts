@@ -1,6 +1,7 @@
-import type { NodeItem, PathItem } from "../../ast/types.js";
+import type { CoordinateItem, NodeItem, PathItem } from "../../ast/types.js";
 import type { SemanticContext } from "../context.js";
 import { evaluateCoordinate } from "../coords/evaluate.js";
+import type { EvaluatedCoordinate } from "../coords/evaluate.js";
 import type { Point, ScenePathCommand } from "../types.js";
 import type { PlacementSegment } from "./types.js";
 
@@ -21,8 +22,14 @@ export function parseBezierFromItems(
   consumedIndex: number;
   control1: Point;
   control2: Point;
+  control1Coordinate: CoordinateItem;
+  control1Evaluation: EvaluatedCoordinate;
+  control2Coordinate?: CoordinateItem;
+  control2Evaluation?: EvaluatedCoordinate;
   nodes: NodeItem[];
   endPoint: Point | null;
+  endCoordinate?: CoordinateItem;
+  endEvaluation?: EvaluatedCoordinate;
   endAdvancesCurrentPoint: boolean;
   endClosesPath: boolean;
   usedAnd: boolean;
@@ -46,20 +53,24 @@ export function parseBezierFromItems(
 
   let usedAnd = false;
   let control2 = control1Eval.world;
+  let control2Item: CoordinateItem | null = null;
+  let control2Eval: EvaluatedCoordinate | null = null;
 
   const maybeAnd = items[cursor];
   if (maybeAnd && maybeAnd.kind === "PathKeyword" && maybeAnd.keyword === "and") {
     usedAnd = true;
     cursor += 1;
-    const control2Item = items[cursor];
-    if (!control2Item || control2Item.kind !== "Coordinate") {
+    const maybeControl2 = items[cursor];
+    if (!maybeControl2 || maybeControl2.kind !== "Coordinate") {
       return null;
     }
-    const control2Eval = evaluateCoordinate(control2Item, context);
-    if (!control2Eval.world) {
+    const evaluatedControl2 = evaluateCoordinate(maybeControl2, context);
+    if (!evaluatedControl2.world) {
       return null;
     }
-    control2 = control2Eval.world;
+    control2 = evaluatedControl2.world;
+    control2Item = maybeControl2;
+    control2Eval = evaluatedControl2;
     cursor += 1;
   }
 
@@ -89,6 +100,10 @@ export function parseBezierFromItems(
       consumedIndex: cursor,
       control1: control1Eval.world,
       control2,
+      control1Coordinate: control1Item,
+      control1Evaluation: control1Eval,
+      control2Coordinate: control2Item ?? undefined,
+      control2Evaluation: control2Eval ?? undefined,
       nodes,
       endPoint: context.pathStartPoint,
       endAdvancesCurrentPoint: true,
@@ -106,8 +121,14 @@ export function parseBezierFromItems(
     consumedIndex: cursor,
     control1: control1Eval.world,
     control2,
+    control1Coordinate: control1Item,
+    control1Evaluation: control1Eval,
+    control2Coordinate: control2Item ?? undefined,
+    control2Evaluation: control2Eval ?? undefined,
     nodes,
     endPoint: targetEval.world,
+    endCoordinate: targetItem,
+    endEvaluation: targetEval,
     endAdvancesCurrentPoint: targetEval.advancesCurrentPoint,
     endClosesPath: false,
     usedAnd

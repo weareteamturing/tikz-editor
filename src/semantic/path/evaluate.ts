@@ -2507,12 +2507,50 @@ export function evaluatePathStatement(
           markFeature("svg_path", "supported");
         }
 
+        for (const code of parsedCurve.control1Evaluation.diagnostics) {
+          pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, parsedCurve.control1Coordinate.span.from, parsedCurve.control1Coordinate.span.to);
+        }
+        if (parsedCurve.control2Coordinate && parsedCurve.control2Evaluation) {
+          for (const code of parsedCurve.control2Evaluation.diagnostics) {
+            pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, parsedCurve.control2Coordinate.span.from, parsedCurve.control2Coordinate.span.to);
+          }
+        }
+        if (parsedCurve.endCoordinate && parsedCurve.endEvaluation) {
+          for (const code of parsedCurve.endEvaluation.diagnostics) {
+            pushDiagnostic(code, `Coordinate evaluation issue: ${code}`, parsedCurve.endCoordinate.span.from, parsedCurve.endCoordinate.span.to);
+          }
+        }
+
         if (!parsedCurve.endPoint) {
           markFeature("path_operator_curves", "unsupported");
           pushDiagnostic("invalid-curve-target", "Failed to evaluate curve control or target point.", item.span.from, item.span.to);
           index = parsedCurve.consumedIndex;
           continue;
         }
+
+        const addCurveHandle = (
+          coordinate: CoordinateItem | undefined,
+          evaluated: EvaluatedCoordinate | undefined,
+          kind: "path-control" | "path-point"
+        ) => {
+          if (!coordinate || !evaluated) {
+            return;
+          }
+          const rewriteTargetHandleId =
+            evaluated.coordinateForm === "named"
+              ? resolveNamedCoordinateRewriteHandleId(coordinate.x, context)
+              : undefined;
+          const handle = createEditHandle(evaluated, coordinate.span, statement.id, kind, context, {
+            rewriteTargetHandleId
+          });
+          if (handle) {
+            context.editHandles.push(handle);
+          }
+        };
+
+        addCurveHandle(parsedCurve.control1Coordinate, parsedCurve.control1Evaluation, "path-control");
+        addCurveHandle(parsedCurve.control2Coordinate, parsedCurve.control2Evaluation, "path-control");
+        addCurveHandle(parsedCurve.endCoordinate, parsedCurve.endEvaluation, "path-point");
 
         const curveFrom = context.currentPoint;
         activePath.commands.push({
