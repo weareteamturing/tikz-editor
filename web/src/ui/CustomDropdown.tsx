@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import css from "./CustomDropdown.module.css";
 
 export type CustomDropdownOption<TValue extends string> = {
@@ -16,6 +16,13 @@ type CustomDropdownProps<TValue extends string> = {
   renderValue?: (option: CustomDropdownOption<TValue> | null) => ReactNode;
 };
 
+const MENU_GAP_PX = 2;
+const MENU_VIEWPORT_PADDING_PX = 8;
+const MENU_MAX_HEIGHT_PX = 220;
+const MENU_MIN_HEIGHT_PX = 80;
+
+type MenuPlacement = "down" | "up";
+
 export function CustomDropdown<TValue extends string>({
   ariaLabel,
   disabled = false,
@@ -26,7 +33,10 @@ export function CustomDropdown<TValue extends string>({
   renderValue
 }: CustomDropdownProps<TValue>) {
   const [open, setOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("down");
+  const [menuMaxHeight, setMenuMaxHeight] = useState<number>(MENU_MAX_HEIGHT_PX);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const menuListRef = useRef<HTMLDivElement | null>(null);
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value) ?? null,
@@ -73,6 +83,44 @@ export function CustomDropdown<TValue extends string>({
     }
   }, [disabled]);
 
+  useLayoutEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    function updateMenuPosition(): void {
+      const rootElement = rootRef.current;
+      const menuListElement = menuListRef.current;
+      if (!rootElement || !menuListElement) {
+        return;
+      }
+
+      const rootRect = rootElement.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rootRect.bottom - MENU_VIEWPORT_PADDING_PX - MENU_GAP_PX;
+      const spaceAbove = rootRect.top - MENU_VIEWPORT_PADDING_PX - MENU_GAP_PX;
+      const naturalHeight = menuListElement.scrollHeight;
+
+      const shouldOpenUpward = naturalHeight > spaceBelow && spaceAbove > 0;
+      const nextPlacement: MenuPlacement = shouldOpenUpward ? "up" : "down";
+      const availableSpace = nextPlacement === "up" ? spaceAbove : spaceBelow;
+      const boundedMaxHeight = Math.min(
+        MENU_MAX_HEIGHT_PX,
+        Math.max(MENU_MIN_HEIGHT_PX, Math.floor(availableSpace))
+      );
+
+      setMenuPlacement((current) => (current === nextPlacement ? current : nextPlacement));
+      setMenuMaxHeight((current) => (current === boundedMaxHeight ? current : boundedMaxHeight));
+    }
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open]);
+
   return (
     <div className={css.root} ref={rootRef}>
       <button
@@ -98,25 +146,35 @@ export function CustomDropdown<TValue extends string>({
       </button>
 
       {open ? (
-        <div className={css.menu} role="listbox" aria-label={ariaLabel}>
-          {options.map((option) => {
-            const selected = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                className={[css.option, selected ? css.optionSelected : ""].filter(Boolean).join(" ")}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                {renderOption ? renderOption(option, { selected }) : option.label}
-              </button>
-            );
-          })}
+        <div
+          className={[css.menu, menuPlacement === "up" ? css.menuUp : ""].filter(Boolean).join(" ")}
+        >
+          <div
+            className={css.menuScroll}
+            style={{ maxHeight: `${menuMaxHeight}px` }}
+            role="listbox"
+            aria-label={ariaLabel}
+            ref={menuListRef}
+          >
+            {options.map((option) => {
+              const selected = option.value === value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  className={[css.option, selected ? css.optionSelected : ""].filter(Boolean).join(" ")}
+                  onClick={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  {renderOption ? renderOption(option, { selected }) : option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : null}
     </div>

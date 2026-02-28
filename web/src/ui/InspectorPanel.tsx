@@ -996,23 +996,29 @@ function ArrowTipPreview({
   lineWidth: number;
 }) {
   const y = 8;
-  const lineStart = 4;
-  const lineEnd = 52;
-  const tipX = side === "start" ? 8 : 48;
+  const lineMin = 4;
+  const lineMax = 52;
   const strokeWidth = Math.max(1, Math.min(3.2, lineWidth * 1.4));
   const tipScale = 2.35;
   const tipKind = arrowTipKindForPreview(preset);
   const marker = tipKind ? makeDefaultArrowMarker(tipKind, lineWidth) : null;
   const tip = marker?.tips[0] ?? null;
-  const previewPaths = tip ? renderArrowTipPreviewPaths(tip, lineWidth, "currentColor", { anchor: "back" }) : [];
+  const preview = tip ? renderArrowTipPreviewPaths(tip, lineWidth, "currentColor", { anchor: "back" }) : null;
+  const previewPaths = preview?.paths ?? [];
   const directionScale = side === "start" ? -1 : 1;
+  const rawForwardExtentPx = preview ? Math.max(0, preview.xBounds.max * tipScale) : 0;
+  const maxForwardExtentPx = Math.max(0, lineMax - lineMin - 10);
+  const forwardExtentPx = Math.min(rawForwardExtentPx, maxForwardExtentPx);
+  const tipX = side === "start" ? lineMin + forwardExtentPx : lineMax - forwardExtentPx;
+  const shaftStart = side === "start" ? tipX : lineMin;
+  const shaftEnd = side === "start" ? lineMax : tipX;
 
   return (
     <svg className={css.arrowTipSvg} viewBox="0 0 56 16" aria-hidden="true" focusable="false">
       <line
-        x1={lineStart}
+        x1={shaftStart}
         y1={y}
-        x2={lineEnd}
+        x2={shaftEnd}
         y2={y}
         className={css.arrowTipSvgLine}
         style={{ strokeWidth }}

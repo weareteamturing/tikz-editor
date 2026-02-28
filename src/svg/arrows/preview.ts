@@ -12,12 +12,17 @@ export type ArrowTipPreviewPath = {
   lineJoin: "miter" | "round" | "bevel";
 };
 
+export type ArrowTipPreviewRender = {
+  paths: ArrowTipPreviewPath[];
+  xBounds: { min: number; max: number };
+};
+
 export function renderArrowTipPreviewPaths(
   tip: ArrowTip,
   contextLineWidth: number,
   markerColor = "currentColor",
   options: { anchor?: "line-end" | "back" } = {}
-): ArrowTipPreviewPath[] {
+): ArrowTipPreviewRender {
   const normalized = normalizeArrowTip(tip, contextLineWidth, markerColor);
   const metrics = buildArrowTipMetrics(normalized, contextLineWidth);
   const anchor = options.anchor ?? "line-end";
@@ -25,14 +30,17 @@ export function renderArrowTipPreviewPaths(
   const paths = buildLocalTipPaths(normalized, metrics).map((path) => shiftPath(path, anchorShift));
   const paint = resolveTipPaint(normalized, contextLineWidth, markerColor);
 
-  return paths.map((commands) => ({
-    d: encodePathData(commands),
-    stroke: paint.stroke,
-    fill: paint.fill,
-    strokeWidth: paint.strokeWidth,
-    lineCap: paint.lineCap,
-    lineJoin: paint.lineJoin
-  }));
+  return {
+    paths: paths.map((commands) => ({
+      d: encodePathData(commands),
+      stroke: paint.stroke,
+      fill: paint.fill,
+      strokeWidth: paint.strokeWidth,
+      lineCap: paint.lineCap,
+      lineJoin: paint.lineJoin
+    })),
+    xBounds: collectPathXBounds(paths)
+  };
 }
 
 function resolveTipPaint(
@@ -130,6 +138,30 @@ function shiftPath(commands: ScenePathCommand[], deltaX: number): ScenePathComma
     }
     return command;
   });
+}
+
+function collectPathXBounds(paths: ScenePathCommand[][]): { min: number; max: number } {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+
+  for (const commands of paths) {
+    for (const command of commands) {
+      if (command.kind === "M" || command.kind === "L" || command.kind === "A") {
+        min = Math.min(min, command.to.x);
+        max = Math.max(max, command.to.x);
+        continue;
+      }
+      if (command.kind === "C") {
+        min = Math.min(min, command.c1.x, command.c2.x, command.to.x);
+        max = Math.max(max, command.c1.x, command.c2.x, command.to.x);
+      }
+    }
+  }
+
+  if (!Number.isFinite(min) || !Number.isFinite(max)) {
+    return { min: 0, max: 0 };
+  }
+  return { min, max };
 }
 
 function fmt(value: number): string {
