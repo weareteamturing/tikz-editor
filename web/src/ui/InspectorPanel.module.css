@@ -317,6 +317,68 @@
   stroke-linecap: butt;
 }
 
+.pathMorphingDecorationValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pathMorphingDecorationValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pathMorphingDecorationValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pathMorphingDecorationOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pathMorphingDecorationOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.pathMorphingDecorationOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.pathMorphingDecorationOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pathMorphingDecorationSvg {
+  width: 56px;
+  height: 16px;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.pathMorphingDecorationSvg :global(svg) {
+  width: 56px;
+  height: 16px;
+  display: block;
+}
+
 .lineCapValue {
   width: 100%;
   display: flex;

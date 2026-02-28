@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { renderTikzToSvg } from "../src/render/index.js";
 import { applyEditAction } from "../src/edit/actions.js";
-import { buildArrowTipSetPropertyMutation, getInspectorDescriptor } from "../src/edit/inspector.js";
+import {
+  buildArrowTipSetPropertyMutation,
+  buildPathMorphingDecorationSetPropertyMutations,
+  getInspectorDescriptor
+} from "../src/edit/inspector.js";
 
 describe("getInspectorDescriptor", () => {
   it("returns computed style sections for a path element", () => {
@@ -45,12 +49,21 @@ describe("getInspectorDescriptor", () => {
     expect(lineWidth.value).toBeCloseTo(0.8, 6);
     expect(lineWidth.presetLabel).toBe("thick");
 
-    const arrowSection = descriptor.sections.find((section) => section.id === "arrows");
-    expect(arrowSection).toBeDefined();
-    if (!arrowSection) {
-      throw new Error("Expected arrow tips section");
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
     }
-    const arrowProperties = arrowSection.properties.filter((property) => property.kind === "arrowTip");
+    const pathMorphingProperty = pathSection.properties.find(
+      (property) => property.kind === "pathMorphingDecoration"
+    );
+    expect(pathMorphingProperty).toBeDefined();
+    if (!pathMorphingProperty || pathMorphingProperty.kind !== "pathMorphingDecoration") {
+      throw new Error("Expected path morphing property");
+    }
+    expect(pathMorphingProperty.value).toBe("none");
+
+    const arrowProperties = pathSection.properties.filter((property) => property.kind === "arrowTip");
     expect(arrowProperties).toHaveLength(2);
     const beginArrow = arrowProperties.find(
       (property) => property.kind === "arrowTip" && property.side === "start"
@@ -87,8 +100,13 @@ describe("getInspectorDescriptor", () => {
       editHandles: rendered.semantic.editHandles
     });
 
-    const arrowSection = descriptor.sections.find((section) => section.id === "arrows");
-    expect(arrowSection).toBeUndefined();
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+    const arrowProperties = pathSection.properties.filter((property) => property.kind === "arrowTip");
+    expect(arrowProperties).toHaveLength(0);
   });
 
   it("marks foreach-expanded elements as read-only", () => {
@@ -136,16 +154,16 @@ describe("getInspectorDescriptor", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
-    const arrowSection = descriptor.sections.find((section) => section.id === "arrows");
-    expect(arrowSection).toBeDefined();
-    if (!arrowSection) {
-      throw new Error("Expected arrow tips section");
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
     }
 
-    const beginArrow = arrowSection.properties.find(
+    const beginArrow = pathSection.properties.find(
       (property) => property.kind === "arrowTip" && property.side === "start"
     );
-    const endArrow = arrowSection.properties.find(
+    const endArrow = pathSection.properties.find(
       (property) => property.kind === "arrowTip" && property.side === "end"
     );
     if (!beginArrow || beginArrow.kind !== "arrowTip") {
@@ -174,6 +192,58 @@ describe("getInspectorDescriptor", () => {
     expect(mutation.clearKeys).toContain("arrows");
   });
 
+  it("builds path morphing decoration mutations", () => {
+    const enabledMutations = buildPathMorphingDecorationSetPropertyMutations("zigzag");
+    expect(enabledMutations).toHaveLength(2);
+    expect(enabledMutations[0]).toMatchObject({
+      key: "decorate",
+      value: "true"
+    });
+    expect(enabledMutations[1]).toMatchObject({
+      key: "decoration",
+      value: "zigzag"
+    });
+    expect(enabledMutations[0]?.clearKeys).toContain("decoration");
+
+    const disabledMutations = buildPathMorphingDecorationSetPropertyMutations("none");
+    expect(disabledMutations).toHaveLength(1);
+    expect(disabledMutations[0]).toMatchObject({
+      key: "decorate",
+      value: "false"
+    });
+    expect(disabledMutations[0]?.clearKeys).toContain("decoration");
+  });
+
+  it("marks out-of-set path morphing decorations as custom", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration=waves] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+    const pathMorphingProperty = pathSection.properties.find(
+      (property) => property.kind === "pathMorphingDecoration"
+    );
+    expect(pathMorphingProperty).toBeDefined();
+    if (!pathMorphingProperty || pathMorphingProperty.kind !== "pathMorphingDecoration") {
+      throw new Error("Expected path morphing property");
+    }
+    expect(pathMorphingProperty.value).toBe("custom");
+  });
+
   it("preserves the untouched custom side when editing the opposite side", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[draw=blue,arrows={Stealth[length=10pt]-Latex}] (0,0) -- (2,0);
@@ -189,12 +259,12 @@ describe("getInspectorDescriptor", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
-    const arrowSection = descriptor.sections.find((section) => section.id === "arrows");
-    expect(arrowSection).toBeDefined();
-    if (!arrowSection) {
-      throw new Error("Expected arrow tips section");
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
     }
-    const endArrow = arrowSection.properties.find(
+    const endArrow = pathSection.properties.find(
       (property) => property.kind === "arrowTip" && property.side === "end"
     );
     expect(endArrow).toBeDefined();

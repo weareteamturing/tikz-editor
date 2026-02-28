@@ -1,6 +1,6 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
-import { findTopLevelCharacter, stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import { findTopLevelCharacter, parseStyleValueAsOptionList, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
 
 export type ArrowTipPresetId =
@@ -30,6 +30,18 @@ export type LineCapPresetId = "butt" | "round" | "square" | "custom";
 
 export type LineJoinPresetId = "miter" | "round" | "bevel" | "custom";
 
+export type PathMorphingDecorationPresetId =
+  | "none"
+  | "zigzag"
+  | "straight zigzag"
+  | "random steps"
+  | "saw"
+  | "bent"
+  | "bumps"
+  | "coil"
+  | "snake"
+  | "custom";
+
 export type ArrowTipSide = "start" | "end";
 
 export type ArrowTipPresetOption = {
@@ -49,6 +61,11 @@ export type LineCapPresetOption = {
 
 export type LineJoinPresetOption = {
   value: Exclude<LineJoinPresetId, "custom">;
+  label: string;
+};
+
+export type PathMorphingDecorationPresetOption = {
+  value: Exclude<PathMorphingDecorationPresetId, "custom">;
   label: string;
 };
 
@@ -81,6 +98,12 @@ export type LineCapSetPropertyMutation = {
 };
 
 export type LineJoinSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type PathMorphingDecorationSetPropertyMutation = {
   key: string;
   value: string;
   clearKeys: string[];
@@ -165,6 +188,15 @@ export type InspectorProperty =
       label: string;
       value: LineJoinPresetId;
       options: LineJoinPresetOption[];
+      previewLineWidth: number;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "pathMorphingDecoration";
+      id: string;
+      label: string;
+      value: PathMorphingDecorationPresetId;
+      options: PathMorphingDecorationPresetOption[];
       previewLineWidth: number;
       write: SetPropertyWriteTarget;
     }
@@ -296,6 +328,50 @@ const LINE_JOIN_OPTIONS: LineJoinPresetOption[] = [
   { value: "round", label: "Round" },
   { value: "bevel", label: "Bevel" }
 ];
+const PATH_MORPHING_DECORATION_OPTIONS: PathMorphingDecorationPresetOption[] = [
+  { value: "none", label: "None" },
+  { value: "zigzag", label: "Zigzag" },
+  { value: "straight zigzag", label: "Straight zigzag" },
+  { value: "random steps", label: "Random steps" },
+  { value: "saw", label: "Saw" },
+  { value: "bent", label: "Bent" },
+  { value: "bumps", label: "Bumps" },
+  { value: "coil", label: "Coil" },
+  { value: "snake", label: "Snake" }
+];
+const PATH_MORPHING_DECORATION_CLEAR_KEYS = [
+  "decorate",
+  "/tikz/decorate",
+  "decoration",
+  "/pgf/decoration",
+  "/pgf/decoration/name",
+  "/pgf/decorations/name",
+  "name",
+  "mirror",
+  "raise",
+  "transform",
+  "pre",
+  "pre length",
+  "post",
+  "post length",
+  "path has corners",
+  "reverse path",
+  "segment length",
+  "amplitude",
+  "start radius",
+  "shape size",
+  "shape width",
+  "shape start width",
+  "shape height",
+  "shape start height",
+  "shape sep",
+  "text",
+  "text color",
+  "text align",
+  "text align/align",
+  "text align/left indent",
+  "text align/right indent"
+] as const;
 
 export function buildArrowTipSetPropertyMutation(
   context: ArrowTipWriteContext,
@@ -341,6 +417,36 @@ export function buildLineJoinSetPropertyMutation(
     value,
     clearKeys: []
   };
+}
+
+export function buildPathMorphingDecorationSetPropertyMutations(
+  value: Exclude<PathMorphingDecorationPresetId, "custom">
+): PathMorphingDecorationSetPropertyMutation[] {
+  const clearKeys = uniqueStrings(PATH_MORPHING_DECORATION_CLEAR_KEYS);
+  const clearKeysWithoutDecorate = clearKeys.filter((key) => key !== "decorate");
+
+  if (value === "none") {
+    return [
+      {
+        key: "decorate",
+        value: "false",
+        clearKeys: clearKeysWithoutDecorate
+      }
+    ];
+  }
+
+  return [
+    {
+      key: "decorate",
+      value: "true",
+      clearKeys: clearKeysWithoutDecorate
+    },
+    {
+      key: "decoration",
+      value,
+      clearKeys: clearKeysWithoutDecorate
+    }
+  ];
 }
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
@@ -482,35 +588,49 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
   }
 
-  if (element.kind === "Path" && pathSupportsArrowTipEditing(element.commands)) {
-    const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
-    sections.push({
-      id: "arrows",
-      title: "Arrow Tips",
+  if (element.kind === "Path") {
+    const pathSection: InspectorSection = {
+      id: "path",
+      title: "Path",
       sourceLevel: "command",
       properties: [
         {
-          kind: "arrowTip",
-          id: "arrow-tip-start",
-          label: "Begin arrow type",
-          side: "start",
-          value: arrowPresetFromMarker(element.style.markerStart),
-          options: ARROW_TIP_OPTIONS,
+          kind: "pathMorphingDecoration",
+          id: "path-morphing-decoration",
+          label: "Path morphing",
+          value: resolvePathMorphingDecorationPreset(snapshot.source, inlineTarget.targetId, element.style.decoration),
+          options: PATH_MORPHING_DECORATION_OPTIONS,
           previewLineWidth: element.style.lineWidth,
-          write: arrowWrite
-        },
-        {
-          kind: "arrowTip",
-          id: "arrow-tip-end",
-          label: "End arrow type",
-          side: "end",
-          value: arrowPresetFromMarker(element.style.markerEnd),
-          options: ARROW_TIP_OPTIONS,
-          previewLineWidth: element.style.lineWidth,
-          write: arrowWrite
+          write: makeSetPropertyWriteTarget(inlineTarget, "decorate")
         }
       ]
-    });
+    };
+
+    if (pathSupportsArrowTipEditing(element.commands)) {
+      const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
+      pathSection.properties.push({
+        kind: "arrowTip",
+        id: "arrow-tip-start",
+        label: "Begin arrow type",
+        side: "start",
+        value: arrowPresetFromMarker(element.style.markerStart),
+        options: ARROW_TIP_OPTIONS,
+        previewLineWidth: element.style.lineWidth,
+        write: arrowWrite
+      });
+      pathSection.properties.push({
+        kind: "arrowTip",
+        id: "arrow-tip-end",
+        label: "End arrow type",
+        side: "end",
+        value: arrowPresetFromMarker(element.style.markerEnd),
+        options: ARROW_TIP_OPTIONS,
+        previewLineWidth: element.style.lineWidth,
+        write: arrowWrite
+      });
+    }
+
+    sections.splice(2, 0, pathSection);
   }
 
   if (element.kind === "Text") {
@@ -642,6 +762,124 @@ function splitArrowSpecificationRaw(raw: string): { startRaw: string; endRaw: st
     startRaw: normalized.slice(0, splitIndex).trim(),
     endRaw: normalized.slice(splitIndex + 1).trim()
   };
+}
+
+function resolvePathMorphingDecorationPreset(
+  source: string,
+  targetId: string | null,
+  styleDecoration: { enabled: boolean; name: string | null }
+): PathMorphingDecorationPresetId {
+  const fallback = pathMorphingDecorationPresetFromStyle(styleDecoration);
+  if (!targetId) {
+    return fallback;
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return fallback;
+  }
+
+  let decorateEnabled = styleDecoration.enabled;
+  let decorationName = canonicalDecorationName(styleDecoration.name);
+
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind === "flag") {
+      const key = normalizeOptionKey(entry.key);
+      if (key === "decorate" || key === "/tikz/decorate") {
+        decorateEnabled = true;
+      }
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = normalizeOptionKey(entry.key);
+    if (key === "decorate" || key === "/tikz/decorate") {
+      const parsed = parseDecorationBoolean(entry.valueRaw);
+      if (parsed != null) {
+        decorateEnabled = parsed;
+      }
+      continue;
+    }
+
+    if (key === "decoration" || key === "/pgf/decoration") {
+      const parsedName = parseDecorationNameFromOptionValue(entry.valueRaw);
+      if (parsedName) {
+        decorationName = parsedName;
+      }
+      continue;
+    }
+
+    if (key === "/pgf/decoration/name" || key === "/pgf/decorations/name" || key === "name") {
+      const parsedName = canonicalDecorationName(stripEnclosingBraces(entry.valueRaw));
+      if (parsedName) {
+        decorationName = parsedName;
+      }
+    }
+  }
+
+  if (!decorateEnabled) {
+    return "none";
+  }
+  if (!decorationName || decorationName === "none") {
+    return "none";
+  }
+
+  const matching = PATH_MORPHING_DECORATION_OPTIONS.find((option) => option.value === decorationName);
+  return matching ? matching.value : "custom";
+}
+
+function parseDecorationBoolean(raw: string): boolean | null {
+  const normalized = stripEnclosingBraces(raw).trim().toLowerCase();
+  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
+    return false;
+  }
+  return null;
+}
+
+function parseDecorationNameFromOptionValue(valueRaw: string): string | null {
+  const nested = parseStyleValueAsOptionList(valueRaw);
+  if (nested) {
+    for (const entry of nested.entries) {
+      if (entry.kind === "kv") {
+        const key = normalizeOptionKey(entry.key);
+        if (key === "name" || key === "/pgf/decoration/name" || key === "/pgf/decorations/name") {
+          return canonicalDecorationName(stripEnclosingBraces(entry.valueRaw));
+        }
+        continue;
+      }
+      if (entry.kind === "flag") {
+        const key = normalizeOptionKey(entry.key);
+        if (key === "decorate" || key === "mirror" || key === "path has corners" || key === "reverse path") {
+          continue;
+        }
+        return canonicalDecorationName(entry.key);
+      }
+    }
+  }
+
+  const normalized = stripEnclosingBraces(valueRaw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const firstComma = findTopLevelCharacter(normalized, ",");
+  const firstPart = firstComma >= 0 ? normalized.slice(0, firstComma).trim() : normalized;
+  const equalsIndex = findTopLevelCharacter(firstPart, "=");
+  if (equalsIndex >= 0) {
+    const key = normalizeOptionKey(firstPart.slice(0, equalsIndex));
+    const valuePart = firstPart.slice(equalsIndex + 1);
+    if (key === "name" || key === "/pgf/decoration/name" || key === "/pgf/decorations/name") {
+      return canonicalDecorationName(stripEnclosingBraces(valuePart));
+    }
+    return null;
+  }
+  return canonicalDecorationName(firstPart);
 }
 
 function serializeArrowSides(startRaw: string, endRaw: string): { key: string; value: string } {
@@ -1034,6 +1272,22 @@ function lineJoinPresetFromStyle(value: "miter" | "round" | "bevel"): LineJoinPr
   return "custom";
 }
 
+function pathMorphingDecorationPresetFromStyle(style: {
+  enabled: boolean;
+  name: string | null;
+}): PathMorphingDecorationPresetId {
+  if (!style.enabled) {
+    return "none";
+  }
+  const canonicalName = canonicalDecorationName(style.name);
+  if (!canonicalName || canonicalName === "none") {
+    return "none";
+  }
+
+  const matching = PATH_MORPHING_DECORATION_OPTIONS.find((option) => option.value === canonicalName);
+  return matching ? matching.value : "custom";
+}
+
 function computePathStrokeControlVisibility(
   commands: ScenePathCommand[],
   dashArray: number[] | null
@@ -1140,6 +1394,14 @@ function colorOptionsForValue(value: string | null): string[] {
 
 function normalizeOptionKey(key: string): string {
   return key.trim().toLowerCase();
+}
+
+function canonicalDecorationName(raw: string | null | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  const normalized = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  return normalized.length > 0 ? normalized : null;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

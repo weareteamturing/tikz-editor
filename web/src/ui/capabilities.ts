@@ -67,6 +67,10 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   lineJoin: [
     { feature: "options_structured", layers: ["edit"], label: "line join editing" }
   ],
+  pathMorphingDecoration: [
+    { feature: "options_structured", layers: ["edit"], label: "decoration option editing" },
+    { feature: "decoration_pathmorphing", layers: ["semantic", "svg"], label: "path morphing rendering" }
+  ],
   arrowTip: [
     { feature: "options_structured", layers: ["edit"], label: "arrow option editing" },
     { feature: "arrow_tips", layers: ["semantic", "svg"], label: "arrow tip rendering" }

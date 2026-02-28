@@ -45,6 +45,23 @@ describe("inspector property capability status", () => {
     };
     expect(getInspectorPropertyCapabilityStatus(arrowProperty).status).toBe("partial");
 
+    const pathMorphingProperty: InspectorProperty = {
+      kind: "pathMorphingDecoration",
+      id: "path-morphing-decoration",
+      label: "Path morphing",
+      value: "zigzag",
+      options: [{ value: "zigzag", label: "Zigzag" }],
+      previewLineWidth: 0.8,
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "decorate",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(pathMorphingProperty).status).toBe("partial");
+
     const colorProperty: InspectorProperty = {
       kind: "color",
       id: "stroke-color",

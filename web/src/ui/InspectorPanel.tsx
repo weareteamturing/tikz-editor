@@ -5,6 +5,7 @@ import {
   buildDashStyleSetPropertyMutation,
   buildLineCapSetPropertyMutation,
   buildLineJoinSetPropertyMutation,
+  buildPathMorphingDecorationSetPropertyMutations,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
   type ArrowTipPresetId,
@@ -15,11 +16,13 @@ import {
   type InspectorProperty,
   type LineCapPresetId,
   type LineJoinPresetId,
+  type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
 import type { ArrowTipKind, SceneElement } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
+import { renderPathMorphingDecorationPreviewSvg } from "tikz-editor/svg/decorations/preview";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
@@ -99,6 +102,18 @@ type MultiInspectorLineJoinProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorPathMorphingDecorationProperty = {
+  kind: "pathMorphingDecoration";
+  id: string;
+  label: string;
+  value: PathMorphingDecorationPresetId;
+  mixed: boolean;
+  previewLineWidth: number;
+  options: Array<{ value: Exclude<PathMorphingDecorationPresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
@@ -119,6 +134,7 @@ type MultiInspectorProperty =
   | MultiInspectorDashStyleProperty
   | MultiInspectorLineCapProperty
   | MultiInspectorLineJoinProperty
+  | MultiInspectorPathMorphingDecorationProperty
   | MultiInspectorArrowTipProperty;
 
 type MultiInspectorSection = {
@@ -142,12 +158,16 @@ const ARROW_TIP_MIXED_OPTION_VALUE = "__mixed-arrow-tip__";
 const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
 const LINE_CAP_MIXED_OPTION_VALUE = "__mixed-line-cap__";
 const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
+const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
 const OPTIONAL_MULTI_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
 type LineCapDropdownValue = LineCapPresetId | typeof LINE_CAP_MIXED_OPTION_VALUE;
 type LineJoinDropdownValue = LineJoinPresetId | typeof LINE_JOIN_MIXED_OPTION_VALUE;
+type PathMorphingDecorationDropdownValue =
+  | PathMorphingDecorationPresetId
+  | typeof PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE;
 
 const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
   LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
@@ -354,6 +374,68 @@ export function InspectorPanel() {
       key: mutation.key,
       clearKeys: mutation.clearKeys
     });
+  }
+
+  function applyPathMorphingDecorationValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<PathMorphingDecorationPresetId, "custom">
+  ): void {
+    if (!write.writable || write.elementId.length === 0) {
+      return;
+    }
+    const mutations = buildPathMorphingDecorationSetPropertyMutations(value);
+    if (mutations.length === 0) {
+      return;
+    }
+
+    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
+  function applyPathMorphingDecorationValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<PathMorphingDecorationPresetId, "custom">
+  ): void {
+    const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
+    if (writable.length === 0) {
+      return;
+    }
+
+    const mutations = buildPathMorphingDecorationSetPropertyMutations(value);
+    if (mutations.length === 0) {
+      return;
+    }
+
+    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    for (const write of writable) {
+      for (const mutation of mutations) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          action: {
+            kind: "setProperty",
+            elementId: write.elementId,
+            level: write.level,
+            key: mutation.key,
+            value: mutation.value,
+            clearKeys: mutation.clearKeys
+          }
+        });
+      }
+    }
   }
 
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
@@ -618,6 +700,60 @@ export function InspectorPanel() {
     );
   }
 
+  function renderPathMorphingDecorationDropdown(
+    property: {
+      label: string;
+      value: PathMorphingDecorationPresetId;
+      previewLineWidth: number;
+      options: Array<{ value: Exclude<PathMorphingDecorationPresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
+    valueOverride?: PathMorphingDecorationDropdownValue
+  ) {
+    const dropdownValue: PathMorphingDecorationDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toPathMorphingDecorationDropdownOptions(property.options);
+    const displayLabel = pathMorphingDecorationValueLabel(dropdownValue, property.options);
+    const previewPreset = pathMorphingDecorationPreviewPreset(dropdownValue);
+
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectablePathMorphingDecorationValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.pathMorphingDecorationValue}>
+            <span className={css.pathMorphingDecorationValuePreview}>
+              <PathMorphingDecorationPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
+            </span>
+            <span className={css.pathMorphingDecorationValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<PathMorphingDecorationPresetId, "custom">;
+          return (
+            <span className={css.pathMorphingDecorationOption}>
+              <span className={css.pathMorphingDecorationOptionPreview}>
+                <PathMorphingDecorationPreview preset={optionPreset} lineWidth={property.previewLineWidth} />
+              </span>
+              <span className={css.pathMorphingDecorationOptionLabel}>{option.label}</span>
+              <span className={css.pathMorphingDecorationOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
   function renderProperty(property: InspectorProperty) {
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
@@ -802,6 +938,26 @@ export function InspectorPanel() {
             },
             writable,
             (nextValue) => applyLineJoinValue(property.write, nextValue)
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "pathMorphingDecoration") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderPathMorphingDecorationDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyPathMorphingDecorationValue(property.write, nextValue)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -1023,6 +1179,30 @@ export function InspectorPanel() {
             },
             writable,
             (nextValue) => applyLineJoinValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "pathMorphingDecoration") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: PathMorphingDecorationDropdownValue = property.mixed
+        ? PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE
+        : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderPathMorphingDecorationDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              previewLineWidth: property.previewLineWidth,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyPathMorphingDecorationValueMany(property.writes, nextValue),
             dropdownValue
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -1318,6 +1498,26 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     };
   }
 
+  if (base.kind === "pathMorphingDecoration") {
+    const sameKind = properties.every((property) => property.kind === "pathMorphingDecoration");
+    if (!sameKind) return null;
+    const pathMorphingProperties = properties as Array<Extract<InspectorProperty, { kind: "pathMorphingDecoration" }>>;
+    const values = pathMorphingProperties.map((property) => property.value);
+    const writes = pathMorphingProperties.map((property) => property.write);
+
+    return {
+      kind: "pathMorphingDecoration",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "none",
+      mixed: !allValuesEqual(values),
+      previewLineWidth: averageNumbers(pathMorphingProperties.map((property) => property.previewLineWidth)),
+      options: base.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   const sameKind = properties.every((property) => property.kind === "arrowTip");
   if (!sameKind) return null;
   const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
@@ -1518,6 +1718,43 @@ function lineJoinPreviewPreset(value: LineJoinDropdownValue): Exclude<LineJoinPr
   return value;
 }
 
+function toPathMorphingDecorationDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<PathMorphingDecorationPresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<PathMorphingDecorationDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function pathMorphingDecorationValueLabel(
+  value: PathMorphingDecorationDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<PathMorphingDecorationPresetId, "custom">; label: string }>
+): string {
+  if (value === PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectablePathMorphingDecorationValue(
+  value: PathMorphingDecorationDropdownValue
+): value is Exclude<PathMorphingDecorationPresetId, "custom"> {
+  return value !== "custom" && value !== PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE;
+}
+
+function pathMorphingDecorationPreviewPreset(
+  value: PathMorphingDecorationDropdownValue
+): Exclude<PathMorphingDecorationPresetId, "custom"> {
+  if (value === PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE || value === "custom") {
+    return "zigzag";
+  }
+  return value;
+}
+
 function toArrowTipDropdownOptions(
   options: ReadonlyArray<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>
 ): Array<CustomDropdownOption<ArrowTipDropdownValue>> {
@@ -1656,6 +1893,23 @@ function LineJoinPreview({
       />
       <polyline points={points} className={css.lineJoinSvgCenter} />
     </svg>
+  );
+}
+
+function PathMorphingDecorationPreview({
+  preset,
+  lineWidth
+}: {
+  preset: Exclude<PathMorphingDecorationPresetId, "custom">;
+  lineWidth: number;
+}) {
+  const svgMarkup = renderPathMorphingDecorationPreviewSvg(preset, lineWidth);
+  return (
+    <span
+      className={css.pathMorphingDecorationSvg}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
   );
 }
 
