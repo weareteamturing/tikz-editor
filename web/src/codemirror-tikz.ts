@@ -9,7 +9,7 @@ const tikzHighlighting = styleTags({
   "BeginTikz EndTikz BeginScope EndScope": t.keyword,
 
   // Path commands (\draw, \fill, etc.)
-  "DrawCmd PathCmd FillDrawCmd FillCmd PatternCmd ClipCmd ShadeCmd ShadeDrawCmd UseAsBoundingBoxCmd MatrixCmd":
+  "DrawCmd PathCmd FillDrawCmd FillCmd PatternCmd ClipCmd ShadeCmd ShadeDrawCmd UseAsBoundingBoxCmd MatrixCmd ColorletCmd DefineColorCmd":
     t.keyword,
 
   // \node and \coordinate commands
