@@ -24,16 +24,23 @@ describe("inspector property capability status", () => {
   it("keeps arrow-tip editing enabled through option-level support", () => {
     const arrowProperty: InspectorProperty = {
       kind: "arrowTip",
-      id: "arrows",
-      label: "Direction",
-      value: "->",
-      options: [{ value: "->", label: "End", preview: "→" }],
+      id: "arrow-tip-end",
+      label: "End arrow type",
+      side: "end",
+      value: "arrow",
+      options: [{ value: "arrow", label: "Arrow" }],
+      previewLineWidth: 0.8,
       write: {
         mode: "setProperty",
         elementId: "path:0",
         level: "command",
         key: "arrows",
-        writable: true
+        writable: true,
+        arrowContext: {
+          startRaw: "",
+          endRaw: ">",
+          clearKeys: ["arrows", "-", "->", "<-", "<->"]
+        }
       }
     };
     expect(getInspectorPropertyCapabilityStatus(arrowProperty).status).toBe("partial");

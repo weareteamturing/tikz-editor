@@ -1,8 +1,43 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
-import type { EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
+import { findTopLevelCharacter, stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
 
-export type ArrowDirectionPreset = "-" | "->" | "<-" | "<->";
+export type ArrowTipPresetId =
+  | "none"
+  | "arrow"
+  | "stealth"
+  | "latex"
+  | "triangle"
+  | "circle"
+  | "square"
+  | "kite"
+  | "bar"
+  | "hooks"
+  | "custom";
+
+export type ArrowTipSide = "start" | "end";
+
+export type ArrowTipPresetOption = {
+  value: Exclude<ArrowTipPresetId, "custom">;
+  label: string;
+};
+
+export type ArrowTipWriteContext = {
+  startRaw: string;
+  endRaw: string;
+  clearKeys: string[];
+};
+
+export type ArrowTipWriteTarget = SetPropertyWriteTarget & {
+  arrowContext: ArrowTipWriteContext;
+};
+
+export type ArrowTipSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
 
 export type InspectorSnapshot = {
   source: string;
@@ -62,9 +97,11 @@ export type InspectorProperty =
       kind: "arrowTip";
       id: string;
       label: string;
-      value: ArrowDirectionPreset;
-      options: Array<{ value: ArrowDirectionPreset; label: string; preview: string }>;
-      write: SetPropertyWriteTarget;
+      side: ArrowTipSide;
+      value: ArrowTipPresetId;
+      options: ArrowTipPresetOption[];
+      previewLineWidth: number;
+      write: ArrowTipWriteTarget;
     };
 
 export type InspectorSection = {
@@ -136,6 +173,38 @@ export const LINE_WIDTH_PRESETS: Array<{ label: string; value: number }> = [
   { label: "very thick", value: 1.2 },
   { label: "ultra thick", value: 1.6 }
 ];
+
+const ARROW_OPTION_KEY = "arrows";
+const ARROW_SHORTHAND_KEYS = ["-", "->", "<-", "<->"] as const;
+const ARROW_DEFAULT_CLEAR_KEYS = [ARROW_OPTION_KEY, ...ARROW_SHORTHAND_KEYS] as const;
+const ARROW_TIP_OPTIONS: ArrowTipPresetOption[] = [
+  { value: "none", label: "None" },
+  { value: "arrow", label: "Arrow" },
+  { value: "stealth", label: "Stealth" },
+  { value: "latex", label: "Latex" },
+  { value: "triangle", label: "Triangle" },
+  { value: "circle", label: "Circle" },
+  { value: "square", label: "Square" },
+  { value: "kite", label: "Diamond" },
+  { value: "bar", label: "Bar" },
+  { value: "hooks", label: "Hooks" }
+];
+
+export function buildArrowTipSetPropertyMutation(
+  context: ArrowTipWriteContext,
+  side: ArrowTipSide,
+  value: Exclude<ArrowTipPresetId, "custom">
+): ArrowTipSetPropertyMutation {
+  const nextStartRaw = side === "start" ? arrowPresetSideRaw(value, "start") : context.startRaw;
+  const nextEndRaw = side === "end" ? arrowPresetSideRaw(value, "end") : context.endRaw;
+  const serialized = serializeArrowSides(nextStartRaw, nextEndRaw);
+
+  return {
+    key: serialized.key,
+    value: serialized.value,
+    clearKeys: uniqueStrings([...ARROW_DEFAULT_CLEAR_KEYS, ...context.clearKeys])
+  };
+}
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source);
@@ -233,6 +302,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   ];
 
   if (element.kind === "Path") {
+    const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
     sections.push({
       id: "arrows",
       title: "Arrow Tips",
@@ -240,16 +310,23 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       properties: [
         {
           kind: "arrowTip",
-          id: "arrow-direction",
-          label: "Direction",
-          value: arrowDirectionPreset(element),
-          options: [
-            { value: "-", label: "None", preview: "\u2014" },
-            { value: "->", label: "End", preview: "\u2192" },
-            { value: "<-", label: "Start", preview: "\u2190" },
-            { value: "<->", label: "Both", preview: "\u2194" }
-          ],
-          write: makeSetPropertyWriteTarget(inlineTarget, "arrows")
+          id: "arrow-tip-start",
+          label: "Begin arrow type",
+          side: "start",
+          value: arrowPresetFromMarker(element.style.markerStart),
+          options: ARROW_TIP_OPTIONS,
+          previewLineWidth: element.style.lineWidth,
+          write: arrowWrite
+        },
+        {
+          kind: "arrowTip",
+          id: "arrow-tip-end",
+          label: "End arrow type",
+          side: "end",
+          value: arrowPresetFromMarker(element.style.markerEnd),
+          options: ARROW_TIP_OPTIONS,
+          previewLineWidth: element.style.lineWidth,
+          write: arrowWrite
         }
       ]
     });
@@ -294,6 +371,262 @@ function makeSetPropertyWriteTarget(
     writable: inlineTarget.writable && inlineTarget.targetId != null,
     reason: inlineTarget.reason
   };
+}
+
+function makeArrowTipWriteTarget(
+  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  element: Extract<SceneElement, { kind: "Path" }>,
+  source: string
+): ArrowTipWriteTarget {
+  return {
+    ...makeSetPropertyWriteTarget(inlineTarget, ARROW_OPTION_KEY),
+    arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element)
+  };
+}
+
+function resolveArrowWriteContext(
+  source: string,
+  targetId: string | null,
+  element: Extract<SceneElement, { kind: "Path" }>
+): ArrowTipWriteContext {
+  const clearKeySet = new Set<string>(ARROW_DEFAULT_CLEAR_KEYS);
+  let startRaw = arrowMarkerFallbackRaw(element.style.markerStart, "start");
+  let endRaw = arrowMarkerFallbackRaw(element.style.markerEnd, "end");
+
+  if (!targetId) {
+    return {
+      startRaw,
+      endRaw,
+      clearKeys: [...clearKeySet]
+    };
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return {
+      startRaw,
+      endRaw,
+      clearKeys: [...clearKeySet]
+    };
+  }
+
+  let lastParsed: { startRaw: string; endRaw: string } | null = null;
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind === "kv") {
+      const entryKey = normalizeOptionKey(entry.key);
+      if (entryKey !== ARROW_OPTION_KEY) {
+        continue;
+      }
+      clearKeySet.add(entryKey);
+      const parsed = splitArrowSpecificationRaw(entry.valueRaw);
+      if (parsed) {
+        lastParsed = parsed;
+      }
+      continue;
+    }
+
+    if (entry.kind !== "flag") {
+      continue;
+    }
+
+    const parsed = splitArrowSpecificationRaw(entry.raw);
+    if (!parsed) {
+      continue;
+    }
+    clearKeySet.add(normalizeOptionKey(entry.key));
+    lastParsed = parsed;
+  }
+
+  if (lastParsed) {
+    startRaw = lastParsed.startRaw;
+    endRaw = lastParsed.endRaw;
+  }
+
+  return {
+    startRaw,
+    endRaw,
+    clearKeys: [...clearKeySet]
+  };
+}
+
+function splitArrowSpecificationRaw(raw: string): { startRaw: string; endRaw: string } | null {
+  const normalized = stripEnclosingBraces(raw.trim());
+  const splitIndex = findTopLevelCharacter(normalized, "-");
+  if (splitIndex < 0) {
+    return null;
+  }
+
+  return {
+    startRaw: normalized.slice(0, splitIndex).trim(),
+    endRaw: normalized.slice(splitIndex + 1).trim()
+  };
+}
+
+function serializeArrowSides(startRaw: string, endRaw: string): { key: string; value: string } {
+  const normalizedStart = startRaw.trim();
+  const normalizedEnd = endRaw.trim();
+
+  if (normalizedStart.length === 0 && normalizedEnd.length === 0) {
+    return { key: "-", value: "true" };
+  }
+  if (normalizedStart.length === 0 && normalizedEnd === ">") {
+    return { key: "->", value: "true" };
+  }
+  if (normalizedStart === "<" && normalizedEnd.length === 0) {
+    return { key: "<-", value: "true" };
+  }
+  if (normalizedStart === "<" && normalizedEnd === ">") {
+    return { key: "<->", value: "true" };
+  }
+
+  return {
+    key: ARROW_OPTION_KEY,
+    value: `${startRaw}-${endRaw}`
+  };
+}
+
+function arrowPresetFromMarker(marker: ArrowMarker | null): ArrowTipPresetId {
+  if (!marker || marker.tips.length === 0) {
+    return "none";
+  }
+  if (marker.tips.length !== 1) {
+    return "custom";
+  }
+
+  const tip = marker.tips[0];
+  if (!tip) {
+    return "none";
+  }
+  return arrowPresetFromKind(tip.kind);
+}
+
+function arrowPresetFromKind(kind: ArrowTipKind): ArrowTipPresetId {
+  if (kind === "to" || kind === "cm-rightarrow") {
+    return "arrow";
+  }
+  if (kind === "stealth") {
+    return "stealth";
+  }
+  if (kind === "latex") {
+    return "latex";
+  }
+  if (kind === "triangle") {
+    return "triangle";
+  }
+  if (kind === "circle") {
+    return "circle";
+  }
+  if (kind === "square") {
+    return "square";
+  }
+  if (kind === "kite") {
+    return "kite";
+  }
+  if (kind === "bar") {
+    return "bar";
+  }
+  if (kind === "hooks") {
+    return "hooks";
+  }
+  return "custom";
+}
+
+function arrowMarkerFallbackRaw(marker: ArrowMarker | null, side: ArrowTipSide): string {
+  const preset = arrowPresetFromMarker(marker);
+  if (preset !== "custom") {
+    return arrowPresetSideRaw(preset, side);
+  }
+  if (!marker || marker.tips.length === 0) {
+    return "";
+  }
+
+  return marker.tips.map((tip) => arrowKindCanonicalRaw(tip.kind, side)).join(" ");
+}
+
+function arrowKindCanonicalRaw(kind: ArrowTipKind, side: ArrowTipSide): string {
+  if (kind === "to" || kind === "cm-rightarrow") {
+    return side === "start" ? "<" : ">";
+  }
+  if (kind === "stealth") {
+    return "Stealth";
+  }
+  if (kind === "latex") {
+    return "Latex";
+  }
+  if (kind === "triangle") {
+    return "Triangle";
+  }
+  if (kind === "circle") {
+    return "Circle";
+  }
+  if (kind === "square") {
+    return "Square";
+  }
+  if (kind === "kite") {
+    return "Kite";
+  }
+  if (kind === "bar") {
+    return "Bar";
+  }
+  if (kind === "hooks") {
+    return "Hooks";
+  }
+  if (kind === "implies") {
+    return "Implies";
+  }
+  if (kind === "straight-barb") {
+    return "Straight Barb";
+  }
+  if (kind === "arc-barb") {
+    return "Arc Barb";
+  }
+  if (kind === "tee-barb") {
+    return "Tee Barb";
+  }
+  if (kind === "rays") {
+    return "Rays";
+  }
+  if (kind === "round-cap") {
+    return "Round Cap";
+  }
+  if (kind === "butt-cap") {
+    return "Butt Cap";
+  }
+  if (kind === "triangle-cap") {
+    return "Triangle Cap";
+  }
+  return "To";
+}
+
+function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: ArrowTipSide): string {
+  if (preset === "none") {
+    return "";
+  }
+  if (preset === "arrow") {
+    return side === "start" ? "<" : ">";
+  }
+  if (preset === "stealth") {
+    return "Stealth";
+  }
+  if (preset === "latex") {
+    return "Latex";
+  }
+  if (preset === "triangle") {
+    return "Triangle";
+  }
+  if (preset === "circle") {
+    return "Circle";
+  }
+  if (preset === "square") {
+    return "Square";
+  }
+  if (preset === "kite") {
+    return "Kite";
+  }
+  if (preset === "bar") {
+    return "Bar";
+  }
+  return "Hooks";
 }
 
 function resolveInlineWriteTarget(
@@ -482,17 +815,20 @@ function colorOptionsForValue(value: string | null): string[] {
   return [value, ...COLOR_OPTIONS];
 }
 
-function arrowDirectionPreset(element: Extract<SceneElement, { kind: "Path" }>): ArrowDirectionPreset {
-  const hasStart = (element.style.markerStart?.tips.length ?? 0) > 0;
-  const hasEnd = (element.style.markerEnd?.tips.length ?? 0) > 0;
-  if (hasStart && hasEnd) {
-    return "<->";
+function normalizeOptionKey(key: string): string {
+  return key.trim().toLowerCase();
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const normalized = value.trim();
+    if (normalized.length === 0 || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    unique.push(normalized);
   }
-  if (hasStart) {
-    return "<-";
-  }
-  if (hasEnd) {
-    return "->";
-  }
-  return "-";
+  return unique;
 }

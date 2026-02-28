@@ -221,42 +221,76 @@
   background-position: 0 0, 0 3px, 3px -3px, -3px 0;
 }
 
-.arrowGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-}
-
-.arrowBtn {
-  min-height: 24px;
+.arrowTipValue {
+  width: 100%;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 2px 5px;
-  border: 1px solid var(--border-light);
-  border-radius: 2px;
-  background: #fff;
-  font-size: 10px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.arrowTipValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.arrowTipValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arrowTipOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arrowTipOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.arrowTipOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.arrowTipOptionCheck {
+  width: 12px;
+  text-align: right;
   color: var(--text);
-  cursor: pointer;
-}
-
-.arrowBtn:disabled {
-  color: var(--text-dim);
-  cursor: default;
-  background: #f3f1ec;
-}
-
-.arrowBtnActive {
-  border-color: var(--accent-btn-border);
-  background: var(--accent-btn-bg);
-}
-
-.arrowPreview {
-  min-width: 11px;
   font-size: 11px;
-  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.arrowTipSvg {
+  width: 56px;
+  height: 16px;
+  overflow: visible;
+}
+
+.arrowTipSvgLine {
+  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke-linecap: round;
+}
+
+.arrowTipSvgOpen {
+  fill: none;
+  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.arrowTipSvgFill {
+  fill: color-mix(in srgb, var(--text) 72%, #666);
+  color: var(--text);
 }
 
 .propertyNote {

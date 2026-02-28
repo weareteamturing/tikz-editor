@@ -1,14 +1,19 @@
 import { useMemo, useState } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
+  buildArrowTipSetPropertyMutation,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
-  type ArrowDirectionPreset,
+  type ArrowTipPresetId,
+  type ArrowTipSide,
+  type ArrowTipWriteTarget,
   type InspectorDescriptor,
   type InspectorProperty,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
-import type { SceneElement } from "tikz-editor/semantic/types";
+import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
+import type { ArrowTipKind, SceneElement } from "tikz-editor/semantic/types";
+import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
@@ -54,10 +59,12 @@ type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
   label: string;
-  value: ArrowDirectionPreset;
+  side: ArrowTipSide;
+  value: ArrowTipPresetId;
   mixed: boolean;
-  options: Array<{ value: ArrowDirectionPreset; label: string; preview: string }>;
-  writes: SetPropertyWriteTarget[];
+  previewLineWidth: number;
+  options: Array<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>;
+  writes: ArrowTipWriteTarget[];
   readOnlyReason?: string;
 };
 
@@ -84,7 +91,10 @@ const VALUE_EPSILON = 1e-6;
 const LINE_WIDTH_CUSTOM_OPTION_VALUE = "__custom-line-width__";
 const LINE_WIDTH_MIXED_OPTION_VALUE = "__mixed-line-width__";
 const LINE_WIDTH_PRESET_EPSILON = 0.02;
+const ARROW_TIP_MIXED_OPTION_VALUE = "__mixed-arrow-tip__";
 type LineWidthDropdownValue = string;
+type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
+
 const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
   LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
 );
@@ -190,6 +200,42 @@ export function InspectorPanel() {
     }
   }
 
+  function applyArrowTipValue(write: ArrowTipWriteTarget, side: ArrowTipSide, value: Exclude<ArrowTipPresetId, "custom">): void {
+    const mutation = buildArrowTipSetPropertyMutation(write.arrowContext, side, value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys
+    });
+  }
+
+  function applyArrowTipValueMany(
+    writes: readonly ArrowTipWriteTarget[],
+    side: ArrowTipSide,
+    value: Exclude<ArrowTipPresetId, "custom">
+  ): void {
+    const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
+    if (writable.length === 0) {
+      return;
+    }
+
+    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    for (const write of writable) {
+      const mutation = buildArrowTipSetPropertyMutation(write.arrowContext, side, value);
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
     const write = property.write;
     if (!write || write.mode !== "moveAxis" || !write.writable) return;
@@ -232,6 +278,62 @@ export function InspectorPanel() {
       next.delete(key);
       return next;
     });
+  }
+
+  function renderArrowTipDropdown(
+    property: {
+      id: string;
+      label: string;
+      side: ArrowTipSide;
+      value: ArrowTipPresetId;
+      options: Array<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>;
+      previewLineWidth: number;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<ArrowTipPresetId, "custom">) => void,
+    valueOverride?: ArrowTipDropdownValue
+  ) {
+    const dropdownValue: ArrowTipDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toArrowTipDropdownOptions(property.options);
+    const displayLabel = arrowTipValueLabel(dropdownValue, property.options);
+    const previewPreset = arrowTipPreviewPreset(dropdownValue);
+
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableArrowTipValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.arrowTipValue}>
+            <span className={css.arrowTipValuePreview}>
+              <ArrowTipPreview side={property.side} preset={previewPreset} lineWidth={property.previewLineWidth} />
+            </span>
+            <span className={css.arrowTipValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<ArrowTipPresetId, "custom">;
+          return (
+            <span className={css.arrowTipOption}>
+              <span className={css.arrowTipOptionPreview}>
+                <ArrowTipPreview side={property.side} preset={optionPreset} lineWidth={property.previewLineWidth} />
+              </span>
+              <span className={css.arrowTipOptionLabel}>{option.label}</span>
+              <span className={css.arrowTipOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
   }
 
   function renderProperty(property: InspectorProperty) {
@@ -382,23 +484,22 @@ export function InspectorPanel() {
       );
     }
 
+    const writable = property.write.writable && capability.status !== "unsupported";
     return (
       <div key={property.id} className={css.property}>
         <div className={css.propertyLabel}>{property.label}</div>
-        <div className={css.arrowGrid}>
-          {property.options.map((option) => (
-            <button
-              key={option.value}
-              className={`${css.arrowBtn} ${property.value === option.value ? css.arrowBtnActive : ""}`}
-              disabled={!(property.write.writable && capability.status !== "unsupported")}
-              onClick={() => applySetProperty(property.write, option.value)}
-              title={option.label}
-            >
-              <span className={css.arrowPreview}>{option.preview}</span>
-              <span>{option.label}</span>
-            </button>
-          ))}
-        </div>
+        {renderArrowTipDropdown(
+          {
+            id: property.id,
+            label: property.label,
+            side: property.side,
+            value: property.value,
+            options: property.options,
+            previewLineWidth: property.previewLineWidth
+          },
+          writable,
+          (nextValue) => applyArrowTipValue(property.write, property.side, nextValue)
+        )}
         {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
       </div>
     );
@@ -569,27 +670,26 @@ export function InspectorPanel() {
     }
 
     const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
-    const selected = property.mixed ? "" : property.value;
+    const dropdownValue: ArrowTipDropdownValue = property.mixed
+      ? ARROW_TIP_MIXED_OPTION_VALUE
+      : property.value;
+
     return (
       <div key={property.id} className={css.property}>
         <div className={css.propertyLabel}>{property.label}</div>
-        <select
-          className={css.select}
-          value={selected}
-          disabled={!writable}
-          onChange={(event) => {
-            const next = event.currentTarget.value;
-            if (next.length === 0) return;
-            applySetPropertyMany(property.writes, next);
-          }}
-        >
-          <option value=""> </option>
-          {property.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.preview} {option.label}
-            </option>
-          ))}
-        </select>
+        {renderArrowTipDropdown(
+          {
+            id: property.id,
+            label: property.label,
+            side: property.side,
+            value: property.value,
+            options: property.options,
+            previewLineWidth: property.previewLineWidth
+          },
+          writable,
+          (nextValue) => applyArrowTipValueMany(property.writes, property.side, nextValue),
+          dropdownValue
+        )}
         {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
       </div>
     );
@@ -783,15 +883,19 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     kind: "arrowTip",
     id: base.id,
     label: base.label,
-    value: values[0] ?? "-",
+    side: base.side,
+    value: values[0] ?? "none",
     mixed: !allValuesEqual(values),
+    previewLineWidth: averageNumbers(arrowProperties.map((property) => property.previewLineWidth)),
     options: base.options,
     writes,
     readOnlyReason: deriveReadOnlyReason(writes)
   };
 }
 
-function deriveReadOnlyReason(writes: readonly SetPropertyWriteTarget[]): string | undefined {
+function deriveReadOnlyReason(
+  writes: readonly Pick<SetPropertyWriteTarget, "writable" | "elementId" | "reason">[]
+): string | undefined {
   if (writes.some((write) => write.writable && write.elementId.length > 0)) {
     return undefined;
   }
@@ -845,4 +949,121 @@ function dedupeStrings(values: readonly string[]): string[] {
     deduped.push(value);
   }
   return deduped;
+}
+
+function toArrowTipDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<ArrowTipDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function arrowTipValueLabel(
+  value: ArrowTipDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<ArrowTipPresetId, "custom">; label: string }>
+): string {
+  if (value === ARROW_TIP_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableArrowTipValue(
+  value: ArrowTipDropdownValue
+): value is Exclude<ArrowTipPresetId, "custom"> {
+  return value !== "custom" && value !== ARROW_TIP_MIXED_OPTION_VALUE;
+}
+
+function arrowTipPreviewPreset(value: ArrowTipDropdownValue): Exclude<ArrowTipPresetId, "custom"> {
+  if (value === ARROW_TIP_MIXED_OPTION_VALUE || value === "custom") {
+    return "arrow";
+  }
+  return value;
+}
+
+function ArrowTipPreview({
+  side,
+  preset,
+  lineWidth
+}: {
+  side: ArrowTipSide;
+  preset: Exclude<ArrowTipPresetId, "custom">;
+  lineWidth: number;
+}) {
+  const y = 8;
+  const lineStart = 4;
+  const lineEnd = 52;
+  const tipX = side === "start" ? 8 : 48;
+  const strokeWidth = Math.max(1, Math.min(3.2, lineWidth * 1.4));
+  const tipScale = 2.35;
+  const tipKind = arrowTipKindForPreview(preset);
+  const marker = tipKind ? makeDefaultArrowMarker(tipKind, lineWidth) : null;
+  const tip = marker?.tips[0] ?? null;
+  const previewPaths = tip ? renderArrowTipPreviewPaths(tip, lineWidth, "currentColor", { anchor: "back" }) : [];
+  const directionScale = side === "start" ? -1 : 1;
+
+  return (
+    <svg className={css.arrowTipSvg} viewBox="0 0 56 16" aria-hidden="true" focusable="false">
+      <line
+        x1={lineStart}
+        y1={y}
+        x2={lineEnd}
+        y2={y}
+        className={css.arrowTipSvgLine}
+        style={{ strokeWidth }}
+      />
+      {previewPaths.length > 0 ? (
+        <g transform={`translate(${tipX} ${y}) scale(${directionScale * tipScale} ${-tipScale})`}>
+          {previewPaths.map((path, index) => (
+            <path
+              // preview path order is deterministic from core arrow shape generation
+              key={`${preset}:${index}`}
+              d={path.d}
+              stroke={path.stroke}
+              fill={path.fill}
+              strokeWidth={path.strokeWidth}
+              strokeLinecap={path.lineCap}
+              strokeLinejoin={path.lineJoin}
+            />
+          ))}
+        </g>
+      ) : null}
+    </svg>
+  );
+}
+
+function arrowTipKindForPreview(preset: Exclude<ArrowTipPresetId, "custom">): ArrowTipKind | null {
+  if (preset === "none") {
+    return null;
+  }
+  if (preset === "arrow") {
+    return "cm-rightarrow";
+  }
+  if (preset === "stealth") {
+    return "stealth";
+  }
+  if (preset === "latex") {
+    return "latex";
+  }
+  if (preset === "triangle") {
+    return "triangle";
+  }
+  if (preset === "circle") {
+    return "circle";
+  }
+  if (preset === "square") {
+    return "square";
+  }
+  if (preset === "kite") {
+    return "kite";
+  }
+  if (preset === "bar") {
+    return "bar";
+  }
+  return "hooks";
 }
