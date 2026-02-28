@@ -25,6 +25,7 @@ import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
+import { NAMED_COLORS } from "../semantic/style/constants.js";
 import { applyMatrix } from "../semantic/transform.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
@@ -1174,6 +1175,14 @@ type OptionMutationApplyResult = {
   patch: SourcePatch;
 };
 
+type OptionSerializationContext = {
+  bareColorKey: "draw" | "fill" | null;
+};
+
+const DEFAULT_OPTION_SERIALIZATION_CONTEXT: OptionSerializationContext = {
+  bareColorKey: null
+};
+
 function applySetProperty(
   source: string,
   action: Extract<EditAction, { kind: "setProperty" }>
@@ -2249,9 +2258,10 @@ function applyOptionMutationsToTarget(
   if (mutations.size === 0) {
     return null;
   }
+  const serializationContext = resolveOptionSerializationContext(target);
 
   if (target.options && target.optionsSpan) {
-    const replacement = rewriteOptionListMutations(target.options, mutations);
+    const replacement = rewriteOptionListMutations(target.options, mutations, serializationContext);
     if (replacement.length === 0) {
       const oldSpan = target.optionsSpan;
       const updated = replaceSpan(source, oldSpan, "");
@@ -2288,7 +2298,7 @@ function applyOptionMutationsToTarget(
   const entriesToInsert: string[] = [];
   for (const [key, mutation] of mutations.entries()) {
     if (mutation.kind === "set") {
-      entriesToInsert.push(serializeOptionEntry(key, mutation.value));
+      entriesToInsert.push(serializeOptionEntry(key, mutation.value, serializationContext));
     }
   }
   if (entriesToInsert.length === 0) {
@@ -2314,24 +2324,36 @@ function applyOptionMutationsToTarget(
   };
 }
 
-function rewriteOptionList(options: OptionListAst, key: string, value: string): string {
-  return rewriteOptionListMutations(options, new Map([[key, { kind: "set", value }]]));
+function rewriteOptionList(
+  options: OptionListAst,
+  key: string,
+  value: string,
+  serializationContext: OptionSerializationContext = DEFAULT_OPTION_SERIALIZATION_CONTEXT
+): string {
+  return rewriteOptionListMutations(options, new Map([[key, { kind: "set", value }]]), serializationContext);
 }
 
 function rewriteOptionListMutations(
   options: OptionListAst,
-  mutations: ReadonlyMap<string, OptionMutation>
+  mutations: ReadonlyMap<string, OptionMutation>,
+  serializationContext: OptionSerializationContext = DEFAULT_OPTION_SERIALIZATION_CONTEXT
 ): string {
   const parts: string[] = [];
   const emitted = new Set<string>();
 
   for (const entry of options.entries) {
     const entryKey = optionEntryKey(entry);
-    const mutation = entryKey ? mutations.get(entryKey) : undefined;
-    if (entryKey && mutation) {
-      if (mutation.kind === "set" && !emitted.has(entryKey)) {
-        parts.push(serializeOptionEntry(entryKey, mutation.value));
-        emitted.add(entryKey);
+    const directMutation = entryKey ? mutations.get(entryKey) : undefined;
+    const aliasKey =
+      entry.kind === "flag" && !directMutation
+        ? resolveFlagAliasKey(entry, mutations, serializationContext)
+        : null;
+    const mutationKey = directMutation ? entryKey : aliasKey;
+    const mutation = directMutation ?? (aliasKey ? mutations.get(aliasKey) : undefined);
+    if (mutationKey && mutation) {
+      if (mutation.kind === "set" && !emitted.has(mutationKey)) {
+        parts.push(serializeOptionEntry(mutationKey, mutation.value, serializationContext));
+        emitted.add(mutationKey);
       }
       continue;
     }
@@ -2346,7 +2368,7 @@ function rewriteOptionListMutations(
     if (mutation.kind !== "set" || emitted.has(key)) {
       continue;
     }
-    parts.push(serializeOptionEntry(key, mutation.value));
+    parts.push(serializeOptionEntry(key, mutation.value, serializationContext));
     emitted.add(key);
   }
 
@@ -2382,12 +2404,79 @@ function normalizeOptionKey(key: string): string {
   return key.trim().toLowerCase();
 }
 
-function serializeOptionEntry(key: string, value: string): string {
+function serializeOptionEntry(
+  key: string,
+  value: string,
+  serializationContext: OptionSerializationContext = DEFAULT_OPTION_SERIALIZATION_CONTEXT
+): string {
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.toLowerCase() === "true") {
     return key;
   }
+  if (shouldSerializeAsBareColorOption(key, trimmed, serializationContext)) {
+    return trimmed;
+  }
   return `${key}=${trimmed}`;
+}
+
+function resolveOptionSerializationContext(target: PropertyTarget): OptionSerializationContext {
+  if (target.kind !== "path-statement") {
+    return DEFAULT_OPTION_SERIALIZATION_CONTEXT;
+  }
+
+  const normalizedPathCommand = target.pathCommand?.trim().toLowerCase();
+  if (normalizedPathCommand === "draw" || normalizedPathCommand === "fill") {
+    return {
+      bareColorKey: normalizedPathCommand
+    };
+  }
+
+  return DEFAULT_OPTION_SERIALIZATION_CONTEXT;
+}
+
+function shouldSerializeAsBareColorOption(
+  key: string,
+  value: string,
+  serializationContext: OptionSerializationContext
+): boolean {
+  return serializationContext.bareColorKey === key && value.toLowerCase() !== "false";
+}
+
+function resolveFlagAliasKey(
+  entry: Extract<OptionEntry, { kind: "flag" }>,
+  mutations: ReadonlyMap<string, OptionMutation>,
+  serializationContext: OptionSerializationContext
+): string | null {
+  const bareColorKey = serializationContext.bareColorKey;
+  if (!bareColorKey || !mutations.has(bareColorKey)) {
+    return null;
+  }
+
+  return isLikelyBareColorOption(entry.key) ? bareColorKey : null;
+}
+
+function isLikelyBareColorOption(raw: string): boolean {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  if (trimmed === "none" || trimmed === "." || NAMED_COLORS.has(trimmed)) {
+    return true;
+  }
+  if (/^#[0-9a-f]{3,8}$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^\{?\s*rgb(?:\s*,\s*255)?\s*:/i.test(trimmed)) {
+    return true;
+  }
+
+  if (!trimmed.includes("!")) {
+    return false;
+  }
+
+  return /^[a-z][a-z0-9._:@-]*\s*!\s*\d+(?:\.\d+)?(?:\s*!\s*[a-z][a-z0-9._:@-]*)?(?:\s*!\s*\d+(?:\.\d+)?(?:\s*!\s*[a-z][a-z0-9._:@-]*)?)*$/i.test(
+    trimmed
+  );
 }
 
 function computeReplacementPatch(oldSource: string, newSource: string): SourcePatch {

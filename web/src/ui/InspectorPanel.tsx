@@ -417,6 +417,11 @@ export function InspectorPanel() {
     }
   }
 
+  function colorSyntaxClearKeys(syntaxValue: string | null): string[] | undefined {
+    const normalized = syntaxValue?.trim() ?? "";
+    return normalized.length > 0 ? [normalized] : undefined;
+  }
+
   function applyArrowTipValue(
     write: ArrowTipWriteTarget,
     side: ArrowTipSide,
@@ -1036,7 +1041,11 @@ export function InspectorPanel() {
             options={property.options}
             namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
-            onChange={(nextValue) => applySetProperty(property.write, nextValue)}
+            onChange={(nextValue) =>
+              applySetProperty(property.write, nextValue, {
+                clearKeys: colorSyntaxClearKeys(property.syntaxValue)
+              })
+            }
           />
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -1380,7 +1389,11 @@ export function InspectorPanel() {
             options={property.options}
             namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
-            onChange={(nextValue) => applySetPropertyMany(property.writes, nextValue)}
+            onChange={(nextValue) =>
+              applySetPropertyMany(property.writes, nextValue, {
+                clearKeys: colorSyntaxClearKeys(property.syntaxValue)
+              })
+            }
           />
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>

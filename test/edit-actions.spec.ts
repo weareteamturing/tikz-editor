@@ -474,7 +474,63 @@ describe("applyEditAction – setProperty", () => {
 
     expect(result.kind).toBe("success");
     if (result.kind === "success") {
-      expect(result.newSource).toContain("\\draw[draw=red] (0,0) -- (1,0);");
+      expect(result.newSource).toContain("\\draw[red] (0,0) -- (1,0);");
+    }
+  });
+
+  it("serializes fill color as a bare option when setting color on a \\fill path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \fill (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "yellow"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\fill[yellow] (0,0) rectangle (1,1);");
+    }
+  });
+
+  it("replaces existing bare draw color flags instead of appending duplicates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[blue, thick] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[red, thick] (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("blue");
+    }
+  });
+
+  it("serializes updated draw key values as bare colors on \\draw paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=blue, thick] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "green"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw[green, thick] (0,0) -- (1,0);");
+      expect(result.newSource).not.toContain("draw=");
     }
   });
 

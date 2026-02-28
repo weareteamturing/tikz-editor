@@ -1291,7 +1291,7 @@ function pathSupportsFillEditing(commands: ScenePathCommand[]): boolean {
   return flushOpenSubpath();
 }
 
-function polygonSignedArea(points: readonly Array<{ x: number; y: number }>): number {
+function polygonSignedArea(points: ReadonlyArray<{ x: number; y: number }>): number {
   if (points.length < 3) {
     return 0;
   }

@@ -13,6 +13,7 @@ export type PropertyTargetKind =
 export type PropertyTarget = {
   id: string;
   kind: PropertyTargetKind;
+  pathCommand?: string;
   span: Span;
   options?: OptionListAst;
   optionsSpan?: Span;
@@ -133,6 +134,7 @@ function makePathStatementTarget(statement: PathStatement, source: string): Prop
   return {
     id: statement.id,
     kind: "path-statement",
+    pathCommand: statement.command,
     span: statement.span,
     options: statement.options,
     optionsSpan: statement.options?.span,
