@@ -313,9 +313,7 @@
 
 .marqueeRect {
   fill: rgba(40, 122, 212, 0.12);
-  stroke: rgba(13, 95, 182, 0.95);
-  stroke-dasharray: 4 2;
-  vector-effect: non-scaling-stroke;
+  stroke: none;
 }
 
 .curveControlOverlay {
