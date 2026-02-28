@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
@@ -186,6 +186,23 @@ const LINE_WIDTH_NUMERIC_KEY = "line width";
 const LINE_WIDTH_PRESET_KEYS = LINE_WIDTH_PRESETS.map((preset) => preset.label);
 const LINE_WIDTH_ALL_OPTION_KEYS = [LINE_WIDTH_NUMERIC_KEY, ...LINE_WIDTH_PRESET_KEYS];
 
+type ApplySetPropertyOptions = {
+  key?: string;
+  clearKeys?: string[];
+  recordInHistory?: boolean;
+};
+
+type HoverPreviewSession = {
+  ownerKey: string;
+  baseSource: string;
+};
+
+type FrozenInspectorView = {
+  selectedSourceIds: string[];
+  descriptor: InspectorDescriptor | null;
+  multiModel: MultiInspectorModel | null;
+};
+
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const snapshot = useEditorStore((s) => s.snapshot);
@@ -193,6 +210,8 @@ export function InspectorPanel() {
   const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
     () => new Set()
   );
+  const [frozenInspectorView, setFrozenInspectorView] = useState<FrozenInspectorView | null>(null);
+  const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
 
@@ -228,14 +247,105 @@ export function InspectorPanel() {
     return buildMultiInspectorModel(descriptors, selectedSourceIds.length);
   }, [descriptors, selectedSourceIds.length]);
 
+  const usingFrozenInspectorView =
+    frozenInspectorView != null &&
+    sameOrderedStringArrays(frozenInspectorView.selectedSourceIds, selectedSourceIds);
+  const renderedDescriptor = usingFrozenInspectorView
+    ? frozenInspectorView.descriptor
+    : descriptor;
+  const renderedMultiModel = usingFrozenInspectorView
+    ? frozenInspectorView.multiModel
+    : multiModel;
+
+  const clearHoverPreviewSession = useCallback((ownerKey?: string) => {
+    const current = hoverPreviewSessionRef.current;
+    if (!current) {
+      return;
+    }
+    if (ownerKey && current.ownerKey !== ownerKey) {
+      return;
+    }
+    const currentSource = useEditorStore.getState().source;
+    if (currentSource !== current.baseSource) {
+      dispatch({
+        type: "SET_SOURCE_TRANSIENT",
+        source: current.baseSource
+      });
+    }
+    hoverPreviewSessionRef.current = null;
+    setFrozenInspectorView(null);
+  }, [dispatch]);
+
+  const ensureHoverPreviewSession = useCallback((ownerKey: string) => {
+    const current = hoverPreviewSessionRef.current;
+    if (!current) {
+      hoverPreviewSessionRef.current = {
+        ownerKey,
+        baseSource: useEditorStore.getState().source
+      };
+      setFrozenInspectorView({
+        selectedSourceIds: [...selectedSourceIds],
+        descriptor,
+        multiModel
+      });
+      return;
+    }
+    if (current.ownerKey === ownerKey) {
+      return;
+    }
+    const currentSource = useEditorStore.getState().source;
+    if (currentSource !== current.baseSource) {
+      dispatch({
+        type: "SET_SOURCE_TRANSIENT",
+        source: current.baseSource
+      });
+    }
+    hoverPreviewSessionRef.current = {
+      ownerKey,
+      baseSource: current.baseSource
+    };
+  }, [descriptor, dispatch, multiModel, selectedSourceIds]);
+
+  const applyHoverPreview = useCallback((ownerKey: string, applyPreview: () => void) => {
+    ensureHoverPreviewSession(ownerKey);
+    applyPreview();
+  }, [ensureHoverPreviewSession]);
+
+  const commitAfterHoverPreview = useCallback((ownerKey: string, commit: () => void) => {
+    const current = hoverPreviewSessionRef.current;
+    if (current?.ownerKey === ownerKey) {
+      const currentSource = useEditorStore.getState().source;
+      if (currentSource !== current.baseSource) {
+        dispatch({
+          type: "SET_SOURCE_TRANSIENT",
+          source: current.baseSource
+        });
+      }
+      hoverPreviewSessionRef.current = null;
+      setFrozenInspectorView(null);
+    }
+    commit();
+  }, [dispatch]);
+
+  useEffect(() => {
+    clearHoverPreviewSession();
+  }, [selectedSourceIds, clearHoverPreviewSession]);
+
+  useEffect(() => {
+    return () => {
+      clearHoverPreviewSession();
+    };
+  }, [clearHoverPreviewSession]);
+
   function applySetProperty(
     write: SetPropertyWriteTarget,
     value: string,
-    options: { key?: string; clearKeys?: string[] } = {}
+    options: ApplySetPropertyOptions = {}
   ): void {
     if (!write.writable || write.elementId.length === 0) return;
     dispatch({
       type: "APPLY_EDIT_ACTION",
+      recordInHistory: options.recordInHistory,
       action: {
         kind: "setProperty",
         elementId: write.elementId,
@@ -250,18 +360,19 @@ export function InspectorPanel() {
   function applySetPropertyMany(
     writes: readonly SetPropertyWriteTarget[],
     value: string,
-    options: { key?: string; clearKeys?: string[] } = {}
+    options: ApplySetPropertyOptions = {}
   ): void {
     const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
     if (writable.length === 0) {
       return;
     }
 
-    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
     for (const write of writable) {
       dispatch({
         type: "APPLY_EDIT_ACTION",
         historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
         action: {
           kind: "setProperty",
           elementId: write.elementId,
@@ -274,30 +385,38 @@ export function InspectorPanel() {
     }
   }
 
-  function applyArrowTipValue(write: ArrowTipWriteTarget, side: ArrowTipSide, value: Exclude<ArrowTipPresetId, "custom">): void {
+  function applyArrowTipValue(
+    write: ArrowTipWriteTarget,
+    side: ArrowTipSide,
+    value: Exclude<ArrowTipPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
     const mutation = buildArrowTipSetPropertyMutation(write.arrowContext, side, value);
     applySetProperty(write, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyArrowTipValueMany(
     writes: readonly ArrowTipWriteTarget[],
     side: ArrowTipSide,
-    value: Exclude<ArrowTipPresetId, "custom">
+    value: Exclude<ArrowTipPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
     if (writable.length === 0) {
       return;
     }
 
-    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
     for (const write of writable) {
       const mutation = buildArrowTipSetPropertyMutation(write.arrowContext, side, value);
       dispatch({
         type: "APPLY_EDIT_ACTION",
         historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
         action: {
           kind: "setProperty",
           elementId: write.elementId,
@@ -312,73 +431,86 @@ export function InspectorPanel() {
 
   function applyDashStyleValue(
     write: SetPropertyWriteTarget,
-    value: Exclude<DashStylePresetId, "custom">
+    value: Exclude<DashStylePresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildDashStyleSetPropertyMutation(value);
     applySetProperty(write, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyDashStyleValueMany(
     writes: readonly SetPropertyWriteTarget[],
-    value: Exclude<DashStylePresetId, "custom">
+    value: Exclude<DashStylePresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildDashStyleSetPropertyMutation(value);
     applySetPropertyMany(writes, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyLineCapValue(
     write: SetPropertyWriteTarget,
-    value: Exclude<LineCapPresetId, "custom">
+    value: Exclude<LineCapPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildLineCapSetPropertyMutation(value);
     applySetProperty(write, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyLineCapValueMany(
     writes: readonly SetPropertyWriteTarget[],
-    value: Exclude<LineCapPresetId, "custom">
+    value: Exclude<LineCapPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildLineCapSetPropertyMutation(value);
     applySetPropertyMany(writes, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyLineJoinValue(
     write: SetPropertyWriteTarget,
-    value: Exclude<LineJoinPresetId, "custom">
+    value: Exclude<LineJoinPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildLineJoinSetPropertyMutation(value);
     applySetProperty(write, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyLineJoinValueMany(
     writes: readonly SetPropertyWriteTarget[],
-    value: Exclude<LineJoinPresetId, "custom">
+    value: Exclude<LineJoinPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const mutation = buildLineJoinSetPropertyMutation(value);
     applySetPropertyMany(writes, mutation.value, {
       key: mutation.key,
-      clearKeys: mutation.clearKeys
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
     });
   }
 
   function applyPathMorphingDecorationValue(
     write: SetPropertyWriteTarget,
-    value: Exclude<PathMorphingDecorationPresetId, "custom">
+    value: Exclude<PathMorphingDecorationPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     if (!write.writable || write.elementId.length === 0) {
       return;
@@ -388,11 +520,12 @@ export function InspectorPanel() {
       return;
     }
 
-    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
     for (const mutation of mutations) {
       dispatch({
         type: "APPLY_EDIT_ACTION",
         historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
         action: {
           kind: "setProperty",
           elementId: write.elementId,
@@ -407,7 +540,8 @@ export function InspectorPanel() {
 
   function applyPathMorphingDecorationValueMany(
     writes: readonly SetPropertyWriteTarget[],
-    value: Exclude<PathMorphingDecorationPresetId, "custom">
+    value: Exclude<PathMorphingDecorationPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
   ): void {
     const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
     if (writable.length === 0) {
@@ -419,12 +553,13 @@ export function InspectorPanel() {
       return;
     }
 
-    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
     for (const write of writable) {
       for (const mutation of mutations) {
         dispatch({
           type: "APPLY_EDIT_ACTION",
           historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
           action: {
             kind: "setProperty",
             elementId: write.elementId,
@@ -493,7 +628,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<ArrowTipPresetId, "custom">) => void,
-    valueOverride?: ArrowTipDropdownValue
+    valueOverride?: ArrowTipDropdownValue,
+    onHoverPreview?: (value: Exclude<ArrowTipPresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: ArrowTipDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toArrowTipDropdownOptions(property.options);
@@ -512,6 +649,13 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableArrowTipValue(nextValue) || !onHoverPreview) {
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => (
           <span className={css.arrowTipValue}>
             <span className={css.arrowTipValuePreview}>
@@ -547,7 +691,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<DashStylePresetId, "custom">) => void,
-    valueOverride?: DashStyleDropdownValue
+    valueOverride?: DashStyleDropdownValue,
+    onHoverPreview?: (value: Exclude<DashStylePresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: DashStyleDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toDashStyleDropdownOptions(property.options);
@@ -566,6 +712,13 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableDashStyleValue(nextValue) || !onHoverPreview) {
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => (
           <span className={css.dashStyleValue}>
             <span className={css.dashStyleValuePreview}>
@@ -601,7 +754,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<LineCapPresetId, "custom">) => void,
-    valueOverride?: LineCapDropdownValue
+    valueOverride?: LineCapDropdownValue,
+    onHoverPreview?: (value: Exclude<LineCapPresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: LineCapDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toLineCapDropdownOptions(property.options);
@@ -620,6 +775,13 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableLineCapValue(nextValue) || !onHoverPreview) {
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => (
           <span className={css.lineCapValue}>
             <span className={css.lineCapValuePreview}>
@@ -655,7 +817,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<LineJoinPresetId, "custom">) => void,
-    valueOverride?: LineJoinDropdownValue
+    valueOverride?: LineJoinDropdownValue,
+    onHoverPreview?: (value: Exclude<LineJoinPresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: LineJoinDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toLineJoinDropdownOptions(property.options);
@@ -674,6 +838,13 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableLineJoinValue(nextValue) || !onHoverPreview) {
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => (
           <span className={css.lineJoinValue}>
             <span className={css.lineJoinValuePreview}>
@@ -709,7 +880,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
-    valueOverride?: PathMorphingDecorationDropdownValue
+    valueOverride?: PathMorphingDecorationDropdownValue,
+    onHoverPreview?: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: PathMorphingDecorationDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toPathMorphingDecorationDropdownOptions(property.options);
@@ -728,6 +901,13 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectablePathMorphingDecorationValue(nextValue) || !onHoverPreview) {
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => (
           <span className={css.pathMorphingDecorationValue}>
             <span className={css.pathMorphingDecorationValuePreview}>
@@ -805,6 +985,7 @@ export function InspectorPanel() {
     if (property.kind === "lineWidth") {
       const writable = property.write.writable && capability.status !== "unsupported";
       const lineWidthKey = `${property.write.elementId}:${property.id}`;
+      const previewOwnerKey = `line-width:${lineWidthKey}`;
       const showCustomRange = property.presetLabel == null || manualLineWidthCustomKeys.has(lineWidthKey);
       const dropdownValue: LineWidthDropdownValue = showCustomRange
         ? LINE_WIDTH_CUSTOM_OPTION_VALUE
@@ -820,23 +1001,43 @@ export function InspectorPanel() {
             options={LINE_WIDTH_DROPDOWN_OPTIONS}
             disabled={!writable}
             onChange={(nextValue) => {
+              commitAfterHoverPreview(previewOwnerKey, () => {
+                if (!writable) {
+                  return;
+                }
+                if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                  enableManualCustomLineWidth(lineWidthKey);
+                  return;
+                }
+                const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+                if (presetValue == null) {
+                  return;
+                }
+                disableManualCustomLineWidth(lineWidthKey);
+                applySetProperty(property.write, "true", {
+                  key: nextValue,
+                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                });
+              });
+            }}
+            onOptionHover={(nextValue) => {
               if (!writable) {
-                return;
-              }
-              if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                enableManualCustomLineWidth(lineWidthKey);
                 return;
               }
               const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
               if (presetValue == null) {
+                clearHoverPreviewSession(previewOwnerKey);
                 return;
               }
-              disableManualCustomLineWidth(lineWidthKey);
-              applySetProperty(property.write, "true", {
-                key: nextValue,
-                clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+              applyHoverPreview(previewOwnerKey, () => {
+                applySetProperty(property.write, "true", {
+                  key: nextValue,
+                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                  recordInHistory: false
+                });
               });
             }}
+            onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
             renderValue={() => (
               <span className={css.lineWidthValue}>
                 <span className={css.lineWidthValuePreview}>
@@ -886,6 +1087,7 @@ export function InspectorPanel() {
 
     if (property.kind === "dashStyle") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `dash-style:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -897,7 +1099,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyDashStyleValue(property.write, nextValue)
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyDashStyleValue(property.write, nextValue)
+              ),
+            undefined,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyDashStyleValue(property.write, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -906,6 +1117,7 @@ export function InspectorPanel() {
 
     if (property.kind === "lineCap") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `line-cap:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -917,7 +1129,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyLineCapValue(property.write, nextValue)
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyLineCapValue(property.write, nextValue)
+              ),
+            undefined,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyLineCapValue(property.write, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -926,6 +1147,7 @@ export function InspectorPanel() {
 
     if (property.kind === "lineJoin") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `line-join:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -937,7 +1159,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyLineJoinValue(property.write, nextValue)
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyLineJoinValue(property.write, nextValue)
+              ),
+            undefined,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyLineJoinValue(property.write, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -946,6 +1177,7 @@ export function InspectorPanel() {
 
     if (property.kind === "pathMorphingDecoration") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `path-morphing:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -957,7 +1189,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyPathMorphingDecorationValue(property.write, nextValue)
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyPathMorphingDecorationValue(property.write, nextValue)
+              ),
+            undefined,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -965,6 +1206,7 @@ export function InspectorPanel() {
     }
 
     const writable = property.write.writable && capability.status !== "unsupported";
+    const previewOwnerKey = `arrow-tip:${property.write.elementId}:${property.id}`;
     return (
       <div key={property.id} className={css.property}>
         <div className={css.propertyLabel}>{property.label}</div>
@@ -978,7 +1220,16 @@ export function InspectorPanel() {
             previewLineWidth: property.previewLineWidth
           },
           writable,
-          (nextValue) => applyArrowTipValue(property.write, property.side, nextValue)
+          (nextValue) =>
+            commitAfterHoverPreview(previewOwnerKey, () =>
+              applyArrowTipValue(property.write, property.side, nextValue)
+            ),
+          undefined,
+          (nextValue) =>
+            applyHoverPreview(previewOwnerKey, () =>
+              applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false })
+            ),
+          () => clearHoverPreviewSession(previewOwnerKey)
         )}
         {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
       </div>
@@ -1031,6 +1282,7 @@ export function InspectorPanel() {
         .filter((id) => id.length > 0)
         .sort();
       const lineWidthKey = `multi:${property.id}:${elementIds.join("|")}`;
+      const previewOwnerKey = `multi-line-width:${lineWidthKey}`;
       const presetLabel = property.mixed ? null : lineWidthPresetLabelFromValue(property.value);
       const showCustomRange =
         manualLineWidthCustomKeys.has(lineWidthKey) || (!property.mixed && presetLabel == null);
@@ -1051,23 +1303,43 @@ export function InspectorPanel() {
             options={LINE_WIDTH_DROPDOWN_OPTIONS}
             disabled={!writable}
             onChange={(nextValue) => {
+              commitAfterHoverPreview(previewOwnerKey, () => {
+                if (!writable) {
+                  return;
+                }
+                if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                  enableManualCustomLineWidth(lineWidthKey);
+                  return;
+                }
+                const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+                if (presetValue == null) {
+                  return;
+                }
+                disableManualCustomLineWidth(lineWidthKey);
+                applySetPropertyMany(property.writes, "true", {
+                  key: nextValue,
+                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                });
+              });
+            }}
+            onOptionHover={(nextValue) => {
               if (!writable) {
-                return;
-              }
-              if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                enableManualCustomLineWidth(lineWidthKey);
                 return;
               }
               const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
               if (presetValue == null) {
+                clearHoverPreviewSession(previewOwnerKey);
                 return;
               }
-              disableManualCustomLineWidth(lineWidthKey);
-              applySetPropertyMany(property.writes, "true", {
-                key: nextValue,
-                clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+              applyHoverPreview(previewOwnerKey, () => {
+                applySetPropertyMany(property.writes, "true", {
+                  key: nextValue,
+                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                  recordInHistory: false
+                });
               });
             }}
+            onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
             renderValue={() => {
               return (
                 <span className={css.lineWidthValue}>
@@ -1123,6 +1395,7 @@ export function InspectorPanel() {
     if (property.kind === "dashStyle") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       const dropdownValue: DashStyleDropdownValue = property.mixed ? DASH_STYLE_MIXED_OPTION_VALUE : property.value;
+      const previewOwnerKey = `multi-dash-style:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -1134,8 +1407,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyDashStyleValueMany(property.writes, nextValue),
-            dropdownValue
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyDashStyleValueMany(property.writes, nextValue)
+              ),
+            dropdownValue,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyDashStyleValueMany(property.writes, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -1145,6 +1426,7 @@ export function InspectorPanel() {
     if (property.kind === "lineCap") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       const dropdownValue: LineCapDropdownValue = property.mixed ? LINE_CAP_MIXED_OPTION_VALUE : property.value;
+      const previewOwnerKey = `multi-line-cap:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -1156,8 +1438,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyLineCapValueMany(property.writes, nextValue),
-            dropdownValue
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyLineCapValueMany(property.writes, nextValue)
+              ),
+            dropdownValue,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyLineCapValueMany(property.writes, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -1167,6 +1457,7 @@ export function InspectorPanel() {
     if (property.kind === "lineJoin") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       const dropdownValue: LineJoinDropdownValue = property.mixed ? LINE_JOIN_MIXED_OPTION_VALUE : property.value;
+      const previewOwnerKey = `multi-line-join:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -1178,8 +1469,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyLineJoinValueMany(property.writes, nextValue),
-            dropdownValue
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyLineJoinValueMany(property.writes, nextValue)
+              ),
+            dropdownValue,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyLineJoinValueMany(property.writes, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -1191,6 +1490,7 @@ export function InspectorPanel() {
       const dropdownValue: PathMorphingDecorationDropdownValue = property.mixed
         ? PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE
         : property.value;
+      const previewOwnerKey = `multi-path-morphing:${property.id}`;
       return (
         <div key={property.id} className={css.property}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -1202,8 +1502,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyPathMorphingDecorationValueMany(property.writes, nextValue),
-            dropdownValue
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyPathMorphingDecorationValueMany(property.writes, nextValue)
+              ),
+            dropdownValue,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyPathMorphingDecorationValueMany(property.writes, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -1214,6 +1522,7 @@ export function InspectorPanel() {
     const dropdownValue: ArrowTipDropdownValue = property.mixed
       ? ARROW_TIP_MIXED_OPTION_VALUE
       : property.value;
+    const previewOwnerKey = `multi-arrow-tip:${property.id}:${property.side}`;
 
     return (
       <div key={property.id} className={css.property}>
@@ -1228,8 +1537,16 @@ export function InspectorPanel() {
             previewLineWidth: property.previewLineWidth
           },
           writable,
-          (nextValue) => applyArrowTipValueMany(property.writes, property.side, nextValue),
-          dropdownValue
+          (nextValue) =>
+            commitAfterHoverPreview(previewOwnerKey, () =>
+              applyArrowTipValueMany(property.writes, property.side, nextValue)
+            ),
+          dropdownValue,
+          (nextValue) =>
+            applyHoverPreview(previewOwnerKey, () =>
+              applyArrowTipValueMany(property.writes, property.side, nextValue, { recordInHistory: false })
+            ),
+          () => clearHoverPreviewSession(previewOwnerKey)
         )}
         {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
       </div>
@@ -1243,17 +1560,17 @@ export function InspectorPanel() {
         {selectedSourceIds.length === 0 ? (
           <p className={css.hint}>Select an element on the canvas to inspect its properties.</p>
         ) : selectedSourceIds.length === 1 ? (
-          !descriptor ? (
+          !renderedDescriptor ? (
             <p className={css.hint}>Inspector data is unavailable for the current selection.</p>
           ) : (
             <div className={css.elementInfo}>
-              <div className={css.elementKind}>{descriptor.elementKind}</div>
-              <div className={css.elementId}>{descriptor.elementId}</div>
-              {descriptor.readOnlyReason ? (
-                <div className={css.globalNote}>{descriptor.readOnlyReason}</div>
+              <div className={css.elementKind}>{renderedDescriptor.elementKind}</div>
+              <div className={css.elementId}>{renderedDescriptor.elementId}</div>
+              {renderedDescriptor.readOnlyReason ? (
+                <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
               ) : null}
 
-              {descriptor.sections.map((section) => (
+              {renderedDescriptor.sections.map((section) => (
                 <div key={section.id} className={css.section}>
                   <div className={css.sectionHeader}>
                     <span>{section.title}</span>
@@ -1266,15 +1583,15 @@ export function InspectorPanel() {
               ))}
             </div>
           )
-        ) : !multiModel || multiModel.sections.length === 0 ? (
+        ) : !renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
           <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
         ) : (
           <div className={css.elementInfo}>
-            <div className={css.elementKind}>{multiModel.selectionCount} selected</div>
-            <div className={css.elementId}>{multiModel.elementKinds.join(", ")}</div>
+            <div className={css.elementKind}>{renderedMultiModel.selectionCount} selected</div>
+            <div className={css.elementId}>{renderedMultiModel.elementKinds.join(", ")}</div>
             <div className={css.globalNote}>Shared properties are shown. Mixed values appear as blank inputs.</div>
 
-            {multiModel.sections.map((section) => (
+            {renderedMultiModel.sections.map((section) => (
               <div key={section.id} className={css.section}>
                 <div className={css.sectionHeader}>
                   <span>{section.title}</span>
@@ -1611,6 +1928,18 @@ function dedupeStrings(values: readonly string[]): string[] {
     deduped.push(value);
   }
   return deduped;
+}
+
+function sameOrderedStringArrays(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function toDashStyleDropdownOptions(

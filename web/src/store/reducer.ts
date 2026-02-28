@@ -121,6 +121,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const nextSelection = result.selectedSourceIds
         ? new Set(result.selectedSourceIds)
         : state.selectedElementIds;
+      const recordInHistory = action.recordInHistory ?? true;
+
+      if (!recordInHistory) {
+        return {
+          ...state,
+          source: result.newSource,
+          lastEditChangedSourceIds: result.changedSourceIds ?? null,
+          lastEditChangeToken: state.lastEditChangeToken + 1,
+          selectedElementIds: nextSelection
+        };
+      }
 
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
@@ -182,6 +193,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         selectedElementIds: nextSelection,
         history: [...truncated, entry],
         historyIndex: truncated.length
+      };
+    }
+
+    case "SET_SOURCE_TRANSIENT": {
+      if (action.source === state.source) {
+        return state;
+      }
+      return {
+        ...state,
+        source: action.source,
+        lastEditChangedSourceIds: action.changedSourceIds ?? null,
+        lastEditChangeToken: state.lastEditChangeToken + 1
       };
     }
 

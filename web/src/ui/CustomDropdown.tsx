@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import css from "./CustomDropdown.module.css";
 
 export type CustomDropdownOption<TValue extends string> = {
@@ -12,6 +12,8 @@ type CustomDropdownProps<TValue extends string> = {
   options: readonly CustomDropdownOption<TValue>[];
   value: TValue;
   onChange: (value: TValue) => void;
+  onOptionHover?: (value: TValue) => void;
+  onOptionHoverEnd?: () => void;
   renderOption?: (option: CustomDropdownOption<TValue>, state: { selected: boolean }) => ReactNode;
   renderValue?: (option: CustomDropdownOption<TValue> | null) => ReactNode;
 };
@@ -29,6 +31,8 @@ export function CustomDropdown<TValue extends string>({
   options,
   value,
   onChange,
+  onOptionHover,
+  onOptionHoverEnd,
   renderOption,
   renderValue
 }: CustomDropdownProps<TValue>) {
@@ -43,6 +47,16 @@ export function CustomDropdown<TValue extends string>({
     [options, value]
   );
 
+  const closeMenu = useCallback(() => {
+    setOpen((current) => {
+      if (!current) {
+        return current;
+      }
+      onOptionHoverEnd?.();
+      return false;
+    });
+  }, [onOptionHoverEnd]);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -54,13 +68,13 @@ export function CustomDropdown<TValue extends string>({
         return;
       }
       if (!rootRef.current?.contains(target)) {
-        setOpen(false);
+        closeMenu();
       }
     }
 
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+  }, [closeMenu, open]);
 
   useEffect(() => {
     if (!open) {
@@ -69,19 +83,19 @@ export function CustomDropdown<TValue extends string>({
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
-        setOpen(false);
+        closeMenu();
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [closeMenu, open]);
 
   useEffect(() => {
     if (disabled) {
-      setOpen(false);
+      closeMenu();
     }
-  }, [disabled]);
+  }, [closeMenu, disabled]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -134,7 +148,11 @@ export function CustomDropdown<TValue extends string>({
           if (disabled) {
             return;
           }
-          setOpen((current) => !current);
+          if (open) {
+            closeMenu();
+            return;
+          }
+          setOpen(true);
         }}
       >
         <span className={css.triggerValue}>
@@ -155,6 +173,7 @@ export function CustomDropdown<TValue extends string>({
             role="listbox"
             aria-label={ariaLabel}
             ref={menuListRef}
+            onPointerLeave={() => onOptionHoverEnd?.()}
           >
             {options.map((option) => {
               const selected = option.value === value;
@@ -165,9 +184,10 @@ export function CustomDropdown<TValue extends string>({
                   role="option"
                   aria-selected={selected}
                   className={[css.option, selected ? css.optionSelected : ""].filter(Boolean).join(" ")}
+                  onPointerEnter={() => onOptionHover?.(option.value)}
                   onClick={() => {
                     onChange(option.value);
-                    setOpen(false);
+                    closeMenu();
                   }}
                 >
                   {renderOption ? renderOption(option, { selected }) : option.label}

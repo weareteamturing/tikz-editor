@@ -86,7 +86,14 @@ export type EditorAction =
       type: "APPLY_EDIT_ACTION";
       action: EditAction;
       historyMergeKey?: string;
+      /** False for transient UI previews that should not affect undo/redo history. */
+      recordInHistory?: boolean;
       precomputedResult?: Extract<EditActionResult, { kind: "success" | "partial" }>;
+    }
+  | {
+      type: "SET_SOURCE_TRANSIENT";
+      source: string;
+      changedSourceIds?: string[] | null;
     }
   | { type: "COMPUTE_REQUESTED"; requestId: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot }
