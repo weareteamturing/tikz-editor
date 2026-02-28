@@ -530,6 +530,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     element.kind === "Path"
       ? computePathStrokeControlVisibility(element.commands, element.style.dashArray)
       : null;
+  const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
 
   const sections: InspectorSection[] = [
     {
@@ -610,8 +611,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           write: makeSetPropertyWriteTarget(inlineTarget, "solid")
         }
       ]
-    },
-    {
+    }
+  ];
+  if (pathFillVisibility) {
+    sections.push({
       id: "fill",
       title: "Fill",
       sourceLevel: "command",
@@ -626,8 +629,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           write: makeSetPropertyWriteTarget(inlineTarget, "fill")
         }
       ]
-    }
-  ];
+    });
+  }
 
   const strokeSection = sections.find((section) => section.id === "stroke");
   if (strokeSection && pathStrokeVisibility) {
@@ -1226,6 +1229,83 @@ function pathSupportsArrowTipEditing(commands: ScenePathCommand[]): boolean {
     return false;
   }
   return commands.some((command) => command.kind === "L" || command.kind === "C" || command.kind === "A");
+}
+
+function pathSupportsFillEditing(commands: ScenePathCommand[]): boolean {
+  type OpenSubpathState = {
+    hasCurveOrArc: boolean;
+    segmentCount: number;
+    points: Array<{ x: number; y: number }>;
+  };
+
+  const POLYGON_AREA_EPSILON = 1e-9;
+  let subpath: OpenSubpathState | null = null;
+
+  const flushOpenSubpath = (): boolean => {
+    if (!subpath) {
+      return false;
+    }
+    if (subpath.hasCurveOrArc && subpath.segmentCount >= 1) {
+      return true;
+    }
+    if (subpath.segmentCount < 2) {
+      return false;
+    }
+    return Math.abs(polygonSignedArea(subpath.points)) > POLYGON_AREA_EPSILON;
+  };
+
+  for (const command of commands) {
+    if (command.kind === "M") {
+      if (flushOpenSubpath()) {
+        return true;
+      }
+      subpath = {
+        hasCurveOrArc: false,
+        segmentCount: 0,
+        points: [command.to]
+      };
+      continue;
+    }
+
+    if (command.kind === "Z") {
+      return true;
+    }
+
+    if (!subpath) {
+      continue;
+    }
+
+    if (command.kind === "L") {
+      subpath.segmentCount += 1;
+      subpath.points.push(command.to);
+      continue;
+    }
+
+    if (command.kind === "C" || command.kind === "A") {
+      subpath.hasCurveOrArc = true;
+      subpath.segmentCount += 1;
+      subpath.points.push(command.to);
+    }
+  }
+
+  return flushOpenSubpath();
+}
+
+function polygonSignedArea(points: readonly Array<{ x: number; y: number }>): number {
+  if (points.length < 3) {
+    return 0;
+  }
+
+  let area = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    if (!current || !next) {
+      continue;
+    }
+    area += current.x * next.y - next.x * current.y;
+  }
+  return area / 2;
 }
 
 function computeElementMetrics(element: SceneElement): {

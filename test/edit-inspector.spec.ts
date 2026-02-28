@@ -362,6 +362,44 @@ describe("getInspectorDescriptor", () => {
     expect(hasLineJoin).toBe(false);
   });
 
+  it("hides fill controls for open single-segment paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (-2.5, 2.5) -- (2.5, 2.5);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.sections.some((section) => section.id === "fill")).toBe(false);
+  });
+
+  it("keeps fill controls for open paths that enclose a region via implicit closure", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) -- (2,0) -- (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.sections.some((section) => section.id === "fill")).toBe(true);
+  });
+
   it("shows line join for closed paths and line cap only when dashes are active", () => {
     const undashedSource = String.raw`\begin{tikzpicture}
   \draw (0,0) rectangle (1,1);
