@@ -233,6 +233,7 @@ const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
 const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
+const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 
 export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
@@ -257,6 +258,7 @@ export function CanvasPanel() {
   const semanticDiags = snapshot.semanticResult?.diagnostics;
 
   const [warning, setWarning] = useState<string | null>(null);
+  const [dragCursorLock, setDragCursorLock] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
   const [snapDebug, setSnapDebug] = useState<SnapDebugOverlayState | null>(null);
   const [snapDebugRect, setSnapDebugRect] = useState<SnapDebugOverlayRect>({
@@ -303,6 +305,7 @@ export function CanvasPanel() {
   const setDragState = useCallback(
     (next: DragState | null) => {
       dragRef.current = next;
+      setDragCursorLock(dragCursorForState(next));
       setActiveCanvasDragKind(next?.kind ?? null);
     },
     [setActiveCanvasDragKind]
@@ -1588,6 +1591,7 @@ export function CanvasPanel() {
           })
         : null;
       setSnapLines([]);
+      const handleCursor = getHandleCursor(handle, snapshot.scene, snapshot.editHandles);
 
       setDragState({
         kind: "handle",
@@ -1595,6 +1599,7 @@ export function CanvasPanel() {
         handleId: handle.id,
         sourceId: handle.sourceId,
         handleKind: handle.kind,
+        cursor: handleCursor,
         lastKnownWorld: { ...handle.world },
         snapContext,
         historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId)
@@ -1670,6 +1675,7 @@ export function CanvasPanel() {
         pointerId: event.pointerId,
         elementId: sourceId,
         role,
+        cursor: resizeCursorForRole(role),
         preserveAspectRatio: ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
         historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
       });
@@ -2470,6 +2476,27 @@ export function CanvasPanel() {
     const timer = window.setTimeout(() => setWarning(null), 3200);
     return () => window.clearTimeout(timer);
   }, [warning]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const body = document.body;
+    body.classList.remove(CANVAS_DRAG_CURSOR_LOCK_CLASS);
+    body.style.removeProperty("--canvas-drag-cursor");
+
+    if (!dragCursorLock) {
+      return;
+    }
+
+    body.classList.add(CANVAS_DRAG_CURSOR_LOCK_CLASS);
+    body.style.setProperty("--canvas-drag-cursor", dragCursorLock);
+    return () => {
+      body.classList.remove(CANVAS_DRAG_CURSOR_LOCK_CLASS);
+      body.style.removeProperty("--canvas-drag-cursor");
+    };
+  }, [dragCursorLock]);
 
   useEffect(() => {
     if (showDevPanel) {
@@ -3732,6 +3759,29 @@ function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | null {
     return null;
   }
   return handles.find((handle) => handle.kind === "node-position") ?? handles[0]!;
+}
+
+function dragCursorForState(drag: DragState | null): string | null {
+  if (!drag) {
+    return null;
+  }
+  if (drag.kind === "handle" || drag.kind === "resize") {
+    return drag.cursor;
+  }
+  if (drag.kind === "element") {
+    return "move";
+  }
+  if (drag.kind === "pan") {
+    return "grabbing";
+  }
+  if (drag.kind === "marquee" || drag.kind === "tool-create") {
+    return "crosshair";
+  }
+  return drag.kind === "text-select" ? "text" : null;
+}
+
+function resizeCursorForRole(role: ResizeRole): string {
+  return role === "top-left" || role === "bottom-right" ? "nwse-resize" : "nesw-resize";
 }
 
 function isPointInsideRect(clientX: number, clientY: number, rect: DOMRect): boolean {

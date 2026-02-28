@@ -461,6 +461,15 @@
   user-select: none !important;
 }
 
+:global(body.is-dragging-canvas-cursor-lock),
+:global(body.is-dragging-canvas-cursor-lock *) {
+  cursor: var(--canvas-drag-cursor) !important;
+}
+
+:global(body.is-dragging-canvas-cursor-lock) {
+  user-select: none !important;
+}
+
 .diagnostics {
   display: flex;
   flex-direction: column;

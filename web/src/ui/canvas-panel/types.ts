@@ -31,6 +31,7 @@ export type DragState =
       pointerId: number;
       elementId: string;
       role: ResizeRole;
+      cursor: string;
       preserveAspectRatio: number | null;
       historyMergeKey: string;
     }
@@ -40,6 +41,7 @@ export type DragState =
       handleId: string;
       sourceId: string;
       handleKind: EditHandle["kind"];
+      cursor: string;
       lastKnownWorld: Point;
       snapContext: SnapContext | null;
       historyMergeKey: string;
