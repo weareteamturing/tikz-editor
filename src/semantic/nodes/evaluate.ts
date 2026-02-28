@@ -51,6 +51,7 @@ import { adjustNodeLayoutForShape, resolveNodeLayout } from "./layout.js";
 import { evaluateMatrixNodeItem, resolveMatrixMode } from "./matrix.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
 import {
+  computeTransformRotation,
   computeTransformScale,
   resolveEffectiveNodeOptions,
   resolveNodeAnchor,
@@ -334,10 +335,13 @@ export function evaluateNodeItem(
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
   const optionRotation = resolveNodeOptionRotation(expandedNodeOptions);
-  const textRotation =
+  const localTextRotation =
     optionRotation != null && slopedRotation != null
       ? optionRotation + slopedRotation
-      : (optionRotation ?? slopedRotation ?? undefined);
+      : (optionRotation ?? slopedRotation ?? 0);
+  const inheritedTextRotation = frame.transformShape ? computeTransformRotation(frame.transform) : 0;
+  const combinedTextRotation = localTextRotation + inheritedTextRotation;
+  const textRotation = Math.abs(combinedTextRotation) > 1e-6 ? combinedTextRotation : undefined;
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,

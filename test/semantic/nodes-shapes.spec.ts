@@ -1801,6 +1801,20 @@ describe("semantic evaluator / nodes and shapes", () => {
       }
     });
 
+    it("inherits scope rotation for text when transform shape is enabled", () => {
+      const source = String.raw`\begin{tikzpicture}[rotate=40, transform shape]
+    \draw (-0.5,3) rectangle (3.5,-0.5);
+    \node at (0,2) {test};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "test");
+      expect(text?.kind).toBe("Text");
+      if (text?.kind === "Text") {
+        expect(text.rotation ?? 0).toBeCloseTo(40, 3);
+      }
+    });
+
     it("supports node font option for italic text", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[node font=\itshape] (1,0) -- +(1,1) node[above] {italic};

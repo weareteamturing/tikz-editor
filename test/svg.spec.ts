@@ -539,6 +539,18 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain('font-size="29.8879"');
   });
 
+  it("emits rotated node text for scope rotation with transform shape", () => {
+    const source = String.raw`\begin{tikzpicture}[rotate=40, transform shape]
+  \draw (-0.5,3) rectangle (3.5,-0.5);
+  \node at (0,2) {test};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toMatch(/<text[^>]*transform="rotate\(-40 [^\"]+\)"/);
+  });
+
   it("emits scaled font-size attributes for node font commands", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[font=\footnotesize] at (0,0) {small};

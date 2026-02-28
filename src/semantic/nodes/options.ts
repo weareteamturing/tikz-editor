@@ -299,6 +299,22 @@ export function computeTransformScale(transform: { a: number; b: number; c: numb
   return averaged;
 }
 
+export function computeTransformRotation(transform: { a: number; b: number; c: number; d: number }): number {
+  const xScale = Math.hypot(transform.a, transform.b);
+  const yScale = Math.hypot(transform.c, transform.d);
+  if (!Number.isFinite(xScale) || !Number.isFinite(yScale)) {
+    return 0;
+  }
+
+  if (xScale > 1e-6) {
+    return (Math.atan2(transform.b, transform.a) * 180) / Math.PI;
+  }
+  if (yScale > 1e-6) {
+    return (Math.atan2(-transform.c, transform.d) * 180) / Math.PI;
+  }
+  return 0;
+}
+
 function computeRelativeTransformScale(
   baseTransform: { a: number; b: number; c: number; d: number },
   resolvedTransform: { a: number; b: number; c: number; d: number }
