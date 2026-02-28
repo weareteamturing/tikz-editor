@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { rgbToXcolorExpressionFast, type RgbColor, type RgbToXcolorMode } from "tikz-editor/edit/rgb-to-xcolor";
 import { normalizeColor } from "tikz-editor/semantic/style/colors";
 import { BASIC_PICKER_COLORS, BASIC_PICKER_COLOR_SET } from "../color-palette";
 import type { NamedColorSwatch } from "../project-named-colors";
+import { parseCustomColorInput } from "./custom-color-input";
 import css from "./ColorPicker.module.css";
 
 type ColorPickerTabId = "standard" | "custom";
@@ -24,6 +26,8 @@ const POPOVER_GAP_PX = 2;
 const POPOVER_VIEWPORT_PADDING_PX = 8;
 const POPOVER_MIN_HEIGHT_PX = 120;
 const POPOVER_MAX_HEIGHT_PX = 360;
+const DEFAULT_CUSTOM_RGB: RgbColor = { r: 0, g: 255, b: 0 };
+const CUSTOM_PARSE_ERROR_MESSAGE = "Unrecognized color format.";
 const TONE_HIT_BUCKETS = buildToneHitBuckets();
 
 export type ColorPickerProps = {
@@ -210,7 +214,6 @@ export function ColorPicker({
   disabled = false,
   onChange
 }: ColorPickerProps) {
-  const [tab, setTab] = useState<ColorPickerTabId>("standard");
   const normalizedSyntaxValue = normalizeColorToken(syntaxValue);
   const normalizedValue = normalizeColorToken(value);
   const driverValue = normalizedSyntaxValue ?? normalizedValue;
@@ -241,11 +244,30 @@ export function ColorPicker({
     }
     return tokens;
   }, [builtInColors, namedColorTokenSet]);
+  const initialTab = useMemo<ColorPickerTabId>(
+    () =>
+      isStandardTabColorSupported(driverValue, namedColorTokenSet, toneSelectableTokens, mixed)
+        ? "standard"
+        : "custom",
+    [driverValue, mixed, namedColorTokenSet, toneSelectableTokens]
+  );
+  const [tab, setTab] = useState<ColorPickerTabId>(() => initialTab);
+  const previousTabRef = useRef<ColorPickerTabId>(initialTab);
   const [activeBaseColor, setActiveBaseColor] = useState<string>(() =>
     pickInitialBaseColor(driverValue, builtInColors, toneSelectableTokens)
   );
   const brightnessTrackRef = useRef<HTMLDivElement | null>(null);
   const [dragPointerId, setDragPointerId] = useState<number | null>(null);
+  const [customRgb, setCustomRgb] = useState<RgbColor>(() => resolveCustomRgbFromDriver(driverValue, namedColorLookup));
+  const [customInputValue, setCustomInputValue] = useState<string>(() => rgbToHex(resolveCustomRgbFromDriver(driverValue, namedColorLookup)));
+  const [customExpression, setCustomExpression] = useState<string>(() =>
+    rgbToXcolorExpressionFast(resolveCustomRgbFromDriver(driverValue, namedColorLookup), {
+      mode: "drag",
+      maxMixes: 2
+    }).expression
+  );
+  const [customInputError, setCustomInputError] = useState<string | null>(null);
+  const [customInputWarning, setCustomInputWarning] = useState<string | null>(null);
 
   const toneState = useMemo(
     () => deriveToneState(driverValue, activeBaseColor, toneSelectableTokens),
@@ -273,6 +295,15 @@ export function ColorPicker({
     setDragPointerId(null);
   }, [disabled]);
 
+  useEffect(() => {
+    const previousTab = previousTabRef.current;
+    const enteredCustom = previousTab !== "custom" && tab === "custom";
+    previousTabRef.current = tab;
+    if (tab !== "custom" || enteredCustom) {
+      syncCustomStateFromDriver();
+    }
+  }, [tab, driverValue, namedColorLookup]);
+
   const selectedSwatchColor = useMemo(
     () => resolveSelectedSwatchColor(driverValue, namedColorTokenSet, toneSelectableTokens),
     [driverValue, namedColorTokenSet, toneSelectableTokens]
@@ -286,6 +317,10 @@ export function ColorPicker({
     : composeToneColor(activeBaseColor, toneState.position);
   const showBrightnessScrubber = mixed || (driverValue != null && driverValue !== "none");
   const showCenterLabel = !grayscaleMode;
+  const customIdPrefix = useMemo(
+    () => ariaLabel.trim().toLowerCase().replace(/[^a-z0-9_-]+/giu, "-"),
+    [ariaLabel]
+  );
 
   function applyColor(nextColor: string): void {
     if (disabled) {
@@ -389,6 +424,80 @@ export function ColorPicker({
     }
     event.preventDefault();
     applyTone(clampTonePosition(nextPosition));
+  }
+
+  function syncCustomStateFromDriver(): void {
+    const resolved = resolveCustomRgbFromDriver(driverValue, namedColorLookup);
+    setCustomRgb(resolved);
+    setCustomInputValue(rgbToHex(resolved));
+    setCustomExpression(
+      rgbToXcolorExpressionFast(resolved, {
+        mode: "drag",
+        maxMixes: 2
+      }).expression
+    );
+    setCustomInputError(null);
+    setCustomInputWarning(null);
+  }
+
+  function applyCustomRgb(nextRgb: RgbColor, mode: RgbToXcolorMode, warning: string | null = null): void {
+    const normalizedRgb = clampRgbColor(nextRgb);
+    const result = rgbToXcolorExpressionFast(normalizedRgb, {
+      mode,
+      maxMixes: 2
+    });
+    setCustomRgb(normalizedRgb);
+    setCustomExpression(result.expression);
+    setCustomInputError(null);
+    setCustomInputWarning(warning);
+    applyColor(result.expression);
+  }
+
+  function handleCustomColorWell(rawHex: string, mode: RgbToXcolorMode): void {
+    const parsed = parseCustomColorInput(rawHex);
+    if (!parsed) {
+      return;
+    }
+    setCustomInputValue(parsed.hex);
+    applyCustomRgb(parsed.rgb, mode, parsed.warning ?? null);
+  }
+
+  function handleCustomChannelChange(channel: keyof RgbColor, rawValue: string, mode: RgbToXcolorMode): void {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      return;
+    }
+    const clamped = clampRgbByte(parsed);
+    const nextRgb: RgbColor =
+      channel === "r"
+        ? { ...customRgb, r: clamped }
+        : channel === "g"
+          ? { ...customRgb, g: clamped }
+          : { ...customRgb, b: clamped };
+    setCustomInputValue(rgbToHex(nextRgb));
+    applyCustomRgb(nextRgb, mode, null);
+  }
+
+  function handleCustomTextInputChange(rawValue: string): void {
+    setCustomInputValue(rawValue);
+    const parsed = parseCustomColorInput(rawValue);
+    if (!parsed) {
+      setCustomInputError(CUSTOM_PARSE_ERROR_MESSAGE);
+      setCustomInputWarning(null);
+      return;
+    }
+    applyCustomRgb(parsed.rgb, "drag", parsed.warning ?? null);
+  }
+
+  function commitCustomTextInput(): void {
+    const parsed = parseCustomColorInput(customInputValue);
+    if (!parsed) {
+      setCustomInputError(CUSTOM_PARSE_ERROR_MESSAGE);
+      setCustomInputWarning(null);
+      return;
+    }
+    setCustomInputValue(parsed.hex);
+    applyCustomRgb(parsed.rgb, "release", parsed.warning ?? null);
   }
 
   return (
@@ -513,11 +622,188 @@ export function ColorPicker({
         </div>
       ) : (
         <div className={css.customTabPanel} role="tabpanel">
-          Additional color tabs will be added here.
+          <div className={css.customColorWellRow}>
+            <label className={css.customLabel} htmlFor={`${customIdPrefix}-custom-well`}>
+              Color
+            </label>
+            <input
+              id={`${customIdPrefix}-custom-well`}
+              className={css.customColorWell}
+              type="color"
+              value={rgbToHex(customRgb)}
+              disabled={disabled}
+              onInput={(event) => handleCustomColorWell(event.currentTarget.value, "drag")}
+              onChange={(event) => handleCustomColorWell(event.currentTarget.value, "release")}
+            />
+          </div>
+
+          <div className={css.customChannelStack}>
+            {(["r", "g", "b"] as const).map((channel) => {
+              const channelLabel = channel.toUpperCase();
+              const channelValue = customRgb[channel];
+              return (
+                <div key={channel} className={css.customChannelRow}>
+                  <label className={css.customChannelLabel} htmlFor={`${customIdPrefix}-custom-${channel}-range`}>
+                    {channelLabel}
+                  </label>
+                  <input
+                    id={`${customIdPrefix}-custom-${channel}-range`}
+                    className={css.customChannelRange}
+                    type="range"
+                    min={0}
+                    max={255}
+                    step={1}
+                    value={channelValue}
+                    disabled={disabled}
+                    onChange={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "drag")}
+                    onPointerUp={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
+                    onBlur={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
+                  />
+                  <input
+                    className={css.customChannelNumber}
+                    type="number"
+                    min={0}
+                    max={255}
+                    step={1}
+                    value={channelValue}
+                    disabled={disabled}
+                    onChange={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "drag")}
+                    onBlur={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") {
+                        return;
+                      }
+                      event.preventDefault();
+                      handleCustomChannelChange(channel, event.currentTarget.value, "release");
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className={css.customField}>
+            <label className={css.customLabel} htmlFor={`${customIdPrefix}-custom-text`}>
+              Color Input
+            </label>
+            <div className={css.customTextInputWrap}>
+              <input
+                id={`${customIdPrefix}-custom-text`}
+                className={[css.customTextInput, customInputError ? css.customTextInputError : ""].filter(Boolean).join(" ")}
+                type="text"
+                value={customInputValue}
+                placeholder="#00ff00, rgb(...), hsl(...), hsb(...)"
+                spellCheck={false}
+                autoCapitalize="none"
+                autoCorrect="off"
+                disabled={disabled}
+                aria-invalid={customInputError ? "true" : "false"}
+                title={customInputError ?? undefined}
+                onChange={(event) => handleCustomTextInputChange(event.currentTarget.value)}
+                onBlur={() => commitCustomTextInput()}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+                  event.preventDefault();
+                  commitCustomTextInput();
+                }}
+              />
+              {customInputError ? (
+                <span className={css.customTextInputStatus} aria-hidden="true">
+                  !
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className={css.customField}>
+            <label className={css.customLabel} htmlFor={`${customIdPrefix}-custom-expression`}>
+              xcolor
+            </label>
+            <input
+              id={`${customIdPrefix}-custom-expression`}
+              className={css.customResultInput}
+              type="text"
+              value={customExpression}
+              readOnly
+              aria-readonly="true"
+              disabled={disabled}
+            />
+          </div>
+
+          {customInputWarning ? (
+            <div className={css.customMessageWarning} role="status">
+              {customInputWarning}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
   );
+}
+
+function isStandardTabColorSupported(
+  driverValue: string | null,
+  namedColorTokens: ReadonlySet<string>,
+  toneSelectableTokens: ReadonlySet<string>,
+  mixed: boolean
+): boolean {
+  if (mixed || driverValue == null) {
+    return true;
+  }
+  if (namedColorTokens.has(driverValue) || BUILTIN_COLOR_SET.has(driverValue)) {
+    return true;
+  }
+  if (BLACK_LIGHT_RE.test(driverValue)) {
+    return true;
+  }
+
+  const darkMatch = driverValue.match(DARK_MIX_RE);
+  if (darkMatch && toneSelectableTokens.has(darkMatch[1]!)) {
+    return true;
+  }
+
+  const lightMatch = driverValue.match(LIGHT_MIX_RE);
+  if (lightMatch && toneSelectableTokens.has(lightMatch[1]!)) {
+    return true;
+  }
+
+  return false;
+}
+
+function resolveCustomRgbFromDriver(
+  driverValue: string | null,
+  namedColorLookup: ReadonlyMap<string, string>
+): RgbColor {
+  if (driverValue) {
+    const resolved = resolveColorTokenToRgbForPicker(driverValue, namedColorLookup, "black");
+    if (resolved) {
+      return clampRgbColor(resolved);
+    }
+  }
+  return { ...DEFAULT_CUSTOM_RGB };
+}
+
+function clampRgbColor(rgb: RgbColor): RgbColor {
+  return {
+    r: clampRgbByte(rgb.r),
+    g: clampRgbByte(rgb.g),
+    b: clampRgbByte(rgb.b)
+  };
+}
+
+function clampRgbByte(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value <= 0) {
+    return 0;
+  }
+  if (value >= 255) {
+    return 255;
+  }
+  return Math.round(value);
 }
 
 function normalizeColorToken(value: string | null): string | null {

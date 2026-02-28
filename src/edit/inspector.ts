@@ -1,6 +1,7 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
-import { findTopLevelCharacter, parseStyleValueAsOptionList, stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import { normalizeColor, resolveDefineColorModel } from "../semantic/style/colors.js";
+import { findTopLevelCharacter, parseStyleValueAsOptionList, readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
 
 export type ArrowTipPresetId =
@@ -498,14 +499,33 @@ export function buildRoundedCornersSetPropertyMutation(
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source);
+  const colorAliases = collectInspectorColorAliases(snapshot.source);
   const metrics = computeElementMetrics(element);
   const moveWrite = resolveMoveWriteTarget(element, snapshot.editHandles, metrics);
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
-  const strokeColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["draw", "color"]);
+  const strokeColorSyntax = resolveColorSyntaxValue(
+    snapshot.source,
+    inlineTarget.targetId,
+    ["draw", "color"],
+    strokeColor,
+    colorAliases
+  );
   const fillColor = normalizeInspectorColorValue(element.style.fill);
-  const fillColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["fill", "color"]);
+  const fillColorSyntax = resolveColorSyntaxValue(
+    snapshot.source,
+    inlineTarget.targetId,
+    ["fill", "color"],
+    fillColor,
+    colorAliases
+  );
   const textColor = normalizeInspectorColorValue(element.style.textColor);
-  const textColorSyntax = resolveColorSyntaxValue(snapshot.source, inlineTarget.targetId, ["text", "color"]);
+  const textColorSyntax = resolveColorSyntaxValue(
+    snapshot.source,
+    inlineTarget.targetId,
+    ["text", "color"],
+    textColor,
+    colorAliases
+  );
   const pathStrokeVisibility =
     element.kind === "Path"
       ? computePathStrokeControlVisibility(element.commands, element.style.dashArray)
@@ -1417,7 +1437,13 @@ function normalizeInspectorColorValue(value: string | null): string | null {
   return normalized;
 }
 
-function resolveColorSyntaxValue(source: string, targetId: string | null, keys: readonly string[]): string | null {
+function resolveColorSyntaxValue(
+  source: string,
+  targetId: string | null,
+  keys: readonly string[],
+  currentValue: string | null,
+  colorAliases: ReadonlyMap<string, string>
+): string | null {
   if (!targetId) {
     return null;
   }
@@ -1447,7 +1473,190 @@ function resolveColorSyntaxValue(source: string, targetId: string | null, keys: 
     }
     colorValue = rawValue;
   }
+  if (colorValue != null) {
+    return colorValue;
+  }
+
+  const normalizedCurrentValue = normalizeInspectorColorValue(currentValue);
+  if (!normalizedCurrentValue) {
+    return null;
+  }
+
+  const resolveAlias = (rawColorName: string): string | null => {
+    const normalized = rawColorName.trim().toLowerCase();
+    if (normalized.length === 0) {
+      return null;
+    }
+    return colorAliases.get(normalized) ?? null;
+  };
+
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind !== "flag") {
+      continue;
+    }
+
+    const rawToken = stripEnclosingBraces(entry.raw.trim());
+    if (rawToken.length === 0) {
+      continue;
+    }
+
+    const normalizedRawToken = rawToken.toLowerCase();
+    const resolvedToken = normalizeColor(normalizedRawToken, {
+      resolveAlias
+    });
+    const normalizedResolved = normalizeInspectorColorValue(resolvedToken);
+    if (normalizedResolved === normalizedCurrentValue) {
+      colorValue = rawToken;
+    }
+  }
+
   return colorValue;
+}
+
+function collectInspectorColorAliases(source: string): ReadonlyMap<string, string> {
+  const aliases = new Map<string, string>();
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const colorletIndex = source.indexOf("\\colorlet", cursor);
+    const defineColorIndex = source.indexOf("\\definecolor", cursor);
+    const nextColorlet = colorletIndex >= 0 ? colorletIndex : Number.POSITIVE_INFINITY;
+    const nextDefineColor = defineColorIndex >= 0 ? defineColorIndex : Number.POSITIVE_INFINITY;
+    const nextIndex = Math.min(nextColorlet, nextDefineColor);
+
+    if (!Number.isFinite(nextIndex)) {
+      break;
+    }
+
+    if (nextIndex === nextColorlet) {
+      const parsed = parseInspectorColorletStatement(source, nextIndex);
+      if (parsed) {
+        aliases.set(parsed.name, parsed.value);
+        cursor = parsed.nextIndex;
+        continue;
+      }
+      cursor = nextIndex + 1;
+      continue;
+    }
+
+    const parsed = parseInspectorDefineColorStatement(source, nextIndex);
+    if (parsed) {
+      aliases.set(parsed.name, parsed.value);
+      cursor = parsed.nextIndex;
+      continue;
+    }
+    cursor = nextIndex + 1;
+  }
+
+  return aliases;
+}
+
+function parseInspectorColorletStatement(
+  source: string,
+  startIndex: number
+): { name: string; value: string; nextIndex: number } | null {
+  let cursor = startIndex + "\\colorlet".length;
+  const nameGroup = readInspectorBraceGroup(source, cursor);
+  if (!nameGroup) {
+    return null;
+  }
+  cursor = nameGroup.nextIndex;
+
+  const valueGroup = readInspectorBraceGroup(source, cursor);
+  if (!valueGroup) {
+    return null;
+  }
+  cursor = valueGroup.nextIndex;
+
+  const normalizedName = normalizeInspectorDeclaredColorName(nameGroup.value);
+  if (!normalizedName) {
+    return null;
+  }
+  if (valueGroup.value.length === 0) {
+    return null;
+  }
+
+  return {
+    name: normalizedName,
+    value: valueGroup.value,
+    nextIndex: cursor
+  };
+}
+
+function parseInspectorDefineColorStatement(
+  source: string,
+  startIndex: number
+): { name: string; value: string; nextIndex: number } | null {
+  let cursor = startIndex + "\\definecolor".length;
+  const nameGroup = readInspectorBraceGroup(source, cursor);
+  if (!nameGroup) {
+    return null;
+  }
+  cursor = nameGroup.nextIndex;
+
+  const modelGroup = readInspectorBraceGroup(source, cursor);
+  if (!modelGroup) {
+    return null;
+  }
+  cursor = modelGroup.nextIndex;
+
+  const specificationGroup = readInspectorBraceGroup(source, cursor);
+  if (!specificationGroup) {
+    return null;
+  }
+  cursor = specificationGroup.nextIndex;
+
+  const normalizedName = normalizeInspectorDeclaredColorName(nameGroup.value);
+  if (!normalizedName) {
+    return null;
+  }
+
+  const resolved = resolveDefineColorModel(modelGroup.value, specificationGroup.value);
+  if (!resolved) {
+    return null;
+  }
+
+  return {
+    name: normalizedName,
+    value: resolved.toLowerCase(),
+    nextIndex: cursor
+  };
+}
+
+function readInspectorBraceGroup(
+  source: string,
+  startIndex: number
+): { value: string; nextIndex: number } | null {
+  const cursor = skipInspectorWhitespace(source, startIndex);
+  if (cursor >= source.length || source[cursor] !== "{") {
+    return null;
+  }
+
+  const block = readBalancedBlock(source, cursor, "{", "}");
+  if (!block) {
+    return null;
+  }
+
+  return {
+    value: block.content.trim(),
+    nextIndex: block.nextIndex
+  };
+}
+
+function normalizeInspectorDeclaredColorName(raw: string): string | null {
+  const normalized = raw.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9._:@-]*$/u.test(normalized)) {
+    return null;
+  }
+  return normalized;
+}
+
+function skipInspectorWhitespace(source: string, startIndex: number): number {
+  let cursor = startIndex;
+  while (cursor < source.length && /\s/u.test(source[cursor]!)) {
+    cursor += 1;
+  }
+  return cursor;
 }
 
 function colorOptionsForValue(value: string | null): string[] {

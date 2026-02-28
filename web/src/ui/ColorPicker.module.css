@@ -164,9 +164,136 @@
 }
 
 .customTabPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.customColorWellRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.customLabel {
+  min-width: 56px;
   font-size: 10px;
-  color: var(--text-faint);
-  line-height: 1.4;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.customColorWell {
+  width: 100%;
+  min-height: 24px;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: #fff;
+  padding: 1px;
+}
+
+.customChannelStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customChannelRow {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) 50px;
+  gap: 6px;
+  align-items: center;
+}
+
+.customChannelLabel {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.customChannelRange {
+  width: 100%;
+  margin: 0;
+}
+
+.customChannelNumber {
+  width: 100%;
+  min-height: 22px;
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 4px;
+}
+
+.customField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.customTextInputWrap {
+  position: relative;
+}
+
+.customTextInput,
+.customResultInput {
+  width: 100%;
+  min-height: 22px;
+  border: 1px solid var(--border-light);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 5px;
+}
+
+.customTextInput {
+  padding-right: 20px;
+}
+
+.customTextInputError {
+  border-color: #bf2c29;
+}
+
+.customTextInputStatus {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: #bf2c29;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.customResultInput {
+  background: #f7f7f7;
+}
+
+.customColorWell:disabled,
+.customChannelNumber:disabled,
+.customTextInput:disabled,
+.customResultInput:disabled {
+  color: var(--text-dim);
+  background: #f3f1ec;
+}
+
+.customMessageWarning {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.customMessageWarning {
+  color: #8a5a00;
 }
 
 .colorGrid {

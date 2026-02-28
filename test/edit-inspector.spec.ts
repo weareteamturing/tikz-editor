@@ -85,6 +85,52 @@ describe("getInspectorDescriptor", () => {
     expect(endArrow.write.arrowContext.clearKeys).toContain("->");
   });
 
+  it("keeps declared color alias syntax for color flags", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{mypink}{rgb}{0.858, 0.188, 0.478}
+  \draw[mypink] (-2.5, 2.5) -- (2.5, 2.5);
+  \draw[draw=mypink] (-2.55, 2.5) -- (2.45, 2.5);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const pathElements = rendered.semantic.scene.elements
+      .filter((entry) => entry.kind === "Path")
+      .sort((left, right) => left.sourceSpan.from - right.sourceSpan.from);
+    expect(pathElements.length).toBeGreaterThanOrEqual(2);
+
+    const first = pathElements[0];
+    const second = pathElements[1];
+    if (!first || !second) {
+      throw new Error("Expected two path elements");
+    }
+
+    const firstDescriptor = getInspectorDescriptor(first, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const secondDescriptor = getInspectorDescriptor(second, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    const firstStrokeSection = firstDescriptor.sections.find((section) => section.id === "stroke");
+    const secondStrokeSection = secondDescriptor.sections.find((section) => section.id === "stroke");
+    if (!firstStrokeSection || !secondStrokeSection) {
+      throw new Error("Expected stroke section");
+    }
+
+    const firstStrokeColor = firstStrokeSection.properties.find((property) => property.kind === "color");
+    const secondStrokeColor = secondStrokeSection.properties.find((property) => property.kind === "color");
+    if (!firstStrokeColor || firstStrokeColor.kind !== "color") {
+      throw new Error("Expected first stroke color property");
+    }
+    if (!secondStrokeColor || secondStrokeColor.kind !== "color") {
+      throw new Error("Expected second stroke color property");
+    }
+
+    expect(firstStrokeColor.syntaxValue).toBe("mypink");
+    expect(secondStrokeColor.syntaxValue).toBe("mypink");
+  });
+
   it("does not expose arrow tips for closed paths", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[draw=blue,->] (0,0) -- (2,0) -- cycle;
