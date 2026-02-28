@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import {
   EditorSelection,
@@ -29,6 +29,7 @@ import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tik
 import { tikzLanguage } from "../codemirror-tikz";
 import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
+import { collectProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { ColorPicker } from "./ColorPicker";
 import {
@@ -259,6 +260,10 @@ export function SourcePanel() {
   const symbolsRef = useRef<DocumentSymbols>(EMPTY_SYMBOLS);
   const selectedElementIdsRef = useRef(selectedElementIds);
   const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
+  const projectNamedColorSwatches = useMemo(
+    () => collectProjectNamedColorSwatches(source),
+    [source]
+  );
 
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;
@@ -637,6 +642,7 @@ export function SourcePanel() {
           <ColorPicker
             ariaLabel="Source color"
             options={SOURCE_PICKER_COLORS}
+            namedColorSwatches={projectNamedColorSwatches}
             value={activeColorPicker.currentToken}
             syntaxValue={activeColorPicker.currentToken}
             disabled={!activeColorPicker.editable}

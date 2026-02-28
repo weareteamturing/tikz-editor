@@ -25,6 +25,7 @@ import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
 import type { ArrowTipKind, SceneElement } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
 import { renderPathMorphingDecorationPreviewSvg } from "tikz-editor/svg/decorations/preview";
+import { collectProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
@@ -225,6 +226,7 @@ type FrozenInspectorView = {
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const dispatch = useEditorStore((s) => s.dispatch);
   const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
@@ -234,6 +236,10 @@ export function InspectorPanel() {
   const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
+  const projectNamedColorSwatches = useMemo(
+    () => collectProjectNamedColorSwatches(source),
+    [source]
+  );
 
   const selectedElements = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
@@ -1022,6 +1028,7 @@ export function InspectorPanel() {
             value={property.value ?? "none"}
             syntaxValue={property.syntaxValue}
             options={property.options}
+            namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
             onChange={(nextValue) => applySetProperty(property.write, nextValue)}
           />
@@ -1365,6 +1372,7 @@ export function InspectorPanel() {
             syntaxValue={property.mixed ? null : property.syntaxValue}
             mixed={property.mixed}
             options={property.options}
+            namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
             onChange={(nextValue) => applySetPropertyMany(property.writes, nextValue)}
           />

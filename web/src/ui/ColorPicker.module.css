@@ -157,65 +157,27 @@
   gap: 8px;
 }
 
+.swatchStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .customTabPanel {
   font-size: 10px;
   color: var(--text-faint);
   line-height: 1.4;
 }
 
-.currentValueRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.currentValueSwatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, #000 12%, var(--border));
-  flex-shrink: 0;
-}
-
-.currentValueSwatchNone {
-  position: relative;
-  border-color: var(--border);
-  background-color: #fff;
-  background-size: 4px 4px;
-  background-image:
-    linear-gradient(45deg, #ddd 25%, transparent 25%),
-    linear-gradient(-45deg, #ddd 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #ddd 75%),
-    linear-gradient(-45deg, transparent 75%, #ddd 75%);
-  background-position: 0 0, 0 2px, 2px -2px, -2px 0;
-}
-
-.currentValueSwatchNone::after {
-  content: "";
-  position: absolute;
-  left: -1px;
-  right: -1px;
-  top: 50%;
-  height: 1.5px;
-  background: #bf2c29;
-  transform: translateY(-50%) rotate(-45deg);
-}
-
-.currentValueLabel {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-}
-
 .colorGrid {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 2px;
+}
+
+.colorGridDivider {
+  border-top: 1px solid var(--border-lighter);
+  margin: 0;
 }
 
 .swatchButton {
