@@ -16,6 +16,7 @@ import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
+import { applyMatrix } from "../semantic/transform.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { worldToLocal } from "./coords.js";
@@ -1227,6 +1228,18 @@ function applyResizeElement(
     (handle) => handle.sourceId === elementId && handle.kind === "node-position"
   );
   if (!hasNodePositionHandle) {
+    const rectangleContext = resolvePathRectangleResizeContext(
+      semantic.scene.elements,
+      semantic.editHandles,
+      elementId
+    );
+    if (rectangleContext.kind === "found") {
+      return applyResizePathRectangle(source, action, rectangleContext);
+    }
+    if (rectangleContext.kind === "unsupported") {
+      return rectangleContext;
+    }
+
     return applyResizePathCircleOrEllipse(
       source,
       action,
@@ -1315,6 +1328,213 @@ type PathShapeResizeContext = {
   syntax: PathShapeResizeSyntax;
   centerHandle: EditHandle;
 };
+
+type RectangleCornerRole = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+type PathRectangleResizeContext = {
+  kind: "found";
+  startHandle: EditHandle;
+  oppositeHandle: EditHandle;
+};
+
+type PathRectangleResizeResolution =
+  | PathRectangleResizeContext
+  | { kind: "not-rectangle" }
+  | { kind: "unsupported"; reason: string };
+
+function applyResizePathRectangle(
+  source: string,
+  action: Extract<EditAction, { kind: "resizeElement" }>,
+  context: PathRectangleResizeContext
+): EditActionResult {
+  const affectsWidth = action.role.includes("left") || action.role.includes("right");
+  const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
+  if (!affectsWidth && !affectsHeight) {
+    return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
+  }
+
+  const transform = context.startHandle.transform;
+  const localPointer = worldToLocal(action.newWorld, transform);
+  const startLocal = context.startHandle.local ?? worldToLocal(context.startHandle.world, transform);
+  const oppositeLocal = context.oppositeHandle.local ?? worldToLocal(context.oppositeHandle.world, transform);
+  if (!localPointer || !startLocal || !oppositeLocal) {
+    return { kind: "unsupported", reason: "Could not resolve local geometry for rectangle resize." };
+  }
+
+  const roleCorners = resolveRectangleRoleCorners(startLocal, oppositeLocal, transform);
+  const currentMinX = Math.min(startLocal.x, oppositeLocal.x);
+  const currentMaxX = Math.max(startLocal.x, oppositeLocal.x);
+  const currentMinY = Math.min(startLocal.y, oppositeLocal.y);
+  const currentMaxY = Math.max(startLocal.y, oppositeLocal.y);
+
+  let minX = currentMinX;
+  let maxX = currentMaxX;
+  let minY = currentMinY;
+  let maxY = currentMaxY;
+
+  if (isRectangleCornerRole(action.role)) {
+    const fixedLocal = roleCorners[oppositeRectangleCornerRole(action.role)];
+    minX = Math.min(fixedLocal.x, localPointer.x);
+    maxX = Math.max(fixedLocal.x, localPointer.x);
+    minY = Math.min(fixedLocal.y, localPointer.y);
+    maxY = Math.max(fixedLocal.y, localPointer.y);
+  } else if (action.role === "left" || action.role === "right") {
+    const fixedX = action.role === "left"
+      ? (roleCorners["top-right"].x + roleCorners["bottom-right"].x) / 2
+      : (roleCorners["top-left"].x + roleCorners["bottom-left"].x) / 2;
+    minX = Math.min(fixedX, localPointer.x);
+    maxX = Math.max(fixedX, localPointer.x);
+  } else if (action.role === "top" || action.role === "bottom") {
+    const fixedY = action.role === "top"
+      ? (roleCorners["bottom-left"].y + roleCorners["bottom-right"].y) / 2
+      : (roleCorners["top-left"].y + roleCorners["top-right"].y) / 2;
+    minY = Math.min(fixedY, localPointer.y);
+    maxY = Math.max(fixedY, localPointer.y);
+  }
+
+  const startUsesMinX = startLocal.x <= oppositeLocal.x;
+  const startUsesMinY = startLocal.y <= oppositeLocal.y;
+
+  const nextStartLocal: Point = {
+    x: startUsesMinX ? minX : maxX,
+    y: startUsesMinY ? minY : maxY
+  };
+  const nextOppositeLocal: Point = {
+    x: startUsesMinX ? maxX : minX,
+    y: startUsesMinY ? maxY : minY
+  };
+
+  const nextStartWorld = applyMatrix(transform, nextStartLocal);
+  const nextOppositeWorld = applyMatrix(transform, nextOppositeLocal);
+  let oppositeRewriteHandle = context.oppositeHandle;
+  if (
+    oppositeRewriteHandle.rewriteMode === "delta" &&
+    oppositeRewriteHandle.relativeBaseWorld &&
+    pointDistanceSquared(oppositeRewriteHandle.relativeBaseWorld, context.startHandle.world) <= 1e-6
+  ) {
+    oppositeRewriteHandle = {
+      ...oppositeRewriteHandle,
+      relativeBaseWorld: nextStartWorld
+    };
+  }
+
+  const rewriteTargets: Array<{ handle: EditHandle; newWorld: Point }> = [
+    { handle: context.startHandle, newWorld: nextStartWorld },
+    { handle: oppositeRewriteHandle, newWorld: nextOppositeWorld }
+  ];
+
+  const replacementBySpan = new Map<string, { span: Span; text: string }>();
+  for (const target of rewriteTargets) {
+    const handle = target.handle;
+    const actualText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+    if (actualText !== handle.sourceText) {
+      return { kind: "unsupported", reason: "Some selected handles are stale. Wait for recompute and try again." };
+    }
+
+    const text = rewriteCoordinate(target.newWorld, handle, source);
+    if (text == null) {
+      return { kind: "unsupported", reason: "Could not rewrite one or more rectangle coordinates." };
+    }
+    if (text === actualText) {
+      continue;
+    }
+
+    const spanKey = `${handle.sourceSpan.from}:${handle.sourceSpan.to}`;
+    const existing = replacementBySpan.get(spanKey);
+    if (existing) {
+      if (existing.text !== text) {
+        return { kind: "unsupported", reason: "Rectangle resize produced conflicting rewrites for a shared coordinate." };
+      }
+      continue;
+    }
+
+    replacementBySpan.set(spanKey, {
+      span: handle.sourceSpan,
+      text
+    });
+  }
+
+  const replacements = [...replacementBySpan.values()];
+  if (replacements.length === 0) {
+    return { kind: "unsupported", reason: "Resize would not change node constraints." };
+  }
+
+  const applied = applyTextReplacements(source, replacements);
+  if (applied.source === source) {
+    return { kind: "unsupported", reason: "Resize would not change node constraints." };
+  }
+
+  return {
+    kind: "success",
+    newSource: applied.source,
+    patches: applied.patches
+  };
+}
+
+function resolvePathRectangleResizeContext(
+  elements: readonly SceneElement[],
+  editHandles: readonly EditHandle[],
+  elementId: string
+): PathRectangleResizeResolution {
+  const sourceElements = elements.filter((element) => element.sourceId === elementId);
+  const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
+  if (nonTextElements.length !== 1) {
+    return { kind: "not-rectangle" };
+  }
+
+  const rectangle = nonTextElements[0];
+  if (!rectangle || rectangle.kind !== "Path" || !isSceneRectanglePathId(rectangle.id, elementId)) {
+    return { kind: "not-rectangle" };
+  }
+
+  const pathPointHandles = editHandles.filter(
+    (handle) => handle.sourceId === elementId && handle.kind === "path-point"
+  );
+  if (pathPointHandles.length !== 2) {
+    return {
+      kind: "unsupported",
+      reason: "Resize requires rectangles with explicit start and target coordinates."
+    };
+  }
+
+  const [startHandle, oppositeHandle] = pathPointHandles;
+  if (!startHandle || !oppositeHandle) {
+    return {
+      kind: "unsupported",
+      reason: "Resize requires rectangles with explicit start and target coordinates."
+    };
+  }
+
+  if (startHandle.rewriteMode === "unsupported" || oppositeHandle.rewriteMode === "unsupported") {
+    return {
+      kind: "unsupported",
+      reason: "Rectangle resize requires rewritable rectangle coordinates."
+    };
+  }
+
+  if (
+    startHandle.sourceSpan.from === oppositeHandle.sourceSpan.from &&
+    startHandle.sourceSpan.to === oppositeHandle.sourceSpan.to
+  ) {
+    return {
+      kind: "unsupported",
+      reason: "Rectangle resize cannot target shared coordinate spans."
+    };
+  }
+
+  if (!transformsApproximatelyEqual(startHandle.transform, oppositeHandle.transform)) {
+    return {
+      kind: "unsupported",
+      reason: "Rectangle resize requires matching coordinate transforms."
+    };
+  }
+
+  return {
+    kind: "found",
+    startHandle,
+    oppositeHandle
+  };
+}
 
 function applyResizePathCircleOrEllipse(
   source: string,
@@ -1762,6 +1982,85 @@ function isOrthogonalEllipseRotation(rotation: number): boolean {
     Math.abs(normalized - 180) <= 1e-6 ||
     Math.abs(normalized - 270) <= 1e-6
   );
+}
+
+function resolveRectangleRoleCorners(
+  startLocal: Point,
+  oppositeLocal: Point,
+  transform: EditHandle["transform"]
+): Record<RectangleCornerRole, Point> {
+  const corners = [
+    { local: { x: startLocal.x, y: startLocal.y } },
+    { local: { x: oppositeLocal.x, y: startLocal.y } },
+    { local: { x: oppositeLocal.x, y: oppositeLocal.y } },
+    { local: { x: startLocal.x, y: oppositeLocal.y } }
+  ].map((corner) => ({
+    local: corner.local,
+    world: applyMatrix(transform, corner.local)
+  }));
+
+  const sortedByTopness = [...corners].sort((left, right) => {
+    if (Math.abs(right.world.y - left.world.y) > 1e-9) {
+      return right.world.y - left.world.y;
+    }
+    return left.world.x - right.world.x;
+  });
+
+  const top = sortedByTopness.slice(0, 2).sort((left, right) => left.world.x - right.world.x);
+  const bottom = sortedByTopness.slice(2).sort((left, right) => left.world.x - right.world.x);
+  const minX = Math.min(startLocal.x, oppositeLocal.x);
+  const maxX = Math.max(startLocal.x, oppositeLocal.x);
+  const minY = Math.min(startLocal.y, oppositeLocal.y);
+  const maxY = Math.max(startLocal.y, oppositeLocal.y);
+
+  return {
+    "top-left": top[0]?.local ?? { x: minX, y: maxY },
+    "top-right": top[1]?.local ?? { x: maxX, y: maxY },
+    "bottom-left": bottom[0]?.local ?? { x: minX, y: minY },
+    "bottom-right": bottom[1]?.local ?? { x: maxX, y: minY }
+  };
+}
+
+function isRectangleCornerRole(role: ResizeRole): role is RectangleCornerRole {
+  return role === "top-left" || role === "top-right" || role === "bottom-left" || role === "bottom-right";
+}
+
+function oppositeRectangleCornerRole(role: RectangleCornerRole): RectangleCornerRole {
+  switch (role) {
+    case "top-left":
+      return "bottom-right";
+    case "top-right":
+      return "bottom-left";
+    case "bottom-left":
+      return "top-right";
+    case "bottom-right":
+      return "top-left";
+  }
+}
+
+function pointDistanceSquared(left: Point, right: Point): number {
+  const dx = left.x - right.x;
+  const dy = left.y - right.y;
+  return dx * dx + dy * dy;
+}
+
+function transformsApproximatelyEqual(
+  left: EditHandle["transform"],
+  right: EditHandle["transform"],
+  epsilon = 1e-9
+): boolean {
+  return (
+    Math.abs(left.a - right.a) <= epsilon &&
+    Math.abs(left.b - right.b) <= epsilon &&
+    Math.abs(left.c - right.c) <= epsilon &&
+    Math.abs(left.d - right.d) <= epsilon &&
+    Math.abs(left.e - right.e) <= epsilon &&
+    Math.abs(left.f - right.f) <= epsilon
+  );
+}
+
+function isSceneRectanglePathId(pathId: string, sourceId: string): boolean {
+  return pathId.startsWith(`scene-rectangle:${sourceId}:`);
 }
 
 function resolveResizePropertyTarget(

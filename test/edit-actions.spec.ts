@@ -735,6 +735,40 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("circle[radius=1.5cm]");
   });
 
+  it("resizes rectangle statements using opposite-corner anchoring", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (2,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-left",
+      newWorld: { x: cm(-1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (-1,0) rectangle (2,2);");
+  });
+
+  it("updates rectangle relative target coordinates against the moved start corner", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle +(2,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-left",
+      newWorld: { x: cm(-1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (-1,0) rectangle +(3,2);");
+  });
+
   it("returns unsupported for non-node elements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

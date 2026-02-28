@@ -540,12 +540,12 @@ export function CanvasPanel() {
 
     const result = new Set<string>();
     for (const sourceId of selectionBoundsBySource.keys()) {
-      if (sourceHasSingleResizablePathShape(snapshot.scene.elements, sourceId)) {
+      if (sourceHasSingleResizablePathShape(snapshot.scene.elements, snapshot.editHandles, sourceId)) {
         result.add(sourceId);
       }
     }
     return result;
-  }, [selectionBoundsBySource, snapshot.scene]);
+  }, [selectionBoundsBySource, snapshot.editHandles, snapshot.scene]);
 
   const selectionBoxes = useMemo(
     () =>
@@ -625,7 +625,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:top-left`,
           x: bounds.minX,
           y: bounds.minY,
-          cursor: "nw-resize",
+          cursor: "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "top-left"
@@ -634,7 +634,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:top-right`,
           x: bounds.maxX,
           y: bounds.minY,
-          cursor: "ne-resize",
+          cursor: "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "top-right"
@@ -643,7 +643,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:bottom-left`,
           x: bounds.minX,
           y: bounds.maxY,
-          cursor: "sw-resize",
+          cursor: "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "bottom-left"
@@ -652,7 +652,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:bottom-right`,
           x: bounds.maxX,
           y: bounds.maxY,
-          cursor: "se-resize",
+          cursor: "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "bottom-right"
@@ -3408,26 +3408,61 @@ function hasTextWidthOption(
 
 function sourceHasSingleResizablePathShape(
   elements: readonly SceneElement[],
+  editHandles: readonly EditHandle[],
   sourceId: string
 ): boolean {
   const sourceElements = elements.filter((element) => element.sourceId === sourceId);
   const nonText = sourceElements.filter((element) => element.kind !== "Text");
   const shapes = nonText.filter((element) => element.kind === "Circle" || element.kind === "Ellipse");
-  if (shapes.length !== 1) {
+  if (shapes.length === 1 && nonText.length === 1) {
+    const element = shapes[0];
+    if (!element) {
+      return false;
+    }
+    if (element.kind === "Circle") {
+      return true;
+    }
+    if (element.kind === "Ellipse") {
+      return isOrthogonalEllipseRotation(element.rotation ?? 0);
+    }
+    return false;
+  }
+  if (shapes.length > 0) {
     return false;
   }
 
-  const element = shapes[0];
-  if (!element) {
+  const rectanglePath = nonText.find(
+    (candidate): candidate is ScenePath =>
+      candidate.kind === "Path" && candidate.id.startsWith(`scene-rectangle:${sourceId}:`)
+  );
+  if (!rectanglePath || nonText.length !== 1) {
     return false;
   }
-  if (element.kind === "Circle") {
-    return true;
+
+  const pathHandles = editHandles.filter(
+    (handle) => handle.sourceId === sourceId && handle.kind === "path-point"
+  );
+  if (pathHandles.length !== 2) {
+    return false;
   }
-  if (element.kind === "Ellipse") {
-    return isOrthogonalEllipseRotation(element.rotation ?? 0);
+  const [firstHandle, secondHandle] = pathHandles;
+  if (!firstHandle || !secondHandle) {
+    return false;
   }
-  return false;
+  if (firstHandle.rewriteMode === "unsupported" || secondHandle.rewriteMode === "unsupported") {
+    return false;
+  }
+  if (
+    firstHandle.sourceSpan.from === secondHandle.sourceSpan.from &&
+    firstHandle.sourceSpan.to === secondHandle.sourceSpan.to
+  ) {
+    return false;
+  }
+  if (!transformsApproximatelyEqual(firstHandle.transform, secondHandle.transform)) {
+    return false;
+  }
+
+  return true;
 }
 
 function isOrthogonalEllipseRotation(rotation: number): boolean {
@@ -3437,6 +3472,21 @@ function isOrthogonalEllipseRotation(rotation: number): boolean {
     Math.abs(normalized - 90) <= 1e-6 ||
     Math.abs(normalized - 180) <= 1e-6 ||
     Math.abs(normalized - 270) <= 1e-6
+  );
+}
+
+function transformsApproximatelyEqual(
+  left: EditHandle["transform"],
+  right: EditHandle["transform"],
+  epsilon = 1e-9
+): boolean {
+  return (
+    Math.abs(left.a - right.a) <= epsilon &&
+    Math.abs(left.b - right.b) <= epsilon &&
+    Math.abs(left.c - right.c) <= epsilon &&
+    Math.abs(left.d - right.d) <= epsilon &&
+    Math.abs(left.e - right.e) <= epsilon &&
+    Math.abs(left.f - right.f) <= epsilon
   );
 }
 
