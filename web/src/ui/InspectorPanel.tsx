@@ -1967,8 +1967,6 @@ export function InspectorPanel() {
         ) : (
           <div className={css.elementInfo}>
             <div className={css.elementKind}>{renderedMultiModel.selectionCount} selected</div>
-            <div className={css.elementId}>{renderedMultiModel.elementKinds.join(", ")}</div>
-            <div className={css.globalNote}>Shared properties are shown. Mixed values appear as blank inputs.</div>
 
             {renderedMultiModel.sections.map((section) => renderMultiSection(section))}
           </div>
