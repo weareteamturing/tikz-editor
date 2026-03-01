@@ -16,6 +16,7 @@ type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
+  | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
@@ -264,6 +265,31 @@ export function ToolPreviewOverlay({
               className={css.toolPreviewStroke}
             />
           )}
+        </g>
+      )}
+      {toolPreview.kind === "bezier" && (
+        <g>
+          <line
+            x1={toolPreview.x1}
+            y1={toolPreview.y1}
+            x2={toolPreview.c1x}
+            y2={toolPreview.c1y}
+            className={css.curveControlLine}
+            strokeWidth={handleStrokeWidth}
+          />
+          <line
+            x1={toolPreview.x2}
+            y1={toolPreview.y2}
+            x2={toolPreview.c2x}
+            y2={toolPreview.c2y}
+            className={css.curveControlLine}
+            strokeWidth={handleStrokeWidth}
+          />
+          <path
+            d={`M ${fmt(toolPreview.x1)},${fmt(toolPreview.y1)} C ${fmt(toolPreview.c1x)},${fmt(toolPreview.c1y)} ${fmt(toolPreview.c2x)},${fmt(toolPreview.c2y)} ${fmt(toolPreview.x2)},${fmt(toolPreview.y2)}`}
+            className={css.toolPreviewStroke}
+            strokeWidth={handleStrokeWidth}
+          />
         </g>
       )}
       {toolPreview.kind === "rect" && (

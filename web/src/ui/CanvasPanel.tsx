@@ -48,6 +48,7 @@ import {
   boundsFromPoints,
   collectSourceIdsInBounds,
   pickClosestSourceId,
+  resolveBezierControlsFromBend,
   resolveToolCreateCurrentWorld
 } from "./canvas-panel/interaction-helpers";
 import { CanvasSVGLayer } from "./canvas-panel/CanvasSVGLayer";
@@ -59,6 +60,7 @@ import type {
   EditableTextTarget,
   NodeTextSelectionEntry,
   PendingAddedSelection,
+  PendingBezier,
   SelectionBounds,
   SnapDebugLogInput,
   TextIndexMappingTarget,
@@ -164,6 +166,7 @@ type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
+  | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
@@ -276,6 +279,8 @@ export function CanvasPanel() {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
+  const [bezierBendDraft, setBezierBendDraft] = useState<Extract<DragState, { kind: "tool-bezier-bend" }> | null>(null);
+  const [pendingBezier, setPendingBezier] = useState<PendingBezier | null>(null);
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
@@ -310,7 +315,7 @@ export function CanvasPanel() {
     (next: DragState | null) => {
       dragRef.current = next;
       setDragCursorLock(dragCursorForState(next));
-      setActiveCanvasDragKind(next?.kind ?? null);
+      setActiveCanvasDragKind(canvasDragKindFromDragState(next));
     },
     [setActiveCanvasDragKind]
   );
@@ -910,19 +915,59 @@ export function CanvasPanel() {
       return null;
     }
 
+    if (toolMode === "addNode") {
+      const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
+      if (!liveWorld) {
+        return null;
+      }
+      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
+      return { kind: "node", x: point.x, y: point.y };
+    }
+
+    const makeBezierPreview = (startWorld: Point, endWorld: Point, bendWorld: Point): ToolPreview => {
+      const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
+      const start = worldToSvgPoint(startWorld, svgResult.viewBox);
+      const end = worldToSvgPoint(controls.endWorld, svgResult.viewBox);
+      const c1 = worldToSvgPoint(controls.control1, svgResult.viewBox);
+      const c2 = worldToSvgPoint(controls.control2, svgResult.viewBox);
+      return {
+        kind: "bezier",
+        x1: start.x,
+        y1: start.y,
+        c1x: c1.x,
+        c1y: c1.y,
+        c2x: c2.x,
+        c2y: c2.y,
+        x2: end.x,
+        y2: end.y
+      };
+    };
+
+    if (toolMode === "addBezier" && pendingBezier) {
+      const midpoint = {
+        x: (pendingBezier.startWorld.x + pendingBezier.endWorld.x) / 2,
+        y: (pendingBezier.startWorld.y + pendingBezier.endWorld.y) / 2
+      };
+      const bendWorld = bezierBendDraft?.currentWorld ?? toolCursorWorld ?? midpoint;
+      return makeBezierPreview(pendingBezier.startWorld, pendingBezier.endWorld, bendWorld);
+    }
+
     const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
     if (!liveWorld) {
       return null;
     }
 
-    if (toolMode === "addNode") {
-      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
-      return { kind: "node", x: point.x, y: point.y };
-    }
-
     if (!toolDraft) {
       const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
       return { kind: "cursor", x: point.x, y: point.y };
+    }
+
+    if (toolDraft.toolMode === "addBezier") {
+      const midpoint = {
+        x: (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
+        y: (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
+      };
+      return makeBezierPreview(toolDraft.startWorld, toolDraft.currentWorld, midpoint);
     }
 
     const start = worldToSvgPoint(toolDraft.startWorld, svgResult.viewBox);
@@ -972,7 +1017,7 @@ export function CanvasPanel() {
       cy: start.y,
       r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
     };
-  }, [svgResult, toolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
 
   const fitToContent = useCallback(() => {
     if (!svgResult || !viewportRef.current) return;
@@ -1891,6 +1936,8 @@ export function CanvasPanel() {
         if (!world) {
           return;
         }
+        const drawDragKind: DragState["kind"] =
+          toolMode === "addBezier" && pendingBezier ? "tool-bezier-bend" : "tool-create";
         if (snapshot.source !== source) {
           setWarning("Wait for recompute to finish before starting a draw gesture.");
           setSnapLines([]);
@@ -1898,7 +1945,7 @@ export function CanvasPanel() {
             phase: "tool-start",
             note: "blocked: snapshot/source mismatch",
             snapshotMatchesSource: false,
-            dragKind: "tool-create",
+            dragKind: drawDragKind,
             rawPoint: world,
             lines: []
           });
@@ -1925,6 +1972,42 @@ export function CanvasPanel() {
 
         setToolCursorWorld(snappedStart);
         event.preventDefault();
+
+        if (toolMode === "addBezier" && pendingBezier) {
+          const bendSnap = toolSnapContext
+            ? snapToolPointer({
+                context: toolSnapContext,
+                pointer: world,
+                kind: "line-end",
+                modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
+              })
+            : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
+          const bendStart = bendSnap.snappedPoint ?? world;
+          setToolCursorWorld(bendStart);
+          setSnapLines([]);
+          const nextBendDraft: Extract<DragState, { kind: "tool-bezier-bend" }> = {
+            kind: "tool-bezier-bend",
+            pointerId: event.pointerId,
+            startWorld: pendingBezier.startWorld,
+            endWorld: pendingBezier.endWorld,
+            rawCurrentWorld: bendStart,
+            currentWorld: bendStart,
+            snapContext: toolSnapContext
+          };
+          setDragState(nextBendDraft);
+          setBezierBendDraft(nextBendDraft);
+          logSnapDebug({
+            phase: "tool-bezier-bend-start",
+            snapshotMatchesSource: true,
+            dragKind: "tool-bezier-bend",
+            context: toolSnapContext,
+            rawPoint: world,
+            snappedPoint: bendStart,
+            offset: bendSnap.offset,
+            lines: bendSnap.lines
+          });
+          return;
+        }
 
         if (toolMode === "addNode") {
           const snapResult = toolSnapContext
@@ -1976,6 +2059,7 @@ export function CanvasPanel() {
             currentWorld: snappedStart,
             snapContext: toolSnapContext
           };
+          setBezierBendDraft(null);
           setDragState(nextDraft);
           setToolDraft(nextDraft);
           logSnapDebug({
@@ -2009,6 +2093,7 @@ export function CanvasPanel() {
       source,
       svgResult,
       startMarqueeSelection,
+      pendingBezier,
       toolMode,
       snapGuideInput,
       snapSettingsPatch,
@@ -2055,13 +2140,13 @@ export function CanvasPanel() {
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
       setToolCursorWorld(snapped.snappedPoint ?? world);
-      if (!toolDraft) {
+      if (!toolDraft && !bezierBendDraft) {
         setSnapLines(snapped.lines);
       }
       logSnapDebug({
         phase: "tool-hover-move",
         snapshotMatchesSource: true,
-        dragKind: toolDraft ? "tool-create" : null,
+        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : null,
         context: snapContext,
         rawPoint: world,
         snappedPoint: snapped.snappedPoint ?? world,
@@ -2076,6 +2161,7 @@ export function CanvasPanel() {
       snapshot.source,
       source,
       svgResult,
+      bezierBendDraft,
       toolDraft,
       toolMode,
       snapGuideInput,
@@ -2085,12 +2171,12 @@ export function CanvasPanel() {
   );
 
   const onInteractionPointerLeave = useCallback(() => {
-    if (toolMode === "select" || toolDraft) {
+    if (toolMode === "select" || toolDraft || bezierBendDraft) {
       return;
     }
     setToolCursorWorld(null);
     setSnapLines([]);
-  }, [toolDraft, toolMode]);
+  }, [bezierBendDraft, toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -2128,13 +2214,13 @@ export function CanvasPanel() {
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
       setToolCursorWorld(snapped.snappedPoint ?? world);
-      if (!toolDraft) {
+      if (!toolDraft && !bezierBendDraft) {
         setSnapLines(snapped.lines);
       }
       logSnapDebug({
         phase: "tool-hover-enter",
         snapshotMatchesSource: true,
-        dragKind: toolDraft ? "tool-create" : null,
+        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : null,
         context: snapContext,
         rawPoint: world,
         snappedPoint: snapped.snappedPoint ?? world,
@@ -2149,6 +2235,7 @@ export function CanvasPanel() {
       snapshot.source,
       source,
       svgResult,
+      bezierBendDraft,
       toolDraft,
       toolMode,
       snapGuideInput,
@@ -2163,10 +2250,16 @@ export function CanvasPanel() {
         if (toolMode !== "select") {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
           setToolDraft(null);
+          setBezierBendDraft(null);
+          setPendingBezier(null);
           setToolCursorWorld(null);
         }
         setMarqueeDraft(null);
-        if (dragRef.current?.kind === "marquee") {
+        if (
+          dragRef.current?.kind === "marquee" ||
+          dragRef.current?.kind === "tool-create" ||
+          dragRef.current?.kind === "tool-bezier-bend"
+        ) {
           setDragState(null);
         }
         dispatch({ type: "CLEAR_SELECTION" });
@@ -2651,12 +2744,22 @@ export function CanvasPanel() {
   useEffect(() => {
     if (toolMode === "select") {
       setToolDraft(null);
+      setBezierBendDraft(null);
+      setPendingBezier(null);
       setToolCursorWorld(null);
       setSnapLines([]);
-      if (dragRef.current?.kind === "tool-create") {
+      if (dragRef.current?.kind === "tool-create" || dragRef.current?.kind === "tool-bezier-bend") {
         setDragState(null);
       }
       return;
+    }
+
+    if (toolMode !== "addBezier") {
+      setPendingBezier(null);
+      setBezierBendDraft(null);
+      if (dragRef.current?.kind === "tool-bezier-bend") {
+        setDragState(null);
+      }
     }
 
     lastSourceSelectionDetailRef.current = null;
@@ -2813,6 +2916,8 @@ export function CanvasPanel() {
     setDragState,
     setSnapLines,
     setToolDraft,
+    setBezierBendDraft,
+    setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
     setWarning,
@@ -3900,6 +4005,16 @@ function selectNudgeAnchorHandle(handles: EditHandle[]): EditHandle | null {
   return handles.find((handle) => handle.kind === "node-position") ?? handles[0]!;
 }
 
+function canvasDragKindFromDragState(drag: DragState | null): CanvasDragKind | null {
+  if (!drag) {
+    return null;
+  }
+  if (drag.kind === "tool-bezier-bend") {
+    return "tool-create";
+  }
+  return drag.kind;
+}
+
 function dragCursorForState(drag: DragState | null): string | null {
   if (!drag) {
     return null;
@@ -3913,7 +4028,7 @@ function dragCursorForState(drag: DragState | null): string | null {
   if (drag.kind === "pan") {
     return "grabbing";
   }
-  if (drag.kind === "marquee" || drag.kind === "tool-create") {
+  if (drag.kind === "marquee" || drag.kind === "tool-create" || drag.kind === "tool-bezier-bend") {
     return "crosshair";
   }
   return drag.kind === "text-select" ? "text" : null;

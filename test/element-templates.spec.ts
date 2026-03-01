@@ -39,6 +39,19 @@ describe("element templates", () => {
     );
     expect(snippet).toBe("\\draw (2,3) ellipse [x radius=1cm, y radius=2cm];");
   });
+
+  it("generates a cubic bezier snippet with explicit controls", () => {
+    const snippet = generateElementSource(
+      {
+        kind: "bezier",
+        to: { x: cm(4), y: cm(2) },
+        control1: { x: cm(2), y: cm(3) },
+        control2: { x: cm(3), y: cm(1) }
+      },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\draw (1,2) .. controls (2,3) and (3,1) .. (4,2);");
+  });
 });
 
 describe("insertElementIntoSource", () => {

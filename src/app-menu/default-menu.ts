@@ -176,6 +176,12 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_BEZIER,
+        label: "Bezier",
+        accelerator: "B"
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_RECT,
         label: "Rectangle",
         accelerator: "R"

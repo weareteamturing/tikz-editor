@@ -1080,6 +1080,30 @@ describe("applyEditAction – addElement", () => {
       expect(result.patches).toHaveLength(1);
     }
   });
+
+  it("inserts a bezier snippet with explicit controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addElement",
+      template: {
+        kind: "bezier",
+        to: { x: cm(3), y: cm(1) },
+        control1: { x: cm(1), y: cm(2) },
+        control2: { x: cm(2), y: cm(2) }
+      },
+      at: { x: cm(0), y: cm(0) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("  \\draw (0,0) .. controls (1,2) and (2,2) .. (3,1);");
+      expect(result.newSource).toContain("\\end{tikzpicture}");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
 });
 
 describe("applyEditAction – deleteElement", () => {

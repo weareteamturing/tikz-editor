@@ -37,6 +37,10 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
     { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "line path rendering" },
     { feature: "arrow_tips", layers: ["parser", "semantic", "svg"], label: "arrow tip rendering" }
   ],
+  addBezier: [
+    { feature: "path_operator_curves", layers: ["parser", "semantic", "svg"], label: "Bezier curve path rendering" },
+    { feature: "keyword_controls", layers: ["parser", "semantic", "svg"], label: "Bezier control-point parsing" }
+  ],
   addRect: [
     { feature: "shape_rectangle", layers: ["parser", "semantic", "svg"], label: "rectangle shape rendering" }
   ],

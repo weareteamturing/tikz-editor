@@ -71,6 +71,15 @@ export type DragState =
       snapContext: SnapContext | null;
     }
   | {
+      kind: "tool-bezier-bend";
+      pointerId: number;
+      startWorld: Point;
+      endWorld: Point;
+      rawCurrentWorld: Point;
+      currentWorld: Point;
+      snapContext: SnapContext | null;
+    }
+  | {
       kind: "text-select";
       pointerId: number;
       sourceId: string;
@@ -91,6 +100,11 @@ export type DragState =
 export type PendingAddedSelection = {
   beforeIds: Set<string>;
   preferredWorld: Point;
+};
+
+export type PendingBezier = {
+  startWorld: Point;
+  endWorld: Point;
 };
 
 export type TextSelectionOverlay = {

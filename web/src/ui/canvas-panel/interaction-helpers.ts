@@ -1,10 +1,13 @@
 import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
 import type { EditHandle, Point, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
+import { PT_PER_CM } from "tikz-editor/edit/format";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
 import type { Bounds, DragState } from "./types";
+
+const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 
 export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
   return {
@@ -65,6 +68,16 @@ export function createTemplateForToolDrag(
       : { kind: "line", hasArrow: true };
   }
 
+  if (mode === "addBezier") {
+    const bend = {
+      x: (startWorld.x + endWorld.x) / 2,
+      y: (startWorld.y + endWorld.y) / 2
+    };
+    return hasDrag
+      ? createBezierTemplateFromBend(startWorld, endWorld, bend)
+      : { kind: "bezier" };
+  }
+
   if (mode === "addRect") {
     return hasDrag
       ? { kind: "rectangle", corner: endWorld }
@@ -80,6 +93,63 @@ export function createTemplateForToolDrag(
   return hasDrag
     ? { kind: "circle", edge: endWorld }
     : { kind: "circle" };
+}
+
+export function resolveBezierControlsFromBend(
+  startWorld: Point,
+  endWorld: Point,
+  bendWorld: Point
+): { endWorld: Point; control1: Point; control2: Point } {
+  let resolvedEnd = endWorld;
+  let dx = resolvedEnd.x - startWorld.x;
+  let dy = resolvedEnd.y - startWorld.y;
+  let length = Math.hypot(dx, dy);
+  if (length <= 1e-6) {
+    resolvedEnd = { x: startWorld.x + DEFAULT_BEZIER_LENGTH_PT, y: startWorld.y };
+    dx = resolvedEnd.x - startWorld.x;
+    dy = resolvedEnd.y - startWorld.y;
+    length = Math.hypot(dx, dy);
+  }
+
+  const unitTangent = { x: dx / length, y: dy / length };
+  const unitNormal = { x: -unitTangent.y, y: unitTangent.x };
+  const midpoint = {
+    x: (startWorld.x + resolvedEnd.x) / 2,
+    y: (startWorld.y + resolvedEnd.y) / 2
+  };
+  const signedNormalOffset =
+    (bendWorld.x - midpoint.x) * unitNormal.x +
+    (bendWorld.y - midpoint.y) * unitNormal.y;
+  const controlNormalOffset = (4 / 3) * signedNormalOffset;
+
+  const control1 = {
+    x: startWorld.x + dx / 3 + unitNormal.x * controlNormalOffset,
+    y: startWorld.y + dy / 3 + unitNormal.y * controlNormalOffset
+  };
+  const control2 = {
+    x: startWorld.x + (2 * dx) / 3 + unitNormal.x * controlNormalOffset,
+    y: startWorld.y + (2 * dy) / 3 + unitNormal.y * controlNormalOffset
+  };
+
+  return {
+    endWorld: resolvedEnd,
+    control1,
+    control2
+  };
+}
+
+export function createBezierTemplateFromBend(
+  startWorld: Point,
+  endWorld: Point,
+  bendWorld: Point
+): ElementTemplate {
+  const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
+  return {
+    kind: "bezier",
+    to: controls.endWorld,
+    control1: controls.control1,
+    control2: controls.control2
+  };
 }
 
 export function resolveToolCreateCurrentWorld(

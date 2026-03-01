@@ -1,7 +1,15 @@
 import type { SessionSnapshot } from "../compute";
 import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
 
-export type ToolMode = "select" | "addNode" | "addLine" | "addRect" | "addEllipse" | "addCircle" | "addArrow";
+export type ToolMode =
+  | "select"
+  | "addNode"
+  | "addLine"
+  | "addRect"
+  | "addEllipse"
+  | "addCircle"
+  | "addArrow"
+  | "addBezier";
 export type CanvasDragKind = "element" | "resize" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
 export type CanvasAid = "grid" | "rulers" | "guides";
 

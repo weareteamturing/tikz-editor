@@ -13,12 +13,13 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "addNode", label: "+ Node", title: "Place a text node (N)", shortcut: "n" },
   { mode: "addLine", label: "/ Line", title: "Draw a line (L)", shortcut: "l" },
   { mode: "addArrow", label: "→ Arrow", title: "Draw an arrow (A)", shortcut: "a" },
+  { mode: "addBezier", label: "~ Bezier", title: "Draw a cubic Bezier curve (B) with two drags", shortcut: "b" },
   { mode: "addRect", label: "□ Rect", title: "Draw a rectangle (R). Hold Shift to constrain to a square.", shortcut: "r" },
   { mode: "addEllipse", label: "⬭ Ellipse", title: "Draw an ellipse (E). Hold Shift to constrain to a circle.", shortcut: "e" },
   { mode: "addCircle", label: "○ Circle", title: "Draw a circle from center (C)", shortcut: "c" }
 ];
 
-export const TOOL_CREATE_MODES = ["addLine", "addArrow", "addRect", "addEllipse", "addCircle"] as const;
+export const TOOL_CREATE_MODES = ["addLine", "addArrow", "addBezier", "addRect", "addEllipse", "addCircle"] as const;
 
 export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 

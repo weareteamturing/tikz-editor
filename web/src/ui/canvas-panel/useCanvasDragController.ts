@@ -13,6 +13,7 @@ import type { SvgViewBox } from "tikz-editor/svg/index";
 import {
   boundsFromPoints,
   collectSourceIdsInBounds,
+  createBezierTemplateFromBend,
   createTemplateForToolDrag,
   deriveSelectionTranslationDeltaFromAnchor,
   resolveHandleIdForDrag,
@@ -25,6 +26,7 @@ import type {
   Bounds,
   DragState,
   PendingAddedSelection,
+  PendingBezier,
   SnapDebugLogInput,
   TextIndexMappingTarget,
   TextSelectionOverlay
@@ -50,6 +52,8 @@ export function useCanvasDragController(params: {
   setDragState: (drag: DragState | null) => void;
   setSnapLines: (lines: SnapLine[]) => void;
   setToolDraft: (draft: Extract<DragState, { kind: "tool-create" }> | null) => void;
+  setBezierBendDraft: (draft: Extract<DragState, { kind: "tool-bezier-bend" }> | null) => void;
+  setPendingBezier: (pending: PendingBezier | null) => void;
   setToolCursorWorld: (point: Point | null) => void;
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
   setWarning: (warning: string | null) => void;
@@ -80,6 +84,8 @@ export function useCanvasDragController(params: {
     setDragState,
     setSnapLines,
     setToolDraft,
+    setBezierBendDraft,
+    setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
     setWarning,
@@ -244,6 +250,33 @@ export function useCanvasDragController(params: {
           phase: "drag-tool-create-move",
           snapshotMatchesSource: snapshotSource === source,
           dragKind: "tool-create",
+          context: drag.snapContext,
+          rawPoint: world,
+          snappedPoint: drag.currentWorld,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
+        return;
+      }
+
+      if (drag.kind === "tool-bezier-bend") {
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: world,
+              kind: "line-end",
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
+        drag.rawCurrentWorld = snapped.snappedPoint ?? world;
+        drag.currentWorld = drag.rawCurrentWorld;
+        setBezierBendDraft({ ...drag });
+        setToolCursorWorld(drag.currentWorld);
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-bezier-bend-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "tool-bezier-bend",
           context: drag.snapContext,
           rawPoint: world,
           snappedPoint: drag.currentWorld,
@@ -455,6 +488,19 @@ export function useCanvasDragController(params: {
         setSnapLines(snapped.lines);
         setToolCursorWorld(finalWorld);
 
+        if (drag.toolMode === "addBezier") {
+          setPendingBezier({
+            startWorld: drag.startWorld,
+            endWorld: finalWorld
+          });
+          setToolCursorWorld(null);
+          setToolDraft(null);
+          setBezierBendDraft(null);
+          setSnapLines([]);
+          setDragState(null);
+          return;
+        }
+
         queueSelectionForAddedElement({
           x: (drag.startWorld.x + finalWorld.x) / 2,
           y: (drag.startWorld.y + finalWorld.y) / 2
@@ -475,6 +521,50 @@ export function useCanvasDragController(params: {
         }
         setToolDraft(null);
         setSnapLines([]);
+        setBezierBendDraft(null);
+        setPendingBezier(null);
+        setDragState(null);
+        return;
+      }
+
+      if (drag.kind === "tool-bezier-bend") {
+        const rawFinalWorld = world ?? drag.rawCurrentWorld;
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: rawFinalWorld,
+              kind: "line-end",
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
+        const finalBend = snapped.snappedPoint ?? rawFinalWorld;
+        setSnapLines(snapped.lines);
+        setToolCursorWorld(finalBend);
+
+        queueSelectionForAddedElement({
+          x: (drag.startWorld.x + drag.endWorld.x) / 2,
+          y: (drag.startWorld.y + drag.endWorld.y) / 2
+        });
+        const template = createBezierTemplateFromBend(drag.startWorld, drag.endWorld, finalBend);
+        const ok = applyActionWithFeedback({
+          kind: "addElement",
+          template,
+          at: drag.startWorld
+        });
+        if (!ok.sourceChanged) {
+          pendingAddedSelectionRef.current = null;
+        }
+
+        if (ok.sourceChanged) {
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          setToolCursorWorld(null);
+        }
+        setPendingBezier(null);
+        setBezierBendDraft(null);
+        setToolDraft(null);
+        setSnapLines([]);
+        setDragState(null);
+        return;
       }
 
       if (drag.kind === "text-select") {
@@ -509,6 +599,8 @@ export function useCanvasDragController(params: {
     setDragState,
     setSnapLines,
     setTextSelectionOverlay,
+    setBezierBendDraft,
+    setPendingBezier,
     setToolCursorWorld,
     setToolDraft,
     setWarning,

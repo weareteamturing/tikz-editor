@@ -28,8 +28,7 @@ export function Toolbar() {
               key={mode}
               className={[
                 css.btn,
-                toolMode === mode ? css.btnActive : "",
-                partial ? css.btnPartial : ""
+                toolMode === mode ? css.btnActive : ""
               ].filter(Boolean).join(" ")}
               title={buttonTitle}
               disabled={unsupported}

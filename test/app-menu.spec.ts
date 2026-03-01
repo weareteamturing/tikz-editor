@@ -19,6 +19,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID).toBe("view.toggle-snap-to-grid");
   });
 
+  it("defines a bezier insert command id", () => {
+    expect(APP_MENU_COMMAND_IDS.INSERT_BEZIER).toBe("insert.bezier");
+  });
+
   it("exposes Open Example in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
@@ -73,5 +77,19 @@ describe("app menu definition", () => {
       throw new Error("Expected view.toggle-snap-to-grid command item in View menu.");
     }
     expect(commandItem.label).toBe("Snap to Grid");
+  });
+
+  it("exposes Bezier in the Insert menu", () => {
+    const insertSection = APP_MENU_DEFINITION.find((section) => section.id === "insert");
+    expect(insertSection).toBeDefined();
+    const items = insertSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.INSERT_BEZIER
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected insert.bezier command item in Insert menu.");
+    }
+    expect(commandItem.label).toBe("Bezier");
   });
 });

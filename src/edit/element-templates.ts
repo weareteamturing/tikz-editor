@@ -4,6 +4,7 @@ import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 export type ElementTemplate =
   | { kind: "node"; text?: string }
   | { kind: "line"; hasArrow?: boolean; to?: Point }
+  | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
   | { kind: "rectangle"; corner?: Point }
   | { kind: "ellipse"; corner?: Point }
   | { kind: "circle"; edge?: Point }
@@ -14,6 +15,7 @@ const DEFAULT_LINE_LENGTH_PT = 2 * PT_PER_CM;
 const DEFAULT_RECT_WIDTH_PT = 2.2 * PT_PER_CM;
 const DEFAULT_RECT_HEIGHT_PT = 1.4 * PT_PER_CM;
 const DEFAULT_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
+const DEFAULT_BEZIER_CONTROL_OFFSET_PT = 0;
 
 export function generateElementSource(template: ElementTemplate, at: Point): string {
   const atCoord = formatPointCm(at);
@@ -30,6 +32,12 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
       return template.hasArrow
         ? `\\draw[->] ${atCoord} -- ${toCoord};`
         : `\\draw ${atCoord} -- ${toCoord};`;
+    }
+
+    case "bezier": {
+      const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
+      const controls = resolveBezierControls(at, to, template.control1, template.control2);
+      return `\\draw ${atCoord} .. controls ${formatPointCm(controls.control1)} and ${formatPointCm(controls.control2)} .. ${formatPointCm(to)};`;
     }
 
     case "rectangle": {
@@ -124,4 +132,32 @@ function ellipseFromCorner(anchor: Point, corner: Point | undefined): { center: 
 
 function sanitizeNodeText(raw: string): string {
   return raw.replace(/[{}]/g, "").trim() || DEFAULT_NODE_TEXT;
+}
+
+function resolveBezierControls(
+  from: Point,
+  to: Point,
+  control1: Point | undefined,
+  control2: Point | undefined
+): { control1: Point; control2: Point } {
+  if (control1 && control2) {
+    return { control1, control2 };
+  }
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const controlOffsetX = dx === 0 && dy === 0 ? DEFAULT_LINE_LENGTH_PT / 3 : dx / 3;
+  const controlOffsetY = dx === 0 && dy === 0 ? DEFAULT_BEZIER_CONTROL_OFFSET_PT : dy / 3;
+  const baseControl1 = {
+    x: from.x + controlOffsetX,
+    y: from.y + controlOffsetY
+  };
+  const baseControl2 = {
+    x: from.x + 2 * controlOffsetX,
+    y: from.y + 2 * controlOffsetY
+  };
+  return {
+    control1: control1 ?? baseControl1,
+    control2: control2 ?? baseControl2
+  };
 }
