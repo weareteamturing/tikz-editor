@@ -558,13 +558,31 @@ export function CanvasPanel() {
     return result;
   }, [selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
 
+  const nodeResizeSourceIds = useMemo(() => {
+    const sourceIds = new Set<string>();
+    for (const handle of selectedHandles) {
+      if (handle.kind === "node-position") {
+        sourceIds.add(handle.sourceId);
+      }
+    }
+    return sourceIds;
+  }, [selectedHandles]);
+
+  const resizeFrameSourceIds = useMemo(() => {
+    const sourceIds = new Set<string>(resizablePathShapeSourceIds);
+    for (const sourceId of nodeResizeSourceIds) {
+      sourceIds.add(sourceId);
+    }
+    return sourceIds;
+  }, [nodeResizeSourceIds, resizablePathShapeSourceIds]);
+
   const resizeFramesBySource = useMemo(() => {
     const frames = new Map<string, ReturnType<typeof resolveResizeFrameForSource>>();
     if (!snapshot.scene || !svgResult) {
       return frames;
     }
     const statements = snapshot.parseResult?.figure.body;
-    for (const sourceId of resizablePathShapeSourceIds) {
+    for (const sourceId of resizeFrameSourceIds) {
       const path = snapshot.scene.elements.find(
         (element): element is ScenePath => element.sourceId === sourceId && element.kind === "Path"
       );
@@ -579,11 +597,11 @@ export function CanvasPanel() {
       frames.set(sourceId, frame);
     }
     return frames;
-  }, [resizablePathShapeSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
+  }, [resizeFrameSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
 
   const selectionBoxes = useMemo(
     () => {
-      const boxes = [...resizablePathShapeSourceIds]
+      const boxes = [...resizeFrameSourceIds]
         .map((sourceId) => {
           const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
           if (resizeFrame) {
@@ -611,7 +629,7 @@ export function CanvasPanel() {
         );
       return boxes;
     },
-    [resizablePathShapeSourceIds, resizeFramesBySource, selectionBoundsBySource]
+    [resizeFrameSourceIds, resizeFramesBySource, selectionBoundsBySource]
   );
   const curveControlLines = useMemo(
     () =>
@@ -633,11 +651,10 @@ export function CanvasPanel() {
     if (!svgResult) return [];
 
     const displays: HandleDisplay[] = [];
-    const resizeHandleSourceIds = new Set<string>(resizablePathShapeSourceIds);
+    const resizeHandleSourceIds = new Set<string>(resizeFrameSourceIds);
 
     for (const handle of selectedHandles) {
       if (handle.kind === "node-position") {
-        resizeHandleSourceIds.add(handle.sourceId);
         continue;
       }
 
@@ -748,7 +765,7 @@ export function CanvasPanel() {
     }
 
     return displays;
-  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
+  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];

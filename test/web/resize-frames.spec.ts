@@ -88,6 +88,33 @@ describe("resize frame geometry", () => {
     expect(Math.abs(topEdge.y)).toBeGreaterThan(1e-3);
   });
 
+  it("builds rotated frame polygons for rotated draw nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,rotate=30] at (0,0) {C};
+\end{tikzpicture}`;
+    const frame = resolveFrame(source, "path:0");
+    expect(frame).not.toBeNull();
+    if (!frame) {
+      return;
+    }
+
+    const topLeft = frame.cornersByRole["top-left"].world;
+    const topRight = frame.cornersByRole["top-right"].world;
+    const edge = {
+      x: topRight.x - topLeft.x,
+      y: topRight.y - topLeft.y
+    };
+    const corner = frame.cornersByRole["top-left"].svg;
+    const isAabbCorner =
+      Math.abs(corner.x - frame.boundsSvg.minX) <= 1e-6 &&
+      Math.abs(corner.y - frame.boundsSvg.minY) <= 1e-6;
+
+    expect(frame.polygonSvg).toHaveLength(4);
+    expect(Math.abs(edge.x)).toBeGreaterThan(1e-3);
+    expect(Math.abs(edge.y)).toBeGreaterThan(1e-3);
+    expect(isAabbCorner).toBe(false);
+  });
+
   it("returns null when frame geometry cannot be resolved from handles", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rotate=45] (0,0) circle (1cm);

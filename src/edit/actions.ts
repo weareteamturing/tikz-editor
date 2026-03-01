@@ -1279,6 +1279,7 @@ function applyResizeElement(
     x: (currentBounds.minX + currentBounds.maxX) / 2,
     y: (currentBounds.minY + currentBounds.maxY) / 2
   };
+  const rotation = resolveNodeResizeRotationDegrees(semantic.scene.elements, elementId);
 
   const floorMutations = new Map<string, OptionMutation>([
     ["minimum width", { kind: "remove" }],
@@ -1300,8 +1301,13 @@ function applyResizeElement(
     return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
   }
 
-  const requestedWidth = 2 * Math.abs(action.newWorld.x - center.x);
-  const requestedHeight = 2 * Math.abs(action.newWorld.y - center.y);
+  const pointerDelta = {
+    x: action.newWorld.x - center.x,
+    y: action.newWorld.y - center.y
+  };
+  const localPointerDelta = rotateVector(pointerDelta, -rotation);
+  const requestedWidth = 2 * Math.abs(localPointerDelta.x);
+  const requestedHeight = 2 * Math.abs(localPointerDelta.y);
   const intrinsicWidth = floorBounds.maxX - floorBounds.minX;
   const intrinsicHeight = floorBounds.maxY - floorBounds.minY;
 
@@ -2095,6 +2101,46 @@ function pointDistanceSquared(left: Point, right: Point): number {
   const dx = left.x - right.x;
   const dy = left.y - right.y;
   return dx * dx + dy * dy;
+}
+
+function resolveNodeResizeRotationDegrees(elements: readonly SceneElement[], sourceId: string): number {
+  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const textElements = sourceElements.filter(
+    (element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text"
+  );
+  if (textElements.length === 1) {
+    return normalizeDegrees(textElements[0]?.rotation ?? 0);
+  }
+
+  const ellipseElements = sourceElements.filter(
+    (element): element is Extract<SceneElement, { kind: "Ellipse" }> => element.kind === "Ellipse"
+  );
+  if (ellipseElements.length === 1) {
+    return normalizeDegrees(ellipseElements[0]?.rotation ?? 0);
+  }
+
+  return 0;
+}
+
+function rotateVector(vector: Point, degrees: number): Point {
+  if (Math.abs(degrees) <= 1e-9) {
+    return vector;
+  }
+  const theta = (degrees * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  return {
+    x: vector.x * cos - vector.y * sin,
+    y: vector.x * sin + vector.y * cos
+  };
+}
+
+function normalizeDegrees(degrees: number): number {
+  if (!Number.isFinite(degrees)) {
+    return 0;
+  }
+  const normalized = ((degrees % 360) + 360) % 360;
+  return normalized > 180 ? normalized - 360 : normalized;
 }
 
 function transformsApproximatelyEqual(

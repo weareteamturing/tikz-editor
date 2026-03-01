@@ -8,7 +8,8 @@ import type {
   SceneElement,
   SceneEllipse,
   ScenePath,
-  ScenePathShapeHint
+  ScenePathShapeHint,
+  SceneText
 } from "tikz-editor/semantic/types";
 import { applyMatrix, applyMatrixToVector } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/types";
@@ -58,29 +59,43 @@ export function resolveResizeFrameForSource(
 ): ResizeFrame | null {
   const sourceElements = elements.filter((element) => element.sourceId === sourceId);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
-  if (nonTextElements.length !== 1) {
+  const textElements = sourceElements.filter(
+    (element): element is SceneText => element.kind === "Text"
+  );
+  if (nonTextElements.length === 1) {
+    const element = nonTextElements[0];
+    if (!element) {
+      return null;
+    }
+
+    if (element.kind === "Path") {
+      return resolvePathResizeFrame(
+        element,
+        sourceElements,
+        editHandles,
+        sourceId,
+        viewBox,
+        pathShapeHintOverride
+      );
+    }
+    if (element.kind === "Circle") {
+      return resolveCircleResizeFrame(element, editHandles, sourceId, viewBox);
+    }
+    if (element.kind === "Ellipse") {
+      return resolveEllipseResizeFrame(element, editHandles, sourceId, viewBox);
+    }
     return null;
   }
 
-  const element = nonTextElements[0];
-  if (!element) {
-    return null;
-  }
-
-  if (element.kind === "Path") {
-    return resolvePathResizeFrame(element, editHandles, sourceId, viewBox, pathShapeHintOverride);
-  }
-  if (element.kind === "Circle") {
-    return resolveCircleResizeFrame(element, editHandles, sourceId, viewBox);
-  }
-  if (element.kind === "Ellipse") {
-    return resolveEllipseResizeFrame(element, editHandles, sourceId, viewBox);
+  if (nonTextElements.length === 0 && textElements.length === 1) {
+    return resolveTextResizeFrame(sourceId, textElements[0], viewBox);
   }
   return null;
 }
 
 function resolvePathResizeFrame(
   path: ScenePath,
+  sourceElements: readonly SceneElement[],
   editHandles: readonly EditHandle[],
   sourceId: string,
   viewBox: SvgViewBox,
@@ -88,7 +103,7 @@ function resolvePathResizeFrame(
 ): ResizeFrame | null {
   const pathShapeHint = pathShapeHintOverride === undefined ? (path.shapeHint ?? null) : pathShapeHintOverride;
   if (!pathShapeHint) {
-    return null;
+    return resolveNodePathResizeFrame(path, sourceElements, sourceId, viewBox);
   }
   if (pathShapeHint === "rectangle") {
     return resolvePathRectangleResizeFrame(editHandles, sourceId, viewBox);
@@ -112,6 +127,36 @@ function resolvePathResizeFrame(
     );
   }
   return null;
+}
+
+function resolveNodePathResizeFrame(
+  path: ScenePath,
+  sourceElements: readonly SceneElement[],
+  sourceId: string,
+  viewBox: SvgViewBox
+): ResizeFrame | null {
+  const hasTextElement = sourceElements.some((element) => element.kind === "Text");
+  if (!hasTextElement) {
+    return null;
+  }
+
+  const corners = resolveRectanglePathCorners(path);
+  if (!corners) {
+    return null;
+  }
+  const centerWorld = {
+    x: corners.reduce((sum, point) => sum + point.x, 0) / corners.length,
+    y: corners.reduce((sum, point) => sum + point.y, 0) / corners.length
+  };
+  const basis = resolveRectangleBasis(corners);
+  if (!basis) {
+    return null;
+  }
+  const cornersByRole = assignCornersByRoleWithBasis(corners, centerWorld, basis.u, basis.v);
+  if (!cornersByRole) {
+    return null;
+  }
+  return buildResizeFrame(sourceId, centerWorld, cornersByRole, viewBox);
 }
 
 function resolvePathRectangleResizeFrame(
@@ -247,6 +292,36 @@ function resolveEllipseLikeResizeFrame(
   return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
 }
 
+function resolveTextResizeFrame(
+  sourceId: string,
+  text: SceneText,
+  viewBox: SvgViewBox
+): ResizeFrame | null {
+  const width = text.textBlockWidth ?? estimateTextBlockWidth(text.text, text.style.fontSize);
+  const lineCount = Math.max(1, text.text.split("\n").length);
+  const height = text.textBlockHeight ?? lineCount * text.style.fontSize * 1.15;
+  if (!(width > EPSILON) || !(height > EPSILON)) {
+    return null;
+  }
+
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const rotation = text.rotation ?? 0;
+  const localByRole: Record<ResizeFrameCornerRole, Point> = {
+    "top-left": { x: -halfWidth, y: halfHeight },
+    "top-right": { x: halfWidth, y: halfHeight },
+    "bottom-right": { x: halfWidth, y: -halfHeight },
+    "bottom-left": { x: -halfWidth, y: -halfHeight }
+  };
+  const cornersByRole = {
+    "top-left": rotateAndTranslatePoint(localByRole["top-left"], text.position, rotation),
+    "top-right": rotateAndTranslatePoint(localByRole["top-right"], text.position, rotation),
+    "bottom-right": rotateAndTranslatePoint(localByRole["bottom-right"], text.position, rotation),
+    "bottom-left": rotateAndTranslatePoint(localByRole["bottom-left"], text.position, rotation)
+  };
+  return buildResizeFrame(sourceId, text.position, cornersByRole, viewBox);
+}
+
 function resolvePathArcRadii(
   path: ScenePath,
   pathShapeHint: Extract<ScenePathShapeHint, "circle" | "ellipse">
@@ -310,6 +385,144 @@ function buildResizeFrame(
   };
 }
 
+function resolveRectanglePathCorners(path: ScenePath): Point[] | null {
+  const corners: Point[] = [];
+  let closed = false;
+  for (const command of path.commands) {
+    if (command.kind === "M" || command.kind === "L") {
+      if (closed) {
+        return null;
+      }
+      corners.push(command.to);
+      continue;
+    }
+    if (command.kind === "Z") {
+      closed = true;
+      break;
+    }
+    return null;
+  }
+
+  if (!closed || corners.length < 4) {
+    return null;
+  }
+  const first = corners[0];
+  const last = corners[corners.length - 1];
+  if (!first || !last) {
+    return null;
+  }
+  if (pointsApproximatelyEqual(first, last)) {
+    corners.pop();
+  }
+  if (corners.length !== 4) {
+    return null;
+  }
+  return resolveRectangleBasis(corners) ? corners : null;
+}
+
+function resolveRectangleBasis(corners: readonly Point[]): { u: Point; v: Point } | null {
+  if (corners.length !== 4) {
+    return null;
+  }
+
+  const edge01 = subtractPoints(corners[1], corners[0]);
+  const edge12 = subtractPoints(corners[2], corners[1]);
+  const edge23 = subtractPoints(corners[3], corners[2]);
+  const edge30 = subtractPoints(corners[0], corners[3]);
+  const len01 = Math.hypot(edge01.x, edge01.y);
+  const len12 = Math.hypot(edge12.x, edge12.y);
+  const len23 = Math.hypot(edge23.x, edge23.y);
+  const len30 = Math.hypot(edge30.x, edge30.y);
+  if (len01 <= EPSILON || len12 <= EPSILON || len23 <= EPSILON || len30 <= EPSILON) {
+    return null;
+  }
+
+  const orthogonalityTolerance = 1e-3;
+  const lengthTolerance = 1e-3;
+  if (Math.abs(dot(edge01, edge12)) > orthogonalityTolerance * len01 * len12) {
+    return null;
+  }
+  if (Math.abs(dot(edge12, edge23)) > orthogonalityTolerance * len12 * len23) {
+    return null;
+  }
+  if (Math.abs(len01 - len23) > lengthTolerance * Math.max(len01, len23)) {
+    return null;
+  }
+  if (Math.abs(len12 - len30) > lengthTolerance * Math.max(len12, len30)) {
+    return null;
+  }
+
+  return {
+    u: { x: edge01.x / len01, y: edge01.y / len01 },
+    v: { x: edge12.x / len12, y: edge12.y / len12 }
+  };
+}
+
+function assignCornersByRoleWithBasis(
+  points: readonly Point[],
+  center: Point,
+  uAxis: Point,
+  vAxis: Point
+): Record<ResizeFrameCornerRole, Point> | null {
+  if (points.length !== 4) {
+    return null;
+  }
+
+  const projections = points.map((point) => ({
+    point,
+    u: dot(subtractPoints(point, center), uAxis),
+    v: dot(subtractPoints(point, center), vAxis)
+  }));
+  const maxAbsU = Math.max(...projections.map((projection) => Math.abs(projection.u)));
+  const maxAbsV = Math.max(...projections.map((projection) => Math.abs(projection.v)));
+  if (maxAbsU <= EPSILON || maxAbsV <= EPSILON) {
+    return null;
+  }
+
+  const usedIndices = new Set<number>();
+  const pick = (targetU: number, targetV: number): Point | null => {
+    let bestIndex = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < projections.length; index += 1) {
+      if (usedIndices.has(index)) {
+        continue;
+      }
+      const projection = projections[index];
+      if (!projection) {
+        continue;
+      }
+      const normalizedU = projection.u / maxAbsU;
+      const normalizedV = projection.v / maxAbsV;
+      const distance =
+        (normalizedU - targetU) * (normalizedU - targetU) +
+        (normalizedV - targetV) * (normalizedV - targetV);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex < 0) {
+      return null;
+    }
+    usedIndices.add(bestIndex);
+    return projections[bestIndex]?.point ?? null;
+  };
+
+  const topLeft = pick(-1, 1);
+  const topRight = pick(1, 1);
+  const bottomRight = pick(1, -1);
+  const bottomLeft = pick(-1, -1);
+  if (!topLeft || !topRight || !bottomRight || !bottomLeft) {
+    return null;
+  }
+  return {
+    "top-left": topLeft,
+    "top-right": topRight,
+    "bottom-right": bottomRight,
+    "bottom-left": bottomLeft
+  };
+}
+
 function pickCenterPathPointHandle(
   editHandles: readonly EditHandle[],
   sourceId: string,
@@ -366,6 +579,38 @@ function rotateVector(vector: Point, degrees: number): Point {
     x: vector.x * cos - vector.y * sin,
     y: vector.x * sin + vector.y * cos
   };
+}
+
+function rotateAndTranslatePoint(localPoint: Point, center: Point, degrees: number): Point {
+  const rotated = rotateVector(localPoint, degrees);
+  return {
+    x: center.x + rotated.x,
+    y: center.y + rotated.y
+  };
+}
+
+function subtractPoints(left: Point, right: Point): Point {
+  return {
+    x: left.x - right.x,
+    y: left.y - right.y
+  };
+}
+
+function dot(left: Point, right: Point): number {
+  return left.x * right.x + left.y * right.y;
+}
+
+function pointsApproximatelyEqual(left: Point, right: Point, epsilon = 1e-6): boolean {
+  return Math.abs(left.x - right.x) <= epsilon && Math.abs(left.y - right.y) <= epsilon;
+}
+
+function estimateTextBlockWidth(text: string, fontSize: number): number {
+  const lines = text.split("\n");
+  const maxChars = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  if (maxChars <= 0) {
+    return 0;
+  }
+  return maxChars * fontSize * 0.7;
 }
 
 function matrixIsIdentity(matrix: Matrix2D): boolean {

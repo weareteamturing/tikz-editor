@@ -6,6 +6,7 @@ import { applyEditAction } from "../src/edit/actions.js";
 import { PT_PER_CM } from "../src/edit/format.js";
 import { computeSourceFingerprint } from "../src/utils/source-fingerprint.js";
 import { parseTikz } from "../src/parser/index.js";
+import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
 
 const cm = (v: number) => v * PT_PER_CM;
 
@@ -898,6 +899,46 @@ describe("applyEditAction – resizeElement", () => {
       const next = rewrittenTargetYValues[index]!;
       expect(Math.abs(next - prev)).toBeLessThan(2);
     }
+  });
+
+  it("keeps rotated node corner drags stable at existing corners", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,rotate=30] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const nodeBoxPath = semantic.scene.elements.find(
+      (element): element is Extract<typeof semantic.scene.elements[number], { kind: "Path" }> =>
+        element.sourceId === "path:0" && element.kind === "Path"
+    );
+    expect(nodeBoxPath).toBeDefined();
+    if (!nodeBoxPath) {
+      return;
+    }
+
+    const corner = nodeBoxPath.commands.find(
+      (command): command is Extract<typeof nodeBoxPath.commands[number], { kind: "M" | "L" }> =>
+        command.kind === "M" || command.kind === "L"
+    )?.to;
+    expect(corner).toBeDefined();
+    if (!corner) {
+      return;
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-right",
+      newWorld: corner
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+    expect(result.newSource).not.toContain("minimum width");
+    expect(result.newSource).not.toContain("minimum height");
   });
 
   it("resizes transform-rotated circle statements", () => {
