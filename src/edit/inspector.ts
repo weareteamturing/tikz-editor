@@ -2,6 +2,7 @@ import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { normalizeColor, resolveDefineColorModel } from "../semantic/style/colors.js";
 import { findTopLevelCharacter, parseStyleValueAsOptionList, readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
 import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
 
 export type ArrowTipPresetId =
@@ -116,6 +117,22 @@ export type RoundedCornersSetPropertyMutation = {
   clearKeys: string[];
 };
 
+export type TransformInspectorKey = "xshift" | "yshift" | "xscale" | "yscale" | "rotate";
+
+export type TransformInspectorValues = {
+  xshift: number;
+  yshift: number;
+  xscale: number;
+  yscale: number;
+  rotate: number;
+};
+
+export type TransformSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
 export type InspectorSnapshot = {
   source: string;
   editHandles?: EditHandle[];
@@ -126,16 +143,10 @@ export type SetPropertyWriteTarget = {
   elementId: string;
   level: StyleLevel;
   key: string;
-  writable: boolean;
-  reason?: string;
-};
-
-export type MoveAxisWriteTarget = {
-  mode: "moveAxis";
-  elementId: string;
-  axis: "x" | "y";
-  baseX: number;
-  baseY: number;
+  transformContext?: {
+    key: TransformInspectorKey;
+    values: TransformInspectorValues;
+  };
   writable: boolean;
   reason?: string;
 };
@@ -148,7 +159,7 @@ export type InspectorProperty =
       value: number;
       step: number;
       unit?: string;
-      write?: MoveAxisWriteTarget;
+      write?: SetPropertyWriteTarget;
       readOnlyReason?: string;
     }
   | {
@@ -395,6 +406,23 @@ const ROUNDED_CORNERS_CLEAR_KEYS = ["rounded corners", "sharp corners"] as const
 export const ROUNDED_CORNERS_DEFAULT_RADIUS = 4;
 const ROUNDED_CORNERS_FALLBACK_MAX = 24;
 const ROUNDED_CORNERS_MIN = 0.1;
+const DEFAULT_TRANSFORM_INSPECTOR_VALUES: TransformInspectorValues = {
+  xshift: 0,
+  yshift: 0,
+  xscale: 1,
+  yscale: 1,
+  rotate: 0
+};
+const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
+const SCALE_CLEAR_KEYS = ["scale", "/tikz/scale"] as const;
+const ROTATE_CLEAR_KEYS = ["/tikz/rotate"] as const;
+const TRANSFORM_KEY_ALIAS_CLEAR_KEYS: Record<TransformInspectorKey, readonly string[]> = {
+  xshift: ["/tikz/xshift"],
+  yshift: ["/tikz/yshift"],
+  xscale: ["/tikz/xscale"],
+  yscale: ["/tikz/yscale"],
+  rotate: ["/tikz/rotate"]
+};
 
 export function buildArrowTipSetPropertyMutation(
   context: ArrowTipWriteContext,
@@ -497,11 +525,147 @@ export function buildRoundedCornersSetPropertyMutation(
   };
 }
 
+export function resolveTransformInspectorValues(source: string, targetId: string | null): TransformInspectorValues {
+  const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
+  if (!targetId) {
+    return values;
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return values;
+  }
+
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = normalizeOptionKey(entry.key);
+    if (key === "scale" || key === "/tikz/scale") {
+      const parsed = parseTransformScalar(entry.valueRaw);
+      if (parsed != null) {
+        values.xscale = parsed;
+        values.yscale = parsed;
+      }
+      continue;
+    }
+
+    if (key === "xscale" || key === "/tikz/xscale") {
+      const parsed = parseTransformScalar(entry.valueRaw);
+      if (parsed != null) {
+        values.xscale = parsed;
+      }
+      continue;
+    }
+
+    if (key === "yscale" || key === "/tikz/yscale") {
+      const parsed = parseTransformScalar(entry.valueRaw);
+      if (parsed != null) {
+        values.yscale = parsed;
+      }
+      continue;
+    }
+
+    if (key === "shift" || key === "/tikz/shift") {
+      const parsed = parseShiftTransformValue(entry.valueRaw);
+      if (parsed) {
+        values.xshift = parsed.x;
+        values.yshift = parsed.y;
+      }
+      continue;
+    }
+
+    if (key === "xshift" || key === "/tikz/xshift") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        values.xshift = parsed;
+      }
+      continue;
+    }
+
+    if (key === "yshift" || key === "/tikz/yshift") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        values.yshift = parsed;
+      }
+      continue;
+    }
+
+    if (key === "rotate" || key === "/tikz/rotate") {
+      const parsed = parseTransformScalar(entry.valueRaw);
+      if (parsed != null) {
+        values.rotate = parsed;
+      }
+    }
+  }
+
+  return values;
+}
+
+export function buildTransformSetPropertyMutations(
+  currentValues: TransformInspectorValues,
+  editedKey: TransformInspectorKey,
+  nextValue: number
+): TransformSetPropertyMutation[] {
+  if (!Number.isFinite(nextValue)) {
+    return [];
+  }
+
+  const sanitizedCurrent = sanitizeTransformInspectorValues(currentValues);
+  const safeNextValue = normalizeTinyNumber(nextValue);
+
+  if (editedKey === "xshift" || editedKey === "yshift") {
+    const nextValues = {
+      ...sanitizedCurrent,
+      [editedKey]: safeNextValue
+    };
+    return [
+      {
+        key: "xshift",
+        value: `${formatInspectorLength(nextValues.xshift)}pt`,
+        clearKeys: uniqueStrings([...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.xshift])
+      },
+      {
+        key: "yshift",
+        value: `${formatInspectorLength(nextValues.yshift)}pt`,
+        clearKeys: uniqueStrings([...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.yshift])
+      }
+    ];
+  }
+
+  if (editedKey === "xscale" || editedKey === "yscale") {
+    const nextValues = {
+      ...sanitizedCurrent,
+      [editedKey]: safeNextValue
+    };
+    return [
+      {
+        key: "xscale",
+        value: formatInspectorLength(nextValues.xscale),
+        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.xscale])
+      },
+      {
+        key: "yscale",
+        value: formatInspectorLength(nextValues.yscale),
+        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.yscale])
+      }
+    ];
+  }
+
+  return [
+    {
+      key: "rotate",
+      value: formatInspectorLength(safeNextValue),
+      clearKeys: uniqueStrings(ROTATE_CLEAR_KEYS)
+    }
+  ];
+}
+
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source);
   const colorAliases = collectInspectorColorAliases(snapshot.source);
-  const metrics = computeElementMetrics(element);
-  const moveWrite = resolveMoveWriteTarget(element, snapshot.editHandles, metrics);
+  const transformValues = resolveTransformInspectorValues(snapshot.source, inlineTarget.targetId);
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
   const strokeColorSyntax = resolveColorSyntaxValue(
     snapshot.source,
@@ -540,37 +704,46 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       properties: [
         {
           kind: "number",
-          id: "x",
-          label: "X",
-          value: metrics.centerX,
+          id: "xshift",
+          label: "X shift",
+          value: transformValues.xshift,
           step: 0.1,
           unit: "pt",
-          write: moveWrite.x
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xshift", transformValues)
         },
         {
           kind: "number",
-          id: "y",
-          label: "Y",
-          value: metrics.centerY,
+          id: "yshift",
+          label: "Y shift",
+          value: transformValues.yshift,
           step: 0.1,
           unit: "pt",
-          write: moveWrite.y
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yshift", transformValues)
         },
         {
           kind: "number",
-          id: "width",
-          label: "Width",
-          value: metrics.width,
+          id: "xscale",
+          label: "X scale",
+          value: transformValues.xscale,
           step: 0.1,
-          unit: "pt"
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xscale", transformValues)
         },
         {
           kind: "number",
-          id: "height",
-          label: "Height",
-          value: metrics.height,
+          id: "yscale",
+          label: "Y scale",
+          value: transformValues.yscale,
           step: 0.1,
-          unit: "pt"
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yscale", transformValues)
+        },
+        {
+          kind: "number",
+          id: "rotate",
+          label: "Rotate",
+          value: transformValues.rotate,
+          step: 1,
+          unit: "deg",
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "rotate", transformValues)
         }
       ]
     },
@@ -761,6 +934,20 @@ function makeSetPropertyWriteTarget(
     key,
     writable: inlineTarget.writable && inlineTarget.targetId != null,
     reason: inlineTarget.reason
+  };
+}
+
+function makeTransformSetPropertyWriteTarget(
+  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  key: TransformInspectorKey,
+  values: TransformInspectorValues
+): SetPropertyWriteTarget {
+  return {
+    ...makeSetPropertyWriteTarget(inlineTarget, key),
+    transformContext: {
+      key,
+      values: cloneTransformInspectorValues(values)
+    }
   };
 }
 
@@ -1173,47 +1360,6 @@ function resolveInlineWriteTarget(
   return { targetId, writable: true };
 }
 
-function resolveMoveWriteTarget(
-  element: SceneElement,
-  editHandles: EditHandle[] | undefined,
-  metrics: { centerX: number; centerY: number }
-): { x: MoveAxisWriteTarget; y: MoveAxisWriteTarget } {
-  const hasHandle = (editHandles ?? []).some((handle) => handle.sourceId === element.sourceId);
-  const foreachReadonly = element.origin?.foreachStack && element.origin.foreachStack.length > 0;
-  const macroReadonly = element.origin?.macroStack && element.origin.macroStack.length > 0;
-
-  let reason: string | undefined;
-  if (foreachReadonly) {
-    reason = "Position editing is disabled for foreach-expanded elements.";
-  } else if (macroReadonly) {
-    reason = "Position editing is disabled for macro-expanded elements.";
-  } else if (!hasHandle) {
-    reason = "No editable handles were found for this element.";
-  }
-
-  const writable = reason == null;
-  return {
-    x: {
-      mode: "moveAxis",
-      elementId: element.sourceId,
-      axis: "x",
-      baseX: metrics.centerX,
-      baseY: metrics.centerY,
-      writable,
-      reason
-    },
-    y: {
-      mode: "moveAxis",
-      elementId: element.sourceId,
-      axis: "y",
-      baseX: metrics.centerX,
-      baseY: metrics.centerY,
-      writable,
-      reason
-    }
-  };
-}
-
 function normalizeElementKind(kind: SceneElement["kind"]): InspectorDescriptor["elementKind"] {
   if (kind === "Path") return "path";
   if (kind === "Circle") return "circle";
@@ -1304,79 +1450,6 @@ function polygonSignedArea(points: ReadonlyArray<{ x: number; y: number }>): num
     area += current.x * next.y - next.x * current.y;
   }
   return area / 2;
-}
-
-function computeElementMetrics(element: SceneElement): {
-  centerX: number;
-  centerY: number;
-  width: number;
-  height: number;
-} {
-  if (element.kind === "Circle") {
-    return {
-      centerX: element.center.x,
-      centerY: element.center.y,
-      width: element.radius * 2,
-      height: element.radius * 2
-    };
-  }
-
-  if (element.kind === "Ellipse") {
-    return {
-      centerX: element.center.x,
-      centerY: element.center.y,
-      width: element.rx * 2,
-      height: element.ry * 2
-    };
-  }
-
-  if (element.kind === "Text") {
-    return {
-      centerX: element.position.x,
-      centerY: element.position.y,
-      width: element.textBlockWidth ?? 0,
-      height: element.textBlockHeight ?? 0
-    };
-  }
-
-  const bounds = pathBounds(element.commands);
-  return {
-    centerX: (bounds.minX + bounds.maxX) / 2,
-    centerY: (bounds.minY + bounds.maxY) / 2,
-    width: bounds.maxX - bounds.minX,
-    height: bounds.maxY - bounds.minY
-  };
-}
-
-function pathBounds(commands: ScenePathCommand[]): { minX: number; minY: number; maxX: number; maxY: number } {
-  const points: Array<{ x: number; y: number }> = [];
-  for (const command of commands) {
-    if (command.kind === "M" || command.kind === "L" || command.kind === "A") {
-      points.push(command.to);
-      continue;
-    }
-    if (command.kind === "C") {
-      points.push(command.c1, command.c2, command.to);
-    }
-  }
-
-  if (points.length === 0) {
-    return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
-  }
-
-  let minX = points[0].x;
-  let minY = points[0].y;
-  let maxX = points[0].x;
-  let maxY = points[0].y;
-
-  for (const point of points) {
-    minX = Math.min(minX, point.x);
-    minY = Math.min(minY, point.y);
-    maxX = Math.max(maxX, point.x);
-    maxY = Math.max(maxY, point.y);
-  }
-
-  return { minX, minY, maxX, maxY };
 }
 
 function lineWidthPresetLabel(value: number): string | null {
@@ -1745,6 +1818,57 @@ function colorOptionsForValue(value: string | null): string[] {
     return COLOR_OPTIONS;
   }
   return [value, ...COLOR_OPTIONS];
+}
+
+function parseTransformScalar(raw: string): number | null {
+  const parsed = Number(stripEnclosingBraces(raw).trim());
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return normalizeTinyNumber(parsed);
+}
+
+function parseShiftTransformValue(raw: string): { x: number; y: number } | null {
+  const normalized = stripEnclosingBraces(raw).trim();
+  const coordinate = parseCoordinateLike(normalized);
+  if (!coordinate) {
+    return null;
+  }
+
+  const x = parseLength(coordinate.x, "cm");
+  const y = parseLength(coordinate.y, "cm");
+  if (x == null || y == null) {
+    return null;
+  }
+
+  return {
+    x: normalizeTinyNumber(x),
+    y: normalizeTinyNumber(y)
+  };
+}
+
+function cloneTransformInspectorValues(values: TransformInspectorValues): TransformInspectorValues {
+  return {
+    xshift: values.xshift,
+    yshift: values.yshift,
+    xscale: values.xscale,
+    yscale: values.yscale,
+    rotate: values.rotate
+  };
+}
+
+function sanitizeTransformInspectorValues(values: TransformInspectorValues): TransformInspectorValues {
+  return {
+    xshift: Number.isFinite(values.xshift) ? normalizeTinyNumber(values.xshift) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.xshift,
+    yshift: Number.isFinite(values.yshift) ? normalizeTinyNumber(values.yshift) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.yshift,
+    xscale: Number.isFinite(values.xscale) ? normalizeTinyNumber(values.xscale) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.xscale,
+    yscale: Number.isFinite(values.yscale) ? normalizeTinyNumber(values.yscale) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.yscale,
+    rotate: Number.isFinite(values.rotate) ? normalizeTinyNumber(values.rotate) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.rotate
+  };
+}
+
+function normalizeTinyNumber(value: number): number {
+  return Math.abs(value) <= 1e-9 ? 0 : value;
 }
 
 function normalizeOptionKey(key: string): string {

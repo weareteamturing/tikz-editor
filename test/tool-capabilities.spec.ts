@@ -98,5 +98,21 @@ describe("inspector property capability status", () => {
       }
     };
     expect(getInspectorPropertyCapabilityStatus(roundedCornersProperty).status).toBe("partial");
+
+    const transformNumberProperty: InspectorProperty = {
+      kind: "number",
+      id: "xscale",
+      label: "X scale",
+      value: 2,
+      step: 0.1,
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "xscale",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(transformNumberProperty).status).toBe("partial");
   });
 });

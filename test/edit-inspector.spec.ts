@@ -3,8 +3,9 @@ import { renderTikzToSvg } from "../src/render/index.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import {
   buildArrowTipSetPropertyMutation,
-  buildRoundedCornersSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
+  buildRoundedCornersSetPropertyMutation,
+  buildTransformSetPropertyMutations,
   getInspectorDescriptor
 } from "../src/edit/inspector.js";
 
@@ -83,6 +84,71 @@ describe("getInspectorDescriptor", () => {
     expect(endArrow.write.arrowContext.startRaw).toBe("");
     expect(endArrow.write.arrowContext.endRaw).toBe(">");
     expect(endArrow.write.arrowContext.clearKeys).toContain("->");
+  });
+
+  it("replaces geometric transform fields with canonical TikZ transform controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[scale=2,shift={(2pt,3pt)},rotate=15] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const transformIds = transformSection.properties.map((property) => property.id);
+    expect(transformIds).toEqual(["xshift", "yshift", "xscale", "yscale", "rotate"]);
+    expect(transformIds).not.toContain("x");
+    expect(transformIds).not.toContain("y");
+    expect(transformIds).not.toContain("width");
+    expect(transformIds).not.toContain("height");
+  });
+
+  it("resolves canonical transform values from scale and shift shorthands", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[scale=2,shift={(2pt,3pt)},rotate=15] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const values = new Map<string, number>();
+    for (const property of transformSection.properties) {
+      if (property.kind !== "number") {
+        continue;
+      }
+      values.set(property.id, property.value);
+    }
+
+    expect(values.get("xscale")).toBeCloseTo(2, 6);
+    expect(values.get("yscale")).toBeCloseTo(2, 6);
+    expect(values.get("xshift")).toBeCloseTo(2, 6);
+    expect(values.get("yshift")).toBeCloseTo(3, 6);
+    expect(values.get("rotate")).toBeCloseTo(15, 6);
   });
 
   it("keeps declared color alias syntax for color flags", () => {
@@ -237,6 +303,124 @@ describe("getInspectorDescriptor", () => {
     expect(mutation.key).toBe("<->");
     expect(mutation.value).toBe("true");
     expect(mutation.clearKeys).toContain("arrows");
+  });
+
+  it("canonicalizes xscale edits by materializing xscale and yscale while removing scale shorthand", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[scale=2,blue] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const xscale = transformSection.properties.find((property) => property.id === "xscale");
+    expect(xscale).toBeDefined();
+    if (!xscale || xscale.kind !== "number" || !xscale.write?.transformContext) {
+      throw new Error("Expected xscale number property with transform context");
+    }
+
+    const mutations = buildTransformSetPropertyMutations(xscale.write.transformContext.values, "xscale", 3);
+    expect(mutations).toHaveLength(2);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: xscale.write.elementId,
+        level: xscale.write.level,
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful setProperty transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("xscale=3");
+    expect(updated).toContain("yscale=2");
+    expect(updated).not.toMatch(/\bscale\s*=/);
+  });
+
+  it("canonicalizes xshift edits by materializing xshift and yshift while removing shift shorthand", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[shift={(2pt,3pt)},blue] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const xshift = transformSection.properties.find((property) => property.id === "xshift");
+    expect(xshift).toBeDefined();
+    if (!xshift || xshift.kind !== "number" || !xshift.write?.transformContext) {
+      throw new Error("Expected xshift number property with transform context");
+    }
+
+    const mutations = buildTransformSetPropertyMutations(xshift.write.transformContext.values, "xshift", 5);
+    expect(mutations).toHaveLength(2);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: xshift.write.elementId,
+        level: xshift.write.level,
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful setProperty transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("xshift=5pt");
+    expect(updated).toContain("yshift=3pt");
+    expect(updated).not.toMatch(/\bshift\s*=/);
+  });
+
+  it("builds rotate mutations without touching scale or shift keys", () => {
+    const mutations = buildTransformSetPropertyMutations(
+      { xshift: 2, yshift: 3, xscale: 2, yscale: 2, rotate: 15 },
+      "rotate",
+      20
+    );
+
+    expect(mutations).toHaveLength(1);
+    expect(mutations[0]).toMatchObject({
+      key: "rotate",
+      value: "20"
+    });
   });
 
   it("builds path morphing decoration mutations", () => {

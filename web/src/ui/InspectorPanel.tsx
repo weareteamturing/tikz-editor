@@ -7,6 +7,7 @@ import {
   buildLineJoinSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
+  buildTransformSetPropertyMutations,
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
   ROUNDED_CORNERS_DEFAULT_RADIUS,
@@ -40,6 +41,7 @@ type MultiInspectorNumberProperty = {
   mixed: boolean;
   step: number;
   unit?: string;
+  writes: SetPropertyWriteTarget[];
   readOnlyReason?: string;
 };
 
@@ -182,7 +184,7 @@ const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
 const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
 const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 const OPTIONAL_MULTI_PROPERTY_IDS = new Set([...STROKE_MORE_OPTIONS_PROPERTY_IDS, "rounded-corners"]);
-const COMPACT_NUMBER_PAIR_IDS = new Set(["x:y", "width:height"]);
+const COMPACT_NUMBER_PAIR_IDS = new Set(["xshift:yshift", "xscale:yscale"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
@@ -641,24 +643,73 @@ export function InspectorPanel() {
 
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
     const write = property.write;
-    if (!write || write.mode !== "moveAxis" || !write.writable) return;
+    if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
+    const next = Number(raw);
+    if (!Number.isFinite(next)) return;
+    if (!write.transformContext) return;
+
+    const mutations = buildTransformSetPropertyMutations(
+      write.transformContext.values,
+      write.transformContext.key,
+      next
+    );
+    if (mutations.length === 0) {
+      return;
+    }
+
+    const mergeKey = `single-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
+  function handleMultiNumberChange(property: Extract<MultiInspectorProperty, { kind: "number" }>, raw: string): void {
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
 
-    const delta =
-      write.axis === "x"
-        ? { x: next - write.baseX, y: 0 }
-        : { x: 0, y: next - write.baseY };
-    if (Math.abs(delta.x) + Math.abs(delta.y) <= 1e-9) return;
+    const writableWrites = property.writes.filter(
+      (write) => write.writable && write.elementId.length > 0 && write.transformContext != null
+    );
+    if (writableWrites.length === 0) {
+      return;
+    }
 
-    dispatch({
-      type: "APPLY_EDIT_ACTION",
-      action: {
-        kind: "moveElement",
-        elementId: write.elementId,
-        delta
+    const mergeKey = `multi-set:${Date.now().toString(36)}`;
+    for (const write of writableWrites) {
+      if (!write.transformContext) {
+        continue;
       }
-    });
+      const mutations = buildTransformSetPropertyMutations(
+        write.transformContext.values,
+        write.transformContext.key,
+        next
+      );
+      for (const mutation of mutations) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          action: {
+            kind: "setProperty",
+            elementId: write.elementId,
+            level: write.level,
+            key: mutation.key,
+            value: mutation.value,
+            clearKeys: mutation.clearKeys
+          }
+        });
+      }
+    }
   }
 
   function getSingleNumberPropertyState(property: Extract<InspectorProperty, { kind: "number" }>): {
@@ -701,6 +752,7 @@ export function InspectorPanel() {
     property: Extract<MultiInspectorProperty, { kind: "number" }>,
     compact = false
   ): JSX.Element {
+    const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
     return (
       <div className={compact ? css.compactNumberField : undefined}>
         <div className={css.propertyLabel}>{property.label}</div>
@@ -710,7 +762,8 @@ export function InspectorPanel() {
             type="number"
             step={property.step}
             value={property.mixed ? "" : formatNumber(property.value)}
-            disabled
+            disabled={!writable}
+            onChange={(event) => handleMultiNumberChange(property, event.currentTarget.value)}
           />
           {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
         </div>
@@ -2041,6 +2094,9 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     const sameKind = properties.every((property) => property.kind === "number");
     if (!sameKind) return null;
     const numberProperties = properties as Array<Extract<InspectorProperty, { kind: "number" }>>;
+    const writes = numberProperties
+      .map((property) => property.write)
+      .filter((write): write is SetPropertyWriteTarget => write?.mode === "setProperty");
 
     return {
       kind: "number",
@@ -2050,7 +2106,8 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       mixed: !numbersAreEqual(numberProperties.map((property) => property.value)),
       step: base.step,
       unit: base.unit,
-      readOnlyReason: "Multi-element transform editing is not yet supported."
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
     };
   }
 

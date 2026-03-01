@@ -50,7 +50,7 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
 
 const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityCheck[]> = {
   number: [
-    { feature: "path_statement", layers: ["edit"], label: "position editing" }
+    { feature: "options_structured", layers: ["edit"], label: "transform option editing" }
   ],
   color: [
     { feature: "options_structured", layers: ["edit"], label: "style option editing" }
