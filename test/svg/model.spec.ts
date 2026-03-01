@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseTikz } from "../../src/parser/index.js";
 import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
 import { emitSvg, emitSvgModel } from "../../src/svg/emit.js";
-import { serializeSvgModel } from "../../src/svg/model.js";
+import { serializeSvgModel, serializeSvgModelAsync } from "../../src/svg/model.js";
 
 describe("svg render model", () => {
   it("is deterministic for equivalent scene input", () => {
@@ -38,6 +38,23 @@ describe("svg render model", () => {
     expect(serializeSvgModel(model, true)).toBe(emitted.svg);
     expect(emitted.model).toEqual(model);
     expect(emitted.diagnostics).toEqual(model.diagnostics);
+  });
+
+  it("supports async pretty serialization with stable structure", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const model = emitSvgModel(semantic.scene, { padding: 10 });
+
+    const compact = serializeSvgModel(model, true);
+    const pretty = await serializeSvgModelAsync(model, { includeXmlns: true, pretty: true });
+
+    expect(pretty).toContain("\n");
+    expect(pretty).not.toBe(compact);
+    expect(pretty.replace(/\s+/g, "")).toBe(compact.replace(/\s+/g, ""));
   });
 
   it("matches full emission when reusing unaffected source parts", () => {

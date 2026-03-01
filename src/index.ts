@@ -8,11 +8,17 @@ export {
   createIncrementalSemanticSession,
   collectGeometryInvalidation
 } from "./semantic/index.js";
-export { emitSvg, emitSvgModel, serializeSvgModel, diffSvgModels } from "./svg/index.js";
+export { emitSvg, emitSvgModel, serializeSvgModel, serializeSvgModelAsync, diffSvgModels } from "./svg/index.js";
 export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
 export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 export { collectSymbols } from "./completion/index.js";
+export {
+  createSvgExportArtifact,
+  normalizeSvgExportFileName,
+  SVG_EXPORT_MIME_TYPE,
+  DEFAULT_SVG_EXPORT_FILE_NAME
+} from "./export/index.js";
 export { EDIT_ACTION_IDS, getEditActionAvailability } from "./edit/action-availability.js";
 export { APP_MENU_DEFINITION, APP_MENU_COMMAND_IDS } from "./app-menu/index.js";
 export {
@@ -47,6 +53,7 @@ export type {
 export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js";
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
 export type { DocumentSymbols } from "./completion/index.js";
+export type { SvgExportArtifact, CreateSvgExportArtifactOptions } from "./export/index.js";
 export type {
   AppMenuDefinition,
   AppMenuSection,

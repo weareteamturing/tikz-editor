@@ -4,6 +4,24 @@ import type {
   SvgViewBox
 } from "./types.js";
 
+type XmlFormatter = (xml: string, options?: XmlFormatterOptions) => string;
+
+type XmlFormatterOptions = {
+  indentation?: string;
+  collapseContent?: boolean;
+  lineSeparator?: string;
+};
+
+export type SerializeSvgModelAsyncOptions = {
+  includeXmlns?: boolean;
+  pretty?: boolean;
+  indentation?: string;
+  collapseContent?: boolean;
+  lineSeparator?: string;
+};
+
+let xmlFormatterPromise: Promise<XmlFormatter> | null = null;
+
 export type SvgModelPartInput = {
   basePartId: string;
   sourceId: string;
@@ -95,6 +113,27 @@ export function serializeSvgModel(
   model: SvgRenderModel,
   includeXmlns = true
 ): string {
+  return serializeSvgModelCompact(model, includeXmlns);
+}
+
+export async function serializeSvgModelAsync(
+  model: SvgRenderModel,
+  options: SerializeSvgModelAsyncOptions = {}
+): Promise<string> {
+  const includeXmlns = options.includeXmlns ?? true;
+  const compact = serializeSvgModelCompact(model, includeXmlns);
+  if (!options.pretty) {
+    return compact;
+  }
+  const xmlFormatter = await getXmlFormatter();
+  return xmlFormatter(compact, {
+    indentation: options.indentation ?? "  ",
+    collapseContent: options.collapseContent ?? true,
+    lineSeparator: options.lineSeparator ?? "\n"
+  });
+}
+
+function serializeSvgModelCompact(model: SvgRenderModel, includeXmlns: boolean): string {
   const xmlns = includeXmlns ? ` xmlns="http://www.w3.org/2000/svg"` : "";
   const defs = model.defs.length > 0 ? `<defs>${model.defs.join("")}</defs>` : "";
   const body = model.parts.map((part) => part.markup).join("");
@@ -108,6 +147,19 @@ export function serializeSvgModel(
 
 export function fingerprintDefs(defs: readonly string[]): string {
   return defs.join("");
+}
+
+async function getXmlFormatter(): Promise<XmlFormatter> {
+  if (!xmlFormatterPromise) {
+    xmlFormatterPromise = import("xml-formatter").then((mod) => {
+      const formatter = mod.default;
+      if (typeof formatter !== "function") {
+        throw new Error("xml-formatter default export is not a function.");
+      }
+      return formatter as XmlFormatter;
+    });
+  }
+  return xmlFormatterPromise;
 }
 
 function sanitizePartIdBase(base: string): string {

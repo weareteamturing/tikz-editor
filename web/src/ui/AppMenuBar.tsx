@@ -19,6 +19,7 @@ import {
   pasteSelectionAnchor,
   reorderSelection
 } from "./editor-commands";
+import { canExportSvg, copySvgMarkup, exportSvgDownload } from "./export-commands";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import { OpenExampleModal } from "./OpenExampleModal";
 import css from "./AppMenuBar.module.css";
@@ -158,6 +159,7 @@ export function AppMenuBar() {
   const availability = actionAvailability(commandContext, internalClipboard);
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
+  const canExport = canExportSvg(snapshot.svg);
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
@@ -172,6 +174,20 @@ export function AppMenuBar() {
     } satisfies MenuCommandBinding;
   };
 
+  const runSvgDownload = () => {
+    if (!snapshot.svg) {
+      return;
+    }
+    void exportSvgDownload(snapshot.svg, { fileName: "tikz-export.svg" });
+  };
+
+  const runSvgCopy = () => {
+    if (!snapshot.svg) {
+      return;
+    }
+    void copySvgMarkup(snapshot.svg);
+  };
+
   const bindings: MenuCommandBindings = {
     [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE]: {
       enabled: true,
@@ -180,6 +196,14 @@ export function AppMenuBar() {
     [APP_MENU_COMMAND_IDS.EXPORT_TIKZ]: {
       enabled: false,
       run: () => undefined
+    },
+    [APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD]: {
+      enabled: canExport,
+      run: runSvgDownload
+    },
+    [APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY]: {
+      enabled: canExport,
+      run: runSvgCopy
     },
     [APP_MENU_COMMAND_IDS.UNDO]: {
       enabled: canUndo,

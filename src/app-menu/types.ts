@@ -1,6 +1,12 @@
 export const APP_MENU_COMMAND_IDS = {
   OPEN_EXAMPLE: "file.open-example",
+  /**
+   * Legacy command id retained for compatibility with custom menu consumers.
+   * In the playground UI this command remains a disabled no-op.
+   */
   EXPORT_TIKZ: "file.export-tikz",
+  EXPORT_SVG_DOWNLOAD: "file.export-svg-download",
+  EXPORT_SVG_COPY: "file.export-svg-copy",
   UNDO: "edit.undo",
   REDO: "edit.redo",
   CUT: "edit.cut",

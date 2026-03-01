@@ -13,9 +13,13 @@ export const APP_MENU_DEFINITION = [
       { kind: "separator" },
       {
         kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.EXPORT_TIKZ,
-        label: "Export TikZ...",
-        accelerator: "CmdOrCtrl+Shift+E"
+        commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD,
+        label: "Export SVG..."
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY,
+        label: "Copy SVG"
       }
     ]
   },
