@@ -11,6 +11,8 @@ import {
   getInspectorDescriptor,
   LINE_WIDTH_PRESETS,
   ROUNDED_CORNERS_DEFAULT_RADIUS,
+  resolveTransformInspectorValues,
+  TIKZPICTURE_GLOBAL_TARGET_ID,
   type ArrowTipPresetId,
   type ArrowTipSide,
   type ArrowTipWriteTarget,
@@ -243,6 +245,10 @@ export function InspectorPanel() {
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
   const projectNamedColorSwatches = useMemo(
     () => collectProjectNamedColorSwatches(source),
+    [source]
+  );
+  const globalTransformValues = useMemo(
+    () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID),
     [source]
   );
 
@@ -1943,12 +1949,52 @@ export function InspectorPanel() {
     );
   }
 
+  function makeGlobalTransformNumberProperty(
+    key: "xscale" | "yscale",
+    label: string
+  ): Extract<InspectorProperty, { kind: "number" }> {
+    return {
+      kind: "number",
+      id: key,
+      label,
+      value: globalTransformValues[key],
+      step: 0.1,
+      write: {
+        mode: "setProperty",
+        elementId: TIKZPICTURE_GLOBAL_TARGET_ID,
+        level: "command",
+        key,
+        transformContext: {
+          key,
+          values: globalTransformValues
+        },
+        writable: true
+      }
+    };
+  }
+
+  function renderGlobalTransformPanel() {
+    const xscale = makeGlobalTransformNumberProperty("xscale", "X scale");
+    const yscale = makeGlobalTransformNumberProperty("yscale", "Y scale");
+    return (
+      <div className={css.elementInfo}>
+        <div className={css.elementKind}>tikzpicture</div>
+        <div className={css.section}>
+          <div className={css.sectionHeader}>
+            <span>Transform</span>
+          </div>
+          <div className={css.sectionBody}>{renderSingleNumberPair(xscale, yscale)}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Inspector</div>
       <div className={css.content}>
         {selectedSourceIds.length === 0 ? (
-          <p className={css.hint}>Select an element on the canvas to inspect its properties.</p>
+          renderGlobalTransformPanel()
         ) : selectedSourceIds.length === 1 ? (
           !renderedDescriptor ? (
             <p className={css.hint}>Inspector data is unavailable for the current selection.</p>

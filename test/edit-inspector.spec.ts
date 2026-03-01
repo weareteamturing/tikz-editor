@@ -6,7 +6,9 @@ import {
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
   buildTransformSetPropertyMutations,
-  getInspectorDescriptor
+  getInspectorDescriptor,
+  resolveTransformInspectorValues,
+  TIKZPICTURE_GLOBAL_TARGET_ID
 } from "../src/edit/inspector.js";
 
 describe("getInspectorDescriptor", () => {
@@ -149,6 +151,15 @@ describe("getInspectorDescriptor", () => {
     expect(values.get("xshift")).toBeCloseTo(2, 6);
     expect(values.get("yshift")).toBeCloseTo(3, 6);
     expect(values.get("rotate")).toBeCloseTo(15, 6);
+  });
+
+  it("resolves global tikzpicture transform values for inspector empty state", () => {
+    const source = String.raw`\begin{tikzpicture}[scale=2, yscale=3]
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const values = resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID);
+    expect(values.xscale).toBeCloseTo(2, 6);
+    expect(values.yscale).toBeCloseTo(3, 6);
   });
 
   it("keeps declared color alias syntax for color flags", () => {
@@ -355,6 +366,39 @@ describe("getInspectorDescriptor", () => {
     expect(updated).toContain("xscale=3");
     expect(updated).toContain("yscale=2");
     expect(updated).not.toMatch(/\bscale\s*=/);
+  });
+
+  it("does not materialize default companion scale when editing only yscale", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const values = resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID);
+    const mutations = buildTransformSetPropertyMutations(values, "yscale", 2);
+    expect(mutations).toHaveLength(1);
+    expect(mutations[0]).toMatchObject({
+      key: "yscale",
+      value: "2"
+    });
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: TIKZPICTURE_GLOBAL_TARGET_ID,
+        level: "command",
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful global setProperty transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("\\begin{tikzpicture}[yscale=2]");
+    expect(updated).not.toContain("xscale=1");
   });
 
   it("canonicalizes xshift edits by materializing xshift and yshift while removing shift shorthand", () => {

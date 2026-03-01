@@ -3,12 +3,15 @@ import { parseTikz } from "../parser/index.js";
 import type { OptionListAst } from "../options/types.js";
 
 export type PropertyTargetKind =
+  | "figure"
   | "path-statement"
   | "node-item"
   | "to-operation"
   | "edge-operation"
   | "coordinate-operation"
   | "svg-operation";
+
+export const TIKZPICTURE_GLOBAL_TARGET_ID = "__tikzpicture__";
 
 export type PropertyTarget = {
   id: string;
@@ -25,17 +28,46 @@ export type PropertyTargetResolution =
   | { kind: "not-found"; reason: string };
 
 export function resolvePropertyTarget(source: string, elementId: string): PropertyTargetResolution {
-  if (elementId.trim().length === 0) {
+  const normalizedId = elementId.trim();
+  if (normalizedId.length === 0) {
     return { kind: "not-found", reason: "Missing element id" };
   }
 
+  if (normalizedId === TIKZPICTURE_GLOBAL_TARGET_ID) {
+    return resolveFigurePropertyTarget(source);
+  }
+
   const parseResult = parseTikz(source, { recover: true });
-  const target = findTargetInStatements(parseResult.figure.body, source, elementId);
+  const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (!target) {
-    return { kind: "not-found", reason: `No editable source target found for ${elementId}` };
+    return { kind: "not-found", reason: `No editable source target found for ${normalizedId}` };
   }
 
   return { kind: "found", target };
+}
+
+function resolveFigurePropertyTarget(source: string): PropertyTargetResolution {
+  const parseResult = parseTikz(source, { recover: true });
+  const figure = parseResult.figure;
+  if (figure.span.from >= figure.span.to) {
+    return { kind: "not-found", reason: "No editable tikzpicture target found." };
+  }
+  const insertOffset = resolveFigureInsertOffset(source, figure.span);
+  if (insertOffset == null) {
+    return { kind: "not-found", reason: "No editable tikzpicture target found." };
+  }
+
+  return {
+    kind: "found",
+    target: {
+      id: TIKZPICTURE_GLOBAL_TARGET_ID,
+      kind: "figure",
+      span: figure.span,
+      options: figure.options,
+      optionsSpan: figure.options?.span,
+      insertOffset
+    }
+  };
 }
 
 function findTargetInStatements(statements: Statement[], source: string, elementId: string): PropertyTarget | null {
@@ -179,6 +211,20 @@ function resolveInsertOffset(source: string, span: Span, tokenRegex: RegExp): nu
     return span.from;
   }
   return span.from + match.index + match[0].length;
+}
+
+function resolveFigureInsertOffset(source: string, span: Span): number | null {
+  const figureEnvOffset = resolveInsertOffset(source, span, /\\begin\{tikzpicture\*?\}/);
+  if (figureEnvOffset !== span.from) {
+    return figureEnvOffset;
+  }
+
+  const inlineOffset = resolveInsertOffset(source, span, /\\tikz\b/);
+  if (inlineOffset !== span.from) {
+    return inlineOffset;
+  }
+
+  return null;
 }
 
 function escapeRegex(text: string): string {

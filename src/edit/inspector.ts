@@ -4,6 +4,7 @@ import { normalizeColor, resolveDefineColorModel } from "../semantic/style/color
 import { findTopLevelCharacter, parseStyleValueAsOptionList, readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
 import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
+export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
 
 export type ArrowTipPresetId =
   | "none"
@@ -639,18 +640,26 @@ export function buildTransformSetPropertyMutations(
       ...sanitizedCurrent,
       [editedKey]: safeNextValue
     };
-    return [
+    const companionKey: "xscale" | "yscale" = editedKey === "xscale" ? "yscale" : "xscale";
+    const mutations: TransformSetPropertyMutation[] = [
       {
-        key: "xscale",
-        value: formatInspectorLength(nextValues.xscale),
-        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.xscale])
-      },
-      {
-        key: "yscale",
-        value: formatInspectorLength(nextValues.yscale),
-        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.yscale])
+        key: editedKey,
+        value: formatInspectorLength(nextValues[editedKey]),
+        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]])
       }
     ];
+
+    const companionValue = nextValues[companionKey];
+    const companionDefault = DEFAULT_TRANSFORM_INSPECTOR_VALUES[companionKey];
+    if (Math.abs(companionValue - companionDefault) > 1e-6) {
+      mutations.push({
+        key: companionKey,
+        value: formatInspectorLength(companionValue),
+        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]])
+      });
+    }
+
+    return mutations;
   }
 
   return [

@@ -4,6 +4,7 @@ import type { NodeTextEngine } from "../src/text/types.js";
 import { identityMatrix } from "../src/semantic/transform.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import { PT_PER_CM } from "../src/edit/format.js";
+import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../src/edit/property-target.js";
 import { computeSourceFingerprint } from "../src/utils/source-fingerprint.js";
 import { parseTikz } from "../src/parser/index.js";
 import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
@@ -636,6 +637,42 @@ describe("applyEditAction – setProperty", () => {
     expect(result.kind).toBe("success");
     if (result.kind === "success") {
       expect(result.newSource).toContain("\\draw (0,0) node[fill=yellow] {A};");
+    }
+  });
+
+  it("updates an existing tikzpicture global option key", () => {
+    const source = String.raw`\begin{tikzpicture}[xscale=1.2, yscale=0.8]
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: TIKZPICTURE_GLOBAL_TARGET_ID,
+      level: "command",
+      key: "xscale",
+      value: "2"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\begin{tikzpicture}[xscale=2, yscale=0.8]");
+    }
+  });
+
+  it("inserts a tikzpicture global option list when missing", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: TIKZPICTURE_GLOBAL_TARGET_ID,
+      level: "command",
+      key: "xscale",
+      value: "1.5"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\begin{tikzpicture}[xscale=1.5]");
     }
   });
 
