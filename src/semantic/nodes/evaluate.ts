@@ -313,7 +313,7 @@ export function evaluateNodeItem(
       inheritedTransformScale,
       resolvedPositioning,
       fallbackAnchor: resolvedPositioning.anchorOverride ?? anchor,
-      evaluateNestedNode: (matrixCellItem) =>
+      evaluateNestedNode: (matrixCellItem, defaultTargetPoint) =>
         evaluateNodeItem(
           matrixCellItem,
           statement,
@@ -324,7 +324,7 @@ export function evaluateNodeItem(
           null,
           undefined,
           undefined,
-          undefined,
+          defaultTargetPoint,
           effectiveBaseStyleChain
         )
     });
@@ -778,7 +778,10 @@ export function evaluateNodeItem(
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
         nodeLayout.textRenderInfo,
-        textRotation
+        textRotation,
+        undefined,
+        item.textSpan,
+        hasTextWidthOption(expandedNodeOptions)
       )
     );
     markFeature("svg_text", "supported");
@@ -1653,6 +1656,18 @@ function collectSetNames(options: OptionListAst | undefined): string[] {
     }
   }
   return Array.from(new Set(names));
+}
+
+function hasTextWidthOption(options: OptionListAst | undefined): boolean {
+  if (!options) {
+    return false;
+  }
+  for (const entry of options.entries) {
+    if (entry.kind === "kv" && entry.key === "text width") {
+      return true;
+    }
+  }
+  return false;
 }
 
 function splitTopLevelCommas(raw: string): string[] {

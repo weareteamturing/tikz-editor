@@ -207,6 +207,80 @@ describe("applyEditAction – moveElement", () => {
       expect(result.newSource).toContain("(13,14)");
     }
   });
+
+  it("moves matrix statements by rewriting inline at coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("at (1,2)");
+    expect(result.newSource).not.toContain("at=(1,2)");
+  });
+
+  it("moves matrix statements by rewriting at options when inline placement is absent", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,at={(0,0)}] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("at={(1,2)}");
+  });
+
+  it("moves matrix statements without placement by inserting at=(...)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toMatch(/matrix of nodes,\s*at=\(1,2\)/);
+  });
+
+  it("prefers rewriting inline at when both inline and option placement are present", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,at={(10,10)}] at (0,0) {
+    A \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("at={(10,10)}");
+    expect(result.newSource).toContain("] at (11,12)");
+  });
 });
 
 describe("applyEditAction – alignElements", () => {

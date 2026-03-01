@@ -1,4 +1,4 @@
-import type { NodeItem, PathStatement } from "../../ast/types.js";
+import type { NodeItem, PathStatement, Span } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import { parseOptionListRaw, splitTopLevel } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
@@ -8,7 +8,7 @@ import type { NodePositioningResolution } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
 import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
-import type { ResolvedStyle, SceneElement } from "../types.js";
+import type { Point, ResolvedStyle, SceneElement } from "../types.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
   applyNodeBoxPaintMode,
@@ -64,15 +64,21 @@ export type MatrixMode = {
 
 type MatrixParsedRows = {
   rows: Array<{
-    cells: string[];
+    cells: MatrixParsedCell[];
     columnGapOverrides: number[];
   }>;
   rowGapOverrides: number[];
 };
 
+type MatrixParsedCell = {
+  raw: string;
+  span: Span;
+};
+
 type MatrixCell = {
   raw: string;
   text: string;
+  textSpan: Span;
   name?: string;
   aliases?: string[];
   options?: OptionListAst;
@@ -88,7 +94,7 @@ export type MatrixNodeEvaluation = {
   frontElements: SceneElement[];
 };
 
-type MatrixNodeEvaluator = (item: NodeItem) => MatrixNodeEvaluation;
+type MatrixNodeEvaluator = (item: NodeItem, defaultTargetPoint: Point) => MatrixNodeEvaluation;
 
 export type EvaluateMatrixNodeParams = {
   item: NodeItem;
@@ -116,7 +122,7 @@ const MATRIX_KEY_VALUE_KEYS = new Set(["matrix", "matrix of nodes", "matrix of m
 export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): MatrixNodeEvaluation {
   params.markFeature("matrix_node", "supported");
 
-  const parsed = parseMatrixRows(params.item.text, params.matrixMode.cellSeparator);
+  const parsed = parseMatrixRows(params.item.text, params.matrixMode.cellSeparator, params.item.textSpan.from);
   const rowCount = Math.max(1, parsed.rows.length);
   const colCount = Math.max(1, parsed.rows.reduce((max, row) => Math.max(max, row.cells.length), 0));
 
@@ -137,9 +143,12 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   const rowHeights = new Array(rowCount).fill(0);
 
   for (let row = 0; row < rowCount; row += 1) {
-    const rawRow = parsed.rows[row] ?? { cells: [], columnGapOverrides: [] };
+    const rawRow = parsed.rows[row] ?? { cells: [] as MatrixParsedCell[], columnGapOverrides: [] };
     for (let column = 0; column < colCount; column += 1) {
-      const rawCell = rawRow.cells[column] ?? "";
+      const rawCell = rawRow.cells[column] ?? {
+        raw: "",
+        span: { from: params.item.textSpan.from, to: params.item.textSpan.from }
+      };
       const parsedCell = parseMatrixCell(rawCell, params.matrixMode);
       if (!parsedCell) {
         continue;
@@ -660,10 +669,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         aliases: namedCell.aliases,
         optionsSpan: resolvedCell.options?.span,
         options: resolvedCell.options,
-        atSpan: params.item.span,
-        atRaw: `(${formatCoordinateValue(position.x)}pt,${formatCoordinateValue(position.y)}pt)`,
         textSource: "group",
-        textSpan: params.item.textSpan,
+        textSpan: resolvedCell.cell.textSpan,
         text: expandMacroBindings(
           resolvedCell.cell.text,
           params.context.stack[params.context.stack.length - 1].macroBindings,
@@ -673,7 +680,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
           }
         )
       };
-      const evaluatedCell = params.evaluateNestedNode(cellItem);
+      const evaluatedCell = params.evaluateNestedNode(cellItem, position);
       behindCellElements.push(...evaluatedCell.behindElements);
       frontCellElements.push(...evaluatedCell.frontElements);
     }
@@ -801,8 +808,8 @@ export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMod
   };
 }
 
-function parseMatrixRows(input: string, cellSeparator: string): MatrixParsedRows {
-  const rows: Array<{ cells: string[]; columnGapOverrides: number[] }> = [];
+function parseMatrixRows(input: string, cellSeparator: string, baseOffset: number): MatrixParsedRows {
+  const rows: Array<{ cells: MatrixParsedCell[]; columnGapOverrides: number[] }> = [];
   const rowGapOverrides: number[] = [];
   let start = 0;
   let cursor = 0;
@@ -815,7 +822,7 @@ function parseMatrixRows(input: string, cellSeparator: string): MatrixParsedRows
     if (char === "\\") {
       if (braceDepth === 0 && bracketDepth === 0 && parenDepth === 0 && input.startsWith("\\\\", cursor)) {
         const rowRaw = input.slice(start, cursor);
-        const split = splitMatrixRowCells(rowRaw, cellSeparator);
+        const split = splitMatrixRowCells(rowRaw, cellSeparator, baseOffset + start);
         rows.push(split);
 
         cursor += 2;
@@ -856,8 +863,8 @@ function parseMatrixRows(input: string, cellSeparator: string): MatrixParsedRows
     cursor += 1;
   }
 
-  rows.push(splitMatrixRowCells(input.slice(start), cellSeparator));
-  while (rows.length > 1 && rows[rows.length - 1]?.cells.every((cell) => cell.trim().length === 0)) {
+  rows.push(splitMatrixRowCells(input.slice(start), cellSeparator, baseOffset + start));
+  while (rows.length > 1 && rows[rows.length - 1]?.cells.every((cell) => cell.raw.trim().length === 0)) {
     rows.pop();
     rowGapOverrides.pop();
   }
@@ -865,8 +872,12 @@ function parseMatrixRows(input: string, cellSeparator: string): MatrixParsedRows
   return { rows, rowGapOverrides };
 }
 
-function splitMatrixRowCells(rowRaw: string, cellSeparator: string): { cells: string[]; columnGapOverrides: number[] } {
-  const cells: string[] = [];
+function splitMatrixRowCells(
+  rowRaw: string,
+  cellSeparator: string,
+  rowOffset: number
+): { cells: MatrixParsedCell[]; columnGapOverrides: number[] } {
+  const cells: MatrixParsedCell[] = [];
   const columnGapOverrides: number[] = [];
   let start = 0;
   let cursor = 0;
@@ -878,7 +889,13 @@ function splitMatrixRowCells(rowRaw: string, cellSeparator: string): { cells: st
     const separatorLength =
       braceDepth === 0 && bracketDepth === 0 && parenDepth === 0 ? matchMatrixCellSeparator(rowRaw, cursor, cellSeparator) : 0;
     if (separatorLength > 0) {
-      cells.push(rowRaw.slice(start, cursor));
+      cells.push({
+        raw: rowRaw.slice(start, cursor),
+        span: {
+          from: rowOffset + start,
+          to: rowOffset + cursor
+        }
+      });
       cursor += separatorLength;
       while (cursor < rowRaw.length && /\s/u.test(rowRaw[cursor] ?? "")) {
         cursor += 1;
@@ -918,12 +935,20 @@ function splitMatrixRowCells(rowRaw: string, cellSeparator: string): { cells: st
     cursor += 1;
   }
 
-  cells.push(rowRaw.slice(start));
+  cells.push({
+    raw: rowRaw.slice(start),
+    span: {
+      from: rowOffset + start,
+      to: rowOffset + rowRaw.length
+    }
+  });
   return { cells, columnGapOverrides };
 }
 
-function parseMatrixCell(rawCell: string, mode: MatrixMode): MatrixCell | null {
-  let working = rawCell.trim();
+function parseMatrixCell(rawCell: MatrixParsedCell, mode: MatrixMode): MatrixCell | null {
+  const outer = trimOuterWhitespaceBounds(rawCell.raw, 0, rawCell.raw.length);
+  let working = rawCell.raw.slice(outer.from, outer.to);
+  let workingOffset = rawCell.span.from + outer.from;
   if (working.length === 0 && !mode.includeEmptyCells) {
     return null;
   }
@@ -944,10 +969,14 @@ function parseMatrixCell(rawCell: string, mode: MatrixMode): MatrixCell | null {
         prefixName = parsedName;
       }
     }
-    working = working.slice(closing + 1).trimStart();
+    workingOffset += closing + 1;
+    const nextWorking = working.slice(closing + 1);
+    const trimmedLeading = trimLeadingWhitespace(nextWorking);
+    workingOffset += trimmedLeading.consumed;
+    working = trimmedLeading.text;
   }
 
-  const explicitNode = parseExplicitMatrixNode(working);
+  const explicitNode = parseExplicitMatrixNode(working, workingOffset);
   if (explicitNode) {
     const options = mergeOptionLists([mergeOptionLists(prefixOptions), explicitNode.options]);
     const explicitAliases = explicitNode.aliases ?? [];
@@ -957,13 +986,20 @@ function parseMatrixCell(rawCell: string, mode: MatrixMode): MatrixCell | null {
     return {
       raw: working,
       text: explicitNode.text,
+      textSpan: explicitNode.textSpan,
       name,
       aliases: aliases.length > 0 ? aliases : undefined,
       options
     };
   }
 
-  const text = working.replace(/;\s*$/u, "").trim();
+  let textEnd = trimRightWhitespaceBoundary(working, working.length);
+  if (textEnd > 0 && working[textEnd - 1] === ";") {
+    textEnd -= 1;
+    textEnd = trimRightWhitespaceBoundary(working, textEnd);
+  }
+  const textStart = trimLeftWhitespaceBoundary(working, 0, textEnd);
+  const text = working.slice(textStart, textEnd);
   if (text.length === 0 && !mode.includeEmptyCells) {
     return null;
   }
@@ -977,13 +1013,20 @@ function parseMatrixCell(rawCell: string, mode: MatrixMode): MatrixCell | null {
   return {
     raw: working,
     text,
+    textSpan: {
+      from: workingOffset + textStart,
+      to: workingOffset + textEnd
+    },
     name,
     aliases: optionAliases.length > 0 ? optionAliases : undefined,
     options
   };
 }
 
-function parseExplicitMatrixNode(raw: string): { text: string; name?: string; aliases?: string[]; options?: OptionListAst } | null {
+function parseExplicitMatrixNode(
+  raw: string,
+  baseOffset: number
+): { text: string; textSpan: Span; name?: string; aliases?: string[]; options?: OptionListAst } | null {
   let cursor = skipWhitespace(raw, 0);
   if (!raw.startsWith("\\node", cursor)) {
     return null;
@@ -1001,7 +1044,7 @@ function parseExplicitMatrixNode(raw: string): { text: string; name?: string; al
       if (!block) {
         return null;
       }
-      optionLists.push(parseOptionListRaw(raw.slice(cursor, block.nextIndex)));
+      optionLists.push(parseOptionListRaw(raw.slice(cursor, block.nextIndex), baseOffset + cursor));
       cursor = block.nextIndex;
       continue;
     }
@@ -1049,6 +1092,10 @@ function parseExplicitMatrixNode(raw: string): { text: string; name?: string; al
   const aliases = extractNodeAliasesFromOptions(options);
   return {
     text: textBlock.content,
+    textSpan: {
+      from: baseOffset + cursor + 1,
+      to: baseOffset + textBlock.nextIndex - 1
+    },
     name: explicitName ?? optionName,
     aliases: aliases.length > 0 ? aliases : undefined,
     options
@@ -1308,14 +1355,46 @@ function findMatrixPipeClosing(input: string): number {
   return -1;
 }
 
+function trimOuterWhitespaceBounds(input: string, from: number, to: number): { from: number; to: number } {
+  const left = trimLeftWhitespaceBoundary(input, from, to);
+  const right = trimRightWhitespaceBoundary(input, to, left);
+  return {
+    from: left,
+    to: right
+  };
+}
+
+function trimLeadingWhitespace(input: string): { text: string; consumed: number } {
+  let consumed = 0;
+  while (consumed < input.length && /\s/u.test(input[consumed] ?? "")) {
+    consumed += 1;
+  }
+  return {
+    text: input.slice(consumed),
+    consumed
+  };
+}
+
+function trimLeftWhitespaceBoundary(input: string, from: number, to: number): number {
+  let cursor = from;
+  while (cursor < to && /\s/u.test(input[cursor] ?? "")) {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function trimRightWhitespaceBoundary(input: string, to: number, min = 0): number {
+  let cursor = to;
+  while (cursor > min && /\s/u.test(input[cursor - 1] ?? "")) {
+    cursor -= 1;
+  }
+  return cursor;
+}
+
 function skipWhitespace(input: string, start: number): number {
   let cursor = start;
   while (cursor < input.length && /\s/u.test(input[cursor] ?? "")) {
     cursor += 1;
   }
   return cursor;
-}
-
-function formatCoordinateValue(value: number): string {
-  return Number(value.toFixed(6)).toString();
 }

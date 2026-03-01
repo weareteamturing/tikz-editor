@@ -204,6 +204,35 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(matrixTexts).toEqual(["1", "2", "3", "4"]);
     });
 
+    it("stores per-cell editable text spans for matrix text elements", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \matrix[matrix of nodes] {
+      A & BC \\
+      \node {D}; & E \\
+    };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const matrixTexts = result.scene.elements
+        .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+        .filter((element) => ["A", "BC", "D", "E"].includes(element.text));
+      expect(matrixTexts).toHaveLength(4);
+
+      const seenSpans = new Set<string>();
+      for (const text of matrixTexts) {
+        expect(text.textSourceSpan).toBeDefined();
+        const span = text.textSourceSpan;
+        if (!span) {
+          continue;
+        }
+        expect(span.to).toBeGreaterThan(span.from);
+        expect(source.slice(span.from, span.to)).toBe(text.text);
+        seenSpans.add(`${span.from}:${span.to}`);
+      }
+
+      expect(seenSpans.size).toBe(4);
+    });
+
     it("parses reversed/sep arrow options and reverses multi-tip start specifications", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[-{Stealth[reversed,sep=2pt,length=5mm]}] (0,0) -- (2,0);

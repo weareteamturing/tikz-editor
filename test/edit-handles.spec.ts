@@ -173,6 +173,30 @@ describe("edit handles", () => {
     expect(h.world.y).toBeCloseTo(cm(3));
   });
 
+  it("matrix without explicit placement does not emit synthetic node-position handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\matrix[matrix of nodes] {
+  A & B \\
+  C & D \\
+};
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const nodeHandles = result.editHandles.filter((handle) => handle.kind === "node-position");
+    expect(nodeHandles).toHaveLength(0);
+  });
+
+  it("matrix with inline at emits a single movable node-position handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+\matrix[matrix of nodes] at (0,0) {
+  A & B \\
+};
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const nodeHandles = result.editHandles.filter((handle) => handle.kind === "node-position");
+    expect(nodeHandles).toHaveLength(1);
+    expect(source.slice(nodeHandles[0]!.sourceSpan.from, nodeHandles[0]!.sourceSpan.to)).toBe("(0,0)");
+  });
+
   it("polar: handle with polar coordinateForm and direct rewrite", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) -- (45:2);

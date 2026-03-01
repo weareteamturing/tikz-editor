@@ -274,6 +274,17 @@
   pointer-events: none;
 }
 
+.selectionDragLayer {
+  pointer-events: none;
+}
+
+.selectionDragStroke {
+  pointer-events: stroke;
+  fill: none;
+  stroke: transparent;
+  cursor: move;
+}
+
 .textSelectionOverlay {
   pointer-events: none;
 }

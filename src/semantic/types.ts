@@ -133,6 +133,8 @@ export type SceneText = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  textSourceSpan?: Span;
+  textHasFixedWidth?: boolean;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];

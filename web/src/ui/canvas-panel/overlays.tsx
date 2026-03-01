@@ -48,6 +48,23 @@ type HandleDisplay =
       role: ResizeRole;
     };
 
+type SelectionBoxDisplay =
+  | {
+      key: string;
+      sourceId: string;
+      kind: "axis-aligned";
+      minX: number;
+      minY: number;
+      maxX: number;
+      maxY: number;
+    }
+  | {
+      key: string;
+      sourceId: string;
+      kind: "polygon";
+      points: ReadonlyArray<{ x: number; y: number }>;
+    };
+
 export function SnapOverlay({
   snapLines,
   viewBox,
@@ -500,21 +517,7 @@ export function SelectionOverlay({
   textSelectionVisual
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
-  selectionBoxes: ReadonlyArray<
-    | {
-        key: string;
-        kind: "axis-aligned";
-        minX: number;
-        minY: number;
-        maxX: number;
-        maxY: number;
-      }
-    | {
-        key: string;
-        kind: "polygon";
-        points: ReadonlyArray<{ x: number; y: number }>;
-      }
-  >;
+  selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
   selectionStrokeWidth: number;
   textSelectionVisual:
     | {
@@ -597,6 +600,58 @@ export function SelectionOverlay({
         </g>
       )}
     </>
+  );
+}
+
+export function SelectionDragLayer({
+  toolMode,
+  selectionBoxes,
+  dragStrokeWidth,
+  draggableSourceIds,
+  onElementPointerDown
+}: {
+  toolMode: ToolMode;
+  selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
+  dragStrokeWidth: number;
+  draggableSourceIds: ReadonlySet<string>;
+  onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+}) {
+  if (toolMode !== "select" || selectionBoxes.length === 0) {
+    return null;
+  }
+
+  return (
+    <g className={css.selectionDragLayer}>
+      {selectionBoxes.map((bounds) => {
+        if (!draggableSourceIds.has(bounds.sourceId)) {
+          return null;
+        }
+        if (bounds.kind === "polygon") {
+          return (
+            <polygon
+              key={`${bounds.key}:drag`}
+              className={css.selectionDragStroke}
+              points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
+              strokeWidth={dragStrokeWidth}
+              onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
+            />
+          );
+        }
+
+        return (
+          <rect
+            key={`${bounds.key}:drag`}
+            className={css.selectionDragStroke}
+            x={bounds.minX}
+            y={bounds.minY}
+            width={Math.max(0.001, bounds.maxX - bounds.minX)}
+            height={Math.max(0.001, bounds.maxY - bounds.minY)}
+            strokeWidth={dragStrokeWidth}
+            onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
+          />
+        );
+      })}
+    </g>
   );
 }
 

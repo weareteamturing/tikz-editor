@@ -19,7 +19,7 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { NodeTextEngine } from "tikz-editor/text/types";
-import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
+import type { NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import {
   finalizePrefixWidthTable,
@@ -58,7 +58,6 @@ import type {
   Bounds,
   DragState,
   EditableTextTarget,
-  NodeTextSelectionEntry,
   PendingAddedSelection,
   PendingBezier,
   SelectionBounds,
@@ -104,6 +103,7 @@ import {
   CurveControlOverlay,
   HandleOverlay,
   HitRegionLayer,
+  SelectionDragLayer,
   SelectionOverlay,
   SnapOverlay,
   ToolPreviewOverlay
@@ -495,42 +495,40 @@ export function CanvasPanel() {
     () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceId)),
     [snapshot.editHandles, selectedElementIds]
   );
+  const matrixSourceIds = useMemo(() => {
+    const figure = snapshot.parseResult?.figure;
+    if (!figure) {
+      return new Set<string>();
+    }
+    return collectMatrixStatementSourceIds(figure.body);
+  }, [snapshot.parseResult]);
   const dragCapability = useMemo(
     () => computeDragCapability(snapshot.editHandles),
     [snapshot.editHandles]
   );
+  const draggableSourceIds = useMemo(() => {
+    const ids = new Set<string>(dragCapability.draggableSourceIds);
+    for (const sourceId of matrixSourceIds) {
+      ids.add(sourceId);
+    }
+    return ids;
+  }, [dragCapability.draggableSourceIds, matrixSourceIds]);
 
   const selectionBounds = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
     return collectSelectionBounds(snapshot.scene.elements, selectedElementIds, svgResult.viewBox);
   }, [snapshot.scene, selectedElementIds, svgResult]);
 
-  const nodeTextEntries = useMemo(() => {
-    const figure = snapshot.parseResult?.figure;
-    if (!figure) {
-      return new Map<string, NodeTextSelectionEntry>();
-    }
-    return collectNodeTextEntries(figure.body);
-  }, [snapshot.parseResult]);
-
-  const sceneTextBySource = useMemo(() => {
+  const sceneTextByRegionKey = useMemo(() => {
     const elements = snapshot.scene?.elements ?? [];
-    const bySource = new Map<string, SceneText>();
-    const duplicates = new Set<string>();
+    const byRegionKey = new Map<string, SceneText>();
     for (const element of elements) {
       if (element.kind !== "Text") {
         continue;
       }
-      if (bySource.has(element.sourceId)) {
-        duplicates.add(element.sourceId);
-        continue;
-      }
-      bySource.set(element.sourceId, element);
+      byRegionKey.set(`hit:${element.id}`, element);
     }
-    for (const sourceId of duplicates) {
-      bySource.delete(sourceId);
-    }
-    return bySource;
+    return byRegionKey;
   }, [snapshot.scene]);
 
   const sourceBounds = useMemo(() => {
@@ -556,22 +554,25 @@ export function CanvasPanel() {
     const result = new Set<string>();
     const statements = snapshot.parseResult?.figure.body;
     for (const sourceId of selectionBoundsBySource.keys()) {
+      if (matrixSourceIds.has(sourceId)) {
+        continue;
+      }
       if (sourceHasSingleResizablePathShape(snapshot.scene.elements, snapshot.editHandles, sourceId, statements)) {
         result.add(sourceId);
       }
     }
     return result;
-  }, [selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
+  }, [matrixSourceIds, selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
 
   const nodeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
     for (const handle of selectedHandles) {
-      if (handle.kind === "node-position") {
+      if (handle.kind === "node-position" && !matrixSourceIds.has(handle.sourceId)) {
         sourceIds.add(handle.sourceId);
       }
     }
     return sourceIds;
-  }, [selectedHandles]);
+  }, [matrixSourceIds, selectedHandles]);
 
   const resizeFrameSourceIds = useMemo(() => {
     const sourceIds = new Set<string>(resizablePathShapeSourceIds);
@@ -580,6 +581,24 @@ export function CanvasPanel() {
     }
     return sourceIds;
   }, [nodeResizeSourceIds, resizablePathShapeSourceIds]);
+
+  const matrixSelectionSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const sourceId of selectionBoundsBySource.keys()) {
+      if (matrixSourceIds.has(sourceId)) {
+        ids.add(sourceId);
+      }
+    }
+    return ids;
+  }, [matrixSourceIds, selectionBoundsBySource]);
+
+  const selectionFrameSourceIds = useMemo(() => {
+    const ids = new Set<string>(resizeFrameSourceIds);
+    for (const sourceId of matrixSelectionSourceIds) {
+      ids.add(sourceId);
+    }
+    return ids;
+  }, [matrixSelectionSourceIds, resizeFrameSourceIds]);
 
   const resizeFramesBySource = useMemo(() => {
     const frames = new Map<string, ReturnType<typeof resolveResizeFrameForSource>>();
@@ -606,12 +625,13 @@ export function CanvasPanel() {
 
   const selectionBoxes = useMemo(
     () => {
-      const boxes = [...resizeFrameSourceIds]
+      const boxes = [...selectionFrameSourceIds]
         .map((sourceId) => {
           const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
           if (resizeFrame) {
             return {
               key: `selection-box:${sourceId}`,
+              sourceId,
               kind: "polygon" as const,
               points: resizeFrame.polygonSvg
             };
@@ -620,6 +640,7 @@ export function CanvasPanel() {
           return bounds
             ? {
                 key: `selection-box:${sourceId}`,
+                sourceId,
                 kind: "axis-aligned" as const,
                 ...bounds
               }
@@ -629,12 +650,12 @@ export function CanvasPanel() {
           (
             bounds
           ): bounds is
-            | { key: string; kind: "axis-aligned"; minX: number; minY: number; maxX: number; maxY: number }
-            | { key: string; kind: "polygon"; points: ReadonlyArray<{ x: number; y: number }> } => bounds != null
+            | { key: string; sourceId: string; kind: "axis-aligned"; minX: number; minY: number; maxX: number; maxY: number }
+            | { key: string; sourceId: string; kind: "polygon"; points: ReadonlyArray<{ x: number; y: number }> } => bounds != null
         );
       return boxes;
     },
-    [resizeFrameSourceIds, resizeFramesBySource, selectionBoundsBySource]
+    [resizeFramesBySource, selectionBoundsBySource, selectionFrameSourceIds]
   );
   const curveControlLines = useMemo(
     () =>
@@ -722,7 +743,7 @@ export function CanvasPanel() {
           key: `node-handle:${sourceId}:center`,
           x: point.x,
           y: point.y,
-          cursor: dragCapability.draggableSourceIds.has(sourceId) ? "move" : "not-allowed",
+          cursor: draggableSourceIds.has(sourceId) ? "move" : "not-allowed",
           kind: "move-element",
           elementId: sourceId
         });
@@ -770,7 +791,7 @@ export function CanvasPanel() {
     }
 
     return displays;
-  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
+  }, [dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -1279,24 +1300,24 @@ export function CanvasPanel() {
       if (!region || region.shape !== "rect") {
         return null;
       }
-      const nodeEntry = nodeTextEntries.get(sourceId);
-      const sceneText = sceneTextBySource.get(sourceId);
-      if (!nodeEntry || !sceneText) {
+      const sceneText = sceneTextByRegionKey.get(region.key);
+      if (!sceneText || sceneText.sourceId !== sourceId) {
         return null;
       }
       if (sceneText.textRenderInfo?.mode !== "mathjax") {
         return null;
       }
-      if (nodeEntry.hasTextWidth) {
+      if (sceneText.textHasFixedWidth) {
         return null;
       }
-      if (nodeEntry.text.includes("\n") || sceneText.text.includes("\n")) {
+      if (sceneText.text.includes("\n")) {
         return null;
       }
-      if (nodeEntry.text !== sceneText.text) {
+      const sourceSpan = sceneText.textSourceSpan ?? sceneText.sourceSpan;
+      if (sourceSpan.to <= sourceSpan.from) {
         return null;
       }
-      if (source.slice(nodeEntry.span.from, nodeEntry.span.to) !== nodeEntry.text) {
+      if (source.slice(sourceSpan.from, sourceSpan.to) !== sceneText.text) {
         return null;
       }
       if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {
@@ -1304,14 +1325,14 @@ export function CanvasPanel() {
       }
       return {
         sourceId,
-        sourceSpan: nodeEntry.span,
-        text: nodeEntry.text,
+        sourceSpan,
+        text: sceneText.text,
         style: sceneText.style,
         totalWidth: sceneText.textBlockWidth,
         region
       };
     },
-    [nodeTextEntries, sceneTextBySource, source]
+    [sceneTextByRegionKey, source]
   );
 
   const editableTextRegionKeys = useMemo(() => {
@@ -1540,7 +1561,7 @@ export function CanvasPanel() {
         dispatch({ type: "SELECT", id: sourceId, additive: false });
       }
 
-      if (draggedIds.some((id) => !dragCapability.draggableSourceIds.has(id))) {
+      if (draggedIds.some((id) => !draggableSourceIds.has(id))) {
         setSnapLines([]);
         return;
       }
@@ -1604,7 +1625,7 @@ export function CanvasPanel() {
       beginTextSelectionDrag,
       canvasTransform.scale,
       dispatch,
-      dragCapability.draggableSourceIds,
+      draggableSourceIds,
       logSnapDebug,
       setDragState,
       selectedElementIds,
@@ -1651,17 +1672,17 @@ export function CanvasPanel() {
         }
       }
 
-      const fallback = nodeTextEntries.get(sourceId);
-      if (!fallback) {
+      const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(sourceId, hitRegions, sceneTextByRegionKey);
+      if (!fallbackSpan) {
         return;
       }
 
       dispatch({ type: "SELECT", id: sourceId, additive: false });
       requestSourceSelection({
-        from: fallback.span.from,
-        to: fallback.span.to,
-        anchor: fallback.span.from,
-        head: fallback.span.to,
+        from: fallbackSpan.from,
+        to: fallbackSpan.to,
+        anchor: fallbackSpan.from,
+        head: fallbackSpan.to,
         sourceId,
         focus: true
       });
@@ -1670,8 +1691,9 @@ export function CanvasPanel() {
     [
       applyCanvasTextSelection,
       dispatch,
-      nodeTextEntries,
+      hitRegions,
       resolveEditableTextTarget,
+      sceneTextByRegionKey,
       resolvePrefixTableForTarget,
       textIndexFromClient,
       toolMode
@@ -2787,13 +2809,15 @@ export function CanvasPanel() {
       const headOffset = Math.floor(detail?.head ?? 0);
       const sourceId = detail?.sourceId?.trim() ?? "";
       const hasSourceId = sourceId.length > 0;
-      const region = hasSourceId
-        ? hitRegions.find(
-            (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
-              candidate.sourceId === sourceId && candidate.shape === "rect"
+      const target = hasSourceId
+        ? resolveEditableTextTargetForSelectionOffsets(
+            sourceId,
+            anchorOffset,
+            headOffset,
+            hitRegions,
+            resolveEditableTextTarget
           )
-        : undefined;
-      const target = hasSourceId ? resolveEditableTextTarget(sourceId, region) : null;
+        : null;
       const offsetsInRange =
         target != null &&
         anchorOffset >= target.sourceSpan.from &&
@@ -2958,6 +2982,7 @@ export function CanvasPanel() {
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
   const curveControlStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
+  const selectionDragStrokeWidth = 12 / Math.max(canvasTransform.scale, 1e-3);
   const gridMinorStrokeWidth = 0.6 / Math.max(canvasTransform.scale, 1e-3);
   const gridMajorStrokeWidth = 0.9 / Math.max(canvasTransform.scale, 1e-3);
   const guideStrokeWidth = 1 / Math.max(canvasTransform.scale, 1e-3);
@@ -3270,7 +3295,7 @@ export function CanvasPanel() {
                   hoveredElementId={hoveredElementId}
                   toolMode={toolMode}
                   editableTextRegionKeys={editableTextRegionKeys}
-                  draggableSourceIds={dragCapability.draggableSourceIds}
+                  draggableSourceIds={draggableSourceIds}
                   onElementPointerDown={onElementPointerDown}
                   onElementDoubleClick={onElementDoubleClick}
                   onHoverChange={(id) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
@@ -3281,6 +3306,14 @@ export function CanvasPanel() {
                   selectionBoxes={selectionBoxes}
                   selectionStrokeWidth={selectionStrokeWidth}
                   textSelectionVisual={textSelectionVisual}
+                />
+
+                <SelectionDragLayer
+                  toolMode={toolMode}
+                  selectionBoxes={selectionBoxes}
+                  dragStrokeWidth={selectionDragStrokeWidth}
+                  draggableSourceIds={matrixSelectionSourceIds}
+                  onElementPointerDown={onElementPointerDown}
                 />
 
                 <CurveControlOverlay
@@ -3594,53 +3627,14 @@ function collectNewSourceIds(elements: SceneElement[], beforeIds: ReadonlySet<st
   return [...newIds];
 }
 
-function collectNodeTextEntries(statements: readonly Statement[]): Map<string, NodeTextSelectionEntry> {
-  const entries = new Map<string, NodeTextSelectionEntry>();
-
-  const addNodeEntry = (sourceId: string, entry: NodeTextSelectionEntry) => {
-    if (entry.span.to <= entry.span.from) {
-      return;
-    }
-    entries.set(sourceId, entry);
-  };
-
-  const visitPathItems = (items: readonly PathItem[]) => {
-    const nodesForStatement: Array<{ id: string; entry: NodeTextSelectionEntry }> = [];
-    for (const item of items) {
-      if (item.kind === "Node") {
-        const entry: NodeTextSelectionEntry = {
-          span: item.textSpan,
-          text: item.text,
-          hasTextWidth: hasTextWidthOption(item.options?.entries)
-        };
-        addNodeEntry(item.id, entry);
-        nodesForStatement.push({ id: item.id, entry });
-        continue;
-      }
-
-      if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
-        for (const node of item.nodes) {
-          const entry: NodeTextSelectionEntry = {
-            span: node.textSpan,
-            text: node.text,
-            hasTextWidth: hasTextWidthOption(node.options?.entries)
-          };
-          addNodeEntry(node.id, entry);
-          nodesForStatement.push({ id: node.id, entry });
-        }
-      }
-    }
-    return nodesForStatement;
-  };
+function collectMatrixStatementSourceIds(statements: readonly Statement[]): Set<string> {
+  const sourceIds = new Set<string>();
 
   const visitStatements = (items: readonly Statement[]) => {
     for (const statement of items) {
       if (statement.kind === "Path") {
-        const statementNodes = visitPathItems(statement.items);
-        if (statement.command === "node" && statementNodes.length > 0) {
-          addNodeEntry(statement.id, statementNodes[0]!.entry);
-        } else if (statementNodes.length === 1) {
-          addNodeEntry(statement.id, statementNodes[0]!.entry);
+        if (statement.items.some((item) => item.kind === "Node" && isMatrixNodeItem(item))) {
+          sourceIds.add(statement.id);
         }
         continue;
       }
@@ -3651,21 +3645,79 @@ function collectNodeTextEntries(statements: readonly Statement[]): Map<string, N
   };
 
   visitStatements(statements);
-  return entries;
+  return sourceIds;
 }
 
-function hasTextWidthOption(
-  options: ReadonlyArray<{ kind: "kv" | "flag" | "unknown"; key?: string }> | undefined
-): boolean {
-  if (!options) {
-    return false;
-  }
-  for (const entry of options) {
-    if (entry.kind === "kv" && entry.key === "text width") {
+function isMatrixNodeItem(item: NodeItem): boolean {
+  for (const entry of item.options?.entries ?? []) {
+    if (entry.kind !== "flag" && entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "matrix" || entry.key === "matrix of nodes" || entry.key === "matrix of math nodes") {
       return true;
     }
   }
   return false;
+}
+
+function resolveFallbackTextSourceSpanForSourceId(
+  sourceId: string,
+  hitRegions: readonly HitRegion[],
+  sceneTextByRegionKey: ReadonlyMap<string, SceneText>
+): Span | null {
+  const candidates = hitRegions
+    .filter((region): region is Extract<HitRegion, { shape: "rect" }> => region.sourceId === sourceId && region.shape === "rect")
+    .map((region) => sceneTextByRegionKey.get(region.key))
+    .filter((sceneText): sceneText is SceneText => sceneText != null);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  let bestSpan: Span | null = null;
+  for (const candidate of candidates) {
+    const span = candidate.textSourceSpan ?? candidate.sourceSpan;
+    if (span.to <= span.from) {
+      continue;
+    }
+    if (!bestSpan || span.from < bestSpan.from || (span.from === bestSpan.from && span.to > bestSpan.to)) {
+      bestSpan = span;
+    }
+  }
+
+  return bestSpan;
+}
+
+function resolveEditableTextTargetForSelectionOffsets(
+  sourceId: string,
+  anchorOffset: number,
+  headOffset: number,
+  hitRegions: readonly HitRegion[],
+  resolveEditableTextTarget: (sourceId: string, region: HitRegion | undefined) => EditableTextTarget | null
+): EditableTextTarget | null {
+  const rectRegions = hitRegions.filter(
+    (candidate): candidate is Extract<HitRegion, { shape: "rect" }> => candidate.sourceId === sourceId && candidate.shape === "rect"
+  );
+  if (rectRegions.length === 0) {
+    return null;
+  }
+
+  const minOffset = Math.min(anchorOffset, headOffset);
+  const maxOffset = Math.max(anchorOffset, headOffset);
+  let fallback: EditableTextTarget | null = null;
+
+  for (const region of rectRegions) {
+    const target = resolveEditableTextTarget(sourceId, region);
+    if (!target) {
+      continue;
+    }
+    fallback ??= target;
+    if (minOffset >= target.sourceSpan.from && maxOffset <= target.sourceSpan.to) {
+      return target;
+    }
+  }
+
+  return fallback;
 }
 
 function sourceHasSingleResizablePathShape(

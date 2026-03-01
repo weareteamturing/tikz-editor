@@ -8,7 +8,7 @@ import type {
   ScenePath,
   ScenePathShapeHint
 } from "../semantic/types.js";
-import type { CoordinateItem, PathItem, PathOptionItem, Statement, Span } from "../ast/types.js";
+import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, PathStatement, Statement, Span } from "../ast/types.js";
 import type { SourcePatch } from "./types.js";
 import { applyEditIntent } from "./apply.js";
 import { rewriteCoordinate } from "./rewrite.js";
@@ -29,7 +29,7 @@ import { NAMED_COLORS } from "../semantic/style/constants.js";
 import { applyMatrix } from "../semantic/transform.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
-import { worldToLocal } from "./coords.js";
+import { localToSourceUnits, worldToLocal } from "./coords.js";
 import { renameSnippetDeclaredNames } from "./name-conflicts.js";
 import {
   applyTextReplacements,
@@ -182,17 +182,111 @@ function applyMoveElements(
     return { kind: "unsupported", reason: "No element ids were provided for moveElements" };
   }
 
-  const sourceIdSet = new Set(normalizedIds);
-  const elementHandles = editHandles.filter((h) => sourceIdSet.has(h.sourceId));
+  const parsed = parseTikz(source, { recover: true });
+  const matrixElementIds = normalizedIds.filter((elementId) => {
+    const statement = findPathStatementById(parsed.figure.body, elementId);
+    return statement != null && isMatrixPathStatement(statement);
+  });
+  const matrixElementIdSet = new Set(matrixElementIds);
+  const nonMatrixElementIds = normalizedIds.filter((elementId) => !matrixElementIdSet.has(elementId));
+
+  const matrixPlacementHandlesBySource = new Map<string, EditHandle>();
+  for (const handle of editHandles) {
+    if (handle.kind !== "node-position" || !matrixElementIdSet.has(handle.sourceId)) {
+      continue;
+    }
+    if (!matrixPlacementHandlesBySource.has(handle.sourceId)) {
+      matrixPlacementHandlesBySource.set(handle.sourceId, handle);
+    }
+  }
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  const skippedHandles: string[] = [];
+  const reasons: string[] = [];
+  let movedAny = false;
+
+  if (nonMatrixElementIds.length > 0) {
+    const byHandles = applyMoveElementsUsingHandleRewrites(currentSource, editHandles, nonMatrixElementIds, delta);
+    if (byHandles.kind === "error") {
+      return byHandles;
+    }
+    if (byHandles.kind === "success" || byHandles.kind === "partial") {
+      currentSource = byHandles.newSource;
+      patches.push(...byHandles.patches);
+      movedAny = true;
+      if (byHandles.kind === "partial") {
+        skippedHandles.push(...byHandles.skippedHandles);
+        reasons.push(byHandles.reason);
+      }
+    } else {
+      reasons.push(byHandles.reason);
+    }
+  }
+
+  if (matrixElementIds.length > 0) {
+    const byMatrixPlacement = applyMoveMatrixElementsWithPlacementRewrite(
+      currentSource,
+      matrixElementIds,
+      delta,
+      matrixPlacementHandlesBySource
+    );
+    if (byMatrixPlacement.kind === "error") {
+      return byMatrixPlacement;
+    }
+    if (byMatrixPlacement.kind === "success" || byMatrixPlacement.kind === "partial") {
+      currentSource = byMatrixPlacement.newSource;
+      patches.push(...byMatrixPlacement.patches);
+      movedAny = true;
+      if (byMatrixPlacement.kind === "partial") {
+        reasons.push(byMatrixPlacement.reason);
+      }
+    } else {
+      reasons.push(byMatrixPlacement.reason);
+    }
+  }
+
+  if (!movedAny) {
+    return {
+      kind: "unsupported",
+      reason: reasons[0] ?? "No coordinate rewrites succeeded"
+    };
+  }
+
+  const uniqueReasons = uniqueStrings(reasons);
+  if (uniqueReasons.length > 0 || skippedHandles.length > 0) {
+    return {
+      kind: "partial",
+      newSource: currentSource,
+      patches,
+      skippedHandles: uniqueStrings(skippedHandles),
+      reason:
+        uniqueReasons.length > 0
+          ? uniqueReasons.join(" ")
+          : "Some handles use unsupported coordinate forms and were skipped"
+    };
+  }
+
+  return { kind: "success", newSource: currentSource, patches };
+}
+
+function applyMoveElementsUsingHandleRewrites(
+  source: string,
+  editHandles: EditHandle[],
+  elementIds: readonly string[],
+  delta: Point
+): EditActionResult {
+  const sourceIdSet = new Set(elementIds);
+  const elementHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceId));
 
   if (elementHandles.length === 0) {
     return { kind: "unsupported", reason: "No handles found for the selected element(s)" };
   }
 
-  const rewritable = elementHandles.filter((h) => h.rewriteMode !== "unsupported");
+  const rewritable = elementHandles.filter((handle) => handle.rewriteMode !== "unsupported");
   const skippedHandles = elementHandles
-    .filter((h) => h.rewriteMode === "unsupported")
-    .map((h) => h.id);
+    .filter((handle) => handle.rewriteMode === "unsupported")
+    .map((handle) => handle.id);
 
   if (rewritable.length === 0) {
     return {
@@ -201,10 +295,7 @@ function applyMoveElements(
     };
   }
 
-  // Compute (span, replacement) pairs for all rewritable handles using the original source.
-  // We use rewriteCoordinate directly (bypassing fingerprint check) since all handles are fresh
-  // and we verify content matches before computing the replacement.
-  type PendingReplacement = { span: { from: number; to: number }; text: string; handleId: string };
+  type PendingReplacement = { span: { from: number; to: number }; text: string };
   const pending: PendingReplacement[] = [];
 
   for (const handle of rewritable) {
@@ -216,8 +307,8 @@ function applyMoveElements(
 
     const newWorld: Point = { x: handle.world.x + delta.x, y: handle.world.y + delta.y };
     const text = rewriteCoordinate(newWorld, handle, source);
-    if (text !== null) {
-      pending.push({ span: handle.sourceSpan, text, handleId: handle.id });
+    if (text != null) {
+      pending.push({ span: handle.sourceSpan, text });
     } else {
       skippedHandles.push(handle.id);
     }
@@ -227,15 +318,22 @@ function applyMoveElements(
     return { kind: "unsupported", reason: "No coordinate rewrites succeeded" };
   }
 
-  // Sort descending by span start so that lower-offset spans remain valid after each replacement.
-  pending.sort((a, b) => b.span.from - a.span.from);
+  pending.sort((left, right) => {
+    if (left.span.from !== right.span.from) {
+      return right.span.from - left.span.from;
+    }
+    return right.span.to - left.span.to;
+  });
 
   let currentSource = source;
   const patches: SourcePatch[] = [];
-
-  for (const { span, text } of pending) {
-    const updated = replaceSpan(currentSource, span, text);
-    patches.push({ oldSpan: span, newSpan: updated.changedSpan, replacement: text });
+  for (const replacement of pending) {
+    const updated = replaceSpan(currentSource, replacement.span, replacement.text);
+    patches.push({
+      oldSpan: replacement.span,
+      newSpan: updated.changedSpan,
+      replacement: replacement.text
+    });
     currentSource = updated.source;
   }
 
@@ -250,6 +348,242 @@ function applyMoveElements(
   }
 
   return { kind: "success", newSource: currentSource, patches };
+}
+
+function applyMoveMatrixElementsWithPlacementRewrite(
+  source: string,
+  elementIds: readonly string[],
+  delta: Point,
+  placementHandlesBySource: ReadonlyMap<string, EditHandle>
+): EditActionResult {
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  const failedElementIds: string[] = [];
+  const failureReasons: string[] = [];
+
+  for (const elementId of elementIds) {
+    const placementHandle = placementHandlesBySource.get(elementId);
+    const rewrite = rewriteSingleMatrixPlacement(currentSource, elementId, delta, placementHandle);
+    if (rewrite.kind === "unsupported") {
+      failedElementIds.push(elementId);
+      failureReasons.push(rewrite.reason);
+      continue;
+    }
+
+    currentSource = rewrite.source;
+    patches.push(rewrite.patch);
+  }
+
+  if (patches.length === 0) {
+    return {
+      kind: "unsupported",
+      reason:
+        failureReasons[0] ??
+        "No matrix placement rewrite succeeded"
+    };
+  }
+
+  if (failedElementIds.length > 0) {
+    return {
+      kind: "partial",
+      newSource: currentSource,
+      patches,
+      skippedHandles: [],
+      reason: `Could not move some matrix elements (${failedElementIds.join(", ")}): ${uniqueStrings(failureReasons).join(" ")}`
+    };
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches
+  };
+}
+
+type MatrixPlacementRewriteResult =
+  | { kind: "success"; source: string; patch: SourcePatch }
+  | { kind: "unsupported"; reason: string };
+
+function rewriteSingleMatrixPlacement(
+  source: string,
+  elementId: string,
+  delta: Point,
+  placementHandle: EditHandle | undefined
+): MatrixPlacementRewriteResult {
+  const parsed = parseTikz(source, { recover: true });
+  const statement = findPathStatementById(parsed.figure.body, elementId);
+  if (!statement) {
+    return { kind: "unsupported", reason: `Matrix statement ${elementId} was not found` };
+  }
+  if (!isMatrixPathStatement(statement)) {
+    return { kind: "unsupported", reason: `${elementId} is not a matrix statement` };
+  }
+
+  const matrixNode = findPrimaryMatrixNodeItem(statement);
+  if (!matrixNode) {
+    return { kind: "unsupported", reason: `Matrix node item for ${elementId} was not found` };
+  }
+
+  const semantic = evaluateTikzFigure(parsed.figure, source);
+  const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+  const bounds = boundsBySource.get(elementId);
+  if (!bounds) {
+    return { kind: "unsupported", reason: `Could not resolve semantic bounds for matrix ${elementId}` };
+  }
+
+  const nextCenterWorld: Point = {
+    x: (bounds.minX + bounds.maxX) / 2 + delta.x,
+    y: (bounds.minY + bounds.maxY) / 2 + delta.y
+  };
+  const nextCoordinate = formatPlacementCoordinateFromWorld(nextCenterWorld, placementHandle?.transform);
+
+  const inlineAtCoordinate = findInlineAtCoordinateItem(statement);
+  if (inlineAtCoordinate) {
+    const rewrittenInline = replaceSourceSpan(source, inlineAtCoordinate.span, nextCoordinate);
+    if (rewrittenInline) {
+      return { kind: "success", ...rewrittenInline };
+    }
+    return {
+      kind: "unsupported",
+      reason: `Matrix ${elementId} placement already matches the requested position`
+    };
+  }
+
+  const atOptionEntry = matrixNode.options?.entries.find(
+    (entry): entry is Extract<OptionEntry, { kind: "kv" }> => entry.kind === "kv" && entry.key === "at"
+  );
+  if (atOptionEntry) {
+    const serializedValue = serializeAtOptionValue(atOptionEntry.valueRaw, nextCoordinate);
+    const replacement = `at=${serializedValue}`;
+    const rewrittenOption = replaceSourceSpan(source, atOptionEntry.span, replacement);
+    if (rewrittenOption) {
+      return { kind: "success", ...rewrittenOption };
+    }
+    return {
+      kind: "unsupported",
+      reason: `Matrix ${elementId} placement already matches the requested position`
+    };
+  }
+
+  const insertionMutations = new Map<string, OptionMutation>([["at", { kind: "set", value: nextCoordinate }]]);
+  if (matrixNode.optionsSpan) {
+    const existingOptions = source.slice(matrixNode.optionsSpan.from, matrixNode.optionsSpan.to);
+    const replacement = appendOptionEntryToListRaw(existingOptions, `at=${nextCoordinate}`);
+    const rewrittenOptions = replaceSourceSpan(source, matrixNode.optionsSpan, replacement);
+    if (rewrittenOptions) {
+      return { kind: "success", ...rewrittenOptions };
+    }
+  }
+
+  const matrixTarget = resolvePropertyTarget(source, matrixNode.id);
+  if (matrixTarget.kind === "found") {
+    const rewritten = applyOptionMutationsToTarget(source, matrixTarget.target, insertionMutations);
+    if (rewritten) {
+      return {
+        kind: "success",
+        source: rewritten.source,
+        patch: rewritten.patch
+      };
+    }
+  }
+
+  return {
+    kind: "unsupported",
+    reason: `Could not rewrite matrix placement for ${elementId}`
+  };
+}
+
+function replaceSourceSpan(
+  source: string,
+  span: Span,
+  replacement: string
+): { source: string; patch: SourcePatch } | null {
+  const previous = source.slice(span.from, span.to);
+  if (previous === replacement) {
+    return null;
+  }
+  const updated = replaceSpan(source, span, replacement);
+  return {
+    source: updated.source,
+    patch: {
+      oldSpan: span,
+      newSpan: updated.changedSpan,
+      replacement
+    }
+  };
+}
+
+function serializeAtOptionValue(existingRaw: string, nextCoordinate: string): string {
+  const trimmed = existingRaw.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return `{${nextCoordinate}}`;
+  }
+  return nextCoordinate;
+}
+
+function appendOptionEntryToListRaw(optionsRaw: string, entry: string): string {
+  const trimmed = optionsRaw.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
+    return `[${entry}]`;
+  }
+
+  const inner = trimmed.slice(1, -1).trim();
+  if (inner.length === 0) {
+    return `[${entry}]`;
+  }
+
+  return `[${inner}, ${entry}]`;
+}
+
+function formatPlacementCoordinateFromWorld(world: Point, transform?: EditHandle["transform"]): string {
+  if (transform) {
+    const local = worldToLocal(world, transform);
+    if (local) {
+      const inSourceUnits = localToSourceUnits(local);
+      return `(${formatNumber(inSourceUnits.x)},${formatNumber(inSourceUnits.y)})`;
+    }
+  }
+
+  return `(${formatNumber(world.x * CM_PER_PT)},${formatNumber(world.y * CM_PER_PT)})`;
+}
+
+function findPrimaryMatrixNodeItem(statement: PathStatement): NodeItem | null {
+  for (const item of statement.items) {
+    if (item.kind === "Node" && isMatrixNodeItem(item)) {
+      return item;
+    }
+  }
+  return null;
+}
+
+function findInlineAtCoordinateItem(statement: PathStatement): CoordinateItem | null {
+  for (let index = 0; index < statement.items.length - 1; index += 1) {
+    const item = statement.items[index];
+    const next = statement.items[index + 1];
+    if (!item || !next) {
+      continue;
+    }
+    if (item.kind === "PathKeyword" && item.keyword === "at" && next.kind === "Coordinate") {
+      return next;
+    }
+  }
+  return null;
+}
+
+function isMatrixPathStatement(statement: PathStatement): boolean {
+  return statement.items.some((item) => item.kind === "Node" && isMatrixNodeItem(item));
+}
+
+function isMatrixNodeItem(item: NodeItem): boolean {
+  for (const entry of item.options?.entries ?? []) {
+    if (entry.kind !== "flag" && entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "matrix" || entry.key === "matrix of nodes" || entry.key === "matrix of math nodes") {
+      return true;
+    }
+  }
+  return false;
 }
 
 function applyAlignElements(

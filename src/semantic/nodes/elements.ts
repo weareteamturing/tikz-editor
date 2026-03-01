@@ -60,13 +60,17 @@ export function makeTextElement(
   textBlockHeight?: number,
   textRenderInfo?: NodeTextRenderInfo,
   rotation?: number,
-  styleChain: StyleChainEntry[] = []
+  styleChain: StyleChainEntry[] = [],
+  textSourceSpan?: { from: number; to: number },
+  textHasFixedWidth?: boolean
 ): SceneText {
   return {
     kind: "Text",
     id: `scene-text:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    textSourceSpan,
+    textHasFixedWidth,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     position,

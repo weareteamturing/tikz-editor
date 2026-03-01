@@ -160,12 +160,6 @@ export type SelectionBounds = {
   bounds: Bounds;
 };
 
-export type NodeTextSelectionEntry = {
-  span: Span;
-  text: string;
-  hasTextWidth: boolean;
-};
-
 export type SourceBoundsMap = ReadonlyMap<string, Bounds>;
 
 export type SceneSnapshot = { elements: SceneElement[] } | null;
