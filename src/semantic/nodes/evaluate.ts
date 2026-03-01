@@ -7,7 +7,7 @@ import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
+import type { Point, ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
@@ -342,6 +342,7 @@ export function evaluateNodeItem(
   const inheritedTextRotation = frame.transformShape ? computeTransformRotation(frame.transform) : 0;
   const combinedTextRotation = localTextRotation + inheritedTextRotation;
   const textRotation = Math.abs(combinedTextRotation) > 1e-6 ? combinedTextRotation : undefined;
+  const nodeShapeRotation = textRotation ?? 0;
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
@@ -363,8 +364,9 @@ export function evaluateNodeItem(
 
   const nodeElements: SceneElement[] = [];
   const pushNodeElement = (element: SceneElement): void => {
-    element.styleChain = cloneStyleChain(nodeStyleChain);
-    nodeElements.push(element);
+    const rotatedElement = rotateNodeElementGeometry(element, center, nodeShapeRotation);
+    rotatedElement.styleChain = cloneStyleChain(nodeStyleChain);
+    nodeElements.push(rotatedElement);
   };
   const explicitPaintMode = resolveNodeBoxPaintMode(expandedNodeLocalOptions);
   const resolvedPaintMode = {
@@ -1352,6 +1354,92 @@ function normalizeColorAliasKey(raw: string): string | null {
     return null;
   }
   return trimmed;
+}
+
+function rotateNodeElementGeometry(element: SceneElement, center: Point, rotation: number): SceneElement {
+  if (Math.abs(rotation) <= 1e-6 || element.kind === "Text") {
+    return element;
+  }
+
+  if (element.kind === "Path") {
+    return {
+      ...element,
+      commands: element.commands.map((command) => rotateScenePathCommand(command, center, rotation))
+    };
+  }
+
+  if (element.kind === "Circle") {
+    return {
+      ...element,
+      center: rotatePointAround(element.center, center, rotation)
+    };
+  }
+
+  const rotated = normalizeRotationDegrees((element.rotation ?? 0) + rotation);
+  return {
+    ...element,
+    center: rotatePointAround(element.center, center, rotation),
+    rotation: Math.abs(rotated) > 1e-6 ? rotated : undefined
+  };
+}
+
+function rotateScenePathCommand(command: ScenePathCommand, center: Point, rotation: number): ScenePathCommand {
+  if (command.kind === "Z") {
+    return { kind: "Z" };
+  }
+
+  if (command.kind === "M" || command.kind === "L") {
+    return {
+      kind: command.kind,
+      to: rotatePointAround(command.to, center, rotation)
+    };
+  }
+
+  if (command.kind === "C") {
+    return {
+      kind: "C",
+      c1: rotatePointAround(command.c1, center, rotation),
+      c2: rotatePointAround(command.c2, center, rotation),
+      to: rotatePointAround(command.to, center, rotation)
+    };
+  }
+
+  return {
+    kind: "A",
+    rx: command.rx,
+    ry: command.ry,
+    xAxisRotation: normalizeRotationDegrees(command.xAxisRotation + rotation),
+    largeArc: command.largeArc,
+    sweep: command.sweep,
+    to: rotatePointAround(command.to, center, rotation)
+  };
+}
+
+function rotatePointAround(point: Point, center: Point, degrees: number): Point {
+  const radians = (degrees * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos
+  };
+}
+
+function normalizeRotationDegrees(degrees: number): number {
+  if (!Number.isFinite(degrees)) {
+    return 0;
+  }
+
+  let normalized = degrees % 360;
+  if (normalized <= -180) {
+    normalized += 360;
+  } else if (normalized > 180) {
+    normalized -= 360;
+  }
+  return normalized;
 }
 
 function applyNodeDecorations(

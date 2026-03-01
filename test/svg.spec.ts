@@ -551,6 +551,32 @@ describe("svg emitter", () => {
     expect(emitted.svg).toMatch(/<text[^>]*transform="rotate\(-40 [^\"]+\)"/);
   });
 
+  it("rotates drawn node geometry together with node text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,rotate=30] at (0,0) {C};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const box = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    expect(box?.kind).toBe("Path");
+    if (box?.kind === "Path") {
+      const move = box.commands[0];
+      const line = box.commands[1];
+      expect(move?.kind).toBe("M");
+      expect(line?.kind).toBe("L");
+      if (move?.kind === "M" && line?.kind === "L") {
+        expect(Math.abs(line.to.y - move.to.y)).toBeGreaterThan(1e-3);
+      }
+    }
+
+    expect(emitted.svg).toMatch(/<text[^>]*transform="rotate\(-30 [^\"]+\)"/);
+  });
+
   it("emits scaled font-size attributes for node font commands", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[font=\footnotesize] at (0,0) {small};

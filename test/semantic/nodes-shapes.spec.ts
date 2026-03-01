@@ -489,6 +489,28 @@ describe("semantic evaluator / nodes and shapes", () => {
       }
     });
 
+    it("applies rotate=<deg> on drawn node geometry", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,rotate=30] {A};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const nodeBox = result.scene.elements.find(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
+          element.kind === "Path" && element.id.startsWith("scene-node-box:")
+      );
+      expect(nodeBox?.kind).toBe("Path");
+      if (nodeBox?.kind === "Path") {
+        const move = nodeBox.commands[0];
+        const line = nodeBox.commands[1];
+        expect(move?.kind).toBe("M");
+        expect(line?.kind).toBe("L");
+        if (move?.kind === "M" && line?.kind === "L") {
+          expect(Math.abs(line.to.y - move.to.y)).toBeGreaterThan(1e-3);
+        }
+      }
+    });
+
     it("places standalone node commands at the scope origin by default", () => {
       const source = String.raw`\begin{tikzpicture}
     \begin{scope}[opacity=0.6]
