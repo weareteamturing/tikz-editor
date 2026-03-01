@@ -474,13 +474,21 @@ export function SelectionOverlay({
   textSelectionVisual
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
-  selectionBoxes: ReadonlyArray<{
-    key: string;
-    minX: number;
-    minY: number;
-    maxX: number;
-    maxY: number;
-  }>;
+  selectionBoxes: ReadonlyArray<
+    | {
+        key: string;
+        kind: "axis-aligned";
+        minX: number;
+        minY: number;
+        maxX: number;
+        maxY: number;
+      }
+    | {
+        key: string;
+        kind: "polygon";
+        points: ReadonlyArray<{ x: number; y: number }>;
+      }
+  >;
   selectionStrokeWidth: number;
   textSelectionVisual:
     | {
@@ -500,17 +508,26 @@ export function SelectionOverlay({
   return (
     <>
       <g className={css.selectionOverlay}>
-        {selectionBoxes.map((bounds) => (
-          <rect
-            key={bounds.key}
-            className={css.selectionRect}
-            x={bounds.minX}
-            y={bounds.minY}
-            width={Math.max(0.001, bounds.maxX - bounds.minX)}
-            height={Math.max(0.001, bounds.maxY - bounds.minY)}
-            strokeWidth={selectionStrokeWidth}
-          />
-        ))}
+        {selectionBoxes.map((bounds) =>
+          bounds.kind === "polygon" ? (
+            <polygon
+              key={bounds.key}
+              className={css.selectionRect}
+              points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
+              strokeWidth={selectionStrokeWidth}
+            />
+          ) : (
+            <rect
+              key={bounds.key}
+              className={css.selectionRect}
+              x={bounds.minX}
+              y={bounds.minY}
+              width={Math.max(0.001, bounds.maxX - bounds.minX)}
+              height={Math.max(0.001, bounds.maxY - bounds.minY)}
+              strokeWidth={selectionStrokeWidth}
+            />
+          )
+        )}
         {marqueeBounds && (
           <rect
             className={css.marqueeRect}
@@ -570,7 +587,12 @@ export function HandleOverlay({
   handleStrokeWidth: number;
   onHandlePointerDown: (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => void;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
-  onResizeHandlePointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole) => void;
+  onResizeHandlePointerDown: (
+    event: ReactPointerEvent<SVGElement>,
+    sourceId: string,
+    role: ResizeRole,
+    cursor: string
+  ) => void;
 }) {
   return (
     <g className={css.handleOverlay}>
@@ -580,7 +602,7 @@ export function HandleOverlay({
             ? onHandlePointerDown(event, display.handle)
             : display.kind === "move-element"
               ? onElementPointerDown(event, display.elementId)
-              : onResizeHandlePointerDown(event, display.elementId, display.role);
+              : onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor);
 
         if (display.kind === "move-handle" && display.handle.kind === "path-control") {
           return (

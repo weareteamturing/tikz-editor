@@ -562,8 +562,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           label: "Width",
           value: metrics.width,
           step: 0.1,
-          unit: "pt",
-          readOnlyReason: "Resize from canvas corner handles."
+          unit: "pt"
         },
         {
           kind: "number",
@@ -571,8 +570,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           label: "Height",
           value: metrics.height,
           step: 0.1,
-          unit: "pt",
-          readOnlyReason: "Resize from canvas corner handles."
+          unit: "pt"
         }
       ]
     },

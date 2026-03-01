@@ -1345,7 +1345,6 @@ type PathShapeResizeContext = {
   kind: "found";
   shapeKind: "circle" | "ellipse";
   center: Point;
-  rotation: number;
   syntax: PathShapeResizeSyntax;
   centerHandle: EditHandle;
 };
@@ -1382,7 +1381,7 @@ function applyResizePathRectangle(
     return { kind: "unsupported", reason: "Could not resolve local geometry for rectangle resize." };
   }
 
-  const roleCorners = resolveRectangleRoleCorners(startLocal, oppositeLocal, transform);
+  const roleCorners = resolveRectangleRoleCorners(startLocal, oppositeLocal);
   const currentMinX = Math.min(startLocal.x, oppositeLocal.x);
   const currentMaxX = Math.max(startLocal.x, oppositeLocal.x);
   const currentMinY = Math.min(startLocal.y, oppositeLocal.y);
@@ -1613,10 +1612,6 @@ function applyResizePathCircleOrEllipse(
     return context;
   }
 
-  if (context.shapeKind === "ellipse" && !isOrthogonalEllipseRotation(context.rotation)) {
-    return { kind: "unsupported", reason: "Resizing non-orthogonally rotated ellipses is not supported yet." };
-  }
-
   const affectsWidth = action.role.includes("left") || action.role.includes("right");
   const affectsHeight = action.role.includes("top") || action.role.includes("bottom");
   if (!affectsWidth && !affectsHeight) {
@@ -1748,20 +1743,17 @@ function resolvePathShapeResizeContext(
 
   let shapeKind: "circle" | "ellipse" | null = null;
   let center: Point | null = null;
-  let rotation = 0;
   let requireSingleCenterHandle = false;
 
   if (explicitShapeElements.length === 1 && nonTextElements.length === 1) {
     const explicitShape = explicitShapeElements[0]!;
     shapeKind = explicitShape.kind === "Circle" ? "circle" : "ellipse";
     center = explicitShape.center;
-    rotation = explicitShape.kind === "Ellipse" ? (explicitShape.rotation ?? 0) : 0;
   } else if (explicitShapeElements.length === 0 && nonTextElements.length === 1 && nonTextElements[0]?.kind === "Path") {
     const pathElement = nonTextElements[0];
     const hint = resolveScenePathShapeHint(pathElement, pathStatement);
     if (hint === "circle" || hint === "ellipse") {
       shapeKind = hint;
-      rotation = hint === "ellipse" ? resolvePathEllipseRotation(pathElement) : 0;
       requireSingleCenterHandle = true;
     }
   }
@@ -1803,17 +1795,9 @@ function resolvePathShapeResizeContext(
     kind: "found",
     shapeKind,
     center: center ?? centerHandle.world,
-    rotation,
     syntax,
     centerHandle
   };
-}
-
-function resolvePathEllipseRotation(path: ScenePath): number {
-  const arc = path.commands.find(
-    (command): command is Extract<ScenePath["commands"][number], { kind: "A" }> => command.kind === "A"
-  );
-  return arc?.xAxisRotation ?? 0;
 }
 
 function resolvePathShapeResizeSyntax(items: readonly PathItem[]): PathShapeResizeSyntax | null {
@@ -2073,50 +2057,20 @@ function applySpanTextReplacement(
   };
 }
 
-function isOrthogonalEllipseRotation(rotation: number): boolean {
-  const normalized = ((rotation % 360) + 360) % 360;
-  return (
-    Math.abs(normalized - 0) <= 1e-6 ||
-    Math.abs(normalized - 90) <= 1e-6 ||
-    Math.abs(normalized - 180) <= 1e-6 ||
-    Math.abs(normalized - 270) <= 1e-6
-  );
-}
-
 function resolveRectangleRoleCorners(
   startLocal: Point,
-  oppositeLocal: Point,
-  transform: EditHandle["transform"]
+  oppositeLocal: Point
 ): Record<RectangleCornerRole, Point> {
-  const corners = [
-    { local: { x: startLocal.x, y: startLocal.y } },
-    { local: { x: oppositeLocal.x, y: startLocal.y } },
-    { local: { x: oppositeLocal.x, y: oppositeLocal.y } },
-    { local: { x: startLocal.x, y: oppositeLocal.y } }
-  ].map((corner) => ({
-    local: corner.local,
-    world: applyMatrix(transform, corner.local)
-  }));
-
-  const sortedByTopness = [...corners].sort((left, right) => {
-    if (Math.abs(right.world.y - left.world.y) > 1e-9) {
-      return right.world.y - left.world.y;
-    }
-    return left.world.x - right.world.x;
-  });
-
-  const top = sortedByTopness.slice(0, 2).sort((left, right) => left.world.x - right.world.x);
-  const bottom = sortedByTopness.slice(2).sort((left, right) => left.world.x - right.world.x);
   const minX = Math.min(startLocal.x, oppositeLocal.x);
   const maxX = Math.max(startLocal.x, oppositeLocal.x);
   const minY = Math.min(startLocal.y, oppositeLocal.y);
   const maxY = Math.max(startLocal.y, oppositeLocal.y);
 
   return {
-    "top-left": top[0]?.local ?? { x: minX, y: maxY },
-    "top-right": top[1]?.local ?? { x: maxX, y: maxY },
-    "bottom-left": bottom[0]?.local ?? { x: minX, y: minY },
-    "bottom-right": bottom[1]?.local ?? { x: maxX, y: minY }
+    "top-left": { x: minX, y: maxY },
+    "top-right": { x: maxX, y: maxY },
+    "bottom-left": { x: minX, y: minY },
+    "bottom-right": { x: maxX, y: minY }
   };
 }
 

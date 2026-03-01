@@ -132,6 +132,19 @@
   gap: 4px;
 }
 
+.compactNumberPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.compactNumberField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .propertyLabel {
   font-size: 10px;
   color: var(--text-muted);

@@ -809,6 +809,114 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("y radius=1.5cm");
   });
 
+  it("resizes transform-rotated ellipse statements emitted as ellipse primitives", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=45] (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1.2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2.26cm");
+    expect(result.newSource).toContain("y radius=0.57cm");
+  });
+
+  it("resizes transform-rotated filled ellipse path statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=45,fill=yellow] (0,0) ellipse [x radius=1cm, y radius=0.5cm];
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1.2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("x radius=2.26cm");
+    expect(result.newSource).toContain("y radius=0.57cm");
+  });
+
+  it("resizes transform-rotated rectangle statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=45] (0,0) rectangle (2,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-left",
+      newWorld: { x: cm(-1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw[rotate=45] (0.71,0) rectangle (2,2.12);");
+  });
+
+  it("keeps rotated rectangle corner drags continuous across world-topness changes", () => {
+    let currentSource = String.raw`\begin{tikzpicture}[rotate=40]
+  \draw (-3.73,-1.69) rectangle (2.91,2.78);
+\end{tikzpicture}`;
+
+    const dragX = 3.316;
+    const dragYValues = [0.58, 0.2, -0.1, -0.3, -0.5, -0.7];
+    const rewrittenTargetYValues: number[] = [];
+
+    for (const dragY of dragYValues) {
+      const result = applyEditAction(currentSource, [], {
+        kind: "resizeElement",
+        elementId: "path:0",
+        role: "top-right",
+        newWorld: { x: cm(dragX), y: cm(dragY) }
+      });
+
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        return;
+      }
+      currentSource = result.newSource;
+
+      const targetMatch = currentSource.match(/rectangle\s*\(\s*[-+0-9.]+\s*,\s*([-+0-9.]+)\s*\)/);
+      expect(targetMatch).not.toBeNull();
+      if (!targetMatch) {
+        return;
+      }
+      rewrittenTargetYValues.push(Number(targetMatch[1]));
+    }
+
+    for (let index = 1; index < rewrittenTargetYValues.length; index += 1) {
+      const prev = rewrittenTargetYValues[index - 1]!;
+      const next = rewrittenTargetYValues[index]!;
+      expect(Math.abs(next - prev)).toBeLessThan(2);
+    }
+  });
+
+  it("resizes transform-rotated circle statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=45] (0,0) circle (1cm);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: cm(2), y: cm(1.2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw[rotate=45] (0,0) circle (2.26cm);");
+  });
+
   it("inserts per-shape radius options when circle radius is inherited from statement options", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[radius=1cm] (0,0) circle;

@@ -182,6 +182,7 @@ const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
 const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
 const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 const OPTIONAL_MULTI_PROPERTY_IDS = new Set([...STROKE_MORE_OPTIONS_PROPERTY_IDS, "rounded-corners"]);
+const COMPACT_NUMBER_PAIR_IDS = new Set(["x:y", "width:height"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
@@ -660,6 +661,88 @@ export function InspectorPanel() {
     });
   }
 
+  function getSingleNumberPropertyState(property: Extract<InspectorProperty, { kind: "number" }>): {
+    writable: boolean;
+    readOnlyReason: string | null;
+  } {
+    const capability = getInspectorPropertyCapabilityStatus(property);
+    const capabilityReadOnlyReason =
+      capability.status === "unsupported" ? capability.reason : null;
+    const readOnlyReason = property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason;
+    const writable = (property.write?.writable ?? false) && capability.status !== "unsupported";
+    return { writable, readOnlyReason };
+  }
+
+  function renderSingleNumberField(
+    property: Extract<InspectorProperty, { kind: "number" }>,
+    compact = false
+  ): JSX.Element {
+    const { writable, readOnlyReason } = getSingleNumberPropertyState(property);
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <div className={css.controlRow}>
+          <input
+            className={css.numberInput}
+            type="number"
+            step={property.step}
+            value={formatNumber(property.value)}
+            disabled={!writable}
+            onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
+          />
+          {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
+        </div>
+        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderMultiNumberField(
+    property: Extract<MultiInspectorProperty, { kind: "number" }>,
+    compact = false
+  ): JSX.Element {
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <div className={css.controlRow}>
+          <input
+            className={css.numberInput}
+            type="number"
+            step={property.step}
+            value={property.mixed ? "" : formatNumber(property.value)}
+            disabled
+          />
+          {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
+        </div>
+        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderSingleNumberPair(
+    left: Extract<InspectorProperty, { kind: "number" }>,
+    right: Extract<InspectorProperty, { kind: "number" }>
+  ): JSX.Element {
+    return (
+      <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
+        {renderSingleNumberField(left, true)}
+        {renderSingleNumberField(right, true)}
+      </div>
+    );
+  }
+
+  function renderMultiNumberPair(
+    left: Extract<MultiInspectorProperty, { kind: "number" }>,
+    right: Extract<MultiInspectorProperty, { kind: "number" }>
+  ): JSX.Element {
+    return (
+      <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
+        {renderMultiNumberField(left, true)}
+        {renderMultiNumberField(right, true)}
+      </div>
+    );
+  }
+
   function enableManualCustomLineWidth(key: string): void {
     setManualLineWidthCustomKeys((current) => {
       if (current.has(key)) {
@@ -1009,22 +1092,9 @@ export function InspectorPanel() {
         : property.write.reason ?? capabilityReadOnlyReason;
 
     if (property.kind === "number") {
-      const writable = (property.write?.writable ?? false) && capability.status !== "unsupported";
       return (
         <div key={property.id} className={css.property}>
-          <div className={css.propertyLabel}>{property.label}</div>
-          <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
-            />
-            {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
-          </div>
-          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+          {renderSingleNumberField(property)}
         </div>
       );
     }
@@ -1360,18 +1430,7 @@ export function InspectorPanel() {
     if (property.kind === "number") {
       return (
         <div key={property.id} className={css.property}>
-          <div className={css.propertyLabel}>{property.label}</div>
-          <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={property.mixed ? "" : formatNumber(property.value)}
-              disabled
-            />
-            {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
-          </div>
-          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+          {renderMultiNumberField(property)}
         </div>
       );
     }
@@ -1751,10 +1810,21 @@ export function InspectorPanel() {
       <div key={section.id} className={css.section}>
         <div className={css.sectionHeader}>
           <span>{section.title}</span>
-          <span className={css.sectionLevel}>{section.sourceLevel}</span>
         </div>
         <div className={css.sectionBody}>
-          {visibleProperties.map((property) => renderProperty(property))}
+          {visibleProperties.map((property, index) => {
+            if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
+              return null;
+            }
+            const next = visibleProperties[index + 1];
+            if (shouldRenderCompactNumberPair(property, next)) {
+              return renderSingleNumberPair(
+                property as Extract<InspectorProperty, { kind: "number" }>,
+                next as Extract<InspectorProperty, { kind: "number" }>
+              );
+            }
+            return renderProperty(property);
+          })}
           {section.id === "stroke" &&
           strokeMoreOptionsProperties.length > 0 &&
           !forceShowStrokeMoreOptions ? (
@@ -1789,10 +1859,21 @@ export function InspectorPanel() {
       <div key={section.id} className={css.section}>
         <div className={css.sectionHeader}>
           <span>{section.title}</span>
-          <span className={css.sectionLevel}>{section.sourceLevel}</span>
         </div>
         <div className={css.sectionBody}>
-          {visibleProperties.map((property) => renderMultiProperty(property))}
+          {visibleProperties.map((property, index) => {
+            if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
+              return null;
+            }
+            const next = visibleProperties[index + 1];
+            if (shouldRenderCompactNumberPair(property, next)) {
+              return renderMultiNumberPair(
+                property as Extract<MultiInspectorProperty, { kind: "number" }>,
+                next as Extract<MultiInspectorProperty, { kind: "number" }>
+              );
+            }
+            return renderMultiProperty(property);
+          })}
           {section.id === "stroke" &&
           strokeMoreOptionsProperties.length > 0 &&
           !forceShowStrokeMoreOptions ? (
@@ -1821,7 +1902,6 @@ export function InspectorPanel() {
           ) : (
             <div className={css.elementInfo}>
               <div className={css.elementKind}>{renderedDescriptor.elementKind}</div>
-              <div className={css.elementId}>{renderedDescriptor.elementId}</div>
               {renderedDescriptor.readOnlyReason ? (
                 <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
               ) : null}
@@ -1857,6 +1937,19 @@ function shouldAutoShowStrokeMoreOptions(property: InspectorProperty | MultiInsp
     return property.value !== "miter" || ("mixed" in property && property.mixed);
   }
   return false;
+}
+
+function shouldRenderCompactNumberPair(
+  left: InspectorProperty | MultiInspectorProperty | undefined,
+  right: InspectorProperty | MultiInspectorProperty | undefined
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+  if (left.kind !== "number" || right.kind !== "number") {
+    return false;
+  }
+  return COMPACT_NUMBER_PAIR_IDS.has(`${left.id}:${right.id}`);
 }
 
 function buildMultiInspectorModel(descriptors: InspectorDescriptor[], selectionCount: number): MultiInspectorModel {

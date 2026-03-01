@@ -34,7 +34,6 @@ import type {
   SceneElement,
   ScenePath,
   ScenePathShapeHint,
-  ScenePathCommand,
   SceneText
 } from "tikz-editor/semantic/types";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
@@ -107,6 +106,10 @@ import {
   SnapOverlay,
   ToolPreviewOverlay
 } from "./canvas-panel/overlays";
+import {
+  RESIZE_FRAME_CORNER_ROLES,
+  resolveResizeFrameForSource
+} from "./canvas-panel/resize-frames";
 import {
   isToolCreateMode,
   type ToolCreateMode
@@ -555,15 +558,60 @@ export function CanvasPanel() {
     return result;
   }, [selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
 
+  const resizeFramesBySource = useMemo(() => {
+    const frames = new Map<string, ReturnType<typeof resolveResizeFrameForSource>>();
+    if (!snapshot.scene || !svgResult) {
+      return frames;
+    }
+    const statements = snapshot.parseResult?.figure.body;
+    for (const sourceId of resizablePathShapeSourceIds) {
+      const path = snapshot.scene.elements.find(
+        (element): element is ScenePath => element.sourceId === sourceId && element.kind === "Path"
+      );
+      const pathShapeHint = path ? resolveScenePathShapeHint(path, statements, sourceId) : undefined;
+      const frame = resolveResizeFrameForSource(
+        snapshot.scene.elements,
+        snapshot.editHandles,
+        sourceId,
+        svgResult.viewBox,
+        pathShapeHint
+      );
+      frames.set(sourceId, frame);
+    }
+    return frames;
+  }, [resizablePathShapeSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
+
   const selectionBoxes = useMemo(
-    () =>
-      [...resizablePathShapeSourceIds]
+    () => {
+      const boxes = [...resizablePathShapeSourceIds]
         .map((sourceId) => {
+          const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
+          if (resizeFrame) {
+            return {
+              key: `selection-box:${sourceId}`,
+              kind: "polygon" as const,
+              points: resizeFrame.polygonSvg
+            };
+          }
           const bounds = selectionBoundsBySource.get(sourceId);
-          return bounds ? { key: `selection-box:${sourceId}`, ...bounds } : null;
+          return bounds
+            ? {
+                key: `selection-box:${sourceId}`,
+                kind: "axis-aligned" as const,
+                ...bounds
+              }
+            : null;
         })
-        .filter((bounds): bounds is { key: string; minX: number; minY: number; maxX: number; maxY: number } => bounds != null),
-    [resizablePathShapeSourceIds, selectionBoundsBySource]
+        .filter(
+          (
+            bounds
+          ): bounds is
+            | { key: string; kind: "axis-aligned"; minX: number; minY: number; maxX: number; maxY: number }
+            | { key: string; kind: "polygon"; points: ReadonlyArray<{ x: number; y: number }> } => bounds != null
+        );
+      return boxes;
+    },
+    [resizablePathShapeSourceIds, resizeFramesBySource, selectionBoundsBySource]
   );
   const curveControlLines = useMemo(
     () =>
@@ -610,6 +658,30 @@ export function CanvasPanel() {
     }
 
     for (const sourceId of resizeHandleSourceIds) {
+      const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
+      if (resizeFrame) {
+        for (const role of RESIZE_FRAME_CORNER_ROLES) {
+          const corner = resizeFrame.cornersByRole[role];
+          const resizeVector = {
+            x: corner.world.x - resizeFrame.centerWorld.x,
+            y: corner.world.y - resizeFrame.centerWorld.y
+          };
+          displays.push({
+            key: `node-handle:${sourceId}:${role}`,
+            x: corner.svg.x,
+            y: corner.svg.y,
+            cursor:
+              vectorLengthSquared(resizeVector) > 1e-12
+                ? resizeCursorForVector(resizeVector)
+                : resizeCursorForRole(role),
+            kind: "resize-element",
+            elementId: sourceId,
+            role
+          });
+        }
+        continue;
+      }
+
       const fallbackBounds = selectionBoundsBySource.get(sourceId) ?? null;
       const bounds = preferredNodeBoundsForSource(
         snapshot.scene?.elements ?? [],
@@ -676,7 +748,7 @@ export function CanvasPanel() {
     }
 
     return displays;
-  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
+  }, [dragCapability.draggableHandleIds, dragCapability.draggableSourceIds, resizablePathShapeSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -1634,7 +1706,7 @@ export function CanvasPanel() {
   );
 
   const onResizeHandlePointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole) => {
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -1677,7 +1749,7 @@ export function CanvasPanel() {
         pointerId: event.pointerId,
         elementId: sourceId,
         role,
-        cursor: resizeCursorForRole(role),
+        cursor: cursor || resizeCursorForRole(role),
         preserveAspectRatio: ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
         historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
       });
@@ -3495,7 +3567,7 @@ function sourceHasSingleResizablePathShape(
     return true;
   }
   if (shapeElement.kind === "Ellipse") {
-    return isOrthogonalEllipseRotation(shapeElement.rotation ?? 0);
+    return true;
   }
   if (shapeElement.kind !== "Path") {
     return false;
@@ -3531,10 +3603,6 @@ function sourceHasSingleResizablePathShape(
       return false;
     }
     return true;
-  }
-
-  if (pathShapeHint === "ellipse" && !isOrthogonalEllipseRotation(resolvePathEllipseRotation(shapeElement))) {
-    return false;
   }
 
   return pathHandles.length === 1;
@@ -3603,23 +3671,6 @@ function collectPathShapeHints(items: readonly PathItem[], hints: Set<ScenePathS
   }
 }
 
-function resolvePathEllipseRotation(path: ScenePath): number {
-  const arc = path.commands.find(
-    (command): command is Extract<ScenePathCommand, { kind: "A" }> => command.kind === "A"
-  );
-  return arc?.xAxisRotation ?? 0;
-}
-
-function isOrthogonalEllipseRotation(rotation: number): boolean {
-  const normalized = ((rotation % 360) + 360) % 360;
-  return (
-    Math.abs(normalized - 0) <= 1e-6 ||
-    Math.abs(normalized - 90) <= 1e-6 ||
-    Math.abs(normalized - 180) <= 1e-6 ||
-    Math.abs(normalized - 270) <= 1e-6
-  );
-}
-
 function transformsApproximatelyEqual(
   left: EditHandle["transform"],
   right: EditHandle["transform"],
@@ -3648,18 +3699,10 @@ function ellipseAspectRatioForSource(
   }
 
   const ellipse = ellipses[0];
-  if (!ellipse || !isOrthogonalEllipseRotation(ellipse.rotation ?? 0) || ellipse.rx <= 1e-6 || ellipse.ry <= 1e-6) {
+  if (!ellipse || ellipse.rx <= 1e-6 || ellipse.ry <= 1e-6) {
     return null;
   }
-
-  const normalized = (((ellipse.rotation ?? 0) % 360) + 360) % 360;
-  const swapAxes = Math.abs(normalized - 90) <= 1e-6 || Math.abs(normalized - 270) <= 1e-6;
-  const horizontalRadius = swapAxes ? ellipse.ry : ellipse.rx;
-  const verticalRadius = swapAxes ? ellipse.rx : ellipse.ry;
-  if (horizontalRadius <= 1e-6 || verticalRadius <= 1e-6) {
-    return null;
-  }
-  return verticalRadius / horizontalRadius;
+  return ellipse.ry / ellipse.rx;
 }
 
 function findWordRangeAtIndex(text: string, index: number): { start: number; end: number } | null {
