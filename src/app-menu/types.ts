@@ -9,6 +9,7 @@ export const APP_MENU_COMMAND_IDS = {
   EXPORT_SVG_COPY: "file.export-svg-copy",
   UNDO: "edit.undo",
   REDO: "edit.redo",
+  FORMAT_TIKZ: "edit.format-tikz",
   CUT: "edit.cut",
   COPY: "edit.copy",
   PASTE: "edit.paste",

@@ -23,6 +23,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_BEZIER).toBe("insert.bezier");
   });
 
+  it("defines a format command id", () => {
+    expect(APP_MENU_COMMAND_IDS.FORMAT_TIKZ).toBe("edit.format-tikz");
+  });
+
   it("exposes Open Example in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
@@ -91,5 +95,37 @@ describe("app menu definition", () => {
       throw new Error("Expected insert.bezier command item in Insert menu.");
     }
     expect(commandItem.label).toBe("Bezier");
+  });
+
+  it("exposes Format TikZ Code in the Edit menu", () => {
+    const editSection = APP_MENU_DEFINITION.find((section) => section.id === "edit");
+    expect(editSection).toBeDefined();
+    const items = editSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FORMAT_TIKZ
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected edit.format-tikz command item in Edit menu.");
+    }
+    expect(commandItem.label).toBe("Format TikZ Code");
+  });
+
+  it("places Format TikZ below Duplicate with dividers above and below", () => {
+    const editSection = APP_MENU_DEFINITION.find((section) => section.id === "edit");
+    expect(editSection).toBeDefined();
+    const items = editSection?.items ?? [];
+
+    const duplicateIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.DUPLICATE
+    );
+    const formatIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FORMAT_TIKZ
+    );
+
+    expect(duplicateIndex).toBeGreaterThanOrEqual(0);
+    expect(formatIndex).toBe(duplicateIndex + 2);
+    expect(items[duplicateIndex + 1]?.kind).toBe("separator");
+    expect(items[formatIndex + 1]?.kind).toBe("separator");
   });
 });

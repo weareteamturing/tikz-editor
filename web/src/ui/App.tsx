@@ -16,6 +16,7 @@ import {
 import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
+import { requestSourceFormat } from "./source-sync";
 import css from "./App.module.css";
 
 const SourcePanel = lazy(async () => {
@@ -44,6 +45,7 @@ export function App() {
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
+  const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
   const dispatch = useEditorStore((s) => s.dispatch);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
 
@@ -140,8 +142,17 @@ export function App() {
         return;
       }
 
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && key === "f") {
+        if (showSourcePanel) {
+          requestSourceFormat({ reason: "shortcut" });
+          e.preventDefault();
+        }
+        return;
+      }
+
       // Ctrl+Shift+D: toggle dev panel
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "d") {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "d") {
         dispatch({ type: "TOGGLE_DEV_PANEL" });
         e.preventDefault();
         return;
@@ -169,7 +180,6 @@ export function App() {
         dispatch
       };
 
-      const key = e.key.toLowerCase();
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && key === "escape" && toolMode !== "select") {
         dispatch({ type: "SET_TOOL_MODE", mode: "select" });
         e.preventDefault();
@@ -227,7 +237,17 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, internalClipboard, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source, toolMode]);
+  }, [
+    dispatch,
+    internalClipboard,
+    selectedElementIds,
+    showSourcePanel,
+    snapshot.editHandles,
+    snapshot.scene,
+    snapshot.source,
+    source,
+    toolMode
+  ]);
 
   return (
     <div className={css.app}>

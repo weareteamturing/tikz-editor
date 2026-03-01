@@ -34,10 +34,12 @@ import { useEditorStore } from "../store/store";
 import { ColorPicker } from "./ColorPicker";
 import {
   notifySourceSelectionChanged,
+  SOURCE_FORMAT_REQUEST_EVENT,
   SOURCE_SELECTION_REQUEST_EVENT,
   type SourceSelectionRequestDetail
 } from "./source-sync";
 import css from "./SourcePanel.module.css";
+import { formatTikzSource } from "tikz-editor/edit/source-format";
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
 
@@ -605,6 +607,34 @@ export function SourcePanel() {
 
     window.addEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
     return () => window.removeEventListener(SOURCE_SELECTION_REQUEST_EVENT, handleRequest as EventListener);
+  }, []);
+
+  useEffect(() => {
+    const handleFormatRequest = (_rawEvent: Event): void => {
+      const view = viewRef.current;
+      if (!view) {
+        return;
+      }
+
+      const currentSource = view.state.doc.toString();
+      const formattedSource = formatTikzSource(currentSource);
+      if (formattedSource === currentSource) {
+        return;
+      }
+
+      const selection = view.state.selection.main;
+      const nextAnchor = clamp(selection.anchor, 0, formattedSource.length);
+      const nextHead = clamp(selection.head, 0, formattedSource.length);
+
+      dispatchSelectionWithStableHorizontalScroll(view, {
+        changes: { from: 0, to: currentSource.length, insert: formattedSource },
+        selection: { anchor: nextAnchor, head: nextHead },
+        userEvent: "input.format"
+      });
+    };
+
+    window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
+    return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
   }, []);
 
   const handleInlineColorChange = (nextToken: string): void => {

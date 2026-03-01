@@ -22,6 +22,7 @@ import {
 import { canExportSvg, copySvgMarkup, exportSvgDownload } from "./export-commands";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import { OpenExampleModal } from "./OpenExampleModal";
+import { requestSourceFormat } from "./source-sync";
 import css from "./AppMenuBar.module.css";
 
 type MenuCommandBinding = {
@@ -212,6 +213,12 @@ export function AppMenuBar() {
     [APP_MENU_COMMAND_IDS.REDO]: {
       enabled: canRedo,
       run: () => dispatch({ type: "REDO" })
+    },
+    [APP_MENU_COMMAND_IDS.FORMAT_TIKZ]: {
+      enabled: showSourcePanel,
+      run: () => {
+        requestSourceFormat({ reason: "menu" });
+      }
     },
     [APP_MENU_COMMAND_IDS.CUT]: {
       enabled: availability.cut.enabled && availability.delete.enabled,
