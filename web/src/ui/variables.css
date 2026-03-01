@@ -41,3 +41,29 @@
   --color-warning: #a06010;
   --color-ok:      #268040;
 }
+
+@page {
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body {
+    margin: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+}

@@ -504,3 +504,94 @@
 .warning {
   color: var(--color-warning);
 }
+
+@media print {
+  .panel,
+  .panel * {
+    visibility: visible !important;
+  }
+
+  .panel {
+    position: fixed !important;
+    inset: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+    z-index: 2147483647;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .canvasGrid {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    min-width: 0 !important;
+    background: #fff !important;
+  }
+
+  .header,
+  .diagnostics,
+  .rulerCorner,
+  .topRuler,
+  .leftRuler,
+  .warningBar,
+  .snapDebugOverlay,
+  .interactionLayer,
+  .noSvg {
+    display: none !important;
+  }
+
+  .viewport {
+    display: block !important;
+    position: relative !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+  }
+
+  .worldStage {
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 24mm) !important;
+    margin: 0 auto !important;
+  }
+
+  .svgLayer {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 24mm) !important;
+    overflow: visible !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .svgLayer :global(svg) {
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 24mm) !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

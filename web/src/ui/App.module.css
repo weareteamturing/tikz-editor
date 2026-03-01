@@ -25,3 +25,20 @@
   color: var(--text-muted);
   background: var(--bg-panel);
 }
+
+@media print {
+  .app {
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .body {
+    display: block !important;
+    flex: none !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+  }
+}
