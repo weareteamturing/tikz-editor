@@ -75,8 +75,8 @@ import {
   distanceSquared,
   fmt,
   isMultipleOfStep,
-  pickStepPt,
   resizeCursorForVector,
+  resolveOverlayGridSteps,
   rotatePointAroundCenter,
   toViewportXFromWorld,
   toViewportYFromWorld,
@@ -227,6 +227,11 @@ type SnapDebugOverlayDragState =
       startHeight: number;
     };
 
+type RulerAlignmentOffsets = {
+  topX: number;
+  leftY: number;
+};
+
 const RULER_SIZE = 24;
 const FIT_PADDING = 44;
 const MIN_SCALE = 0.05;
@@ -277,6 +282,7 @@ export function CanvasPanel() {
   const [guides, setGuides] = useState<GuidesState>({ vertical: [], horizontal: [] });
   const [guidePreview, setGuidePreview] = useState<GuidePreview | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const [rulerAlignmentOffsets, setRulerAlignmentOffsets] = useState<RulerAlignmentOffsets>({ topX: 0, leftY: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
   const [bezierBendDraft, setBezierBendDraft] = useState<Extract<DragState, { kind: "tool-bezier-bend" }> | null>(null);
@@ -861,6 +867,8 @@ export function CanvasPanel() {
     };
   }, [guidePreview, guides.horizontal, guides.vertical]);
 
+  const overlayGridSteps = useMemo(() => resolveOverlayGridSteps(canvasTransform.scale), [canvasTransform.scale]);
+
   const rulers = useMemo(() => {
     if (!svgResult || !visibleRanges) {
       return {
@@ -869,15 +877,14 @@ export function CanvasPanel() {
       };
     }
 
-    const majorStep = pickStepPt(canvasTransform.scale, 88);
-    const minorStep = majorStep / 5;
+    const { majorStep, minorStep } = overlayGridSteps;
 
     const topTicks = buildTicks(
       visibleRanges.worldMinX,
       visibleRanges.worldMaxX,
       minorStep,
       majorStep,
-      (value) => toViewportXFromWorld(value, svgResult.viewBox, canvasTransform)
+      (value) => toViewportXFromWorld(value, svgResult.viewBox, canvasTransform) + rulerAlignmentOffsets.topX
     );
 
     const leftTicks = buildTicks(
@@ -885,17 +892,16 @@ export function CanvasPanel() {
       visibleRanges.worldMaxY,
       minorStep,
       majorStep,
-      (value) => toViewportYFromWorld(value, svgResult.viewBox, canvasTransform)
+      (value) => toViewportYFromWorld(value, svgResult.viewBox, canvasTransform) + rulerAlignmentOffsets.leftY
     );
 
     return { topTicks, leftTicks };
-  }, [canvasTransform, svgResult, visibleRanges]);
+  }, [canvasTransform, overlayGridSteps, rulerAlignmentOffsets.leftY, rulerAlignmentOffsets.topX, svgResult, visibleRanges]);
 
   const gridLines = useMemo((): GridLines | null => {
     if (!svgResult || !visibleRanges || !showGrid) return null;
 
-    const minorStep = pickStepPt(canvasTransform.scale, 22);
-    const majorStep = minorStep * 5;
+    const { minorStep, majorStep } = overlayGridSteps;
 
     const worldXs = buildValueSequence(visibleRanges.worldMinX, visibleRanges.worldMaxX, minorStep, 1000);
     const worldYs = buildValueSequence(visibleRanges.worldMinY, visibleRanges.worldMaxY, minorStep, 1000);
@@ -929,7 +935,7 @@ export function CanvasPanel() {
       yMin: visibleRanges.svgMinY,
       yMax: visibleRanges.svgMaxY
     };
-  }, [canvasTransform.scale, showGrid, svgResult, visibleRanges]);
+  }, [overlayGridSteps, showGrid, svgResult, visibleRanges]);
 
   const toolPreview = useMemo((): ToolPreview | null => {
     if (!svgResult || toolMode === "select") {
@@ -2455,6 +2461,47 @@ export function CanvasPanel() {
   }, []);
 
   useEffect(() => {
+    if (!showRulers) {
+      setRulerAlignmentOffsets((current) => (current.topX === 0 && current.leftY === 0 ? current : { topX: 0, leftY: 0 }));
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    const topRuler = topRulerRef.current;
+    const leftRuler = leftRulerRef.current;
+    if (!viewport || !topRuler || !leftRuler) {
+      return;
+    }
+
+    const measure = () => {
+      const viewportRect = viewport.getBoundingClientRect();
+      const topRect = topRuler.getBoundingClientRect();
+      const leftRect = leftRuler.getBoundingClientRect();
+      const next = {
+        topX: viewportRect.left - topRect.left,
+        leftY: viewportRect.top - leftRect.top
+      };
+      setRulerAlignmentOffsets((current) => {
+        if (Math.abs(current.topX - next.topX) < 1e-6 && Math.abs(current.leftY - next.leftY) < 1e-6) {
+          return current;
+        }
+        return next;
+      });
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(viewport);
+    observer.observe(topRuler);
+    observer.observe(leftRuler);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [showRulers]);
+
+  useEffect(() => {
     canvasTransformRef.current = canvasTransform;
   }, [canvasTransform]);
 
@@ -3086,6 +3133,7 @@ export function CanvasPanel() {
             ref={topRulerRef}
             className={css.topRuler}
             viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
+            preserveAspectRatio="none"
             onPointerDown={onTopRulerPointerDown}
           >
             <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
@@ -3113,6 +3161,7 @@ export function CanvasPanel() {
             ref={leftRulerRef}
             className={css.leftRuler}
             viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
+            preserveAspectRatio="none"
             onPointerDown={onLeftRulerPointerDown}
           >
             <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />

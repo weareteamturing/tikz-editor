@@ -1,10 +1,10 @@
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import { GRID_MINOR_TARGET_PX } from "tikz-editor/edit/snapping/types";
 import type { Point } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { CanvasTransform } from "../../store/types";
 
 export type RulerTick = {
-  worldValue: number;
   viewportPos: number;
   major: boolean;
   label?: string;
@@ -18,6 +18,13 @@ export type VisibleRanges = {
   svgMinY: number;
   svgMaxY: number;
 };
+
+export type OverlayGridSteps = {
+  minorStep: number;
+  majorStep: number;
+};
+
+const OVERLAY_MAJOR_STEP_MULTIPLE = 5;
 
 export function computeVisibleRanges(
   viewBox: SvgViewBox,
@@ -54,7 +61,6 @@ export function buildTicks(
   for (const worldValue of values) {
     const major = isMultipleOfStep(worldValue, majorStep);
     ticks.push({
-      worldValue,
       viewportPos: mapWorldToViewport(worldValue),
       major,
       label: major ? formatCm(worldValue / PT_PER_CM) : undefined
@@ -201,6 +207,14 @@ export function pickStepPt(scale: number, targetPixels: number): number {
   }
 
   return cmSteps[cmSteps.length - 1]! * PT_PER_CM;
+}
+
+export function resolveOverlayGridSteps(scale: number): OverlayGridSteps {
+  const minorStep = pickStepPt(scale, GRID_MINOR_TARGET_PX);
+  return {
+    minorStep,
+    majorStep: minorStep * OVERLAY_MAJOR_STEP_MULTIPLE
+  };
 }
 
 export function isMultipleOfStep(value: number, step: number): boolean {

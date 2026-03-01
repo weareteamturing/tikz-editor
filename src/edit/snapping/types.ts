@@ -19,11 +19,13 @@ export type SnapSettings = {
   viewportPaddingPx: number;
 };
 
+export const GRID_MINOR_TARGET_PX = 22;
+
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   thresholdPx: 8,
   grid: {
     enabled: true,
-    minorTargetPx: 22
+    minorTargetPx: GRID_MINOR_TARGET_PX
   },
   points: {
     enabled: true
