@@ -72,21 +72,21 @@ export function ResizableLayout({ left, center, right }: Props) {
     <div className={css.layout} ref={containerRef}>
       {showSourcePanel && (
         <>
-          <div className={css.pane} style={{ flex: `0 0 ${leftPanelWidth}px`, width: leftPanelWidth }}>
+          <div className={`${css.pane} ${css.paneLeft}`} style={{ flex: `0 0 ${leftPanelWidth}px`, width: leftPanelWidth }}>
             {left}
           </div>
           <div className={css.splitter} onMouseDown={handleSplitterMouseDown("left")} />
         </>
       )}
 
-      <div className={css.pane} style={{ flex: 1 }}>
+      <div className={`${css.pane} ${css.paneCenter}`} style={{ flex: 1 }}>
         {center}
       </div>
 
       {showInspectorPanel && (
         <>
           <div className={css.splitter} onMouseDown={handleSplitterMouseDown("right")} />
-          <div className={css.pane} style={{ flex: `0 0 ${rightPanelWidth}px`, width: rightPanelWidth }}>
+          <div className={`${css.pane} ${css.paneRight}`} style={{ flex: `0 0 ${rightPanelWidth}px`, width: rightPanelWidth }}>
             {right}
           </div>
         </>

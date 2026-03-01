@@ -37,3 +37,35 @@
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+@media (max-width: 768px) {
+  .layout {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .pane {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    scroll-snap-align: start;
+  }
+
+  .paneCenter {
+    order: 1;
+  }
+
+  .paneLeft {
+    order: 2;
+  }
+
+  .paneRight {
+    order: 3;
+  }
+
+  .splitter {
+    display: none;
+  }
+}

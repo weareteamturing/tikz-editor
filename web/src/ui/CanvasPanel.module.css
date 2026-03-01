@@ -364,6 +364,32 @@
   stroke: rgba(13, 95, 182, 0.72);
 }
 
+@media (max-width: 768px) {
+  .header {
+    min-height: 32px;
+    padding: 4px 6px;
+  }
+
+  .headerMeta {
+    display: none;
+  }
+
+  .headerButtons {
+    margin-left: auto;
+  }
+
+  .headerBtn {
+    min-height: 28px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .diagnostics {
+    max-height: 78px;
+    overflow-y: auto;
+  }
+}
+
 .noSvg {
   position: absolute;
   inset: 0;

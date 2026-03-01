@@ -54,3 +54,9 @@
   font-family: var(--font-mono);
   color: var(--accent-dark);
 }
+
+@media (max-width: 768px) {
+  .bar {
+    display: none;
+  }
+}

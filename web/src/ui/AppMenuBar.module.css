@@ -135,3 +135,19 @@
   margin: 4px 2px;
   background: var(--border-lighter);
 }
+
+@media (max-width: 768px) {
+  .menuBar {
+    min-height: 32px;
+  }
+
+  .section {
+    flex: 0 0 auto;
+  }
+
+  .trigger {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}

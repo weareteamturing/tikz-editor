@@ -102,3 +102,29 @@
   color: var(--text-faint);
   padding: 0 4px;
 }
+
+@media (max-width: 768px) {
+  .toolbar {
+    min-height: 36px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .title,
+  .separator,
+  .group {
+    flex: 0 0 auto;
+  }
+
+  .btn {
+    min-height: 28px;
+    padding: 4px 9px;
+    font-size: 12px;
+  }
+}

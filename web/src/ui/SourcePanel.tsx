@@ -458,11 +458,12 @@ export function SourcePanel() {
       return;
     }
 
+    const autoRevealSelection = shouldAutoRevealSourceSelection();
     ignoreNextSelectionSyncRef.current = true;
     dispatchSelectionWithStableHorizontalScroll(view, {
       selection: { anchor: normalized.from, head: normalized.to },
       annotations: [Transaction.addToHistory.of(false)],
-      scrollIntoView: true
+      scrollIntoView: autoRevealSelection
     });
   }, [selectedElementIds]);
 
@@ -593,14 +594,15 @@ export function SourcePanel() {
         detail.head ?? detail.to,
         view.state.doc.length
       );
+      const autoRevealSelection = shouldAutoRevealSourceSelection();
       ignoreNextSelectionSyncRef.current = true;
       dispatchSelectionWithStableHorizontalScroll(view, {
         selection: { anchor: normalized.anchor, head: normalized.head },
         annotations: [Transaction.addToHistory.of(false)],
-        scrollIntoView: true
+        scrollIntoView: autoRevealSelection
       });
 
-      if (detail.focus) {
+      if (detail.focus && autoRevealSelection) {
         view.focus();
       }
     };
@@ -1000,6 +1002,13 @@ function restoreHorizontalScroll(view: EditorView, scrollLeft: number): void {
     return;
   }
   view.scrollDOM.scrollLeft = scrollLeft;
+}
+
+function shouldAutoRevealSourceSelection(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return true;
+  }
+  return !window.matchMedia("(max-width: 768px)").matches;
 }
 
 function buildDecorations(diagnostics: Diagnostic[]): DecorationSet {
