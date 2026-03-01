@@ -126,15 +126,67 @@ export function mapPathStatement(node: SyntaxNode, source: string, statementInde
   }
 
   const normalizedItems = normalizeChildOperationItems(items);
+  const finalizedItems = command === "node" ? withInferredStandaloneNodeName(normalizedItems) : normalizedItems;
 
   return {
     kind: "Path",
     id: pathStatementId(statementIndex),
     span: { from: node.from, to: node.to },
     command,
-    options: findStatementOptions(normalizedItems),
-    items: normalizedItems
+    options: findStatementOptions(finalizedItems),
+    items: finalizedItems
   };
+}
+
+function withInferredStandaloneNodeName(items: PathItem[]): PathItem[] {
+  const nodeIndex = items.findIndex((item) => item.kind === "Node");
+  if (nodeIndex < 0) {
+    return items;
+  }
+
+  const node = items[nodeIndex];
+  if (!node || node.kind !== "Node" || node.name) {
+    return items;
+  }
+
+  const inferredName = inferStandaloneNodeName(items, nodeIndex);
+  if (!inferredName) {
+    return items;
+  }
+
+  const next = [...items];
+  next[nodeIndex] = { ...node, name: inferredName };
+  return next;
+}
+
+function inferStandaloneNodeName(items: PathItem[], limit: number): string | undefined {
+  let awaitingAtCoordinate = false;
+
+  for (let index = 0; index < limit; index += 1) {
+    const item = items[index];
+    if (!item) {
+      continue;
+    }
+
+    if (item.kind === "PathKeyword" && item.keyword === "at") {
+      awaitingAtCoordinate = true;
+      continue;
+    }
+
+    if (item.kind === "Coordinate") {
+      if (!awaitingAtCoordinate && item.form === "named" && item.y.trim().length === 0) {
+        return item.x.trim();
+      }
+      awaitingAtCoordinate = false;
+      continue;
+    }
+
+    if (item.kind !== "PathComment") {
+      awaitingAtCoordinate = false;
+    }
+  }
+
+  return undefined;
 }
 
 function normalizeChildOperationItems(items: PathItem[]): PathItem[] {

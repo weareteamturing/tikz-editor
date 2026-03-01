@@ -515,6 +515,83 @@ describe("parseTikz", () => {
     }
   });
 
+  it("parses standalone node commands with option lists before and after explicit node names", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [draw] (s) [label=$s$]  {};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    expect(statement.command).toBe("node");
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind !== "Node") {
+      return;
+    }
+
+    expect(node.name).toBe("s");
+    expect(node.options?.entries.some((entry) => entry.kind === "flag" && entry.key === "draw")).toBe(true);
+    expect(node.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "label" && entry.valueRaw === "$s$")).toBe(true);
+  });
+
+  it("parses node labels with math superscripts inside option lists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [draw] (s) [label=$s^2$]  {};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind !== "Node") {
+      return;
+    }
+
+    expect(node.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "label" && entry.valueRaw === "$s^2$")).toBe(true);
+  });
+
+  it("accepts rich TeX math expressions in node label option values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node [draw] (s) [label=$\frac{a_b}{c^2} + f(x) - \alpha$] {};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+
+    const statement = result.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (statement?.kind !== "Path") {
+      return;
+    }
+
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (node?.kind !== "Node") {
+      return;
+    }
+
+    expect(
+      node.options?.entries.some(
+        (entry) =>
+          entry.kind === "kv" && entry.key === "label" && entry.valueRaw === String.raw`$\frac{a_b}{c^2} + f(x) - \alpha$`
+      )
+    ).toBe(true);
+  });
+
   it("parses standalone matrix commands as node statements with implicit matrix options", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,row sep=4mm,column sep=6mm] (m) {
