@@ -135,6 +135,151 @@ describe("edit integration (round-trip)", () => {
     expect(result.newSource).not.toContain(" and ");
   });
 
+  it("dragging a synthetic out-handle rewrites only out= on to-curves", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const outHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+    );
+    expect(outHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: { x: 0, y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("out=90");
+    expect(result.newSource).toContain("in=180");
+  });
+
+  it("dragging a synthetic in-handle rewrites only in= on to-curves", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const inHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "in"
+    );
+    expect(inHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: inHandle!.id,
+      newWorld: { x: cm(2), y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("out=0");
+    expect(result.newSource).toContain("in=90");
+  });
+
+  it("writes integer out-angles for synthetic in/out drags", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const outHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+    );
+    expect(outHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: { x: cm(1), y: cm(0.5) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("out=27");
+  });
+
+  it("writes relative out-angles for relative to-curves", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180,relative] (1,1);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const outHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+    );
+    expect(outHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: { x: 0, y: cm(1) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("relative");
+    expect(result.newSource).toContain("out=45");
+  });
+
+  it("treats no-op synthetic curve drags as success", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=0,in=180] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const outHandle = handles.find(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle" && handle.curveEdit.role === "out"
+    );
+    expect(outHandle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: outHandle!.id,
+      newWorld: outHandle!.world
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("out=0");
+    expect(result.newSource).toContain("in=180");
+  });
+
+  it("dragging the bend handle rewrites bend direction and flips across zero", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[bend left=30] (2,0);
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const bendHandle = handles.find(
+      (handle) => handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend"
+    );
+    expect(bendHandle).toBeDefined();
+
+    const raised = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: bendHandle!.id,
+      newWorld: { x: cm(1), y: cm(1) }
+    });
+    expect(raised.kind).toBe("success");
+    if (raised.kind !== "success") return;
+    expect(raised.newSource).toContain("bend left=45");
+
+    const reevaluated = evaluateAndGetHandles(raised.newSource);
+    const reevaluatedBendHandle = reevaluated.handles.find(
+      (handle) => handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend"
+    );
+    expect(reevaluatedBendHandle).toBeDefined();
+
+    const lowered = applyEditIntent(raised.newSource, reevaluated.handles, {
+      kind: "move",
+      handleId: reevaluatedBendHandle!.id,
+      newWorld: { x: cm(1), y: cm(-1) }
+    });
+    expect(lowered.kind).toBe("success");
+    if (lowered.kind !== "success") return;
+    expect(lowered.newSource).toContain("bend right=45");
+    expect(lowered.newSource).not.toContain("bend left");
+  });
+
   it("moves a node inside xscale=2 scope", () => {
     const source = String.raw`\begin{tikzpicture}
 \begin{scope}[xscale=2]

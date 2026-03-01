@@ -278,10 +278,28 @@ export type EvaluateOptions = {
 
 export type { CoordinateForm };
 
+export type CurveEditHandleData =
+  | {
+      kind: "to-angle";
+      operationItemId: string;
+      role: "out" | "in";
+      startWorld: Point;
+      endWorld: Point;
+      relative: boolean;
+      baseHeading: number;
+    }
+  | {
+      kind: "to-bend";
+      operationItemId: string;
+      startWorld: Point;
+      endWorld: Point;
+      baseHeading: number;
+    };
+
 export type EditHandle = {
   id: string;
   sourceId: string;
-  kind: "node-position" | "path-point" | "path-control";
+  kind: "node-position" | "path-point" | "path-control" | "path-bend";
   world: Point;
   local?: Point;
   transform: Matrix2D;
@@ -293,4 +311,5 @@ export type EditHandle = {
   relativeBaseWorld?: Point;
   rewriteMode: "direct" | "delta" | "unsupported";
   rewriteTargetHandleId?: string;
+  curveEdit?: CurveEditHandleData;
 };

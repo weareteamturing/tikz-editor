@@ -49,6 +49,47 @@ describe("edit handles", () => {
     expect(target?.world.y).toBeCloseTo(cm(1));
   });
 
+  it("to[out=...,in=...] emits synthetic in/out control handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[out=20,in=160] (2,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const angleHandles = result.editHandles.filter(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle"
+    );
+
+    expect(angleHandles).toHaveLength(2);
+    expect(angleHandles.map((handle) => handle.curveEdit?.role).sort()).toEqual(["in", "out"]);
+  });
+
+  it("edge[out=...] also emits synthetic in/out control handles", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) edge[out=45] (2,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const angleHandles = result.editHandles.filter(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle"
+    );
+
+    expect(angleHandles).toHaveLength(2);
+  });
+
+  it("to[bend left] emits a single synthetic bend handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) to[bend left] (2,0);
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const bendHandles = result.editHandles.filter(
+      (handle) => handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend"
+    );
+    const angleHandles = result.editHandles.filter(
+      (handle) => handle.kind === "path-control" && handle.curveEdit?.kind === "to-angle"
+    );
+
+    expect(bendHandles).toHaveLength(1);
+    expect(angleHandles).toHaveLength(0);
+  });
+
   it("curve operator with controls+and emits path-control handles and curve endpoint handle", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) .. controls (1,1) and (2,1) .. (3,0);

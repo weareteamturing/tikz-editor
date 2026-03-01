@@ -104,4 +104,19 @@ describe("computeDragCapability", () => {
     expect(capability.draggableHandleIds.has("h-alias")).toBe(true);
     expect(capability.draggableSourceIds.has("path:0")).toBe(true);
   });
+
+  it("treats synthetic bend handles as draggable", () => {
+    const bend = makeHandle({
+      id: "h-bend",
+      sourceId: "path:0",
+      kind: "path-bend",
+      sourceSpan: { from: 200, to: 201 },
+      coordinateForm: "cartesian",
+      rewriteMode: "direct"
+    });
+
+    const capability = computeDragCapability([bend]);
+    expect(capability.draggableHandleIds.has("h-bend")).toBe(true);
+    expect(capability.draggableSourceIds.has("path:0")).toBe(true);
+  });
 });

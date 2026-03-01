@@ -30,6 +30,21 @@ function makeControlHandle(id: string, sourceId: string): EditHandle {
   };
 }
 
+function makeBendHandle(id: string, sourceId: string): EditHandle {
+  return {
+    ...makeControlHandle(id, sourceId),
+    kind: "path-bend",
+    world: { x: 1.5, y: 1 },
+    curveEdit: {
+      kind: "to-bend",
+      operationItemId: "to:0",
+      startWorld: { x: 0, y: 0 },
+      endWorld: { x: 3, y: 0 },
+      baseHeading: 0
+    }
+  };
+}
+
 describe("deriveCurveControlLines", () => {
   it("derives two helper lines for one cubic Bezier command", () => {
     const elements = [
@@ -87,5 +102,22 @@ describe("deriveCurveControlLines", () => {
 
     expect(lines).toHaveLength(2);
     expect(lines.every((line) => line.sourceId === "path:0")).toBe(true);
+  });
+
+  it("derives helper lines from endpoints to bend handles", () => {
+    const elements = [
+      makePath("path:0", [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "C", c1: { x: 1, y: 1 }, c2: { x: 2, y: 1 }, to: { x: 3, y: 0 } }
+      ])
+    ];
+    const lines = deriveCurveControlLines(elements, new Set(["path:0"]), [makeBendHandle("hb", "path:0")]);
+    expect(lines).toHaveLength(2);
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceId: "path:0", from: { x: 0, y: 0 }, to: { x: 1.5, y: 1 } }),
+        expect.objectContaining({ sourceId: "path:0", from: { x: 3, y: 0 }, to: { x: 1.5, y: 1 } })
+      ])
+    );
   });
 });

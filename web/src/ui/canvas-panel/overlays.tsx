@@ -685,7 +685,10 @@ export function HandleOverlay({
               ? onElementPointerDown(event, display.elementId)
               : onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor);
 
-        if (display.kind === "move-handle" && display.handle.kind === "path-control") {
+        if (
+          display.kind === "move-handle" &&
+          (display.handle.kind === "path-control" || display.handle.kind === "path-bend")
+        ) {
           return (
             <circle
               key={display.key}

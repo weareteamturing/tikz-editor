@@ -12,24 +12,45 @@ export function deriveCurveControlLines(
   selectedSourceIds: ReadonlySet<string>,
   editHandles: readonly EditHandle[]
 ): CurveControlLine[] {
-  const selectedSourcesWithControlHandles = new Set<string>();
+  const selectedSourcesWithPathControlHandles = new Set<string>();
+  const bendLines: CurveControlLine[] = [];
   for (const handle of editHandles) {
-    if (handle.kind !== "path-control" || !selectedSourceIds.has(handle.sourceId)) {
+    if (!selectedSourceIds.has(handle.sourceId)) {
       continue;
     }
-    selectedSourcesWithControlHandles.add(handle.sourceId);
+    if (handle.kind === "path-control") {
+      selectedSourcesWithPathControlHandles.add(handle.sourceId);
+      continue;
+    }
+    if (handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend") {
+      bendLines.push(
+        {
+          key: `curve-bend:${handle.id}:start`,
+          sourceId: handle.sourceId,
+          from: handle.curveEdit.startWorld,
+          to: handle.world
+        },
+        {
+          key: `curve-bend:${handle.id}:end`,
+          sourceId: handle.sourceId,
+          from: handle.curveEdit.endWorld,
+          to: handle.world
+        }
+      );
+    }
   }
-  if (selectedSourcesWithControlHandles.size === 0) {
+  if (selectedSourcesWithPathControlHandles.size === 0 && bendLines.length === 0) {
     return [];
   }
 
   const lines: CurveControlLine[] = [];
   for (const element of elements) {
-    if (element.kind !== "Path" || !selectedSourcesWithControlHandles.has(element.sourceId)) {
+    if (element.kind !== "Path" || !selectedSourcesWithPathControlHandles.has(element.sourceId)) {
       continue;
     }
     lines.push(...collectControlLinesFromPath(element));
   }
+  lines.push(...bendLines);
   return lines;
 }
 

@@ -1,5 +1,5 @@
 import type { EdgeOperationItem, ToOperationItem, PathStatement } from "../../ast/types.js";
-import type { SemanticContext } from "../context.js";
+import { currentFrame, type SemanticContext } from "../context.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import {
@@ -15,6 +15,8 @@ import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { normalizeOptionValue, toRadians } from "./shared.js";
 import { createEditHandle } from "../edit-handles.js";
 import type { StyleChainEntry } from "../style-chain.js";
+
+type ToCurveUiMode = "in-out" | "bend";
 
 export function applyToOperation(
   item: ToOperationItem,
@@ -244,6 +246,15 @@ function applyToLikeOperation(
   let nextRoundedCorners = previousSegmentRoundedCorners;
   if (start && curved) {
     segment = appendToCurve(path.commands, start, effectiveTargetPoint, curved);
+    appendToLikeCurveEditHandles({
+      itemId: item.id,
+      statementId: statement.id,
+      start,
+      end: effectiveTargetPoint,
+      curve: curved,
+      segment,
+      context
+    });
     nextRoundedCorners = style.roundedCorners;
     markFeature("path_operator_curves", "supported");
   } else {
@@ -322,6 +333,10 @@ function extractToCurveOptions(
   outMaxDistance: number;
   inMinDistance: number;
   inMaxDistance: number;
+  relative: boolean;
+  baseHeading: number;
+  uiMode: ToCurveUiMode;
+  bendSignedAngle: number;
 } | null {
   if (!options) {
     return null;
@@ -339,6 +354,10 @@ function extractToCurveOptions(
   let curveRequested = false;
   let relative = false;
   let bendAngle = 30;
+  let hasExplicitInOrOut = false;
+  let hasBendDirectionOption = false;
+  let bendDirection: "left" | "right" | null = null;
+  let bendSignedAngle = 0;
 
   for (const entry of options.entries) {
     if (entry.kind === "flag") {
@@ -347,11 +366,17 @@ function extractToCurveOptions(
         inAngle = 180 - out;
         relative = true;
         curveRequested = true;
+        hasBendDirectionOption = true;
+        bendDirection = "left";
+        bendSignedAngle = Math.abs(bendAngle);
       } else if (entry.key === "bend right") {
         out = -bendAngle;
         inAngle = 180 - out;
         relative = true;
         curveRequested = true;
+        hasBendDirectionOption = true;
+        bendDirection = "right";
+        bendSignedAngle = -Math.abs(bendAngle);
       } else if (entry.key === "relative") {
         relative = true;
       }
@@ -367,6 +392,7 @@ function extractToCurveOptions(
       if (parsed != null) {
         out = parsed;
         curveRequested = true;
+        hasExplicitInOrOut = true;
       }
       continue;
     }
@@ -376,6 +402,7 @@ function extractToCurveOptions(
       if (parsed != null) {
         inAngle = parsed;
         curveRequested = true;
+        hasExplicitInOrOut = true;
       }
       continue;
     }
@@ -425,12 +452,17 @@ function extractToCurveOptions(
       }
       if (entry.key === "bend left") {
         out = bendAngle;
+        bendDirection = "left";
+        bendSignedAngle = Math.abs(bendAngle);
       } else {
         out = -bendAngle;
+        bendDirection = "right";
+        bendSignedAngle = -Math.abs(bendAngle);
       }
       inAngle = 180 - out;
       relative = true;
       curveRequested = true;
+      hasBendDirectionOption = true;
       continue;
     }
 
@@ -534,10 +566,18 @@ function extractToCurveOptions(
     return null;
   }
 
+  const baseHeading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
   if (relative) {
-    const baseHeading = (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI;
     out += baseHeading;
     inAngle += baseHeading;
+  }
+
+  if (!hasBendDirectionOption) {
+    bendSignedAngle = normalizeSignedDegrees(out - baseHeading);
+  } else if (bendDirection === "left") {
+    bendSignedAngle = Math.abs(bendSignedAngle);
+  } else if (bendDirection === "right") {
+    bendSignedAngle = -Math.abs(bendSignedAngle);
   }
 
   const shared = looseness ?? 1;
@@ -549,7 +589,11 @@ function extractToCurveOptions(
     outMinDistance,
     outMaxDistance,
     inMinDistance,
-    inMaxDistance
+    inMaxDistance,
+    relative,
+    baseHeading,
+    uiMode: hasExplicitInOrOut ? "in-out" : hasBendDirectionOption ? "bend" : "in-out",
+    bendSignedAngle
   };
 }
 
@@ -604,6 +648,149 @@ function appendToCurve(
   };
 }
 
+function appendToLikeCurveEditHandles(args: {
+  itemId: string;
+  statementId: string;
+  start: Point;
+  end: Point;
+  curve: {
+    out: number;
+    in: number;
+    relative: boolean;
+    baseHeading: number;
+    uiMode: ToCurveUiMode;
+    bendSignedAngle: number;
+  };
+  segment: PlacementSegment | null;
+  context: SemanticContext;
+}): void {
+  if (args.segment?.kind !== "cubic") {
+    return;
+  }
+
+  if (args.curve.uiMode === "bend") {
+    const bendHandleWorld = bendHandlePoint(args.start, args.end, args.curve.bendSignedAngle);
+    pushSyntheticCurveHandle({
+      context: args.context,
+      statementId: args.statementId,
+      kind: "path-bend",
+      world: bendHandleWorld,
+      curveEdit: {
+        kind: "to-bend",
+        operationItemId: args.itemId,
+        startWorld: args.start,
+        endWorld: args.end,
+        baseHeading: args.curve.baseHeading
+      }
+    });
+    return;
+  }
+
+  pushSyntheticCurveHandle({
+    context: args.context,
+    statementId: args.statementId,
+    kind: "path-control",
+    world: args.segment.c1,
+    curveEdit: {
+      kind: "to-angle",
+      operationItemId: args.itemId,
+      role: "out",
+      startWorld: args.start,
+      endWorld: args.end,
+      relative: args.curve.relative,
+      baseHeading: args.curve.baseHeading
+    }
+  });
+  pushSyntheticCurveHandle({
+    context: args.context,
+    statementId: args.statementId,
+    kind: "path-control",
+    world: args.segment.c2,
+    curveEdit: {
+      kind: "to-angle",
+      operationItemId: args.itemId,
+      role: "in",
+      startWorld: args.start,
+      endWorld: args.end,
+      relative: args.curve.relative,
+      baseHeading: args.curve.baseHeading
+    }
+  });
+}
+
+function pushSyntheticCurveHandle(args: {
+  context: SemanticContext;
+  statementId: string;
+  kind: "path-control" | "path-bend";
+  world: Point;
+  curveEdit:
+    | {
+        kind: "to-angle";
+        operationItemId: string;
+        role: "out" | "in";
+        startWorld: Point;
+        endWorld: Point;
+        relative: boolean;
+        baseHeading: number;
+      }
+    | {
+        kind: "to-bend";
+        operationItemId: string;
+        startWorld: Point;
+        endWorld: Point;
+        baseHeading: number;
+      };
+}): void {
+  const syntheticSpan = makeSyntheticHandleSpan(args.context);
+  args.context.editHandles.push({
+    id: `handle:${args.statementId}:${args.kind}:${args.context.editHandles.length}`,
+    sourceId: args.statementId,
+    kind: args.kind,
+    world: { ...args.world },
+    transform: currentFrame(args.context).transform,
+    sourceSpan: syntheticSpan,
+    sourceText: "",
+    sourceFingerprint: args.context.sourceFingerprint,
+    coordinateForm: "cartesian",
+    rewriteMode: "direct",
+    curveEdit: args.curveEdit
+  });
+}
+
+function makeSyntheticHandleSpan(context: SemanticContext): { from: number; to: number } {
+  const from = context.source.length + context.editHandles.length * 2;
+  return {
+    from,
+    to: from + 1
+  };
+}
+
+function bendHandlePoint(start: Point, end: Point, signedBendAngle: number): Point {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  const midpoint = {
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2
+  };
+  if (length <= 1e-9) {
+    return midpoint;
+  }
+
+  const unitNormal = {
+    x: -dy / length,
+    y: dx / length
+  };
+  const clampedAngle = Math.min(89.9, Math.max(0, Math.abs(signedBendAngle)));
+  const unsignedOffset = 0.5 * length * Math.tan((clampedAngle * Math.PI) / 180);
+  const signedOffset = signedBendAngle >= 0 ? unsignedOffset : -unsignedOffset;
+
+  return {
+    x: midpoint.x + unitNormal.x * signedOffset,
+    y: midpoint.y + unitNormal.y * signedOffset
+  };
+}
+
 function parseCurveAngleOption(valueRaw: string): number | null {
   const normalized = normalizeOptionValue(valueRaw);
   if (normalized.length === 0) {
@@ -654,6 +841,14 @@ function parseRelativeBooleanOption(valueRaw: string): boolean | null {
     return false;
   }
   return null;
+}
+
+function normalizeSignedDegrees(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const wrapped = ((value + 180) % 360 + 360) % 360 - 180;
+  return Math.abs(wrapped) < 1e-9 ? 0 : wrapped;
 }
 
 function alignPathToStart(commands: ScenePathCommand[], start: Point): boolean {
