@@ -55,12 +55,24 @@ type ElementBounds = {
   maxY: number;
 };
 
+type ShadingTransform = {
+  centerX: number;
+  centerY: number;
+  scaleX: number;
+  scaleY: number;
+  rotation: number;
+};
+
 type SvgModelReuseContext = {
   affectedSourceIds: Set<string>;
   previousPartsByElementId: Map<string, SvgRenderPart[]>;
 };
 
 let currentPatternGlobalYPhase = 0;
+const PGF_SHADE_SCALE_FACTOR = 0.01992528;
+const PGF_SHADE_CANONICAL_SIZE = 100.375;
+const PGF_SHADE_CANONICAL_HALF = PGF_SHADE_CANONICAL_SIZE / 2;
+const PGF_BALL_FOCUS_OFFSET = PGF_SHADE_CANONICAL_HALF * 0.2;
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
   const model = emitSvgModel(scene, opts);
@@ -133,8 +145,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return id;
   };
 
-  const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string): string | null => {
+  const resolveShadingFill = (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null): string | null => {
     if (!style.shadeEnabled) {
+      return null;
+    }
+
+    const shadingTransform = bounds ? computeShadingTransform(bounds, style.shadingAngle) : null;
+    if (!shadingTransform) {
       return null;
     }
 
@@ -142,13 +159,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     if (!shadingName || shadingName === "axis") {
       const signature = JSON.stringify({
         kind: "axis",
-        angle: style.shadingAngle,
+        transform: signatureShadingTransform(shadingTransform),
         top: style.axisTopColor,
         middle: style.axisMiddleColor,
         bottom: style.axisBottomColor
       });
       const id = ensureGradientDefinition(signature, "axis", (gradientId) =>
-        renderAxisGradientDefinition(gradientId, style.shadingAngle, style.axisTopColor, style.axisMiddleColor, style.axisBottomColor)
+        renderAxisGradientDefinition(gradientId, shadingTransform, style.axisTopColor, style.axisMiddleColor, style.axisBottomColor)
       );
       return `url(#${id})`;
     }
@@ -156,11 +173,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     if (shadingName === "radial") {
       const signature = JSON.stringify({
         kind: "radial",
+        transform: signatureShadingTransform(shadingTransform),
         inner: style.radialInnerColor,
         outer: style.radialOuterColor
       });
       const id = ensureGradientDefinition(signature, "radial", (gradientId) =>
-        renderRadialGradientDefinition(gradientId, style.radialInnerColor, style.radialOuterColor)
+        renderRadialGradientDefinition(gradientId, shadingTransform, style.radialInnerColor, style.radialOuterColor)
       );
       return `url(#${id})`;
     }
@@ -168,9 +186,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     if (shadingName === "ball") {
       const signature = JSON.stringify({
         kind: "ball",
+        transform: signatureShadingTransform(shadingTransform),
         color: style.ballColor
       });
-      const id = ensureGradientDefinition(signature, "ball", (gradientId) => renderBallGradientDefinition(gradientId, style.ballColor));
+      const id = ensureGradientDefinition(signature, "ball", (gradientId) =>
+        renderBallGradientDefinition(gradientId, shadingTransform, style.ballColor)
+      );
       return `url(#${id})`;
     }
 
@@ -204,13 +225,14 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return `url(#${id})`;
   };
 
-  const resolveFillPaint = (style: ShadowRenderableStyle, sourceId: string): string | null => {
-    return resolveShadingFill(style, sourceId) ?? resolvePatternFill(style);
+  const resolveFillPaint = (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null): string | null => {
+    return resolveShadingFill(style, sourceId, bounds) ?? resolvePatternFill(style);
   };
 
   const reuseContext = createSvgModelReuseContext(opts.reuse, viewBox);
 
   const registerDefsForElement = (element: SceneElement): void => {
+    let elementBounds: ElementBounds | null = null;
     if (element.kind === "Path") {
       if (!hasDrawablePathCommands(element.commands)) {
         return;
@@ -223,6 +245,18 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (d.length === 0) {
         return;
       }
+      elementBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+    } else if (element.kind === "Circle") {
+      const center = toSvgPoint(element.center, viewBox);
+      elementBounds = {
+        minX: center.x - element.radius,
+        minY: center.y - element.radius,
+        maxX: center.x + element.radius,
+        maxY: center.y + element.radius
+      };
+    } else if (element.kind === "Ellipse") {
+      const center = toSvgPoint(element.center, viewBox);
+      elementBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
     } else if (element.kind === "Text") {
       return;
     }
@@ -232,9 +266,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (layer.fade === "circle-fuzzy-edge-15") {
         ensureCircularShadowMaskDefinition();
       }
-      resolveFillPaint(layerStyle, element.sourceId);
+      resolveFillPaint(layerStyle, element.sourceId, elementBounds);
     }
-    resolveFillPaint(element.style, element.sourceId);
+    resolveFillPaint(element.style, element.sourceId, elementBounds);
   };
 
   for (const element of scene.elements) {
@@ -273,7 +307,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           });
 
           if (shouldEmitDoubleStroke(element.style)) {
-            const outerFill = resolveFillPaint(element.style, element.sourceId);
+            const outerFill = resolveFillPaint(element.style, element.sourceId, pathBounds);
             const outerAttrs = styleAttributes(element.style, false, {
               lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
               fill: outerFill ?? undefined
@@ -296,7 +330,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
               `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`
             );
           } else {
-            const resolvedFill = resolveFillPaint(element.style, element.sourceId);
+            const resolvedFill = resolveFillPaint(element.style, element.sourceId, pathBounds);
             const attrs = styleAttributes(element.style, false, {
               fill: resolvedFill ?? undefined
             });
@@ -350,7 +384,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceId);
+        const outerFill = resolveFillPaint(element.style, element.sourceId, circleBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
@@ -373,7 +407,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceId);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceId, circleBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
@@ -406,7 +440,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceId);
+        const outerFill = resolveFillPaint(element.style, element.sourceId, ellipseBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
@@ -435,7 +469,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceId);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceId, ellipseBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
@@ -546,7 +580,7 @@ function emitShadowPathPart(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -557,7 +591,7 @@ function emitShadowPathPart(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -570,7 +604,7 @@ function emitShadowPathPart(args: {
       });
       shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${innerAttrs.join(" ")} />`);
     } else {
-      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const attrs = styleAttributes(layerStyle, false, {
         fill: resolvedFill ?? undefined
       });
@@ -597,7 +631,7 @@ function emitShadowCircle(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -608,7 +642,7 @@ function emitShadowCircle(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -625,7 +659,7 @@ function emitShadowCircle(args: {
         `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${innerAttrs.join(" ")} />`
       );
     } else {
-      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const attrs = styleAttributes(layerStyle, false, {
         fill: resolvedFill ?? undefined
       });
@@ -656,7 +690,7 @@ function emitShadowEllipse(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string, bounds: ElementBounds | null) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -667,7 +701,7 @@ function emitShadowEllipse(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -690,7 +724,7 @@ function emitShadowEllipse(args: {
         `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${innerAttrs.join(" ")} />`
       );
     } else {
-      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId, args.bounds);
       const attrs = styleAttributes(layerStyle, false, {
         fill: resolvedFill ?? undefined
       });
@@ -783,13 +817,22 @@ function computePathBounds(commands: ScenePathCommand[], viewBox: { y: number; h
     }
 
     if (command.kind === "A") {
-      if (previous) {
-        includePoint({ x: previous.x - command.rx, y: previous.y - command.ry });
-        includePoint({ x: previous.x + command.rx, y: previous.y + command.ry });
-      }
       const to = toSvgPoint(command.to, viewBox);
-      includePoint({ x: to.x - command.rx, y: to.y - command.ry });
-      includePoint({ x: to.x + command.rx, y: to.y + command.ry });
+      if (previous) {
+        includeSvgArcBounds({
+          start: previous,
+          end: to,
+          rx: command.rx,
+          ry: command.ry,
+          xAxisRotation: -command.xAxisRotation,
+          largeArc: command.largeArc,
+          // Path points are mirrored into SVG space (`toSvgPoint`), so arc sweep must be mirrored too.
+          sweep: command.sweep ? 0 : 1,
+          includePoint
+        });
+      } else {
+        includePoint(to);
+      }
       previous = to;
       continue;
     }
@@ -804,6 +847,102 @@ function computePathBounds(commands: ScenePathCommand[], viewBox: { y: number; h
   }
 
   return { minX, minY, maxX, maxY };
+}
+
+function includeSvgArcBounds(args: {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  rx: number;
+  ry: number;
+  xAxisRotation: number;
+  largeArc: boolean;
+  sweep: 0 | 1;
+  includePoint: (point: { x: number; y: number }) => void;
+}): void {
+  const { start, end, xAxisRotation, largeArc, sweep, includePoint } = args;
+  let rx = Math.abs(args.rx);
+  let ry = Math.abs(args.ry);
+  includePoint(start);
+  includePoint(end);
+  if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
+    return;
+  }
+
+  const phi = (xAxisRotation * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+  const dx2 = (start.x - end.x) / 2;
+  const dy2 = (start.y - end.y) / 2;
+  const x1p = cosPhi * dx2 + sinPhi * dy2;
+  const y1p = -sinPhi * dx2 + cosPhi * dy2;
+
+  const lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+  if (lambda > 1) {
+    const scale = Math.sqrt(lambda);
+    rx *= scale;
+    ry *= scale;
+  }
+
+  const rx2 = rx * rx;
+  const ry2 = ry * ry;
+  const numerator = rx2 * ry2 - rx2 * y1p * y1p - ry2 * x1p * x1p;
+  const denominator = rx2 * y1p * y1p + ry2 * x1p * x1p;
+  const factor = denominator <= 1e-12 ? 0 : Math.sqrt(Math.max(0, numerator / denominator));
+  const sign = largeArc === Boolean(sweep) ? -1 : 1;
+  const cxp = sign * factor * ((rx * y1p) / ry);
+  const cyp = sign * factor * ((-ry * x1p) / rx);
+  const cx = cosPhi * cxp - sinPhi * cyp + (start.x + end.x) / 2;
+  const cy = sinPhi * cxp + cosPhi * cyp + (start.y + end.y) / 2;
+
+  const ux = (x1p - cxp) / rx;
+  const uy = (y1p - cyp) / ry;
+  const vx = (-x1p - cxp) / rx;
+  const vy = (-y1p - cyp) / ry;
+  const theta1 = Math.atan2(uy, ux);
+  let deltaTheta = Math.atan2(ux * vy - uy * vx, ux * vx + uy * vy);
+  if (sweep === 0 && deltaTheta > 0) {
+    deltaTheta -= Math.PI * 2;
+  } else if (sweep === 1 && deltaTheta < 0) {
+    deltaTheta += Math.PI * 2;
+  }
+
+  const candidates = [
+    Math.atan2(-ry * sinPhi, rx * cosPhi),
+    Math.atan2(-ry * sinPhi, rx * cosPhi) + Math.PI,
+    Math.atan2(ry * cosPhi, rx * sinPhi),
+    Math.atan2(ry * cosPhi, rx * sinPhi) + Math.PI
+  ];
+
+  for (const angle of candidates) {
+    if (!isAngleOnArc(angle, theta1, deltaTheta)) {
+      continue;
+    }
+    const cosT = Math.cos(angle);
+    const sinT = Math.sin(angle);
+    includePoint({
+      x: cx + rx * cosPhi * cosT - ry * sinPhi * sinT,
+      y: cy + rx * sinPhi * cosT + ry * cosPhi * sinT
+    });
+  }
+}
+
+function isAngleOnArc(angle: number, startAngle: number, deltaAngle: number): boolean {
+  const tau = Math.PI * 2;
+  const normalize = (value: number): number => {
+    let normalized = value % tau;
+    if (normalized < 0) {
+      normalized += tau;
+    }
+    return normalized;
+  };
+
+  const epsilon = 1e-9;
+  if (deltaAngle >= 0) {
+    const distance = normalize(angle - startAngle);
+    return distance <= deltaAngle + epsilon;
+  }
+  const distance = normalize(startAngle - angle);
+  return distance <= -deltaAngle + epsilon;
 }
 
 function computeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): ElementBounds {
@@ -859,11 +998,65 @@ function normalizeShadingName(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function renderAxisGradientDefinition(id: string, angle: number, topColor: string, middleColor: string, bottomColor: string): string {
+function computeShadingTransform(bounds: ElementBounds, angle: number): ShadingTransform | null {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
   const resolvedAngle = Number.isFinite(angle) ? angle : 0;
+  const theta = (resolvedAngle * Math.PI) / 180;
+  const absSin = Math.abs(Math.sin(theta));
+  const absCos = Math.abs(Math.cos(theta));
+  const denom = absCos + absSin;
+  if (denom <= 1e-9) {
+    return null;
+  }
+
+  const scaleX = (PGF_SHADE_SCALE_FACTOR * (width * absCos + height * absSin)) / denom;
+  const scaleY = (PGF_SHADE_SCALE_FACTOR * (width * absSin + height * absCos)) / denom;
+  if (Math.abs(scaleX) <= 1e-4 || Math.abs(scaleY) <= 1e-4) {
+    return null;
+  }
+
+  return {
+    centerX: (bounds.minX + bounds.maxX) / 2,
+    centerY: (bounds.minY + bounds.maxY) / 2,
+    scaleX,
+    scaleY,
+    // Scene coordinates are mirrored into SVG space, so shading rotations must be mirrored too.
+    rotation: -resolvedAngle
+  };
+}
+
+function signatureShadingTransform(transform: ShadingTransform): string {
+  return [
+    fmt(transform.centerX),
+    fmt(transform.centerY),
+    fmt(transform.scaleX),
+    fmt(transform.scaleY),
+    fmt(transform.rotation)
+  ].join(",");
+}
+
+function shadingTransformAttribute(transform: ShadingTransform): string {
+  return `translate(${fmt(transform.centerX)} ${fmt(transform.centerY)}) ` +
+    `rotate(${fmt(transform.rotation)}) scale(${fmt(transform.scaleX)} ${fmt(transform.scaleY)})`;
+}
+
+function renderAxisGradientDefinition(
+  id: string,
+  transform: ShadingTransform,
+  topColor: string,
+  middleColor: string,
+  bottomColor: string
+): string {
+  const transformAttr = shadingTransformAttribute(transform);
   return (
-    `<linearGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" x1="0.5" y1="1" x2="0.5" y2="0" ` +
-    `gradientTransform="rotate(${fmt(-resolvedAngle)} 0.5 0.5)">` +
+    `<linearGradient id="${escapeAttr(id)}" gradientUnits="userSpaceOnUse" ` +
+    `x1="0" y1="${fmt(PGF_SHADE_CANONICAL_HALF)}" x2="0" y2="${fmt(-PGF_SHADE_CANONICAL_HALF)}" ` +
+    `gradientTransform="${escapeAttr(transformAttr)}">` +
     `<stop offset="0%" stop-color="${escapeAttr(bottomColor)}" />` +
     `<stop offset="25%" stop-color="${escapeAttr(bottomColor)}" />` +
     `<stop offset="50%" stop-color="${escapeAttr(middleColor)}" />` +
@@ -873,9 +1066,12 @@ function renderAxisGradientDefinition(id: string, angle: number, topColor: strin
   );
 }
 
-function renderRadialGradientDefinition(id: string, innerColor: string, outerColor: string): string {
+function renderRadialGradientDefinition(id: string, transform: ShadingTransform, innerColor: string, outerColor: string): string {
+  const transformAttr = shadingTransformAttribute(transform);
   return (
-    `<radialGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.7071" fx="0.5" fy="0.5">` +
+    `<radialGradient id="${escapeAttr(id)}" gradientUnits="userSpaceOnUse" ` +
+    `cx="0" cy="0" r="${fmt(PGF_SHADE_CANONICAL_HALF)}" fx="0" fy="0" ` +
+    `gradientTransform="${escapeAttr(transformAttr)}">` +
     `<stop offset="0%" stop-color="${escapeAttr(innerColor)}" />` +
     `<stop offset="50%" stop-color="${escapeAttr(outerColor)}" />` +
     `<stop offset="100%" stop-color="${escapeAttr(outerColor)}" />` +
@@ -883,14 +1079,18 @@ function renderRadialGradientDefinition(id: string, innerColor: string, outerCol
   );
 }
 
-function renderBallGradientDefinition(id: string, ballColor: string): string {
+function renderBallGradientDefinition(id: string, transform: ShadingTransform, ballColor: string): string {
   const light15 = mixColors(ballColor, "#ffffff", 0.15) ?? ballColor;
   const light75 = mixColors(ballColor, "#ffffff", 0.75) ?? ballColor;
   const dark70 = mixColors(ballColor, "#000000", 0.7) ?? ballColor;
   const dark50 = mixColors(ballColor, "#000000", 0.5) ?? ballColor;
+  const transformAttr = shadingTransformAttribute(transform);
 
   return (
-    `<radialGradient id="${escapeAttr(id)}" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.75" fx="0.3" fy="0.3">` +
+    `<radialGradient id="${escapeAttr(id)}" gradientUnits="userSpaceOnUse" ` +
+    `cx="0" cy="0" r="${fmt(PGF_SHADE_CANONICAL_HALF)}" ` +
+    `fx="${fmt(-PGF_BALL_FOCUS_OFFSET)}" fy="${fmt(-PGF_BALL_FOCUS_OFFSET)}" ` +
+    `gradientTransform="${escapeAttr(transformAttr)}">` +
     `<stop offset="0%" stop-color="${escapeAttr(light15)}" />` +
     `<stop offset="18%" stop-color="${escapeAttr(light75)}" />` +
     `<stop offset="36%" stop-color="${escapeAttr(dark70)}" />` +

@@ -230,7 +230,8 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("<defs>");
     expect(emitted.svg).toContain("<linearGradient");
     expect(emitted.svg).toContain('id="tikz-shading-axis-');
-    expect(emitted.svg).toContain('gradientTransform="rotate(-45 0.5 0.5)"');
+    expect(emitted.svg).toContain('gradientUnits="userSpaceOnUse"');
+    expect(emitted.svg).toContain("rotate(-45)");
     expect(emitted.svg).toContain("<radialGradient");
     expect(emitted.svg).toContain('id="tikz-shading-radial-');
     expect(emitted.svg).toContain('id="tikz-shading-ball-');
