@@ -1,4 +1,5 @@
 import type {
+  ResolvedPattern,
   ResolvedStyle,
   SceneElement,
   SceneFigure,
@@ -17,6 +18,8 @@ type ShadowRenderableStyle = Pick<
   ResolvedStyle,
   | "stroke"
   | "fill"
+  | "fillPattern"
+  | "patternColor"
   | "fillRule"
   | "doubleStroke"
   | "doubleDistance"
@@ -43,6 +46,8 @@ type ShadowRenderableStyle = Pick<
   | "bilinearUpperRight"
 >;
 
+type PatternRenderableStyle = Pick<ResolvedStyle, "fill" | "fillPattern" | "patternColor">;
+
 type ElementBounds = {
   minX: number;
   minY: number;
@@ -54,6 +59,8 @@ type SvgModelReuseContext = {
   affectedSourceIds: Set<string>;
   previousPartsByElementId: Map<string, SvgRenderPart[]>;
 };
+
+let currentPatternGlobalYPhase = 0;
 
 export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgResult {
   const model = emitSvgModel(scene, opts);
@@ -73,6 +80,8 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
   const modelBuilder = createSvgModelBuilder();
   const gradientIdBySignature = new Map<string, string>();
   const gradientDefById = new Map<string, string>();
+  const patternIdBySignature = new Map<string, string>();
+  const patternDefById = new Map<string, string>();
   const shadowMaskDefById = new Map<string, string>();
   const unsupportedShadingNames = new Set<string>();
 
@@ -99,6 +108,18 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     const id = `tikz-shading-${kind}-${gradientIdBySignature.size + 1}`;
     gradientIdBySignature.set(signature, id);
     gradientDefById.set(id, buildDef(id));
+    return id;
+  };
+
+  const ensurePatternDefinition = (signature: string, buildDef: (id: string) => string): string => {
+    const existing = patternIdBySignature.get(signature);
+    if (existing) {
+      return existing;
+    }
+
+    const id = `tikz-pattern-${patternIdBySignature.size + 1}`;
+    patternIdBySignature.set(signature, id);
+    patternDefById.set(id, buildDef(id));
     return id;
   };
 
@@ -164,6 +185,29 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     return null;
   };
 
+  const patternGlobalYPhase = viewBox.y * 2 + viewBox.height;
+
+  const resolvePatternFill = (style: PatternRenderableStyle): string | null => {
+    if (!style.fillPattern || !style.fill || style.fill === "none") {
+      return null;
+    }
+
+    const pattern = style.fillPattern;
+    const effectivePatternColor = pattern.kind === "legacy" && pattern.inherentlyColored ? null : style.patternColor;
+    const signature = JSON.stringify({
+      pattern,
+      patternColor: effectivePatternColor
+    });
+    const id = ensurePatternDefinition(signature, (patternId) =>
+      renderPatternDefinition(patternId, pattern, effectivePatternColor, patternGlobalYPhase)
+    );
+    return `url(#${id})`;
+  };
+
+  const resolveFillPaint = (style: ShadowRenderableStyle, sourceId: string): string | null => {
+    return resolveShadingFill(style, sourceId) ?? resolvePatternFill(style);
+  };
+
   const reuseContext = createSvgModelReuseContext(opts.reuse, viewBox);
 
   const registerDefsForElement = (element: SceneElement): void => {
@@ -188,9 +232,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (layer.fade === "circle-fuzzy-edge-15") {
         ensureCircularShadowMaskDefinition();
       }
-      resolveShadingFill(layerStyle, element.sourceId);
+      resolveFillPaint(layerStyle, element.sourceId);
     }
-    resolveShadingFill(element.style, element.sourceId);
+    resolveFillPaint(element.style, element.sourceId);
   };
 
   for (const element of scene.elements) {
@@ -224,12 +268,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
             bounds: pathBounds,
             shadowLayers: element.style.shadowLayers,
             baseStyle: element.style,
-            resolveShadingFill,
+            resolveFillPaint,
             ensureCircularShadowMaskDefinition
           });
 
           if (shouldEmitDoubleStroke(element.style)) {
-            const outerFill = resolveShadingFill(element.style, element.sourceId);
+            const outerFill = resolveFillPaint(element.style, element.sourceId);
             const outerAttrs = styleAttributes(element.style, false, {
               lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
               fill: outerFill ?? undefined
@@ -252,9 +296,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
               `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`
             );
           } else {
-            const shadingFill = resolveShadingFill(element.style, element.sourceId);
+            const resolvedFill = resolveFillPaint(element.style, element.sourceId);
             const attrs = styleAttributes(element.style, false, {
-              fill: shadingFill ?? undefined
+              fill: resolvedFill ?? undefined
             });
             appendPart(
               `${element.id}:shaft`,
@@ -302,11 +346,11 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         bounds: circleBounds,
         shadowLayers: element.style.shadowLayers,
         baseStyle: element.style,
-        resolveShadingFill,
+        resolveFillPaint,
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveShadingFill(element.style, element.sourceId);
+        const outerFill = resolveFillPaint(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
@@ -329,9 +373,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const shadingFill = resolveShadingFill(element.style, element.sourceId);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceId);
         const attrs = styleAttributes(element.style, false, {
-          fill: shadingFill ?? undefined
+          fill: resolvedFill ?? undefined
         });
         appendPart(
           `${element.id}:circle`,
@@ -358,11 +402,11 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         bounds: ellipseBounds,
         shadowLayers: element.style.shadowLayers,
         baseStyle: element.style,
-        resolveShadingFill,
+        resolveFillPaint,
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveShadingFill(element.style, element.sourceId);
+        const outerFill = resolveFillPaint(element.style, element.sourceId);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
@@ -391,9 +435,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const shadingFill = resolveShadingFill(element.style, element.sourceId);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceId);
         const attrs = styleAttributes(element.style, false, {
-          fill: shadingFill ?? undefined
+          fill: resolvedFill ?? undefined
         });
         if (element.rotation && Math.abs(element.rotation) > 1e-6) {
           attrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
@@ -454,7 +498,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     );
   }
 
-  const defsParts = [...gradientDefById.values(), ...shadowMaskDefById.values()];
+  const defsParts = [...gradientDefById.values(), ...patternDefById.values(), ...shadowMaskDefById.values()];
   return modelBuilder.build({
     viewBox,
     defs: defsParts,
@@ -502,7 +546,7 @@ function emitShadowPathPart(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -513,7 +557,7 @@ function emitShadowPathPart(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -526,9 +570,9 @@ function emitShadowPathPart(args: {
       });
       shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${innerAttrs.join(" ")} />`);
     } else {
-      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const attrs = styleAttributes(layerStyle, false, {
-        fill: shadingFill ?? undefined
+        fill: resolvedFill ?? undefined
       });
       shapes.push(`<path data-source-id="${escapeAttr(args.sourceId)}" d="${escapeAttr(args.d)}" ${attrs.join(" ")} />`);
     }
@@ -553,7 +597,7 @@ function emitShadowCircle(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -564,7 +608,7 @@ function emitShadowCircle(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -581,9 +625,9 @@ function emitShadowCircle(args: {
         `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${innerAttrs.join(" ")} />`
       );
     } else {
-      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const attrs = styleAttributes(layerStyle, false, {
-        fill: shadingFill ?? undefined
+        fill: resolvedFill ?? undefined
       });
       shapes.push(
         `<circle data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" r="${fmt(args.radius)}" ${attrs.join(" ")} />`
@@ -612,7 +656,7 @@ function emitShadowEllipse(args: {
   bounds: ElementBounds | null;
   shadowLayers: ShadowLayer[];
   baseStyle: ResolvedStyle;
-  resolveShadingFill: (style: ShadowRenderableStyle, sourceId: string) => string | null;
+  resolveFillPaint: (style: ShadowRenderableStyle, sourceId: string) => string | null;
   ensureCircularShadowMaskDefinition: () => string;
 }): void {
   for (let index = 0; index < args.shadowLayers.length; index += 1) {
@@ -623,7 +667,7 @@ function emitShadowEllipse(args: {
     const shapes: string[] = [];
 
     if (shouldEmitDoubleStroke(layerStyle)) {
-      const outerFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const outerFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const outerAttrs = styleAttributes(layerStyle, false, {
         lineWidth: layerStyle.lineWidth * 2 + layerStyle.doubleDistance,
         fill: outerFill ?? undefined
@@ -646,9 +690,9 @@ function emitShadowEllipse(args: {
         `<ellipse data-source-id="${escapeAttr(args.sourceId)}" cx="${fmt(args.cx)}" cy="${fmt(args.cy)}" rx="${fmt(args.rx)}" ry="${fmt(args.ry)}" ${innerAttrs.join(" ")} />`
       );
     } else {
-      const shadingFill = args.resolveShadingFill(layerStyle, args.sourceId);
+      const resolvedFill = args.resolveFillPaint(layerStyle, args.sourceId);
       const attrs = styleAttributes(layerStyle, false, {
-        fill: shadingFill ?? undefined
+        fill: resolvedFill ?? undefined
       });
       if (Math.abs(args.rotation) > 1e-6) {
         attrs.push(`transform="rotate(${fmt(-args.rotation)} ${fmt(args.cx)} ${fmt(args.cy)})"`);
@@ -789,10 +833,13 @@ function renderCircularShadowMaskDefinition(maskId: string, gradientId: string):
 }
 
 function resolveShadowLayerStyle(layerStyle: ShadowRenderableStyle, baseStyle: ResolvedStyle): ShadowRenderableStyle {
+  const inheritsFill = layerStyle.fill === SHADOW_INHERIT_FILL;
   return {
     ...layerStyle,
     stroke: layerStyle.stroke === SHADOW_INHERIT_STROKE ? baseStyle.stroke : layerStyle.stroke,
-    fill: layerStyle.fill === SHADOW_INHERIT_FILL ? baseStyle.fill : layerStyle.fill
+    fill: inheritsFill ? baseStyle.fill : layerStyle.fill,
+    fillPattern: inheritsFill ? baseStyle.fillPattern : (layerStyle.fillPattern ?? null),
+    patternColor: inheritsFill ? baseStyle.patternColor : (layerStyle.patternColor ?? baseStyle.patternColor)
   };
 }
 
@@ -851,6 +898,348 @@ function renderBallGradientDefinition(id: string, ballColor: string): string {
     `<stop offset="100%" stop-color="#000000" />` +
     `</radialGradient>`
   );
+}
+
+function renderPatternDefinition(id: string, pattern: ResolvedPattern, patternColor: string | null, globalYPhase: number): string {
+  const previousGlobalYPhase = currentPatternGlobalYPhase;
+  currentPatternGlobalYPhase = globalYPhase;
+  try {
+    if (pattern.kind === "legacy") {
+      return renderLegacyPatternDefinition(id, pattern, patternColor);
+    }
+    return renderMetaPatternDefinition(id, pattern, patternColor ?? "black");
+  } finally {
+    currentPatternGlobalYPhase = previousGlobalYPhase;
+  }
+}
+
+function renderLegacyPatternDefinition(
+  id: string,
+  pattern: Extract<ResolvedPattern, { kind: "legacy" }>,
+  patternColor: string | null
+): string {
+  const strokeColor = patternColor ?? "black";
+  const mm = 2.84527559055;
+
+  if (pattern.name === "horizontal lines") {
+    return renderPatternElement(id, 0, 0, 3, 3, `<path d="M -1 0.5 L 4 0.5" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`);
+  }
+  if (pattern.name === "vertical lines") {
+    return renderPatternElement(id, 0, 0, 3, 3, `<path d="M 0.5 -1 L 0.5 4" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`);
+  }
+  if (pattern.name === "north east lines") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      3,
+      3,
+      `<path d="M -1 4 L 4 -1" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`
+    );
+  }
+  if (pattern.name === "north west lines") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      3,
+      3,
+      `<path d="M -1 -1 L 4 4" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`
+    );
+  }
+  if (pattern.name === "grid") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      3,
+      3,
+      `<path d="M 0 -1 L 0 4 M -1 0 L 4 0" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`
+    );
+  }
+  if (pattern.name === "crosshatch") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      3,
+      3,
+      `<path d="M -1 -1 L 4 4 M -1 4 L 4 -1" stroke="${escapeAttr(strokeColor)}" stroke-width="0.4" fill="none" />`
+    );
+  }
+  if (pattern.name === "dots") {
+    return renderPatternElement(id, -1, -1, 3, 3, `<circle cx="0" cy="0" r="0.5" fill="${escapeAttr(strokeColor)}" />`);
+  }
+  if (pattern.name === "crosshatch dots") {
+    return renderPatternElement(
+      id,
+      -1,
+      -1,
+      3,
+      3,
+      `<circle cx="0" cy="0" r="0.5" fill="${escapeAttr(strokeColor)}" /><circle cx="1.5" cy="-1.5" r="0.5" fill="${escapeAttr(
+        strokeColor
+      )}" />`
+    );
+  }
+  if (pattern.name === "fivepointed stars") {
+    const center = 1 * mm;
+    const radius = 1 * mm;
+    const pathData = polygonPathFromPolarAngles(center, center, radius, [18, 162, 306, 90, 234]);
+    return renderPatternElement(id, 0, 0, 3 * mm, 3 * mm, `<path d="${escapeAttr(pathData)}" fill="${escapeAttr(strokeColor)}" />`);
+  }
+  if (pattern.name === "sixpointed stars") {
+    const center = 1 * mm;
+    const radius = 1 * mm;
+    const first = polygonPathFromPolarAngles(center, center, radius, [30, 150, 270]);
+    const second = polygonPathFromPolarAngles(center, center, radius, [-30, -270, -150]);
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      3 * mm,
+      3 * mm,
+      `<path d="${escapeAttr(`${first} ${second}`)}" fill="${escapeAttr(strokeColor)}" fill-rule="nonzero" />`
+    );
+  }
+  if (pattern.name === "bricks") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      4 * mm,
+      4 * mm,
+      `<path d="M 0 ${fmt(1 * mm)} L ${fmt(4 * mm)} ${fmt(1 * mm)} M 0 ${fmt(3 * mm)} L ${fmt(4 * mm)} ${fmt(3 * mm)} ` +
+        `M ${fmt(1 * mm)} 0 L ${fmt(1 * mm)} ${fmt(1 * mm)} M ${fmt(3 * mm)} ${fmt(1 * mm)} L ${fmt(3 * mm)} ${fmt(
+          3 * mm
+        )} M ${fmt(1 * mm)} ${fmt(3 * mm)} L ${fmt(1 * mm)} ${fmt(4 * mm)}" ` +
+        `stroke="${escapeAttr(strokeColor)}" stroke-width="0.8" fill="none" />`
+    );
+  }
+  if (pattern.name === "checkerboard") {
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      4 * mm,
+      4 * mm,
+      `<rect x="0" y="0" width="${fmt(2 * mm)}" height="${fmt(2 * mm)}" fill="${escapeAttr(strokeColor)}" />` +
+        `<rect x="${fmt(2 * mm)}" y="${fmt(2 * mm)}" width="${fmt(2 * mm)}" height="${fmt(2 * mm)}" fill="${escapeAttr(strokeColor)}" />`
+    );
+  }
+
+  if (pattern.name === "checkerboard light gray") {
+    const dark = mixColors("#000000", "#ffffff", 0.2) ?? "#cccccc";
+    return renderPatternElement(
+      id,
+      0,
+      0,
+      4 * mm,
+      4 * mm,
+      `<rect x="0" y="0" width="${fmt(4 * mm)}" height="${fmt(4 * mm)}" fill="#000000" />` +
+        `<rect x="0" y="0" width="${fmt(2 * mm)}" height="${fmt(2 * mm)}" fill="${escapeAttr(dark)}" />` +
+        `<rect x="${fmt(2 * mm)}" y="${fmt(2 * mm)}" width="${fmt(2 * mm)}" height="${fmt(2 * mm)}" fill="${escapeAttr(dark)}" />`
+    );
+  }
+  if (pattern.name === "horizontal lines light gray") {
+    return renderHorizontalBandPattern(id, mixColors("#000000", "#ffffff", 0.1) ?? "#e6e6e6", mixColors("#000000", "#ffffff", 0.15) ?? "#d9d9d9");
+  }
+  if (pattern.name === "horizontal lines gray") {
+    return renderHorizontalBandPattern(id, mixColors("#000000", "#ffffff", 0.3) ?? "#b3b3b3", mixColors("#000000", "#ffffff", 0.35) ?? "#a6a6a6");
+  }
+  if (pattern.name === "horizontal lines dark gray") {
+    return renderHorizontalBandPattern(id, mixColors("#000000", "#ffffff", 0.9) ?? "#1a1a1a", mixColors("#000000", "#ffffff", 0.85) ?? "#262626");
+  }
+  if (pattern.name === "horizontal lines light blue") {
+    return renderHorizontalBandPattern(id, mixColors("#0000ff", "#ffffff", 0.1) ?? "#e6e6ff", mixColors("#0000ff", "#ffffff", 0.15) ?? "#d9d9ff");
+  }
+  if (pattern.name === "horizontal lines dark blue") {
+    return renderHorizontalBandPattern(id, mixColors("#0000ff", "#ffffff", 0.9) ?? "#1a1aff", mixColors("#0000ff", "#ffffff", 0.85) ?? "#2626ff");
+  }
+  if (pattern.name === "crosshatch dots gray") {
+    const background = mixColors("#000000", "#ffffff", 0.2) ?? "#cccccc";
+    const light = mixColors("#000000", "#ffffff", 0.1) ?? "#e6e6e6";
+    const dark = mixColors("#000000", "#ffffff", 0.7) ?? "#4d4d4d";
+    return renderCrosshatchDotsPattern(id, background, light, dark);
+  }
+  if (pattern.name === "crosshatch dots light steel blue") {
+    const steelBlue = "#afc3dd";
+    const darkSteelBlue = mixColors("#000000", steelBlue, 0.5) ?? "#58626f";
+    const light = mixColors(darkSteelBlue, "#ffffff", 0.1) ?? "#efeff2";
+    const dark = mixColors(darkSteelBlue, "#ffffff", 0.7) ?? "#8a8f9b";
+    return renderCrosshatchDotsPattern(id, steelBlue, light, dark);
+  }
+
+  return renderPatternElement(id, 0, 0, 3, 3, `<circle cx="1.5" cy="1.5" r="0.5" fill="${escapeAttr(strokeColor)}" />`);
+}
+
+function renderMetaPatternDefinition(
+  id: string,
+  pattern: Exclude<ResolvedPattern, { kind: "legacy" }>,
+  patternColor: string
+): string {
+  const transform = buildPatternTransform(pattern.xshift, pattern.yshift, pattern.angle);
+  if (pattern.kind === "meta-lines") {
+    const halfDistance = pattern.distance / 2;
+    return renderPatternElement(
+      id,
+      -halfDistance,
+      -halfDistance,
+      pattern.distance,
+      pattern.distance,
+      `<path d="M ${fmt(-halfDistance)} 0 L ${fmt(halfDistance)} 0" stroke="${escapeAttr(patternColor)}" stroke-width="${fmt(
+        pattern.lineWidth
+      )}" fill="none" />`,
+      transform
+    );
+  }
+
+  if (pattern.kind === "meta-hatch") {
+    const halfDistance = pattern.distance / 2;
+    return renderPatternElement(
+      id,
+      -halfDistance,
+      -halfDistance,
+      pattern.distance,
+      pattern.distance,
+      `<path d="M ${fmt(-halfDistance)} 0 L ${fmt(halfDistance)} 0 M 0 ${fmt(-halfDistance)} L 0 ${fmt(halfDistance)}" ` +
+        `stroke="${escapeAttr(patternColor)}" stroke-width="${fmt(pattern.lineWidth)}" fill="none" />`,
+      transform
+    );
+  }
+
+  if (pattern.kind === "meta-dots") {
+    const halfDistance = pattern.distance / 2;
+    return renderPatternElement(
+      id,
+      -halfDistance,
+      -halfDistance,
+      pattern.distance,
+      pattern.distance,
+      `<circle cx="0" cy="0" r="${fmt(pattern.radius)}" fill="${escapeAttr(patternColor)}" />`,
+      transform
+    );
+  }
+
+  const halfDistance = pattern.distance / 2;
+  const starPath = buildStarPath(pattern.radius, pattern.points);
+  return renderPatternElement(
+    id,
+    -halfDistance,
+    -halfDistance,
+    pattern.distance,
+    pattern.distance,
+    `<path d="${escapeAttr(starPath)}" fill="${escapeAttr(patternColor)}" />`,
+    transform
+  );
+}
+
+function renderHorizontalBandPattern(id: string, firstColor: string, secondColor: string): string {
+  return renderPatternElement(
+    id,
+    0,
+    0,
+    100,
+    4,
+    `<rect x="0" y="0" width="100" height="2.5" fill="${escapeAttr(firstColor)}" />` +
+      `<rect x="0" y="2" width="100" height="2.5" fill="${escapeAttr(secondColor)}" />`
+  );
+}
+
+function renderCrosshatchDotsPattern(id: string, background: string, lightDots: string, darkDots: string): string {
+  return renderPatternElement(
+    id,
+    0,
+    0,
+    8,
+    8,
+    `<rect x="0" y="0" width="8" height="8" fill="${escapeAttr(background)}" />` +
+      `<circle cx="2" cy="1.75" r="1" fill="${escapeAttr(lightDots)}" />` +
+      `<circle cx="6" cy="5.75" r="1" fill="${escapeAttr(lightDots)}" />` +
+      `<circle cx="2" cy="2.25" r="1" fill="${escapeAttr(darkDots)}" />` +
+      `<circle cx="6" cy="6.25" r="1" fill="${escapeAttr(darkDots)}" />`
+  );
+}
+
+function renderPatternElement(
+  id: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  body: string,
+  patternTransform?: string | null
+): string {
+  const transformParts: string[] = [];
+  const effectiveGlobalPhase = currentPatternGlobalYPhase - y;
+  if (Math.abs(effectiveGlobalPhase) > 1e-6) {
+    // Keep pattern coordinates in the same affine y frame as toSvgPoint: y_svg = C - y.
+    transformParts.push(`translate(0 ${fmt(effectiveGlobalPhase)})`);
+  }
+  if (patternTransform && patternTransform.trim().length > 0) {
+    transformParts.push(patternTransform.trim());
+  }
+  const transformAttr = transformParts.length > 0 ? ` patternTransform="${escapeAttr(transformParts.join(" "))}"` : "";
+  const offsetBody =
+    Math.abs(x) > 1e-6 || Math.abs(y) > 1e-6 ? `<g transform="translate(${fmt(-x)} ${fmt(-y)})">${body}</g>` : body;
+  return (
+    `<pattern id="${escapeAttr(id)}" patternUnits="userSpaceOnUse" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(width)}" height="${fmt(
+      height
+    )}"${transformAttr}>` +
+    offsetBody +
+    `</pattern>`
+  );
+}
+
+function buildPatternTransform(xshift: number, yshift: number, angle: number): string | null {
+  const transforms: string[] = [];
+  if (Math.abs(xshift) > 1e-6 || Math.abs(yshift) > 1e-6) {
+    transforms.push(`translate(${fmt(xshift)} ${fmt(-yshift)})`);
+  }
+  if (Math.abs(angle) > 1e-6) {
+    transforms.push(`rotate(${fmt(-angle)})`);
+  }
+  return transforms.length > 0 ? transforms.join(" ") : null;
+}
+
+function buildStarPath(radius: number, points: number): string {
+  const outer = polarPoint(90, radius);
+  const commands: string[] = [`M ${fmt(outer.x)} ${fmt(outer.y)}`];
+  const step = 180 / points;
+  for (let i = 1; i <= points; i += 1) {
+    const inner = polarPoint(90 + 2 * i * step - step, radius * 0.5);
+    const outerPoint = polarPoint(90 + 2 * i * step, radius);
+    commands.push(`L ${fmt(inner.x)} ${fmt(inner.y)}`);
+    commands.push(`L ${fmt(outerPoint.x)} ${fmt(outerPoint.y)}`);
+  }
+  commands.push("Z");
+  return commands.join(" ");
+}
+
+function polygonPathFromPolarAngles(centerX: number, centerY: number, radius: number, angles: number[]): string {
+  if (angles.length === 0) {
+    return "";
+  }
+  const points = angles.map((angle) => {
+    const point = polarPoint(angle, radius);
+    return {
+      x: centerX + point.x,
+      y: centerY + point.y
+    };
+  });
+  const [first, ...rest] = points;
+  if (!first) {
+    return "";
+  }
+  return `M ${fmt(first.x)} ${fmt(first.y)} ${rest.map((point) => `L ${fmt(point.x)} ${fmt(point.y)}`).join(" ")} Z`;
+}
+
+function polarPoint(angleDeg: number, radius: number): { x: number; y: number } {
+  const radians = (angleDeg * Math.PI) / 180;
+  return {
+    x: radius * Math.cos(radians),
+    y: -radius * Math.sin(radians)
+  };
 }
 
 function mixColors(first: string, second: string, ratioFirst: number): string | null {

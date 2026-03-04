@@ -270,6 +270,108 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("resolves pattern and pattern color keys without unsupported-option diagnostics", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[pattern=grid,pattern color=red] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:pattern")).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:pattern color")).toBe(false);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.patternColor).toBe("#ff0000");
+        expect(path.style.fillPattern?.kind).toBe("legacy");
+        if (path.style.fillPattern?.kind === "legacy") {
+          expect(path.style.fillPattern.name).toBe("grid");
+          expect(path.style.fillPattern.inherentlyColored).toBe(false);
+        }
+      }
+    });
+
+    it("marks inherently colored patterns in semantic style descriptors", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[pattern={checkerboard light gray},pattern color=red] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.fillPattern?.kind).toBe("legacy");
+        if (path.style.fillPattern?.kind === "legacy") {
+          expect(path.style.fillPattern.inherentlyColored).toBe(true);
+          expect(path.style.fillPattern.name).toBe("checkerboard light gray");
+        }
+      }
+    });
+
+    it("disables fill for pattern=none", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[fill=blue,pattern=none] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.fill).toBeNull();
+        expect(path.style.fillPattern).toBeNull();
+      }
+    });
+
+    it("falls back to solid fill for unsupported custom patterns", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[pattern={CustomPattern}] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-pattern:custompattern")).toBe(true);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.fillPattern).toBeNull();
+        expect(path.style.fill).toBe("black");
+      }
+    });
+
+    it("parses patterns.meta options into canonical descriptors", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[pattern={Lines[angle=45,distance={3pt/sqrt(2)},line width=0.8pt,xshift=1pt,yshift=2pt]}] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.fillPattern?.kind).toBe("meta-lines");
+        if (path.style.fillPattern?.kind === "meta-lines") {
+          expect(path.style.fillPattern.angle).toBeCloseTo(45, 6);
+          expect(path.style.fillPattern.distance).toBeCloseTo(2.1213, 3);
+          expect(path.style.fillPattern.lineWidth).toBeCloseTo(0.8, 4);
+          expect(path.style.fillPattern.xshift).toBeCloseTo(1, 4);
+          expect(path.style.fillPattern.yshift).toBeCloseTo(2, 4);
+        }
+      }
+    });
+
+    it("treats node-local pattern styles as fill-enabling", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,pattern=dots,pattern color=blue] at (0,0) {A};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const nodeBox = firstElementOfKind(result.scene.elements, "Path");
+      expect(nodeBox?.kind).toBe("Path");
+      if (nodeBox?.kind === "Path") {
+        expect(nodeBox.style.fill).not.toBeNull();
+        expect(nodeBox.style.fillPattern?.kind).toBe("legacy");
+      }
+    });
+
     it("resolves TikZ shadow option keys into semantic shadow layers", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw[drop shadow] (0,0) rectangle (1,1);

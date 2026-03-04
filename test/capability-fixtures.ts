@@ -29,6 +29,10 @@ export const capabilityFixtures: Record<string, string> = {
   shading_styles: String.raw`\begin{tikzpicture}
   \shade[top color=red,bottom color=blue] (0,0) rectangle (1,1);
 \end{tikzpicture}`,
+  pattern_styles: String.raw`\begin{tikzpicture}
+  \draw[pattern=grid,pattern color=red] (0,0) rectangle (1,1);
+  \draw[pattern={Lines[angle=45,distance=4pt]},pattern color=blue] (2,0) rectangle (3,1);
+\end{tikzpicture}`,
   shadow_styles: String.raw`\begin{tikzpicture}
   \draw[drop shadow,fill=white] (0,0) rectangle (1,1);
 \end{tikzpicture}`,

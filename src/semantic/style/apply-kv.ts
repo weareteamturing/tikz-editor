@@ -18,6 +18,7 @@ import { DEFAULT_TEXT_FONT_SIZE, NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./cons
 import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName, type ColorAliasResolver } from "./colors.js";
 import { parseDashPattern, parseDashValue } from "./dash.js";
 import { normalizeOptionValue, parseAxisVector, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
+import { parsePatternValue } from "./patterns.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   return normalizeColor(valueRaw, { currentColor, resolveAlias: resolveColorAlias });
@@ -237,6 +238,55 @@ export function applyKvEntry(
     }
     return { style, transform, diagnostics: [`invalid-shade:${valueRaw}`] };
   }
+  if (key === "pattern") {
+    const parsedPattern = parsePatternValue(valueRaw, style);
+    if (parsedPattern.disabled) {
+      return {
+        style: {
+          ...style,
+          fill: null,
+          fillPattern: null,
+          shadeEnabled: false
+        },
+        transform,
+        diagnostics: parsedPattern.diagnostics
+      };
+    }
+
+    if (parsedPattern.recognized && parsedPattern.pattern) {
+      return {
+        style: {
+          ...style,
+          fill: style.fill ?? "black",
+          fillPattern: parsedPattern.pattern,
+          shadeEnabled: false
+        },
+        transform,
+        diagnostics: parsedPattern.diagnostics
+      };
+    }
+
+    return {
+      style: {
+        ...style,
+        fill: style.fill ?? "black",
+        fillPattern: null,
+        shadeEnabled: false
+      },
+      transform,
+      diagnostics: parsedPattern.diagnostics
+    };
+  }
+  if (key === "pattern color") {
+    return {
+      style: {
+        ...style,
+        patternColor: normalizeOptionColor(valueRaw, style, resolveColorAlias)
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "shading") {
     const shading = normalizeShadingName(valueRaw);
     if (!shading) {
@@ -413,7 +463,15 @@ export function applyKvEntry(
   }
 
   if (key === "fill") {
-    return { style: { ...style, fill: normalizeOptionColor(valueRaw, style, resolveColorAlias) }, transform, diagnostics: [] };
+    return {
+      style: {
+        ...style,
+        fill: normalizeOptionColor(valueRaw, style, resolveColorAlias),
+        fillPattern: null
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "draw") {
     if (valueRaw.trim().toLowerCase() === "none") {
@@ -428,6 +486,7 @@ export function applyKvEntry(
           ...style,
           stroke: style.drawExplicit || style.stroke != null ? null : style.stroke,
           fill: style.fill != null ? null : style.fill,
+          fillPattern: style.fill != null ? null : style.fillPattern,
           textColor: null
         },
         transform,

@@ -237,6 +237,75 @@ describe("svg emitter", () => {
     expect(emitted.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-shading:"))).toBe(false);
   });
 
+  it("emits SVG pattern defs and url() fills for pattern styles", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern=grid,pattern color=red] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain("<defs>");
+    expect(emitted.svg).toContain("<pattern");
+    expect(emitted.svg).toContain('id="tikz-pattern-');
+    expect(emitted.svg).toContain('fill="url(#tikz-pattern-');
+  });
+
+  it("deduplicates equal patterns and splits defs for different color/params", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern=grid,pattern color=red] (0,0) rectangle (1,1);
+  \draw[pattern=grid,pattern color=red] (2,0) rectangle (3,1);
+  \draw[pattern=grid,pattern color=blue] (4,0) rectangle (5,1);
+  \draw[pattern={Lines[angle=45]},pattern color=red] (6,0) rectangle (7,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const patternDefs = emitted.svg.match(/<pattern id="tikz-pattern-[^"]+"/g) ?? [];
+    expect(patternDefs.length).toBe(3);
+    expect(emitted.svg.match(/fill="url\(#tikz-pattern-[^"]+\)"/g)?.length ?? 0).toBeGreaterThanOrEqual(4);
+  });
+
+  it("renders representative legacy and meta pattern geometry", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern=bricks,pattern color=black] (0,0) rectangle (1,1);
+  \draw[pattern={Hatch[angle=30,distance=4pt,line width=.6pt]},pattern color=green] (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('stroke-width="0.8"');
+    expect(emitted.svg).toContain('rotate(-30)');
+    expect(emitted.svg).toContain('stroke-width="0.6"');
+  });
+
+  it("keeps shading precedence over pattern fills", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern=grid,pattern color=red,top color=blue,bottom color=white] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    expect(emitted.svg).toContain('fill="url(#tikz-shading-axis-');
+    expect(emitted.svg).not.toContain('id="tikz-pattern-');
+  });
+
+  it("ignores pattern color for inherently colored predefined patterns", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern={checkerboard light gray},pattern color=red] (0,0) rectangle (1,1);
+  \draw[pattern={checkerboard light gray},pattern color=blue] (2,0) rectangle (3,1);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const patternDefs = emitted.svg.match(/<pattern id="tikz-pattern-[^"]+"/g) ?? [];
+    expect(patternDefs.length).toBe(1);
+  });
+
   it("reports unsupported shading names while falling back to fill color", () => {
     const source = String.raw`\begin{tikzpicture}
   \shade[shading=color wheel] (0,0) rectangle (1,1);

@@ -4,6 +4,7 @@ import { parseArrowSpecification } from "./arrows.js";
 import type { ApplyOutcome } from "./apply-types.js";
 import { normalizeColor, type ColorAliasResolver } from "./colors.js";
 import { COLOR_HEX, NAMED_COLORS, NON_STYLE_OPTION_FLAGS } from "./constants.js";
+import { DEFAULT_PATTERN } from "./patterns.js";
 
 export function applyFlagEntry(
   key: string,
@@ -26,10 +27,30 @@ export function applyFlagEntry(
     };
   }
   if (key === "fill") {
-    return { style: { ...style, fill: style.fill ?? "black" }, transform, diagnostics: [] };
+    return {
+      style: {
+        ...style,
+        fill: style.fill ?? "black",
+        fillPattern: null
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "shade") {
     return { style: { ...style, fill: style.fill ?? "black", shadeEnabled: true }, transform, diagnostics: [] };
+  }
+  if (key === "pattern") {
+    return {
+      style: {
+        ...style,
+        fill: style.fill ?? "black",
+        fillPattern: style.fillPattern ?? DEFAULT_PATTERN,
+        shadeEnabled: false
+      },
+      transform,
+      diagnostics: []
+    };
   }
   if (key === "rounded corners") {
     return { style: { ...style, roundedCorners: parseLength("4pt", "pt") ?? 4 }, transform, diagnostics: [] };

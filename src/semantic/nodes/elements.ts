@@ -98,6 +98,8 @@ export function resolveNodeBoxPaintMode(options: PathOptionItem["options"] | und
         fill = true;
       } else if (entry.key === "shade") {
         fill = true;
+      } else if (entry.key === "pattern") {
+        fill = true;
       }
       continue;
     }
@@ -119,6 +121,11 @@ export function resolveNodeBoxPaintMode(options: PathOptionItem["options"] | und
     if (entry.key === "shade") {
       const value = normalizeOptionValue(entry.valueRaw).toLowerCase();
       fill = value !== "none" && value !== "false";
+      continue;
+    }
+
+    if (entry.key === "pattern") {
+      fill = normalizeOptionValue(entry.valueRaw).toLowerCase() !== "none";
       continue;
     }
 
@@ -149,6 +156,7 @@ export function applyNodeBoxPaintMode(style: ResolvedStyle, paintMode: { draw: b
     ...style,
     stroke: paintMode.draw ? style.stroke : null,
     fill: paintMode.fill ? style.fill : null,
+    fillPattern: paintMode.fill ? style.fillPattern : null,
     drawExplicit: paintMode.draw ? style.drawExplicit : false
   };
 }

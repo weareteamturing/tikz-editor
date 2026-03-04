@@ -12,12 +12,15 @@ import {
   DEFAULT_TEXT_FONT_SIZE
 } from "./constants.js";
 import { cloneArrowMarker, makeDefaultArrowMarker } from "./arrows.js";
+import { DEFAULT_PATTERN } from "./patterns.js";
 
 export function defaultStyle(): ResolvedStyle {
   const defaultTip = makeDefaultArrowMarker("cm-rightarrow");
   return {
     stroke: "black",
     fill: null,
+    fillPattern: null,
+    patternColor: "black",
     fillRule: "nonzero",
     textColor: null,
     textOpacity: 1,
@@ -94,12 +97,14 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
       return {
         stroke: null,
         fill: null,
+        fillPattern: null,
         drawExplicit: false,
         shadeEnabled: false
       };
     case "pattern":
       return {
         fill: inheritedStyle.fill ?? "black",
+        fillPattern: inheritedStyle.fillPattern ?? DEFAULT_PATTERN,
         shadeEnabled: false
       };
     case "shade":
@@ -131,6 +136,7 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
       return {
         stroke: null,
         fill: null,
+        fillPattern: null,
         drawExplicit: false,
         shadeEnabled: false
       };

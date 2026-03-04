@@ -210,9 +210,73 @@ export type DecorationStyle = {
   params: Record<string, string>;
 };
 
+export type LegacyPatternName =
+  | "horizontal lines"
+  | "vertical lines"
+  | "north east lines"
+  | "north west lines"
+  | "grid"
+  | "crosshatch"
+  | "dots"
+  | "crosshatch dots"
+  | "fivepointed stars"
+  | "sixpointed stars"
+  | "bricks"
+  | "checkerboard"
+  | "checkerboard light gray"
+  | "horizontal lines light gray"
+  | "horizontal lines gray"
+  | "horizontal lines dark gray"
+  | "horizontal lines light blue"
+  | "horizontal lines dark blue"
+  | "crosshatch dots gray"
+  | "crosshatch dots light steel blue";
+
+export type ResolvedPattern =
+  | {
+      kind: "legacy";
+      name: LegacyPatternName;
+      inherentlyColored: boolean;
+    }
+  | {
+      kind: "meta-lines";
+      distance: number;
+      angle: number;
+      xshift: number;
+      yshift: number;
+      lineWidth: number;
+    }
+  | {
+      kind: "meta-hatch";
+      distance: number;
+      angle: number;
+      xshift: number;
+      yshift: number;
+      lineWidth: number;
+    }
+  | {
+      kind: "meta-dots";
+      distance: number;
+      angle: number;
+      xshift: number;
+      yshift: number;
+      radius: number;
+    }
+  | {
+      kind: "meta-stars";
+      distance: number;
+      angle: number;
+      xshift: number;
+      yshift: number;
+      radius: number;
+      points: number;
+    };
+
 export type ResolvedStyle = {
   stroke: string | null;
   fill: string | null;
+  fillPattern: ResolvedPattern | null;
+  patternColor: string;
   fillRule: "nonzero" | "evenodd";
   textColor: string | null;
   textOpacity: number;

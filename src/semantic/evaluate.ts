@@ -394,6 +394,10 @@ function evaluateStatement(
     if (statement.command === "shade" || statement.command === "shadedraw" || resolved.style.shadeEnabled) {
       markFeature(featureUsage, "path_shading", "supported");
     }
+    const hasUnsupportedPattern = resolved.diagnostics.some((code) => code.startsWith("unsupported-pattern:"));
+    if (statement.command === "pattern" || resolved.style.fillPattern || hasUnsupportedPattern) {
+      markFeature(featureUsage, "path_patterns", hasUnsupportedPattern ? "unsupported" : "supported");
+    }
     if (resolved.style.shadowLayers.length > 0) {
       markFeature(featureUsage, "path_shadows", "supported");
     }
