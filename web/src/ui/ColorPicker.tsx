@@ -3,6 +3,7 @@ import { rgbToXcolorExpressionFast, type RgbColor, type RgbToXcolorMode } from "
 import { normalizeColor } from "tikz-editor/semantic/style/colors";
 import { BASIC_PICKER_COLORS, BASIC_PICKER_COLOR_SET } from "../color-palette";
 import type { NamedColorSwatch } from "../project-named-colors";
+import { expandGrayAliasToBlackMix, serializeBlackMixToGrayAlias } from "./color-picker-grayscale";
 import { parseCustomColorInput } from "./custom-color-input";
 import css from "./ColorPicker.module.css";
 
@@ -219,6 +220,7 @@ export function ColorPicker({
   const normalizedSyntaxValue = normalizeColorToken(syntaxValue);
   const normalizedValue = normalizeColorToken(value);
   const driverValue = normalizedSyntaxValue ?? normalizedValue;
+  const grayscaleDriverValue = expandGrayAliasToBlackMix(driverValue);
   const builtInColors = useMemo(() => buildBuiltInColorList(options), [options]);
   const normalizedNamedColorSwatches = useMemo(
     () => normalizeNamedColorSwatches(namedColorSwatches),
@@ -248,15 +250,15 @@ export function ColorPicker({
   }, [builtInColors, namedColorTokenSet]);
   const initialTab = useMemo<ColorPickerTabId>(
     () =>
-      isStandardTabColorSupported(driverValue, namedColorTokenSet, toneSelectableTokens, mixed)
+      isStandardTabColorSupported(grayscaleDriverValue, namedColorTokenSet, toneSelectableTokens, mixed)
         ? "standard"
         : "custom",
-    [driverValue, mixed, namedColorTokenSet, toneSelectableTokens]
+    [grayscaleDriverValue, mixed, namedColorTokenSet, toneSelectableTokens]
   );
   const [tab, setTab] = useState<ColorPickerTabId>(() => initialTab);
   const previousTabRef = useRef<ColorPickerTabId>(initialTab);
   const [activeBaseColor, setActiveBaseColor] = useState<string>(() =>
-    pickInitialBaseColor(driverValue, builtInColors, toneSelectableTokens)
+    pickInitialBaseColor(grayscaleDriverValue, builtInColors, toneSelectableTokens)
   );
   const brightnessTrackRef = useRef<HTMLDivElement | null>(null);
   const [dragPointerId, setDragPointerId] = useState<number | null>(null);
@@ -272,8 +274,8 @@ export function ColorPicker({
   const [customInputWarning, setCustomInputWarning] = useState<string | null>(null);
 
   const toneState = useMemo(
-    () => deriveToneState(driverValue, activeBaseColor, toneSelectableTokens),
-    [driverValue, activeBaseColor, toneSelectableTokens]
+    () => deriveToneState(grayscaleDriverValue, activeBaseColor, toneSelectableTokens),
+    [grayscaleDriverValue, activeBaseColor, toneSelectableTokens]
   );
 
   useEffect(() => {
@@ -287,8 +289,8 @@ export function ColorPicker({
     if (isToneBaseColor(activeBaseColor) && toneSelectableTokens.has(activeBaseColor)) {
       return;
     }
-    setActiveBaseColor(pickInitialBaseColor(driverValue, builtInColors, toneSelectableTokens));
-  }, [activeBaseColor, builtInColors, driverValue, toneSelectableTokens]);
+    setActiveBaseColor(pickInitialBaseColor(grayscaleDriverValue, builtInColors, toneSelectableTokens));
+  }, [activeBaseColor, builtInColors, grayscaleDriverValue, toneSelectableTokens]);
 
   useEffect(() => {
     if (!disabled) {
@@ -310,7 +312,7 @@ export function ColorPicker({
     () => resolveSelectedSwatchColor(driverValue, namedColorTokenSet, toneSelectableTokens),
     [driverValue, namedColorTokenSet, toneSelectableTokens]
   );
-  const grayscaleMode = isGrayscaleMode(driverValue);
+  const grayscaleMode = isGrayscaleMode(grayscaleDriverValue);
   const gradientBaseCssColor = grayscaleMode
     ? "#808080"
     : (cssColorForToken(activeBaseColor, namedColorLookup) ?? "#00ff00");
@@ -997,7 +999,7 @@ function composeGrayscaleToneColor(tonePosition: number): string {
   if (blackPercent >= 100) {
     return "black";
   }
-  return `black!${blackPercent}`;
+  return serializeBlackMixToGrayAlias(blackPercent);
 }
 
 function clampPercent(value: number): number {
