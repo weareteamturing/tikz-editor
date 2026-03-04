@@ -125,6 +125,56 @@
   flex-wrap: wrap;
 }
 
+.multiArrangeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.multiArrangeGroup {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #f4f1eb;
+}
+
+.multiArrangeIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-right: 1px solid var(--border-light);
+  background: #f4f1eb;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.multiArrangeGroup .multiArrangeIconButton:last-child {
+  border-right: 0;
+}
+
+.multiArrangeIconButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-header) 64%, #f4f1eb);
+  color: var(--text);
+}
+
+.multiArrangeIconButton:disabled {
+  cursor: default;
+  color: color-mix(in srgb, var(--text-faint) 52%, #c8c8c8);
+  background: #e8e4dc;
+}
+
+.multiArrangeIconButton:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--text) 35%, transparent);
+  outline-offset: -1px;
+}
+
 .property {
   display: flex;
   flex-direction: column;

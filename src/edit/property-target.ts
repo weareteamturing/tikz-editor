@@ -210,7 +210,7 @@ function makePathKeywordTarget(item: Extract<PathItem, { kind: "PathKeyword" }>,
     kind: "path-keyword",
     span: item.span,
     options: optionItem?.options,
-    optionsSpan: optionItem?.optionsSpan ?? optionItem?.options?.span,
+    optionsSpan: optionItem?.span ?? optionItem?.options?.span,
     insertOffset: item.span.to
   };
 }

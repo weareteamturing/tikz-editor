@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
-import { RiBold, RiFontMono, RiFontSansSerif, RiFontSerif, RiItalic } from "@remixicon/react";
+import {
+  RiAlignItemBottomLine,
+  RiAlignItemHorizontalCenterLine,
+  RiAlignItemLeftLine,
+  RiAlignItemRightLine,
+  RiAlignItemTopLine,
+  RiAlignItemVerticalCenterLine,
+  RiBold,
+  RiFontMono,
+  RiFontSansSerif,
+  RiFontSerif,
+  RiItalic,
+  RiSplitCellsHorizontal,
+  RiSplitCellsVertical
+} from "@remixicon/react";
+import type { RemixiconComponentType } from "@remixicon/react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
@@ -45,6 +60,7 @@ import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown } from "./CustomDropdown";
+import { actionAvailability, alignSelection, distributeSelection } from "./editor-commands";
 import {
   ARROW_TIP_MIXED_OPTION_VALUE,
   DASH_STYLE_MIXED_OPTION_VALUE,
@@ -154,6 +170,99 @@ type FrozenInspectorView = {
   multiModel: MultiInspectorModel | null;
 };
 
+type ArrangeCommandContext = Parameters<typeof alignSelection>[0];
+
+type MultiArrangeAction = {
+  id:
+    | "align-left"
+    | "align-center"
+    | "align-right"
+    | "align-top"
+    | "align-middle"
+    | "align-bottom"
+    | "distribute-horizontal"
+    | "distribute-vertical";
+  group: "align" | "distribute";
+  label: string;
+  icon: RemixiconComponentType;
+  run: (context: ArrangeCommandContext) => void;
+};
+
+const MULTI_ARRANGE_ACTIONS: readonly MultiArrangeAction[] = [
+  {
+    id: "align-left",
+    group: "align",
+    label: "Align left",
+    icon: RiAlignItemLeftLine,
+    run: (context) => {
+      alignSelection(context, "left");
+    }
+  },
+  {
+    id: "align-center",
+    group: "align",
+    label: "Align center",
+    icon: RiAlignItemHorizontalCenterLine,
+    run: (context) => {
+      alignSelection(context, "center");
+    }
+  },
+  {
+    id: "align-right",
+    group: "align",
+    label: "Align right",
+    icon: RiAlignItemRightLine,
+    run: (context) => {
+      alignSelection(context, "right");
+    }
+  },
+  {
+    id: "align-top",
+    group: "align",
+    label: "Align top",
+    icon: RiAlignItemTopLine,
+    run: (context) => {
+      alignSelection(context, "top");
+    }
+  },
+  {
+    id: "align-middle",
+    group: "align",
+    label: "Align middle",
+    icon: RiAlignItemVerticalCenterLine,
+    run: (context) => {
+      alignSelection(context, "middle");
+    }
+  },
+  {
+    id: "align-bottom",
+    group: "align",
+    label: "Align bottom",
+    icon: RiAlignItemBottomLine,
+    run: (context) => {
+      alignSelection(context, "bottom");
+    }
+  },
+  {
+    id: "distribute-horizontal",
+    group: "distribute",
+    label: "Distribute horizontally",
+    icon: RiSplitCellsHorizontal,
+    run: (context) => {
+      distributeSelection(context, "horizontal");
+    }
+  },
+  {
+    id: "distribute-vertical",
+    group: "distribute",
+    label: "Distribute vertically",
+    icon: RiSplitCellsVertical,
+    run: (context) => {
+      distributeSelection(context, "vertical");
+    }
+  }
+];
+
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const source = useEditorStore((s) => s.source);
@@ -218,6 +327,21 @@ export function InspectorPanel() {
   const renderedMultiModel = usingFrozenInspectorView
     ? frozenInspectorView.multiModel
     : multiModel;
+  const commandContext = useMemo(
+    () => ({
+      source,
+      snapshotSource: snapshot.source,
+      scene: snapshot.scene,
+      editHandles: snapshot.editHandles,
+      selectedElementIds: selectedIds,
+      dispatch
+    }),
+    [dispatch, selectedIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+  );
+  const arrangeAvailability = useMemo(
+    () => actionAvailability(commandContext, null),
+    [commandContext]
+  );
 
   const clearHoverPreviewSession = useCallback((ownerKey?: string) => {
     const current = hoverPreviewSessionRef.current;
@@ -3101,6 +3225,61 @@ export function InspectorPanel() {
     );
   }
 
+  function renderMultiArrangeQuickActions() {
+    const alignHorizontalActions = MULTI_ARRANGE_ACTIONS.filter(
+      (action) =>
+        action.id === "align-left" ||
+        action.id === "align-center" ||
+        action.id === "align-right"
+    );
+    const alignVerticalActions = MULTI_ARRANGE_ACTIONS.filter(
+      (action) =>
+        action.id === "align-top" ||
+        action.id === "align-middle" ||
+        action.id === "align-bottom"
+    );
+    const distributeActions = MULTI_ARRANGE_ACTIONS.filter((action) => action.group === "distribute");
+
+    const renderActionButton = (action: MultiArrangeAction) => {
+      const availability = arrangeAvailability[action.id];
+      const disabled = !availability.enabled;
+      const title = disabled && availability.reason
+        ? `${action.label}\n${availability.reason}`
+        : action.label;
+      const Icon = action.icon;
+      return (
+        <button
+          key={action.id}
+          type="button"
+          className={css.multiArrangeIconButton}
+          aria-label={action.label}
+          title={title}
+          disabled={disabled}
+          onClick={() => {
+            clearHoverPreviewSession();
+            action.run(commandContext);
+          }}
+        >
+          <Icon size={14} />
+        </button>
+      );
+    };
+
+    return (
+      <div className={css.multiArrangeRow}>
+        <div className={css.multiArrangeGroup} role="group" aria-label="Align selection horizontally">
+          {alignHorizontalActions.map((action) => renderActionButton(action))}
+        </div>
+        <div className={css.multiArrangeGroup} role="group" aria-label="Align selection vertically">
+          {alignVerticalActions.map((action) => renderActionButton(action))}
+        </div>
+        <div className={css.multiArrangeGroup} role="group" aria-label="Distribute selection">
+          {distributeActions.map((action) => renderActionButton(action))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={css.panel}>
       <div className={css.header}>Inspector</div>
@@ -3120,13 +3299,15 @@ export function InspectorPanel() {
               {renderedDescriptor.sections.map((section) => renderSingleSection(section))}
             </div>
           )
-        ) : !renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
-          <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
         ) : (
           <div className={css.elementInfo}>
-            <div className={css.elementKind}>{renderedMultiModel.selectionCount} selected</div>
-
-            {renderedMultiModel.sections.map((section) => renderMultiSection(section))}
+            <div className={css.elementKind}>{renderedMultiModel?.selectionCount ?? selectedSourceIds.length} selected</div>
+            {renderMultiArrangeQuickActions()}
+            {!renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
+              <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
+            ) : (
+              renderedMultiModel.sections.map((section) => renderMultiSection(section))
+            )}
           </div>
         )}
       </div>
