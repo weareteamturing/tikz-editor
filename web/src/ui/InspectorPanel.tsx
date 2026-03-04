@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RiBold, RiFontMono, RiFontSansSerif, RiFontSerif, RiItalic } from "@remixicon/react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
   buildDashStyleSetPropertyMutation,
   buildFillModeSetPropertyMutations,
+  buildNodeFontSetPropertyMutation,
+  buildNodeInnerSepSetPropertyMutation,
+  buildNodeShapeSetPropertyMutation,
   buildFillPatternOptionSetPropertyMutation,
   buildFillPatternSetPropertyMutation,
   buildFillShadingSetPropertyMutations,
@@ -31,6 +35,10 @@ import {
   type LineCapPresetId,
   type LineJoinPresetId,
   type PathMorphingDecorationPresetId,
+  type NodeFontFamilyId,
+  type NodeFontMutationContext,
+  type NodeFontSizePresetId,
+  type NodeShapePresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
@@ -54,6 +62,19 @@ type MultiInspectorNumberProperty = {
   step: number;
   unit?: string;
   writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorLengthProperty = {
+  kind: "length";
+  id: string;
+  label: string;
+  value: number;
+  mixed: boolean;
+  step: number;
+  unit: "pt";
+  writes: SetPropertyWriteTarget[];
+  note?: string;
   readOnlyReason?: string;
 };
 
@@ -203,6 +224,47 @@ type MultiInspectorRoundedCornersProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorNodeShapeProperty = {
+  kind: "nodeShape";
+  id: string;
+  label: string;
+  value: NodeShapePresetId;
+  mixed: boolean;
+  options: Array<{ value: Exclude<NodeShapePresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  note?: string;
+  readOnlyReason?: string;
+};
+
+type MultiInspectorNodeFontProperty = {
+  kind: "nodeFont";
+  id: string;
+  label: string;
+  family: NodeFontFamilyId;
+  familyMixed: boolean;
+  weight: "normal" | "bold";
+  weightMixed: boolean;
+  style: "normal" | "italic";
+  styleMixed: boolean;
+  sizePreset: NodeFontSizePresetId;
+  sizePresetMixed: boolean;
+  customSizePt: number | null;
+  sizeOptions: Array<{ value: Exclude<NodeFontSizePresetId, "custom">; label: string }>;
+  contexts: Array<{
+    context: NodeFontMutationContext;
+    values: {
+      family: NodeFontFamilyId;
+      weight: "normal" | "bold";
+      style: "normal" | "italic";
+      sizePreset: NodeFontSizePresetId;
+      customSizePt: number | null;
+    };
+  }>;
+  writes: SetPropertyWriteTarget[];
+  notes: string[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorArrowTipProperty = {
   kind: "arrowTip";
   id: string;
@@ -218,7 +280,10 @@ type MultiInspectorArrowTipProperty = {
 
 type MultiInspectorProperty =
   | MultiInspectorNumberProperty
+  | MultiInspectorLengthProperty
   | MultiInspectorColorProperty
+  | MultiInspectorNodeShapeProperty
+  | MultiInspectorNodeFontProperty
   | MultiInspectorLineWidthProperty
   | MultiInspectorDashStyleProperty
   | MultiInspectorLineCapProperty
@@ -256,6 +321,20 @@ const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decor
 const FILL_MODE_MIXED_OPTION_VALUE = "__mixed-fill-mode__";
 const FILL_SHADING_MIXED_OPTION_VALUE = "__mixed-fill-shading__";
 const FILL_PATTERN_MIXED_OPTION_VALUE = "__mixed-fill-pattern__";
+const NODE_SHAPE_MIXED_OPTION_VALUE = "__mixed-node-shape__";
+const NODE_FONT_SIZE_MIXED_OPTION_VALUE = "__mixed-node-font-size__";
+const NODE_FONT_SIZE_PT_BY_PRESET: Record<Exclude<NodeFontSizePresetId, "custom">, number> = {
+  tiny: 5,
+  scriptsize: 7,
+  footnotesize: 8,
+  small: 9,
+  normalsize: 10,
+  large: 12,
+  Large: 14.4,
+  LARGE: 17.28,
+  huge: 20.74,
+  Huge: 24.88
+};
 const META_FILL_PATTERN_PRESETS = new Set<Exclude<FillPatternPresetId, "custom">>([
   "Lines",
   "Hatch",
@@ -292,6 +371,8 @@ type LineJoinDropdownValue = LineJoinPresetId | typeof LINE_JOIN_MIXED_OPTION_VA
 type FillModeDropdownValue = FillModePresetId | typeof FILL_MODE_MIXED_OPTION_VALUE;
 type FillShadingDropdownValue = FillShadingPresetId | typeof FILL_SHADING_MIXED_OPTION_VALUE;
 type FillPatternDropdownValue = FillPatternPresetId | typeof FILL_PATTERN_MIXED_OPTION_VALUE;
+type NodeShapeDropdownValue = NodeShapePresetId | typeof NODE_SHAPE_MIXED_OPTION_VALUE;
+type NodeFontSizeDropdownValue = NodeFontSizePresetId | typeof NODE_FONT_SIZE_MIXED_OPTION_VALUE;
 type PathMorphingDecorationDropdownValue =
   | PathMorphingDecorationPresetId
   | typeof PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE;
@@ -977,6 +1058,148 @@ export function InspectorPanel() {
     });
   }
 
+  function applyNodeShapeValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<NodeShapePresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildNodeShapeSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyNodeShapeValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<NodeShapePresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildNodeShapeSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyNodeInnerSepValue(
+    write: SetPropertyWriteTarget,
+    value: number,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildNodeInnerSepSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyNodeInnerSepValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: number,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildNodeInnerSepSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyNodeFontValue(
+    write: SetPropertyWriteTarget,
+    context: NodeFontMutationContext,
+    values: {
+      family: NodeFontFamilyId;
+      weight: "normal" | "bold";
+      style: "normal" | "italic";
+      sizePreset: NodeFontSizePresetId;
+      customSizePt: number | null;
+    },
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildNodeFontSetPropertyMutation(context, values);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyNodeFontValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    contexts: ReadonlyArray<{
+      context: NodeFontMutationContext;
+      values: {
+        family: NodeFontFamilyId;
+        weight: "normal" | "bold";
+        style: "normal" | "italic";
+        sizePreset: NodeFontSizePresetId;
+        customSizePt: number | null;
+      };
+    }>,
+    nextValues: Partial<{
+      family: NodeFontFamilyId;
+      weight: "normal" | "bold";
+      style: "normal" | "italic";
+      sizePreset: NodeFontSizePresetId;
+      customSizePt: number | null;
+    }>,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const writableEntries = writes
+      .map((write, index) => {
+        const context = contexts[index];
+        return context ? { write, context } : null;
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          write: SetPropertyWriteTarget;
+          context: {
+            context: NodeFontMutationContext;
+            values: {
+              family: NodeFontFamilyId;
+              weight: "normal" | "bold";
+              style: "normal" | "italic";
+              sizePreset: NodeFontSizePresetId;
+              customSizePt: number | null;
+            };
+          };
+        } => entry != null && entry.write.writable && entry.write.elementId.length > 0
+      );
+
+    if (writableEntries.length === 0) {
+      return;
+    }
+
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const entry of writableEntries) {
+      const mutation = buildNodeFontSetPropertyMutation(entry.context.context, {
+        ...entry.context.values,
+        ...nextValues
+      });
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
+        action: {
+          kind: "setProperty",
+          elementId: entry.write.elementId,
+          level: entry.write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
   function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
     const write = property.write;
     if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
@@ -1596,19 +1819,301 @@ export function InspectorPanel() {
     );
   }
 
+  function renderNodeShapeDropdown(
+    property: {
+      label: string;
+      value: NodeShapePresetId;
+      options: Array<{ value: Exclude<NodeShapePresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<NodeShapePresetId, "custom">) => void,
+    valueOverride?: NodeShapeDropdownValue
+  ) {
+    const dropdownValue: NodeShapeDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toNodeShapeDropdownOptions(property.options);
+    const displayLabel = nodeShapeValueLabel(dropdownValue, property.options);
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableNodeShapeValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => <span>{displayLabel}</span>}
+      />
+    );
+  }
+
+  function renderNodeFontSizeDropdown(
+    property: {
+      label: string;
+      value: NodeFontSizePresetId;
+      options: Array<{ value: Exclude<NodeFontSizePresetId, "custom">; label: string }>;
+      customSizePt: number | null;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
+    valueOverride?: NodeFontSizeDropdownValue
+  ) {
+    const dropdownValue: NodeFontSizeDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toNodeFontSizeDropdownOptions(property.options);
+    const displayLabel = nodeFontSizeValueLabel(dropdownValue, property.options, property.customSizePt);
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableNodeFontSizeValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => <span>{displayLabel}</span>}
+        renderOption={(option) => {
+          const ptLabel = nodeFontSizePresetPtLabel(option.value as Exclude<NodeFontSizePresetId, "custom">);
+          return (
+            <span className={css.nodeFontSizeOption}>
+              <span className={css.nodeFontSizeOptionLabel}>{option.label}</span>
+              <span className={css.nodeFontSizeOptionPt}>{ptLabel}</span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
+  function renderNodeFontToolbar(
+    property: {
+      family: NodeFontFamilyId;
+      familyMixed: boolean;
+      weight: "normal" | "bold";
+      weightMixed: boolean;
+      style: "normal" | "italic";
+      styleMixed: boolean;
+      sizePreset: NodeFontSizePresetId;
+      sizePresetMixed: boolean;
+      customSizePt: number | null;
+      sizeOptions: Array<{ value: Exclude<NodeFontSizePresetId, "custom">; label: string }>;
+      label: string;
+    },
+    writable: boolean,
+    onFamilyChange: (family: NodeFontFamilyId) => void,
+    onWeightToggle: () => void,
+    onStyleToggle: () => void,
+    onSizePresetChange: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void
+  ) {
+    const boldActive = !property.weightMixed && property.weight === "bold";
+    const italicActive = !property.styleMixed && property.style === "italic";
+    const sizeValue: NodeFontSizeDropdownValue = property.sizePresetMixed
+      ? NODE_FONT_SIZE_MIXED_OPTION_VALUE
+      : property.sizePreset;
+    return (
+      <div className={css.nodeFontControls}>
+        <div className={css.nodeFontToolbar}>
+          <div className={css.nodeFontButtonGroup} role="group" aria-label="Font family">
+            <button
+              type="button"
+              className={nodeFontButtonClass(property.family === "serif" && !property.familyMixed, property.familyMixed)}
+              disabled={!writable}
+              aria-label="Serif family"
+              aria-pressed={!property.familyMixed && property.family === "serif"}
+              onClick={() => onFamilyChange("serif")}
+            >
+              <RiFontSerif size={14} />
+            </button>
+            <button
+              type="button"
+              className={nodeFontButtonClass(property.family === "sans" && !property.familyMixed, property.familyMixed)}
+              disabled={!writable}
+              aria-label="Sans family"
+              aria-pressed={!property.familyMixed && property.family === "sans"}
+              onClick={() => onFamilyChange("sans")}
+            >
+              <RiFontSansSerif size={14} />
+            </button>
+            <button
+              type="button"
+              className={nodeFontButtonClass(property.family === "monospace" && !property.familyMixed, property.familyMixed)}
+              disabled={!writable}
+              aria-label="Monospace family"
+              aria-pressed={!property.familyMixed && property.family === "monospace"}
+              onClick={() => onFamilyChange("monospace")}
+            >
+              <RiFontMono size={14} />
+            </button>
+          </div>
+          <div className={css.nodeFontButtonGroup} role="group" aria-label="Font style">
+            <button
+              type="button"
+              className={nodeFontButtonClass(boldActive, property.weightMixed)}
+              disabled={!writable}
+              aria-label="Bold"
+              aria-pressed={boldActive}
+              onClick={onWeightToggle}
+            >
+              <RiBold size={14} />
+            </button>
+            <button
+              type="button"
+              className={nodeFontButtonClass(italicActive, property.styleMixed)}
+              disabled={!writable}
+              aria-label="Italic"
+              aria-pressed={italicActive}
+              onClick={onStyleToggle}
+            >
+              <RiItalic size={14} />
+            </button>
+          </div>
+        </div>
+        <div className={css.nodeFontSizeRow}>
+          {renderNodeFontSizeDropdown(
+            {
+              label: `${property.label} size`,
+              value: property.sizePreset,
+              options: property.sizeOptions,
+              customSizePt: property.customSizePt
+            },
+            writable,
+            onSizePresetChange,
+            sizeValue
+          )}
+        </div>
+      </div>
+    );
+  }
+
   function renderProperty(property: InspectorProperty) {
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
       capability.status === "unsupported" ? capability.reason : null;
-    const readOnlyReason =
-      property.kind === "number"
-        ? property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason
-        : property.write.reason ?? capabilityReadOnlyReason;
+    const readOnlyReason = (() => {
+      if (property.kind === "number") {
+        return property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason;
+      }
+      if (property.kind === "length" || property.kind === "nodeFont") {
+        return property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+      }
+      return property.write.reason ?? capabilityReadOnlyReason;
+    })();
 
     if (property.kind === "number") {
       return (
         <div key={property.id} className={css.property}>
           {renderSingleNumberField(property)}
+        </div>
+      );
+    }
+
+    if (property.kind === "length") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              step={property.step}
+              value={formatNumber(property.value)}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) {
+                  return;
+                }
+                applyNodeInnerSepValue(property.write, next);
+              }}
+            />
+            <span className={css.unitLabel}>{property.unit}</span>
+          </div>
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeShape") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderNodeShapeDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyNodeShapeValue(property.write, nextValue)
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeFont") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderNodeFontToolbar(
+            {
+              family: property.family,
+              familyMixed: false,
+              weight: property.weight,
+              weightMixed: false,
+              style: property.style,
+              styleMixed: false,
+              sizePreset: property.sizePreset,
+              sizePresetMixed: false,
+              customSizePt: property.customSizePt,
+              sizeOptions: property.sizeOptions,
+              label: property.label
+            },
+            writable,
+            (nextFamily) =>
+              applyNodeFontValue(property.write, property.context, {
+                family: nextFamily,
+                weight: property.weight,
+                style: property.style,
+                sizePreset: property.sizePreset,
+                customSizePt: property.customSizePt
+              }),
+            () =>
+              applyNodeFontValue(property.write, property.context, {
+                family: property.family,
+                weight: property.weight === "bold" ? "normal" : "bold",
+                style: property.style,
+                sizePreset: property.sizePreset,
+                customSizePt: property.customSizePt
+              }),
+            () =>
+              applyNodeFontValue(property.write, property.context, {
+                family: property.family,
+                weight: property.weight,
+                style: property.style === "italic" ? "normal" : "italic",
+                sizePreset: property.sizePreset,
+                customSizePt: property.customSizePt
+              }),
+            (nextSizePreset) =>
+              applyNodeFontValue(property.write, property.context, {
+                family: property.family,
+                weight: property.weight,
+                style: property.style,
+                sizePreset: nextSizePreset,
+                customSizePt: property.customSizePt
+              })
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
     }
@@ -2034,6 +2539,107 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={css.property}>
           {renderMultiNumberField(property)}
+        </div>
+      );
+    }
+
+    if (property.kind === "length") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              step={property.step}
+              value={property.mixed ? "" : formatNumber(property.value)}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) {
+                  return;
+                }
+                applyNodeInnerSepValueMany(property.writes, next);
+              }}
+            />
+            <span className={css.unitLabel}>{property.unit}</span>
+          </div>
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeShape") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: NodeShapeDropdownValue = property.mixed
+        ? NODE_SHAPE_MIXED_OPTION_VALUE
+        : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderNodeShapeDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyNodeShapeValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "nodeFont") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const nextWeight = property.weightMixed || property.weight === "normal" ? "bold" : "normal";
+      const nextStyle = property.styleMixed || property.style === "normal" ? "italic" : "normal";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderNodeFontToolbar(
+            {
+              family: property.family,
+              familyMixed: property.familyMixed,
+              weight: property.weight,
+              weightMixed: property.weightMixed,
+              style: property.style,
+              styleMixed: property.styleMixed,
+              sizePreset: property.sizePreset,
+              sizePresetMixed: property.sizePresetMixed,
+              customSizePt: property.customSizePt,
+              sizeOptions: property.sizeOptions,
+              label: property.label
+            },
+            writable,
+            (nextFamily) =>
+              applyNodeFontValueMany(property.writes, property.contexts, {
+                family: nextFamily
+              }),
+            () =>
+              applyNodeFontValueMany(property.writes, property.contexts, {
+                weight: nextWeight
+              }),
+            () =>
+              applyNodeFontValueMany(property.writes, property.contexts, {
+                style: nextStyle
+              }),
+            (nextSizePreset) =>
+              applyNodeFontValueMany(property.writes, property.contexts, {
+                sizePreset: nextSizePreset
+              })
+          )}
+          {property.notes.map((note) => (
+            <div key={`${property.id}:${note}`} className={css.propertyNote}>
+              {note}
+            </div>
+          ))}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
     }
@@ -2916,6 +3522,98 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     };
   }
 
+  if (base.kind === "length") {
+    const sameKind = properties.every((property) => property.kind === "length");
+    if (!sameKind) return null;
+    const lengthProperties = properties as Array<Extract<InspectorProperty, { kind: "length" }>>;
+    const values = lengthProperties.map((property) => property.value);
+    const writes = lengthProperties.map((property) => property.write);
+    const notes = lengthProperties.map((property) => property.note ?? null);
+
+    return {
+      kind: "length",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? 0,
+      mixed: !numbersAreEqual(values),
+      step: base.step,
+      unit: base.unit,
+      writes,
+      note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "nodeShape") {
+    const sameKind = properties.every((property) => property.kind === "nodeShape");
+    if (!sameKind) return null;
+    const shapeProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeShape" }>>;
+    const values = shapeProperties.map((property) => property.value);
+    const writes = shapeProperties.map((property) => property.write);
+    const notes = shapeProperties.map((property) => property.note ?? null);
+
+    return {
+      kind: "nodeShape",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "rectangle",
+      mixed: !allValuesEqual(values),
+      options: base.options,
+      writes,
+      note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "nodeFont") {
+    const sameKind = properties.every((property) => property.kind === "nodeFont");
+    if (!sameKind) return null;
+    const fontProperties = properties as Array<Extract<InspectorProperty, { kind: "nodeFont" }>>;
+    const writes = fontProperties.map((property) => property.write);
+    const families = fontProperties.map((property) => property.family);
+    const weights = fontProperties.map((property) => property.weight);
+    const styles = fontProperties.map((property) => property.style);
+    const sizePresets = fontProperties.map((property) => property.sizePreset);
+    const customSizes = fontProperties.map((property) => property.customSizePt);
+    const notes = dedupeStrings(
+      fontProperties
+        .map((property) => property.note?.trim() ?? "")
+        .filter((note) => note.length > 0)
+    );
+
+    return {
+      kind: "nodeFont",
+      id: base.id,
+      label: base.label,
+      family: families[0] ?? "serif",
+      familyMixed: !allValuesEqual(families),
+      weight: weights[0] ?? "normal",
+      weightMixed: !allValuesEqual(weights),
+      style: styles[0] ?? "normal",
+      styleMixed: !allValuesEqual(styles),
+      sizePreset: sizePresets[0] ?? "normalsize",
+      sizePresetMixed: !allValuesEqual(sizePresets),
+      customSizePt:
+        allValuesEqual(customSizes) && sizePresets[0] === "custom"
+          ? (customSizes[0] ?? null)
+          : null,
+      sizeOptions: base.sizeOptions,
+      contexts: fontProperties.map((property) => ({
+        context: property.context,
+        values: {
+          family: property.family,
+          weight: property.weight,
+          style: property.style,
+          sizePreset: property.sizePreset,
+          customSizePt: property.customSizePt
+        }
+      })),
+      writes,
+      notes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   if (base.kind === "color") {
     const sameKind = properties.every((property) => property.kind === "color");
     if (!sameKind) return null;
@@ -3280,6 +3978,80 @@ function sameOrderedStringArrays(left: readonly string[], right: readonly string
     }
   }
   return true;
+}
+
+function toNodeShapeDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<NodeShapePresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<NodeShapeDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function nodeShapeValueLabel(
+  value: NodeShapeDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<NodeShapePresetId, "custom">; label: string }>
+): string {
+  if (value === NODE_SHAPE_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableNodeShapeValue(
+  value: NodeShapeDropdownValue
+): value is Exclude<NodeShapePresetId, "custom"> {
+  return value !== "custom" && value !== NODE_SHAPE_MIXED_OPTION_VALUE;
+}
+
+function toNodeFontSizeDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<NodeFontSizePresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<NodeFontSizeDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function nodeFontSizeValueLabel(
+  value: NodeFontSizeDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<NodeFontSizePresetId, "custom">; label: string }>,
+  customSizePt: number | null
+): string {
+  if (value === NODE_FONT_SIZE_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return Number.isFinite(customSizePt) && (customSizePt ?? 0) > 0
+      ? `Custom (${formatNumber(customSizePt as number)}pt)`
+      : "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function nodeFontSizePresetPtLabel(value: Exclude<NodeFontSizePresetId, "custom">): string {
+  const pt = NODE_FONT_SIZE_PT_BY_PRESET[value];
+  return `${formatNumber(pt)}pt`;
+}
+
+function isSelectableNodeFontSizeValue(
+  value: NodeFontSizeDropdownValue
+): value is Exclude<NodeFontSizePresetId, "custom"> {
+  return value !== "custom" && value !== NODE_FONT_SIZE_MIXED_OPTION_VALUE;
+}
+
+function nodeFontButtonClass(active: boolean, mixed: boolean): string {
+  return [
+    css.nodeFontIconButton,
+    active ? css.nodeFontIconButtonActive : "",
+    mixed ? css.nodeFontIconButtonMixed : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function toFillModeDropdownOptions(

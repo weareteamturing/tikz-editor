@@ -155,6 +155,98 @@
   gap: 6px;
 }
 
+.nodeFontControls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nodeFontToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nodeFontButtonGroup {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.nodeFontIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  border: 0;
+  border-right: 1px solid var(--border-light);
+  background: #fff;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.nodeFontButtonGroup .nodeFontIconButton:last-child {
+  border-right: 0;
+}
+
+.nodeFontIconButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-header) 72%, #fff);
+  color: var(--text);
+}
+
+.nodeFontIconButton:disabled {
+  cursor: default;
+  color: var(--text-faint);
+  background: #f3f1ec;
+}
+
+.nodeFontIconButtonActive {
+  background: color-mix(in srgb, #d9dcab 58%, #fff);
+  color: var(--text);
+}
+
+.nodeFontIconButtonMixed {
+  background: color-mix(in srgb, #e4dcc0 72%, #fff);
+  color: var(--text);
+}
+
+.nodeFontIconButton:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--text) 35%, transparent);
+  outline-offset: -1px;
+}
+
+.nodeFontSizeRow {
+  width: 100%;
+}
+
+.nodeFontSizeOption {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.nodeFontSizeOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.nodeFontSizeOptionPt {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
 .numberInput {
   width: 100%;
   min-height: 22px;

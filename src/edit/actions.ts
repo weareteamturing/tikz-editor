@@ -1528,15 +1528,24 @@ function applySetProperty(
     return { kind: "unsupported", reason: resolved.reason };
   }
 
+  const normalizedValue = action.value.trim();
+  const removePrimaryKey = normalizedValue.length === 0;
   const mutations = new Map<string, OptionMutation>();
   for (const rawClearKey of action.clearKeys ?? []) {
     const clearKey = normalizeOptionKey(rawClearKey);
-    if (clearKey.length === 0 || clearKey === key) {
+    if (clearKey.length === 0) {
+      continue;
+    }
+    if (clearKey === key && !removePrimaryKey) {
       continue;
     }
     mutations.set(clearKey, { kind: "remove" });
   }
-  mutations.set(key, { kind: "set", value: action.value });
+  if (removePrimaryKey) {
+    mutations.set(key, { kind: "remove" });
+  } else {
+    mutations.set(key, { kind: "set", value: action.value });
+  }
   const rewritten = applyOptionMutationsToTarget(source, resolved.target, mutations);
   if (!rewritten) {
     return { kind: "unsupported", reason: "setProperty would not change the source." };

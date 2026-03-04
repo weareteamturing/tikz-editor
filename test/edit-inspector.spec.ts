@@ -7,6 +7,9 @@ import {
   buildFillPatternOptionSetPropertyMutation,
   buildFillPatternSetPropertyMutation,
   buildFillShadingSetPropertyMutations,
+  buildNodeFontSetPropertyMutation,
+  buildNodeInnerSepSetPropertyMutation,
+  buildNodeShapeSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
   buildTransformSetPropertyMutations,
@@ -1059,4 +1062,319 @@ describe("getInspectorDescriptor", () => {
     expect(disabled.clearKeys).toContain("rounded corners");
     expect(disabled.clearKeys).not.toContain("sharp corners");
   });
+
+  it("shows a node section for node-backed text with shape, inner sep, and font controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,inner sep=3pt,font=\Large\bfseries\sffamily] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const sectionIds = descriptor.sections.map((section) => section.id);
+    expect(sectionIds).toContain("node");
+
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+    expect(nodeSection.properties.map((property) => property.kind)).toEqual([
+      "nodeShape",
+      "length",
+      "nodeFont"
+    ]);
+  });
+
+  it("detects node shape from flags and shape= values, including custom fallback note", () => {
+    const circleSource = String.raw`\begin{tikzpicture}
+  \node[circle] at (0,0) {A};
+\end{tikzpicture}`;
+    const diamondSource = String.raw`\begin{tikzpicture}
+  \node[shape=diamond] at (0,0) {A};
+\end{tikzpicture}`;
+    const customSource = String.raw`\begin{tikzpicture}
+  \node[shape=star] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const circleElement = renderTikzToSvg(circleSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const diamondElement = renderTikzToSvg(diamondSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const customElement = renderTikzToSvg(customSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(circleElement).toBeDefined();
+    expect(diamondElement).toBeDefined();
+    expect(customElement).toBeDefined();
+    if (!circleElement || !diamondElement || !customElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const circleDescriptor = getInspectorDescriptor(circleElement, { source: circleSource });
+    const diamondDescriptor = getInspectorDescriptor(diamondElement, { source: diamondSource });
+    const customDescriptor = getInspectorDescriptor(customElement, { source: customSource });
+
+    const circleShape = getNodeShapeProperty(circleDescriptor);
+    const diamondShape = getNodeShapeProperty(diamondDescriptor);
+    const customShape = getNodeShapeProperty(customDescriptor);
+
+    expect(circleShape.value).toBe("circle");
+    expect(diamondShape.value).toBe("diamond");
+    expect(customShape.value).toBe("custom");
+    expect(customShape.note).toContain("Custom node shape detected");
+  });
+
+  it("builds node shape mutations that normalize existing shape flags", () => {
+    const mutation = buildNodeShapeSetPropertyMutation("circle");
+    expect(mutation).toMatchObject({
+      key: "shape",
+      value: "circle"
+    });
+    expect(mutation.clearKeys).toContain("rectangle");
+    expect(mutation.clearKeys).toContain("diamond");
+    expect(mutation.clearKeys).toContain("trapezium");
+
+    const source = String.raw`\begin{tikzpicture}
+  \node[diamond,shape=star] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const shapeProperty = getNodeShapeProperty(descriptor);
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: shapeProperty.write.elementId,
+      level: "command",
+      key: mutation.key,
+      value: mutation.value,
+      clearKeys: mutation.clearKeys
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful shape mutation");
+    }
+    expect(result.newSource).toContain("shape=circle");
+    expect(result.newSource).not.toContain("diamond");
+  });
+
+  it("detects node inner sep defaults and normalizes x/y sep conflicts", () => {
+    const defaultSource = String.raw`\begin{tikzpicture}
+  \node[rectangle] at (0,0) {A};
+\end{tikzpicture}`;
+    const conflictSource = String.raw`\begin{tikzpicture}
+  \node[inner xsep=2pt,inner ysep=6pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const defaultElement = renderTikzToSvg(defaultSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const conflictElement = renderTikzToSvg(conflictSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(defaultElement).toBeDefined();
+    expect(conflictElement).toBeDefined();
+    if (!defaultElement || !conflictElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const defaultInnerSep = getNodeInnerSepProperty(getInspectorDescriptor(defaultElement, { source: defaultSource }));
+    const conflictInnerSep = getNodeInnerSepProperty(getInspectorDescriptor(conflictElement, { source: conflictSource }));
+    expect(defaultInnerSep.value).toBeGreaterThan(3);
+    expect(defaultInnerSep.value).toBeLessThan(3.5);
+    expect(conflictInnerSep.value).toBeCloseTo(4, 6);
+    expect(conflictInnerSep.note).toContain("inner xsep/inner ysep");
+
+    const mutation = buildNodeInnerSepSetPropertyMutation(5.5);
+    expect(mutation).toMatchObject({
+      key: "inner sep",
+      value: "5.5pt"
+    });
+    expect(mutation.clearKeys).toContain("inner xsep");
+    expect(mutation.clearKeys).toContain("inner ysep");
+  });
+
+  it("resolves node font key preference and serializes deterministic font mutations", () => {
+    const fontKeySource = String.raw`\begin{tikzpicture}
+  \node[circle,font=\small\bfseries] at (0,0) {A};
+\end{tikzpicture}`;
+    const nodeFontKeySource = String.raw`\begin{tikzpicture}
+  \node[circle,node font=\footnotesize\itshape] at (0,0) {A};
+\end{tikzpicture}`;
+    const defaultKeySource = String.raw`\begin{tikzpicture}
+  \node[circle] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const fontElement = renderTikzToSvg(fontKeySource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const nodeFontElement = renderTikzToSvg(nodeFontKeySource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const defaultElement = renderTikzToSvg(defaultKeySource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(fontElement).toBeDefined();
+    expect(nodeFontElement).toBeDefined();
+    expect(defaultElement).toBeDefined();
+    if (!fontElement || !nodeFontElement || !defaultElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const fontProperty = getNodeFontProperty(getInspectorDescriptor(fontElement, { source: fontKeySource }));
+    const nodeFontProperty = getNodeFontProperty(
+      getInspectorDescriptor(nodeFontElement, { source: nodeFontKeySource })
+    );
+    const defaultFontProperty = getNodeFontProperty(
+      getInspectorDescriptor(defaultElement, { source: defaultKeySource })
+    );
+
+    expect(fontProperty.context.key).toBe("font");
+    expect(nodeFontProperty.context.key).toBe("node font");
+    expect(defaultFontProperty.context.key).toBe("node font");
+
+    const presetMutation = buildNodeFontSetPropertyMutation(
+      {
+        key: "font",
+        clearKeys: ["node font"],
+        fallbackCustomSizePt: 10
+      },
+      {
+        family: "sans",
+        weight: "bold",
+        style: "italic",
+        sizePreset: "small",
+        customSizePt: null
+      }
+    );
+    expect(presetMutation).toMatchObject({
+      key: "font",
+      value: "\\small\\sffamily\\bfseries\\itshape",
+      clearKeys: ["node font"]
+    });
+
+    const customSizeMutation = buildNodeFontSetPropertyMutation(
+      {
+        key: "node font",
+        clearKeys: ["font"],
+        fallbackCustomSizePt: 10
+      },
+      {
+        family: "serif",
+        weight: "normal",
+        style: "normal",
+        sizePreset: "custom",
+        customSizePt: 11
+      }
+    );
+    expect(customSizeMutation).toMatchObject({
+      key: "node font",
+      value: "\\fontsize{11pt}{13.2pt}\\selectfont",
+      clearKeys: ["font"]
+    });
+
+    const italicOnlyMutation = buildNodeFontSetPropertyMutation(
+      {
+        key: "node font",
+        clearKeys: ["font"],
+        fallbackCustomSizePt: 10
+      },
+      {
+        family: "serif",
+        weight: "normal",
+        style: "italic",
+        sizePreset: "normalsize",
+        customSizePt: null
+      }
+    );
+    expect(italicOnlyMutation).toMatchObject({
+      key: "node font",
+      value: "\\itshape",
+      clearKeys: ["font"]
+    });
+
+    const defaultsMutation = buildNodeFontSetPropertyMutation(
+      {
+        key: "node font",
+        clearKeys: ["font"],
+        fallbackCustomSizePt: 10
+      },
+      {
+        family: "serif",
+        weight: "normal",
+        style: "normal",
+        sizePreset: "normalsize",
+        customSizePt: null
+      }
+    );
+    expect(defaultsMutation).toMatchObject({
+      key: "node font",
+      value: "",
+      clearKeys: ["font"]
+    });
+  });
+
+  it("removes a node font key when setProperty receives an empty value", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,node font=\itshape] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const nodeFont = getNodeFontProperty(descriptor);
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: nodeFont.write.elementId,
+      level: nodeFont.write.level,
+      key: nodeFont.write.key,
+      value: "",
+      clearKeys: nodeFont.context.clearKeys
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful node font reset mutation");
+    }
+    expect(result.newSource).not.toContain("node font=");
+    expect(result.newSource).not.toContain("font=");
+  });
 });
+
+function getNodeShapeProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+  const nodeSection = descriptor.sections.find((section) => section.id === "node");
+  if (!nodeSection) {
+    throw new Error("Expected node section");
+  }
+  const shape = nodeSection.properties.find((property) => property.kind === "nodeShape");
+  if (!shape || shape.kind !== "nodeShape") {
+    throw new Error("Expected node shape property");
+  }
+  return shape;
+}
+
+function getNodeInnerSepProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+  const nodeSection = descriptor.sections.find((section) => section.id === "node");
+  if (!nodeSection) {
+    throw new Error("Expected node section");
+  }
+  const innerSep = nodeSection.properties.find((property) => property.kind === "length");
+  if (!innerSep || innerSep.kind !== "length") {
+    throw new Error("Expected node inner sep property");
+  }
+  return innerSep;
+}
+
+function getNodeFontProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+  const nodeSection = descriptor.sections.find((section) => section.id === "node");
+  if (!nodeSection) {
+    throw new Error("Expected node section");
+  }
+  const nodeFont = nodeSection.properties.find((property) => property.kind === "nodeFont");
+  if (!nodeFont || nodeFont.kind !== "nodeFont") {
+    throw new Error("Expected node font property");
+  }
+  return nodeFont;
+}

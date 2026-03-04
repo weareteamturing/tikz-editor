@@ -56,8 +56,18 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   number: [
     { feature: "options_structured", layers: ["edit"], label: "transform option editing" }
   ],
+  length: [
+    { feature: "options_structured", layers: ["edit"], label: "length option editing" }
+  ],
   color: [
     { feature: "options_structured", layers: ["edit"], label: "style option editing" }
+  ],
+  nodeShape: [
+    { feature: "options_structured", layers: ["edit"], label: "node shape option editing" }
+  ],
+  nodeFont: [
+    { feature: "options_structured", layers: ["edit"], label: "node font option editing" },
+    { feature: "svg_text", layers: ["semantic", "svg"], label: "text rendering" }
   ],
   lineWidth: [
     { feature: "options_structured", layers: ["edit"], label: "line width editing" }
@@ -101,6 +111,17 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   ]
 };
 
+const NODE_SHAPE_FEATURE_BY_VALUE: Partial<
+  Record<Exclude<Extract<InspectorProperty, { kind: "nodeShape" }>["value"], "custom">, FeatureId>
+> = {
+  rectangle: "shape_rectangle",
+  circle: "shape_circle",
+  ellipse: "shape_ellipse",
+  diamond: "shape_diamond",
+  trapezium: "shape_trapezium",
+  coordinate: "named_coordinates"
+};
+
 export function getToolCapabilityStatus(
   toolMode: ToolMode,
   matrix: CapabilityMatrix = capabilityMatrix
@@ -112,7 +133,18 @@ export function getInspectorPropertyCapabilityStatus(
   property: InspectorProperty,
   matrix: CapabilityMatrix = capabilityMatrix
 ): CapabilitySummary {
-  return evaluateChecks(INSPECTOR_CHECKS[property.kind], matrix);
+  const checks = [...INSPECTOR_CHECKS[property.kind]];
+  if (property.kind === "nodeShape" && property.value !== "custom") {
+    const shapeFeature = NODE_SHAPE_FEATURE_BY_VALUE[property.value];
+    if (shapeFeature) {
+      checks.push({
+        feature: shapeFeature,
+        layers: ["parser", "semantic", "svg", "edit"],
+        label: `${property.value} node shape support`
+      });
+    }
+  }
+  return evaluateChecks(checks, matrix);
 }
 
 function evaluateChecks(

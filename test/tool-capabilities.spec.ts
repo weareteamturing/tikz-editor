@@ -80,6 +80,64 @@ describe("inspector property capability status", () => {
     };
     expect(getInspectorPropertyCapabilityStatus(colorProperty).status).toBe("partial");
 
+    const lengthProperty: InspectorProperty = {
+      kind: "length",
+      id: "node-inner-sep",
+      label: "Inner sep",
+      value: 3.2,
+      step: 0.1,
+      unit: "pt",
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "inner sep",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(lengthProperty).status).toBe("partial");
+
+    const nodeShapeProperty: InspectorProperty = {
+      kind: "nodeShape",
+      id: "node-shape",
+      label: "Shape",
+      value: "rectangle",
+      options: [{ value: "rectangle", label: "Rectangle" }],
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "shape",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(nodeShapeProperty).status).toBe("partial");
+
+    const nodeFontProperty: InspectorProperty = {
+      kind: "nodeFont",
+      id: "node-font",
+      label: "Font",
+      family: "serif",
+      weight: "bold",
+      style: "italic",
+      sizePreset: "small",
+      customSizePt: null,
+      sizeOptions: [{ value: "small", label: "small" }],
+      context: {
+        key: "node font",
+        clearKeys: ["font"],
+        fallbackCustomSizePt: 10
+      },
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "node font",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(nodeFontProperty).status).toBe("partial");
+
     const fillModeProperty: InspectorProperty = {
       kind: "fillMode",
       id: "fill-mode",

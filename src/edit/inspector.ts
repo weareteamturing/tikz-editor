@@ -1,12 +1,20 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { normalizeColor, resolveDefineColorModel } from "../semantic/style/colors.js";
-import { findTopLevelCharacter, parseStyleValueAsOptionList, readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import {
+  findTopLevelCharacter,
+  parseFontStyle,
+  parseStyleValueAsOptionList,
+  readBalancedBlock,
+  stripEnclosingBraces
+} from "../semantic/style/option-utils.js";
 import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
+import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/constants.js";
 import type {
   ArrowMarker,
   ArrowTipKind,
   EditHandle,
+  ResolvedStyle,
   ResolvedPattern,
   SceneElement,
   ScenePathCommand
@@ -146,6 +154,40 @@ export type FillPatternPresetOption = {
   label: string;
 };
 
+export type NodeShapePresetId =
+  | "rectangle"
+  | "circle"
+  | "ellipse"
+  | "diamond"
+  | "trapezium"
+  | "coordinate"
+  | "custom";
+
+export type NodeShapePresetOption = {
+  value: Exclude<NodeShapePresetId, "custom">;
+  label: string;
+};
+
+export type NodeFontFamilyId = "serif" | "sans" | "monospace";
+
+export type NodeFontSizePresetId =
+  | "tiny"
+  | "scriptsize"
+  | "footnotesize"
+  | "small"
+  | "normalsize"
+  | "large"
+  | "Large"
+  | "LARGE"
+  | "huge"
+  | "Huge"
+  | "custom";
+
+export type NodeFontSizePresetOption = {
+  value: Exclude<NodeFontSizePresetId, "custom">;
+  label: string;
+};
+
 export type ArrowTipWriteContext = {
   startRaw: string;
   endRaw: string;
@@ -228,6 +270,30 @@ export type FillPatternOptionSetPropertyMutation = {
   clearKeys: string[];
 };
 
+export type NodeShapeSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type NodeInnerSepSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type NodeFontMutationContext = {
+  key: "font" | "node font";
+  clearKeys: string[];
+  fallbackCustomSizePt: number;
+};
+
+export type NodeFontSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
 export type TransformInspectorKey = "xshift" | "yshift" | "xscale" | "yscale" | "rotate";
 
 export type TransformInspectorValues = {
@@ -271,6 +337,17 @@ export type InspectorProperty =
       step: number;
       unit?: string;
       write?: SetPropertyWriteTarget;
+      readOnlyReason?: string;
+    }
+  | {
+      kind: "length";
+      id: string;
+      label: string;
+      value: number;
+      step: number;
+      unit: "pt";
+      write: SetPropertyWriteTarget;
+      note?: string;
       readOnlyReason?: string;
     }
   | {
@@ -353,6 +430,29 @@ export type InspectorProperty =
       label: string;
       value: FillPatternPresetId;
       options: FillPatternPresetOption[];
+      write: SetPropertyWriteTarget;
+      note?: string;
+    }
+  | {
+      kind: "nodeShape";
+      id: string;
+      label: string;
+      value: NodeShapePresetId;
+      options: NodeShapePresetOption[];
+      write: SetPropertyWriteTarget;
+      note?: string;
+    }
+  | {
+      kind: "nodeFont";
+      id: string;
+      label: string;
+      family: NodeFontFamilyId;
+      weight: "normal" | "bold";
+      style: "normal" | "italic";
+      sizePreset: NodeFontSizePresetId;
+      customSizePt: number | null;
+      sizeOptions: NodeFontSizePresetOption[];
+      context: NodeFontMutationContext;
       write: SetPropertyWriteTarget;
       note?: string;
     }
@@ -554,6 +654,87 @@ const FILL_PATTERN_OPTIONS: FillPatternPresetOption[] = [
   { value: "Dots", label: "Dots" },
   { value: "Stars", label: "Stars" }
 ];
+const NODE_SHAPE_OPTIONS: NodeShapePresetOption[] = [
+  { value: "rectangle", label: "Rectangle" },
+  { value: "circle", label: "Circle" },
+  { value: "ellipse", label: "Ellipse" },
+  { value: "diamond", label: "Diamond" },
+  { value: "trapezium", label: "Trapezium" },
+  { value: "coordinate", label: "Coordinate" }
+];
+const NODE_SHAPE_KEY = "shape";
+const NODE_SHAPE_KNOWN_KEYS = [
+  "rectangle",
+  "circle",
+  "ellipse",
+  "diamond",
+  "trapezium",
+  "semicircle",
+  "regular polygon",
+  "star",
+  "isosceles triangle",
+  "kite",
+  "dart",
+  "circular sector",
+  "cylinder",
+  "cloud",
+  "starburst",
+  "signal",
+  "tape",
+  "rectangle callout",
+  "ellipse callout",
+  "cloud callout",
+  "single arrow",
+  "double arrow",
+  "coordinate"
+] as const;
+const CURATED_NODE_SHAPE_SET = new Set<Exclude<NodeShapePresetId, "custom">>(
+  NODE_SHAPE_OPTIONS.map((option) => option.value)
+);
+const NODE_SHAPE_KNOWN_SET = new Set<string>(NODE_SHAPE_KNOWN_KEYS);
+const NODE_SHAPE_CUSTOM_NOTE =
+  "Custom node shape detected. Picking a curated shape will replace non-curated shape keys.";
+const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
+const NODE_INNER_SEP_CLEAR_KEYS = ["inner xsep", "inner ysep"] as const;
+const NODE_INNER_SEP_CONFLICT_NOTE =
+  "inner xsep/inner ysep detected. Editing Inner sep will replace axis-specific padding.";
+const NODE_FONT_KEYS = ["font", "node font"] as const;
+const NODE_FONT_CUSTOM_NOTE =
+  "Custom font command detected. Editing in the toolbar will replace unsupported font tokens.";
+const NODE_FONT_SIZE_PRESETS: Array<{
+  value: Exclude<NodeFontSizePresetId, "custom">;
+  label: string;
+  command: string;
+  scale: number;
+}> = [
+  { value: "tiny", label: "tiny", command: "\\tiny", scale: 0.5 },
+  { value: "scriptsize", label: "scriptsize", command: "\\scriptsize", scale: 0.7 },
+  { value: "footnotesize", label: "footnotesize", command: "\\footnotesize", scale: 0.8 },
+  { value: "small", label: "small", command: "\\small", scale: 0.9 },
+  { value: "normalsize", label: "normalsize", command: "\\normalsize", scale: 1 },
+  { value: "large", label: "large", command: "\\large", scale: 1.2 },
+  { value: "Large", label: "Large", command: "\\Large", scale: 1.44 },
+  { value: "LARGE", label: "LARGE", command: "\\LARGE", scale: 1.728 },
+  { value: "huge", label: "huge", command: "\\huge", scale: 2.074 },
+  { value: "Huge", label: "Huge", command: "\\Huge", scale: 2.488 }
+];
+const NODE_FONT_PRESET_BY_ID = new Map(
+  NODE_FONT_SIZE_PRESETS.map((preset) => [preset.value, preset] as const)
+);
+const NODE_FONT_FAMILY_COMMAND: Record<NodeFontFamilyId, string> = {
+  serif: "\\rmfamily",
+  sans: "\\sffamily",
+  monospace: "\\ttfamily"
+};
+const NODE_FONT_WEIGHT_COMMAND: Record<"normal" | "bold", string> = {
+  normal: "\\mdseries",
+  bold: "\\bfseries"
+};
+const NODE_FONT_STYLE_COMMAND: Record<"normal" | "italic", string> = {
+  normal: "\\upshape",
+  italic: "\\itshape"
+};
+const NODE_FONT_SIZE_EPSILON = 0.02;
 const META_FILL_PATTERN_PRESETS = {
   lines: "Lines",
   hatch: "Hatch",
@@ -975,6 +1156,69 @@ export function buildRoundedCornersSetPropertyMutation(
   };
 }
 
+export function buildNodeShapeSetPropertyMutation(
+  value: Exclude<NodeShapePresetId, "custom">
+): NodeShapeSetPropertyMutation {
+  return {
+    key: NODE_SHAPE_KEY,
+    value,
+    clearKeys: uniqueStrings([...NODE_SHAPE_KNOWN_KEYS])
+  };
+}
+
+export function buildNodeInnerSepSetPropertyMutation(value: number): NodeInnerSepSetPropertyMutation {
+  const safe = Number.isFinite(value) && value >= 0 ? value : NODE_INNER_SEP_DEFAULT;
+  return {
+    key: "inner sep",
+    value: `${formatInspectorLength(safe)}pt`,
+    clearKeys: uniqueStrings([...NODE_INNER_SEP_CLEAR_KEYS])
+  };
+}
+
+export function buildNodeFontSetPropertyMutation(
+  context: NodeFontMutationContext,
+  values: {
+    family: NodeFontFamilyId;
+    weight: "normal" | "bold";
+    style: "normal" | "italic";
+    sizePreset: NodeFontSizePresetId;
+    customSizePt: number | null;
+  }
+): NodeFontSetPropertyMutation {
+  const preset = values.sizePreset === "custom" ? null : NODE_FONT_PRESET_BY_ID.get(values.sizePreset);
+  const safeCustomSize =
+    Number.isFinite(values.customSizePt) && (values.customSizePt ?? 0) > 0
+      ? (values.customSizePt as number)
+      : context.fallbackCustomSizePt;
+  const commandParts: string[] = [];
+
+  if (preset != null) {
+    if (preset.value !== "normalsize") {
+      commandParts.push(preset.command);
+    }
+  } else {
+    commandParts.push(
+      `\\fontsize{${formatInspectorLength(safeCustomSize)}pt}{${formatInspectorLength(safeCustomSize * 1.2)}pt}\\selectfont`
+    );
+  }
+
+  if (values.family !== "serif") {
+    commandParts.push(NODE_FONT_FAMILY_COMMAND[values.family]);
+  }
+  if (values.weight !== "normal") {
+    commandParts.push(NODE_FONT_WEIGHT_COMMAND[values.weight]);
+  }
+  if (values.style !== "normal") {
+    commandParts.push(NODE_FONT_STYLE_COMMAND[values.style]);
+  }
+
+  return {
+    key: context.key,
+    value: commandParts.join(""),
+    clearKeys: uniqueStrings(context.clearKeys)
+  };
+}
+
 export function resolveTransformInspectorValues(source: string, targetId: string | null): TransformInspectorValues {
   const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
   if (!targetId) {
@@ -1162,6 +1406,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       ? computePathStrokeControlVisibility(element.commands, element.style.dashArray)
       : null;
   const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
+  const nodeInspectorState =
+    inlineTarget.targetKind === "node-item"
+      ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind)
+      : null;
 
   const sections: InspectorSection[] = [
     {
@@ -1251,6 +1499,51 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       ]
     }
   ];
+  if (nodeInspectorState) {
+    sections.splice(1, 0, {
+      id: "node",
+      title: "Node",
+      sourceLevel: "command",
+      properties: [
+        {
+          kind: "nodeShape",
+          id: "node-shape",
+          label: "Shape",
+          value: nodeInspectorState.shape,
+          options: NODE_SHAPE_OPTIONS,
+          note: nodeInspectorState.shapeNote,
+          write: makeSetPropertyWriteTarget(inlineTarget, NODE_SHAPE_KEY)
+        },
+        {
+          kind: "length",
+          id: "node-inner-sep",
+          label: "Inner sep",
+          value: nodeInspectorState.innerSep,
+          step: 0.1,
+          unit: "pt",
+          note: nodeInspectorState.innerSepNote,
+          write: makeSetPropertyWriteTarget(inlineTarget, "inner sep")
+        },
+        {
+          kind: "nodeFont",
+          id: "node-font",
+          label: "Font",
+          family: nodeInspectorState.font.family,
+          weight: nodeInspectorState.font.weight,
+          style: nodeInspectorState.font.style,
+          sizePreset: nodeInspectorState.font.sizePreset,
+          customSizePt: nodeInspectorState.font.customSizePt,
+          sizeOptions: NODE_FONT_SIZE_PRESETS.map((preset) => ({
+            value: preset.value,
+            label: preset.label
+          })),
+          context: nodeInspectorState.font.context,
+          note: nodeInspectorState.font.note,
+          write: makeSetPropertyWriteTarget(inlineTarget, nodeInspectorState.font.context.key)
+        }
+      ]
+    });
+  }
   if (pathFillVisibility) {
     const fillProperties: InspectorProperty[] = [
       {
@@ -2444,13 +2737,214 @@ function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: A
   return "Hooks";
 }
 
+function resolveNodeInspectorState(
+  source: string,
+  targetId: string | null,
+  style: Pick<ResolvedStyle, "fontFamily" | "fontWeight" | "fontStyle" | "fontSize">,
+  elementKind: SceneElement["kind"]
+): {
+  shape: NodeShapePresetId;
+  shapeNote?: string;
+  innerSep: number;
+  innerSepNote?: string;
+  font: {
+    family: NodeFontFamilyId;
+    weight: "normal" | "bold";
+    style: "normal" | "italic";
+    sizePreset: NodeFontSizePresetId;
+    customSizePt: number | null;
+    context: NodeFontMutationContext;
+    note?: string;
+  };
+} {
+  const fallbackShape = nodeShapeFallbackFromElementKind(elementKind);
+  const fallbackFontSize =
+    Number.isFinite(style.fontSize) && style.fontSize > 0 ? style.fontSize : DEFAULT_TEXT_FONT_SIZE;
+  const fallbackFontSizePreset = nodeFontSizePresetFromFontSize(fallbackFontSize);
+  const state: {
+    shape: NodeShapePresetId;
+    shapeNote?: string;
+    innerSep: number;
+    innerSepNote?: string;
+    font: {
+      family: NodeFontFamilyId;
+      weight: "normal" | "bold";
+      style: "normal" | "italic";
+      sizePreset: NodeFontSizePresetId;
+      customSizePt: number | null;
+      context: NodeFontMutationContext;
+      note?: string;
+    };
+  } = {
+    shape: fallbackShape,
+    innerSep: NODE_INNER_SEP_DEFAULT,
+    font: {
+      family: style.fontFamily,
+      weight: style.fontWeight,
+      style: style.fontStyle,
+      sizePreset: fallbackFontSizePreset,
+      customSizePt: fallbackFontSizePreset === "custom" ? fallbackFontSize : null,
+      context: {
+        key: "node font",
+        clearKeys: ["font"],
+        fallbackCustomSizePt: fallbackFontSize
+      }
+    }
+  };
+
+  if (!targetId) {
+    return state;
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return state;
+  }
+
+  let rawShape: string | null = null;
+  let innerXSep = NODE_INNER_SEP_DEFAULT;
+  let innerYSep = NODE_INNER_SEP_DEFAULT;
+  let sawAxisSpecificInnerSep = false;
+  let selectedFontKey: "font" | "node font" | null = null;
+  let selectedFontRaw: string | null = null;
+
+  for (const entry of resolved.target.options.entries) {
+    if (entry.kind === "flag") {
+      const key = normalizeOptionKey(entry.key);
+      if (NODE_SHAPE_KNOWN_SET.has(key)) {
+        rawShape = key;
+      }
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = normalizeOptionKey(entry.key);
+    if (key === NODE_SHAPE_KEY) {
+      rawShape = normalizeShapeRawValue(entry.valueRaw);
+      continue;
+    }
+    if (key === "inner sep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null && parsed >= 0) {
+        innerXSep = parsed;
+        innerYSep = parsed;
+        sawAxisSpecificInnerSep = false;
+      }
+      continue;
+    }
+    if (key === "inner xsep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null && parsed >= 0) {
+        innerXSep = parsed;
+        sawAxisSpecificInnerSep = true;
+      }
+      continue;
+    }
+    if (key === "inner ysep") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null && parsed >= 0) {
+        innerYSep = parsed;
+        sawAxisSpecificInnerSep = true;
+      }
+      continue;
+    }
+    if (key === "font" || key === "node font") {
+      selectedFontKey = key;
+      selectedFontRaw = entry.valueRaw;
+      continue;
+    }
+  }
+
+  if (rawShape != null) {
+    if (CURATED_NODE_SHAPE_SET.has(rawShape as Exclude<NodeShapePresetId, "custom">)) {
+      state.shape = rawShape as Exclude<NodeShapePresetId, "custom">;
+    } else {
+      state.shape = "custom";
+      state.shapeNote = NODE_SHAPE_CUSTOM_NOTE;
+    }
+  }
+
+  state.innerSep = (innerXSep + innerYSep) / 2;
+  if (sawAxisSpecificInnerSep || Math.abs(innerXSep - innerYSep) > 1e-6) {
+    state.innerSepNote = NODE_INNER_SEP_CONFLICT_NOTE;
+  }
+
+  let fallbackCustomSizePt = fallbackFontSize;
+  if (selectedFontRaw != null) {
+    const parsedFont = parseFontStyle(selectedFontRaw);
+    if (parsedFont == null) {
+      state.font.note = NODE_FONT_CUSTOM_NOTE;
+    } else {
+      if (parsedFont.fontFamily) {
+        state.font.family = parsedFont.fontFamily;
+      }
+      if (parsedFont.fontWeight) {
+        state.font.weight = parsedFont.fontWeight;
+      }
+      if (parsedFont.fontStyle) {
+        state.font.style = parsedFont.fontStyle;
+      }
+      const parsedFontSize =
+        Number.isFinite(parsedFont.fontSize) && (parsedFont.fontSize ?? 0) > 0
+          ? (parsedFont.fontSize as number)
+          : fallbackFontSize;
+      fallbackCustomSizePt = parsedFontSize;
+      const parsedSizePreset = nodeFontSizePresetFromFontSize(parsedFontSize);
+      state.font.sizePreset = parsedSizePreset;
+      state.font.customSizePt = parsedSizePreset === "custom" ? parsedFontSize : null;
+    }
+  } else if (state.font.sizePreset === "custom" && Number.isFinite(state.font.customSizePt)) {
+    fallbackCustomSizePt = state.font.customSizePt as number;
+  }
+
+  const preferredFontKey = selectedFontKey ?? "node font";
+  state.font.context = {
+    key: preferredFontKey,
+    clearKeys: preferredFontKey === "font" ? ["node font"] : ["font"],
+    fallbackCustomSizePt
+  };
+
+  return state;
+}
+
+function nodeShapeFallbackFromElementKind(kind: SceneElement["kind"]): Exclude<NodeShapePresetId, "custom"> {
+  if (kind === "Circle") {
+    return "circle";
+  }
+  if (kind === "Ellipse") {
+    return "ellipse";
+  }
+  return "rectangle";
+}
+
+function normalizeShapeRawValue(raw: string): string {
+  return stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function nodeFontSizePresetFromFontSize(fontSize: number): NodeFontSizePresetId {
+  if (!Number.isFinite(fontSize) || fontSize <= 0) {
+    return "normalsize";
+  }
+  for (const preset of NODE_FONT_SIZE_PRESETS) {
+    const expected = DEFAULT_TEXT_FONT_SIZE * preset.scale;
+    if (Math.abs(expected - fontSize) <= NODE_FONT_SIZE_EPSILON) {
+      return preset.value;
+    }
+  }
+  return "custom";
+}
+
 function resolveInlineWriteTarget(
   element: SceneElement,
   source: string
-): { targetId: string | null; writable: boolean; reason?: string } {
+): { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string } {
   if (element.origin?.foreachStack && element.origin.foreachStack.length > 0) {
     return {
       targetId: null,
+      targetKind: null,
       writable: false,
       reason: "This element comes from a \\foreach expansion and is read-only in the Phase 2 inspector."
     };
@@ -2459,6 +2953,7 @@ function resolveInlineWriteTarget(
   if (element.origin?.macroStack && element.origin.macroStack.length > 0) {
     return {
       targetId: null,
+      targetKind: null,
       writable: false,
       reason: "This element comes from a macro expansion and is read-only in the Phase 2 inspector."
     };
@@ -2471,12 +2966,13 @@ function resolveInlineWriteTarget(
   if (resolved.kind === "not-found") {
     return {
       targetId,
+      targetKind: null,
       writable: false,
       reason: "Inline command options could not be resolved for this element."
     };
   }
 
-  return { targetId, writable: true };
+  return { targetId, targetKind: resolved.target.kind, writable: true };
 }
 
 function normalizeElementKind(kind: SceneElement["kind"]): InspectorDescriptor["elementKind"] {
