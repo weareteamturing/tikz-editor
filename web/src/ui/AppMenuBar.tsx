@@ -329,6 +329,7 @@ export function AppMenuBar() {
     [APP_MENU_COMMAND_IDS.INSERT_LINE]: insertBinding("addLine"),
     [APP_MENU_COMMAND_IDS.INSERT_ARROW]: insertBinding("addArrow"),
     [APP_MENU_COMMAND_IDS.INSERT_BEZIER]: insertBinding("addBezier"),
+    [APP_MENU_COMMAND_IDS.INSERT_GRID]: insertBinding("addGrid"),
     [APP_MENU_COMMAND_IDS.INSERT_RECT]: insertBinding("addRect"),
     [APP_MENU_COMMAND_IDS.INSERT_ELLIPSE]: insertBinding("addEllipse"),
     [APP_MENU_COMMAND_IDS.INSERT_CIRCLE]: insertBinding("addCircle"),

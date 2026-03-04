@@ -5,6 +5,7 @@ import type { OptionListAst } from "../options/types.js";
 export type PropertyTargetKind =
   | "figure"
   | "path-statement"
+  | "path-keyword"
   | "node-item"
   | "to-operation"
   | "edge-operation"
@@ -96,7 +97,16 @@ function findTargetInStatements(statements: Statement[], source: string, element
 }
 
 function findTargetInPathItems(items: PathItem[], source: string, elementId: string): PropertyTarget | null {
-  for (const item of items) {
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item) {
+      continue;
+    }
+
+    if (item.kind === "PathKeyword" && item.id === elementId) {
+      return makePathKeywordTarget(item, items, index);
+    }
+
     if (item.kind === "Node" && item.id === elementId) {
       return makeNodeTarget(item, source);
     }
@@ -137,6 +147,13 @@ function findTargetInPathItems(items: PathItem[], source: string, elementId: str
 
     if (item.kind === "SvgOperation" && item.id === elementId) {
       return makeToLikeOperationTarget("svg-operation", item.id, item.span, item.options, item.optionsSpan, /\bsvg\b/, source);
+    }
+
+    if (item.kind === "ChildOperation") {
+      const nested = findTargetInPathItems(item.body, source, elementId);
+      if (nested) {
+        return nested;
+      }
     }
   }
 
@@ -185,8 +202,21 @@ function makeNodeTarget(node: NodeItem, source: string): PropertyTarget {
   };
 }
 
+function makePathKeywordTarget(item: Extract<PathItem, { kind: "PathKeyword" }>, items: PathItem[], index: number): PropertyTarget {
+  const maybeOption = items[index + 1];
+  const optionItem = maybeOption?.kind === "PathOption" ? maybeOption : null;
+  return {
+    id: item.id,
+    kind: "path-keyword",
+    span: item.span,
+    options: optionItem?.options,
+    optionsSpan: optionItem?.optionsSpan ?? optionItem?.options?.span,
+    insertOffset: item.span.to
+  };
+}
+
 function makeToLikeOperationTarget(
-  kind: Exclude<PropertyTargetKind, "path-statement" | "node-item">,
+  kind: Exclude<PropertyTargetKind, "path-statement" | "path-keyword" | "node-item">,
   id: string,
   span: Span,
   options: OptionListAst | undefined,

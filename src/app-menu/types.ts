@@ -31,6 +31,7 @@ export const APP_MENU_COMMAND_IDS = {
   INSERT_LINE: "insert.line",
   INSERT_ARROW: "insert.arrow",
   INSERT_BEZIER: "insert.bezier",
+  INSERT_GRID: "insert.grid",
   INSERT_RECT: "insert.rect",
   INSERT_ELLIPSE: "insert.ellipse",
   INSERT_CIRCLE: "insert.circle",

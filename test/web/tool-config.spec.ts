@@ -29,4 +29,10 @@ describe("resolveToolbarToolMode", () => {
     expect(isToolCreateMode("addBezier")).toBe(true);
     expect(isToolCreateMode("select")).toBe(false);
   });
+
+  it("treats addGrid as a create mode without a keyboard shortcut", () => {
+    expect(isToolCreateMode("addGrid")).toBe(true);
+    expect(toolModeFromShortcut("g")).toBeNull();
+    expect(toolModeFromShortcut("G")).toBeNull();
+  });
 });

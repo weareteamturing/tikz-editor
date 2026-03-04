@@ -7,6 +7,7 @@ import {
   RiSubtractLine,
   RiArrowRightLine,
   RiPenNibLine,
+  RiGridLine,
   RiRectangleLine,
   RiCircleLine,
 } from "@remixicon/react";
@@ -38,12 +39,13 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "addLine",    label: "Line",    title: "Draw a line (L)",                                  shortcut: "l", icon: RiSubtractLine },
   { mode: "addArrow",   label: "Arrow",   title: "Draw an arrow (A)",                                shortcut: "a", icon: RiArrowRightLine },
   { mode: "addBezier",  label: "Bezier",  title: "Draw a cubic Bezier curve (B) with two drags",    shortcut: "b", icon: RiPenNibLine },
+  { mode: "addGrid",    label: "Grid",    title: "Draw a grid. Hold Shift to constrain to a square.",                icon: RiGridLine },
   { mode: "addRect",    label: "Rect",    title: "Draw a rectangle (R). Hold Shift to constrain to a square.", shortcut: "r", icon: RiRectangleLine },
   { mode: "addEllipse", label: "Ellipse", title: "Draw an ellipse (E). Hold Shift to constrain to a circle.", shortcut: "e", icon: EllipseIcon },
   { mode: "addCircle",  label: "Circle",  title: "Draw a circle from center (C)",                   shortcut: "c", icon: RiCircleLine },
 ];
 
-export const TOOL_CREATE_MODES = ["addLine", "addArrow", "addBezier", "addRect", "addEllipse", "addCircle"] as const;
+export const TOOL_CREATE_MODES = ["addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle"] as const;
 
 export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 
@@ -69,7 +71,7 @@ export function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {
 }
 
 export function toolCreateSnapKind(mode: ToolCreateMode): SnapToolPointerKind {
-  if (mode === "addRect" || mode === "addEllipse") {
+  if (mode === "addGrid" || mode === "addRect" || mode === "addEllipse") {
     return "rect-corner";
   }
   if (mode === "addCircle") {
@@ -79,5 +81,5 @@ export function toolCreateSnapKind(mode: ToolCreateMode): SnapToolPointerKind {
 }
 
 export function shouldConstrainToolCreateToSquare(mode: ToolCreateMode): boolean {
-  return mode === "addRect" || mode === "addEllipse";
+  return mode === "addGrid" || mode === "addRect" || mode === "addEllipse";
 }

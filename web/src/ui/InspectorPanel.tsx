@@ -61,6 +61,7 @@ type MultiInspectorNumberProperty = {
   mixed: boolean;
   step: number;
   unit?: string;
+  clearKeys?: string[];
   writes: SetPropertyWriteTarget[];
   readOnlyReason?: string;
 };
@@ -362,7 +363,11 @@ const FILL_ADVANCED_PROPERTY_IDS = new Set([
   "fill-pattern-radius",
   "fill-pattern-points"
 ]);
-const COMPACT_NUMBER_PAIR_IDS = new Set(["xshift:yshift", "xscale:yscale"]);
+const COMPACT_NUMBER_PAIR_IDS = new Set([
+  "xshift:yshift",
+  "xscale:yscale",
+  "grid-xstep:grid-ystep"
+]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
@@ -1206,7 +1211,9 @@ export function InspectorPanel() {
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
     if (!write.transformContext) {
-      applySetProperty(write, formatNumber(next));
+      applySetProperty(write, formatNumberWriteValue(property, next), {
+        clearKeys: property.clearKeys
+      });
       return;
     }
 
@@ -1256,8 +1263,8 @@ export function InspectorPanel() {
             elementId: write.elementId,
             level: write.level,
             key: write.key,
-            value: formatNumber(next),
-            clearKeys: []
+            value: formatNumberWriteValue(property, next),
+            clearKeys: property.clearKeys
           }
         });
         continue;
@@ -1282,6 +1289,17 @@ export function InspectorPanel() {
         });
       }
     }
+  }
+
+  function formatNumberWriteValue(
+    property: Pick<Extract<InspectorProperty, { kind: "number" }> | Extract<MultiInspectorProperty, { kind: "number" }>, "unit">,
+    value: number
+  ): string {
+    const formatted = formatNumber(value);
+    if (property.unit) {
+      return `${formatted}${property.unit}`;
+    }
+    return formatted;
   }
 
   function getSingleNumberPropertyState(property: Extract<InspectorProperty, { kind: "number" }>): {
@@ -3508,6 +3526,9 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
     const writes = numberProperties
       .map((property) => property.write)
       .filter((write): write is SetPropertyWriteTarget => write?.mode === "setProperty");
+    const clearKeys = allValuesEqual(numberProperties.map((property) => (property.clearKeys ?? []).join("\n")))
+      ? numberProperties[0]?.clearKeys
+      : undefined;
 
     return {
       kind: "number",
@@ -3517,6 +3538,7 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       mixed: !numbersAreEqual(numberProperties.map((property) => property.value)),
       step: base.step,
       unit: base.unit,
+      clearKeys,
       writes,
       readOnlyReason: deriveReadOnlyReason(writes)
     };

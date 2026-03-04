@@ -5,6 +5,7 @@ export type ElementTemplate =
   | { kind: "node"; text?: string }
   | { kind: "line"; hasArrow?: boolean; to?: Point }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
+  | { kind: "grid"; corner?: Point }
   | { kind: "rectangle"; corner?: Point }
   | { kind: "ellipse"; corner?: Point }
   | { kind: "circle"; edge?: Point }
@@ -38,6 +39,14 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
       const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
       const controls = resolveBezierControls(at, to, template.control1, template.control2);
       return `\\draw ${atCoord} .. controls ${formatPointCm(controls.control1)} and ${formatPointCm(controls.control2)} .. ${formatPointCm(to)};`;
+    }
+
+    case "grid": {
+      const corner = template.corner ?? {
+        x: at.x + DEFAULT_RECT_WIDTH_PT,
+        y: at.y + DEFAULT_RECT_HEIGHT_PT
+      };
+      return `\\draw ${atCoord} grid ${formatPointCm(corner)};`;
     }
 
     case "rectangle": {

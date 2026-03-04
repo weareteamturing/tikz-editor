@@ -52,6 +52,22 @@ describe("element templates", () => {
     );
     expect(snippet).toBe("\\draw (1,2) .. controls (2,3) and (3,1) .. (4,2);");
   });
+
+  it("generates a grid snippet from dragged corners", () => {
+    const snippet = generateElementSource(
+      { kind: "grid", corner: { x: cm(3), y: cm(5) } },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\draw (1,2) grid (3,5);");
+  });
+
+  it("generates a default-sized grid snippet without a drag corner", () => {
+    const snippet = generateElementSource(
+      { kind: "grid" },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\draw (1,2) grid (3.2,3.4);");
+  });
 });
 
 describe("insertElementIntoSource", () => {

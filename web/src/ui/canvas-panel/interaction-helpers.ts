@@ -78,6 +78,12 @@ export function createTemplateForToolDrag(
       : { kind: "bezier" };
   }
 
+  if (mode === "addGrid") {
+    return hasDrag
+      ? { kind: "grid", corner: endWorld }
+      : { kind: "grid" };
+  }
+
   if (mode === "addRect") {
     return hasDrag
       ? { kind: "rectangle", corner: endWorld }

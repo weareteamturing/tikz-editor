@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderTikzToSvg } from "../src/render/index.js";
 import { applyEditAction } from "../src/edit/actions.js";
+import { parseTikz } from "../src/parser/index.js";
 import {
   buildArrowTipSetPropertyMutation,
   buildFillModeSetPropertyMutations,
@@ -238,6 +239,143 @@ describe("getInspectorDescriptor", () => {
     }
     const arrowProperties = pathSection.properties.filter((property) => property.kind === "arrowTip");
     expect(arrowProperties).toHaveLength(0);
+  });
+
+  it("shows grid controls for a single grid operation with keyword-targeted writes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid (2,2);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const sectionIds = descriptor.sections.map((section) => section.id);
+    expect(sectionIds).toContain("grid");
+    expect(sectionIds).toContain("stroke");
+    expect(sectionIds.indexOf("grid")).toBeLessThan(sectionIds.indexOf("stroke"));
+
+    const gridSection = descriptor.sections.find((section) => section.id === "grid");
+    expect(gridSection).toBeDefined();
+    if (!gridSection) {
+      throw new Error("Expected grid section");
+    }
+
+    const step = gridSection.properties.find((property) => property.id === "grid-step");
+    const xstep = gridSection.properties.find((property) => property.id === "grid-xstep");
+    const ystep = gridSection.properties.find((property) => property.id === "grid-ystep");
+    if (!step || step.kind !== "number") {
+      throw new Error("Expected grid step number property");
+    }
+    if (!xstep || xstep.kind !== "number") {
+      throw new Error("Expected grid xstep number property");
+    }
+    if (!ystep || ystep.kind !== "number") {
+      throw new Error("Expected grid ystep number property");
+    }
+
+    expect(step.value).toBeCloseTo(1, 6);
+    expect(xstep.value).toBeCloseTo(1, 6);
+    expect(ystep.value).toBeCloseTo(1, 6);
+    expect(step.unit).toBe("cm");
+    expect(xstep.unit).toBe("cm");
+    expect(ystep.unit).toBe("cm");
+    expect(step.step).toBeCloseTo(0.1, 6);
+    expect(xstep.step).toBeCloseTo(0.1, 6);
+    expect(ystep.step).toBeCloseTo(0.1, 6);
+    expect(step.clearKeys).toContain("xstep");
+    expect(step.clearKeys).toContain("ystep");
+
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body.find((entry) => entry.kind === "Path");
+    if (!statement || statement.kind !== "Path") {
+      throw new Error("Expected path statement");
+    }
+    const gridKeyword = statement.items.find((item) => item.kind === "PathKeyword" && item.keyword === "grid");
+    if (!gridKeyword || gridKeyword.kind !== "PathKeyword") {
+      throw new Error("Expected grid keyword");
+    }
+
+    if (step.write.mode !== "setProperty" || xstep.write.mode !== "setProperty" || ystep.write.mode !== "setProperty") {
+      throw new Error("Expected setProperty writes for grid properties");
+    }
+    expect(step.write.elementId).toBe(gridKeyword.id);
+    expect(xstep.write.elementId).toBe(gridKeyword.id);
+    expect(ystep.write.elementId).toBe(gridKeyword.id);
+    expect(step.write.key).toBe("step");
+    expect(xstep.write.key).toBe("xstep");
+    expect(ystep.write.key).toBe("ystep");
+
+    const mutation = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: step.write.elementId,
+      level: step.write.level,
+      key: step.write.key,
+      value: "2.5cm",
+      clearKeys: step.clearKeys
+    });
+    expect(mutation.kind).toBe("success");
+    if (mutation.kind !== "success") {
+      throw new Error("Expected successful grid step mutation");
+    }
+    expect(mutation.newSource).toContain("\\draw (0,0) grid[step=2.5cm] (2,2);");
+  });
+
+  it("reads explicit grid xstep/ystep keyword options into cm inspector values", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid[xstep=2mm, y step=3mm] (2,2);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const gridSection = descriptor.sections.find((section) => section.id === "grid");
+    expect(gridSection).toBeDefined();
+    if (!gridSection) {
+      throw new Error("Expected grid section");
+    }
+
+    const step = gridSection.properties.find((property) => property.id === "grid-step");
+    const xstep = gridSection.properties.find((property) => property.id === "grid-xstep");
+    const ystep = gridSection.properties.find((property) => property.id === "grid-ystep");
+    if (!step || step.kind !== "number" || !xstep || xstep.kind !== "number" || !ystep || ystep.kind !== "number") {
+      throw new Error("Expected grid number properties");
+    }
+
+    expect(step.value).toBeCloseTo(1, 6);
+    expect(xstep.value).toBeCloseTo(0.2, 6);
+    expect(ystep.value).toBeCloseTo(0.3, 6);
+  });
+
+  it("hides grid controls when a path statement contains multiple grid operations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid (1,1) (2,2) grid (3,3);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(descriptor.sections.some((section) => section.id === "grid")).toBe(false);
   });
 
   it("marks foreach-expanded elements as read-only", () => {

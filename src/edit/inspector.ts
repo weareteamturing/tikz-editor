@@ -1,5 +1,7 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
+import { parseTikz } from "../parser/index.js";
+import type { PathItem, PathStatement, Statement } from "../ast/types.js";
 import { normalizeColor, resolveDefineColorModel } from "../semantic/style/colors.js";
 import {
   findTopLevelCharacter,
@@ -10,6 +12,7 @@ import {
 } from "../semantic/style/option-utils.js";
 import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
 import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/constants.js";
+import { CM_PER_PT } from "./format.js";
 import type {
   ArrowMarker,
   ArrowTipKind,
@@ -336,6 +339,7 @@ export type InspectorProperty =
       value: number;
       step: number;
       unit?: string;
+      clearKeys?: string[];
       write?: SetPropertyWriteTarget;
       readOnlyReason?: string;
     }
@@ -945,6 +949,10 @@ const DEFAULT_TRANSFORM_INSPECTOR_VALUES: TransformInspectorValues = {
 const SHIFT_CLEAR_KEYS = ["shift", "/tikz/shift"] as const;
 const SCALE_CLEAR_KEYS = ["scale", "/tikz/scale"] as const;
 const ROTATE_CLEAR_KEYS = ["/tikz/rotate"] as const;
+const GRID_DEFAULT_STEP_CM = 1;
+const GRID_STEP_CLEAR_KEYS = ["xstep", "x step", "ystep", "y step"] as const;
+const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
+const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
 const TRANSFORM_KEY_ALIAS_CLEAR_KEYS: Record<TransformInspectorKey, readonly string[]> = {
   xshift: ["/tikz/xshift"],
   yshift: ["/tikz/yshift"],
@@ -1835,6 +1843,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     const roundedCornersRadius = roundedCornersEnabled
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
       : roundedCornersDefaultRadius;
+    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceId);
     const pathSection: InspectorSection = {
       id: "path",
       title: "Path",
@@ -1892,6 +1901,54 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
 
     sections.splice(2, 0, pathSection);
+
+    if (gridInspectorState) {
+      const gridWriteTarget = makeSetPropertyWriteTargetForElementId(inlineTarget, gridInspectorState.keywordId, "step");
+      const gridSection: InspectorSection = {
+        id: "grid",
+        title: "Grid",
+        sourceLevel: "command",
+        properties: [
+          {
+            kind: "number",
+            id: "grid-step",
+            label: "Step",
+            value: gridInspectorState.step,
+            step: 0.1,
+            unit: "cm",
+            clearKeys: uniqueStrings(GRID_STEP_CLEAR_KEYS),
+            write: gridWriteTarget
+          },
+          {
+            kind: "number",
+            id: "grid-xstep",
+            label: "X step",
+            value: gridInspectorState.xstep,
+            step: 0.1,
+            unit: "cm",
+            clearKeys: uniqueStrings(GRID_XSTEP_CLEAR_KEYS),
+            write: makeSetPropertyWriteTargetForElementId(inlineTarget, gridInspectorState.keywordId, "xstep")
+          },
+          {
+            kind: "number",
+            id: "grid-ystep",
+            label: "Y step",
+            value: gridInspectorState.ystep,
+            step: 0.1,
+            unit: "cm",
+            clearKeys: uniqueStrings(GRID_YSTEP_CLEAR_KEYS),
+            write: makeSetPropertyWriteTargetForElementId(inlineTarget, gridInspectorState.keywordId, "ystep")
+          }
+        ]
+      };
+
+      const strokeSectionIndex = sections.findIndex((section) => section.id === "stroke");
+      if (strokeSectionIndex >= 0) {
+        sections.splice(strokeSectionIndex, 0, gridSection);
+      } else {
+        sections.push(gridSection);
+      }
+    }
   }
 
   if (element.kind === "Text") {
@@ -1926,12 +1983,20 @@ function makeSetPropertyWriteTarget(
   inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
   key: string
 ): SetPropertyWriteTarget {
+  return makeSetPropertyWriteTargetForElementId(inlineTarget, inlineTarget.targetId, key);
+}
+
+function makeSetPropertyWriteTargetForElementId(
+  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  elementId: string | null,
+  key: string
+): SetPropertyWriteTarget {
   return {
     mode: "setProperty",
-    elementId: inlineTarget.targetId ?? "",
+    elementId: elementId ?? "",
     level: "command",
     key,
-    writable: inlineTarget.writable && inlineTarget.targetId != null,
+    writable: inlineTarget.writable && elementId != null,
     reason: inlineTarget.reason
   };
 }
@@ -2735,6 +2800,185 @@ function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: A
     return "Bar";
   }
   return "Hooks";
+}
+
+function resolveGridInspectorState(
+  source: string,
+  pathSourceId: string
+): { keywordId: string; step: number; xstep: number; ystep: number } | null {
+  const pathStatement = findPathStatementInSource(source, pathSourceId);
+  if (!pathStatement) {
+    return null;
+  }
+
+  const gridKeywords = collectGridKeywords(pathStatement.items);
+  if (gridKeywords.length !== 1) {
+    return null;
+  }
+
+  const gridKeyword = gridKeywords[0];
+  if (!gridKeyword) {
+    return null;
+  }
+  const values = resolveGridStepValues(gridKeyword.options);
+  return {
+    keywordId: gridKeyword.keyword.id,
+    step: values.step,
+    xstep: values.xstep,
+    ystep: values.ystep
+  };
+}
+
+function findPathStatementInSource(source: string, sourceId: string): PathStatement | null {
+  const parsed = parseTikz(source, { recover: true });
+  return findPathStatementById(parsed.figure.body, sourceId);
+}
+
+function findPathStatementById(statements: Statement[], sourceId: string): PathStatement | null {
+  for (const statement of statements) {
+    if (statement.kind === "Path" && statement.id === sourceId) {
+      return statement;
+    }
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, sourceId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function collectGridKeywords(
+  items: readonly PathItem[]
+): Array<{ keyword: Extract<PathItem, { kind: "PathKeyword" }>; options: Extract<PathItem, { kind: "PathOption" }> | null }> {
+  const collected: Array<{ keyword: Extract<PathItem, { kind: "PathKeyword" }>; options: Extract<PathItem, { kind: "PathOption" }> | null }> = [];
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item) {
+      continue;
+    }
+    if (item.kind === "PathKeyword" && item.keyword === "grid") {
+      const next = items[index + 1];
+      collected.push({
+        keyword: item,
+        options: next?.kind === "PathOption" ? next : null
+      });
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      collected.push(...collectGridKeywords(item.body));
+    }
+  }
+
+  return collected;
+}
+
+function resolveGridStepValues(
+  optionItem: Extract<PathItem, { kind: "PathOption" }> | null
+): { step: number; xstep: number; ystep: number } {
+  if (!optionItem) {
+    return {
+      step: GRID_DEFAULT_STEP_CM,
+      xstep: GRID_DEFAULT_STEP_CM,
+      ystep: GRID_DEFAULT_STEP_CM
+    };
+  }
+
+  let xstep = GRID_DEFAULT_STEP_CM;
+  let ystep = GRID_DEFAULT_STEP_CM;
+  let sawXstep = false;
+  let sawYstep = false;
+  let stepCandidate: number | null = null;
+
+  for (const entry of optionItem.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    const key = normalizeOptionKey(entry.key);
+    if (key === "step") {
+      const parsed = parseGridStepValueCm(entry.valueRaw);
+      if (!parsed) {
+        continue;
+      }
+      xstep = parsed.x;
+      ystep = parsed.y;
+      sawXstep = true;
+      sawYstep = true;
+      stepCandidate = parsed.step;
+      continue;
+    }
+
+    if (key === "xstep" || key === "x step") {
+      const parsed = parseGridLengthCm(entry.valueRaw);
+      if (parsed != null) {
+        xstep = parsed;
+        sawXstep = true;
+      }
+      continue;
+    }
+
+    if (key === "ystep" || key === "y step") {
+      const parsed = parseGridLengthCm(entry.valueRaw);
+      if (parsed != null) {
+        ystep = parsed;
+        sawYstep = true;
+      }
+    }
+  }
+
+  if (!sawXstep) {
+    xstep = GRID_DEFAULT_STEP_CM;
+  }
+  if (!sawYstep) {
+    ystep = GRID_DEFAULT_STEP_CM;
+  }
+
+  if (stepCandidate == null && Math.abs(xstep - ystep) <= 1e-6) {
+    stepCandidate = xstep;
+  }
+
+  return {
+    step: stepCandidate ?? GRID_DEFAULT_STEP_CM,
+    xstep,
+    ystep
+  };
+}
+
+function parseGridStepValueCm(raw: string): { step: number | null; x: number; y: number } | null {
+  const pair = parseCoordinateLike(raw);
+  if (pair) {
+    const x = parseGridLengthCm(pair.x);
+    const y = parseGridLengthCm(pair.y);
+    if (x == null || y == null) {
+      return null;
+    }
+    return {
+      step: Math.abs(x - y) <= 1e-6 ? x : null,
+      x,
+      y
+    };
+  }
+
+  const scalar = parseGridLengthCm(raw);
+  if (scalar == null) {
+    return null;
+  }
+  return {
+    step: scalar,
+    x: scalar,
+    y: scalar
+  };
+}
+
+function parseGridLengthCm(raw: string): number | null {
+  const parsedPt = parseLength(raw, "cm");
+  if (parsedPt == null || !Number.isFinite(parsedPt) || parsedPt <= 0) {
+    return null;
+  }
+  return normalizeTinyNumber(parsedPt * CM_PER_PT);
 }
 
 function resolveNodeInspectorState(

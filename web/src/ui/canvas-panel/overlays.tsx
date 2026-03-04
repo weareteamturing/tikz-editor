@@ -17,6 +17,7 @@ type ToolPreview =
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+  | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
@@ -307,6 +308,40 @@ export function ToolPreviewOverlay({
             className={css.toolPreviewStroke}
             strokeWidth={handleStrokeWidth}
           />
+        </g>
+      )}
+      {toolPreview.kind === "grid" && (
+        <g>
+          <rect
+            x={toolPreview.x}
+            y={toolPreview.y}
+            width={toolPreview.width}
+            height={toolPreview.height}
+            className={css.toolPreviewFill}
+            strokeWidth={handleStrokeWidth}
+          />
+          {toolPreview.verticalLines.map((x, index) => (
+            <line
+              key={`grid-v-${index}`}
+              x1={x}
+              y1={toolPreview.y}
+              x2={x}
+              y2={toolPreview.y + toolPreview.height}
+              className={css.toolPreviewStroke}
+              strokeWidth={handleStrokeWidth}
+            />
+          ))}
+          {toolPreview.horizontalLines.map((y, index) => (
+            <line
+              key={`grid-h-${index}`}
+              x1={toolPreview.x}
+              y1={y}
+              x2={toolPreview.x + toolPreview.width}
+              y2={y}
+              className={css.toolPreviewStroke}
+              strokeWidth={handleStrokeWidth}
+            />
+          ))}
         </g>
       )}
       {toolPreview.kind === "rect" && (

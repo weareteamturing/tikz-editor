@@ -167,6 +167,7 @@ type ToolPreview =
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+  | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
   | { kind: "circle"; cx: number; cy: number; r: number };
@@ -241,6 +242,8 @@ const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
+const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
+const TOOL_PREVIEW_GRID_MAX_LINES = 120;
 const LEFT_RULER_DRAG_SOURCE_WIDTH_PX = 12;
 const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
@@ -1008,6 +1011,40 @@ export function CanvasPanel() {
         x2: end.x,
         y2: end.y,
         arrow: toolDraft.toolMode === "addArrow"
+      };
+    }
+
+    if (toolDraft.toolMode === "addGrid") {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      const minWorldX = Math.min(toolDraft.startWorld.x, toolDraft.currentWorld.x);
+      const maxWorldX = Math.max(toolDraft.startWorld.x, toolDraft.currentWorld.x);
+      const minWorldY = Math.min(toolDraft.startWorld.y, toolDraft.currentWorld.y);
+      const maxWorldY = Math.max(toolDraft.startWorld.y, toolDraft.currentWorld.y);
+      const verticalLines = buildAnchoredGridPreviewLines(
+        minWorldX,
+        minWorldX,
+        maxWorldX,
+        TOOL_PREVIEW_GRID_STEP_PT,
+        TOOL_PREVIEW_GRID_MAX_LINES
+      );
+      const horizontalLines = buildAnchoredGridPreviewLines(
+        minWorldY,
+        minWorldY,
+        maxWorldY,
+        TOOL_PREVIEW_GRID_STEP_PT,
+        TOOL_PREVIEW_GRID_MAX_LINES
+      ).map((worldY) => worldToSvgY(worldY, svgResult.viewBox));
+      return {
+        kind: "grid",
+        x,
+        y,
+        width,
+        height,
+        verticalLines,
+        horizontalLines
       };
     }
 
@@ -3636,6 +3673,40 @@ function estimateTextBlockWidth(text: string, fontSize: number): number {
 
 function makeMergeKey(prefix: string, id: string, pointerId: number): string {
   return `${prefix}:${id}:${pointerId}:${Date.now().toString(36)}`;
+}
+
+function buildAnchoredGridPreviewLines(
+  anchor: number,
+  min: number,
+  max: number,
+  step: number,
+  maxLines: number
+): number[] {
+  if (!Number.isFinite(anchor) || !Number.isFinite(min) || !Number.isFinite(max) || !(step > 0)) {
+    return [];
+  }
+  const lower = Math.min(min, max);
+  const upper = Math.max(min, max);
+  const epsilon = step * 1e-6;
+  const startIndex = Math.ceil((lower - anchor - epsilon) / step);
+  const endIndex = Math.floor((upper - anchor + epsilon) / step);
+  if (endIndex < startIndex) {
+    return [];
+  }
+
+  const count = endIndex - startIndex + 1;
+  const stride = Math.max(1, Math.ceil(count / Math.max(1, maxLines)));
+  const values: number[] = [];
+  for (let index = startIndex; index <= endIndex; index += stride) {
+    values.push(anchor + index * step);
+  }
+
+  if (startIndex <= 0 && endIndex >= 0 && !values.some((value) => Math.abs(value - anchor) <= epsilon)) {
+    values.push(anchor);
+    values.sort((left, right) => left - right);
+  }
+
+  return values;
 }
 
 function previewArrowPoints(

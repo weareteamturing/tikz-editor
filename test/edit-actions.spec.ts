@@ -477,6 +477,20 @@ describe("applyEditAction – setProperty", () => {
     "ultra thick"
   ];
 
+  function resolveFirstGridKeywordId(source: string): string {
+    const parsed = parseTikz(source);
+    for (const statement of parsed.figure.body) {
+      if (statement.kind !== "Path") {
+        continue;
+      }
+      const keyword = statement.items.find((item) => item.kind === "PathKeyword" && item.keyword === "grid");
+      if (keyword && keyword.kind === "PathKeyword") {
+        return keyword.id;
+      }
+    }
+    throw new Error("Expected at least one grid path keyword");
+  }
+
   it("updates an existing command option key", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[blue, line width=0.4pt] (0,0) -- (1,0);
@@ -637,6 +651,44 @@ describe("applyEditAction – setProperty", () => {
     expect(result.kind).toBe("success");
     if (result.kind === "success") {
       expect(result.newSource).toContain("\\draw (0,0) node[fill=yellow] {A};");
+    }
+  });
+
+  it("updates an existing grid keyword option list by keyword id", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid[step=2mm] (2,2);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: resolveFirstGridKeywordId(source),
+      level: "command",
+      key: "step",
+      value: "0.5cm",
+      clearKeys: ["xstep", "x step", "ystep", "y step"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw (0,0) grid[step=0.5cm] (2,2);");
+    }
+  });
+
+  it("inserts a grid keyword option list when none exists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) grid (2,2);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: resolveFirstGridKeywordId(source),
+      level: "command",
+      key: "xstep",
+      value: "0.4cm",
+      clearKeys: ["x step"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\draw (0,0) grid[xstep=0.4cm] (2,2);");
     }
   });
 
