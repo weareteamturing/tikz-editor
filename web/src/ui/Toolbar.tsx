@@ -15,7 +15,7 @@ export function Toolbar() {
 
       {/* Tool mode buttons */}
       <div className={css.group}>
-        {TOOL_BUTTONS.map(({ mode, label, title }) => {
+        {TOOL_BUTTONS.map(({ mode, label, title, icon: Icon }) => {
           const capability = getToolCapabilityStatus(mode);
           const unsupported = capability.status === "unsupported";
           const partial = capability.status === "partial";
@@ -39,7 +39,7 @@ export function Toolbar() {
                 })
               }
             >
-              {label}
+              <Icon size={14} />
             </button>
           );
         })}
