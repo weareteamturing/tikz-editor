@@ -75,6 +75,23 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
     { feature: "options_structured", layers: ["edit"], label: "decoration option editing" },
     { feature: "decoration_pathmorphing", layers: ["semantic", "svg"], label: "path morphing rendering" }
   ],
+  fillMode: [
+    { feature: "options_structured", layers: ["edit"], label: "fill paint mode editing" },
+    { feature: "path_shading", layers: ["semantic", "svg", "edit"], label: "gradient fill rendering/editing" },
+    { feature: "path_patterns", layers: ["semantic", "svg", "edit"], label: "pattern fill rendering/editing" }
+  ],
+  fillShading: [
+    { feature: "options_structured", layers: ["edit"], label: "shading option editing" },
+    { feature: "path_shading", layers: ["semantic", "svg", "edit"], label: "gradient fill rendering/editing" }
+  ],
+  fillPattern: [
+    { feature: "options_structured", layers: ["edit"], label: "pattern option editing" },
+    { feature: "path_patterns", layers: ["semantic", "svg", "edit"], label: "pattern fill rendering/editing" }
+  ],
+  fillPatternOption: [
+    { feature: "options_structured", layers: ["edit"], label: "pattern option editing" },
+    { feature: "path_patterns", layers: ["semantic", "svg", "edit"], label: "pattern fill rendering/editing" }
+  ],
   roundedCorners: [
     { feature: "options_structured", layers: ["edit"], label: "rounded corners editing" }
   ],

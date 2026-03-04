@@ -80,6 +80,98 @@ describe("inspector property capability status", () => {
     };
     expect(getInspectorPropertyCapabilityStatus(colorProperty).status).toBe("partial");
 
+    const fillModeProperty: InspectorProperty = {
+      kind: "fillMode",
+      id: "fill-mode",
+      label: "Mode",
+      value: "gradient",
+      options: [
+        { value: "solid", label: "Solid" },
+        { value: "gradient", label: "Gradient" },
+        { value: "pattern", label: "Pattern" }
+      ],
+      context: {
+        fillColor: "blue",
+        patternColor: "red",
+        shading: "axis",
+        pattern: "grid"
+      },
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "fill",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(fillModeProperty).status).toBe("partial");
+
+    const fillShadingProperty: InspectorProperty = {
+      kind: "fillShading",
+      id: "fill-shading",
+      label: "Shading",
+      value: "axis",
+      options: [
+        { value: "axis", label: "Axis" },
+        { value: "radial", label: "Radial" },
+        { value: "ball", label: "Ball" }
+      ],
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "shading",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(fillShadingProperty).status).toBe("partial");
+
+    const fillPatternProperty: InspectorProperty = {
+      kind: "fillPattern",
+      id: "fill-pattern",
+      label: "Pattern",
+      value: "grid",
+      options: [{ value: "grid", label: "grid" }],
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "pattern",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(fillPatternProperty).status).toBe("partial");
+
+    const fillPatternOptionProperty: InspectorProperty = {
+      kind: "fillPatternOption",
+      id: "fill-pattern-distance",
+      label: "Distance",
+      option: "distance",
+      value: 3,
+      step: 0.1,
+      unit: "pt",
+      context: {
+        family: "Lines",
+        values: {
+          angle: 0,
+          distance: 3,
+          xshift: 0,
+          yshift: 0,
+          lineWidth: 0.4,
+          radius: 0.5,
+          points: 5
+        }
+      },
+      write: {
+        mode: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "pattern",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(fillPatternOptionProperty).status).toBe("partial");
+
     const roundedCornersProperty: InspectorProperty = {
       kind: "roundedCorners",
       id: "rounded-corners",

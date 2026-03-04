@@ -3,7 +3,14 @@ import { resolvePropertyTarget } from "./property-target.js";
 import { normalizeColor, resolveDefineColorModel } from "../semantic/style/colors.js";
 import { findTopLevelCharacter, parseStyleValueAsOptionList, readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
-import type { ArrowMarker, ArrowTipKind, EditHandle, SceneElement, ScenePathCommand } from "../semantic/types.js";
+import type {
+  ArrowMarker,
+  ArrowTipKind,
+  EditHandle,
+  ResolvedPattern,
+  SceneElement,
+  ScenePathCommand
+} from "../semantic/types.js";
 export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
 
 export type ArrowTipPresetId =
@@ -45,6 +52,58 @@ export type PathMorphingDecorationPresetId =
   | "snake"
   | "custom";
 
+export type FillModePresetId = "solid" | "gradient" | "pattern" | "custom";
+
+export type FillShadingPresetId = "axis" | "radial" | "ball" | "custom";
+
+export type FillPatternPresetId =
+  | "horizontal lines"
+  | "vertical lines"
+  | "north east lines"
+  | "north west lines"
+  | "grid"
+  | "crosshatch"
+  | "dots"
+  | "crosshatch dots"
+  | "fivepointed stars"
+  | "sixpointed stars"
+  | "bricks"
+  | "checkerboard"
+  | "checkerboard light gray"
+  | "horizontal lines light gray"
+  | "horizontal lines gray"
+  | "horizontal lines dark gray"
+  | "horizontal lines light blue"
+  | "horizontal lines dark blue"
+  | "crosshatch dots gray"
+  | "crosshatch dots light steel blue"
+  | "Lines"
+  | "Hatch"
+  | "Dots"
+  | "Stars"
+  | "custom";
+
+export type FillPatternMetaFamilyId = "Lines" | "Hatch" | "Dots" | "Stars";
+
+export type FillPatternMetaOptionKey =
+  | "angle"
+  | "distance"
+  | "xshift"
+  | "yshift"
+  | "line width"
+  | "radius"
+  | "points";
+
+export type FillPatternMetaValues = {
+  angle: number;
+  distance: number;
+  xshift: number;
+  yshift: number;
+  lineWidth: number;
+  radius: number;
+  points: number;
+};
+
 export type ArrowTipSide = "start" | "end";
 
 export type ArrowTipPresetOption = {
@@ -69,6 +128,21 @@ export type LineJoinPresetOption = {
 
 export type PathMorphingDecorationPresetOption = {
   value: Exclude<PathMorphingDecorationPresetId, "custom">;
+  label: string;
+};
+
+export type FillModePresetOption = {
+  value: Exclude<FillModePresetId, "custom">;
+  label: string;
+};
+
+export type FillShadingPresetOption = {
+  value: Exclude<FillShadingPresetId, "custom">;
+  label: string;
+};
+
+export type FillPatternPresetOption = {
+  value: Exclude<FillPatternPresetId, "custom">;
   label: string;
 };
 
@@ -113,6 +187,42 @@ export type PathMorphingDecorationSetPropertyMutation = {
 };
 
 export type RoundedCornersSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type FillModeMutationContext = {
+  fillColor: string | null;
+  patternColor: string | null;
+  shading: FillShadingPresetId;
+  pattern: FillPatternPresetId;
+};
+
+export type FillModeSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type FillShadingSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type FillPatternSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
+export type FillPatternOptionMutationContext = {
+  family: FillPatternMetaFamilyId;
+  values: FillPatternMetaValues;
+};
+
+export type FillPatternOptionSetPropertyMutation = {
   key: string;
   value: string;
   clearKeys: string[];
@@ -217,6 +327,44 @@ export type InspectorProperty =
       value: PathMorphingDecorationPresetId;
       options: PathMorphingDecorationPresetOption[];
       previewLineWidth: number;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "fillMode";
+      id: string;
+      label: string;
+      value: FillModePresetId;
+      options: FillModePresetOption[];
+      context: FillModeMutationContext;
+      write: SetPropertyWriteTarget;
+    }
+  | {
+      kind: "fillShading";
+      id: string;
+      label: string;
+      value: FillShadingPresetId;
+      options: FillShadingPresetOption[];
+      write: SetPropertyWriteTarget;
+      note?: string;
+    }
+  | {
+      kind: "fillPattern";
+      id: string;
+      label: string;
+      value: FillPatternPresetId;
+      options: FillPatternPresetOption[];
+      write: SetPropertyWriteTarget;
+      note?: string;
+    }
+  | {
+      kind: "fillPatternOption";
+      id: string;
+      label: string;
+      option: FillPatternMetaOptionKey;
+      value: number;
+      step: number;
+      unit?: string;
+      context: FillPatternOptionMutationContext;
       write: SetPropertyWriteTarget;
     }
   | {
@@ -370,6 +518,71 @@ const PATH_MORPHING_DECORATION_OPTIONS: PathMorphingDecorationPresetOption[] = [
   { value: "coil", label: "Coil" },
   { value: "snake", label: "Snake" }
 ];
+const FILL_MODE_OPTIONS: FillModePresetOption[] = [
+  { value: "solid", label: "Solid" },
+  { value: "gradient", label: "Gradient" },
+  { value: "pattern", label: "Pattern" }
+];
+const FILL_SHADING_OPTIONS: FillShadingPresetOption[] = [
+  { value: "axis", label: "Axis" },
+  { value: "radial", label: "Radial" },
+  { value: "ball", label: "Ball" }
+];
+const FILL_PATTERN_OPTIONS: FillPatternPresetOption[] = [
+  { value: "horizontal lines", label: "horizontal lines" },
+  { value: "vertical lines", label: "vertical lines" },
+  { value: "north east lines", label: "north east lines" },
+  { value: "north west lines", label: "north west lines" },
+  { value: "grid", label: "grid" },
+  { value: "crosshatch", label: "crosshatch" },
+  { value: "dots", label: "dots" },
+  { value: "crosshatch dots", label: "crosshatch dots" },
+  { value: "fivepointed stars", label: "fivepointed stars" },
+  { value: "sixpointed stars", label: "sixpointed stars" },
+  { value: "bricks", label: "bricks" },
+  { value: "checkerboard", label: "checkerboard" },
+  { value: "checkerboard light gray", label: "checkerboard light gray" },
+  { value: "horizontal lines light gray", label: "horizontal lines light gray" },
+  { value: "horizontal lines gray", label: "horizontal lines gray" },
+  { value: "horizontal lines dark gray", label: "horizontal lines dark gray" },
+  { value: "horizontal lines light blue", label: "horizontal lines light blue" },
+  { value: "horizontal lines dark blue", label: "horizontal lines dark blue" },
+  { value: "crosshatch dots gray", label: "crosshatch dots gray" },
+  { value: "crosshatch dots light steel blue", label: "crosshatch dots light steel blue" },
+  { value: "Lines", label: "Lines" },
+  { value: "Hatch", label: "Hatch" },
+  { value: "Dots", label: "Dots" },
+  { value: "Stars", label: "Stars" }
+];
+const META_FILL_PATTERN_PRESETS = {
+  lines: "Lines",
+  hatch: "Hatch",
+  dots: "Dots",
+  stars: "Stars"
+} as const satisfies Record<string, Exclude<FillPatternPresetId, "custom">>;
+const DEFAULT_META_PATTERN_DISTANCE = parseLength("3pt", "pt") ?? 3;
+const DEFAULT_META_PATTERN_STARS_DISTANCE = parseLength("3mm", "pt") ?? 8.5358;
+const DEFAULT_META_PATTERN_RADIUS = parseLength(".5pt", "pt") ?? 0.5;
+const DEFAULT_META_PATTERN_STARS_RADIUS = parseLength("1mm", "pt") ?? 2.8453;
+const META_FILL_PATTERN_VALUE_SET = new Set<string>(Object.values(META_FILL_PATTERN_PRESETS));
+const META_FILL_PATTERN_PRESET_BY_LOWER = new Map<string, Exclude<FillPatternPresetId, "custom">>(
+  Object.values(META_FILL_PATTERN_PRESETS).map((value) => [value.toLowerCase(), value] as const)
+);
+const FILL_PATTERN_PRESET_BY_LOWER = new Map<string, Exclude<FillPatternPresetId, "custom">>(
+  FILL_PATTERN_OPTIONS.filter((option) => !META_FILL_PATTERN_VALUE_SET.has(option.value))
+    .map((option) => [option.value.toLowerCase(), option.value] as const)
+);
+const META_FILL_PATTERN_PRESET_BY_KIND: Record<
+  ResolvedPattern["kind"],
+  Exclude<FillPatternPresetId, "custom"> | null
+> = {
+  legacy: null,
+  "meta-lines": "Lines",
+  "meta-hatch": "Hatch",
+  "meta-dots": "Dots",
+  "meta-stars": "Stars"
+};
+const FILL_STYLE_CUSTOM_NOTE = "Custom fill style detected. Picking a curated value will replace custom keys.";
 const PATH_MORPHING_DECORATION_CLEAR_KEYS = [
   "decorate",
   "/tikz/decorate",
@@ -404,6 +617,140 @@ const PATH_MORPHING_DECORATION_CLEAR_KEYS = [
   "text align/right indent"
 ] as const;
 const ROUNDED_CORNERS_CLEAR_KEYS = ["rounded corners", "sharp corners"] as const;
+const FILL_PATTERN_CLEAR_KEYS = [
+  "pattern",
+  "/tikz/pattern",
+  "pattern color",
+  "/tikz/pattern color"
+] as const;
+const FILL_SHADING_CLEAR_KEYS = [
+  "shade",
+  "/tikz/shade",
+  "shading",
+  "/tikz/shading",
+  "shading angle",
+  "/tikz/shading angle",
+  "top color",
+  "/tikz/top color",
+  "middle color",
+  "/tikz/middle color",
+  "bottom color",
+  "/tikz/bottom color",
+  "left color",
+  "/tikz/left color",
+  "right color",
+  "/tikz/right color",
+  "inner color",
+  "/tikz/inner color",
+  "outer color",
+  "/tikz/outer color",
+  "ball color",
+  "/tikz/ball color",
+  "lower left",
+  "/tikz/lower left",
+  "lower right",
+  "/tikz/lower right",
+  "upper left",
+  "/tikz/upper left",
+  "upper right",
+  "/tikz/upper right"
+] as const;
+const AXIS_SHADING_CONFLICT_CLEAR_KEYS = [
+  "inner color",
+  "/tikz/inner color",
+  "outer color",
+  "/tikz/outer color",
+  "ball color",
+  "/tikz/ball color",
+  "lower left",
+  "/tikz/lower left",
+  "lower right",
+  "/tikz/lower right",
+  "upper left",
+  "/tikz/upper left",
+  "upper right",
+  "/tikz/upper right"
+] as const;
+const RADIAL_SHADING_CONFLICT_CLEAR_KEYS = [
+  "shading angle",
+  "/tikz/shading angle",
+  "top color",
+  "/tikz/top color",
+  "middle color",
+  "/tikz/middle color",
+  "bottom color",
+  "/tikz/bottom color",
+  "left color",
+  "/tikz/left color",
+  "right color",
+  "/tikz/right color",
+  "ball color",
+  "/tikz/ball color",
+  "lower left",
+  "/tikz/lower left",
+  "lower right",
+  "/tikz/lower right",
+  "upper left",
+  "/tikz/upper left",
+  "upper right",
+  "/tikz/upper right"
+] as const;
+const BALL_SHADING_CONFLICT_CLEAR_KEYS = [
+  "shading angle",
+  "/tikz/shading angle",
+  "top color",
+  "/tikz/top color",
+  "middle color",
+  "/tikz/middle color",
+  "bottom color",
+  "/tikz/bottom color",
+  "left color",
+  "/tikz/left color",
+  "right color",
+  "/tikz/right color",
+  "inner color",
+  "/tikz/inner color",
+  "outer color",
+  "/tikz/outer color",
+  "lower left",
+  "/tikz/lower left",
+  "lower right",
+  "/tikz/lower right",
+  "upper left",
+  "/tikz/upper left",
+  "upper right",
+  "/tikz/upper right"
+] as const;
+const SHADING_ACTIVATION_KEYS = new Set([
+  "shading",
+  "/tikz/shading",
+  "shading angle",
+  "/tikz/shading angle",
+  "top color",
+  "/tikz/top color",
+  "middle color",
+  "/tikz/middle color",
+  "bottom color",
+  "/tikz/bottom color",
+  "left color",
+  "/tikz/left color",
+  "right color",
+  "/tikz/right color",
+  "inner color",
+  "/tikz/inner color",
+  "outer color",
+  "/tikz/outer color",
+  "ball color",
+  "/tikz/ball color",
+  "lower left",
+  "/tikz/lower left",
+  "lower right",
+  "/tikz/lower right",
+  "upper left",
+  "/tikz/upper left",
+  "upper right",
+  "/tikz/upper right"
+]);
 export const ROUNDED_CORNERS_DEFAULT_RADIUS = 4;
 const ROUNDED_CORNERS_FALLBACK_MAX = 24;
 const ROUNDED_CORNERS_MIN = 0.1;
@@ -467,6 +814,108 @@ export function buildLineJoinSetPropertyMutation(
   return {
     key: "line join",
     value,
+    clearKeys: []
+  };
+}
+
+export function buildFillModeSetPropertyMutations(
+  value: Exclude<FillModePresetId, "custom">,
+  context: Partial<FillModeMutationContext> = {}
+): FillModeSetPropertyMutation[] {
+  const fillColor = normalizeFillMutationColor(context.fillColor, "black");
+  const patternColor = normalizeFillMutationColor(context.patternColor, "black");
+  const nextShading = selectCuratedShadingPreset(context.shading);
+  const nextPattern = selectCuratedPatternPreset(context.pattern);
+
+  if (value === "solid") {
+    return [
+      {
+        key: "fill",
+        value: fillColor,
+        clearKeys: uniqueStrings([...FILL_PATTERN_CLEAR_KEYS, ...FILL_SHADING_CLEAR_KEYS])
+      }
+    ];
+  }
+
+  if (value === "gradient") {
+    const clearKeys = uniqueStrings(FILL_PATTERN_CLEAR_KEYS);
+    return [
+      {
+        key: "shade",
+        value: "true",
+        clearKeys
+      },
+      {
+        key: "shading",
+        value: nextShading,
+        clearKeys
+      }
+    ];
+  }
+
+  const clearKeys = uniqueStrings(FILL_SHADING_CLEAR_KEYS);
+  return [
+    {
+      key: "pattern",
+      value: nextPattern,
+      clearKeys
+    },
+    {
+      key: "pattern color",
+      value: patternColor,
+      clearKeys
+    }
+  ];
+}
+
+export function buildFillShadingSetPropertyMutations(
+  value: Exclude<FillShadingPresetId, "custom">
+): FillShadingSetPropertyMutation[] {
+  const conflictClearKeys = uniqueStrings(
+    value === "axis"
+      ? AXIS_SHADING_CONFLICT_CLEAR_KEYS
+      : value === "radial"
+        ? RADIAL_SHADING_CONFLICT_CLEAR_KEYS
+        : BALL_SHADING_CONFLICT_CLEAR_KEYS
+  );
+
+  return [
+    {
+      key: "shade",
+      value: "true",
+      clearKeys: []
+    },
+    {
+      key: "shading",
+      value,
+      clearKeys: conflictClearKeys
+    }
+  ];
+}
+
+export function buildFillPatternSetPropertyMutation(
+  value: Exclude<FillPatternPresetId, "custom">
+): FillPatternSetPropertyMutation {
+  return {
+    key: "pattern",
+    value,
+    clearKeys: []
+  };
+}
+
+export function buildFillPatternOptionSetPropertyMutation(
+  context: FillPatternOptionMutationContext,
+  option: FillPatternMetaOptionKey,
+  value: number
+): FillPatternOptionSetPropertyMutation {
+  const nextValues = {
+    ...context.values,
+    [fillPatternMetaValueKey(option)]: sanitizeFillPatternMetaOptionValue(option, value, context.values)
+  };
+
+  return {
+    key: "pattern",
+    value: serializeFillPatternMetaPattern(context.family, nextValues),
     clearKeys: []
   };
 }
@@ -691,6 +1140,15 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     fillColor,
     colorAliases
   );
+  const patternColor = normalizeInspectorColorValue(element.style.patternColor);
+  const patternColorSyntax = resolveColorSyntaxValue(
+    snapshot.source,
+    inlineTarget.targetId,
+    ["pattern color"],
+    patternColor,
+    colorAliases
+  );
+  const fillPaintState = resolveFillPaintState(snapshot.source, inlineTarget.targetId, element.style);
   const textColor = normalizeInspectorColorValue(element.style.textColor);
   const textColorSyntax = resolveColorSyntaxValue(
     snapshot.source,
@@ -794,21 +1252,260 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
   ];
   if (pathFillVisibility) {
+    const fillProperties: InspectorProperty[] = [
+      {
+        kind: "color",
+        id: "fill-color",
+        label: "Color",
+        value: fillColor,
+        syntaxValue: fillColorSyntax,
+        options: colorOptionsForValue(fillColor),
+        write: makeSetPropertyWriteTarget(inlineTarget, "fill")
+      },
+      {
+        kind: "fillMode",
+        id: "fill-mode",
+        label: "Mode",
+        value: fillPaintState.mode,
+        options: FILL_MODE_OPTIONS,
+        context: {
+          fillColor: fillColorSyntax ?? fillColor,
+          patternColor: patternColorSyntax ?? patternColor,
+          shading: fillPaintState.shading,
+          pattern: fillPaintState.pattern
+        },
+        write: makeSetPropertyWriteTarget(inlineTarget, "fill")
+      }
+    ];
+
+    if (fillPaintState.mode === "gradient") {
+      fillProperties.push({
+        kind: "fillShading",
+        id: "fill-shading",
+        label: "Shading",
+        value: fillPaintState.shading,
+        options: FILL_SHADING_OPTIONS,
+        note: fillPaintState.shading === "custom" ? FILL_STYLE_CUSTOM_NOTE : undefined,
+        write: makeSetPropertyWriteTarget(inlineTarget, "shading")
+      });
+
+      if (fillPaintState.shading === "axis") {
+        const topColor = normalizeInspectorColorValue(element.style.axisTopColor);
+        const topColorSyntax = resolveColorSyntaxValue(
+          snapshot.source,
+          inlineTarget.targetId,
+          ["top color", "left color"],
+          topColor,
+          colorAliases
+        );
+        const bottomColor = normalizeInspectorColorValue(element.style.axisBottomColor);
+        const bottomColorSyntax = resolveColorSyntaxValue(
+          snapshot.source,
+          inlineTarget.targetId,
+          ["bottom color", "right color"],
+          bottomColor,
+          colorAliases
+        );
+        fillProperties.push({
+          kind: "color",
+          id: "fill-axis-top-color",
+          label: "Start color",
+          value: topColor,
+          syntaxValue: topColorSyntax,
+          options: colorOptionsForValue(topColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "top color")
+        });
+        fillProperties.push({
+          kind: "color",
+          id: "fill-axis-bottom-color",
+          label: "End color",
+          value: bottomColor,
+          syntaxValue: bottomColorSyntax,
+          options: colorOptionsForValue(bottomColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "bottom color")
+        });
+        fillProperties.push({
+          kind: "number",
+          id: "fill-shading-angle",
+          label: "Angle",
+          value: element.style.shadingAngle,
+          step: 1,
+          unit: "deg",
+          write: makeSetPropertyWriteTarget(inlineTarget, "shading angle")
+        });
+      } else if (fillPaintState.shading === "radial") {
+        const innerColor = normalizeInspectorColorValue(element.style.radialInnerColor);
+        const innerColorSyntax = resolveColorSyntaxValue(
+          snapshot.source,
+          inlineTarget.targetId,
+          ["inner color"],
+          innerColor,
+          colorAliases
+        );
+        const outerColor = normalizeInspectorColorValue(element.style.radialOuterColor);
+        const outerColorSyntax = resolveColorSyntaxValue(
+          snapshot.source,
+          inlineTarget.targetId,
+          ["outer color"],
+          outerColor,
+          colorAliases
+        );
+        fillProperties.push({
+          kind: "color",
+          id: "fill-radial-inner-color",
+          label: "Inner color",
+          value: innerColor,
+          syntaxValue: innerColorSyntax,
+          options: colorOptionsForValue(innerColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "inner color")
+        });
+        fillProperties.push({
+          kind: "color",
+          id: "fill-radial-outer-color",
+          label: "Outer color",
+          value: outerColor,
+          syntaxValue: outerColorSyntax,
+          options: colorOptionsForValue(outerColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "outer color")
+        });
+      } else if (fillPaintState.shading === "ball") {
+        const ballColor = normalizeInspectorColorValue(element.style.ballColor);
+        const ballColorSyntax = resolveColorSyntaxValue(
+          snapshot.source,
+          inlineTarget.targetId,
+          ["ball color"],
+          ballColor,
+          colorAliases
+        );
+        fillProperties.push({
+          kind: "color",
+          id: "fill-ball-color",
+          label: "Ball color",
+          value: ballColor,
+          syntaxValue: ballColorSyntax,
+          options: colorOptionsForValue(ballColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "ball color")
+        });
+      }
+    } else if (fillPaintState.mode === "pattern") {
+      fillProperties.push({
+        kind: "fillPattern",
+        id: "fill-pattern",
+        label: "Pattern",
+        value: fillPaintState.pattern,
+        options: FILL_PATTERN_OPTIONS,
+        note: fillPaintState.pattern === "custom" ? FILL_STYLE_CUSTOM_NOTE : undefined,
+        write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+      });
+      fillProperties.push({
+        kind: "color",
+        id: "fill-pattern-color",
+        label: "Pattern color",
+        value: patternColor,
+        syntaxValue: patternColorSyntax,
+        options: colorOptionsForValue(patternColor),
+        write: makeSetPropertyWriteTarget(inlineTarget, "pattern color")
+      });
+
+      const fillPatternOptionContext = resolveFillPatternOptionMutationContext(
+        element.style.fillPattern,
+        fillPaintState.pattern,
+        element.style.lineWidth
+      );
+      if (fillPatternOptionContext) {
+        fillProperties.push({
+          kind: "fillPatternOption",
+          id: "fill-pattern-angle",
+          label: "Angle",
+          option: "angle",
+          value: fillPatternOptionContext.values.angle,
+          step: 1,
+          unit: "deg",
+          context: fillPatternOptionContext,
+          write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+        });
+        fillProperties.push({
+          kind: "fillPatternOption",
+          id: "fill-pattern-distance",
+          label: "Distance",
+          option: "distance",
+          value: fillPatternOptionContext.values.distance,
+          step: 0.1,
+          unit: "pt",
+          context: fillPatternOptionContext,
+          write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+        });
+        fillProperties.push({
+          kind: "fillPatternOption",
+          id: "fill-pattern-xshift",
+          label: "X shift",
+          option: "xshift",
+          value: fillPatternOptionContext.values.xshift,
+          step: 0.1,
+          unit: "pt",
+          context: fillPatternOptionContext,
+          write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+        });
+        fillProperties.push({
+          kind: "fillPatternOption",
+          id: "fill-pattern-yshift",
+          label: "Y shift",
+          option: "yshift",
+          value: fillPatternOptionContext.values.yshift,
+          step: 0.1,
+          unit: "pt",
+          context: fillPatternOptionContext,
+          write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+        });
+
+        if (fillPatternOptionContext.family === "Lines" || fillPatternOptionContext.family === "Hatch") {
+          fillProperties.push({
+            kind: "fillPatternOption",
+            id: "fill-pattern-line-width",
+            label: "Line width",
+            option: "line width",
+            value: fillPatternOptionContext.values.lineWidth,
+            step: 0.1,
+            unit: "pt",
+            context: fillPatternOptionContext,
+            write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+          });
+        }
+
+        if (fillPatternOptionContext.family === "Dots" || fillPatternOptionContext.family === "Stars") {
+          fillProperties.push({
+            kind: "fillPatternOption",
+            id: "fill-pattern-radius",
+            label: "Radius",
+            option: "radius",
+            value: fillPatternOptionContext.values.radius,
+            step: 0.1,
+            unit: "pt",
+            context: fillPatternOptionContext,
+            write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+          });
+        }
+
+        if (fillPatternOptionContext.family === "Stars") {
+          fillProperties.push({
+            kind: "fillPatternOption",
+            id: "fill-pattern-points",
+            label: "Points",
+            option: "points",
+            value: fillPatternOptionContext.values.points,
+            step: 1,
+            context: fillPatternOptionContext,
+            write: makeSetPropertyWriteTarget(inlineTarget, "pattern")
+          });
+        }
+      }
+    }
+
     sections.push({
       id: "fill",
       title: "Fill",
       sourceLevel: "command",
-      properties: [
-        {
-          kind: "color",
-          id: "fill-color",
-          label: "Color",
-          value: fillColor,
-          syntaxValue: fillColorSyntax,
-          options: colorOptionsForValue(fillColor),
-          write: makeSetPropertyWriteTarget(inlineTarget, "fill")
-        }
-      ]
+      properties: fillProperties
     });
   }
 
@@ -1047,6 +1744,419 @@ function splitArrowSpecificationRaw(raw: string): { startRaw: string; endRaw: st
     startRaw: normalized.slice(0, splitIndex).trim(),
     endRaw: normalized.slice(splitIndex + 1).trim()
   };
+}
+
+function resolveFillPaintState(
+  source: string,
+  targetId: string | null,
+  style: {
+    shadeEnabled: boolean;
+    shading: string;
+    fillPattern: ResolvedPattern | null;
+  }
+): { mode: FillModePresetId; shading: FillShadingPresetId; pattern: FillPatternPresetId } {
+  const fallbackShading = style.shadeEnabled ? fillShadingPresetFromStyleName(style.shading) : "axis";
+  const fallbackPattern = fillPatternPresetFromResolvedPattern(style.fillPattern);
+
+  let patternActive = style.fillPattern != null;
+  let shadingActive = style.shadeEnabled;
+  let shading: FillShadingPresetId = fallbackShading;
+  let pattern: FillPatternPresetId = fallbackPattern;
+  let sawPatternOption = false;
+  let sawShadingOption = false;
+
+  if (targetId) {
+    const resolved = resolvePropertyTarget(source, targetId);
+    if (resolved.kind !== "not-found" && resolved.target.options) {
+      for (const entry of resolved.target.options.entries) {
+        if (entry.kind === "flag") {
+          const key = normalizeOptionKey(entry.key);
+          if (key === "pattern" || key === "/tikz/pattern") {
+            patternActive = true;
+            sawPatternOption = true;
+            if (pattern === "custom") {
+              pattern = "dots";
+            }
+            continue;
+          }
+          if (key === "shade" || key === "/tikz/shade") {
+            shadingActive = true;
+            sawShadingOption = true;
+            continue;
+          }
+          continue;
+        }
+
+        if (entry.kind !== "kv") {
+          continue;
+        }
+
+        const key = normalizeOptionKey(entry.key);
+        if (key === "pattern" || key === "/tikz/pattern") {
+          sawPatternOption = true;
+          const normalizedPatternValue = stripEnclosingBraces(entry.valueRaw).trim().toLowerCase();
+          if (normalizedPatternValue === "none") {
+            patternActive = false;
+            continue;
+          }
+          patternActive = true;
+          pattern = fillPatternPresetFromRaw(entry.valueRaw);
+          continue;
+        }
+
+        if (key === "shade" || key === "/tikz/shade") {
+          const parsedShade = parseInspectorBoolean(entry.valueRaw);
+          if (parsedShade != null) {
+            sawShadingOption = true;
+            shadingActive = parsedShade;
+          }
+          continue;
+        }
+
+        if (key === "shading" || key === "/tikz/shading") {
+          sawShadingOption = true;
+          shadingActive = true;
+          shading = fillShadingPresetFromStyleName(entry.valueRaw);
+          continue;
+        }
+
+        if (!SHADING_ACTIVATION_KEYS.has(key)) {
+          continue;
+        }
+
+        sawShadingOption = true;
+        shadingActive = true;
+        const inferred = fillShadingPresetFromActivationKey(key);
+        if (inferred) {
+          shading = inferred;
+        }
+      }
+    }
+  }
+
+  if (sawPatternOption && patternActive && pattern === "custom") {
+    return { mode: "pattern", shading, pattern };
+  }
+  if (sawPatternOption && patternActive) {
+    return { mode: "pattern", shading, pattern: pattern === "custom" ? "dots" : pattern };
+  }
+  if (patternActive) {
+    return { mode: "pattern", shading, pattern };
+  }
+  if (sawShadingOption && shadingActive) {
+    return { mode: "gradient", shading, pattern };
+  }
+  if (shadingActive) {
+    return { mode: "gradient", shading, pattern };
+  }
+  return { mode: "solid", shading, pattern };
+}
+
+function fillShadingPresetFromStyleName(raw: string): FillShadingPresetId {
+  const normalized = stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
+  if (normalized === "axis") {
+    return "axis";
+  }
+  if (normalized === "radial") {
+    return "radial";
+  }
+  if (normalized === "ball") {
+    return "ball";
+  }
+  return "custom";
+}
+
+function fillPatternPresetFromResolvedPattern(pattern: ResolvedPattern | null): FillPatternPresetId {
+  if (!pattern) {
+    return "dots";
+  }
+  if (pattern.kind === "legacy") {
+    const resolved = FILL_PATTERN_PRESET_BY_LOWER.get(pattern.name.toLowerCase());
+    return resolved ?? "custom";
+  }
+  return META_FILL_PATTERN_PRESET_BY_KIND[pattern.kind] ?? "custom";
+}
+
+function fillPatternPresetFromRaw(raw: string): FillPatternPresetId {
+  const name = extractPatternName(raw);
+  if (!name) {
+    return "dots";
+  }
+  const metaMatch = META_FILL_PATTERN_PRESET_BY_LOWER.get(name.toLowerCase()) ?? null;
+  if (metaMatch) {
+    return metaMatch;
+  }
+  const match = FILL_PATTERN_PRESET_BY_LOWER.get(name.toLowerCase());
+  return match ?? "custom";
+}
+
+function resolveFillPatternOptionMutationContext(
+  pattern: ResolvedPattern | null,
+  fallbackPatternPreset: FillPatternPresetId,
+  fallbackLineWidth: number
+): FillPatternOptionMutationContext | null {
+  if (pattern?.kind === "meta-lines") {
+    return {
+      family: "Lines",
+      values: {
+        angle: pattern.angle,
+        distance: pattern.distance,
+        xshift: pattern.xshift,
+        yshift: pattern.yshift,
+        lineWidth: pattern.lineWidth,
+        radius: DEFAULT_META_PATTERN_RADIUS,
+        points: 5
+      }
+    };
+  }
+  if (pattern?.kind === "meta-hatch") {
+    return {
+      family: "Hatch",
+      values: {
+        angle: pattern.angle,
+        distance: pattern.distance,
+        xshift: pattern.xshift,
+        yshift: pattern.yshift,
+        lineWidth: pattern.lineWidth,
+        radius: DEFAULT_META_PATTERN_RADIUS,
+        points: 5
+      }
+    };
+  }
+  if (pattern?.kind === "meta-dots") {
+    return {
+      family: "Dots",
+      values: {
+        angle: pattern.angle,
+        distance: pattern.distance,
+        xshift: pattern.xshift,
+        yshift: pattern.yshift,
+        lineWidth: normalizeFillPatternLineWidthFallback(fallbackLineWidth),
+        radius: pattern.radius,
+        points: 5
+      }
+    };
+  }
+  if (pattern?.kind === "meta-stars") {
+    return {
+      family: "Stars",
+      values: {
+        angle: pattern.angle,
+        distance: pattern.distance,
+        xshift: pattern.xshift,
+        yshift: pattern.yshift,
+        lineWidth: normalizeFillPatternLineWidthFallback(fallbackLineWidth),
+        radius: pattern.radius,
+        points: pattern.points
+      }
+    };
+  }
+
+  const fallbackFamily = fillPatternMetaFamilyFromPreset(fallbackPatternPreset);
+  if (!fallbackFamily) {
+    return null;
+  }
+  return {
+    family: fallbackFamily,
+    values: defaultFillPatternMetaValues(fallbackFamily, fallbackLineWidth)
+  };
+}
+
+function extractPatternName(raw: string): string | null {
+  const normalized = stripEnclosingBraces(raw).trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const bracketIndex = findTopLevelOpenBracket(normalized);
+  const name = bracketIndex >= 0 ? normalized.slice(0, bracketIndex).trim() : normalized;
+  return name.length > 0 ? name : null;
+}
+
+function findTopLevelOpenBracket(input: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      if (parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+        return index;
+      }
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+  }
+
+  return -1;
+}
+
+function parseInspectorBoolean(raw: string): boolean | null {
+  const normalized = stripEnclosingBraces(raw).trim().toLowerCase();
+  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
+    return true;
+  }
+  if (normalized === "false" || normalized === "none" || normalized === "no" || normalized === "off" || normalized === "0") {
+    return false;
+  }
+  return null;
+}
+
+function fillShadingPresetFromActivationKey(key: string): FillShadingPresetId | null {
+  if (
+    key === "inner color" ||
+    key === "/tikz/inner color" ||
+    key === "outer color" ||
+    key === "/tikz/outer color"
+  ) {
+    return "radial";
+  }
+  if (key === "ball color" || key === "/tikz/ball color") {
+    return "ball";
+  }
+  if (
+    key === "lower left" ||
+    key === "/tikz/lower left" ||
+    key === "lower right" ||
+    key === "/tikz/lower right" ||
+    key === "upper left" ||
+    key === "/tikz/upper left" ||
+    key === "upper right" ||
+    key === "/tikz/upper right"
+  ) {
+    return "custom";
+  }
+  if (
+    key === "top color" ||
+    key === "/tikz/top color" ||
+    key === "middle color" ||
+    key === "/tikz/middle color" ||
+    key === "bottom color" ||
+    key === "/tikz/bottom color" ||
+    key === "left color" ||
+    key === "/tikz/left color" ||
+    key === "right color" ||
+    key === "/tikz/right color" ||
+    key === "shading angle" ||
+    key === "/tikz/shading angle"
+  ) {
+    return "axis";
+  }
+  return null;
+}
+
+function normalizeFillMutationColor(value: string | null | undefined, fallback: string): string {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : fallback;
+}
+
+function selectCuratedShadingPreset(value: FillShadingPresetId | undefined): Exclude<FillShadingPresetId, "custom"> {
+  return value === "axis" || value === "radial" || value === "ball" ? value : "axis";
+}
+
+function selectCuratedPatternPreset(value: FillPatternPresetId | undefined): Exclude<FillPatternPresetId, "custom"> {
+  return value && value !== "custom" ? value : "dots";
+}
+
+function fillPatternMetaFamilyFromPreset(preset: FillPatternPresetId): FillPatternMetaFamilyId | null {
+  if (preset === "Lines" || preset === "Hatch" || preset === "Dots" || preset === "Stars") {
+    return preset;
+  }
+  return null;
+}
+
+function fillPatternMetaValueKey(option: FillPatternMetaOptionKey): keyof FillPatternMetaValues {
+  if (option === "line width") {
+    return "lineWidth";
+  }
+  return option;
+}
+
+function sanitizeFillPatternMetaOptionValue(
+  option: FillPatternMetaOptionKey,
+  value: number,
+  fallbackValues: FillPatternMetaValues
+): number {
+  if (!Number.isFinite(value)) {
+    return fallbackValues[fillPatternMetaValueKey(option)];
+  }
+
+  if (option === "points") {
+    return Math.max(2, Math.round(value));
+  }
+  if (option === "distance" || option === "line width" || option === "radius") {
+    return Math.max(0, normalizeTinyNumber(value));
+  }
+  return normalizeTinyNumber(value);
+}
+
+function defaultFillPatternMetaValues(
+  family: FillPatternMetaFamilyId,
+  fallbackLineWidth: number
+): FillPatternMetaValues {
+  const defaultDistance = family === "Stars" ? DEFAULT_META_PATTERN_STARS_DISTANCE : DEFAULT_META_PATTERN_DISTANCE;
+  const defaultRadius = family === "Stars" ? DEFAULT_META_PATTERN_STARS_RADIUS : DEFAULT_META_PATTERN_RADIUS;
+  return {
+    angle: 0,
+    distance: defaultDistance,
+    xshift: 0,
+    yshift: 0,
+    lineWidth: normalizeFillPatternLineWidthFallback(fallbackLineWidth),
+    radius: defaultRadius,
+    points: 5
+  };
+}
+
+function normalizeFillPatternLineWidthFallback(value: number): number {
+  if (Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  return 0.4;
+}
+
+function serializeFillPatternMetaPattern(family: FillPatternMetaFamilyId, values: FillPatternMetaValues): string {
+  const options = [
+    `angle=${formatInspectorLength(values.angle)}`,
+    `distance=${formatInspectorLength(values.distance)}pt`,
+    `xshift=${formatInspectorLength(values.xshift)}pt`,
+    `yshift=${formatInspectorLength(values.yshift)}pt`
+  ];
+
+  if (family === "Lines" || family === "Hatch") {
+    options.push(`line width=${formatInspectorLength(values.lineWidth)}pt`);
+  } else {
+    options.push(`radius=${formatInspectorLength(values.radius)}pt`);
+    if (family === "Stars") {
+      options.push(`points=${Math.max(2, Math.round(values.points))}`);
+    }
+  }
+
+  return `{${family}[${options.join(",")}]}`
 }
 
 function resolvePathMorphingDecorationPreset(

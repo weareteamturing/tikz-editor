@@ -118,6 +118,13 @@
   border-radius: 2px;
 }
 
+.fillQuickActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .property {
   display: flex;
   flex-direction: column;
@@ -372,6 +379,68 @@
   stroke: color-mix(in srgb, var(--text) 72%, #666);
   stroke-width: 1;
   stroke-linecap: butt;
+}
+
+.fillPatternValue {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fillPatternValuePreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fillPatternValueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fillPatternOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fillPatternOptionPreview {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fillPatternOptionLabel {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.fillPatternOptionCheck {
+  width: 12px;
+  text-align: right;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.fillPatternSvg {
+  width: 56px;
+  height: 16px;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.fillPatternSvg :global(svg) {
+  width: 56px;
+  height: 16px;
+  display: block;
 }
 
 .pathMorphingDecorationValue {

@@ -3,6 +3,10 @@ import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
   buildDashStyleSetPropertyMutation,
+  buildFillModeSetPropertyMutations,
+  buildFillPatternOptionSetPropertyMutation,
+  buildFillPatternSetPropertyMutation,
+  buildFillShadingSetPropertyMutations,
   buildLineCapSetPropertyMutation,
   buildLineJoinSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
@@ -17,6 +21,11 @@ import {
   type ArrowTipSide,
   type ArrowTipWriteTarget,
   type DashStylePresetId,
+  type FillModePresetId,
+  type FillPatternPresetId,
+  type FillPatternMetaOptionKey,
+  type FillPatternOptionMutationContext,
+  type FillShadingPresetId,
   type InspectorDescriptor,
   type InspectorProperty,
   type LineCapPresetId,
@@ -28,11 +37,12 @@ import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
 import type { ArrowTipKind, SceneElement } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
 import { renderPathMorphingDecorationPreviewSvg } from "tikz-editor/svg/decorations/preview";
+import { renderFillPatternPreviewSvg } from "tikz-editor/svg/patterns/preview";
 import { collectProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
-import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
+import { CustomDropdown, type CustomDropdownItem, type CustomDropdownOption } from "./CustomDropdown";
 import css from "./InspectorPanel.module.css";
 
 type MultiInspectorNumberProperty = {
@@ -121,6 +131,61 @@ type MultiInspectorPathMorphingDecorationProperty = {
   readOnlyReason?: string;
 };
 
+type MultiInspectorFillModeProperty = {
+  kind: "fillMode";
+  id: string;
+  label: string;
+  value: FillModePresetId;
+  mixed: boolean;
+  options: Array<{ value: Exclude<FillModePresetId, "custom">; label: string }>;
+  contexts: Array<{
+    fillColor: string | null;
+    patternColor: string | null;
+    shading: FillShadingPresetId;
+    pattern: FillPatternPresetId;
+  }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+type MultiInspectorFillShadingProperty = {
+  kind: "fillShading";
+  id: string;
+  label: string;
+  value: FillShadingPresetId;
+  mixed: boolean;
+  options: Array<{ value: Exclude<FillShadingPresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  note?: string;
+  readOnlyReason?: string;
+};
+
+type MultiInspectorFillPatternProperty = {
+  kind: "fillPattern";
+  id: string;
+  label: string;
+  value: FillPatternPresetId;
+  mixed: boolean;
+  options: Array<{ value: Exclude<FillPatternPresetId, "custom">; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  note?: string;
+  readOnlyReason?: string;
+};
+
+type MultiInspectorFillPatternOptionProperty = {
+  kind: "fillPatternOption";
+  id: string;
+  label: string;
+  option: FillPatternMetaOptionKey;
+  value: number;
+  mixed: boolean;
+  step: number;
+  unit?: string;
+  contexts: FillPatternOptionMutationContext[];
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 type MultiInspectorRoundedCornersProperty = {
   kind: "roundedCorners";
   id: string;
@@ -159,6 +224,10 @@ type MultiInspectorProperty =
   | MultiInspectorLineCapProperty
   | MultiInspectorLineJoinProperty
   | MultiInspectorPathMorphingDecorationProperty
+  | MultiInspectorFillModeProperty
+  | MultiInspectorFillShadingProperty
+  | MultiInspectorFillPatternProperty
+  | MultiInspectorFillPatternOptionProperty
   | MultiInspectorRoundedCornersProperty
   | MultiInspectorArrowTipProperty;
 
@@ -184,14 +253,45 @@ const DASH_STYLE_MIXED_OPTION_VALUE = "__mixed-dash-style__";
 const LINE_CAP_MIXED_OPTION_VALUE = "__mixed-line-cap__";
 const LINE_JOIN_MIXED_OPTION_VALUE = "__mixed-line-join__";
 const PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE = "__mixed-path-morphing-decoration__";
+const FILL_MODE_MIXED_OPTION_VALUE = "__mixed-fill-mode__";
+const FILL_SHADING_MIXED_OPTION_VALUE = "__mixed-fill-shading__";
+const FILL_PATTERN_MIXED_OPTION_VALUE = "__mixed-fill-pattern__";
+const META_FILL_PATTERN_PRESETS = new Set<Exclude<FillPatternPresetId, "custom">>([
+  "Lines",
+  "Hatch",
+  "Dots",
+  "Stars"
+]);
 const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 const OPTIONAL_MULTI_PROPERTY_IDS = new Set([...STROKE_MORE_OPTIONS_PROPERTY_IDS, "rounded-corners"]);
+const FILL_ADVANCED_PROPERTY_IDS = new Set([
+  "fill-mode",
+  "fill-shading",
+  "fill-pattern",
+  "fill-axis-top-color",
+  "fill-axis-bottom-color",
+  "fill-shading-angle",
+  "fill-radial-inner-color",
+  "fill-radial-outer-color",
+  "fill-ball-color",
+  "fill-pattern-color",
+  "fill-pattern-angle",
+  "fill-pattern-distance",
+  "fill-pattern-xshift",
+  "fill-pattern-yshift",
+  "fill-pattern-line-width",
+  "fill-pattern-radius",
+  "fill-pattern-points"
+]);
 const COMPACT_NUMBER_PAIR_IDS = new Set(["xshift:yshift", "xscale:yscale"]);
 type LineWidthDropdownValue = string;
 type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
 type DashStyleDropdownValue = DashStylePresetId | typeof DASH_STYLE_MIXED_OPTION_VALUE;
 type LineCapDropdownValue = LineCapPresetId | typeof LINE_CAP_MIXED_OPTION_VALUE;
 type LineJoinDropdownValue = LineJoinPresetId | typeof LINE_JOIN_MIXED_OPTION_VALUE;
+type FillModeDropdownValue = FillModePresetId | typeof FILL_MODE_MIXED_OPTION_VALUE;
+type FillShadingDropdownValue = FillShadingPresetId | typeof FILL_SHADING_MIXED_OPTION_VALUE;
+type FillPatternDropdownValue = FillPatternPresetId | typeof FILL_PATTERN_MIXED_OPTION_VALUE;
 type PathMorphingDecorationDropdownValue =
   | PathMorphingDecorationPresetId
   | typeof PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE;
@@ -239,6 +339,7 @@ export function InspectorPanel() {
     () => new Set()
   );
   const [strokeMoreOptionsOpen, setStrokeMoreOptionsOpen] = useState(false);
+  const [fillAdvancedOptionsOpen, setFillAdvancedOptionsOpen] = useState(false);
   const [frozenInspectorView, setFrozenInspectorView] = useState<FrozenInspectorView | null>(null);
   const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
 
@@ -376,6 +477,7 @@ export function InspectorPanel() {
 
   useEffect(() => {
     setStrokeMoreOptionsOpen(false);
+    setFillAdvancedOptionsOpen(false);
   }, [selectedIds]);
 
   function applySetProperty(
@@ -553,6 +655,234 @@ export function InspectorPanel() {
     });
   }
 
+  function applyFillModeValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<FillModePresetId, "custom">,
+    context: {
+      fillColor: string | null;
+      patternColor: string | null;
+      shading: FillShadingPresetId;
+      pattern: FillPatternPresetId;
+    },
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    if (!write.writable || write.elementId.length === 0) {
+      return;
+    }
+
+    const mutations = buildFillModeSetPropertyMutations(value, context);
+    if (mutations.length === 0) {
+      return;
+    }
+
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
+  function applyFillModeValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<FillModePresetId, "custom">,
+    contexts: ReadonlyArray<{
+      fillColor: string | null;
+      patternColor: string | null;
+      shading: FillShadingPresetId;
+      pattern: FillPatternPresetId;
+    }>,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const writableWrites = writes
+      .map((write, index) => ({
+        write,
+        context: contexts[index]
+      }))
+      .filter(
+        (entry): entry is { write: SetPropertyWriteTarget; context: NonNullable<(typeof contexts)[number]> } =>
+          entry.write.writable && entry.write.elementId.length > 0 && entry.context != null
+      );
+
+    if (writableWrites.length === 0) {
+      return;
+    }
+
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const { write, context } of writableWrites) {
+      const mutations = buildFillModeSetPropertyMutations(value, context);
+      for (const mutation of mutations) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
+          action: {
+            kind: "setProperty",
+            elementId: write.elementId,
+            level: write.level,
+            key: mutation.key,
+            value: mutation.value,
+            clearKeys: mutation.clearKeys
+          }
+        });
+      }
+    }
+  }
+
+  function applyFillShadingValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<FillShadingPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    if (!write.writable || write.elementId.length === 0) {
+      return;
+    }
+    const mutations = buildFillShadingSetPropertyMutations(value);
+    if (mutations.length === 0) {
+      return;
+    }
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
+  function applyFillShadingValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<FillShadingPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const writable = writes.filter((write) => write.writable && write.elementId.length > 0);
+    if (writable.length === 0) {
+      return;
+    }
+    const mutations = buildFillShadingSetPropertyMutations(value);
+    if (mutations.length === 0) {
+      return;
+    }
+
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const write of writable) {
+      for (const mutation of mutations) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
+          action: {
+            kind: "setProperty",
+            elementId: write.elementId,
+            level: write.level,
+            key: mutation.key,
+            value: mutation.value,
+            clearKeys: mutation.clearKeys
+          }
+        });
+      }
+    }
+  }
+
+  function applyFillPatternValue(
+    write: SetPropertyWriteTarget,
+    value: Exclude<FillPatternPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildFillPatternSetPropertyMutation(value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyFillPatternValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    value: Exclude<FillPatternPresetId, "custom">,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildFillPatternSetPropertyMutation(value);
+    applySetPropertyMany(writes, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyFillPatternOptionValue(
+    write: SetPropertyWriteTarget,
+    option: FillPatternMetaOptionKey,
+    value: number,
+    context: FillPatternOptionMutationContext,
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const mutation = buildFillPatternOptionSetPropertyMutation(context, option, value);
+    applySetProperty(write, mutation.value, {
+      key: mutation.key,
+      clearKeys: mutation.clearKeys,
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyFillPatternOptionValueMany(
+    writes: readonly SetPropertyWriteTarget[],
+    option: FillPatternMetaOptionKey,
+    value: number,
+    contexts: readonly FillPatternOptionMutationContext[],
+    options: ApplySetPropertyOptions = {}
+  ): void {
+    const writableEntries = writes
+      .map((write, index) => {
+        const context = contexts[index];
+        return context ? { write, context } : null;
+      })
+      .filter(
+        (entry): entry is { write: SetPropertyWriteTarget; context: FillPatternOptionMutationContext } =>
+          entry != null && entry.write.writable && entry.write.elementId.length > 0
+      );
+    if (writableEntries.length === 0) {
+      return;
+    }
+
+    const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+    for (const entry of writableEntries) {
+      const mutation = buildFillPatternOptionSetPropertyMutation(entry.context, option, value);
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
+        action: {
+          kind: "setProperty",
+          elementId: entry.write.elementId,
+          level: entry.write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
   function applyPathMorphingDecorationValue(
     write: SetPropertyWriteTarget,
     value: Exclude<PathMorphingDecorationPresetId, "custom">,
@@ -652,7 +982,10 @@ export function InspectorPanel() {
     if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
-    if (!write.transformContext) return;
+    if (!write.transformContext) {
+      applySetProperty(write, formatNumber(next));
+      return;
+    }
 
     const mutations = buildTransformSetPropertyMutations(
       write.transformContext.values,
@@ -684,9 +1017,7 @@ export function InspectorPanel() {
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
 
-    const writableWrites = property.writes.filter(
-      (write) => write.writable && write.elementId.length > 0 && write.transformContext != null
-    );
+    const writableWrites = property.writes.filter((write) => write.writable && write.elementId.length > 0);
     if (writableWrites.length === 0) {
       return;
     }
@@ -694,6 +1025,18 @@ export function InspectorPanel() {
     const mergeKey = `multi-set:${Date.now().toString(36)}`;
     for (const write of writableWrites) {
       if (!write.transformContext) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          action: {
+            kind: "setProperty",
+            elementId: write.elementId,
+            level: write.level,
+            key: write.key,
+            value: formatNumber(next),
+            clearKeys: []
+          }
+        });
         continue;
       }
       const mutations = buildTransformSetPropertyMutations(
@@ -1141,6 +1484,118 @@ export function InspectorPanel() {
     );
   }
 
+  function renderFillModeDropdown(
+    property: {
+      label: string;
+      value: FillModePresetId;
+      options: Array<{ value: Exclude<FillModePresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<FillModePresetId, "custom">) => void,
+    valueOverride?: FillModeDropdownValue
+  ) {
+    const dropdownValue: FillModeDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toFillModeDropdownOptions(property.options);
+    const displayLabel = fillModeValueLabel(dropdownValue, property.options);
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableFillModeValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => <span>{displayLabel}</span>}
+      />
+    );
+  }
+
+  function renderFillShadingDropdown(
+    property: {
+      label: string;
+      value: FillShadingPresetId;
+      options: Array<{ value: Exclude<FillShadingPresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<FillShadingPresetId, "custom">) => void,
+    valueOverride?: FillShadingDropdownValue
+  ) {
+    const dropdownValue: FillShadingDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toFillShadingDropdownOptions(property.options);
+    const displayLabel = fillShadingValueLabel(dropdownValue, property.options);
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableFillShadingValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => <span>{displayLabel}</span>}
+      />
+    );
+  }
+
+  function renderFillPatternDropdown(
+    property: {
+      label: string;
+      value: FillPatternPresetId;
+      options: Array<{ value: Exclude<FillPatternPresetId, "custom">; label: string }>;
+    },
+    writable: boolean,
+    onApply: (value: Exclude<FillPatternPresetId, "custom">) => void,
+    valueOverride?: FillPatternDropdownValue
+  ) {
+    const dropdownValue: FillPatternDropdownValue = valueOverride ?? property.value;
+    const dropdownOptions = toFillPatternDropdownOptions(property.options);
+    const displayLabel = fillPatternValueLabel(dropdownValue, property.options);
+    const previewPreset = fillPatternPreviewPreset(dropdownValue);
+    return (
+      <CustomDropdown
+        ariaLabel={property.label}
+        value={dropdownValue}
+        options={dropdownOptions}
+        disabled={!writable}
+        onChange={(nextValue) => {
+          if (!writable || !isSelectableFillPatternValue(nextValue)) {
+            return;
+          }
+          onApply(nextValue);
+        }}
+        renderValue={() => (
+          <span className={css.fillPatternValue}>
+            <span className={css.fillPatternValuePreview}>
+              <FillPatternPreview preset={previewPreset} />
+            </span>
+            <span className={css.fillPatternValueLabel}>{displayLabel}</span>
+          </span>
+        )}
+        renderOption={(option, state) => {
+          const optionPreset = option.value as Exclude<FillPatternPresetId, "custom">;
+          return (
+            <span className={css.fillPatternOption}>
+              <span className={css.fillPatternOptionPreview}>
+                <FillPatternPreview preset={optionPreset} />
+              </span>
+              <span className={css.fillPatternOptionLabel}>{option.label}</span>
+              <span className={css.fillPatternOptionCheck} aria-hidden="true">
+                {state.selected ? "✓" : ""}
+              </span>
+            </span>
+          );
+        }}
+      />
+    );
+  }
+
   function renderProperty(property: InspectorProperty) {
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
@@ -1176,6 +1631,95 @@ export function InspectorPanel() {
               })
             }
           />
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillMode") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillModeDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => {
+              applyFillModeValue(property.write, nextValue, property.context);
+              setFillAdvancedOptionsOpen(nextValue !== "solid");
+            }
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillShading") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillShadingDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyFillShadingValue(property.write, nextValue)
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillPattern") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillPatternDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyFillPatternValue(property.write, nextValue)
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillPatternOption") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              step={property.step}
+              value={formatNumber(property.value)}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) {
+                  return;
+                }
+                applyFillPatternOptionValue(property.write, property.option, next, property.context);
+              }}
+            />
+            {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
+          </div>
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
@@ -1513,6 +2057,107 @@ export function InspectorPanel() {
               })
             }
           />
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillMode") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: FillModeDropdownValue = property.mixed
+        ? FILL_MODE_MIXED_OPTION_VALUE
+        : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillModeDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => {
+              applyFillModeValueMany(property.writes, nextValue, property.contexts);
+              setFillAdvancedOptionsOpen(nextValue !== "solid");
+            },
+            dropdownValue
+          )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillShading") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: FillShadingDropdownValue = property.mixed
+        ? FILL_SHADING_MIXED_OPTION_VALUE
+        : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillShadingDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyFillShadingValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillPattern") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const dropdownValue: FillPatternDropdownValue = property.mixed
+        ? FILL_PATTERN_MIXED_OPTION_VALUE
+        : property.value;
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {renderFillPatternDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => applyFillPatternValueMany(property.writes, nextValue),
+            dropdownValue
+          )}
+          {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "fillPatternOption") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      return (
+        <div key={property.id} className={css.property}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          <div className={css.controlRow}>
+            <input
+              className={css.numberInput}
+              type="number"
+              step={property.step}
+              value={property.mixed ? "" : formatNumber(property.value)}
+              disabled={!writable}
+              onChange={(event) => {
+                const next = Number(event.currentTarget.value);
+                if (!Number.isFinite(next)) {
+                  return;
+                }
+                applyFillPatternOptionValueMany(property.writes, property.option, next, property.contexts);
+              }}
+            />
+            {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
+          </div>
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
@@ -1860,9 +2505,25 @@ export function InspectorPanel() {
       shouldAutoShowStrokeMoreOptions(property)
     );
     const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+    const fillAdvancedProperties =
+      section.id === "fill"
+        ? section.properties.filter((property) => isFillAdvancedPropertyId(property.id))
+        : [];
+    const fillModeProperty =
+      section.id === "fill"
+        ? section.properties.find((property): property is Extract<InspectorProperty, { kind: "fillMode" }> => property.kind === "fillMode")
+        : undefined;
+    const forceShowFillAdvancedOptions = fillAdvancedProperties.some((property) =>
+      shouldAutoShowFillAdvancedOptions(property)
+    );
+    const showFillAdvancedOptions = forceShowFillAdvancedOptions || fillAdvancedOptionsOpen;
     const visibleProperties =
       section.id === "stroke" && !showStrokeMoreOptions
         ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
+        : section.id === "fill" && !showFillAdvancedOptions
+          ? section.properties.filter((property) => !isFillAdvancedPropertyId(property.id))
+          : section.id === "fill" && showFillAdvancedOptions
+            ? section.properties.filter((property) => property.id !== "fill-color")
         : section.properties;
 
     return (
@@ -1895,6 +2556,41 @@ export function InspectorPanel() {
               {showStrokeMoreOptions ? "fewer options.." : "more options.."}
             </button>
           ) : null}
+          {section.id === "fill" &&
+          fillAdvancedProperties.length > 0 &&
+          !showFillAdvancedOptions &&
+          fillModeProperty ? (
+            <div className={css.fillQuickActions}>
+              <button
+                type="button"
+                className={css.moreOptionsToggle}
+                disabled={!fillModeProperty.write.writable || getInspectorPropertyCapabilityStatus(fillModeProperty).status === "unsupported"}
+                onClick={() => {
+                  if (!fillModeProperty.write.writable || getInspectorPropertyCapabilityStatus(fillModeProperty).status === "unsupported") {
+                    return;
+                  }
+                  setFillAdvancedOptionsOpen(true);
+                  applyFillModeValue(fillModeProperty.write, "gradient", fillModeProperty.context);
+                }}
+              >
+                + gradient
+              </button>
+              <button
+                type="button"
+                className={css.moreOptionsToggle}
+                disabled={!fillModeProperty.write.writable || getInspectorPropertyCapabilityStatus(fillModeProperty).status === "unsupported"}
+                onClick={() => {
+                  if (!fillModeProperty.write.writable || getInspectorPropertyCapabilityStatus(fillModeProperty).status === "unsupported") {
+                    return;
+                  }
+                  setFillAdvancedOptionsOpen(true);
+                  applyFillModeValue(fillModeProperty.write, "pattern", fillModeProperty.context);
+                }}
+              >
+                + pattern
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -1909,9 +2605,25 @@ export function InspectorPanel() {
       shouldAutoShowStrokeMoreOptions(property)
     );
     const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+    const fillAdvancedProperties =
+      section.id === "fill"
+        ? section.properties.filter((property) => isFillAdvancedPropertyId(property.id))
+        : [];
+    const fillModeProperty =
+      section.id === "fill"
+        ? section.properties.find((property): property is Extract<MultiInspectorProperty, { kind: "fillMode" }> => property.kind === "fillMode")
+        : undefined;
+    const forceShowFillAdvancedOptions = fillAdvancedProperties.some((property) =>
+      shouldAutoShowFillAdvancedOptions(property)
+    );
+    const showFillAdvancedOptions = forceShowFillAdvancedOptions || fillAdvancedOptionsOpen;
     const visibleProperties =
       section.id === "stroke" && !showStrokeMoreOptions
         ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
+        : section.id === "fill" && !showFillAdvancedOptions
+          ? section.properties.filter((property) => !isFillAdvancedPropertyId(property.id))
+          : section.id === "fill" && showFillAdvancedOptions
+            ? section.properties.filter((property) => property.id !== "fill-color")
         : section.properties;
 
     return (
@@ -1943,6 +2655,41 @@ export function InspectorPanel() {
             >
               {showStrokeMoreOptions ? "fewer options.." : "more options.."}
             </button>
+          ) : null}
+          {section.id === "fill" &&
+          fillAdvancedProperties.length > 0 &&
+          !showFillAdvancedOptions &&
+          fillModeProperty ? (
+            <div className={css.fillQuickActions}>
+              <button
+                type="button"
+                className={css.moreOptionsToggle}
+                disabled={!fillModeProperty.writes.some((write) => write.writable && write.elementId.length > 0)}
+                onClick={() => {
+                  if (!fillModeProperty.writes.some((write) => write.writable && write.elementId.length > 0)) {
+                    return;
+                  }
+                  setFillAdvancedOptionsOpen(true);
+                  applyFillModeValueMany(fillModeProperty.writes, "gradient", fillModeProperty.contexts);
+                }}
+              >
+                + gradient
+              </button>
+              <button
+                type="button"
+                className={css.moreOptionsToggle}
+                disabled={!fillModeProperty.writes.some((write) => write.writable && write.elementId.length > 0)}
+                onClick={() => {
+                  if (!fillModeProperty.writes.some((write) => write.writable && write.elementId.length > 0)) {
+                    return;
+                  }
+                  setFillAdvancedOptionsOpen(true);
+                  applyFillModeValueMany(fillModeProperty.writes, "pattern", fillModeProperty.contexts);
+                }}
+              >
+                + pattern
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
@@ -2026,12 +2773,26 @@ function isStrokeMoreOptionsPropertyId(propertyId: string): boolean {
   return STROKE_MORE_OPTIONS_PROPERTY_IDS.has(propertyId);
 }
 
+function isFillAdvancedPropertyId(propertyId: string): boolean {
+  return FILL_ADVANCED_PROPERTY_IDS.has(propertyId);
+}
+
 function shouldAutoShowStrokeMoreOptions(property: InspectorProperty | MultiInspectorProperty): boolean {
   if (property.kind === "lineCap") {
     return property.value !== "butt" || ("mixed" in property && property.mixed);
   }
   if (property.kind === "lineJoin") {
     return property.value !== "miter" || ("mixed" in property && property.mixed);
+  }
+  return false;
+}
+
+function shouldAutoShowFillAdvancedOptions(property: InspectorProperty | MultiInspectorProperty): boolean {
+  if (property.kind === "fillMode") {
+    return property.value !== "solid" || ("mixed" in property && property.mixed);
+  }
+  if (property.kind === "fillShading" || property.kind === "fillPattern" || property.kind === "fillPatternOption") {
+    return true;
   }
   return false;
 }
@@ -2172,6 +2933,90 @@ function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInsp
       syntaxValue: mixed ? null : (syntaxValues[0] ?? null),
       mixed,
       options: dedupeStrings(colorProperties.flatMap((property) => property.options)),
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "fillMode") {
+    const sameKind = properties.every((property) => property.kind === "fillMode");
+    if (!sameKind) return null;
+    const fillModeProperties = properties as Array<Extract<InspectorProperty, { kind: "fillMode" }>>;
+    const values = fillModeProperties.map((property) => property.value);
+    const writes = fillModeProperties.map((property) => property.write);
+
+    return {
+      kind: "fillMode",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "solid",
+      mixed: !allValuesEqual(values),
+      options: base.options,
+      contexts: fillModeProperties.map((property) => property.context),
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "fillShading") {
+    const sameKind = properties.every((property) => property.kind === "fillShading");
+    if (!sameKind) return null;
+    const fillShadingProperties = properties as Array<Extract<InspectorProperty, { kind: "fillShading" }>>;
+    const values = fillShadingProperties.map((property) => property.value);
+    const notes = fillShadingProperties.map((property) => property.note ?? null);
+    const writes = fillShadingProperties.map((property) => property.write);
+
+    return {
+      kind: "fillShading",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "axis",
+      mixed: !allValuesEqual(values),
+      options: base.options,
+      writes,
+      note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "fillPattern") {
+    const sameKind = properties.every((property) => property.kind === "fillPattern");
+    if (!sameKind) return null;
+    const fillPatternProperties = properties as Array<Extract<InspectorProperty, { kind: "fillPattern" }>>;
+    const values = fillPatternProperties.map((property) => property.value);
+    const notes = fillPatternProperties.map((property) => property.note ?? null);
+    const writes = fillPatternProperties.map((property) => property.write);
+
+    return {
+      kind: "fillPattern",
+      id: base.id,
+      label: base.label,
+      value: values[0] ?? "dots",
+      mixed: !allValuesEqual(values),
+      options: base.options,
+      writes,
+      note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "fillPatternOption") {
+    const sameKind = properties.every((property) => property.kind === "fillPatternOption");
+    if (!sameKind) return null;
+    const fillPatternOptionProperties = properties as Array<Extract<InspectorProperty, { kind: "fillPatternOption" }>>;
+    const values = fillPatternOptionProperties.map((property) => property.value);
+    const writes = fillPatternOptionProperties.map((property) => property.write);
+
+    return {
+      kind: "fillPatternOption",
+      id: base.id,
+      label: base.label,
+      option: base.option,
+      value: values[0] ?? 0,
+      mixed: !numbersAreEqual(values),
+      step: base.step,
+      unit: base.unit,
+      contexts: fillPatternOptionProperties.map((property) => property.context),
       writes,
       readOnlyReason: deriveReadOnlyReason(writes)
     };
@@ -2435,6 +3280,117 @@ function sameOrderedStringArrays(left: readonly string[], right: readonly string
     }
   }
   return true;
+}
+
+function toFillModeDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<FillModePresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<FillModeDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function fillModeValueLabel(
+  value: FillModeDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<FillModePresetId, "custom">; label: string }>
+): string {
+  if (value === FILL_MODE_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableFillModeValue(
+  value: FillModeDropdownValue
+): value is Exclude<FillModePresetId, "custom"> {
+  return value !== "custom" && value !== FILL_MODE_MIXED_OPTION_VALUE;
+}
+
+function toFillShadingDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<FillShadingPresetId, "custom">; label: string }>
+): Array<CustomDropdownOption<FillShadingDropdownValue>> {
+  return options.map((option) => ({
+    value: option.value,
+    label: option.label
+  }));
+}
+
+function fillShadingValueLabel(
+  value: FillShadingDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<FillShadingPresetId, "custom">; label: string }>
+): string {
+  if (value === FILL_SHADING_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableFillShadingValue(
+  value: FillShadingDropdownValue
+): value is Exclude<FillShadingPresetId, "custom"> {
+  return value !== "custom" && value !== FILL_SHADING_MIXED_OPTION_VALUE;
+}
+
+function toFillPatternDropdownOptions(
+  options: ReadonlyArray<{ value: Exclude<FillPatternPresetId, "custom">; label: string }>
+): Array<CustomDropdownItem<FillPatternDropdownValue>> {
+  const metaOptions = options.filter((option) => isMetaFillPatternPreset(option.value));
+  const legacyOptions = options.filter((option) => !isMetaFillPatternPreset(option.value));
+  const dropdownOptions: Array<CustomDropdownItem<FillPatternDropdownValue>> = [
+    ...metaOptions.map((option) => ({
+      value: option.value,
+      label: option.label
+    }))
+  ];
+  if (metaOptions.length > 0 && legacyOptions.length > 0) {
+    dropdownOptions.push({ kind: "separator", id: "fill-pattern-dropdown-divider" });
+  }
+  dropdownOptions.push(
+    ...legacyOptions.map((option) => ({
+      value: option.value,
+      label: option.label
+    }))
+  );
+  return dropdownOptions;
+}
+
+function fillPatternValueLabel(
+  value: FillPatternDropdownValue,
+  options: ReadonlyArray<{ value: Exclude<FillPatternPresetId, "custom">; label: string }>
+): string {
+  if (value === FILL_PATTERN_MIXED_OPTION_VALUE) {
+    return "Mixed";
+  }
+  if (value === "custom") {
+    return "Custom";
+  }
+  return options.find((option) => option.value === value)?.label ?? "Custom";
+}
+
+function isSelectableFillPatternValue(
+  value: FillPatternDropdownValue
+): value is Exclude<FillPatternPresetId, "custom"> {
+  return value !== "custom" && value !== FILL_PATTERN_MIXED_OPTION_VALUE;
+}
+
+function isMetaFillPatternPreset(value: Exclude<FillPatternPresetId, "custom">): boolean {
+  return META_FILL_PATTERN_PRESETS.has(value);
+}
+
+function fillPatternPreviewPreset(
+  value: FillPatternDropdownValue
+): Exclude<FillPatternPresetId, "custom"> {
+  if (value === FILL_PATTERN_MIXED_OPTION_VALUE || value === "custom") {
+    return "Lines";
+  }
+  return value;
 }
 
 function toDashStyleDropdownOptions(
@@ -2731,6 +3687,21 @@ function PathMorphingDecorationPreview({
   return (
     <span
       className={css.pathMorphingDecorationSvg}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: svgMarkup }}
+    />
+  );
+}
+
+function FillPatternPreview({
+  preset
+}: {
+  preset: Exclude<FillPatternPresetId, "custom">;
+}) {
+  const svgMarkup = renderFillPatternPreviewSvg(preset);
+  return (
+    <span
+      className={css.fillPatternSvg}
       aria-hidden="true"
       dangerouslySetInnerHTML={{ __html: svgMarkup }}
     />

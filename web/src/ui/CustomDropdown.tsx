@@ -6,10 +6,19 @@ export type CustomDropdownOption<TValue extends string> = {
   label: string;
 };
 
+export type CustomDropdownSeparator = {
+  kind: "separator";
+  id: string;
+};
+
+export type CustomDropdownItem<TValue extends string> =
+  | CustomDropdownOption<TValue>
+  | CustomDropdownSeparator;
+
 type CustomDropdownProps<TValue extends string> = {
   ariaLabel: string;
   disabled?: boolean;
-  options: readonly CustomDropdownOption<TValue>[];
+  options: readonly CustomDropdownItem<TValue>[];
   value: TValue;
   onChange: (value: TValue) => void;
   onOptionHover?: (value: TValue) => void;
@@ -43,7 +52,7 @@ export function CustomDropdown<TValue extends string>({
   const menuListRef = useRef<HTMLDivElement | null>(null);
 
   const selectedOption = useMemo(
-    () => options.find((option) => option.value === value) ?? null,
+    () => options.find((option): option is CustomDropdownOption<TValue> => isCustomDropdownOption(option) && option.value === value) ?? null,
     [options, value]
   );
 
@@ -177,22 +186,26 @@ export function CustomDropdown<TValue extends string>({
             ref={menuListRef}
             onPointerLeave={() => onOptionHoverEnd?.()}
           >
-            {options.map((option) => {
-              const selected = option.value === value;
+            {options.map((item) => {
+              if (!isCustomDropdownOption(item)) {
+                return <div key={item.id} role="separator" className={css.separator} />;
+              }
+
+              const selected = item.value === value;
               return (
                 <button
-                  key={option.value}
+                  key={item.value}
                   type="button"
                   role="option"
                   aria-selected={selected}
                   className={[css.option, selected ? css.optionSelected : ""].filter(Boolean).join(" ")}
-                  onPointerEnter={() => onOptionHover?.(option.value)}
+                  onPointerEnter={() => onOptionHover?.(item.value)}
                   onClick={() => {
-                    onChange(option.value);
+                    onChange(item.value);
                     closeMenu();
                   }}
                 >
-                  {renderOption ? renderOption(option, { selected }) : option.label}
+                  {renderOption ? renderOption(item, { selected }) : item.label}
                 </button>
               );
             })}
@@ -201,4 +214,10 @@ export function CustomDropdown<TValue extends string>({
       ) : null}
     </div>
   );
+}
+
+function isCustomDropdownOption<TValue extends string>(
+  item: CustomDropdownItem<TValue>
+): item is CustomDropdownOption<TValue> {
+  return !("kind" in item) || item.kind !== "separator";
 }

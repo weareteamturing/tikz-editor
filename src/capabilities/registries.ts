@@ -220,6 +220,8 @@ export const editFeatureRegistry = [
   "path_statement",
   "scope_statement",
   "options_structured",
+  "path_shading",
+  "path_patterns",
   "path_operators_basic",
   "path_operator_curves",
   "path_cycle",

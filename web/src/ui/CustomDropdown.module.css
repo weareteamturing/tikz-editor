@@ -115,3 +115,10 @@
   background: var(--accent-btn-bg);
   border-color: var(--accent-btn-border);
 }
+
+.separator {
+  height: 0;
+  margin: 4px 6px 3px;
+  border-top: 1px solid var(--border-lighter, #cfc9be);
+  pointer-events: none;
+}

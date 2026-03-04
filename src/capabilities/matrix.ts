@@ -55,7 +55,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "stable",
     svg: "partial",
-    edit: "none",
+    edit: "partial",
     fixtures: ["shading_styles"],
     notes:
       "Core axis/radial/ball shading keys map to SVG gradients; advanced functional shadings currently fall back with SVG diagnostics."
@@ -64,7 +64,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "stable",
     svg: "stable",
-    edit: "none",
+    edit: "partial",
     fixtures: ["pattern_styles"]
   },
   path_shadows: {

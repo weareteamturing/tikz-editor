@@ -3,6 +3,10 @@ import { renderTikzToSvg } from "../src/render/index.js";
 import { applyEditAction } from "../src/edit/actions.js";
 import {
   buildArrowTipSetPropertyMutation,
+  buildFillModeSetPropertyMutations,
+  buildFillPatternOptionSetPropertyMutation,
+  buildFillPatternSetPropertyMutation,
+  buildFillShadingSetPropertyMutations,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
   buildTransformSetPropertyMutations,
@@ -626,6 +630,287 @@ describe("getInspectorDescriptor", () => {
     });
 
     expect(descriptor.sections.some((section) => section.id === "fill")).toBe(true);
+  });
+
+  it("keeps solid fill mode as the default inspector mode", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=yellow] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const fillSection = descriptor.sections.find((section) => section.id === "fill");
+    expect(fillSection).toBeDefined();
+    if (!fillSection) {
+      throw new Error("Expected fill section");
+    }
+
+    const fillMode = fillSection.properties.find((property) => property.kind === "fillMode");
+    expect(fillMode).toBeDefined();
+    if (!fillMode || fillMode.kind !== "fillMode") {
+      throw new Error("Expected fill mode property");
+    }
+    expect(fillMode.value).toBe("solid");
+  });
+
+  it("detects gradient fill mode and shading subtype", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \shade[top color=red,bottom color=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const fillSection = descriptor.sections.find((section) => section.id === "fill");
+    expect(fillSection).toBeDefined();
+    if (!fillSection) {
+      throw new Error("Expected fill section");
+    }
+
+    const fillMode = fillSection.properties.find((property) => property.kind === "fillMode");
+    const fillShading = fillSection.properties.find((property) => property.kind === "fillShading");
+    if (!fillMode || fillMode.kind !== "fillMode") {
+      throw new Error("Expected fill mode property");
+    }
+    if (!fillShading || fillShading.kind !== "fillShading") {
+      throw new Error("Expected fill shading property");
+    }
+    expect(fillMode.value).toBe("gradient");
+    expect(fillShading.value).toBe("axis");
+    expect(fillSection.properties.some((property) => property.id === "fill-axis-top-color")).toBe(true);
+    expect(fillSection.properties.some((property) => property.id === "fill-axis-bottom-color")).toBe(true);
+  });
+
+  it("detects pattern fill mode and keeps pattern color syntax aliases", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \definecolor{brand}{rgb}{0.2,0.4,0.7}
+  \draw[pattern=grid,pattern color=brand] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const fillSection = descriptor.sections.find((section) => section.id === "fill");
+    expect(fillSection).toBeDefined();
+    if (!fillSection) {
+      throw new Error("Expected fill section");
+    }
+
+    const fillMode = fillSection.properties.find((property) => property.kind === "fillMode");
+    const fillPattern = fillSection.properties.find((property) => property.kind === "fillPattern");
+    const patternColor = fillSection.properties.find((property) => property.id === "fill-pattern-color");
+    if (!fillMode || fillMode.kind !== "fillMode") {
+      throw new Error("Expected fill mode property");
+    }
+    if (!fillPattern || fillPattern.kind !== "fillPattern") {
+      throw new Error("Expected fill pattern property");
+    }
+    if (!patternColor || patternColor.kind !== "color") {
+      throw new Error("Expected pattern color property");
+    }
+    expect(fillMode.value).toBe("pattern");
+    expect(fillPattern.value).toBe("grid");
+    expect(patternColor.syntaxValue).toBe("brand");
+  });
+
+  it("shows meta-pattern options for configurable pattern families", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[pattern={Lines[angle=45,distance=4pt,line width=0.6pt,xshift=1pt,yshift=2pt]},pattern color=blue] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const fillSection = descriptor.sections.find((section) => section.id === "fill");
+    expect(fillSection).toBeDefined();
+    if (!fillSection) {
+      throw new Error("Expected fill section");
+    }
+
+    const angle = fillSection.properties.find((property) => property.id === "fill-pattern-angle");
+    const distance = fillSection.properties.find((property) => property.id === "fill-pattern-distance");
+    const xshift = fillSection.properties.find((property) => property.id === "fill-pattern-xshift");
+    const yshift = fillSection.properties.find((property) => property.id === "fill-pattern-yshift");
+    const lineWidth = fillSection.properties.find((property) => property.id === "fill-pattern-line-width");
+    const fillPattern = fillSection.properties.find((property) => property.kind === "fillPattern");
+
+    if (!fillPattern || fillPattern.kind !== "fillPattern") {
+      throw new Error("Expected fill pattern property");
+    }
+
+    if (!angle || angle.kind !== "fillPatternOption") {
+      throw new Error("Expected fill pattern angle property");
+    }
+    if (!distance || distance.kind !== "fillPatternOption") {
+      throw new Error("Expected fill pattern distance property");
+    }
+    if (!xshift || xshift.kind !== "fillPatternOption") {
+      throw new Error("Expected fill pattern xshift property");
+    }
+    if (!yshift || yshift.kind !== "fillPatternOption") {
+      throw new Error("Expected fill pattern yshift property");
+    }
+    if (!lineWidth || lineWidth.kind !== "fillPatternOption") {
+      throw new Error("Expected fill pattern line width property");
+    }
+
+    expect(fillPattern.value).toBe("Lines");
+    expect(angle.value).toBeCloseTo(45, 6);
+    expect(distance.value).toBeCloseTo(4, 6);
+    expect(xshift.value).toBeCloseTo(1, 6);
+    expect(yshift.value).toBeCloseTo(2, 6);
+    expect(lineWidth.value).toBeCloseTo(0.6, 6);
+  });
+
+  it("maps unsupported shading and pattern values to custom inspector presets", () => {
+    const shadingSource = String.raw`\begin{tikzpicture}
+  \shade[shading=color wheel] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const shadingRendered = renderTikzToSvg(shadingSource);
+    const shadingPath = shadingRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(shadingPath).toBeDefined();
+    if (!shadingPath) {
+      throw new Error("Expected shading path element");
+    }
+
+    const shadingDescriptor = getInspectorDescriptor(shadingPath, {
+      source: shadingSource,
+      editHandles: shadingRendered.semantic.editHandles
+    });
+    const shadingFillSection = shadingDescriptor.sections.find((section) => section.id === "fill");
+    expect(shadingFillSection).toBeDefined();
+    if (!shadingFillSection) {
+      throw new Error("Expected fill section");
+    }
+    const fillShading = shadingFillSection.properties.find((property) => property.kind === "fillShading");
+    if (!fillShading || fillShading.kind !== "fillShading") {
+      throw new Error("Expected fill shading property");
+    }
+    expect(fillShading.value).toBe("custom");
+
+    const patternSource = String.raw`\begin{tikzpicture}
+  \draw[pattern={CustomPattern}] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const patternRendered = renderTikzToSvg(patternSource);
+    const patternPath = patternRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(patternPath).toBeDefined();
+    if (!patternPath) {
+      throw new Error("Expected pattern path element");
+    }
+
+    const patternDescriptor = getInspectorDescriptor(patternPath, {
+      source: patternSource,
+      editHandles: patternRendered.semantic.editHandles
+    });
+    const patternFillSection = patternDescriptor.sections.find((section) => section.id === "fill");
+    expect(patternFillSection).toBeDefined();
+    if (!patternFillSection) {
+      throw new Error("Expected fill section");
+    }
+    const fillPattern = patternFillSection.properties.find((property) => property.kind === "fillPattern");
+    if (!fillPattern || fillPattern.kind !== "fillPattern") {
+      throw new Error("Expected fill pattern property");
+    }
+    expect(fillPattern.value).toBe("custom");
+  });
+
+  it("builds deterministic fill mode mutations that clear conflicting paint keys", () => {
+    const toSolid = buildFillModeSetPropertyMutations("solid", {
+      fillColor: "green",
+      patternColor: "red",
+      shading: "radial",
+      pattern: "grid"
+    });
+    expect(toSolid).toHaveLength(1);
+    expect(toSolid[0]).toMatchObject({
+      key: "fill",
+      value: "green"
+    });
+    expect(toSolid[0]?.clearKeys).toContain("pattern");
+    expect(toSolid[0]?.clearKeys).toContain("shade");
+
+    const toGradient = buildFillModeSetPropertyMutations("gradient", {
+      fillColor: "green",
+      patternColor: "red",
+      shading: "custom",
+      pattern: "grid"
+    });
+    expect(toGradient.map((mutation) => mutation.key)).toEqual(["shade", "shading"]);
+    expect(toGradient[1]?.value).toBe("axis");
+    expect(toGradient[0]?.clearKeys).toContain("pattern");
+
+    const toPattern = buildFillModeSetPropertyMutations("pattern", {
+      fillColor: "green",
+      patternColor: "blue",
+      shading: "axis",
+      pattern: "custom"
+    });
+    expect(toPattern.map((mutation) => mutation.key)).toEqual(["pattern", "pattern color"]);
+    expect(toPattern[0]?.value).toBe("dots");
+    expect(toPattern[1]?.value).toBe("blue");
+    expect(toPattern[0]?.clearKeys).toContain("shade");
+    expect(toPattern[0]?.clearKeys).toContain("shading");
+
+    const shadingMutations = buildFillShadingSetPropertyMutations("radial");
+    expect(shadingMutations.map((mutation) => mutation.key)).toEqual(["shade", "shading"]);
+    expect(shadingMutations[1]?.value).toBe("radial");
+    expect(shadingMutations[1]?.clearKeys).toContain("top color");
+
+    const patternMutation = buildFillPatternSetPropertyMutation("grid");
+    expect(patternMutation).toMatchObject({
+      key: "pattern",
+      value: "grid"
+    });
+
+    const patternOptionMutation = buildFillPatternOptionSetPropertyMutation(
+      {
+        family: "Stars",
+        values: {
+          angle: 0,
+          distance: 8.5358,
+          xshift: 0,
+          yshift: 0,
+          lineWidth: 0.4,
+          radius: 2.8,
+          points: 5
+        }
+      },
+      "points",
+      7
+    );
+    expect(patternOptionMutation).toMatchObject({
+      key: "pattern",
+      value: "{Stars[angle=0,distance=8.54pt,xshift=0pt,yshift=0pt,radius=2.8pt,points=7]}"
+    });
   });
 
   it("shows line join for closed paths and line cap only when dashes are active", () => {
