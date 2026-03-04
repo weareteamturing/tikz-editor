@@ -1095,21 +1095,53 @@ describe("getInspectorDescriptor", () => {
     expect(dashedStroke.properties.some((property) => property.kind === "lineCap")).toBe(true);
   });
 
-  it("shows rounded corners in the path section only when the path has joins", () => {
+  it("shows rounded corners in the path section only when the path has geometric corners", () => {
     const joinedSource = String.raw`\begin{tikzpicture}
   \draw (0,0) rectangle (1,1);
 \end{tikzpicture}`;
     const straightSource = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (2,0);
 \end{tikzpicture}`;
+    const collinearSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const smoothArcSource = String.raw`\begin{tikzpicture}
+  \draw (1,0) arc[start angle=0,end angle=180,radius=1cm]
+               arc[start angle=180,end angle=360,radius=1cm];
+\end{tikzpicture}`;
+    const decoratedStraightSource = String.raw`\begin{tikzpicture}
+  \draw[decorate, decoration=zigzag] (-2.5, 2.5) -- (2.5, 2.5);
+\end{tikzpicture}`;
+    const decoratedCorneredSource = String.raw`\begin{tikzpicture}
+  \draw[decorate, decoration=zigzag] (0,0) -- (1,0) -- (1,1);
+\end{tikzpicture}`;
 
     const joinedRendered = renderTikzToSvg(joinedSource);
     const straightRendered = renderTikzToSvg(straightSource);
+    const collinearRendered = renderTikzToSvg(collinearSource);
+    const smoothArcRendered = renderTikzToSvg(smoothArcSource);
+    const decoratedStraightRendered = renderTikzToSvg(decoratedStraightSource);
+    const decoratedCorneredRendered = renderTikzToSvg(decoratedCorneredSource);
     const joinedPath = joinedRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
     const straightPath = straightRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const collinearPath = collinearRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const smoothArcPath = smoothArcRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const decoratedStraightPath = decoratedStraightRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    const decoratedCorneredPath = decoratedCorneredRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
     expect(joinedPath).toBeDefined();
     expect(straightPath).toBeDefined();
-    if (!joinedPath || !straightPath) {
+    expect(collinearPath).toBeDefined();
+    expect(smoothArcPath).toBeDefined();
+    expect(decoratedStraightPath).toBeDefined();
+    expect(decoratedCorneredPath).toBeDefined();
+    if (
+      !joinedPath ||
+      !straightPath ||
+      !collinearPath ||
+      !smoothArcPath ||
+      !decoratedStraightPath ||
+      !decoratedCorneredPath
+    ) {
       throw new Error("Expected path elements");
     }
 
@@ -1121,12 +1153,43 @@ describe("getInspectorDescriptor", () => {
       source: straightSource,
       editHandles: straightRendered.semantic.editHandles
     });
+    const collinearDescriptor = getInspectorDescriptor(collinearPath, {
+      source: collinearSource,
+      editHandles: collinearRendered.semantic.editHandles
+    });
+    const smoothArcDescriptor = getInspectorDescriptor(smoothArcPath, {
+      source: smoothArcSource,
+      editHandles: smoothArcRendered.semantic.editHandles
+    });
+    const decoratedStraightDescriptor = getInspectorDescriptor(decoratedStraightPath, {
+      source: decoratedStraightSource,
+      editHandles: decoratedStraightRendered.semantic.editHandles
+    });
+    const decoratedCorneredDescriptor = getInspectorDescriptor(decoratedCorneredPath, {
+      source: decoratedCorneredSource,
+      editHandles: decoratedCorneredRendered.semantic.editHandles
+    });
 
     const joinedPathSection = joinedDescriptor.sections.find((section) => section.id === "path");
     const straightPathSection = straightDescriptor.sections.find((section) => section.id === "path");
+    const collinearPathSection = collinearDescriptor.sections.find((section) => section.id === "path");
+    const smoothArcPathSection = smoothArcDescriptor.sections.find((section) => section.id === "path");
+    const decoratedStraightPathSection = decoratedStraightDescriptor.sections.find((section) => section.id === "path");
+    const decoratedCorneredPathSection = decoratedCorneredDescriptor.sections.find((section) => section.id === "path");
     expect(joinedPathSection).toBeDefined();
     expect(straightPathSection).toBeDefined();
-    if (!joinedPathSection || !straightPathSection) {
+    expect(collinearPathSection).toBeDefined();
+    expect(smoothArcPathSection).toBeDefined();
+    expect(decoratedStraightPathSection).toBeDefined();
+    expect(decoratedCorneredPathSection).toBeDefined();
+    if (
+      !joinedPathSection ||
+      !straightPathSection ||
+      !collinearPathSection ||
+      !smoothArcPathSection ||
+      !decoratedStraightPathSection ||
+      !decoratedCorneredPathSection
+    ) {
       throw new Error("Expected path sections");
     }
 
@@ -1134,6 +1197,18 @@ describe("getInspectorDescriptor", () => {
       (property) => property.kind === "roundedCorners"
     );
     const straightRoundedCorners = straightPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+    const collinearRoundedCorners = collinearPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+    const smoothArcRoundedCorners = smoothArcPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+    const decoratedStraightRoundedCorners = decoratedStraightPathSection.properties.find(
+      (property) => property.kind === "roundedCorners"
+    );
+    const decoratedCorneredRoundedCorners = decoratedCorneredPathSection.properties.find(
       (property) => property.kind === "roundedCorners"
     );
 
@@ -1147,6 +1222,10 @@ describe("getInspectorDescriptor", () => {
     expect(joinedRoundedCorners.max).toBeCloseTo(14.23, 2);
 
     expect(straightRoundedCorners).toBeUndefined();
+    expect(collinearRoundedCorners).toBeUndefined();
+    expect(smoothArcRoundedCorners).toBeUndefined();
+    expect(decoratedStraightRoundedCorners).toBeUndefined();
+    expect(decoratedCorneredRoundedCorners).toBeDefined();
   });
 
   it("keeps rounded-corner max stable after rounded corners are enabled", () => {

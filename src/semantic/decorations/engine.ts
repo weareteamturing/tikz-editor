@@ -104,6 +104,7 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
   const decoratedCommands = decorateCommands(path.commands, decoration, seedRaw, name);
   const decoratedPath = clonePath(path);
   decoratedPath.id = `${path.id}:decorated:${sanitizeDecorationName(name)}`;
+  decoratedPath.undecoratedCommands = path.commands.map((command) => cloneCommand(command));
   decoratedPath.commands = decoratedCommands;
   decoratedPath.style = {
     ...decoratedPath.style,
@@ -141,6 +142,7 @@ function clonePath(path: ScenePath): ScenePath {
       }))
     },
     styleChain: path.styleChain.map((entry) => ({ ...entry })),
+    undecoratedCommands: path.undecoratedCommands?.map((command) => cloneCommand(command)),
     commands: path.commands.map((command) => cloneCommand(command))
   };
 }

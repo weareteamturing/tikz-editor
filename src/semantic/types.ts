@@ -104,6 +104,7 @@ export type ScenePath = {
   sourceSpan: Span;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
+  undecoratedCommands?: ScenePathCommand[];
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   commands: ScenePathCommand[];

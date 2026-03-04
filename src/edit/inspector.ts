@@ -9,7 +9,8 @@ import {
 import {
   clampRoundedCornersRadius,
   computePathRoundedCornersMax,
-  normalizeRoundedCornersMax
+  normalizeRoundedCornersMax,
+  pathHasRoundableCorner
 } from "./inspector/rounded-corners.js";
 import { parseTikz } from "../parser/index.js";
 import type { PathItem, PathStatement, Statement } from "../ast/types.js";
@@ -1800,8 +1801,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   }
 
   if (element.kind === "Path") {
+    const roundedCornersSourceCommands = element.undecoratedCommands ?? element.commands;
     const roundedCornersEnabled = element.style.roundedCorners != null && element.style.roundedCorners > 0;
-    const roundedCornersMax = normalizeRoundedCornersMax(computePathRoundedCornersMax(element.commands));
+    const pathHasCornerThatCanBeRounded = pathHasRoundableCorner(roundedCornersSourceCommands);
+    const roundedCornersMax = normalizeRoundedCornersMax(computePathRoundedCornersMax(roundedCornersSourceCommands));
     const roundedCornersDefaultRadius = clampRoundedCornersRadius(ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax);
     const roundedCornersRadius = roundedCornersEnabled
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
@@ -1824,7 +1827,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       ]
     };
 
-    if (pathStrokeVisibility?.showLineJoin) {
+    if (pathStrokeVisibility?.showLineJoin && (pathHasCornerThatCanBeRounded || roundedCornersEnabled)) {
       pathSection.properties.push({
         kind: "roundedCorners",
         id: "rounded-corners",
