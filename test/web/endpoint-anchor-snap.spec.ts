@@ -56,4 +56,25 @@ describe("resolveEndpointAnchorSnap", () => {
     expect(result.visibleAnchors).toHaveLength(0);
     expect(result.snappedAnchor).toBeNull();
   });
+
+  it("uses node extent (not only center) for proximity on large nodes", () => {
+    const wideTargets: NodeAnchorTarget[] = [
+      { nodeName: "Wide", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },
+      { nodeName: "Wide", anchor: "west", world: { x: -150, y: 0 }, tier: "basic" },
+      { nodeName: "Wide", anchor: "east", world: { x: 150, y: 0 }, tier: "basic" },
+      { nodeName: "Wide", anchor: "north", world: { x: 0, y: 20 }, tier: "basic" },
+      { nodeName: "Wide", anchor: "south", world: { x: 0, y: -20 }, tier: "basic" }
+    ];
+
+    const result = resolveEndpointAnchorSnap({
+      // Near east edge, far from center (center distance ~= 150).
+      pointerWorld: { x: 148, y: 0 },
+      zoom: 1,
+      nodeAnchorTargets: wideTargets
+    });
+
+    expect(result.visibleAnchors.length).toBeGreaterThan(0);
+    expect(result.visibleAnchors.every((target) => target.nodeName === "Wide")).toBe(true);
+    expect(result.snappedAnchor?.anchor).toBe("east");
+  });
 });
