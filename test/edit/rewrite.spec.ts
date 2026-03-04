@@ -233,11 +233,25 @@ describe("rewriteCoordinate", () => {
       expect(result).toBeNull();
     });
 
-    it("returns null for unsupported rewrite mode", () => {
+    it("rewrites named path endpoints in unsupported mode to detached cartesian coordinates", () => {
       const source = "\\draw (A);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
         sourceSpan: { from: 6, to: 9 },
+        kind: "path-point",
+        coordinateForm: "named",
+        rewriteMode: "unsupported"
+      });
+      const result = rewriteCoordinate({ x: cm(2), y: cm(2) }, handle, source);
+      expect(result).toBe("(2,2)");
+    });
+
+    it("returns null for unsupported non-endpoint handles", () => {
+      const source = "\\draw (A) .. controls (B) .. (C);";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(1) },
+        sourceSpan: { from: 21, to: 24 },
+        kind: "path-control",
         coordinateForm: "named",
         rewriteMode: "unsupported"
       });

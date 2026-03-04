@@ -26,6 +26,7 @@ import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
 import { applyMatrix } from "../semantic/transform.js";
+import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { localToSourceUnits, worldToLocal } from "./coords.js";
@@ -72,6 +73,7 @@ export type EditAction =
   | { kind: "alignElements"; elementIds: string[]; mode: AlignMode }
   | { kind: "distributeElements"; elementIds: string[]; axis: DistributeAxis }
   | { kind: "moveHandle"; handleId: string; newWorld: Point }
+  | { kind: "connectHandle"; handleId: string; nodeName: string; anchor: string }
   | {
       kind: "setProperty";
       elementId: string;
@@ -128,6 +130,8 @@ export function applyEditAction(
     switch (action.kind) {
       case "moveHandle":
         return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
+      case "connectHandle":
+        return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.anchor);
       case "moveElement":
         return applyMoveElements(source, editHandles, [action.elementId], action.delta);
       case "moveElements":
@@ -176,6 +180,96 @@ function applyMoveHandle(
     return { kind: "unsupported", reason: result.reason };
   }
   return { kind: "error", message: result.message };
+}
+
+function applyConnectHandle(
+  source: string,
+  editHandles: EditHandle[],
+  handleId: string,
+  nodeName: string,
+  anchor: string
+): EditActionResult {
+  const handle = editHandles.find((candidate) => candidate.id === handleId);
+  if (!handle) {
+    return { kind: "error", message: `Handle not found: ${handleId}` };
+  }
+
+  const sourceFingerprint = computeSourceFingerprint(source);
+  if (handle.sourceFingerprint !== sourceFingerprint) {
+    return { kind: "error", message: "Handle does not match current source (stale handle)." };
+  }
+
+  if (handle.curveEdit) {
+    return {
+      kind: "unsupported",
+      reason: "Only concrete path endpoint coordinates can be connected to node anchors."
+    };
+  }
+  if (handle.kind !== "path-point") {
+    return {
+      kind: "unsupported",
+      reason: "Only path endpoint handles can be connected to node anchors."
+    };
+  }
+
+  if (
+    handle.sourceSpan.from < 0 ||
+    handle.sourceSpan.to > source.length ||
+    handle.sourceSpan.from >= handle.sourceSpan.to
+  ) {
+    return {
+      kind: "unsupported",
+      reason: "Handle does not point to a concrete coordinate span in source."
+    };
+  }
+
+  if (isSharedExpandedHandleSpan(handle, editHandles)) {
+    return {
+      kind: "unsupported",
+      reason: "Handle span is shared by expanded statements (foreach/macro), cannot connect safely."
+    };
+  }
+
+  const currentSourceText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+  if (currentSourceText !== handle.sourceText) {
+    return { kind: "error", message: "Handle span content mismatch (stale handle)." };
+  }
+
+  const trimmedNodeName = nodeName.trim();
+  if (trimmedNodeName.length === 0) {
+    return { kind: "error", message: "Node name is required for endpoint connection." };
+  }
+
+  const trimmedAnchor = anchor.trim().toLowerCase();
+  if (trimmedAnchor.length === 0) {
+    return { kind: "error", message: "Anchor is required for endpoint connection." };
+  }
+
+  const replacement =
+    trimmedAnchor === "center"
+      ? `(${trimmedNodeName})`
+      : `(${trimmedNodeName}.${trimmedAnchor})`;
+  const updated = replaceSpan(source, handle.sourceSpan, replacement);
+  const reordered = moveStatementAfterNamedDefinition(
+    updated.source,
+    handle.sourceId,
+    trimmedNodeName
+  );
+  const reorderedPatches = reordered ? reordered.patches : [];
+  const newSource = reordered?.source ?? updated.source;
+  return {
+    kind: "success",
+    newSource,
+    patches: [
+      {
+        oldSpan: handle.sourceSpan,
+        newSpan: updated.changedSpan,
+        replacement
+      },
+      ...reorderedPatches
+    ],
+    changedSourceIds: [handle.sourceId]
+  };
 }
 
 function applyMoveElements(
@@ -1475,6 +1569,10 @@ function inferChangedSourceIds(
       const handle = editHandles.find((candidate) => candidate.id === action.handleId);
       return handle ? normalizeElementIds([handle.sourceId]) : [];
     }
+    case "connectHandle": {
+      const handle = editHandles.find((candidate) => candidate.id === action.handleId);
+      return handle ? normalizeElementIds([handle.sourceId]) : [];
+    }
     case "addElement":
     case "pasteStatements":
       return normalizeElementIds(result.selectedSourceIds ?? []);
@@ -1491,6 +1589,146 @@ function inferChangedSourceIds(
     case "resizeElement":
       return normalizeElementIds([action.elementId]);
   }
+}
+
+function isSharedExpandedHandleSpan(
+  handle: EditHandle,
+  editHandles: readonly EditHandle[]
+): boolean {
+  return editHandles.some(
+    (candidate) =>
+      candidate.id !== handle.id &&
+      candidate.sourceSpan.from === handle.sourceSpan.from &&
+      candidate.sourceSpan.to === handle.sourceSpan.to
+  );
+}
+
+function moveStatementAfterNamedDefinition(
+  source: string,
+  movingStatementId: string,
+  name: string
+): { source: string; patches: SourcePatch[] } | null {
+  const snapshot = parseStatementSnapshot(source);
+  const movingRef = snapshot.byId.get(movingStatementId);
+  if (!movingRef) {
+    return null;
+  }
+
+  const producerId = findNamedDefinitionStatementId(snapshot, name);
+  if (!producerId || producerId === movingStatementId) {
+    return null;
+  }
+
+  const producerRef = snapshot.byId.get(producerId);
+  if (!producerRef) {
+    return null;
+  }
+
+  if (movingRef.parentKey !== producerRef.parentKey) {
+    return null;
+  }
+
+  if (movingRef.index > producerRef.index) {
+    return null;
+  }
+
+  const parentRefs = snapshot.byParentKey.get(movingRef.parentKey) ?? [];
+  if (parentRefs.length <= 1) {
+    return null;
+  }
+
+  const ids = parentRefs.map((ref) => ref.id);
+  const movingIndex = ids.indexOf(movingStatementId);
+  const producerIndex = ids.indexOf(producerId);
+  if (movingIndex < 0 || producerIndex < 0 || movingIndex > producerIndex) {
+    return null;
+  }
+
+  const withoutMoving = ids.filter((id) => id !== movingStatementId);
+  const producerIndexInFiltered = withoutMoving.indexOf(producerId);
+  if (producerIndexInFiltered < 0) {
+    return null;
+  }
+  const nextOrder = [...withoutMoving];
+  nextOrder.splice(producerIndexInFiltered + 1, 0, movingStatementId);
+  if (arraysEqual(ids, nextOrder)) {
+    return null;
+  }
+
+  const replacement = buildParentReorderReplacement(snapshot.source, parentRefs, nextOrder);
+  if (!replacement) {
+    return null;
+  }
+
+  const applied = applyTextReplacements(source, [
+    {
+      span: replacement.span,
+      text: replacement.text
+    }
+  ]);
+  if (applied.patches.length === 0) {
+    return null;
+  }
+
+  return {
+    source: applied.source,
+    patches: applied.patches
+  };
+}
+
+function findNamedDefinitionStatementId(
+  snapshot: ReturnType<typeof parseStatementSnapshot>,
+  name: string
+): string | null {
+  const normalized = normalizeNodeNameCandidate(name);
+  if (!normalized) {
+    return null;
+  }
+
+  for (const ref of snapshot.all) {
+    if (statementDeclaresName(ref.statement, normalized)) {
+      return ref.id;
+    }
+  }
+
+  return null;
+}
+
+function statementDeclaresName(statement: Statement, name: string): boolean {
+  if (statement.kind !== "Path") {
+    return false;
+  }
+  for (const item of statement.items) {
+    if (item.kind === "Node") {
+      if (normalizeNodeNameCandidate(item.name) === name) {
+        return true;
+      }
+      const aliases = item.aliases ?? [];
+      for (const alias of aliases) {
+        if (normalizeNodeNameCandidate(alias) === name) {
+          return true;
+        }
+      }
+      continue;
+    }
+    if (item.kind === "CoordinateOperation") {
+      if (normalizeNodeNameCandidate(item.name) === name) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function normalizeNodeNameCandidate(raw: string | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {

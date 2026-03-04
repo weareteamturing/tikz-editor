@@ -4,7 +4,7 @@ import type { EditHandle, Point } from "../semantic/types.js";
 import type { ApplyEditResult, EditIntent, EditIntentResult, TikzEdit } from "./types.js";
 import { replaceSpan } from "./patch.js";
 import { formatCoordinate } from "./style.js";
-import { rewriteCoordinate } from "./rewrite.js";
+import { rewriteCoordinate, supportsUnsupportedCoordinateDetach } from "./rewrite.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import { formatNumber } from "./format.js";
 import { resolvePropertyTarget } from "./property-target.js";
@@ -101,7 +101,7 @@ function applyMoveIntent(
     return { kind: "error", message: "Rewrite target handle could not be resolved (stale handle?)." };
   }
 
-  if (rewriteHandle.rewriteMode === "unsupported") {
+  if (rewriteHandle.rewriteMode === "unsupported" && !supportsUnsupportedCoordinateDetach(rewriteHandle)) {
     return {
       kind: "unsupported",
       reason: `Coordinate form "${handle.coordinateForm}" cannot be rewritten`,

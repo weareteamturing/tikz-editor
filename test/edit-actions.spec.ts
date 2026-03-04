@@ -69,11 +69,11 @@ describe("applyEditAction – moveHandle", () => {
   });
 
   it("returns unsupported for unsupported coordinate form", () => {
-    const source = "\\draw (A) -- (B);";
+    const source = "\\draw ($0.5*(A)+0.5*(B)$) -- (1,1);";
     const handle = makeHandle(source, {
       world: { x: cm(1), y: cm(2) },
-      sourceSpan: { from: 6, to: 9 },
-      coordinateForm: "named",
+      sourceSpan: { from: 6, to: 25 },
+      coordinateForm: "calc",
       rewriteMode: "unsupported"
     });
 
@@ -83,6 +83,129 @@ describe("applyEditAction – moveHandle", () => {
       newWorld: { x: cm(3), y: cm(4) }
     });
     expect(result.kind).toBe("unsupported");
+  });
+});
+
+describe("applyEditAction – connectHandle", () => {
+  it("rewrites path endpoints to named node anchors", () => {
+    const source = "\\draw (0,0) -- (1,1);";
+    const raw = "(1,1)";
+    const from = source.indexOf(raw);
+    const handle = makeHandle(source, {
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "A",
+      anchor: "east"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toBe("\\draw (0,0) -- (A.east);");
+    expect(result.changedSourceIds).toEqual(["path:0"]);
+  });
+
+  it("rewrites center anchors to bare node references", () => {
+    const source = "\\draw (0,0) -- (1,1);";
+    const raw = "(1,1)";
+    const from = source.indexOf(raw);
+    const handle = makeHandle(source, {
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "A",
+      anchor: "center"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toBe("\\draw (0,0) -- (A);");
+  });
+
+  it("rejects handles whose source span is shared by expansion", () => {
+    const source = "\\draw (0,0) -- (1,1);";
+    const raw = "(1,1)";
+    const from = source.indexOf(raw);
+    const first = makeHandle(source, {
+      id: "h-first",
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0"
+    });
+    const second = makeHandle(source, {
+      id: "h-second",
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:1"
+    });
+
+    const result = applyEditAction(source, [first, second], {
+      kind: "connectHandle",
+      handleId: first.id,
+      nodeName: "A",
+      anchor: "east"
+    });
+
+    expect(result.kind).toBe("unsupported");
+  });
+
+  it("rejects stale handles when fingerprint mismatches source", () => {
+    const sourceA = "\\draw (0,0) -- (1,1);";
+    const sourceB = "\\draw (9,9) -- (8,8);";
+    const raw = "(1,1)";
+    const from = sourceA.indexOf(raw);
+    const handle = makeHandle(sourceA, {
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0"
+    });
+
+    const result = applyEditAction(sourceB, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "A",
+      anchor: "east"
+    });
+
+    expect(result.kind).toBe("error");
+  });
+
+  it("moves the connected path statement after a later named node definition", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (-2.5, 2.5) -- (2.5, 2.5);
+  \node[draw] (A) at (-1, -1) {A};
+\end{tikzpicture}`;
+    const startRaw = "(-2.5, 2.5)";
+    const startFrom = source.indexOf(startRaw);
+    const handle = makeHandle(source, {
+      world: { x: cm(-2.5), y: cm(2.5) },
+      sourceSpan: { from: startFrom, to: startFrom + startRaw.length },
+      sourceId: "path:0"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "A",
+      anchor: "center"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    const drawIndex = result.newSource.indexOf("\\draw (A) -- (2.5, 2.5);");
+    const nodeIndex = result.newSource.indexOf("\\node[draw] (A) at (-1, -1) {A};");
+    expect(drawIndex).toBeGreaterThan(nodeIndex);
   });
 });
 
@@ -153,18 +276,22 @@ describe("applyEditAction – moveElement", () => {
   });
 
   it("returns partial when some handles are unsupported", () => {
-    const source = "\\draw (A) -- (1,2);";
+    const source = "\\draw (0,0) .. controls (A) .. (1,2);";
+    const unsupportedRaw = "(A)";
+    const unsupportedFrom = source.indexOf(unsupportedRaw);
     const unsupported = makeHandle(source, {
       world: { x: cm(0), y: cm(0) },
-      sourceSpan: { from: 6, to: 9 },
+      sourceSpan: { from: unsupportedFrom, to: unsupportedFrom + unsupportedRaw.length },
       sourceId: "elem-1",
+      kind: "path-control",
       coordinateForm: "named",
       rewriteMode: "unsupported"
     });
-    // "\\draw (A) -- (1,2);" → "(1,2)" is at positions 13..17 (span end = 18)
+    const supportedRaw = "(1,2)";
+    const supportedFrom = source.lastIndexOf(supportedRaw);
     const supported = makeHandle(source, {
       world: { x: cm(1), y: cm(2) },
-      sourceSpan: { from: 13, to: 18 },
+      sourceSpan: { from: supportedFrom, to: supportedFrom + supportedRaw.length },
       sourceId: "elem-1"
     });
 
@@ -177,7 +304,7 @@ describe("applyEditAction – moveElement", () => {
     expect(result.kind).toBe("partial");
     if (result.kind === "partial") {
       expect(result.skippedHandles).toHaveLength(1);
-      expect(result.newSource).toBe("\\draw (A) -- (2,2);");  // x+1=2, y unchanged=2
+      expect(result.newSource).toBe("\\draw (0,0) .. controls (A) .. (2,2);");
     }
   });
 

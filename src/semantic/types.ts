@@ -12,6 +12,13 @@ export type Point = {
   y: number;
 };
 
+export type NodeAnchorTarget = {
+  nodeName: string;
+  anchor: string;
+  world: Point;
+  tier: "basic" | "special";
+};
+
 export type ArrowTipKind =
   | "to"
   | "cm-rightarrow"

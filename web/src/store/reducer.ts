@@ -135,7 +135,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
-        action.action.kind === "moveHandle" ? "move-handle" :
+        action.action.kind === "moveHandle" || action.action.kind === "connectHandle" ? "move-handle" :
         action.action.kind === "setProperty" ? "set-property" :
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :

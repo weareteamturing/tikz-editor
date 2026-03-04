@@ -6,6 +6,7 @@ import type { SvgViewBox } from "tikz-editor/svg/types";
 import type { ToolMode } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
 import type { CurveControlLine } from "./curve-controls";
+import type { NodeAnchorOverlayState } from "./types";
 import { fmt, worldToSvgPoint } from "./geometry";
 import css from "../CanvasPanel.module.css";
 
@@ -749,6 +750,43 @@ export function HandleOverlay({
             strokeWidth={handleStrokeWidth}
             style={{ cursor: display.cursor }}
             onPointerDown={onPointerDown}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+export function NodeAnchorOverlay({
+  anchorOverlay,
+  viewBox,
+  strokeWidth,
+  radius
+}: {
+  anchorOverlay: NodeAnchorOverlayState | null;
+  viewBox: SvgViewBox;
+  strokeWidth: number;
+  radius: number;
+}) {
+  if (!anchorOverlay || anchorOverlay.visibleAnchors.length === 0) {
+    return null;
+  }
+
+  return (
+    <g className={css.nodeAnchorOverlay}>
+      {anchorOverlay.visibleAnchors.map((anchor) => {
+        const point = worldToSvgPoint(anchor.world, viewBox);
+        const snapped =
+          anchorOverlay.snappedAnchor?.nodeName === anchor.nodeName &&
+          anchorOverlay.snappedAnchor.anchor === anchor.anchor;
+        return (
+          <circle
+            key={`${anchor.nodeName}:${anchor.anchor}`}
+            className={`${css.nodeAnchorPoint} ${snapped ? css.nodeAnchorPointSnapped : ""}`}
+            cx={point.x}
+            cy={point.y}
+            r={snapped ? radius * 1.1 : radius * 0.85}
+            strokeWidth={strokeWidth}
           />
         );
       })}

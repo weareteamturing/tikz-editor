@@ -1,7 +1,7 @@
 import type { Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
-import type { EditHandle, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
+import type { EditHandle, NodeAnchorTarget, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import type { CanvasTransform } from "../../store/types";
@@ -45,6 +45,7 @@ export type DragState =
       lastKnownWorld: Point;
       snapContext: SnapContext | null;
       historyMergeKey: string;
+      activeEndpointAnchor: NodeAnchorTarget | null;
     }
   | {
       kind: "pan";
@@ -120,6 +121,11 @@ export type TextSelectionOverlay = {
   width: number;
   height: number;
   prefixTable: readonly number[] | null;
+};
+
+export type NodeAnchorOverlayState = {
+  visibleAnchors: NodeAnchorTarget[];
+  snappedAnchor: NodeAnchorTarget | null;
 };
 
 export type EditableTextTarget = {

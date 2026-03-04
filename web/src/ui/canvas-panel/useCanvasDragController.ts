@@ -7,7 +7,7 @@ import {
   snapToolPointer,
   type SnapLine
 } from "tikz-editor/edit/snapping";
-import type { EditHandle, Point, SceneElement } from "tikz-editor/semantic/types";
+import type { EditHandle, NodeAnchorTarget, Point, SceneElement } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import {
@@ -19,12 +19,14 @@ import {
   resolveHandleIdForDrag,
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
+import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
   ApplyActionFeedback,
   Bounds,
   DragState,
+  NodeAnchorOverlayState,
   PendingAddedSelection,
   PendingBezier,
   SnapDebugLogInput,
@@ -41,6 +43,7 @@ export function useCanvasDragController(params: {
   snapshotSource: string;
   snapshotScene: { elements: SceneElement[] } | null;
   snapshotEditHandles: EditHandle[];
+  nodeAnchorTargets: readonly NodeAnchorTarget[];
   source: string;
   svgResult: { viewBox: SvgViewBox } | null;
   dragRef: { current: DragState | null };
@@ -56,6 +59,7 @@ export function useCanvasDragController(params: {
   setPendingBezier: (pending: PendingBezier | null) => void;
   setToolCursorWorld: (point: Point | null) => void;
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
+  setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
   setWarning: (warning: string | null) => void;
   setTextSelectionOverlay: (overlay: TextSelectionOverlay | null) => void;
   textIndexFromClient: (
@@ -73,6 +77,7 @@ export function useCanvasDragController(params: {
     snapshotSource,
     snapshotScene,
     snapshotEditHandles,
+    nodeAnchorTargets,
     source,
     svgResult,
     dragRef,
@@ -88,6 +93,7 @@ export function useCanvasDragController(params: {
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
+    setNodeAnchorOverlay,
     setWarning,
     setTextSelectionOverlay,
     textIndexFromClient
@@ -132,6 +138,7 @@ export function useCanvasDragController(params: {
       const ctrlOrMeta = event.ctrlKey || event.metaKey;
 
       if (drag.kind === "pan") {
+        setNodeAnchorOverlay(null);
         const deltaX = event.clientX - drag.startClientX;
         const deltaY = event.clientY - drag.startClientY;
         setSnapLines([]);
@@ -155,6 +162,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "text-select") {
+        setNodeAnchorOverlay(null);
         if (snapshotSource !== source) {
           return;
         }
@@ -219,13 +227,18 @@ export function useCanvasDragController(params: {
 
       const currentSvg = svgResultRef.current;
       if (!currentSvg) {
+        setNodeAnchorOverlay(null);
         return;
       }
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
-      if (!world) return;
+      if (!world) {
+        setNodeAnchorOverlay(null);
+        return;
+      }
 
       if (drag.kind === "tool-create") {
+        setNodeAnchorOverlay(null);
         const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
           ? snapToolPointer({
@@ -260,6 +273,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "tool-bezier-bend") {
+        setNodeAnchorOverlay(null);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
@@ -287,6 +301,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "marquee") {
+        setNodeAnchorOverlay(null);
         drag.currentWorld = world;
         setMarqueeDraft({ ...drag });
         if (distanceSquared(world, drag.startWorld) > 0.25) {
@@ -304,6 +319,7 @@ export function useCanvasDragController(params: {
       }
 
       if (!svgResult || snapshotSource !== source) {
+        setNodeAnchorOverlay(null);
         setSnapLines([]);
         logSnapDebug({
           phase: "drag-move",
@@ -317,6 +333,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "resize") {
+        setNodeAnchorOverlay(null);
         setSnapLines([]);
         logSnapDebug({
           phase: "drag-resize-move",
@@ -341,6 +358,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "element") {
+        setNodeAnchorOverlay(null);
         const rawTotalDelta = {
           x: world.x - drag.startWorld.x,
           y: world.y - drag.startWorld.y
@@ -398,6 +416,8 @@ export function useCanvasDragController(params: {
 
       const resolvedHandleId = resolveHandleIdForDrag(drag, snapshotEditHandles);
       if (!resolvedHandleId) {
+        drag.activeEndpointAnchor = null;
+        setNodeAnchorOverlay(null);
         setWarning("Handle is no longer available after recompute. Release and drag again.");
         return;
       }
@@ -410,7 +430,22 @@ export function useCanvasDragController(params: {
             modifiers: { ctrlOrMeta }
           })
         : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
-      const nextWorld = snapped.snappedPoint ?? world;
+      let nextWorld = snapped.snappedPoint ?? world;
+      let endpointAnchorOverlay: NodeAnchorOverlayState | null = null;
+      if (drag.handleKind === "path-point") {
+        endpointAnchorOverlay = resolveEndpointAnchorSnap({
+          pointerWorld: world,
+          zoom: drag.snapContext?.zoom ?? 1,
+          nodeAnchorTargets
+        });
+        drag.activeEndpointAnchor = endpointAnchorOverlay.snappedAnchor;
+        if (endpointAnchorOverlay.snappedAnchor) {
+          nextWorld = endpointAnchorOverlay.snappedAnchor.world;
+        }
+      } else {
+        drag.activeEndpointAnchor = null;
+      }
+      setNodeAnchorOverlay(endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0 ? endpointAnchorOverlay : null);
       setSnapLines(snapped.lines);
       logSnapDebug({
         phase: "drag-handle-move",
@@ -448,6 +483,7 @@ export function useCanvasDragController(params: {
           : clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
 
       if (drag.kind === "marquee") {
+        setNodeAnchorOverlay(null);
         const finalWorld = world ?? drag.currentWorld;
         const deltaSq = distanceSquared(finalWorld, drag.startWorld);
         const isClickOnly = deltaSq <= 0.25;
@@ -467,6 +503,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "tool-create") {
+        setNodeAnchorOverlay(null);
         const rawFinalWorld = world ?? drag.rawCurrentWorld;
         const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
@@ -528,6 +565,7 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "tool-bezier-bend") {
+        setNodeAnchorOverlay(null);
         const rawFinalWorld = world ?? drag.rawCurrentWorld;
         const snapped = drag.snapContext
           ? snapToolPointer({
@@ -568,11 +606,28 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "text-select") {
+        setNodeAnchorOverlay(null);
         setSnapLines([]);
         setDragState(null);
         return;
       }
 
+      if (drag.kind === "handle") {
+        const resolvedHandleId = resolveHandleIdForDrag(drag, snapshotEditHandles);
+        if (resolvedHandleId && drag.activeEndpointAnchor) {
+          applyActionWithFeedback(
+            {
+              kind: "connectHandle",
+              handleId: resolvedHandleId,
+              nodeName: drag.activeEndpointAnchor.nodeName,
+              anchor: drag.activeEndpointAnchor.anchor
+            },
+            drag.historyMergeKey
+          );
+        }
+      }
+
+      setNodeAnchorOverlay(null);
       setSnapLines([]);
       setDragState(null);
     }
@@ -596,6 +651,7 @@ export function useCanvasDragController(params: {
     queueSelectionForAddedElement,
     selectedElementIdsRef,
     setMarqueeDraft,
+    setNodeAnchorOverlay,
     setDragState,
     setSnapLines,
     setTextSelectionOverlay,
@@ -607,6 +663,7 @@ export function useCanvasDragController(params: {
     snapshotEditHandles,
     snapshotScene,
     snapshotSource,
+    nodeAnchorTargets,
     source,
     sourceBoundsRef,
     svgResult,

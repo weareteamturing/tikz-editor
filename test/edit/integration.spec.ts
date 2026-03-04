@@ -373,7 +373,7 @@ describe("edit integration (round-trip)", () => {
     expect(movedNamedHandle!.world.y).toBeCloseTo(cm(1), 3);
   });
 
-  it("returns unsupported for named coordinates", () => {
+  it("detaches named path endpoints to numeric coordinates when dragged", () => {
     const source = String.raw`\begin{tikzpicture}
 \node (A) at (0,0) {A};
 \draw (A) -- (1,1);
@@ -392,7 +392,9 @@ describe("edit integration (round-trip)", () => {
       newWorld: { x: cm(5), y: cm(5) }
     });
 
-    expect(result.kind).toBe("unsupported");
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (5,5) -- (1,1);");
   });
 
   it("returns unsupported when a handle maps to a shared expanded source span", () => {

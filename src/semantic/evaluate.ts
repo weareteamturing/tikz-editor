@@ -57,6 +57,7 @@ import type {
   EvaluateOptions,
   FeatureUsage,
   FeatureUsageState,
+  NodeAnchorTarget,
   SceneElement,
   SceneFigure,
   ScenePathCommand
@@ -67,6 +68,7 @@ export type EvaluateTikzResult = {
   diagnostics: Diagnostic[];
   featureUsage: FeatureUsage;
   editHandles: EditHandle[];
+  nodeAnchorTargets: NodeAnchorTarget[];
   dependencies: SemanticDependencyGraph;
 };
 
@@ -295,8 +297,76 @@ export function finalizeSemanticEvaluationRun(
     diagnostics: run.diagnostics,
     featureUsage: run.featureUsage,
     editHandles: run.context.editHandles,
+    nodeAnchorTargets: collectNodeAnchorTargets(run.context),
     dependencies: run.context.dependencyBuilder.build()
   };
+}
+
+function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTarget[] {
+  const BASIC_ANCHORS = new Set([
+    "center",
+    "north",
+    "south",
+    "east",
+    "west",
+    "north east",
+    "north west",
+    "south east",
+    "south west"
+  ]);
+
+  const targets: NodeAnchorTarget[] = [];
+  const seen = new Set<string>();
+  const anchorsByNode = new Map<string, Array<{ anchor: string; world: { x: number; y: number } }>>();
+
+  for (const [coordinateName, world] of context.namedCoordinates) {
+    const dot = coordinateName.indexOf(".");
+    if (dot <= 0 || dot >= coordinateName.length - 1) {
+      continue;
+    }
+    const nodeName = coordinateName.slice(0, dot);
+    const anchor = coordinateName.slice(dot + 1).trim();
+    if (anchor.length === 0) {
+      continue;
+    }
+    const existing = anchorsByNode.get(nodeName);
+    if (existing) {
+      existing.push({ anchor, world });
+    } else {
+      anchorsByNode.set(nodeName, [{ anchor, world }]);
+    }
+  }
+
+  for (const [nodeName, geometry] of context.namedNodeGeometries) {
+    const addTarget = (anchor: string, world: { x: number; y: number }) => {
+      const normalizedAnchor = anchor.trim().toLowerCase();
+      if (normalizedAnchor.length === 0) {
+        return;
+      }
+      const key = `${nodeName}\u0000${normalizedAnchor}`;
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      targets.push({
+        nodeName,
+        anchor: normalizedAnchor,
+        world: { x: world.x, y: world.y },
+        tier: BASIC_ANCHORS.has(normalizedAnchor) ? "basic" : "special"
+      });
+    };
+
+    addTarget("center", context.namedCoordinates.get(nodeName) ?? geometry.center);
+    const anchors = anchorsByNode.get(nodeName);
+    if (!anchors) {
+      continue;
+    }
+    for (const entry of anchors) {
+      addTarget(entry.anchor, entry.world);
+    }
+  }
+
+  return targets;
 }
 
 function markOpaqueDependencySources(

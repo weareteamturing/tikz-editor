@@ -14,7 +14,17 @@ export function computeDragCapability(editHandles: readonly EditHandle[]): DragC
   const draggableHandleIds = new Set<string>();
   for (const handle of editHandles) {
     const rewriteTarget = rewriteTargetsByHandleId.get(handle.id) ?? null;
-    if (!rewriteTarget || rewriteTarget.rewriteMode === "unsupported") {
+    if (!rewriteTarget) {
+      continue;
+    }
+    if (rewriteTarget.rewriteMode === "unsupported") {
+      if (!isNamedEndpointDetachHandle(handle)) {
+        continue;
+      }
+      if (hasConflictingRewriteTarget(handle, editHandles, rewriteTarget, rewriteTargetsByHandleId)) {
+        continue;
+      }
+      draggableHandleIds.add(handle.id);
       continue;
     }
     if (hasConflictingRewriteTarget(handle, editHandles, rewriteTarget, rewriteTargetsByHandleId)) {
@@ -38,12 +48,23 @@ export function computeDragCapability(editHandles: readonly EditHandle[]): DragC
     if (handles.length === 0) {
       continue;
     }
-    if (handles.every((handle) => draggableHandleIds.has(handle.id))) {
+    const sourceFullyRewritable = handles.every((handle) => {
+      const rewriteTarget = rewriteTargetsByHandleId.get(handle.id) ?? null;
+      if (!rewriteTarget || rewriteTarget.rewriteMode === "unsupported") {
+        return false;
+      }
+      return !hasConflictingRewriteTarget(handle, editHandles, rewriteTarget, rewriteTargetsByHandleId);
+    });
+    if (sourceFullyRewritable) {
       draggableSourceIds.add(sourceId);
     }
   }
 
   return { draggableHandleIds, draggableSourceIds };
+}
+
+function isNamedEndpointDetachHandle(handle: EditHandle): boolean {
+  return handle.kind === "path-point" && handle.coordinateForm === "named";
 }
 
 function resolveRewriteTarget(handle: EditHandle, editHandles: readonly EditHandle[]): EditHandle | null {

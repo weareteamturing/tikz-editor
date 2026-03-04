@@ -350,6 +350,21 @@
   fill: #ffffff;
 }
 
+.nodeAnchorOverlay {
+  pointer-events: none;
+}
+
+.nodeAnchorPoint {
+  fill: rgba(60, 172, 83, 0.72);
+  stroke: rgba(20, 117, 40, 0.92);
+  vector-effect: non-scaling-stroke;
+}
+
+.nodeAnchorPointSnapped {
+  fill: rgba(53, 194, 79, 0.9);
+  stroke: rgba(16, 102, 34, 1);
+}
+
 .toolPreview {
   pointer-events: none;
 }

@@ -30,6 +30,7 @@ import {
 } from "tikz-editor/text/prefix-width";
 import type {
   EditHandle,
+  NodeAnchorTarget,
   Point,
   SceneElement,
   ScenePath,
@@ -57,6 +58,7 @@ import type {
   Bounds,
   DragState,
   EditableTextTarget,
+  NodeAnchorOverlayState,
   PendingAddedSelection,
   PendingBezier,
   SelectionBounds,
@@ -102,6 +104,7 @@ import {
   CurveControlOverlay,
   HandleOverlay,
   HitRegionLayer,
+  NodeAnchorOverlay,
   SelectionDragLayer,
   SelectionOverlay,
   SnapOverlay,
@@ -319,6 +322,7 @@ export function CanvasPanel() {
   const [bezierBendDraft, setBezierBendDraft] = useState<Extract<DragState, { kind: "tool-bezier-bend" }> | null>(null);
   const [pendingBezier, setPendingBezier] = useState<PendingBezier | null>(null);
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
+  const [nodeAnchorOverlay, setNodeAnchorOverlay] = useState<NodeAnchorOverlayState | null>(null);
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
@@ -351,6 +355,9 @@ export function CanvasPanel() {
   const setDragState = useCallback(
     (next: DragState | null) => {
       dragRef.current = next;
+      if (!next) {
+        setNodeAnchorOverlay(null);
+      }
       setDragCursorLock(dragCursorForState(next));
       setActiveCanvasDragKind(canvasDragKindFromDragState(next));
     },
@@ -531,6 +538,10 @@ export function CanvasPanel() {
   const selectedHandles = useMemo(
     () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceId)),
     [snapshot.editHandles, selectedElementIds]
+  );
+  const nodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
+    () => snapshot.semanticResult?.nodeAnchorTargets ?? [],
+    [snapshot.semanticResult]
   );
   const matrixSourceIds = useMemo(() => {
     const figure = snapshot.parseResult?.figure;
@@ -1774,6 +1785,7 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
       setTextSelectionOverlay(null);
+      setNodeAnchorOverlay(null);
 
       if (additiveSelection) {
         dispatch({ type: "SELECT", id: handle.sourceId, additive: true });
@@ -1825,7 +1837,8 @@ export function CanvasPanel() {
         cursor: handleCursor,
         lastKnownWorld: { ...handle.world },
         snapContext,
-        historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId)
+        historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId),
+        activeEndpointAnchor: null
       });
       logSnapDebug({
         phase: "drag-start-handle",
@@ -1842,6 +1855,7 @@ export function CanvasPanel() {
       dragCapability.draggableHandleIds,
       logSnapDebug,
       setDragState,
+      setNodeAnchorOverlay,
       selectedElementIds,
       snapshot.scene,
       snapshot.source,
@@ -3035,6 +3049,7 @@ export function CanvasPanel() {
     snapshotSource: snapshot.source,
     snapshotScene: snapshot.scene,
     snapshotEditHandles: snapshot.editHandles,
+    nodeAnchorTargets,
     source,
     svgResult,
     dragRef,
@@ -3050,6 +3065,7 @@ export function CanvasPanel() {
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
+    setNodeAnchorOverlay,
     setWarning,
     setTextSelectionOverlay,
     textIndexFromClient
@@ -3428,6 +3444,13 @@ export function CanvasPanel() {
                   lines={curveControlLines}
                   viewBox={svgResult.viewBox}
                   strokeWidth={curveControlStrokeWidth}
+                />
+
+                <NodeAnchorOverlay
+                  anchorOverlay={nodeAnchorOverlay}
+                  viewBox={svgResult.viewBox}
+                  strokeWidth={handleStrokeWidth}
+                  radius={handleHalfSize}
                 />
 
                 {toolMode === "select" && (

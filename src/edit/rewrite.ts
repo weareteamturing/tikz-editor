@@ -13,7 +13,7 @@ export function rewriteCoordinate(
   source: string
 ): string | null {
   if (handle.rewriteMode === "unsupported") {
-    return null;
+    return rewriteUnsupportedCoordinate(newWorld, handle, source);
   }
 
   if (handle.rewriteMode === "delta") {
@@ -30,6 +30,25 @@ export function rewriteCoordinate(
     default:
       return null;
   }
+}
+
+export function supportsUnsupportedCoordinateDetach(handle: EditHandle): boolean {
+  return handle.kind === "path-point" && handle.coordinateForm === "named";
+}
+
+function rewriteUnsupportedCoordinate(
+  newWorld: Point,
+  handle: EditHandle,
+  source: string
+): string | null {
+  if (!supportsUnsupportedCoordinateDetach(handle)) {
+    return null;
+  }
+
+  return rewriteCartesian(newWorld, {
+    ...handle,
+    coordinateForm: "cartesian"
+  }, source);
 }
 
 function rewriteCartesian(
