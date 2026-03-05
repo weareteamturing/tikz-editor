@@ -74,6 +74,9 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected path morphing property");
     }
     expect(pathMorphingProperty.value).toBe("none");
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-segment-length")).toBe(false);
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-amplitude")).toBe(false);
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-aspect")).toBe(false);
 
     const arrowProperties = pathSection.properties.filter((property) => property.kind === "arrowTip");
     expect(arrowProperties).toHaveLength(2);
@@ -659,6 +662,9 @@ describe("getInspectorDescriptor", () => {
       value: "zigzag"
     });
     expect(enabledMutations[0]?.clearKeys).toContain("decoration");
+    expect(enabledMutations[0]?.clearKeys).toContain("/pgf/decoration/segment length");
+    expect(enabledMutations[0]?.clearKeys).toContain("/pgf/decoration/amplitude");
+    expect(enabledMutations[0]?.clearKeys).toContain("/pgf/decoration/aspect");
 
     const disabledMutations = buildPathMorphingDecorationSetPropertyMutations("none");
     expect(disabledMutations).toHaveLength(1);
@@ -667,6 +673,126 @@ describe("getInspectorDescriptor", () => {
       value: "false"
     });
     expect(disabledMutations[0]?.clearKeys).toContain("decoration");
+    expect(disabledMutations[0]?.clearKeys).toContain("/pgf/decorations/segment length");
+    expect(disabledMutations[0]?.clearKeys).toContain("/pgf/decorations/amplitude");
+    expect(disabledMutations[0]?.clearKeys).toContain("/pgf/decorations/aspect");
+  });
+
+  it("shows segment length and amplitude path morphing suboptions for curated decorations", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={zigzag,segment length=8pt,amplitude=3pt}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+
+    const segmentLength = pathSection.properties.find((property) => property.id === "path-morphing-segment-length");
+    const amplitude = pathSection.properties.find((property) => property.id === "path-morphing-amplitude");
+    const aspect = pathSection.properties.find((property) => property.id === "path-morphing-aspect");
+
+    expect(segmentLength).toBeDefined();
+    expect(amplitude).toBeDefined();
+    expect(aspect).toBeUndefined();
+    if (!segmentLength || segmentLength.kind !== "number") {
+      throw new Error("Expected segment length property");
+    }
+    if (!amplitude || amplitude.kind !== "number") {
+      throw new Error("Expected amplitude property");
+    }
+
+    expect(segmentLength.value).toBeCloseTo(8, 6);
+    expect(segmentLength.unit).toBe("pt");
+    expect(segmentLength.write?.key).toBe("/pgf/decoration/segment length");
+    expect(amplitude.value).toBeCloseTo(3, 6);
+    expect(amplitude.unit).toBe("pt");
+    expect(amplitude.write?.key).toBe("/pgf/decoration/amplitude");
+  });
+
+  it("shows bent path morphing suboptions including aspect", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration={bent,amplitude=4pt,aspect=.3}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+
+    const segmentLength = pathSection.properties.find((property) => property.id === "path-morphing-segment-length");
+    const amplitude = pathSection.properties.find((property) => property.id === "path-morphing-amplitude");
+    const aspect = pathSection.properties.find((property) => property.id === "path-morphing-aspect");
+
+    expect(segmentLength).toBeUndefined();
+    expect(amplitude).toBeDefined();
+    expect(aspect).toBeDefined();
+    if (!amplitude || amplitude.kind !== "number") {
+      throw new Error("Expected bent amplitude property");
+    }
+    if (!aspect || aspect.kind !== "number") {
+      throw new Error("Expected bent aspect property");
+    }
+
+    expect(amplitude.value).toBeCloseTo(4, 6);
+    expect(aspect.value).toBeCloseTo(0.3, 6);
+    expect(aspect.unit).toBeUndefined();
+    expect(aspect.write?.key).toBe("/pgf/decoration/aspect");
+  });
+
+  it("falls back to default path morphing suboption values when keys are omitted", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[decorate,decoration=bent] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const pathSection = descriptor.sections.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    if (!pathSection) {
+      throw new Error("Expected path section");
+    }
+
+    const amplitude = pathSection.properties.find((property) => property.id === "path-morphing-amplitude");
+    const aspect = pathSection.properties.find((property) => property.id === "path-morphing-aspect");
+    if (!amplitude || amplitude.kind !== "number") {
+      throw new Error("Expected default bent amplitude property");
+    }
+    if (!aspect || aspect.kind !== "number") {
+      throw new Error("Expected default bent aspect property");
+    }
+    expect(amplitude.value).toBeCloseTo(2.5, 6);
+    expect(aspect.value).toBeCloseTo(0.5, 6);
   });
 
   it("marks out-of-set path morphing decorations as custom", () => {
@@ -697,6 +823,9 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected path morphing property");
     }
     expect(pathMorphingProperty.value).toBe("custom");
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-segment-length")).toBe(false);
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-amplitude")).toBe(false);
+    expect(pathSection.properties.some((property) => property.id === "path-morphing-aspect")).toBe(false);
   });
 
   it("preserves the untouched custom side when editing the opposite side", () => {

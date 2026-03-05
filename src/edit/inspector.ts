@@ -587,6 +587,64 @@ const PATH_MORPHING_DECORATION_OPTIONS: PathMorphingDecorationPresetOption[] = [
   { value: "coil", label: "Coil" },
   { value: "snake", label: "Snake" }
 ];
+type CuratedPathMorphingDecorationPresetId = Exclude<PathMorphingDecorationPresetId, "none" | "custom">;
+type PathMorphingDecorationSuboptionKey = "segment length" | "amplitude" | "aspect";
+type PathMorphingDecorationSuboptionSpec = {
+  id: string;
+  label: string;
+  decorationKey: PathMorphingDecorationSuboptionKey;
+  writeKey: string;
+  step: number;
+  unit?: "pt";
+  defaultValue: number;
+  clearKeys: readonly string[];
+};
+const PATH_MORPHING_DECORATION_SUBOPTION_SPECS: Record<
+  PathMorphingDecorationSuboptionKey,
+  PathMorphingDecorationSuboptionSpec
+> = {
+  "segment length": {
+    id: "path-morphing-segment-length",
+    label: "Segment length",
+    decorationKey: "segment length",
+    writeKey: "/pgf/decoration/segment length",
+    step: 0.1,
+    unit: "pt",
+    defaultValue: 10,
+    clearKeys: ["segment length", "/pgf/decoration/segment length", "/pgf/decorations/segment length"]
+  },
+  amplitude: {
+    id: "path-morphing-amplitude",
+    label: "Amplitude",
+    decorationKey: "amplitude",
+    writeKey: "/pgf/decoration/amplitude",
+    step: 0.1,
+    unit: "pt",
+    defaultValue: 2.5,
+    clearKeys: ["amplitude", "/pgf/decoration/amplitude", "/pgf/decorations/amplitude"]
+  },
+  aspect: {
+    id: "path-morphing-aspect",
+    label: "Aspect",
+    decorationKey: "aspect",
+    writeKey: "/pgf/decoration/aspect",
+    step: 0.05,
+    defaultValue: 0.5,
+    clearKeys: ["aspect", "/pgf/decoration/aspect", "/pgf/decorations/aspect"]
+  }
+};
+const PATH_MORPHING_DECORATION_SUBOPTIONS_BY_PRESET: Partial<
+  Record<CuratedPathMorphingDecorationPresetId, readonly PathMorphingDecorationSuboptionKey[]>
+> = {
+  zigzag: ["segment length", "amplitude"],
+  "straight zigzag": ["segment length", "amplitude"],
+  "random steps": ["segment length", "amplitude"],
+  saw: ["segment length", "amplitude"],
+  bent: ["amplitude", "aspect"],
+  bumps: ["segment length", "amplitude"],
+  coil: ["segment length", "amplitude"],
+  snake: ["segment length", "amplitude"]
+};
 const FILL_MODE_OPTIONS: FillModePresetOption[] = [
   { value: "solid", label: "Solid" },
   { value: "gradient", label: "Gradient" },
@@ -751,7 +809,14 @@ const PATH_MORPHING_DECORATION_CLEAR_KEYS = [
   "path has corners",
   "reverse path",
   "segment length",
+  "/pgf/decoration/segment length",
+  "/pgf/decorations/segment length",
   "amplitude",
+  "/pgf/decoration/amplitude",
+  "/pgf/decorations/amplitude",
+  "aspect",
+  "/pgf/decoration/aspect",
+  "/pgf/decorations/aspect",
   "start radius",
   "shape size",
   "shape width",
@@ -1819,6 +1884,16 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
       : roundedCornersDefaultRadius;
     const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceId);
+    const pathMorphingPreset = resolvePathMorphingDecorationPreset(
+      snapshot.source,
+      inlineTarget.targetId,
+      element.style.decoration
+    );
+    const pathMorphingSuboptions = resolvePathMorphingDecorationSuboptionProperties(
+      pathMorphingPreset,
+      element.style.decoration,
+      inlineTarget
+    );
     const pathSection: InspectorSection = {
       id: "path",
       title: "Path",
@@ -1828,11 +1903,12 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           kind: "pathMorphingDecoration",
           id: "path-morphing-decoration",
           label: "Path morphing",
-          value: resolvePathMorphingDecorationPreset(snapshot.source, inlineTarget.targetId, element.style.decoration),
+          value: pathMorphingPreset,
           options: PATH_MORPHING_DECORATION_OPTIONS,
           previewLineWidth: element.style.lineWidth,
           write: makeSetPropertyWriteTarget(inlineTarget, "decorate")
-        }
+        },
+        ...pathMorphingSuboptions
       ]
     };
 
@@ -2490,6 +2566,54 @@ function serializeFillPatternMetaPattern(family: FillPatternMetaFamilyId, values
   }
 
   return `{${family}[${options.join(",")}]}`
+}
+
+function resolvePathMorphingDecorationSuboptionProperties(
+  preset: PathMorphingDecorationPresetId,
+  decoration: { params: Record<string, string> },
+  inlineTarget: { targetId: string | null; writable: boolean; reason?: string }
+): Array<Extract<InspectorProperty, { kind: "number" }>> {
+  if (preset === "none" || preset === "custom") {
+    return [];
+  }
+
+  const suboptionKeys = PATH_MORPHING_DECORATION_SUBOPTIONS_BY_PRESET[preset];
+  if (!suboptionKeys || suboptionKeys.length === 0) {
+    return [];
+  }
+
+  return suboptionKeys.map((suboptionKey) => {
+    const spec = PATH_MORPHING_DECORATION_SUBOPTION_SPECS[suboptionKey];
+    const value = resolvePathMorphingDecorationSuboptionValue(spec, decoration.params);
+    return {
+      kind: "number",
+      id: spec.id,
+      label: spec.label,
+      value,
+      step: spec.step,
+      unit: spec.unit,
+      clearKeys: uniqueStrings(spec.clearKeys),
+      write: makeSetPropertyWriteTarget(inlineTarget, spec.writeKey)
+    };
+  });
+}
+
+function resolvePathMorphingDecorationSuboptionValue(
+  spec: PathMorphingDecorationSuboptionSpec,
+  params: Record<string, string>
+): number {
+  const rawValue = params[spec.decorationKey];
+  if (!rawValue) {
+    return spec.defaultValue;
+  }
+
+  if (spec.unit === "pt") {
+    const parsedLength = parseLength(rawValue, "pt");
+    return parsedLength ?? spec.defaultValue;
+  }
+
+  const parsed = Number(stripEnclosingBraces(rawValue).trim());
+  return Number.isFinite(parsed) ? parsed : spec.defaultValue;
 }
 
 function resolvePathMorphingDecorationPreset(

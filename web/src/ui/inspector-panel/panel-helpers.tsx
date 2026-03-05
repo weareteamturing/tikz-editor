@@ -320,7 +320,16 @@ export const META_FILL_PATTERN_PRESETS = new Set<Exclude<FillPatternPresetId, "c
   "Stars"
 ]);
 export const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
-export const OPTIONAL_MULTI_PROPERTY_IDS = new Set([...STROKE_MORE_OPTIONS_PROPERTY_IDS, "rounded-corners"]);
+export const PATH_MORPHING_SUBOPTION_PROPERTY_IDS = new Set([
+  "path-morphing-segment-length",
+  "path-morphing-amplitude",
+  "path-morphing-aspect"
+]);
+export const OPTIONAL_MULTI_PROPERTY_IDS = new Set([
+  ...STROKE_MORE_OPTIONS_PROPERTY_IDS,
+  ...PATH_MORPHING_SUBOPTION_PROPERTY_IDS,
+  "rounded-corners"
+]);
 export const FILL_ADVANCED_PROPERTY_IDS = new Set([
   "fill-mode",
   "fill-shading",
@@ -382,6 +391,10 @@ export function isStrokeMoreOptionsPropertyId(propertyId: string): boolean {
 
 export function isFillAdvancedPropertyId(propertyId: string): boolean {
   return FILL_ADVANCED_PROPERTY_IDS.has(propertyId);
+}
+
+export function isPathMorphingSuboptionPropertyId(propertyId: string): boolean {
+  return PATH_MORPHING_SUBOPTION_PROPERTY_IDS.has(propertyId);
 }
 
 export function shouldAutoShowStrokeMoreOptions(property: InspectorProperty | MultiInspectorProperty): boolean {

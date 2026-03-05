@@ -181,6 +181,12 @@
   gap: 4px;
 }
 
+.subProperty {
+  margin-left: 10px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--border-light) 75%, transparent);
+}
+
 .compactNumberPair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

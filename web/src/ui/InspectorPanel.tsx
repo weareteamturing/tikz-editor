@@ -97,6 +97,7 @@ import {
   fillPatternValueLabel,
   fillShadingValueLabel,
   isFillAdvancedPropertyId,
+  isPathMorphingSuboptionPropertyId,
   isSelectableArrowTipValue,
   isSelectableDashStyleValue,
   isSelectableFillModeValue,
@@ -1870,6 +1871,9 @@ export function InspectorPanel() {
   }
 
   function renderProperty(property: InspectorProperty) {
+    const propertyClassName = isPathMorphingSuboptionPropertyId(property.id)
+      ? `${css.property} ${css.subProperty}`
+      : css.property;
     const capability = getInspectorPropertyCapabilityStatus(property);
     const capabilityReadOnlyReason =
       capability.status === "unsupported" ? capability.reason : null;
@@ -1888,7 +1892,7 @@ export function InspectorPanel() {
 
     if (property.kind === "number") {
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           {renderSingleNumberField(property)}
         </div>
       );
@@ -1897,7 +1901,7 @@ export function InspectorPanel() {
     if (property.kind === "length") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <div className={css.controlRow}>
             <input
@@ -1925,7 +1929,7 @@ export function InspectorPanel() {
     if (property.kind === "nodeShape") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderNodeShapeDropdown(
             {
@@ -1945,7 +1949,7 @@ export function InspectorPanel() {
     if (property.kind === "nodeFont") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderNodeFontToolbar(
             {
@@ -2004,7 +2008,7 @@ export function InspectorPanel() {
     if (property.kind === "color") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <ColorPickerField
             ariaLabel={property.label}
@@ -2027,7 +2031,7 @@ export function InspectorPanel() {
     if (property.kind === "fillMode") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillModeDropdown(
             {
@@ -2049,7 +2053,7 @@ export function InspectorPanel() {
     if (property.kind === "fillShading") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillShadingDropdown(
             {
@@ -2069,7 +2073,7 @@ export function InspectorPanel() {
     if (property.kind === "fillPattern") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillPatternDropdown(
             {
@@ -2089,7 +2093,7 @@ export function InspectorPanel() {
     if (property.kind === "fillPatternOption") {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <div className={css.controlRow}>
             <input
@@ -2124,7 +2128,7 @@ export function InspectorPanel() {
       const dropdownDisplayLabel = lineWidthValueLabel(dropdownValue);
       const dropdownPreviewLineWidth = lineWidthPreviewLineWidth(dropdownValue, property.value);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <CustomDropdown
             ariaLabel={`${property.label} preset`}
@@ -2220,7 +2224,7 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       const previewOwnerKey = `dash-style:${property.write.elementId}:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderDashStyleDropdown(
             {
@@ -2250,7 +2254,7 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       const previewOwnerKey = `line-cap:${property.write.elementId}:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderLineCapDropdown(
             {
@@ -2280,7 +2284,7 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       const previewOwnerKey = `line-join:${property.write.elementId}:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderLineJoinDropdown(
             {
@@ -2310,7 +2314,7 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       const previewOwnerKey = `path-morphing:${property.write.elementId}:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderPathMorphingDecorationDropdown(
             {
@@ -2344,7 +2348,7 @@ export function InspectorPanel() {
       const currentRadius = clampNumber(property.radius, minRadius, maxRadius);
       const sliderValue = property.enabled ? currentRadius : defaultRadius;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <label className={css.checkboxControl}>
             <input
               className={css.checkboxInput}
@@ -2389,7 +2393,7 @@ export function InspectorPanel() {
     const writable = property.write.writable && capability.status !== "unsupported";
     const previewOwnerKey = `arrow-tip:${property.write.elementId}:${property.id}`;
     return (
-      <div key={property.id} className={css.property}>
+      <div key={property.id} className={propertyClassName}>
         <div className={css.propertyLabel}>{property.label}</div>
         {renderArrowTipDropdown(
           {
@@ -2418,9 +2422,12 @@ export function InspectorPanel() {
   }
 
   function renderMultiProperty(property: MultiInspectorProperty) {
+    const propertyClassName = isPathMorphingSuboptionPropertyId(property.id)
+      ? `${css.property} ${css.subProperty}`
+      : css.property;
     if (property.kind === "number") {
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           {renderMultiNumberField(property)}
         </div>
       );
@@ -2429,7 +2436,7 @@ export function InspectorPanel() {
     if (property.kind === "length") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <div className={css.controlRow}>
             <input
@@ -2460,7 +2467,7 @@ export function InspectorPanel() {
         ? NODE_SHAPE_MIXED_OPTION_VALUE
         : property.value;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderNodeShapeDropdown(
             {
@@ -2483,7 +2490,7 @@ export function InspectorPanel() {
       const nextWeight = property.weightMixed || property.weight === "normal" ? "bold" : "normal";
       const nextStyle = property.styleMixed || property.style === "normal" ? "italic" : "normal";
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderNodeFontToolbar(
             {
@@ -2530,7 +2537,7 @@ export function InspectorPanel() {
     if (property.kind === "color") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <ColorPickerField
             ariaLabel={property.label}
@@ -2557,7 +2564,7 @@ export function InspectorPanel() {
         ? FILL_MODE_MIXED_OPTION_VALUE
         : property.value;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillModeDropdown(
             {
@@ -2583,7 +2590,7 @@ export function InspectorPanel() {
         ? FILL_SHADING_MIXED_OPTION_VALUE
         : property.value;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillShadingDropdown(
             {
@@ -2607,7 +2614,7 @@ export function InspectorPanel() {
         ? FILL_PATTERN_MIXED_OPTION_VALUE
         : property.value;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderFillPatternDropdown(
             {
@@ -2628,7 +2635,7 @@ export function InspectorPanel() {
     if (property.kind === "fillPatternOption") {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <div className={css.controlRow}>
             <input
@@ -2672,7 +2679,7 @@ export function InspectorPanel() {
       const dropdownDisplayLabel = lineWidthValueLabel(dropdownValue);
       const dropdownPreviewLineWidth = lineWidthPreviewLineWidth(dropdownValue, sliderValue);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           <CustomDropdown
             ariaLabel={`${property.label} preset`}
@@ -2774,7 +2781,7 @@ export function InspectorPanel() {
       const dropdownValue: DashStyleDropdownValue = property.mixed ? DASH_STYLE_MIXED_OPTION_VALUE : property.value;
       const previewOwnerKey = `multi-dash-style:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderDashStyleDropdown(
             {
@@ -2805,7 +2812,7 @@ export function InspectorPanel() {
       const dropdownValue: LineCapDropdownValue = property.mixed ? LINE_CAP_MIXED_OPTION_VALUE : property.value;
       const previewOwnerKey = `multi-line-cap:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderLineCapDropdown(
             {
@@ -2836,7 +2843,7 @@ export function InspectorPanel() {
       const dropdownValue: LineJoinDropdownValue = property.mixed ? LINE_JOIN_MIXED_OPTION_VALUE : property.value;
       const previewOwnerKey = `multi-line-join:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderLineJoinDropdown(
             {
@@ -2869,7 +2876,7 @@ export function InspectorPanel() {
         : property.value;
       const previewOwnerKey = `multi-path-morphing:${property.id}`;
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
           {renderPathMorphingDecorationDropdown(
             {
@@ -2903,7 +2910,7 @@ export function InspectorPanel() {
       const selectedRadius = property.mixed ? property.averageRadius : property.radius;
       const sliderValue = clampNumber(selectedRadius, minRadius, maxRadius);
       return (
-        <div key={property.id} className={css.property}>
+        <div key={property.id} className={propertyClassName}>
           <label className={css.checkboxControl}>
             <input
               className={css.checkboxInput}
@@ -2957,7 +2964,7 @@ export function InspectorPanel() {
     const previewOwnerKey = `multi-arrow-tip:${property.id}:${property.side}`;
 
     return (
-      <div key={property.id} className={css.property}>
+      <div key={property.id} className={propertyClassName}>
         <div className={css.propertyLabel}>{property.label}</div>
         {renderArrowTipDropdown(
           {
