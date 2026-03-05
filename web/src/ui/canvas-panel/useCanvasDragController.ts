@@ -238,7 +238,6 @@ export function useCanvasDragController(params: {
       }
 
       if (drag.kind === "tool-create") {
-        setNodeAnchorOverlay(null);
         const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
           ? snapToolPointer({
@@ -249,12 +248,32 @@ export function useCanvasDragController(params: {
               modifiers: { ctrlOrMeta }
             })
           : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
-        drag.rawCurrentWorld = snapped.snappedPoint ?? world;
+        let nextRawWorld = snapped.snappedPoint ?? world;
+        let endpointAnchorOverlay: NodeAnchorOverlayState | null = null;
+        if (drag.toolMode === "addLine" || drag.toolMode === "addArrow") {
+          endpointAnchorOverlay = resolveEndpointAnchorSnap({
+            pointerWorld: world,
+            zoom: drag.snapContext?.zoom ?? 1,
+            nodeAnchorTargets
+          });
+          drag.activeEndpointAnchor = endpointAnchorOverlay.snappedAnchor;
+          if (endpointAnchorOverlay.snappedAnchor) {
+            nextRawWorld = endpointAnchorOverlay.snappedAnchor.world;
+          }
+        } else {
+          drag.activeEndpointAnchor = null;
+        }
+        drag.rawCurrentWorld = nextRawWorld;
         drag.currentWorld = resolveToolCreateCurrentWorld(
           drag.startWorld,
           drag.rawCurrentWorld,
           drag.toolMode,
           event.shiftKey
+        );
+        setNodeAnchorOverlay(
+          endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0
+            ? endpointAnchorOverlay
+            : null
         );
         setToolDraft({ ...drag });
         setToolCursorWorld(drag.currentWorld);
@@ -505,23 +524,37 @@ export function useCanvasDragController(params: {
       if (drag.kind === "tool-create") {
         setNodeAnchorOverlay(null);
         const rawFinalWorld = world ?? drag.rawCurrentWorld;
+        const finalEndpointAnchor =
+          drag.toolMode === "addLine" || drag.toolMode === "addArrow"
+            ? world
+              ? resolveEndpointAnchorSnap({
+                  pointerWorld: world,
+                  zoom: drag.snapContext?.zoom ?? 1,
+                  nodeAnchorTargets
+                }).snappedAnchor
+              : drag.activeEndpointAnchor
+            : null;
+        const finalPointerWorld = finalEndpointAnchor?.world ?? rawFinalWorld;
         const snapKind = toolCreateSnapKind(drag.toolMode);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
-              pointer: rawFinalWorld,
+              pointer: finalPointerWorld,
               kind: snapKind,
               anchor: drag.startWorld,
               modifiers: { ctrlOrMeta }
             })
-          : { snappedPoint: rawFinalWorld, lines: [] as SnapLine[] };
-        const snappedWorld = snapped.snappedPoint ?? rawFinalWorld;
-        const finalWorld = resolveToolCreateCurrentWorld(
+          : { snappedPoint: finalPointerWorld, lines: [] as SnapLine[] };
+        const snappedWorld = snapped.snappedPoint ?? finalPointerWorld;
+        let finalWorld = resolveToolCreateCurrentWorld(
           drag.startWorld,
           snappedWorld,
           drag.toolMode,
           event.shiftKey
         );
+        if (finalEndpointAnchor && (drag.toolMode === "addLine" || drag.toolMode === "addArrow")) {
+          finalWorld = finalEndpointAnchor.world;
+        }
         setSnapLines(snapped.lines);
         setToolCursorWorld(finalWorld);
 
@@ -542,7 +575,29 @@ export function useCanvasDragController(params: {
           x: (drag.startWorld.x + finalWorld.x) / 2,
           y: (drag.startWorld.y + finalWorld.y) / 2
         });
-        const template = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
+        const rawTemplate = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
+        const template =
+          rawTemplate.kind === "line"
+            ? {
+                ...rawTemplate,
+                ...(drag.startEndpointAnchor
+                  ? {
+                      fromAnchor: {
+                        nodeName: drag.startEndpointAnchor.nodeName,
+                        anchor: drag.startEndpointAnchor.anchor
+                      }
+                    }
+                  : {}),
+                ...(rawTemplate.to && finalEndpointAnchor
+                  ? {
+                      toAnchor: {
+                        nodeName: finalEndpointAnchor.nodeName,
+                        anchor: finalEndpointAnchor.anchor
+                      }
+                    }
+                  : {})
+              }
+            : rawTemplate;
         const ok = applyActionWithFeedback({
           kind: "addElement",
           template,

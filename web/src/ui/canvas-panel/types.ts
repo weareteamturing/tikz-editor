@@ -67,8 +67,10 @@ export type DragState =
       pointerId: number;
       toolMode: ToolCreateMode;
       startWorld: Point;
+      startEndpointAnchor: NodeAnchorTarget | null;
       rawCurrentWorld: Point;
       currentWorld: Point;
+      activeEndpointAnchor: NodeAnchorTarget | null;
       snapContext: SnapContext | null;
     }
   | {

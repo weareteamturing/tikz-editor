@@ -1394,6 +1394,32 @@ describe("applyEditAction – addElement", () => {
       expect(result.patches).toHaveLength(1);
     }
   });
+
+  it("inserts a line snippet with named anchor endpoints", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) at (0,0) {};
+  \node (B) at (1,0) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addElement",
+      template: {
+        kind: "line",
+        hasArrow: true,
+        fromAnchor: { nodeName: "A", anchor: "center" },
+        toAnchor: { nodeName: "B", anchor: "east" },
+        to: { x: cm(2), y: cm(0) }
+      },
+      at: { x: cm(0), y: cm(0) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("  \\draw[->] (A) -- (B.east);");
+      expect(result.newSource).toContain("\\end{tikzpicture}");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
 });
 
 describe("applyEditAction – deleteElement", () => {

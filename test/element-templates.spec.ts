@@ -24,6 +24,33 @@ describe("element templates", () => {
     expect(snippet).toBe("\\draw[->] (1,2) -- (3,4);");
   });
 
+  it("generates a line snippet from named center anchors", () => {
+    const snippet = generateElementSource(
+      {
+        kind: "line",
+        fromAnchor: { nodeName: "A", anchor: "center" },
+        toAnchor: { nodeName: "B", anchor: "center" },
+        to: { x: cm(3), y: cm(4) }
+      },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\draw (A) -- (B);");
+  });
+
+  it("generates an arrow snippet with non-center named anchors", () => {
+    const snippet = generateElementSource(
+      {
+        kind: "line",
+        hasArrow: true,
+        fromAnchor: { nodeName: "A", anchor: "west" },
+        toAnchor: { nodeName: "B", anchor: "east" },
+        to: { x: cm(3), y: cm(4) }
+      },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\draw[->] (A.west) -- (B.east);");
+  });
+
   it("generates a circle snippet with explicit cm radius", () => {
     const snippet = generateElementSource(
       { kind: "circle", edge: { x: cm(1.5), y: cm(1) } },

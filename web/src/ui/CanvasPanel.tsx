@@ -46,6 +46,7 @@ import { resolveTextSelectionOverlayResolution } from "./text-selection-overlay-
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
 import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
+import { resolveEndpointAnchorSnap } from "./canvas-panel/endpoint-anchor-snap";
 import {
   boundsFromPoints,
   collectSourceIdsInBounds,
@@ -2136,8 +2137,18 @@ export function CanvasPanel() {
               modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
             }).snappedPoint ?? world)
           : world;
+        const lineToolStartAnchorSnap =
+          toolMode === "addLine" || toolMode === "addArrow"
+            ? resolveEndpointAnchorSnap({
+                pointerWorld: world,
+                zoom: toolSnapContext?.zoom ?? canvasTransform.scale,
+                nodeAnchorTargets
+              })
+            : null;
+        const startEndpointAnchor = lineToolStartAnchorSnap?.snappedAnchor ?? null;
+        const resolvedStart = startEndpointAnchor?.world ?? snappedStart;
 
-        setToolCursorWorld(snappedStart);
+        setToolCursorWorld(resolvedStart);
         event.preventDefault();
 
         if (toolMode === "addBezier" && pendingBezier) {
@@ -2221,11 +2232,18 @@ export function CanvasPanel() {
             kind: "tool-create",
             pointerId: event.pointerId,
             toolMode,
-            startWorld: snappedStart,
-            rawCurrentWorld: snappedStart,
-            currentWorld: snappedStart,
+            startWorld: resolvedStart,
+            startEndpointAnchor,
+            rawCurrentWorld: resolvedStart,
+            currentWorld: resolvedStart,
+            activeEndpointAnchor: null,
             snapContext: toolSnapContext
           };
+          setNodeAnchorOverlay(
+            lineToolStartAnchorSnap && lineToolStartAnchorSnap.visibleAnchors.length > 0
+              ? lineToolStartAnchorSnap
+              : null
+          );
           setBezierBendDraft(null);
           setDragState(nextDraft);
           setToolDraft(nextDraft);
@@ -2235,7 +2253,7 @@ export function CanvasPanel() {
             dragKind: "tool-create",
             context: toolSnapContext,
             rawPoint: world,
-            snappedPoint: snappedStart,
+            snappedPoint: resolvedStart,
             lines: []
           });
         }
@@ -2255,11 +2273,13 @@ export function CanvasPanel() {
       logSnapDebug,
       queueSelectionForAddedElement,
       setDragState,
+      setNodeAnchorOverlay,
       snapshot.scene,
       snapshot.source,
       source,
       svgResult,
       startMarqueeSelection,
+      nodeAnchorTargets,
       pendingBezier,
       toolMode,
       snapGuideInput,
@@ -2271,15 +2291,18 @@ export function CanvasPanel() {
   const onInteractionPointerMove = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
+        setNodeAnchorOverlay(null);
         return;
       }
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
+        setNodeAnchorOverlay(null);
         return;
       }
       if (!snapshot.scene || snapshot.source !== source) {
         setToolCursorWorld(world);
+        setNodeAnchorOverlay(null);
         setSnapLines([]);
         logSnapDebug({
           phase: "tool-hover-move",
@@ -2306,7 +2329,23 @@ export function CanvasPanel() {
         kind: "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
-      setToolCursorWorld(snapped.snappedPoint ?? world);
+      const hoverEndpointAnchorOverlay =
+        !toolDraft &&
+        !bezierBendDraft &&
+        (toolMode === "addLine" || toolMode === "addArrow")
+          ? resolveEndpointAnchorSnap({
+              pointerWorld: world,
+              zoom: snapContext.zoom,
+              nodeAnchorTargets
+            })
+          : null;
+      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      setNodeAnchorOverlay(
+        hoverEndpointAnchorOverlay && hoverEndpointAnchorOverlay.visibleAnchors.length > 0
+          ? hoverEndpointAnchorOverlay
+          : null
+      );
+      setToolCursorWorld(hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
       if (!toolDraft && !bezierBendDraft) {
         setSnapLines(snapped.lines);
       }
@@ -2324,9 +2363,11 @@ export function CanvasPanel() {
     [
       canvasTransform.scale,
       logSnapDebug,
+      nodeAnchorTargets,
       snapshot.scene,
       snapshot.source,
       source,
+      setNodeAnchorOverlay,
       svgResult,
       bezierBendDraft,
       toolDraft,
@@ -2341,19 +2382,25 @@ export function CanvasPanel() {
     if (toolMode === "select" || toolDraft || bezierBendDraft) {
       return;
     }
+    setNodeAnchorOverlay(null);
     setToolCursorWorld(null);
     setSnapLines([]);
-  }, [bezierBendDraft, toolDraft, toolMode]);
+  }, [bezierBendDraft, setNodeAnchorOverlay, toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
+        setNodeAnchorOverlay(null);
         return;
       }
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
-      if (!world) return;
+      if (!world) {
+        setNodeAnchorOverlay(null);
+        return;
+      }
       if (!snapshot.scene || snapshot.source !== source) {
         setToolCursorWorld(world);
+        setNodeAnchorOverlay(null);
         setSnapLines([]);
         logSnapDebug({
           phase: "tool-hover-enter",
@@ -2380,7 +2427,23 @@ export function CanvasPanel() {
         kind: "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
-      setToolCursorWorld(snapped.snappedPoint ?? world);
+      const hoverEndpointAnchorOverlay =
+        !toolDraft &&
+        !bezierBendDraft &&
+        (toolMode === "addLine" || toolMode === "addArrow")
+          ? resolveEndpointAnchorSnap({
+              pointerWorld: world,
+              zoom: snapContext.zoom,
+              nodeAnchorTargets
+            })
+          : null;
+      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      setNodeAnchorOverlay(
+        hoverEndpointAnchorOverlay && hoverEndpointAnchorOverlay.visibleAnchors.length > 0
+          ? hoverEndpointAnchorOverlay
+          : null
+      );
+      setToolCursorWorld(hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
       if (!toolDraft && !bezierBendDraft) {
         setSnapLines(snapped.lines);
       }
@@ -2398,9 +2461,11 @@ export function CanvasPanel() {
     [
       canvasTransform.scale,
       logSnapDebug,
+      nodeAnchorTargets,
       snapshot.scene,
       snapshot.source,
       source,
+      setNodeAnchorOverlay,
       svgResult,
       bezierBendDraft,
       toolDraft,

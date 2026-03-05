@@ -1,9 +1,14 @@
 import type { Point } from "../semantic/types.js";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 
+type LineAnchorReference = {
+  nodeName: string;
+  anchor: string;
+};
+
 export type ElementTemplate =
   | { kind: "node"; text?: string }
-  | { kind: "line"; hasArrow?: boolean; to?: Point }
+  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: LineAnchorReference; toAnchor?: LineAnchorReference }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
   | { kind: "grid"; corner?: Point }
   | { kind: "rectangle"; corner?: Point }
@@ -28,11 +33,12 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
     }
 
     case "line": {
+      const fromCoord = formatLineEndpoint(template.fromAnchor, atCoord);
       const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
-      const toCoord = formatPointCm(to);
+      const toCoord = formatLineEndpoint(template.toAnchor, formatPointCm(to));
       return template.hasArrow
-        ? `\\draw[->] ${atCoord} -- ${toCoord};`
-        : `\\draw ${atCoord} -- ${toCoord};`;
+        ? `\\draw[->] ${fromCoord} -- ${toCoord};`
+        : `\\draw ${fromCoord} -- ${toCoord};`;
     }
 
     case "bezier": {
@@ -109,6 +115,20 @@ function formatPointCm(point: Point): string {
   const x = formatNumber(point.x * CM_PER_PT);
   const y = formatNumber(point.y * CM_PER_PT);
   return `(${x},${y})`;
+}
+
+function formatLineEndpoint(anchor: LineAnchorReference | undefined, fallbackCoord: string): string {
+  if (!anchor) {
+    return fallbackCoord;
+  }
+  const nodeName = anchor.nodeName.trim();
+  if (nodeName.length === 0) {
+    return fallbackCoord;
+  }
+  const normalizedAnchor = anchor.anchor.trim().toLowerCase();
+  return normalizedAnchor === "center" || normalizedAnchor.length === 0
+    ? `(${nodeName})`
+    : `(${nodeName}.${normalizedAnchor})`;
 }
 
 function circleRadiusPt(center: Point, edge: Point | undefined): number {
