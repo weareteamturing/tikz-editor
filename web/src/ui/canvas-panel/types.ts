@@ -136,6 +136,16 @@ export type TextSelectionOverlay = {
   prefixTable: readonly number[] | null;
 };
 
+export type TextEditingSession = {
+  sourceId: string;
+  anchorIndex: number;
+  headIndex: number;
+  /** Absolute source offsets from the latest CodeMirror selection, used to
+   *  re-derive text-relative indices when the snapshot catches up after an edit. */
+  anchorOffset: number | null;
+  headOffset: number | null;
+};
+
 export type NodeAnchorOverlayState = {
   visibleAnchors: NodeAnchorTarget[];
   snappedAnchor: NodeAnchorTarget | null;

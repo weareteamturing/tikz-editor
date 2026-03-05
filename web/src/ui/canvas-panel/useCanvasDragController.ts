@@ -32,8 +32,8 @@ import type {
   PendingAddedSelection,
   PendingBezier,
   SnapDebugLogInput,
-  TextIndexMappingTarget,
-  TextSelectionOverlay
+  TextEditingSession,
+  TextIndexMappingTarget
 } from "./types";
 import { requestSourceSelection } from "../source-sync";
 
@@ -67,7 +67,7 @@ export function useCanvasDragController(params: {
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
   setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
   setWarning: (warning: string | null) => void;
-  setTextSelectionOverlay: (overlay: TextSelectionOverlay | null) => void;
+  setTextEditingSession: (session: TextEditingSession | null) => void;
   textIndexFromClient: (
     clientX: number,
     clientY: number,
@@ -101,7 +101,7 @@ export function useCanvasDragController(params: {
     setMarqueeDraft,
     setNodeAnchorOverlay,
     setWarning,
-    setTextSelectionOverlay,
+    setTextEditingSession,
     textIndexFromClient
   } = params;
 
@@ -207,19 +207,12 @@ export function useCanvasDragController(params: {
           sourceId: drag.sourceId,
           focus: true
         });
-        setTextSelectionOverlay({
+        setTextEditingSession({
           sourceId: drag.sourceId,
-          textLength: drag.textLength,
-          totalWidth: drag.totalWidth,
-          fontSizePt: drag.fontSizePt,
-          startIndex: drag.anchorIndex,
-          endIndex: drag.headIndex,
-          rotation: drag.rotation,
-          cx: drag.cx,
-          cy: drag.cy,
-          width: drag.width,
-          height: drag.height,
-          prefixTable: drag.prefixTable
+          anchorIndex: drag.anchorIndex,
+          headIndex: drag.headIndex,
+          anchorOffset,
+          headOffset
         });
         setSnapLines([]);
         logSnapDebug({
@@ -759,7 +752,7 @@ export function useCanvasDragController(params: {
     setNodeAnchorOverlay,
     setDragState,
     setSnapLines,
-    setTextSelectionOverlay,
+    setTextEditingSession,
     setBezierBendDraft,
     setPendingBezier,
     setToolCursorWorld,

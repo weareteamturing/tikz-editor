@@ -42,8 +42,11 @@ import type {
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, ToolMode } from "../store/types";
-import { requestSourceSelection, SOURCE_SELECTION_CHANGED_EVENT, type SourceSelectionChangeDetail } from "./source-sync";
-import { resolveTextSelectionOverlayResolution } from "./text-selection-overlay-policy";
+import {
+  requestSourceSelection,
+  SOURCE_SELECTION_CHANGED_EVENT,
+  type SourceSelectionChangeDetail
+} from "./source-sync";
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
 import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
@@ -67,6 +70,7 @@ import type {
   PendingBezier,
   SelectionBounds,
   SnapDebugLogInput,
+  TextEditingSession,
   TextIndexMappingTarget,
   TextSelectionOverlay
 } from "./canvas-panel/types";
@@ -353,6 +357,7 @@ export function CanvasPanel() {
   const [marqueeDraft, setMarqueeDraft] = useState<Extract<DragState, { kind: "marquee" }> | null>(null);
   const [nodeAnchorOverlay, setNodeAnchorOverlay] = useState<NodeAnchorOverlayState | null>(null);
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
+  const [textEditingSession, setTextEditingSession] = useState<TextEditingSession | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
@@ -375,7 +380,6 @@ export function CanvasPanel() {
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
-  const lastSourceSelectionDetailRef = useRef<SourceSelectionChangeDetail | null>(null);
 
   const setActiveCanvasDragKind = useCallback(
     (kind: CanvasDragKind | null) => {
@@ -1574,8 +1578,7 @@ export function CanvasPanel() {
     (
       target: EditableTextTarget,
       anchorIndex: number,
-      headIndex: number,
-      prefixTable: readonly number[] | null
+      headIndex: number
     ) => {
       const boundedAnchor = clamp(Math.floor(anchorIndex), 0, target.text.length);
       const boundedHead = clamp(Math.floor(headIndex), 0, target.text.length);
@@ -1589,19 +1592,12 @@ export function CanvasPanel() {
         sourceId: target.sourceId,
         focus: true
       });
-      setTextSelectionOverlay({
+      setTextEditingSession({
         sourceId: target.sourceId,
-        textLength: target.text.length,
-        totalWidth: target.totalWidth,
-        fontSizePt: target.style.fontSize,
-        startIndex: boundedAnchor,
-        endIndex: boundedHead,
-        rotation: target.region.rotation,
-        cx: target.region.cx,
-        cy: target.region.cy,
-        width: target.region.width,
-        height: target.region.height,
-        prefixTable
+        anchorIndex: boundedAnchor,
+        headIndex: boundedHead,
+        anchorOffset: anchorOffset,
+        headOffset: headOffset
       });
     },
     []
@@ -1639,7 +1635,7 @@ export function CanvasPanel() {
       }
 
       dispatch({ type: "SELECT", id: sourceId, additive: false });
-      applyCanvasTextSelection(target, clickIndex, clickIndex, prefixTable);
+      applyCanvasTextSelection(target, clickIndex, clickIndex);
       setDragState({
         kind: "text-select",
         pointerId: event.pointerId,
@@ -1693,7 +1689,7 @@ export function CanvasPanel() {
         return;
       }
 
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
@@ -1815,7 +1811,7 @@ export function CanvasPanel() {
           const startIndex = wordRange?.start ?? clickIndex;
           const endIndex = wordRange?.end ?? clickIndex;
           dispatch({ type: "SELECT", id: sourceId, additive: false });
-          applyCanvasTextSelection(target, startIndex, endIndex, prefixTable);
+          applyCanvasTextSelection(target, startIndex, endIndex);
           return;
         }
       }
@@ -1834,7 +1830,7 @@ export function CanvasPanel() {
         sourceId,
         focus: true
       });
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
     },
     [
       applyCanvasTextSelection,
@@ -1856,7 +1852,7 @@ export function CanvasPanel() {
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
       setNodeAnchorOverlay(null);
 
       if (additiveSelection) {
@@ -1948,7 +1944,7 @@ export function CanvasPanel() {
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
 
       if (additiveSelection) {
         dispatch({ type: "SELECT", id: sourceId, additive: true });
@@ -2056,7 +2052,7 @@ export function CanvasPanel() {
       viewportRef.current?.focus({ preventScroll: true });
       event.preventDefault();
       event.stopPropagation();
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
       setNodeAnchorOverlay(null);
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
@@ -2219,7 +2215,6 @@ export function CanvasPanel() {
     (event: ReactMouseEvent<SVGElement>, sourceId: string) => {
       event.preventDefault();
       event.stopPropagation();
-      setTextSelectionOverlay(null);
       openCanvasContextMenuAt(event.clientX, event.clientY, sourceId);
     },
     [openCanvasContextMenuAt]
@@ -2229,7 +2224,7 @@ export function CanvasPanel() {
     (event: ReactMouseEvent<SVGElement | HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
       openCanvasContextMenuAt(event.clientX, event.clientY, null);
     },
     [openCanvasContextMenuAt]
@@ -2241,7 +2236,7 @@ export function CanvasPanel() {
       if (toolMode !== "select" || event.button !== 0 || event.target !== event.currentTarget) {
         return;
       }
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
       if (startMarqueeSelection(event.pointerId, event.clientX, event.clientY, additiveSelection)) {
         event.preventDefault();
@@ -2253,7 +2248,7 @@ export function CanvasPanel() {
   const onInteractionPointerDown = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
-      setTextSelectionOverlay(null);
+      setTextEditingSession(null);
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       if (!svgResult) return;
@@ -2664,6 +2659,10 @@ export function CanvasPanel() {
           setBezierBendDraft(null);
           setPendingBezier(null);
           setToolCursorWorld(null);
+        } else if (textEditingSession) {
+          setTextEditingSession(null);
+          event.preventDefault();
+          return;
         }
         setMarqueeDraft(null);
         if (
@@ -3150,9 +3149,6 @@ export function CanvasPanel() {
       return;
     }
     setSnapLines([]);
-    // Keep the current text caret/selection overlay visible while async
-    // recompute catches up; we'll resync from the last source selection event
-    // once snapshot.source matches source again.
   }, [snapshot.source, source]);
 
   useEffect(() => {
@@ -3215,8 +3211,7 @@ export function CanvasPanel() {
       }
     }
 
-    lastSourceSelectionDetailRef.current = null;
-    setTextSelectionOverlay(null);
+    setTextEditingSession(null);
     if (dragRef.current?.kind === "marquee") {
       setDragState(null);
       setMarqueeDraft(null);
@@ -3225,100 +3220,165 @@ export function CanvasPanel() {
     }
   }, [setDragState, toolMode]);
 
+  // End text editing session when the edited element is deselected.
   useEffect(() => {
-    if (!textSelectionOverlay) {
+    if (!textEditingSession) {
       return;
     }
-    if (!selectedElementIds.has(textSelectionOverlay.sourceId)) {
-      setTextSelectionOverlay(null);
+    if (!selectedElementIds.has(textEditingSession.sourceId)) {
+      setTextEditingSession(null);
     }
-  }, [selectedElementIds, textSelectionOverlay]);
+  }, [selectedElementIds, textEditingSession]);
 
-  const syncTextSelectionOverlayFromDetail = useCallback(
-    (detail: SourceSelectionChangeDetail | null | undefined, allowTransientPreserve: boolean): boolean => {
-      const anchorOffset = Math.floor(detail?.anchor ?? 0);
-      const headOffset = Math.floor(detail?.head ?? 0);
-      const sourceId = detail?.sourceId?.trim() ?? "";
-      const hasSourceId = sourceId.length > 0;
-      const target = hasSourceId
-        ? resolveEditableTextTargetForSelectionOffsets(
-            sourceId,
-            anchorOffset,
-            headOffset,
-            hitRegions,
-            resolveEditableTextTarget
-          )
-        : null;
-      const offsetsInRange =
-        target != null &&
-        anchorOffset >= target.sourceSpan.from &&
-        anchorOffset <= target.sourceSpan.to &&
-        headOffset >= target.sourceSpan.from &&
-        headOffset <= target.sourceSpan.to;
-
-      const resolution = resolveTextSelectionOverlayResolution({
-        hasSourceId,
-        hasTarget: target != null,
-        offsetsInRange,
-        allowTransientPreserve,
-        snapshotMatchesSource: snapshot.source === source
-      });
-      if (resolution === "preserve") {
-        return false;
-      }
-      if (resolution === "clear" || !target) {
-        setTextSelectionOverlay(null);
-        return false;
-      }
-
-      const prefixTable = resolvePrefixTableForTarget(target);
-      setTextSelectionOverlay({
-        sourceId,
-        textLength: target.text.length,
-        totalWidth: target.totalWidth,
-        fontSizePt: target.style.fontSize,
-        startIndex: clamp(anchorOffset - target.sourceSpan.from, 0, target.text.length),
-        endIndex: clamp(headOffset - target.sourceSpan.from, 0, target.text.length),
-        rotation: target.region.rotation,
-        cx: target.region.cx,
-        cy: target.region.cy,
-        width: target.region.width,
-        height: target.region.height,
-        prefixTable
-      });
-      return true;
-    },
-    [hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget, snapshot.source, source]
-  );
+  // Listen to CodeMirror selection changes and update the text editing session.
+  // We read the current session from a ref to avoid re-registering the listener on every session change.
+  const textEditingSessionRef = useRef(textEditingSession);
+  textEditingSessionRef.current = textEditingSession;
 
   useEffect(() => {
     const handleSelectionChanged = (rawEvent: Event) => {
       if (toolMode !== "select") {
         return;
       }
-
       const event = rawEvent as CustomEvent<SourceSelectionChangeDetail>;
-      lastSourceSelectionDetailRef.current = event.detail ?? null;
-      syncTextSelectionOverlayFromDetail(event.detail, true);
+      const detail = event.detail;
+      const sourceId = detail?.sourceId?.trim() ?? "";
+      if (!sourceId) {
+        setTextEditingSession(null);
+        return;
+      }
+
+      const anchorOffset = Math.floor(detail.anchor);
+      const headOffset = Math.floor(detail.head);
+      const currentSession = textEditingSessionRef.current;
+
+      // If we already have an active session for this sourceId, update indices
+      // without re-validating against the snapshot. This keeps the session alive
+      // during recompute gaps when the source has changed but the snapshot
+      // hasn't caught up yet (so resolveEditableTextTarget would fail).
+      if (currentSession && currentSession.sourceId === sourceId) {
+        const target = resolveEditableTextTargetForSelectionOffsets(
+          sourceId,
+          anchorOffset,
+          headOffset,
+          hitRegions,
+          resolveEditableTextTarget
+        );
+        if (target) {
+          const offsetsInRange =
+            anchorOffset >= target.sourceSpan.from &&
+            anchorOffset <= target.sourceSpan.to &&
+            headOffset >= target.sourceSpan.from &&
+            headOffset <= target.sourceSpan.to;
+          if (offsetsInRange) {
+            setTextEditingSession({
+              sourceId,
+              anchorIndex: clamp(anchorOffset - target.sourceSpan.from, 0, target.text.length),
+              headIndex: clamp(headOffset - target.sourceSpan.from, 0, target.text.length),
+              anchorOffset,
+              headOffset
+            });
+            return;
+          }
+        }
+        // Target can't be resolved (snapshot stale) — stash the latest offsets
+        // so the derivation effect can re-derive indices when the snapshot catches up.
+        setTextEditingSession((prev) =>
+          prev && prev.sourceId === sourceId
+            ? { ...prev, anchorOffset: anchorOffset, headOffset: headOffset }
+            : prev
+        );
+        return;
+      }
+
+      // No active session — only create one if the target fully validates.
+      const target = resolveEditableTextTargetForSelectionOffsets(
+        sourceId,
+        anchorOffset,
+        headOffset,
+        hitRegions,
+        resolveEditableTextTarget
+      );
+      if (!target) {
+        return;
+      }
+      const offsetsInRange =
+        anchorOffset >= target.sourceSpan.from &&
+        anchorOffset <= target.sourceSpan.to &&
+        headOffset >= target.sourceSpan.from &&
+        headOffset <= target.sourceSpan.to;
+      if (!offsetsInRange) {
+        return;
+      }
+
+      setTextEditingSession({
+        sourceId,
+        anchorIndex: clamp(anchorOffset - target.sourceSpan.from, 0, target.text.length),
+        headIndex: clamp(headOffset - target.sourceSpan.from, 0, target.text.length),
+        anchorOffset,
+        headOffset
+      });
     };
 
     window.addEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
     return () => window.removeEventListener(SOURCE_SELECTION_CHANGED_EVENT, handleSelectionChanged as EventListener);
-  }, [syncTextSelectionOverlayFromDetail, toolMode]);
+  }, [hitRegions, resolveEditableTextTarget, toolMode]);
 
+  // Derive the text selection overlay from the editing session + current snapshot geometry.
+  // During recompute gaps (snapshot.source !== source), we leave the last overlay in place.
   useEffect(() => {
-    if (toolMode !== "select") {
+    if (!textEditingSession) {
+      setTextSelectionOverlay(null);
       return;
     }
-    if (snapshot.source !== source) {
+    // Find the target in the current snapshot. If the snapshot is stale, the target
+    // may not resolve (source spans won't match). In that case, keep the existing overlay.
+    const rectRegions = hitRegions.filter(
+      (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
+        candidate.sourceId === textEditingSession.sourceId && candidate.shape === "rect"
+    );
+    let target: EditableTextTarget | null = null;
+    for (const region of rectRegions) {
+      target = resolveEditableTextTarget(textEditingSession.sourceId, region);
+      if (target) break;
+    }
+    if (!target) {
+      // Can't resolve — snapshot is likely stale. Preserve existing overlay.
       return;
     }
-    const detail = lastSourceSelectionDetailRef.current;
-    if (!detail) {
-      return;
+    // If we have absolute source offsets (from CodeMirror), re-derive text-relative
+    // indices from them. This handles the case where the user typed and the session
+    // has stale text-relative indices but fresh absolute offsets.
+    let anchorIndex = textEditingSession.anchorIndex;
+    let headIndex = textEditingSession.headIndex;
+    if (textEditingSession.anchorOffset != null && textEditingSession.headOffset != null) {
+      const ao = textEditingSession.anchorOffset;
+      const ho = textEditingSession.headOffset;
+      if (
+        ao >= target.sourceSpan.from && ao <= target.sourceSpan.to &&
+        ho >= target.sourceSpan.from && ho <= target.sourceSpan.to
+      ) {
+        anchorIndex = clamp(ao - target.sourceSpan.from, 0, target.text.length);
+        headIndex = clamp(ho - target.sourceSpan.from, 0, target.text.length);
+      }
     }
-    syncTextSelectionOverlayFromDetail(detail, false);
-  }, [snapshot.source, source, syncTextSelectionOverlayFromDetail, toolMode]);
+
+    const prefixTable = resolvePrefixTableForTarget(target);
+    setTextSelectionOverlay({
+      sourceId: textEditingSession.sourceId,
+      textLength: target.text.length,
+      totalWidth: target.totalWidth,
+      fontSizePt: target.style.fontSize,
+      startIndex: clamp(anchorIndex, 0, target.text.length),
+      endIndex: clamp(headIndex, 0, target.text.length),
+      rotation: target.region.rotation,
+      cx: target.region.cx,
+      cy: target.region.cy,
+      width: target.region.width,
+      height: target.region.height,
+      prefixTable
+    });
+  }, [textEditingSession, hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget]);
 
   useEffect(() => {
     const pending = pendingAddedSelectionRef.current;
@@ -3378,7 +3438,7 @@ export function CanvasPanel() {
     setMarqueeDraft,
     setNodeAnchorOverlay,
     setWarning,
-    setTextSelectionOverlay,
+    setTextEditingSession,
     textIndexFromClient
   });
 
