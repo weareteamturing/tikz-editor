@@ -1346,7 +1346,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     inlineTarget.targetId,
     ["draw", "color"],
     strokeColor,
-    colorAliases
+    colorAliases,
+    element.styleChain
   );
   const fillColor = normalizeInspectorColorValue(element.style.fill);
   const fillColorSyntax = resolveColorSyntaxValue(
@@ -1354,7 +1355,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     inlineTarget.targetId,
     ["fill", "color"],
     fillColor,
-    colorAliases
+    colorAliases,
+    element.styleChain
   );
   const patternColor = normalizeInspectorColorValue(element.style.patternColor);
   const patternColorSyntax = resolveColorSyntaxValue(
@@ -1362,7 +1364,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     inlineTarget.targetId,
     ["pattern color"],
     patternColor,
-    colorAliases
+    colorAliases,
+    element.styleChain
   );
   const fillPaintState = resolveFillPaintState(snapshot.source, inlineTarget.targetId, element.style);
   const textColor = normalizeInspectorColorValue(element.style.textColor);
@@ -1371,7 +1374,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     inlineTarget.targetId,
     ["text", "color"],
     textColor,
-    colorAliases
+    colorAliases,
+    element.styleChain
   );
   const pathStrokeVisibility =
     element.kind === "Path"
@@ -1561,7 +1565,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           inlineTarget.targetId,
           ["top color", "left color"],
           topColor,
-          colorAliases
+          colorAliases,
+          element.styleChain
         );
         const bottomColor = normalizeInspectorColorValue(element.style.axisBottomColor);
         const bottomColorSyntax = resolveColorSyntaxValue(
@@ -1569,7 +1574,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           inlineTarget.targetId,
           ["bottom color", "right color"],
           bottomColor,
-          colorAliases
+          colorAliases,
+          element.styleChain
         );
         fillProperties.push({
           kind: "color",
@@ -1605,7 +1611,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           inlineTarget.targetId,
           ["inner color"],
           innerColor,
-          colorAliases
+          colorAliases,
+          element.styleChain
         );
         const outerColor = normalizeInspectorColorValue(element.style.radialOuterColor);
         const outerColorSyntax = resolveColorSyntaxValue(
@@ -1613,7 +1620,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           inlineTarget.targetId,
           ["outer color"],
           outerColor,
-          colorAliases
+          colorAliases,
+          element.styleChain
         );
         fillProperties.push({
           kind: "color",
@@ -1640,7 +1648,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           inlineTarget.targetId,
           ["ball color"],
           ballColor,
-          colorAliases
+          colorAliases,
+          element.styleChain
         );
         fillProperties.push({
           kind: "color",

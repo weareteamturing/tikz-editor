@@ -1,4 +1,6 @@
 import { resolvePropertyTarget } from "../property-target.js";
+import type { OptionListAst } from "../../options/types.js";
+import type { StyleChainEntry } from "../../semantic/style-chain.js";
 import { normalizeColor, resolveDefineColorModel } from "../../semantic/style/colors.js";
 import { readBalancedBlock, stripEnclosingBraces } from "../../semantic/style/option-utils.js";
 
@@ -63,45 +65,61 @@ export function resolveColorSyntaxValue(
   targetId: string | null,
   keys: readonly string[],
   currentValue: string | null,
-  colorAliases: ReadonlyMap<string, string>
+  colorAliases: ReadonlyMap<string, string>,
+  styleChain: readonly StyleChainEntry[] = []
 ): string | null {
-  if (!targetId) {
-    return null;
-  }
-
   const normalizedKeys = new Set(keys.map((key) => normalizeOptionKey(key)));
   if (normalizedKeys.size === 0) {
     return null;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId);
-  if (resolved.kind === "not-found" || !resolved.target.options) {
+  const normalizedCurrentValue = normalizeInspectorColorValue(currentValue);
+
+  if (targetId) {
+    const resolved = resolvePropertyTarget(source, targetId);
+    if (resolved.kind !== "not-found" && resolved.target.options) {
+      const directMatch = resolveColorSyntaxFromOptionLists(
+        [resolved.target.options],
+        normalizedKeys,
+        normalizedCurrentValue,
+        colorAliases
+      );
+      if (directMatch != null) {
+        return directMatch;
+      }
+    }
+  }
+
+  for (let index = styleChain.length - 1; index >= 0; index -= 1) {
+    const chainEntry = styleChain[index];
+    if (!chainEntry) {
+      continue;
+    }
+    const chainMatch = resolveColorSyntaxFromOptionLists(
+      chainEntry.rawOptions,
+      normalizedKeys,
+      normalizedCurrentValue,
+      colorAliases
+    );
+    if (chainMatch != null) {
+      return chainMatch;
+    }
+  }
+
+  return null;
+}
+
+function resolveColorSyntaxFromOptionLists(
+  optionLists: readonly OptionListAst[],
+  normalizedKeys: ReadonlySet<string>,
+  normalizedCurrentValue: string | null,
+  colorAliases: ReadonlyMap<string, string>
+): string | null {
+  if (optionLists.length === 0) {
     return null;
   }
 
   let colorValue: string | null = null;
-  for (const entry of resolved.target.options.entries) {
-    if (entry.kind !== "kv") {
-      continue;
-    }
-    const entryKey = normalizeOptionKey(entry.key);
-    if (!normalizedKeys.has(entryKey)) {
-      continue;
-    }
-    const rawValue = stripEnclosingBraces(entry.valueRaw.trim());
-    if (rawValue.length === 0) {
-      continue;
-    }
-    colorValue = rawValue;
-  }
-  if (colorValue != null) {
-    return colorValue;
-  }
-
-  const normalizedCurrentValue = normalizeInspectorColorValue(currentValue);
-  if (!normalizedCurrentValue) {
-    return null;
-  }
 
   const resolveAlias = (rawColorName: string): string | null => {
     const normalized = rawColorName.trim().toLowerCase();
@@ -111,23 +129,38 @@ export function resolveColorSyntaxValue(
     return colorAliases.get(normalized) ?? null;
   };
 
-  for (const entry of resolved.target.options.entries) {
-    if (entry.kind !== "flag") {
-      continue;
-    }
+  for (const optionList of optionLists) {
+    for (const entry of optionList.entries) {
+      if (entry.kind === "kv") {
+        const entryKey = normalizeOptionKey(entry.key);
+        if (!normalizedKeys.has(entryKey)) {
+          continue;
+        }
+        const rawValue = stripEnclosingBraces(entry.valueRaw.trim());
+        if (rawValue.length === 0) {
+          continue;
+        }
+        colorValue = rawValue;
+        continue;
+      }
 
-    const rawToken = stripEnclosingBraces(entry.raw.trim());
-    if (rawToken.length === 0) {
-      continue;
-    }
+      if (entry.kind !== "flag" || !normalizedCurrentValue) {
+        continue;
+      }
 
-    const normalizedRawToken = rawToken.toLowerCase();
-    const resolvedToken = normalizeColor(normalizedRawToken, {
-      resolveAlias
-    });
-    const normalizedResolved = normalizeInspectorColorValue(resolvedToken);
-    if (normalizedResolved === normalizedCurrentValue) {
-      colorValue = rawToken;
+      const rawToken = stripEnclosingBraces(entry.raw.trim());
+      if (rawToken.length === 0) {
+        continue;
+      }
+
+      const normalizedRawToken = rawToken.toLowerCase();
+      const resolvedToken = normalizeColor(normalizedRawToken, {
+        resolveAlias
+      });
+      const normalizedResolved = normalizeInspectorColorValue(resolvedToken);
+      if (normalizedResolved === normalizedCurrentValue) {
+        colorValue = rawToken;
+      }
     }
   }
 

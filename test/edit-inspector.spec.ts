@@ -216,6 +216,41 @@ describe("getInspectorDescriptor", () => {
     expect(secondStrokeColor.syntaxValue).toBe("mypink");
   });
 
+  it("keeps inherited every-node fill syntax for node inspector colors", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+  \node[draw] (A) at (-1, -1) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const textElement = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(textElement).toBeDefined();
+    if (!textElement) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(textElement, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const fillSection = descriptor.sections.find((section) => section.id === "fill");
+    expect(fillSection).toBeDefined();
+    if (!fillSection) {
+      throw new Error("Expected fill section");
+    }
+
+    const fillColor = fillSection.properties.find((property) => property.id === "fill-color");
+    if (!fillColor || fillColor.kind !== "color") {
+      throw new Error("Expected fill color property");
+    }
+
+    const fillMode = fillSection.properties.find((property) => property.kind === "fillMode");
+    if (!fillMode || fillMode.kind !== "fillMode") {
+      throw new Error("Expected fill mode property");
+    }
+
+    expect(fillColor.syntaxValue).toBe("blue!10");
+    expect(fillMode.context.fillColor).toBe("blue!10");
+  });
+
   it("does not expose arrow tips for closed paths", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[draw=blue,->] (0,0) -- (2,0) -- cycle;
