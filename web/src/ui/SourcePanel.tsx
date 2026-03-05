@@ -449,6 +449,16 @@ export function SourcePanel() {
 
     const selection = combineSelectedSourceSpan(selectedElementIds, spanIndexRef.current.bySourceId);
     if (!selection) {
+      const currentSelection = view.state.selection.main;
+      if (currentSelection.empty) {
+        return;
+      }
+      ignoreNextSelectionSyncRef.current = true;
+      dispatchSelectionWithStableHorizontalScroll(view, {
+        selection: { anchor: currentSelection.head, head: currentSelection.head },
+        annotations: [Transaction.addToHistory.of(false)],
+        scrollIntoView: false
+      });
       return;
     }
 
