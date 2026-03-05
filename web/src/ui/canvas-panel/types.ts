@@ -1,4 +1,4 @@
-import type { Span, Statement } from "tikz-editor/ast/types";
+import type { AdornmentOwnerGeometry, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
@@ -21,6 +21,13 @@ export type DragState =
       pointerId: number;
       elementIds: string[];
       startWorld: Point;
+      adornmentDrag?: {
+        ownerPoint: Point;
+        ownerGeometry?: AdornmentOwnerGeometry;
+        pointerOffset: Point;
+        allowCenter: boolean;
+        defaultDistancePt: number;
+      };
       snapContext: SnapContext | null;
       initialSelection: SelectionGeometry | null;
       selectionAnchorRatio: { x: number; y: number } | null;

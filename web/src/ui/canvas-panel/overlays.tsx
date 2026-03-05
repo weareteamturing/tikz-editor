@@ -441,27 +441,27 @@ export function HitRegionLayer({
   toolMode: ToolMode;
   editableTextRegionKeys: ReadonlySet<string>;
   draggableSourceIds: ReadonlySet<string>;
-  onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
-  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
-  onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
-  onHoverChange: (sourceId: string | null) => void;
+  onElementPointerDown: (event: ReactPointerEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
+  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
+  onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => void;
+  onHoverChange: (targetId: string | null) => void;
 }) {
   return (
     <g className={css.hitRegions}>
       {hitRegions.map((region) => {
-        const isHovered = hoveredElementId === region.sourceId;
+        const isHovered = hoveredElementId === region.targetId;
         const cursor =
           toolMode === "select"
             ? editableTextRegionKeys.has(region.key)
               ? "text"
-              : draggableSourceIds.has(region.sourceId)
+              : draggableSourceIds.has(region.targetId)
                 ? "move"
                 : undefined
             : undefined;
         const className = [css.hitRegion, isHovered ? css.hitRegionHovered : ""].filter(Boolean).join(" ");
 
         const onEnter = () => {
-          if (toolMode === "select") onHoverChange(region.sourceId);
+          if (toolMode === "select") onHoverChange(region.targetId);
         };
         const onLeave = () => {
           if (toolMode === "select") onHoverChange(null);
@@ -478,9 +478,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-              onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
+              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
+              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
             />
@@ -500,9 +500,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-              onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
+              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
+              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
             />
@@ -528,9 +528,9 @@ export function HitRegionLayer({
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
-              onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
-              onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
+              onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
+              onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
             />
@@ -553,9 +553,9 @@ export function HitRegionLayer({
             fill="transparent"
             style={cursor ? { cursor } : undefined}
             pointerEvents={toolMode === "select" ? "all" : "none"}
-            onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
-            onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
-            onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
+            onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
+            onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
+            onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
             onPointerEnter={onEnter}
             onPointerLeave={onLeave}
           />
@@ -568,11 +568,20 @@ export function HitRegionLayer({
 export function SelectionOverlay({
   marqueeBounds,
   selectionBoxes,
+  adornmentConnectors,
   selectionStrokeWidth,
   textSelectionVisual
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
+  adornmentConnectors: ReadonlyArray<{
+    key: string;
+    kind: "label" | "pin";
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  }>;
   selectionStrokeWidth: number;
   textSelectionVisual:
     | {
@@ -592,6 +601,19 @@ export function SelectionOverlay({
   return (
     <>
       <g className={css.selectionOverlay}>
+        {adornmentConnectors.map((connector) => (
+          <line
+            key={connector.key}
+            className={
+              connector.kind === "pin" ? css.pinSelectionConnector : css.labelSelectionConnector
+            }
+            x1={connector.x1}
+            y1={connector.y1}
+            x2={connector.x2}
+            y2={connector.y2}
+            strokeWidth={selectionStrokeWidth}
+          />
+        ))}
         {selectionBoxes.map((bounds) =>
           bounds.kind === "polygon" ? (
             <polygon

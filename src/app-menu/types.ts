@@ -35,6 +35,8 @@ export const APP_MENU_COMMAND_IDS = {
   INSERT_RECT: "insert.rect",
   INSERT_ELLIPSE: "insert.ellipse",
   INSERT_CIRCLE: "insert.circle",
+  ADD_LABEL: "insert.add-label",
+  ADD_PIN: "insert.add-pin",
   FIT_TO_CONTENT: "view.fit-to-content",
   TOGGLE_GRID: "view.toggle-grid",
   TOGGLE_SNAP_TO_GRID: "view.toggle-snap-to-grid",

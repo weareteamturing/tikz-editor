@@ -8,13 +8,15 @@ describe("canvas context menu definition", () => {
     expect(Object.keys(CANVAS_CONTEXT_MENU_DEFINITION).sort()).toEqual([
       "canvas-empty",
       "selection-multi",
-      "selection-single"
+      "selection-single",
+      "selection-single-node"
     ]);
   });
 
   it("uses only known app command ids", () => {
     const knownCommandIds = new Set(Object.values(APP_MENU_COMMAND_IDS));
     const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["canvas-empty"])
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
 
@@ -44,6 +46,13 @@ describe("canvas context menu definition", () => {
     expect(reorder).toBeDefined();
     expect(items.some((item) => item.kind === "submenu" && item.label === "Align")).toBe(false);
     expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(false);
+  });
+
+  it("defines selection-single-node with label and pin insertion commands", () => {
+    const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]);
+
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_LABEL);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_PIN);
   });
 
   it("defines selection-multi with align, distribute, and reorder submenus", () => {

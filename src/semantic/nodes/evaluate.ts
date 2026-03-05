@@ -7,10 +7,11 @@ import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { Point, ResolvedStyle, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
+import { makeNodeAdornmentTargetId } from "../path/label-quotes.js";
 import {
   cloneResolvedStyle,
   cloneStyleChain,
@@ -794,11 +795,44 @@ export function evaluateNodeItem(
     markFeature,
     pushDiagnostic
   );
+  const adornmentMetadata = item.adornment;
+  const editableNodeElements = adornmentMetadata
+    ? renderedNodeElements.map((element) => attachAdornmentMetadata(element, adornmentMetadata, center))
+    : renderedNodeElements;
   const layer = resolveNodeLayer(expandedNodeOptions, context);
   if (layer === "behind") {
-    return { behindElements: renderedNodeElements, frontElements: [] };
+    return { behindElements: editableNodeElements, frontElements: [] };
   }
-  return { behindElements: [], frontElements: renderedNodeElements };
+  return { behindElements: [], frontElements: editableNodeElements };
+}
+
+function attachAdornmentMetadata(
+  element: SceneElement,
+  adornment: NonNullable<NodeItem["adornment"]>,
+  ownerPoint: Point
+): SceneElement {
+  const metadata: SceneAdornment = {
+    targetId: makeNodeAdornmentTargetId(adornment.ownerNodeId, adornment.adornmentIndex, adornment.kind),
+    kind: adornment.kind,
+    ownerSourceId: adornment.ownerSourceId,
+    ownerNodeId: adornment.ownerNodeId,
+    adornmentIndex: adornment.adornmentIndex,
+    optionSpan: adornment.optionSpan,
+    valueSpan: adornment.valueSpan,
+    textSpan: adornment.textSpan,
+    angleRaw: adornment.angleRaw,
+    angleSpan: adornment.angleSpan,
+    distancePt: adornment.distancePt,
+    defaultDistancePt: adornment.defaultDistancePt,
+    distanceExplicit: adornment.distanceExplicit,
+    ownerPoint,
+    ownerGeometry: adornment.ownerGeometry
+  };
+
+  return {
+    ...element,
+    adornment: metadata
+  };
 }
 
 function resolveNodeStyleTrace(params: {

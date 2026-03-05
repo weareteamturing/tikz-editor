@@ -135,14 +135,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
-        action.action.kind === "moveHandle" || action.action.kind === "connectHandle" ? "move-handle" :
+        action.action.kind === "moveHandle" || action.action.kind === "connectHandle" || action.action.kind === "moveAdornment" ? "move-handle" :
         action.action.kind === "setProperty" ? "set-property" :
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :
         action.action.kind === "reorderElements" ? "reorder" :
-        action.action.kind === "addElement" ? "add-element" :
-        action.action.kind === "duplicateElements" || action.action.kind === "pasteStatements" ? "add-element" :
-        action.action.kind === "deleteElement" || action.action.kind === "deleteElements" ? "delete" :
+        action.action.kind === "addElement" || action.action.kind === "addNodeAdornment" ? "add-element" :
+        action.action.kind === "duplicateElements" || action.action.kind === "pasteStatements" || action.action.kind === "duplicateAdornment" ? "add-element" :
+        action.action.kind === "deleteElement" || action.action.kind === "deleteElements" || action.action.kind === "deleteAdornment" ? "delete" :
         "resize";
 
       const truncated = state.history.slice(0, state.historyIndex + 1);

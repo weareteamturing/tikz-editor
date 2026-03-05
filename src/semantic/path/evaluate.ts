@@ -59,8 +59,10 @@ import { appendPathPoint, roundClosedPathStartCorner } from "./segments.js";
 import { parseSvgPathOperation } from "./svg.js";
 import { applyEdgeOperation, applyToOperation } from "./to-operation.js";
 import {
+  cloneAdornmentOwnerGeometry,
   extractNodeAdornmentPlan,
   extractToLikeOptionPlan,
+  makeNodeAdornmentTargetId,
   materializeNodeAdornment
 } from "./label-quotes.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
@@ -1713,8 +1715,30 @@ export function evaluatePathStatement(
                 `(${materialized.mainNameRaw})`
               );
               if (pinEdge.activePath && hasDrawablePathSegments(pinEdge.activePath)) {
+                pinEdge.activePath = {
+                  ...pinEdge.activePath,
+                  adornment: {
+                    targetId: makeNodeAdornmentTargetId(item.id, adornmentIndex, "pin"),
+                    kind: "pin",
+                    ownerSourceId: item.id,
+                    ownerNodeId: item.id,
+                    adornmentIndex,
+                    optionSpan: spec.span,
+                    valueSpan: spec.valueSpan,
+                    textSpan: spec.textSpan,
+                    angleRaw: spec.angleRaw,
+                    angleSpan: spec.angleSpan,
+                    distancePt: spec.distancePt,
+                    defaultDistancePt: spec.defaultDistancePt,
+                    distanceExplicit: spec.distanceExplicit,
+                    ownerPoint: materialized.mainPoint ?? undefined,
+                    ownerGeometry: cloneAdornmentOwnerGeometry(materialized.mainGeometry)
+                  }
+                };
                 frontNodeElements.push(...pinEdge.behindNodeElements);
-                frontNodeElements.push(pinEdge.activePath);
+                if (pinEdge.activePath) {
+                  frontNodeElements.push(pinEdge.activePath);
+                }
                 frontNodeElements.push(...pinEdge.frontNodeElements);
               } else {
                 frontNodeElements.push(...pinEdge.behindNodeElements, ...pinEdge.frontNodeElements);

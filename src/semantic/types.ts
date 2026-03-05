@@ -1,4 +1,4 @@
-import type { CoordinateForm, Span } from "../ast/types.js";
+import type { AdornmentOwnerGeometry, CoordinateForm, Span } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import type { NodeTextEngine, NodeTextRenderInfo } from "../text/types.js";
 import type { MacroOriginFrame } from "../macros/index.js";
@@ -86,6 +86,24 @@ export type SceneFigure = {
   bounds?: Bounds;
 };
 
+export type SceneAdornment = {
+  targetId: string;
+  kind: "label" | "pin";
+  ownerSourceId: string;
+  ownerNodeId: string;
+  adornmentIndex: number;
+  optionSpan: Span;
+  valueSpan: Span;
+  textSpan: Span;
+  angleRaw: string;
+  angleSpan?: Span;
+  distancePt: number;
+  defaultDistancePt: number;
+  distanceExplicit: boolean;
+  ownerPoint?: Point;
+  ownerGeometry?: AdornmentOwnerGeometry;
+};
+
 export type SceneElement = ScenePath | SceneCircle | SceneEllipse | SceneText;
 
 export type ScenePathCommand =
@@ -102,6 +120,7 @@ export type ScenePath = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
   undecoratedCommands?: ScenePathCommand[];
@@ -115,6 +134,7 @@ export type SceneCircle = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
@@ -127,6 +147,7 @@ export type SceneEllipse = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
@@ -141,6 +162,7 @@ export type SceneText = {
   id: string;
   sourceId: string;
   sourceSpan: Span;
+  adornment?: SceneAdornment;
   textSourceSpan?: Span;
   textHasFixedWidth?: boolean;
   origin?: SceneElementOrigin;

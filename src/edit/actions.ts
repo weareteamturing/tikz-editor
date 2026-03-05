@@ -25,6 +25,7 @@ import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
+import { parseStyleValueAsOptionList } from "../semantic/style/option-utils.js";
 import { applyMatrix } from "../semantic/transform.js";
 import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
@@ -39,6 +40,7 @@ import {
   type OptionMutation,
   type OptionMutationApplyResult
 } from "./option-mutations.js";
+import { extractNodeAdornmentPlan } from "../semantic/path/label-quotes.js";
 import {
   applyTextReplacements,
   formatSnippetsForInsertion,
@@ -85,8 +87,12 @@ export type EditAction =
   | { kind: "addElement"; template: ElementTemplate; at: Point }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
+  | { kind: "deleteAdornment"; targetId: string }
   | { kind: "pasteStatements"; snippets: string[]; anchorElementId?: string; delta?: Point }
   | { kind: "duplicateElements"; elementIds: string[]; delta?: Point }
+  | { kind: "duplicateAdornment"; targetId: string }
+  | { kind: "moveAdornment"; targetId: string; ownerPoint: Point; newWorld: Point; angleRaw?: string; distancePt?: number }
+  | { kind: "addNodeAdornment"; nodeId: string; adornmentKind: "label" | "pin"; angle: string; text: string }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
   | {
       kind: "resizeElement";
@@ -110,6 +116,8 @@ export type EditActionResult =
     }
   | { kind: "unsupported"; reason: string }
   | { kind: "error"; message: string };
+
+export const ADORNMENT_EDIT_NOOP_REASON = "Adornment edit would not change the source.";
 
 const DEFAULT_DUPLICATE_OFFSET_PT = 0.25 * PT_PER_CM;
 const ARRANGE_EPSILON = 1e-6;
@@ -148,10 +156,18 @@ export function applyEditAction(
         return applyDeleteElements(source, [action.elementId]);
       case "deleteElements":
         return applyDeleteElements(source, action.elementIds);
+      case "deleteAdornment":
+        return applyDeleteAdornment(source, action.targetId);
       case "pasteStatements":
         return applyPasteStatements(source, action);
       case "duplicateElements":
         return applyDuplicateElements(source, action);
+      case "duplicateAdornment":
+        return applyDuplicateAdornment(source, action.targetId);
+      case "moveAdornment":
+        return applyMoveAdornment(source, action);
+      case "addNodeAdornment":
+        return applyAddNodeAdornment(source, action);
       case "reorderElements":
         return applyReorderElements(source, action.elementIds, action.direction);
       case "resizeElement":
@@ -1023,6 +1039,115 @@ function applyDuplicateElements(
   };
 }
 
+function applyDuplicateAdornment(source: string, targetId: string): EditActionResult {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.optionSpan) {
+    return { kind: "unsupported", reason: "Selected adornment could not be resolved for duplication." };
+  }
+
+  const snippet = source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to);
+  if (snippet.trim().length === 0) {
+    return { kind: "unsupported", reason: "Selected adornment has no duplicable source snippet." };
+  }
+
+  const insertion = replaceSpan(
+    source,
+    { from: resolved.target.optionSpan.to, to: resolved.target.optionSpan.to },
+    `, ${snippet}`
+  );
+  return {
+    kind: "success",
+    newSource: insertion.source,
+    patches: [
+      {
+        oldSpan: { from: resolved.target.optionSpan.to, to: resolved.target.optionSpan.to },
+        newSpan: insertion.changedSpan,
+        replacement: `, ${snippet}`
+      }
+    ],
+    selectedSourceIds: [targetId],
+    changedSourceIds: [resolved.target.ownerSourceId ?? resolved.target.ownerId ?? targetId]
+  };
+}
+
+function resolveAdornmentMoveOverrides(action: Extract<EditAction, { kind: "moveAdornment" }>): {
+  angleRaw: string;
+  distancePt: number;
+} {
+  if (typeof action.angleRaw === "string" && typeof action.distancePt === "number") {
+    return {
+      angleRaw: action.angleRaw,
+      distancePt: action.distancePt
+    };
+  }
+
+  const dx = action.newWorld.x - action.ownerPoint.x;
+  const dy = action.newWorld.y - action.ownerPoint.y;
+  const radius = Math.sqrt(dx * dx + dy * dy);
+  return {
+    angleRaw: radius <= 1e-3 ? "center" : formatAdornmentAngle((Math.atan2(dy, dx) * 180) / Math.PI),
+    distancePt: radius
+  };
+}
+
+function applyMoveAdornment(
+  source: string,
+  action: Extract<EditAction, { kind: "moveAdornment" }>
+): EditActionResult {
+  const resolved = resolvePropertyTarget(source, action.targetId);
+  if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.valueSpan) {
+    return { kind: "unsupported", reason: "Selected adornment could not be resolved for drag editing." };
+  }
+
+  return applyAdornmentValueRewrite(source, resolved.target, resolveAdornmentMoveOverrides(action), action.targetId);
+}
+
+function applyAddNodeAdornment(
+  source: string,
+  action: Extract<EditAction, { kind: "addNodeAdornment" }>
+): EditActionResult {
+  const resolved = resolvePropertyTarget(source, action.nodeId);
+  if (resolved.kind !== "found") {
+    return { kind: "unsupported", reason: "Selected node could not be resolved for adding an adornment." };
+  }
+
+  const key = action.adornmentKind;
+  const value = `${action.angle}:${action.text}`;
+  const snippet = `${key}=${value}`;
+  const insertionOffset = resolved.target.optionsSpan
+    ? resolveOptionListAppendOffset(source, resolved.target.optionsSpan)
+    : resolved.target.insertOffset;
+  const insertionText = resolved.target.optionsSpan ? `, ${snippet}` : `[${snippet}]`;
+  const updated = replaceSpan(source, { from: insertionOffset, to: insertionOffset }, insertionText);
+  const adornmentIndex = extractNodeAdornmentPlan(resolved.target.options).adornments.length;
+  const adornmentTargetId = `node-adornment:${action.nodeId}:${action.adornmentKind}:${adornmentIndex}`;
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [
+      {
+        oldSpan: { from: insertionOffset, to: insertionOffset },
+        newSpan: updated.changedSpan,
+        replacement: insertionText
+      }
+    ],
+    selectedSourceIds: [adornmentTargetId],
+    changedSourceIds: [action.nodeId]
+  };
+}
+
+function resolveOptionListAppendOffset(source: string, span: Span): number {
+  const safeTo = Math.max(span.from, Math.min(span.to, source.length));
+  let cursor = safeTo;
+  while (cursor > span.from && /\s/u.test(source[cursor - 1] ?? "")) {
+    cursor -= 1;
+  }
+  if ((source[cursor - 1] ?? "") === "]") {
+    return cursor - 1;
+  }
+  return safeTo;
+}
+
 function applyReorderElements(
   source: string,
   elementIds: readonly string[],
@@ -1353,6 +1478,83 @@ function normalizeDuplicateDelta(delta: Point | undefined): Point {
   };
 }
 
+function formatAdornmentAngle(rawDegrees: number): string {
+  let degrees = rawDegrees % 360;
+  if (degrees < 0) {
+    degrees += 360;
+  }
+  const keywords = [
+    { label: "right", degrees: 0 },
+    { label: "above right", degrees: 45 },
+    { label: "above", degrees: 90 },
+    { label: "above left", degrees: 135 },
+    { label: "left", degrees: 180 },
+    { label: "below left", degrees: 225 },
+    { label: "below", degrees: 270 },
+    { label: "below right", degrees: 315 }
+  ];
+  for (const keyword of keywords) {
+    const delta = Math.min(Math.abs(degrees - keyword.degrees), 360 - Math.abs(degrees - keyword.degrees));
+    if (delta <= 8) {
+      return keyword.label;
+    }
+  }
+  return String(Math.round(degrees));
+}
+
+function serializeAdornmentValue(
+  kind: "label" | "pin",
+  angle: string,
+  textRaw: string,
+  optionsRaw: string
+): string {
+  const normalizedText = normalizeAdornmentTextRaw(textRaw.trim().length > 0 ? textRaw : "label");
+  const core = `${angle}:${normalizedText}`;
+  if (optionsRaw.trim().length === 0) {
+    return core;
+  }
+  return `{[${optionsRaw}]${core}}`;
+}
+
+function normalizeAdornmentTextRaw(textRaw: string): string {
+  const trimmed = textRaw.trim();
+  if (trimmed.length === 0) {
+    return "{}";
+  }
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || !/[,\]]/.test(trimmed)) {
+    return textRaw;
+  }
+  return `{${trimmed}}`;
+}
+
+function normalizeAdornmentDeleteSpan(source: string, span: Span): Span {
+  let from = span.from;
+  let to = span.to;
+
+  while (to < source.length && /\s/u.test(source[to] ?? "")) {
+    to += 1;
+  }
+  if ((source[to] ?? "") === ",") {
+    to += 1;
+    while (to < source.length && /\s/u.test(source[to] ?? "")) {
+      to += 1;
+    }
+    return { from, to };
+  }
+
+  while (from > 0 && /\s/u.test(source[from - 1] ?? "")) {
+    from -= 1;
+  }
+  if ((source[from - 1] ?? "") === ",") {
+    from -= 1;
+    while (from > 0 && /\s/u.test(source[from - 1] ?? "")) {
+      from -= 1;
+    }
+  }
+
+  return { from, to };
+}
+
 type DeleteTarget = {
   span: Span;
   scope: "statement" | "path-item";
@@ -1403,6 +1605,28 @@ function applyDeleteElements(source: string, elementIds: readonly string[]): Edi
     kind: "success",
     newSource: currentSource,
     patches
+  };
+}
+
+function applyDeleteAdornment(source: string, targetId: string): EditActionResult {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.optionSpan) {
+    return { kind: "unsupported", reason: "Selected adornment could not be resolved for deletion." };
+  }
+
+  const deleteSpan = normalizeAdornmentDeleteSpan(source, resolved.target.optionSpan);
+  const updated = replaceSpan(source, deleteSpan, "");
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [
+      {
+        oldSpan: deleteSpan,
+        newSpan: updated.changedSpan,
+        replacement: ""
+      }
+    ],
+    changedSourceIds: [resolved.target.ownerSourceId ?? resolved.target.ownerId ?? targetId]
   };
 }
 
@@ -1578,10 +1802,18 @@ function inferChangedSourceIds(
       return normalizeElementIds(result.selectedSourceIds ?? []);
     case "duplicateElements":
       return normalizeElementIds(result.selectedSourceIds ?? action.elementIds);
+    case "duplicateAdornment":
+      return normalizeElementIds([action.targetId]);
     case "deleteElement":
       return normalizeElementIds([action.elementId]);
     case "deleteElements":
       return normalizeElementIds(action.elementIds);
+    case "deleteAdornment":
+      return normalizeElementIds([action.targetId]);
+    case "moveAdornment":
+      return normalizeElementIds([action.targetId]);
+    case "addNodeAdornment":
+      return normalizeElementIds([action.nodeId]);
     case "reorderElements":
       return normalizeElementIds(action.elementIds);
     case "setProperty":
@@ -1756,14 +1988,18 @@ function applySetProperty(
     };
   }
 
-  const key = normalizeOptionKey(action.key);
-  if (key.length === 0) {
-    return { kind: "error", message: "Cannot set an empty option key" };
-  }
-
   const resolved = resolvePropertyTarget(source, action.elementId);
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };
+  }
+
+  if (resolved.target.kind === "node-adornment") {
+    return applyAdornmentSetProperty(source, resolved.target, action);
+  }
+
+  const key = normalizeOptionKey(action.key);
+  if (key.length === 0) {
+    return { kind: "error", message: "Cannot set an empty option key" };
   }
 
   const normalizedValue = action.value.trim();
@@ -1793,6 +2029,212 @@ function applySetProperty(
     kind: "success",
     newSource: rewritten.source,
     patches: [rewritten.patch]
+  };
+}
+
+const ADORNMENT_ANGLE_PROPERTY_KEY = "__adornment_angle__";
+const ADORNMENT_DISTANCE_PROPERTY_KEY = "__adornment_distance__";
+const ADORNMENT_TEXT_PROPERTY_KEY = "__adornment_text__";
+const PIN_EDGE_DRAW_PROPERTY_KEY = "__pin_edge_draw__";
+const PIN_EDGE_LINE_WIDTH_PROPERTY_KEY = "__pin_edge_line_width__";
+const PIN_EDGE_DASH_PROPERTY_KEY = "__pin_edge_dash__";
+const ADORNMENT_DEFAULT_DISTANCE_EPSILON = 0.05;
+
+function applyAdornmentSetProperty(
+  source: string,
+  target: PropertyTarget,
+  action: Extract<EditAction, { kind: "setProperty" }>
+): EditActionResult {
+  if (target.kind !== "node-adornment" || !target.valueSpan) {
+    return { kind: "unsupported", reason: "Adornment target does not have a writable value span." };
+  }
+
+  if (action.key === ADORNMENT_TEXT_PROPERTY_KEY) {
+    return applyAdornmentValueRewrite(source, target, { textRaw: action.value }, action.elementId);
+  }
+
+  if (action.key === ADORNMENT_ANGLE_PROPERTY_KEY) {
+    const parsed = Number(action.value);
+    if (!Number.isFinite(parsed)) {
+      return { kind: "error", message: "Adornment angle must be a finite number." };
+    }
+    return applyAdornmentValueRewrite(source, target, { angleRaw: formatAdornmentAngle(parsed) }, action.elementId);
+  }
+
+  if (action.key === ADORNMENT_DISTANCE_PROPERTY_KEY) {
+    const parsed = parseLength(action.value, "pt");
+    if (parsed == null || !Number.isFinite(parsed)) {
+      return { kind: "error", message: "Adornment distance must be a valid length." };
+    }
+    return applyAdornmentValueRewrite(source, target, { distancePt: parsed }, action.elementId);
+  }
+
+  if (
+    action.key === PIN_EDGE_DRAW_PROPERTY_KEY ||
+    action.key === PIN_EDGE_LINE_WIDTH_PROPERTY_KEY ||
+    action.key === PIN_EDGE_DASH_PROPERTY_KEY
+  ) {
+    return applyAdornmentValueRewrite(
+      source,
+      target,
+      undefined,
+      action.elementId,
+      buildPinEdgeMutations(action.key, action.value, action.clearKeys ?? [])
+    );
+  }
+
+  const key = normalizeOptionKey(action.key);
+  if (key.length === 0) {
+    return { kind: "error", message: "Cannot set an empty option key" };
+  }
+  const normalizedValue = action.value.trim();
+  const removePrimaryKey = normalizedValue.length === 0;
+  const mutations = new Map<string, OptionMutation>();
+  for (const rawClearKey of action.clearKeys ?? []) {
+    const clearKey = normalizeOptionKey(rawClearKey);
+    if (clearKey.length === 0) {
+      continue;
+    }
+    if (clearKey === key && !removePrimaryKey) {
+      continue;
+    }
+    mutations.set(clearKey, { kind: "remove" });
+  }
+  if (removePrimaryKey) {
+    mutations.set(key, { kind: "remove" });
+  } else {
+    mutations.set(key, { kind: "set", value: action.value });
+  }
+  return applyAdornmentValueRewrite(source, target, undefined, action.elementId, undefined, mutations);
+}
+
+function applyAdornmentValueRewrite(
+  source: string,
+  target: PropertyTarget,
+  overrides: {
+    angleRaw?: string;
+    textRaw?: string;
+    distancePt?: number;
+  } | undefined,
+  selectedTargetId: string,
+  pinEdgeMutations?: ReadonlyMap<string, OptionMutation>,
+  optionMutations?: ReadonlyMap<string, OptionMutation>
+): EditActionResult {
+  if (target.kind !== "node-adornment" || !target.valueSpan) {
+    return { kind: "unsupported", reason: "Adornment target does not have a writable value span." };
+  }
+
+  const kind = target.adornmentKind ?? "label";
+  const distanceKey = kind === "pin" ? "pin distance" : "label distance";
+  const distancePt = Math.max(0, overrides?.distancePt ?? target.distancePt ?? target.defaultDistancePt ?? 0);
+  const defaultDistancePt = Math.max(0, target.defaultDistancePt ?? (kind === "pin" ? (parseLength("3ex", "pt") ?? 12.9) : 0));
+  const baseOptionMutations = new Map(optionMutations ?? []);
+  if (Math.abs(distancePt - defaultDistancePt) <= ADORNMENT_DEFAULT_DISTANCE_EPSILON) {
+    baseOptionMutations.set(distanceKey, { kind: "remove" });
+  } else {
+    baseOptionMutations.set(distanceKey, {
+      kind: "set",
+      value: `${formatNumber(distancePt)}pt`
+    });
+  }
+
+  if (pinEdgeMutations && kind === "pin") {
+    const rewrittenPinEdge = rewriteAdornmentPinEdgeOptions(target.pinEdgeRaw ?? null, pinEdgeMutations);
+    if (rewrittenPinEdge == null) {
+      baseOptionMutations.set("pin edge", { kind: "remove" });
+    } else {
+      baseOptionMutations.set("pin edge", { kind: "set", value: formatPinEdgeOptionValue(rewrittenPinEdge) });
+    }
+  } else if (kind === "pin" && target.pinEdgeRaw != null) {
+    baseOptionMutations.set("pin edge", { kind: "set", value: formatPinEdgeOptionValue(target.pinEdgeRaw) });
+  }
+
+  const optionsRaw = rewriteOptionListMutations(target.options ?? emptyOptionListAt(target.valueSpan.from), baseOptionMutations).slice(1, -1);
+  const replacement = serializeAdornmentValue(
+    kind,
+    overrides?.angleRaw ?? target.angleRaw ?? "center",
+    overrides?.textRaw ?? (target.textSpan ? source.slice(target.textSpan.from, target.textSpan.to) : ""),
+    optionsRaw
+  );
+  const updated = replaceSpan(source, target.valueSpan, replacement);
+  if (updated.source === source) {
+    return { kind: "unsupported", reason: ADORNMENT_EDIT_NOOP_REASON };
+  }
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [
+      {
+        oldSpan: target.valueSpan,
+        newSpan: updated.changedSpan,
+        replacement
+      }
+    ],
+    selectedSourceIds: [selectedTargetId],
+    changedSourceIds: [target.ownerSourceId ?? target.ownerId ?? selectedTargetId]
+  };
+}
+
+function rewriteAdornmentPinEdgeOptions(
+  pinEdgeRaw: string | null,
+  mutations: ReadonlyMap<string, OptionMutation>
+): string | null {
+  const parsed = pinEdgeRaw ? parseStyleValueAsOptionList(pinEdgeRaw) : null;
+  const rewritten = rewriteOptionListMutations(
+    parsed ?? emptyOptionListAt(0),
+    mutations
+  ).slice(1, -1).trim();
+  return rewritten.length > 0 ? rewritten : null;
+}
+
+function formatPinEdgeOptionValue(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed;
+  }
+  return `{${trimmed}}`;
+}
+
+function buildPinEdgeMutations(
+  key: string,
+  value: string,
+  clearKeys: readonly string[]
+): Map<string, OptionMutation> {
+  const mutations = new Map<string, OptionMutation>();
+  for (const clearKey of clearKeys) {
+    const normalized = normalizeOptionKey(clearKey);
+    if (normalized.length > 0) {
+      mutations.set(normalized, { kind: "remove" });
+    }
+  }
+  if (key === PIN_EDGE_DASH_PROPERTY_KEY) {
+    const normalizedValue = value.trim().toLowerCase();
+    const dashKeys = ["solid", "dashed", "densely dashed", "loosely dashed", "dotted", "densely dotted", "loosely dotted", "dash pattern", "dash"];
+    for (const dashKey of dashKeys) {
+      mutations.set(dashKey, { kind: "remove" });
+    }
+    if (normalizedValue !== "solid" && normalizedValue.length > 0) {
+      mutations.set(normalizedValue, { kind: "set", value: "true" });
+    }
+    return mutations;
+  }
+
+  const targetKey =
+    key === PIN_EDGE_DRAW_PROPERTY_KEY ? "draw" :
+    key === PIN_EDGE_LINE_WIDTH_PROPERTY_KEY ? "line width" :
+    "";
+  if (targetKey.length > 0) {
+    const trimmedValue = value.trim();
+    mutations.set(targetKey, trimmedValue.length === 0 ? { kind: "remove" } : { kind: "set", value });
+  }
+  return mutations;
+}
+
+function emptyOptionListAt(offset: number) {
+  return {
+    span: { from: offset, to: offset },
+    raw: "[]",
+    entries: []
   };
 }
 

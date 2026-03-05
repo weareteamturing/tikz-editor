@@ -450,6 +450,29 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(pinEdge).toBeDefined();
     });
 
+    it("attaches editable adornment metadata to label and pin elements", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node[draw,name=a,label=right:L,pin=above:P,"Q" left] at (0,0) {A};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const adornments = result.scene.elements
+        .filter((element) => element.adornment != null)
+        .map((element) => element.adornment?.targetId)
+        .filter((targetId): targetId is string => targetId != null);
+
+      expect(adornments).toContain("node-adornment:node:0:2:label:0");
+      expect(adornments).toContain("node-adornment:node:0:2:pin:1");
+      expect(adornments).toContain("node-adornment:node:0:2:label:2");
+
+      const label = result.scene.elements.find((element) => element.kind === "Text" && element.text === "L");
+      expect(label?.adornment?.kind).toBe("label");
+      expect(label?.adornment?.textSpan.to).toBeGreaterThan(label?.adornment?.textSpan.from ?? 0);
+
+      const pinEdge = result.scene.elements.find((element) => element.kind === "Path" && element.adornment?.kind === "pin");
+      expect(pinEdge?.adornment?.targetId).toBe("node-adornment:node:0:2:pin:1");
+    });
+
     it("supports edge label keys and edge quotes syntax", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (0,0) to[edge label=A,edge label'=B] (2,0);

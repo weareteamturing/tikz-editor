@@ -11,7 +11,12 @@ import {
 import type { AppMenuCommandId } from "tikz-editor/app-menu";
 import type { CanvasContextMenuTarget } from "tikz-editor/context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
-import { applyEditAction, type EditAction, type ResizeRole } from "tikz-editor/edit/actions";
+import {
+  ADORNMENT_EDIT_NOOP_REASON,
+  applyEditAction,
+  type EditAction,
+  type ResizeRole
+} from "tikz-editor/edit/actions";
 import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
 import {
   buildSnapContext,
@@ -119,6 +124,7 @@ import {
   ToolPreviewOverlay
 } from "./canvas-panel/overlays";
 import { resolveCanvasContextMenuTarget } from "./canvas-panel/context-menu-target";
+import { resolveNodeAdornmentContextAction } from "./canvas-panel/node-adornment-context-action";
 import {
   RESIZE_FRAME_CORNER_ROLES,
   resolveResizeFrameForSource
@@ -148,6 +154,7 @@ import {
   moveGuide,
   preferredNodeBoundsForSource,
   previewArrowPoints,
+  rectHitRegionsForTargetId,
   removeGuide,
   removeGuideValue,
   findPathStatementById,
@@ -257,6 +264,8 @@ type CanvasContextMenuState = {
   target: CanvasContextMenuTarget;
   anchorX: number;
   anchorY: number;
+  clickedTargetId: string | null;
+  clickedWorld: Point | null;
 };
 
 type SnapDebugOverlayState = {
@@ -358,11 +367,33 @@ export function CanvasPanel() {
   const [nodeAnchorOverlay, setNodeAnchorOverlay] = useState<NodeAnchorOverlayState | null>(null);
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
   const [textEditingSession, setTextEditingSession] = useState<TextEditingSession | null>(null);
+  const [pendingAdornmentTextEditTargetId, setPendingAdornmentTextEditTargetId] = useState<string | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
 
-  const commandRuntime = useEditorCommandRuntime();
+  const commandRuntime = useEditorCommandRuntime({
+    onAddNodeAdornment: (kind) => {
+      const result = resolveNodeAdornmentContextAction({
+        source,
+        clickedTargetId: contextMenuState?.clickedTargetId ?? null,
+        selectedTargetId: selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null,
+        clickedWorld: contextMenuState?.clickedWorld ?? null,
+        sceneElements: snapshot.scene?.elements ?? [],
+        viewBox: svgResult?.viewBox ?? null,
+        adornmentKind: kind,
+        text: kind === "pin" ? "Pin" : "Label"
+      });
+      if (result.kind !== "ready") {
+        return;
+      }
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: result.action
+      });
+      setPendingAdornmentTextEditTargetId(result.pendingTextTargetId);
+    }
+  });
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topRulerRef = useRef<SVGSVGElement | null>(null);
@@ -590,13 +621,25 @@ export function CanvasPanel() {
     () => computeDragCapability(snapshot.editHandles),
     [snapshot.editHandles]
   );
+  const adornmentTargetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      if (element.adornment?.targetId) {
+        ids.add(element.adornment.targetId);
+      }
+    }
+    return ids;
+  }, [snapshot.scene]);
   const draggableSourceIds = useMemo(() => {
     const ids = new Set<string>(dragCapability.draggableSourceIds);
     for (const sourceId of matrixSourceIds) {
       ids.add(sourceId);
     }
+    for (const targetId of adornmentTargetIds) {
+      ids.add(targetId);
+    }
     return ids;
-  }, [dragCapability.draggableSourceIds, matrixSourceIds]);
+  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixSourceIds]);
 
   const selectionBounds = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -735,6 +778,40 @@ export function CanvasPanel() {
     },
     [resizeFramesBySource, selectionBoundsBySource, selectionFrameSourceIds]
   );
+  const selectedAdornmentConnectors = useMemo(() => {
+    if (!snapshot.scene || !svgResult) {
+      return [];
+    }
+    const connectors: Array<{ key: string; kind: "label" | "pin"; x1: number; y1: number; x2: number; y2: number }> = [];
+    const seen = new Set<string>();
+    for (const element of snapshot.scene.elements) {
+      const adornment = element.adornment;
+      if (
+        !adornment ||
+        adornment.kind !== "label" ||
+        !selectedElementIds.has(adornment.targetId) ||
+        !adornment.ownerPoint ||
+        seen.has(adornment.targetId)
+      ) {
+        continue;
+      }
+      const bounds = selectionBoundsBySource.get(adornment.targetId);
+      if (!bounds) {
+        continue;
+      }
+      const owner = worldToSvgPoint(adornment.ownerPoint, svgResult.viewBox);
+      connectors.push({
+        key: `adornment-connector:${adornment.targetId}`,
+        kind: adornment.kind,
+        x1: owner.x,
+        y1: owner.y,
+        x2: (bounds.minX + bounds.maxX) / 2,
+        y2: (bounds.minY + bounds.maxY) / 2
+      });
+      seen.add(adornment.targetId);
+    }
+    return connectors;
+  }, [selectedElementIds, selectionBoundsBySource, snapshot.scene, svgResult]);
   const curveControlLines = useMemo(
     () =>
       snapshot.scene
@@ -1286,6 +1363,9 @@ export function CanvasPanel() {
         if (action.kind === "resizeElement" && result.reason === RESIZE_NOOP_REASON) {
           return { sourceChanged: false };
         }
+        if (action.kind === "moveAdornment" && result.reason === ADORNMENT_EDIT_NOOP_REASON) {
+          return { sourceChanged: false };
+        }
         setWarning(result.reason);
       } else {
         setWarning(result.message);
@@ -1448,12 +1528,12 @@ export function CanvasPanel() {
   );
 
   const resolveEditableTextTarget = useCallback(
-    (sourceId: string, region: HitRegion | undefined): EditableTextTarget | null => {
+    (targetId: string, region: HitRegion | undefined): EditableTextTarget | null => {
       if (!region || region.shape !== "rect") {
         return null;
       }
       const sceneText = sceneTextByRegionKey.get(region.key);
-      if (!sceneText || sceneText.sourceId !== sourceId) {
+      if (!sceneText) {
         return null;
       }
       if (sceneText.textRenderInfo?.mode !== "mathjax") {
@@ -1476,7 +1556,7 @@ export function CanvasPanel() {
         return null;
       }
       return {
-        sourceId,
+        sourceId: targetId,
         sourceSpan,
         text: sceneText.text,
         style: sceneText.style,
@@ -1493,7 +1573,7 @@ export function CanvasPanel() {
       return keys;
     }
     for (const region of hitRegions) {
-      if (resolveEditableTextTarget(region.sourceId, region)) {
+      if (resolveEditableTextTarget(region.targetId, region)) {
         keys.add(region.key);
       }
     }
@@ -1606,7 +1686,7 @@ export function CanvasPanel() {
   const beginTextSelectionDrag = useCallback(
     (
       event: ReactPointerEvent<SVGElement>,
-      sourceId: string,
+      targetId: string,
       region: HitRegion | undefined
     ): boolean => {
       if (event.shiftKey || event.ctrlKey || event.metaKey || event.button !== 0) {
@@ -1615,7 +1695,7 @@ export function CanvasPanel() {
       if (!svgResult || snapshot.source !== source) {
         return false;
       }
-      const target = resolveEditableTextTarget(sourceId, region);
+      const target = resolveEditableTextTarget(targetId, region);
       if (!target) {
         return false;
       }
@@ -1634,7 +1714,7 @@ export function CanvasPanel() {
         return false;
       }
 
-      dispatch({ type: "SELECT", id: sourceId, additive: false });
+      dispatch({ type: "SELECT", id: targetId, additive: false });
       applyCanvasTextSelection(target, clickIndex, clickIndex);
       setDragState({
         kind: "text-select",
@@ -1676,8 +1756,21 @@ export function CanvasPanel() {
     ]
   );
 
+  const resolveEditableTextTargetById = useCallback(
+    (targetId: string): EditableTextTarget | null => {
+      for (const region of rectHitRegionsForTargetId(hitRegions, targetId)) {
+        const target = resolveEditableTextTarget(targetId, region);
+        if (target) {
+          return target;
+        }
+      }
+      return null;
+    },
+    [hitRegions, resolveEditableTextTarget]
+  );
+
   const onElementPointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => {
+    (event: ReactPointerEvent<SVGElement>, targetId: string, region?: HitRegion) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
@@ -1685,24 +1778,29 @@ export function CanvasPanel() {
       event.preventDefault();
       event.stopPropagation();
 
-      if (beginTextSelectionDrag(event, sourceId, region)) {
+      if (beginTextSelectionDrag(event, targetId, region)) {
         return;
       }
 
+      const alreadySelected = selectedElementIds.has(targetId);
+      const isAdornmentTarget = targetId.startsWith("node-adornment:");
       setTextEditingSession(null);
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
 
       if (additiveSelection) {
-        dispatch({ type: "SELECT", id: sourceId, additive: true });
+        dispatch({ type: "SELECT", id: targetId, additive: true });
         return;
       }
 
-      const alreadySelected = selectedElementIds.has(sourceId);
-      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [sourceId];
+      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [targetId];
       if (!alreadySelected) {
-        dispatch({ type: "SELECT", id: sourceId, additive: false });
+        dispatch({ type: "SELECT", id: targetId, additive: false });
+        if (isAdornmentTarget) {
+          setSnapLines([]);
+          return;
+        }
       }
 
       if (draggedIds.some((id) => !draggableSourceIds.has(id))) {
@@ -1785,10 +1883,10 @@ export function CanvasPanel() {
   );
 
   const onElementDoubleClick = useCallback(
-    (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => {
+    (event: ReactMouseEvent<SVGElement>, targetId: string, region?: HitRegion) => {
       if (toolMode !== "select") return;
 
-      const target = resolveEditableTextTarget(sourceId, region);
+      const target = resolveEditableTextTarget(targetId, region);
 
       event.preventDefault();
       event.stopPropagation();
@@ -1810,24 +1908,24 @@ export function CanvasPanel() {
           const wordRange = findWordRangeAtIndex(target.text, clickIndex);
           const startIndex = wordRange?.start ?? clickIndex;
           const endIndex = wordRange?.end ?? clickIndex;
-          dispatch({ type: "SELECT", id: sourceId, additive: false });
+          dispatch({ type: "SELECT", id: targetId, additive: false });
           applyCanvasTextSelection(target, startIndex, endIndex);
           return;
         }
       }
 
-      const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(sourceId, hitRegions, sceneTextByRegionKey);
+      const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(targetId, hitRegions, sceneTextByRegionKey);
       if (!fallbackSpan) {
         return;
       }
 
-      dispatch({ type: "SELECT", id: sourceId, additive: false });
+      dispatch({ type: "SELECT", id: targetId, additive: false });
       requestSourceSelection({
         from: fallbackSpan.from,
         to: fallbackSpan.to,
         anchor: fallbackSpan.from,
         head: fallbackSpan.to,
-        sourceId,
+        sourceId: targetId,
         focus: true
       });
       setTextEditingSession(null);
@@ -2188,6 +2286,7 @@ export function CanvasPanel() {
 
       const rect = viewport.getBoundingClientRect();
       const resolution = resolveCanvasContextMenuTarget({
+        source,
         toolMode,
         clickedSourceId,
         selectedElementIds
@@ -2204,11 +2303,16 @@ export function CanvasPanel() {
       setContextMenuState({
         target: resolution.target,
         anchorX: clientX - rect.left,
-        anchorY: clientY - rect.top
+        anchorY: clientY - rect.top,
+        clickedTargetId: clickedSourceId,
+        clickedWorld:
+          svgResult
+            ? viewportToWorldPoint(clientX - rect.left, clientY - rect.top, canvasTransform, svgResult.viewBox)
+            : null
       });
       viewport.focus({ preventScroll: true });
     },
-    [dispatch, selectedElementIds, toolMode]
+    [canvasTransform, dispatch, selectedElementIds, source, svgResult, toolMode]
   );
 
   const onElementContextMenu = useCallback(
@@ -3333,15 +3437,7 @@ export function CanvasPanel() {
     }
     // Find the target in the current snapshot. If the snapshot is stale, the target
     // may not resolve (source spans won't match). In that case, keep the existing overlay.
-    const rectRegions = hitRegions.filter(
-      (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
-        candidate.sourceId === textEditingSession.sourceId && candidate.shape === "rect"
-    );
-    let target: EditableTextTarget | null = null;
-    for (const region of rectRegions) {
-      target = resolveEditableTextTarget(textEditingSession.sourceId, region);
-      if (target) break;
-    }
+    const target = resolveEditableTextTargetById(textEditingSession.sourceId);
     if (!target) {
       // Can't resolve — snapshot is likely stale. Preserve existing overlay.
       return;
@@ -3378,7 +3474,29 @@ export function CanvasPanel() {
       height: target.region.height,
       prefixTable
     });
-  }, [textEditingSession, hitRegions, resolveEditableTextTarget, resolvePrefixTableForTarget]);
+  }, [textEditingSession, resolveEditableTextTargetById, resolvePrefixTableForTarget]);
+
+  useEffect(() => {
+    if (!pendingAdornmentTextEditTargetId) {
+      return;
+    }
+    if (snapshot.source !== source || !selectedElementIds.has(pendingAdornmentTextEditTargetId)) {
+      return;
+    }
+    const target = resolveEditableTextTargetById(pendingAdornmentTextEditTargetId);
+    if (!target) {
+      return;
+    }
+    applyCanvasTextSelection(target, 0, target.text.length);
+    setPendingAdornmentTextEditTargetId(null);
+  }, [
+    applyCanvasTextSelection,
+    pendingAdornmentTextEditTargetId,
+    resolveEditableTextTargetById,
+    selectedElementIds,
+    snapshot.source,
+    source
+  ]);
 
   useEffect(() => {
     const pending = pendingAddedSelectionRef.current;
@@ -3812,6 +3930,7 @@ export function CanvasPanel() {
                 <SelectionOverlay
                   marqueeBounds={marqueeBounds}
                   selectionBoxes={selectionBoxes}
+                  adornmentConnectors={selectedAdornmentConnectors}
                   selectionStrokeWidth={selectionStrokeWidth}
                   textSelectionVisual={textSelectionVisual}
                 />
@@ -3866,6 +3985,7 @@ export function CanvasPanel() {
             onClose={() => setContextMenuState(null)}
             onCommandRun={(commandId: AppMenuCommandId, origin) => {
               commandRuntime.runCommand(commandId, origin);
+              setContextMenuState(null);
             }}
           />
 

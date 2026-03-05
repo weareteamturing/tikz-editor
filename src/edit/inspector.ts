@@ -345,6 +345,14 @@ export type SetPropertyWriteTarget = {
 
 export type InspectorProperty =
   | {
+      kind: "text";
+      id: string;
+      label: string;
+      value: string;
+      write: SetPropertyWriteTarget;
+      readOnlyReason?: string;
+    }
+  | {
       kind: "number";
       id: string;
       label: string;
@@ -520,6 +528,12 @@ export type InspectorDescriptor = {
   readOnlyReason?: string;
   sections: InspectorSection[];
 };
+
+const ADORNMENT_ANGLE_PROPERTY_KEY = "__adornment_angle__";
+const ADORNMENT_DISTANCE_PROPERTY_KEY = "__adornment_distance__";
+const ADORNMENT_TEXT_PROPERTY_KEY = "__adornment_text__";
+const PIN_EDGE_DRAW_PROPERTY_KEY = "__pin_edge_draw__";
+const PIN_EDGE_LINE_WIDTH_PROPERTY_KEY = "__pin_edge_line_width__";
 
 export const LINE_WIDTH_PRESETS: Array<{ label: string; value: number }> = [
   { label: "ultra thin", value: 0.1 },
@@ -1453,6 +1467,110 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     inlineTarget.targetKind === "node-item"
       ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind)
       : null;
+
+  if (inlineTarget.targetKind === "node-adornment" && inlineTarget.targetId) {
+    const adornmentState = resolveAdornmentInspectorState(snapshot.source, inlineTarget.targetId, element.style);
+    if (adornmentState) {
+      const sections: InspectorSection[] = [
+        {
+          id: "adornment",
+          title: adornmentState.kind === "pin" ? "Pin" : "Label",
+          sourceLevel: "command",
+          properties: [
+            {
+              kind: "text",
+              id: "adornment-text",
+              label: "Text",
+              value: adornmentState.text,
+              write: makeSetPropertyWriteTarget(inlineTarget, ADORNMENT_TEXT_PROPERTY_KEY)
+            },
+            {
+              kind: "number",
+              id: "adornment-angle",
+              label: "Angle",
+              value: adornmentState.angleDeg,
+              step: 1,
+              unit: "deg",
+              write: makeSetPropertyWriteTarget(inlineTarget, ADORNMENT_ANGLE_PROPERTY_KEY)
+            },
+            {
+              kind: "length",
+              id: "adornment-distance",
+              label: adornmentState.kind === "pin" ? "Pin distance" : "Label distance",
+              value: adornmentState.distancePt,
+              step: 0.1,
+              unit: "pt",
+              note: adornmentState.distanceExplicit ? undefined : "Using the implicit default until changed.",
+              write: makeSetPropertyWriteTarget(inlineTarget, ADORNMENT_DISTANCE_PROPERTY_KEY)
+            },
+            {
+              kind: "color",
+              id: "adornment-text-color",
+              label: "Text color",
+              value: textColor,
+              syntaxValue: textColorSyntax,
+              options: colorOptionsForValue(textColor),
+              write: makeSetPropertyWriteTarget(inlineTarget, "text")
+            },
+            {
+              kind: "color",
+              id: "adornment-draw-color",
+              label: "Draw",
+              value: strokeColor,
+              syntaxValue: strokeColorSyntax,
+              options: colorOptionsForValue(strokeColor),
+              write: makeSetPropertyWriteTarget(inlineTarget, "draw")
+            },
+            {
+              kind: "color",
+              id: "adornment-fill-color",
+              label: "Fill",
+              value: fillColor,
+              syntaxValue: fillColorSyntax,
+              options: colorOptionsForValue(fillColor),
+              write: makeSetPropertyWriteTarget(inlineTarget, "fill")
+            }
+          ]
+        }
+      ];
+
+      if (adornmentState.kind === "pin") {
+        sections.push({
+          id: "pin-edge",
+          title: "Pin Edge",
+          sourceLevel: "command",
+          properties: [
+            {
+              kind: "color",
+              id: "pin-edge-color",
+              label: "Color",
+              value: adornmentState.pinEdge.draw,
+              syntaxValue: adornmentState.pinEdge.draw,
+              options: colorOptionsForValue(adornmentState.pinEdge.draw),
+              write: makeSetPropertyWriteTarget(inlineTarget, PIN_EDGE_DRAW_PROPERTY_KEY)
+            },
+            {
+              kind: "length",
+              id: "pin-edge-line-width",
+              label: "Line width",
+              value: adornmentState.pinEdge.lineWidthPt,
+              step: 0.1,
+              unit: "pt",
+              write: makeSetPropertyWriteTarget(inlineTarget, PIN_EDGE_LINE_WIDTH_PROPERTY_KEY)
+            }
+          ]
+        });
+      }
+
+      return {
+        elementKind: normalizeElementKind(element.kind),
+        elementId: element.sourceId,
+        writeTargetId: inlineTarget.targetId,
+        readOnlyReason: inlineTarget.reason,
+        sections
+      };
+    }
+  }
 
   const sections: InspectorSection[] = [
     {
@@ -3303,8 +3421,10 @@ function resolveInlineWriteTarget(
     };
   }
 
-  const commandEntry = [...element.styleChain].reverse().find((entry) => entry.kind === "command");
-  const targetId = commandEntry?.sourceRef?.sourceId ?? element.sourceId;
+  const targetId =
+    element.adornment?.targetId ??
+    [...element.styleChain].reverse().find((entry) => entry.kind === "command")?.sourceRef?.sourceId ??
+    element.sourceId;
   const resolved = resolvePropertyTarget(source, targetId);
 
   if (resolved.kind === "not-found") {
@@ -3317,6 +3437,133 @@ function resolveInlineWriteTarget(
   }
 
   return { targetId, targetKind: resolved.target.kind, writable: true };
+}
+
+function resolveAdornmentInspectorState(
+  source: string,
+  targetId: string,
+  style: ResolvedStyle
+): {
+  kind: "label" | "pin";
+  text: string;
+  angleDeg: number;
+  distancePt: number;
+  distanceExplicit: boolean;
+  pinEdge: {
+    draw: string | null;
+    lineWidthPt: number;
+    dashStyle: DashStylePresetId;
+  };
+} | null {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found" || resolved.target.kind !== "node-adornment") {
+    return null;
+  }
+
+  const angleDeg = parseAdornmentAngleForInspector(resolved.target.angleRaw ?? "center");
+  const text = resolved.target.textSpan
+    ? stripEnclosingBraces(source.slice(resolved.target.textSpan.from, resolved.target.textSpan.to))
+    : "";
+  const pinEdge = resolvePinEdgeInspectorState(resolved.target.pinEdgeRaw ?? null);
+
+  return {
+    kind: resolved.target.adornmentKind ?? "label",
+    text,
+    angleDeg,
+    distancePt: resolved.target.distancePt ?? resolved.target.defaultDistancePt ?? 0,
+    distanceExplicit: resolved.target.distanceExplicit ?? false,
+    pinEdge: {
+      draw: pinEdge.draw,
+      lineWidthPt: pinEdge.lineWidthPt ?? style.lineWidth,
+      dashStyle: pinEdge.dashStyle
+    }
+  };
+}
+
+function parseAdornmentAngleForInspector(raw: string): number {
+  const normalized = raw.trim().toLowerCase();
+  const keyword =
+    normalized === "center" || normalized === "centered" ? 0 :
+    normalized === "right" || normalized === "east" ? 0 :
+    normalized === "above right" || normalized === "north east" ? 45 :
+    normalized === "above" || normalized === "north" ? 90 :
+    normalized === "above left" || normalized === "north west" ? 135 :
+    normalized === "left" || normalized === "west" ? 180 :
+    normalized === "below left" || normalized === "south west" ? -135 :
+    normalized === "below" || normalized === "south" ? -90 :
+    normalized === "below right" || normalized === "south east" ? -45 :
+    null;
+  if (keyword != null) {
+    return keyword;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+  return parsed;
+}
+
+function resolvePinEdgeInspectorState(pinEdgeRaw: string | null): {
+  draw: string | null;
+  lineWidthPt: number | null;
+  dashStyle: DashStylePresetId;
+} {
+  const options = pinEdgeRaw ? parseStyleValueAsOptionList(pinEdgeRaw) : null;
+  let draw: string | null = null;
+  let lineWidthPt: number | null = null;
+  let dashStyle: DashStylePresetId = "solid";
+
+  for (const entry of options?.entries ?? []) {
+    if (entry.kind === "flag") {
+      const normalized = normalizeOptionKey(entry.key);
+      if (
+        normalized === "dashed" ||
+        normalized === "densely dashed" ||
+        normalized === "loosely dashed" ||
+        normalized === "dotted" ||
+        normalized === "densely dotted" ||
+        normalized === "loosely dotted"
+      ) {
+        dashStyle = normalized as DashStylePresetId;
+      } else if (isLikelyColorValue(entry.key)) {
+        draw = entry.key.trim();
+      }
+      continue;
+    }
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const key = normalizeOptionKey(entry.key);
+    if (key === "draw" || key === "color") {
+      draw = entry.valueRaw.trim() || null;
+      continue;
+    }
+    if (key === "line width") {
+      lineWidthPt = parseLength(entry.valueRaw, "pt");
+      continue;
+    }
+    if (
+      key === "solid" ||
+      key === "dashed" ||
+      key === "densely dashed" ||
+      key === "loosely dashed" ||
+      key === "dotted" ||
+      key === "densely dotted" ||
+      key === "loosely dotted"
+    ) {
+      dashStyle = key as DashStylePresetId;
+    }
+  }
+
+  return { draw, lineWidthPt, dashStyle };
+}
+
+function isLikelyColorValue(raw: string): boolean {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    return false;
+  }
+  return trimmed === "none" || /^[a-z][a-z0-9._:@!-]*$/i.test(trimmed) || /^#[0-9a-f]{3,8}$/i.test(trimmed);
 }
 
 function normalizeElementKind(kind: SceneElement["kind"]): InspectorDescriptor["elementKind"] {

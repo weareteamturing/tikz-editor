@@ -411,6 +411,78 @@ describe("applyEditAction – moveElement", () => {
   });
 });
 
+describe("applyEditAction – node adornments", () => {
+  it("duplicates a single label option without duplicating the whole node", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "duplicateAdornment",
+      targetId: "node-adornment:node:0:2:label:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("label=right:L, label=right:L");
+  });
+
+  it("deletes only the selected pin option", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin=above:P,label=right:L] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "deleteAdornment",
+      targetId: "node-adornment:node:0:2:pin:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("pin=above:P");
+    expect(result.newSource).toContain("label=right:L");
+  });
+
+  it("preserves pin edge options when editing pin text", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge={draw=blue,dashed,line width=1pt}]above:P}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: "__adornment_text__",
+      value: "Q"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("pin edge={draw=blue,dashed,line width=1pt}");
+    expect(result.newSource).toContain("above:Q");
+  });
+
+  it("preserves pin edge options when editing pin draw color", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge={draw=blue,dashed,line width=1pt},fill=yellow]above:P}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("pin edge={draw=blue,dashed,line width=1pt}");
+    expect(result.newSource).toContain("fill=yellow");
+    expect(result.newSource).toContain("draw=red");
+  });
+});
+
 describe("applyEditAction – alignElements", () => {
   const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -1763,5 +1835,52 @@ describe("applyEditAction – pasteStatements", () => {
     if (result.kind !== "success" && result.kind !== "partial") return;
     expect(result.newSource).toContain("\\node[draw] (C2) at (0.25, 1.25) {C};");
     expect(result.newSource).toContain("\\draw (C2) -- ++");
+  });
+});
+
+describe("applyEditAction – adornment placement", () => {
+  it("inserts a new label inside an existing node option list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addNodeAdornment",
+      nodeId: "node:0:3",
+      adornmentKind: "label",
+      angle: "below",
+      text: "Label"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected adornment insertion to succeed");
+    }
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node[draw, label=below:Label] (A) at (-1, -1) {A};
+\end{tikzpicture}`);
+  });
+
+  it("omits a local label distance when dragging back to the implicit default distance", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label={[red,label distance=6pt]above:X}] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveAdornment",
+      targetId: "node-adornment:node:0:2:label:0",
+      ownerPoint: { x: 0, y: 0 },
+      newWorld: { x: 0, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected adornment move to succeed");
+    }
+    expect(result.newSource).toContain("label={[");
+    expect(result.newSource).toContain("center:X");
+    expect(result.newSource).not.toContain("label distance=");
+    expect(result.newSource).not.toContain("every label");
+    expect(result.changedSourceIds).toEqual(["path:0"]);
   });
 });

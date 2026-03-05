@@ -1,6 +1,9 @@
 import { useEffect } from "react";
+import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
+import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
+import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import {
   collectSelectionGeometry,
   snapHandlePosition,
@@ -40,6 +43,9 @@ import { requestSourceSelection } from "../source-sync";
 const ROTATE_SHIFT_SNAP_STEP_DEG = 15;
 const ROTATE_SOFT_SNAP_STEP_DEG = 90;
 const ROTATE_SOFT_SNAP_THRESHOLD_DEG = 7;
+const ADORNMENT_ANGLE_SNAP_STEP_DEG = 45;
+const ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG = 10;
+const ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT = 3;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -421,6 +427,56 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "element") {
         setNodeAnchorOverlay(null);
+        if (drag.elementIds.length === 1) {
+          const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
+          if (parsedTarget.kind === "node-adornment") {
+            let adornmentDrag = drag.adornmentDrag;
+            if (!adornmentDrag) {
+              const adornmentElements =
+                snapshotScene?.elements.filter((element) => element.adornment?.targetId === parsedTarget.id) ?? [];
+              const adornmentElement = selectPrimaryAdornmentElement(adornmentElements);
+              const ownerPoint = adornmentElement?.adornment?.ownerPoint;
+              const centerWorld = resolveAdornmentCenterWorld(adornmentElements);
+              if (!ownerPoint || !centerWorld) {
+                setSnapLines([]);
+                return;
+              }
+              adornmentDrag = {
+                ownerPoint,
+                ownerGeometry: adornmentElement?.adornment?.ownerGeometry,
+                pointerOffset: {
+                  x: centerWorld.x - drag.startWorld.x,
+                  y: centerWorld.y - drag.startWorld.y
+                },
+                allowCenter: adornmentElement?.adornment?.kind === "label",
+                defaultDistancePt:
+                  adornmentElement?.adornment?.defaultDistancePt ?? adornmentElement?.adornment?.distancePt ?? 0
+              };
+              drag.adornmentDrag = adornmentDrag;
+            }
+            const rawWorld = {
+              x: world.x + adornmentDrag.pointerOffset.x,
+              y: world.y + adornmentDrag.pointerOffset.y
+            };
+            const placement = resolveAdornmentDragPlacement(rawWorld, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
+              allowCenter: adornmentDrag.allowCenter,
+              defaultDistancePt: adornmentDrag.defaultDistancePt
+            });
+            setSnapLines([]);
+            applyActionWithFeedback(
+              {
+                kind: "moveAdornment",
+                targetId: parsedTarget.id,
+                ownerPoint: adornmentDrag.ownerPoint,
+                newWorld: rawWorld,
+                angleRaw: placement.angleRaw,
+                distancePt: placement.distancePt
+              },
+              drag.historyMergeKey
+            );
+            return;
+          }
+        }
         const rawTotalDelta = {
           x: world.x - drag.startWorld.x,
           y: world.y - drag.startWorld.y
@@ -768,4 +824,139 @@ export function useCanvasDragController(params: {
     svgResultRef,
     textIndexFromClient
   ]);
+}
+
+function selectPrimaryAdornmentElement(elements: readonly SceneElement[]): SceneElement | null {
+  return (
+    elements.find((element) => element.kind === "Text") ??
+    elements.find((element) => element.kind === "Circle" || element.kind === "Ellipse") ??
+    elements[0] ??
+    null
+  );
+}
+
+function resolveAdornmentCenterWorld(elements: readonly SceneElement[]): Point | null {
+  const primary = selectPrimaryAdornmentElement(elements);
+  if (!primary) {
+    return null;
+  }
+  if (primary.kind === "Text") {
+    return primary.position;
+  }
+  if (primary.kind === "Circle" || primary.kind === "Ellipse") {
+    return primary.center;
+  }
+  const path = primary.kind === "Path" ? primary : null;
+  if (!path || path.commands.length === 0) {
+    return null;
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const command of path.commands) {
+    if (command.kind === "Z") {
+      continue;
+    }
+    minX = Math.min(minX, command.to.x);
+    minY = Math.min(minY, command.to.y);
+    maxX = Math.max(maxX, command.to.x);
+    maxY = Math.max(maxY, command.to.y);
+  }
+  return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
+    ? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+    : null;
+}
+
+function resolveAdornmentDragPlacement(
+  point: Point,
+  ownerPoint: Point,
+  ownerGeometry: AdornmentOwnerGeometry | undefined,
+  options: { allowCenter: boolean; defaultDistancePt: number }
+): { angleRaw: string; distancePt: number } {
+  const center = ownerGeometry?.center ?? ownerPoint;
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const radius = Math.sqrt(dx * dx + dy * dy);
+  if (options.allowCenter && radius <= ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
+    return { angleRaw: "center", distancePt: 0 };
+  }
+
+  let angleDeg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
+  if (radius > 1e-6) {
+    const snappedDeg = Math.round(angleDeg / ADORNMENT_ANGLE_SNAP_STEP_DEG) * ADORNMENT_ANGLE_SNAP_STEP_DEG;
+    const deltaDeg = Math.abs((((angleDeg - snappedDeg) % 360) + 540) % 360 - 180);
+    if (deltaDeg <= ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG) {
+      angleDeg = snappedDeg;
+    }
+  }
+
+  const radians = (angleDeg * Math.PI) / 180;
+  const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+  const radialDistanceFromCenter = Math.max(0, dx * direction.x + dy * direction.y);
+  const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, direction);
+  let distancePt = Math.max(0, radialDistanceFromCenter - borderDistance);
+  if (Math.abs(distancePt - options.defaultDistancePt) <= ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
+    distancePt = options.defaultDistancePt;
+  }
+  if (options.allowCenter && radialDistanceFromCenter <= borderDistance + ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
+    return { angleRaw: "center", distancePt: 0 };
+  }
+  return {
+    angleRaw: formatAdornmentAngle(angleDeg),
+    distancePt
+  };
+}
+
+function resolveAdornmentOwnerBorderDistance(
+  ownerGeometry: AdornmentOwnerGeometry | undefined,
+  direction: Point
+): number {
+  if (!ownerGeometry || ownerGeometry.shape === "coordinate") {
+    return 0;
+  }
+  if (ownerGeometry.anchorPolygon && ownerGeometry.anchorPolygon.length >= 3) {
+    const hit = intersectRayWithPolygon({ x: 0, y: 0 }, direction, ownerGeometry.anchorPolygon);
+    return hit ? Math.sqrt(hit.x * hit.x + hit.y * hit.y) : 0;
+  }
+  if (ownerGeometry.shape === "circle") {
+    return Math.max(0, ownerGeometry.anchorRadius);
+  }
+  if (ownerGeometry.shape === "rectangle") {
+    const hw = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
+    const hh = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
+    const scale = 1 / Math.max(Math.abs(direction.x) / hw, Math.abs(direction.y) / hh);
+    return Number.isFinite(scale) ? scale : 0;
+  }
+  if (ownerGeometry.shape === "ellipse") {
+    const rx = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
+    const ry = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
+    const scale = 1 / Math.sqrt((direction.x * direction.x) / (rx * rx) + (direction.y * direction.y) / (ry * ry));
+    return Number.isFinite(scale) ? scale : 0;
+  }
+  return 0;
+}
+
+function formatAdornmentAngle(rawDegrees: number): string {
+  let degrees = rawDegrees % 360;
+  if (degrees < 0) {
+    degrees += 360;
+  }
+  const keywords = [
+    { label: "right", degrees: 0 },
+    { label: "above right", degrees: 45 },
+    { label: "above", degrees: 90 },
+    { label: "above left", degrees: 135 },
+    { label: "left", degrees: 180 },
+    { label: "below left", degrees: 225 },
+    { label: "below", degrees: 270 },
+    { label: "below right", degrees: 315 }
+  ];
+  for (const keyword of keywords) {
+    const delta = Math.min(Math.abs(degrees - keyword.degrees), 360 - Math.abs(degrees - keyword.degrees));
+    if (delta <= 8) {
+      return keyword.label;
+    }
+  }
+  return String(Math.round(degrees));
 }

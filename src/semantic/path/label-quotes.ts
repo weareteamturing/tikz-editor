@@ -1,4 +1,4 @@
-import type { EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
+import type { AdornmentOwnerGeometry, EdgeOperationItem, NodeItem, Span, ToOperationItem } from "../../ast/types.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
 import {
@@ -20,10 +20,15 @@ type QuotesMode = NodeQuotesMode;
 export type NodeAdornmentSpec = {
   kind: "label" | "pin";
   span: Span;
+  valueSpan: Span;
+  textSpan: Span;
   text: string;
   angleRaw: string;
+  angleSpan?: Span;
   options: OptionListAst | undefined;
   distancePt: number;
+  defaultDistancePt: number;
+  distanceExplicit: boolean;
   pinEdgeRaw: string | null;
 };
 
@@ -44,6 +49,7 @@ export type NodeAdornmentDefaults = {
 export type MaterializedNodeAdornment = {
   node: NodeItem;
   mainPoint: Point | null;
+  mainGeometry: NamedNodeGeometry | null;
   mainNameRaw: string;
   pinEdgeOptions: OptionListAst | undefined;
 };
@@ -63,6 +69,13 @@ const CONTROL_OPTION_KEYS = new Set([
 const CONTROL_OPTION_FLAGS = new Set([
   "quotes mean label",
   "quotes mean pin"
+]);
+
+const ADORNMENT_INTERNAL_STYLE_FLAGS = new Set([
+  "every label",
+  "every pin",
+  "every label quotes",
+  "every pin quotes"
 ]);
 
 const DIRECTION_SHORTHANDS_TO_POSITION: Record<string, string> = {
@@ -127,10 +140,15 @@ type RunningAdornmentDefaults = {
 type ParsedAdornment = {
   kind: "label" | "pin";
   span: Span;
+  valueSpan: Span;
+  textSpan: Span;
   text: string;
   angleRaw: string;
+  angleSpan?: Span;
   options: OptionListAst | undefined;
   distancePt: number;
+  defaultDistancePt: number;
+  distanceExplicit: boolean;
   pinEdgeRaw: string | null;
   angleExplicit: boolean;
 };
@@ -139,7 +157,16 @@ type ParsedQuoteToken = {
   text: string;
   optionsRaw: string;
   hasApostrophe: boolean;
+  textSpan: Span;
 };
+
+export function makeNodeAdornmentTargetId(
+  ownerNodeId: string,
+  adornmentIndex: number,
+  kind: "label" | "pin"
+): string {
+  return `node-adornment:${ownerNodeId}:${kind}:${adornmentIndex}`;
+}
 
 export function extractNodeAdornmentPlan(
   options: OptionListAst | undefined,
@@ -213,15 +240,26 @@ export function extractNodeAdornmentPlan(
       }
 
       if (entry.key === "label" || entry.key === "pin") {
-        const parsed = parseAdornmentValue(entry.key, entry.valueRaw, entry.span, defaults);
+        const valueStart = resolveOptionValueStartOffset(entry);
+        const parsed = parseAdornmentValue(entry.key, entry.valueRaw, entry.span, defaults, {
+          valueSpan: {
+            from: valueStart,
+            to: valueStart + entry.valueRaw.length
+          }
+        });
         if (parsed) {
           adornments.push({
             kind: parsed.kind,
             span: parsed.span,
+            valueSpan: parsed.valueSpan,
+            textSpan: parsed.textSpan,
             text: parsed.text,
             angleRaw: parsed.angleRaw,
+            angleSpan: parsed.angleSpan,
             options: parsed.options,
             distancePt: parsed.distancePt,
+            defaultDistancePt: parsed.defaultDistancePt,
+            distanceExplicit: parsed.distanceExplicit,
             pinEdgeRaw: parsed.pinEdgeRaw
           });
         }
@@ -235,7 +273,7 @@ export function extractNodeAdornmentPlan(
       continue;
     }
 
-    const quote = parseQuoteToken(entry.raw);
+    const quote = parseQuoteToken(entry.raw, entry.span.from);
     if (!quote) {
       mainEntries.push(entry);
       continue;
@@ -248,7 +286,14 @@ export function extractNodeAdornmentPlan(
       defaults.quoteMode,
       quoteOptionsWithDefaults.length > 0 ? `{[${quoteOptionsWithDefaults}]${quote.text}}` : quote.text,
       entry.span,
-      defaults
+      defaults,
+      {
+        valueSpan: {
+          from: entry.span.from,
+          to: entry.span.to
+        },
+        textSpan: quote.textSpan
+      }
     );
     if (!parsedQuote) {
       continue;
@@ -263,10 +308,15 @@ export function extractNodeAdornmentPlan(
     adornments.push({
       kind: parsedQuote.kind,
       span: parsedQuote.span,
+      valueSpan: parsedQuote.valueSpan,
+      textSpan: parsedQuote.textSpan,
       text: parsedQuote.text,
       angleRaw: parsedQuote.angleRaw,
+      angleSpan: parsedQuote.angleSpan,
       options: parsedQuote.options,
       distancePt: parsedQuote.distancePt,
+      defaultDistancePt: parsedQuote.defaultDistancePt,
+      distanceExplicit: parsedQuote.distanceExplicit,
       pinEdgeRaw: parsedQuote.pinEdgeRaw
     });
   }
@@ -340,15 +390,48 @@ export function materializeNodeAdornment(params: {
     optionsSpan: options?.span,
     options,
     textSource: "group",
-    textSpan: spec.span,
-    text: spec.text
+    textSpan: spec.textSpan,
+    text: spec.text,
+    adornment: {
+      kind: spec.kind,
+      ownerNodeId: ownerId,
+      ownerSourceId: ownerId,
+      adornmentIndex,
+      optionSpan: spec.span,
+      valueSpan: spec.valueSpan,
+      textSpan: spec.textSpan,
+      angleRaw: spec.angleRaw,
+      angleSpan: spec.angleSpan,
+      distancePt: spec.distancePt,
+      defaultDistancePt: spec.defaultDistancePt,
+      distanceExplicit: spec.distanceExplicit,
+      pinEdgeRaw: spec.pinEdgeRaw,
+      ownerGeometry: cloneAdornmentOwnerGeometry(mainGeometry),
+    }
   };
 
   return {
     node,
     mainPoint,
+    mainGeometry,
     mainNameRaw: mainNodeNameRaw,
     pinEdgeOptions
+  };
+}
+
+export function cloneAdornmentOwnerGeometry(
+  geometry: NamedNodeGeometry | null | undefined
+): AdornmentOwnerGeometry | undefined {
+  if (!geometry) {
+    return undefined;
+  }
+  return {
+    shape: geometry.shape,
+    center: { ...geometry.center },
+    anchorHalfWidth: geometry.anchorHalfWidth,
+    anchorHalfHeight: geometry.anchorHalfHeight,
+    anchorRadius: geometry.anchorRadius,
+    anchorPolygon: geometry.anchorPolygon?.map((point) => ({ ...point }))
   };
 }
 
@@ -385,7 +468,7 @@ export function extractToLikeOptionPlan<T extends ToOperationItem | EdgeOperatio
       }
     }
 
-    const quote = parseQuoteToken(entry.raw);
+    const quote = parseQuoteToken(entry.raw, entry.span.from);
     if (quote) {
       const quoteOptions = composeQuoteOptions(quote.optionsRaw, quote.hasApostrophe);
       const optionsRaw = quoteOptions.length > 0 ? `every edge quotes,${quoteOptions}` : "every edge quotes";
@@ -419,7 +502,11 @@ function parseAdornmentValue(
   kind: "label" | "pin",
   rawValue: string,
   span: Span,
-  defaults: RunningAdornmentDefaults
+  defaults: RunningAdornmentDefaults,
+  spans: {
+    valueSpan: Span;
+    textSpan?: Span;
+  }
 ): ParsedAdornment | null {
   let value = stripWrappingBraces(rawValue).trim();
   if (value.length === 0) {
@@ -427,11 +514,19 @@ function parseAdornmentValue(
   }
 
   let optionsRaw = "";
+  let offsetInValue = rawValue.indexOf(value);
+  if (offsetInValue < 0) {
+    offsetInValue = 0;
+  }
   if (value.startsWith("[")) {
     const block = readBalancedBlock(value, 0, "[", "]");
     if (block) {
       optionsRaw = block.content.trim();
       value = value.slice(block.nextIndex).trim();
+      const shifted = rawValue.indexOf(value, offsetInValue + block.nextIndex);
+      if (shifted >= 0) {
+        offsetInValue = shifted;
+      }
     }
   }
 
@@ -439,12 +534,20 @@ function parseAdornmentValue(
   let angleRaw = kind === "label" ? defaults.labelPosition : defaults.pinPosition;
   let angleExplicit = false;
   let textRaw = value;
+  let angleSpan: Span | undefined;
   if (colonIndex >= 0) {
     const maybeAngle = value.slice(0, colonIndex).trim();
     const maybeText = value.slice(colonIndex + 1).trim();
     if (maybeAngle.length > 0) {
       angleRaw = maybeAngle;
       angleExplicit = true;
+      const angleRelative = value.indexOf(maybeAngle);
+      if (angleRelative >= 0) {
+        angleSpan = {
+          from: spans.valueSpan.from + offsetInValue + angleRelative,
+          to: spans.valueSpan.from + offsetInValue + angleRelative + maybeAngle.length
+        };
+      }
     }
     textRaw = maybeText;
   }
@@ -457,22 +560,32 @@ function parseAdornmentValue(
   const optionsWithStyle = optionsRaw.length > 0 ? `${styleFlag},${optionsRaw}` : styleFlag;
   const parsedOptions = parseGeneratedOptions(optionsWithStyle, span);
   const cleanedOptions = sanitizeAdornmentOptions(parsedOptions);
-  const distancePt = resolveAdornmentDistance(cleanedOptions, kind, defaults);
-  const pinEdgeRaw = kind === "pin" ? resolvePinEdgeRaw(cleanedOptions, defaults.pinEdgeRaw) : null;
+  const defaultDistancePt = kind === "label" ? defaults.labelDistancePt : defaults.pinDistancePt;
+  const distancePt = resolveAdornmentDistance(parsedOptions, kind, defaults);
+  const distanceExplicit = hasAdornmentDistanceOverride(parsedOptions, kind);
+  const pinEdgeRaw = kind === "pin" ? resolvePinEdgeRaw(parsedOptions, defaults.pinEdgeRaw) : null;
+  const textSpan =
+    spans.textSpan ??
+    resolveAdornmentTextSpan(rawValue, textRaw, spans.valueSpan.from);
 
   return {
     kind,
     span,
+    valueSpan: spans.valueSpan,
+    textSpan,
     text: stripWrappingBraces(textRaw),
     angleRaw,
+    angleSpan,
     options: cleanedOptions,
     distancePt,
+    defaultDistancePt,
+    distanceExplicit,
     pinEdgeRaw,
     angleExplicit
   };
 }
 
-function parseQuoteToken(raw: string): ParsedQuoteToken | null {
+function parseQuoteToken(raw: string, absoluteFrom: number): ParsedQuoteToken | null {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("\"")) {
     return null;
@@ -519,7 +632,34 @@ function parseQuoteToken(raw: string): ParsedQuoteToken | null {
   return {
     text,
     optionsRaw: optionsRaw.trim(),
-    hasApostrophe
+    hasApostrophe,
+    textSpan: {
+      from: absoluteFrom + 1,
+      to: absoluteFrom + cursor
+    }
+  };
+}
+
+function resolveOptionValueStartOffset(entry: Extract<OptionEntry, { kind: "kv" }>): number {
+  const relative = entry.raw.indexOf(entry.valueRaw);
+  if (relative >= 0) {
+    return entry.span.from + relative;
+  }
+  return entry.span.from;
+}
+
+function resolveAdornmentTextSpan(rawValue: string, textRaw: string, absoluteFrom: number): Span {
+  const normalized = textRaw.trim();
+  const relative = normalized.length > 0 ? rawValue.indexOf(normalized) : -1;
+  if (relative >= 0) {
+    return {
+      from: absoluteFrom + relative,
+      to: absoluteFrom + relative + normalized.length
+    };
+  }
+  return {
+    from: absoluteFrom,
+    to: absoluteFrom + rawValue.length
   };
 }
 
@@ -616,6 +756,17 @@ function resolveAdornmentDistance(
   return resolved;
 }
 
+function hasAdornmentDistanceOverride(
+  options: OptionListAst | undefined,
+  kind: "label" | "pin"
+): boolean {
+  if (!options) {
+    return false;
+  }
+  const key = kind === "label" ? "label distance" : "pin distance";
+  return options.entries.some((entry) => entry.kind === "kv" && entry.key === key);
+}
+
 function resolvePinEdgeRaw(options: OptionListAst | undefined, fallback: string | null): string | null {
   if (!options) {
     return fallback;
@@ -637,7 +788,10 @@ function sanitizeAdornmentOptions(options: OptionListAst | undefined): OptionLis
 
   const filtered: OptionEntry[] = [];
   for (const entry of options.entries) {
-    if (entry.kind === "flag" && CONTROL_OPTION_FLAGS.has(entry.key)) {
+    if (entry.kind === "flag" && (CONTROL_OPTION_FLAGS.has(entry.key) || ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key))) {
+      continue;
+    }
+    if (entry.kind === "kv" && ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key)) {
       continue;
     }
     if (entry.kind === "kv" && CONTROL_OPTION_KEYS.has(entry.key)) {

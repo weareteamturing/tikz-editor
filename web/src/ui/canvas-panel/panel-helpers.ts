@@ -49,6 +49,16 @@ export function collectSelectionBounds(
   return selections;
 }
 
+export function rectHitRegionsForTargetId(
+  hitRegions: readonly HitRegion[],
+  targetId: string
+): Array<Extract<HitRegion, { shape: "rect" }>> {
+  return hitRegions.filter(
+    (candidate): candidate is Extract<HitRegion, { shape: "rect" }> =>
+      candidate.shape === "rect" && candidate.targetId === targetId
+  );
+}
+
 export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, Bounds> {
   const boundsBySource = new Map<string, Bounds>();
 
@@ -56,11 +66,12 @@ export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBo
     const bounds = elementBoundsInSvg(element, viewBox);
     if (!bounds) continue;
 
-    const existing = boundsBySource.get(element.sourceId);
+    const targetId = element.adornment?.targetId ?? element.sourceId;
+    const existing = boundsBySource.get(targetId);
     if (!existing) {
-      boundsBySource.set(element.sourceId, bounds);
+      boundsBySource.set(targetId, bounds);
     } else {
-      boundsBySource.set(element.sourceId, mergeBounds(existing, bounds));
+      boundsBySource.set(targetId, mergeBounds(existing, bounds));
     }
   }
 
@@ -349,12 +360,12 @@ export function isMatrixNodeItem(item: NodeItem): boolean {
 }
 
 export function resolveFallbackTextSourceSpanForSourceId(
-  sourceId: string,
+  targetId: string,
   hitRegions: readonly HitRegion[],
   sceneTextByRegionKey: ReadonlyMap<string, SceneText>
 ): Span | null {
   const candidates = hitRegions
-    .filter((region): region is Extract<HitRegion, { shape: "rect" }> => region.sourceId === sourceId && region.shape === "rect")
+    .filter((region): region is Extract<HitRegion, { shape: "rect" }> => region.targetId === targetId && region.shape === "rect")
     .map((region) => sceneTextByRegionKey.get(region.key))
     .filter((sceneText): sceneText is SceneText => sceneText != null);
 
@@ -377,14 +388,14 @@ export function resolveFallbackTextSourceSpanForSourceId(
 }
 
 export function resolveEditableTextTargetForSelectionOffsets(
-  sourceId: string,
+  targetId: string,
   anchorOffset: number,
   headOffset: number,
   hitRegions: readonly HitRegion[],
-  resolveEditableTextTarget: (sourceId: string, region: HitRegion | undefined) => EditableTextTarget | null
+  resolveEditableTextTarget: (targetId: string, region: HitRegion | undefined) => EditableTextTarget | null
 ): EditableTextTarget | null {
   const rectRegions = hitRegions.filter(
-    (candidate): candidate is Extract<HitRegion, { shape: "rect" }> => candidate.sourceId === sourceId && candidate.shape === "rect"
+    (candidate): candidate is Extract<HitRegion, { shape: "rect" }> => candidate.targetId === targetId && candidate.shape === "rect"
   );
   if (rectRegions.length === 0) {
     return null;
@@ -395,7 +406,7 @@ export function resolveEditableTextTargetForSelectionOffsets(
   let fallback: EditableTextTarget | null = null;
 
   for (const region of rectRegions) {
-    const target = resolveEditableTextTarget(sourceId, region);
+    const target = resolveEditableTextTarget(targetId, region);
     if (!target) {
       continue;
     }

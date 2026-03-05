@@ -792,6 +792,7 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
   }
 
   const parseSpansById = collectParseSpansById(statements ?? []);
+  const adornmentSpansByTargetId = collectAdornmentSpansByTargetId(elements);
   const bySourceId = new Map<string, SourceSpan>();
   for (const sourceId of sourceIds) {
     const parseSpan = parseSpansById.get(sourceId);
@@ -801,6 +802,9 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
       continue;
     }
     bySourceId.set(sourceId, chosen);
+  }
+  for (const [targetId, span] of adornmentSpansByTargetId) {
+    bySourceId.set(targetId, span);
   }
 
   const sortedByWidth = [...bySourceId.entries()]
@@ -817,6 +821,29 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
     });
 
   return { bySourceId, sortedByWidth };
+}
+
+function collectAdornmentSpansByTargetId(elements: readonly SceneElement[]): Map<string, SourceSpan> {
+  const spans = new Map<string, SourceSpan>();
+  for (const element of elements) {
+    const adornment = element.adornment;
+    if (!adornment || adornment.textSpan.to <= adornment.textSpan.from) {
+      continue;
+    }
+    const existing = spans.get(adornment.targetId);
+    if (!existing) {
+      spans.set(adornment.targetId, {
+        from: adornment.textSpan.from,
+        to: adornment.textSpan.to
+      });
+      continue;
+    }
+    spans.set(adornment.targetId, {
+      from: Math.min(existing.from, adornment.textSpan.from),
+      to: Math.max(existing.to, adornment.textSpan.to)
+    });
+  }
+  return spans;
 }
 
 function collectParseSpansById(statements: readonly Statement[]): Map<string, SourceSpan> {

@@ -274,6 +274,19 @@
   pointer-events: none;
 }
 
+.labelSelectionConnector {
+  fill: none;
+  stroke: rgba(13, 95, 182, 0.45);
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.pinSelectionConnector {
+  fill: none;
+  stroke: rgba(13, 95, 182, 0.8);
+  vector-effect: non-scaling-stroke;
+}
+
 .selectionDragLayer {
   pointer-events: none;
 }

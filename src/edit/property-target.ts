@@ -1,12 +1,14 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
 import { parseTikz } from "../parser/index.js";
 import type { OptionListAst } from "../options/types.js";
+import { extractNodeAdornmentPlan, makeNodeAdornmentTargetId } from "../semantic/path/label-quotes.js";
 
 export type PropertyTargetKind =
   | "figure"
   | "path-statement"
   | "path-keyword"
   | "node-item"
+  | "node-adornment"
   | "to-operation"
   | "edge-operation"
   | "coordinate-operation"
@@ -22,6 +24,19 @@ export type PropertyTarget = {
   options?: OptionListAst;
   optionsSpan?: Span;
   insertOffset: number;
+  optionSpan?: Span;
+  valueSpan?: Span;
+  textSpan?: Span;
+  angleRaw?: string;
+  angleSpan?: Span;
+  distancePt?: number;
+  defaultDistancePt?: number;
+  distanceExplicit?: boolean;
+  pinEdgeRaw?: string | null;
+  ownerId?: string;
+  ownerSourceId?: string;
+  adornmentKind?: "label" | "pin";
+  adornmentIndex?: number;
 };
 
 export type PropertyTargetResolution =
@@ -78,7 +93,7 @@ function findTargetInStatements(statements: Statement[], source: string, element
         return makePathStatementTarget(statement, source);
       }
 
-      const fromItems = findTargetInPathItems(statement.items, source, elementId);
+      const fromItems = findTargetInPathItems(statement.items, source, elementId, statement.id);
       if (fromItems) {
         return fromItems;
       }
@@ -96,7 +111,12 @@ function findTargetInStatements(statements: Statement[], source: string, element
   return null;
 }
 
-function findTargetInPathItems(items: PathItem[], source: string, elementId: string): PropertyTarget | null {
+function findTargetInPathItems(
+  items: PathItem[],
+  source: string,
+  elementId: string,
+  ownerSourceId: string
+): PropertyTarget | null {
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index];
     if (!item) {
@@ -110,12 +130,19 @@ function findTargetInPathItems(items: PathItem[], source: string, elementId: str
     if (item.kind === "Node" && item.id === elementId) {
       return makeNodeTarget(item, source);
     }
+    const nodeAdornment =
+      item.kind === "Node"
+        ? makeNodeAdornmentTarget(item, elementId, source, ownerSourceId)
+        : null;
+    if (nodeAdornment) {
+      return nodeAdornment;
+    }
 
     if (item.kind === "ToOperation") {
       if (item.id === elementId) {
         return makeToLikeOperationTarget("to-operation", item.id, item.span, item.options, item.optionsSpan, /\bto\b/, source);
       }
-      const nestedNode = findTargetInNodeList(item.nodes, source, elementId);
+      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, item.id);
       if (nestedNode) {
         return nestedNode;
       }
@@ -126,7 +153,7 @@ function findTargetInPathItems(items: PathItem[], source: string, elementId: str
       if (item.id === elementId) {
         return makeToLikeOperationTarget("edge-operation", item.id, item.span, item.options, item.optionsSpan, /\bedge\b/, source);
       }
-      const nestedNode = findTargetInNodeList(item.nodes, source, elementId);
+      const nestedNode = findTargetInNodeList(item.nodes, source, elementId, item.id);
       if (nestedNode) {
         return nestedNode;
       }
@@ -150,7 +177,7 @@ function findTargetInPathItems(items: PathItem[], source: string, elementId: str
     }
 
     if (item.kind === "ChildOperation") {
-      const nested = findTargetInPathItems(item.body, source, elementId);
+      const nested = findTargetInPathItems(item.body, source, elementId, ownerSourceId);
       if (nested) {
         return nested;
       }
@@ -160,7 +187,12 @@ function findTargetInPathItems(items: PathItem[], source: string, elementId: str
   return null;
 }
 
-function findTargetInNodeList(nodes: NodeItem[] | undefined, source: string, elementId: string): PropertyTarget | null {
+function findTargetInNodeList(
+  nodes: NodeItem[] | undefined,
+  source: string,
+  elementId: string,
+  ownerSourceId: string
+): PropertyTarget | null {
   if (!nodes || nodes.length === 0) {
     return null;
   }
@@ -168,6 +200,10 @@ function findTargetInNodeList(nodes: NodeItem[] | undefined, source: string, ele
   for (const node of nodes) {
     if (node.id === elementId) {
       return makeNodeTarget(node, source);
+    }
+    const adornment = makeNodeAdornmentTarget(node, elementId, source, ownerSourceId);
+    if (adornment) {
+      return adornment;
     }
   }
   return null;
@@ -200,6 +236,53 @@ function makeNodeTarget(node: NodeItem, source: string): PropertyTarget {
     optionsSpan: node.optionsSpan ?? node.options?.span,
     insertOffset: resolveInsertOffset(source, node.span, /\bnode\b/)
   };
+}
+
+function makeNodeAdornmentTarget(
+  node: NodeItem,
+  elementId: string,
+  source: string,
+  ownerSourceId: string
+): PropertyTarget | null {
+  const plan = extractNodeAdornmentPlan(node.options);
+  if (plan.adornments.length === 0) {
+    return null;
+  }
+
+  for (let index = 0; index < plan.adornments.length; index += 1) {
+    const adornment = plan.adornments[index];
+    if (!adornment) {
+      continue;
+    }
+    const expectedId = makeNodeAdornmentTargetId(node.id, index, adornment.kind);
+    if (expectedId !== elementId) {
+      continue;
+    }
+
+    return {
+      id: elementId,
+      kind: "node-adornment",
+      span: adornment.span,
+      options: adornment.options,
+      optionsSpan: adornment.valueSpan,
+      optionSpan: adornment.span,
+      valueSpan: adornment.valueSpan,
+      textSpan: adornment.textSpan,
+      angleRaw: adornment.angleRaw,
+      angleSpan: adornment.angleSpan,
+      distancePt: adornment.distancePt,
+      defaultDistancePt: adornment.defaultDistancePt,
+      distanceExplicit: adornment.distanceExplicit,
+      pinEdgeRaw: adornment.pinEdgeRaw,
+      insertOffset: adornment.valueSpan.to,
+      ownerId: node.id,
+      ownerSourceId,
+      adornmentKind: adornment.kind,
+      adornmentIndex: index
+    };
+  }
+
+  return null;
 }
 
 function makePathKeywordTarget(item: Extract<PathItem, { kind: "PathKeyword" }>, items: PathItem[], index: number): PropertyTarget {

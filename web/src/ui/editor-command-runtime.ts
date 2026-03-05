@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "tikz-editor/app-menu";
+import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { SessionSnapshot } from "../compute";
 import { useEditorStore } from "../store/store";
 import type { EditorAction, InternalClipboard, ToolMode } from "../store/types";
@@ -47,6 +48,7 @@ type RuntimeInput = {
   showDevPanel: boolean;
   dispatch: Dispatch;
   onOpenExample?: () => void;
+  onAddNodeAdornment?: (kind: "label" | "pin") => void;
 };
 
 export type EditorCommandRuntime = {
@@ -71,7 +73,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showInspectorPanel,
     showDevPanel,
     dispatch,
-    onOpenExample
+    onOpenExample,
+    onAddNodeAdornment
   } = input;
 
   const commandContext = {
@@ -110,6 +113,18 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     }
     void copySvgMarkup(snapshot.svg);
   };
+
+  const singleSelectedId = selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null;
+  const canAddAdornment =
+    singleSelectedId != null &&
+    (() => {
+      const resolved = resolvePropertyTarget(source, singleSelectedId);
+      return (
+        resolved.kind === "found" &&
+        (resolved.target.kind === "node-item" ||
+          (resolved.target.kind === "path-statement" && resolved.target.pathCommand === "node"))
+      );
+    })();
 
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE]: {
@@ -255,6 +270,14 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.INSERT_RECT]: insertBinding("addRect"),
     [APP_MENU_COMMAND_IDS.INSERT_ELLIPSE]: insertBinding("addEllipse"),
     [APP_MENU_COMMAND_IDS.INSERT_CIRCLE]: insertBinding("addCircle"),
+    [APP_MENU_COMMAND_IDS.ADD_LABEL]: {
+      enabled: canAddAdornment && onAddNodeAdornment != null,
+      run: () => onAddNodeAdornment?.("label")
+    },
+    [APP_MENU_COMMAND_IDS.ADD_PIN]: {
+      enabled: canAddAdornment && onAddNodeAdornment != null,
+      run: () => onAddNodeAdornment?.("pin")
+    },
     [APP_MENU_COMMAND_IDS.FIT_TO_CONTENT]: {
       enabled: snapshot.svg != null,
       run: () => dispatch({ type: "REQUEST_FIT_TO_CONTENT" })
@@ -309,7 +332,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   };
 }
 
-export function useEditorCommandRuntime(options: { onOpenExample?: () => void } = {}): EditorCommandRuntime {
+export function useEditorCommandRuntime(
+  options: { onOpenExample?: () => void; onAddNodeAdornment?: (kind: "label" | "pin") => void } = {}
+): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
@@ -344,7 +369,8 @@ export function useEditorCommandRuntime(options: { onOpenExample?: () => void } 
         showInspectorPanel,
         showDevPanel,
         dispatch,
-        onOpenExample: options.onOpenExample
+        onOpenExample: options.onOpenExample,
+        onAddNodeAdornment: options.onAddNodeAdornment
       }),
     [
       source,
@@ -362,7 +388,8 @@ export function useEditorCommandRuntime(options: { onOpenExample?: () => void } 
       showInspectorPanel,
       showDevPanel,
       dispatch,
-      options.onOpenExample
+      options.onOpenExample,
+      options.onAddNodeAdornment
     ]
   );
 }

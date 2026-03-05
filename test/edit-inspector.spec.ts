@@ -20,6 +20,35 @@ import {
 } from "../src/edit/inspector.js";
 
 describe("getInspectorDescriptor", () => {
+  it("returns adornment-specific sections for pins", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin={[pin edge={blue,dashed,line width=1pt}]above:$q_0$}] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const pinText = rendered.semantic.scene.elements.find(
+      (entry) => entry.adornment?.targetId === "node-adornment:node:0:2:pin:0" && entry.kind === "Text"
+    );
+    expect(pinText).toBeDefined();
+    if (!pinText) {
+      throw new Error("Expected a pin text element");
+    }
+
+    const descriptor = getInspectorDescriptor(pinText, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.sections.some((section) => section.id === "adornment")).toBe(true);
+    const pinEdgeSection = descriptor.sections.find((section) => section.id === "pin-edge");
+    expect(pinEdgeSection).toBeDefined();
+    if (!pinEdgeSection) {
+      throw new Error("Expected pin-edge section");
+    }
+    expect(pinEdgeSection.properties.some((property) => property.id === "pin-edge-color")).toBe(true);
+    expect(pinEdgeSection.properties.some((property) => property.id === "pin-edge-line-width")).toBe(true);
+    expect(pinEdgeSection.properties.some((property) => property.id === "pin-edge-dash-style")).toBe(false);
+  });
+
   it("returns computed style sections for a path element", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[draw=blue,fill=yellow,line width=0.8pt,->] (0,0) -- (2,0);

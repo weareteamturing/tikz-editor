@@ -2,6 +2,38 @@ import type { OptionListAst } from "../options/types.js";
 
 export type Span = { from: number; to: number };
 
+export type AdornmentOwnerGeometry = {
+  shape:
+    | "rectangle"
+    | "circle"
+    | "ellipse"
+    | "diamond"
+    | "trapezium"
+    | "semicircle"
+    | "regular polygon"
+    | "star"
+    | "isosceles triangle"
+    | "kite"
+    | "dart"
+    | "circular sector"
+    | "cylinder"
+    | "cloud"
+    | "starburst"
+    | "signal"
+    | "tape"
+    | "rectangle callout"
+    | "ellipse callout"
+    | "cloud callout"
+    | "single arrow"
+    | "double arrow"
+    | "coordinate";
+  center: { x: number; y: number };
+  anchorHalfWidth: number;
+  anchorHalfHeight: number;
+  anchorRadius: number;
+  anchorPolygon?: Array<{ x: number; y: number }>;
+};
+
 export type TikzFigure = {
   kind: "Figure";
   span: Span;
@@ -154,6 +186,22 @@ export type NodeItem = {
   textSource: "group" | "option";
   textSpan: Span;
   text: string;
+  adornment?: {
+    kind: "label" | "pin";
+    ownerNodeId: string;
+    ownerSourceId: string;
+    adornmentIndex: number;
+    optionSpan: Span;
+    valueSpan: Span;
+    textSpan: Span;
+    angleRaw: string;
+    angleSpan?: Span;
+    distancePt: number;
+    defaultDistancePt: number;
+    distanceExplicit: boolean;
+    pinEdgeRaw: string | null;
+    ownerGeometry?: AdornmentOwnerGeometry;
+  };
 };
 
 export type NodeForeachClause = {

@@ -7,6 +7,7 @@ import {
 describe("canvas context menu target resolution", () => {
   it("selects unselected element before opening context menu", () => {
     const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\draw (0,0) -- (1,1);`,
       toolMode: "select",
       clickedSourceId: "path:2",
       selectedElementIds: new Set(["path:1"])
@@ -18,6 +19,7 @@ describe("canvas context menu target resolution", () => {
 
   it("keeps multi-selection when right-clicking an already selected element", () => {
     const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\draw (0,0) -- (1,1);`,
       toolMode: "select",
       clickedSourceId: "path:2",
       selectedElementIds: new Set(["path:1", "path:2"])
@@ -29,6 +31,7 @@ describe("canvas context menu target resolution", () => {
 
   it("clears selection when right-clicking blank canvas", () => {
     const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\draw (0,0) -- (1,1);`,
       toolMode: "select",
       clickedSourceId: null,
       selectedElementIds: new Set(["path:1"])
@@ -40,6 +43,7 @@ describe("canvas context menu target resolution", () => {
 
   it("works in draw mode without requiring a mode switch", () => {
     const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\draw (0,0) -- (1,1);`,
       toolMode: "addRect",
       clickedSourceId: null,
       selectedElementIds: new Set(["path:1"])
@@ -47,6 +51,17 @@ describe("canvas context menu target resolution", () => {
 
     expect(result.target).toBe("canvas-empty");
     expect(result.selectionAction).toEqual({ kind: "clear" });
+  });
+
+  it("recognizes node selections for the node-specific context menu", () => {
+    const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\begin{tikzpicture}\node[draw] (a) at (0,0) {A};\end{tikzpicture}`,
+      toolMode: "select",
+      clickedSourceId: "node:0:3",
+      selectedElementIds: new Set(["node:0:3"])
+    });
+
+    expect(result.target).toBe("selection-single-node");
   });
 });
 

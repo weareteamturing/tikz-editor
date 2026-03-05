@@ -1,4 +1,5 @@
 import type { CanvasContextMenuTarget } from "tikz-editor/context-menu";
+import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { ToolMode } from "../../store/types";
 
 export type ContextMenuSelectionAction =
@@ -7,6 +8,7 @@ export type ContextMenuSelectionAction =
   | { kind: "select-only"; sourceId: string };
 
 export type ResolveCanvasContextMenuTargetInput = {
+  source: string;
   toolMode: ToolMode;
   clickedSourceId: string | null;
   selectedElementIds: ReadonlySet<string>;
@@ -20,7 +22,7 @@ export type ResolveCanvasContextMenuTargetResult = {
 export function resolveCanvasContextMenuTarget(
   input: ResolveCanvasContextMenuTargetInput
 ): ResolveCanvasContextMenuTargetResult {
-  const { clickedSourceId, selectedElementIds } = input;
+  const { clickedSourceId, selectedElementIds, source } = input;
 
   if (!clickedSourceId) {
     return {
@@ -31,15 +33,31 @@ export function resolveCanvasContextMenuTarget(
 
   if (selectedElementIds.has(clickedSourceId)) {
     return {
-      target: selectedElementIds.size > 1 ? "selection-multi" : "selection-single",
+      target:
+        selectedElementIds.size > 1
+          ? "selection-multi"
+          : isNodeContextTarget(source, clickedSourceId)
+            ? "selection-single-node"
+            : "selection-single",
       selectionAction: { kind: "preserve" }
     };
   }
 
   return {
-    target: "selection-single",
+    target: isNodeContextTarget(source, clickedSourceId) ? "selection-single-node" : "selection-single",
     selectionAction: { kind: "select-only", sourceId: clickedSourceId }
   };
+}
+
+function isNodeContextTarget(source: string, targetId: string): boolean {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found") {
+    return false;
+  }
+  return (
+    resolved.target.kind === "node-item" ||
+    (resolved.target.kind === "path-statement" && resolved.target.pathCommand === "node")
+  );
 }
 
 export type ContextMenuAnchor = {

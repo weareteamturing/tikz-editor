@@ -8,6 +8,7 @@ export type HitRegion =
       shape: "path";
       key: string;
       sourceId: string;
+      targetId: string;
       d: string;
       pointerMode: "stroke" | "fill";
       strokeWidth: number;
@@ -16,6 +17,7 @@ export type HitRegion =
       shape: "circle";
       key: string;
       sourceId: string;
+      targetId: string;
       cx: number;
       cy: number;
       r: number;
@@ -26,6 +28,7 @@ export type HitRegion =
       shape: "ellipse";
       key: string;
       sourceId: string;
+      targetId: string;
       cx: number;
       cy: number;
       rx: number;
@@ -38,6 +41,7 @@ export type HitRegion =
       shape: "rect";
       key: string;
       sourceId: string;
+      targetId: string;
       x: number;
       y: number;
       width: number;
@@ -60,6 +64,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
         shape: "path",
         key: `hit:${element.id}`,
         sourceId: element.sourceId,
+        targetId: element.adornment?.targetId ?? element.sourceId,
         d,
         pointerMode: filled ? "fill" : "stroke",
         strokeWidth
@@ -74,6 +79,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
         shape: "circle",
         key: `hit:${element.id}`,
         sourceId: element.sourceId,
+        targetId: element.adornment?.targetId ?? element.sourceId,
         cx: center.x,
         cy: center.y,
         r: element.radius,
@@ -90,6 +96,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
         shape: "ellipse",
         key: `hit:${element.id}`,
         sourceId: element.sourceId,
+        targetId: element.adornment?.targetId ?? element.sourceId,
         cx: center.x,
         cy: center.y,
         rx: element.rx,
@@ -106,6 +113,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       shape: "rect",
       key: `hit:${element.id}`,
       sourceId: element.sourceId,
+      targetId: element.adornment?.targetId ?? element.sourceId,
       x: textGeometry.cx - textGeometry.width / 2,
       y: textGeometry.cy - textGeometry.height / 2,
       width: textGeometry.width,

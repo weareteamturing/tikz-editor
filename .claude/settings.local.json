@@ -6,7 +6,8 @@
       "Bash(npx tsc:*)",
       "Bash(ls:*)",
       "Bash(git show:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

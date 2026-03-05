@@ -1,6 +1,7 @@
 import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
+import { isAdornmentTargetId } from "./editable-targets.js";
 
 export const EDIT_ACTION_IDS = [
   "cut",
@@ -52,6 +53,7 @@ type AvailabilityFacts = {
   selectedMissingBounds: string[];
   selectedMissingHandles: string[];
   selectedUnsupportedSources: string[];
+  hasAdornmentSelection: boolean;
 };
 
 type AvailabilityRule = (facts: AvailabilityFacts) => string | null;
@@ -78,19 +80,27 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
       ? null
       : "Select at least one element to delete.",
   "reorder-sendToBack": (facts) =>
-    facts.selectedSourceIds.length > 0
+    facts.hasAdornmentSelection
+      ? "Adornment selections cannot be reordered."
+      : facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to reorder.",
   "reorder-sendBackward": (facts) =>
-    facts.selectedSourceIds.length > 0
+    facts.hasAdornmentSelection
+      ? "Adornment selections cannot be reordered."
+      : facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to reorder.",
   "reorder-bringForward": (facts) =>
-    facts.selectedSourceIds.length > 0
+    facts.hasAdornmentSelection
+      ? "Adornment selections cannot be reordered."
+      : facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to reorder.",
   "reorder-bringToFront": (facts) =>
-    facts.selectedSourceIds.length > 0
+    facts.hasAdornmentSelection
+      ? "Adornment selections cannot be reordered."
+      : facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to reorder.",
   "align-left": makeAlignRule("left"),
@@ -194,7 +204,8 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
     selectedHandlesBySource,
     selectedMissingBounds,
     selectedMissingHandles,
-    selectedUnsupportedSources
+    selectedUnsupportedSources,
+    hasAdornmentSelection: selectedSourceIds.some((sourceId) => isAdornmentTargetId(sourceId))
   };
 }
 
@@ -216,6 +227,9 @@ function normalizeSourceIds(sourceIds: readonly string[]): string[] {
 
 function makeAlignRule(mode: AlignMode): AvailabilityRule {
   return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be aligned.";
+    }
     const preflight = checkArrangePreconditions(facts, 2);
     if (preflight) {
       return preflight;
@@ -232,6 +246,9 @@ function makeAlignRule(mode: AlignMode): AvailabilityRule {
 
 function makeDistributeRule(axis: DistributeAxis): AvailabilityRule {
   return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be distributed.";
+    }
     const preflight = checkArrangePreconditions(facts, 3);
     if (preflight) {
       return preflight;

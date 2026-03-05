@@ -1,7 +1,7 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import type { NodeTextRenderInfo } from "../../text/types.js";
 import { appendPathPoint, roundClosedPathStartCorner } from "../path/segments.js";
-import type { Point, ResolvedStyle, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
+import type { Point, ResolvedStyle, SceneAdornment, SceneCircle, SceneEllipse, ScenePath, ScenePathCommand, SceneText } from "../types.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
 import {
@@ -35,13 +35,15 @@ export function makeCircleElement(
   radius: number,
   style: ResolvedStyle,
   span: { from: number; to: number },
-  styleChain: StyleChainEntry[] = []
+  styleChain: StyleChainEntry[] = [],
+  adornment?: SceneAdornment
 ): SceneCircle {
   return {
     kind: "Circle",
     id: `scene-circle:${sourceId}:${span.from}`,
     sourceId,
     sourceSpan: span,
+    adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     center,
@@ -62,13 +64,15 @@ export function makeTextElement(
   rotation?: number,
   styleChain: StyleChainEntry[] = [],
   textSourceSpan?: { from: number; to: number },
-  textHasFixedWidth?: boolean
+  textHasFixedWidth?: boolean,
+  adornment?: SceneAdornment
 ): SceneText {
   return {
     kind: "Text",
     id: `scene-text:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    adornment,
     textSourceSpan,
     textHasFixedWidth,
     style: { ...style },
@@ -169,7 +173,8 @@ export function makeNodeBoxElement(
   height: number,
   style: ResolvedStyle,
   span: { from: number; to: number },
-  styleChain: StyleChainEntry[] = []
+  styleChain: StyleChainEntry[] = [],
+  adornment?: SceneAdornment
 ): ScenePath {
   const halfWidth = width / 2;
   const halfHeight = height / 2;
@@ -207,6 +212,7 @@ export function makeNodeBoxElement(
     id: `scene-node-box:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     commands
@@ -221,13 +227,15 @@ export function makeNodeEllipseElement(
   height: number,
   style: ResolvedStyle,
   span: { from: number; to: number },
-  styleChain: StyleChainEntry[] = []
+  styleChain: StyleChainEntry[] = [],
+  adornment?: SceneAdornment
 ): SceneEllipse {
   return {
     kind: "Ellipse",
     id: `scene-node-ellipse:${sourceId}:${itemId}`,
     sourceId,
     sourceSpan: span,
+    adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     center,

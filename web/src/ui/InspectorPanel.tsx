@@ -290,10 +290,11 @@ export function InspectorPanel() {
   const selectedElements = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
     for (const element of snapshot.scene?.elements ?? []) {
-      if (!selectedIds.has(element.sourceId) || bySource.has(element.sourceId)) {
+      const targetId = element.adornment?.targetId ?? element.sourceId;
+      if (!selectedIds.has(targetId) || bySource.has(targetId)) {
         continue;
       }
-      bySource.set(element.sourceId, element);
+      bySource.set(targetId, element);
     }
 
     return selectedSourceIds
@@ -1128,6 +1129,26 @@ export function InspectorPanel() {
     }
   }
 
+  function renderSingleTextField(property: Extract<InspectorProperty, { kind: "text" }>): JSX.Element {
+    const writable = property.write.writable && property.write.elementId.length > 0;
+    const readOnlyReason = property.readOnlyReason ?? property.write.reason ?? null;
+    return (
+      <div>
+        <div className={css.propertyLabel}>{property.label}</div>
+        <div className={css.controlRow}>
+          <input
+            className={css.textInput}
+            type="text"
+            value={property.value}
+            disabled={!writable}
+            onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
+          />
+        </div>
+        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
   function handleMultiNumberChange(property: Extract<MultiInspectorProperty, { kind: "number" }>, raw: string): void {
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
@@ -1924,6 +1945,9 @@ export function InspectorPanel() {
     const capabilityReadOnlyReason =
       capability.status === "unsupported" ? capability.reason : null;
     const readOnlyReason = (() => {
+      if (property.kind === "text") {
+        return property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+      }
       if (property.kind === "number") {
         return property.readOnlyReason ?? property.write?.reason ?? capabilityReadOnlyReason;
       }
@@ -1935,6 +1959,14 @@ export function InspectorPanel() {
       }
       return property.write.reason ?? capabilityReadOnlyReason;
     })();
+
+    if (property.kind === "text") {
+      return (
+        <div key={property.id} className={propertyClassName}>
+          {renderSingleTextField(property)}
+        </div>
+      );
+    }
 
     if (property.kind === "number") {
       return (
@@ -1961,7 +1993,7 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applyNodeInnerSepValue(property.write, next);
+                applySetProperty(property.write, `${formatNumber(next)}pt`);
               }}
             />
             <span className={css.unitLabel}>{property.unit}</span>
@@ -2526,7 +2558,10 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applyNodeInnerSepValueMany(property.writes, next);
+                applySetPropertyMany(
+                  property.writes,
+                  `${formatNumber(next)}pt`
+                );
               }}
             />
             <span className={css.unitLabel}>{property.unit}</span>

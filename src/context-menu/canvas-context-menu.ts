@@ -171,6 +171,68 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       items: REORDER_ITEMS
     }
   ],
+  "selection-single-node": [
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNDO,
+      label: "Undo",
+      accelerator: "CmdOrCtrl+Z"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REDO,
+      label: "Redo",
+      accelerator: "CmdOrCtrl+Shift+Z"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.CUT,
+      label: "Cut",
+      accelerator: "CmdOrCtrl+X"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.COPY,
+      label: "Copy",
+      accelerator: "CmdOrCtrl+C"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.PASTE,
+      label: "Paste",
+      accelerator: "CmdOrCtrl+V"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DELETE,
+      label: "Delete",
+      accelerator: "Delete"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+      label: "Duplicate",
+      accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.ADD_LABEL,
+      label: "Add Label"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.ADD_PIN,
+      label: "Add Pin"
+    },
+    { kind: "separator" },
+    {
+      kind: "submenu",
+      label: "Reorder",
+      items: REORDER_ITEMS
+    }
+  ],
   "selection-multi": [
     {
       kind: "command",

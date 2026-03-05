@@ -61,6 +61,20 @@ describe("semantic dependencies / dom diff hints", () => {
     expect(fromOpaque.reachedOpaque).toBe(true);
     expect(fromOpaque.opaqueSourceIds).toContain(opaqueSources[0]!);
   });
+
+  it("keeps directly changed sources affected even when they have no dependency node", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L] at (0,0) {A};
+\end{tikzpicture}`;
+    const result = evaluateSemantic(source);
+
+    const invalidation = collectGeometryInvalidation(result.dependencies, {
+      changedSourceIds: ["path:0"]
+    });
+
+    expect(invalidation.reachedOpaque).toBe(false);
+    expect(invalidation.affectedSourceIds).toContain("path:0");
+  });
 });
 
 function sourceIdsProducingCoordinate(

@@ -5,6 +5,8 @@ import {
   resolveStatementRefs,
   statementSnippet
 } from "tikz-editor/edit/statement-ops";
+import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
+import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import type { EditorAction, InternalClipboard } from "../store/types";
 
@@ -40,12 +42,10 @@ export async function copySelection(
     return false;
   }
 
-  const refs = selectedStatementRefs(context.source, context.selectedElementIds);
-  if (refs.length === 0) {
+  const snippets = selectedSnippets(context.source, context.selectedElementIds);
+  if (snippets.length === 0) {
     return false;
   }
-
-  const snippets = refs.map((ref) => statementSnippet(context.source, ref));
   const plainText = snippets.join("\n");
   context.dispatch({
     type: "SET_INTERNAL_CLIPBOARD",
@@ -74,6 +74,17 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
   }
 
   const ids = [...context.selectedElementIds];
+  if (ids.length === 1 && parseEditableTargetId(ids[0]!).kind === "node-adornment") {
+    context.dispatch({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "deleteAdornment",
+        targetId: ids[0]!
+      }
+    });
+    context.dispatch({ type: "CLEAR_SELECTION" });
+    return true;
+  }
   context.dispatch({
     type: "APPLY_EDIT_ACTION",
     action: ids.length === 1
@@ -132,6 +143,16 @@ export function duplicateSelection(context: SelectionCommandContext): boolean {
   }
 
   const ids = [...context.selectedElementIds];
+  if (ids.length === 1 && parseEditableTargetId(ids[0]!).kind === "node-adornment") {
+    context.dispatch({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "duplicateAdornment",
+        targetId: ids[0]!
+      }
+    });
+    return true;
+  }
   context.dispatch({
     type: "APPLY_EDIT_ACTION",
     action: {
@@ -266,13 +287,51 @@ export function actionAvailability(
   return availabilityFor(context, internalClipboard);
 }
 
+function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string>): string[] {
+  if (selectedElementIds.size === 0) {
+    return [];
+  }
+
+  const statementIds: string[] = [];
+  const snippets: string[] = [];
+  for (const id of selectedElementIds) {
+    const parsed = parseEditableTargetId(id);
+    if (parsed.kind === "node-adornment") {
+      const resolved = resolvePropertyTarget(source, id);
+      if (resolved.kind === "found" && resolved.target.optionSpan) {
+        const snippet = source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to).trim();
+        if (snippet.length > 0) {
+          snippets.push(snippet);
+        }
+      }
+      continue;
+    }
+    statementIds.push(id);
+  }
+
+  if (statementIds.length > 0) {
+    const snapshot = parseStatementSnapshot(source);
+    const refs = resolveStatementRefs(snapshot, statementIds);
+    refs.sort((left, right) => {
+      if (left.span.from !== right.span.from) {
+        return left.span.from - right.span.from;
+      }
+      return left.span.to - right.span.to;
+    });
+    snippets.push(...refs.map((ref) => statementSnippet(source, ref)));
+  }
+
+  return snippets;
+}
+
 function selectedStatementRefs(source: string, selectedElementIds: ReadonlySet<string>) {
   if (selectedElementIds.size === 0) {
     return [];
   }
 
+  const statementIds = [...selectedElementIds].filter((id) => parseEditableTargetId(id).kind === "statement");
   const snapshot = parseStatementSnapshot(source);
-  const refs = resolveStatementRefs(snapshot, [...selectedElementIds]);
+  const refs = resolveStatementRefs(snapshot, statementIds);
   refs.sort((left, right) => {
     if (left.span.from !== right.span.from) {
       return left.span.from - right.span.from;

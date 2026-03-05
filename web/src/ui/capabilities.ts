@@ -56,6 +56,10 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
 };
 
 const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityCheck[]> = {
+  text: [
+    { feature: "options_structured", layers: ["edit"], label: "text option editing" },
+    { feature: "svg_text", layers: ["semantic", "svg"], label: "text rendering" }
+  ],
   number: [
     { feature: "options_structured", layers: ["edit"], label: "transform option editing" }
   ],
