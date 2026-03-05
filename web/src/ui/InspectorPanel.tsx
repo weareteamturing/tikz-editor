@@ -1730,7 +1730,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<NodeShapePresetId, "custom">) => void,
-    valueOverride?: NodeShapeDropdownValue
+    valueOverride?: NodeShapeDropdownValue,
+    onHoverPreview?: (value: Exclude<NodeShapePresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: NodeShapeDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toNodeShapeDropdownOptions(property.options);
@@ -1747,6 +1749,14 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableNodeShapeValue(nextValue) || !onHoverPreview) {
+            onHoverPreviewEnd?.();
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => <span>{displayLabel}</span>}
       />
     );
@@ -1761,7 +1771,9 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
-    valueOverride?: NodeFontSizeDropdownValue
+    valueOverride?: NodeFontSizeDropdownValue,
+    onHoverPreview?: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
+    onHoverPreviewEnd?: () => void
   ) {
     const dropdownValue: NodeFontSizeDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toNodeFontSizeDropdownOptions(property.options);
@@ -1778,6 +1790,14 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
+        onOptionHover={(nextValue) => {
+          if (!writable || !isSelectableNodeFontSizeValue(nextValue) || !onHoverPreview) {
+            onHoverPreviewEnd?.();
+            return;
+          }
+          onHoverPreview(nextValue);
+        }}
+        onOptionHoverEnd={onHoverPreviewEnd}
         renderValue={() => <span>{displayLabel}</span>}
         renderOption={(option) => {
           const ptLabel = nodeFontSizePresetPtLabel(option.value as Exclude<NodeFontSizePresetId, "custom">);
@@ -1810,7 +1830,9 @@ export function InspectorPanel() {
     onFamilyChange: (family: NodeFontFamilyId) => void,
     onWeightToggle: () => void,
     onStyleToggle: () => void,
-    onSizePresetChange: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void
+    onSizePresetChange: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
+    onSizePresetHoverPreview?: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
+    onSizePresetHoverPreviewEnd?: () => void
   ) {
     const boldActive = !property.weightMixed && property.weight === "bold";
     const italicActive = !property.styleMixed && property.style === "italic";
@@ -1884,7 +1906,9 @@ export function InspectorPanel() {
               },
               writable,
               onSizePresetChange,
-              sizeValue
+              sizeValue,
+              onSizePresetHoverPreview,
+              onSizePresetHoverPreviewEnd
             )}
           </div>
         </div>
@@ -1950,6 +1974,7 @@ export function InspectorPanel() {
 
     if (property.kind === "nodeShape") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `node-shape:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -1960,7 +1985,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyNodeShapeValue(property.write, nextValue)
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyNodeShapeValue(property.write, nextValue)
+              ),
+            undefined,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyNodeShapeValue(property.write, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -1970,6 +2004,7 @@ export function InspectorPanel() {
 
     if (property.kind === "nodeFont") {
       const writable = property.write.writable && capability.status !== "unsupported";
+      const previewOwnerKey = `node-font-size:${property.write.elementId}:${property.id}`;
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -2013,13 +2048,31 @@ export function InspectorPanel() {
                 customSizePt: property.customSizePt
               }),
             (nextSizePreset) =>
-              applyNodeFontValue(property.write, property.context, {
-                family: property.family,
-                weight: property.weight,
-                style: property.style,
-                sizePreset: nextSizePreset,
-                customSizePt: property.customSizePt
-              })
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyNodeFontValue(property.write, property.context, {
+                  family: property.family,
+                  weight: property.weight,
+                  style: property.style,
+                  sizePreset: nextSizePreset,
+                  customSizePt: property.customSizePt
+                })
+              ),
+            (nextSizePreset) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyNodeFontValue(
+                  property.write,
+                  property.context,
+                  {
+                    family: property.family,
+                    weight: property.weight,
+                    style: property.style,
+                    sizePreset: nextSizePreset,
+                    customSizePt: property.customSizePt
+                  },
+                  { recordInHistory: false }
+                )
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2489,6 +2542,7 @@ export function InspectorPanel() {
       const dropdownValue: NodeShapeDropdownValue = property.mixed
         ? NODE_SHAPE_MIXED_OPTION_VALUE
         : property.value;
+      const previewOwnerKey = `multi-node-shape:${property.id}`;
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -2499,8 +2553,16 @@ export function InspectorPanel() {
               options: property.options
             },
             writable,
-            (nextValue) => applyNodeShapeValueMany(property.writes, nextValue),
-            dropdownValue
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyNodeShapeValueMany(property.writes, nextValue)
+              ),
+            dropdownValue,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyNodeShapeValueMany(property.writes, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -2512,6 +2574,7 @@ export function InspectorPanel() {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       const nextWeight = property.weightMixed || property.weight === "normal" ? "bold" : "normal";
       const nextStyle = property.styleMixed || property.style === "normal" ? "italic" : "normal";
+      const previewOwnerKey = `multi-node-font-size:${property.id}`;
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
@@ -2543,9 +2606,23 @@ export function InspectorPanel() {
                 style: nextStyle
               }),
             (nextSizePreset) =>
-              applyNodeFontValueMany(property.writes, property.contexts, {
-                sizePreset: nextSizePreset
-              })
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyNodeFontValueMany(property.writes, property.contexts, {
+                  sizePreset: nextSizePreset
+                })
+              ),
+            (nextSizePreset) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyNodeFontValueMany(
+                  property.writes,
+                  property.contexts,
+                  {
+                    sizePreset: nextSizePreset
+                  },
+                  { recordInHistory: false }
+                )
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
           )}
           {property.notes.map((note) => (
             <div key={`${property.id}:${note}`} className={css.propertyNote}>
