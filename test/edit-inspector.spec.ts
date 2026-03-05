@@ -1444,7 +1444,7 @@ describe("getInspectorDescriptor", () => {
     expect(disabled.clearKeys).not.toContain("sharp corners");
   });
 
-  it("shows a node section for node-backed text with shape, inner sep, and font controls", () => {
+  it("shows a node section for node-backed text with shape, inner sep, font, and text color controls", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[circle,inner sep=3pt,font=\Large\bfseries\sffamily] at (0,0) {A};
 \end{tikzpicture}`;
@@ -1470,8 +1470,80 @@ describe("getInspectorDescriptor", () => {
     expect(nodeSection.properties.map((property) => property.kind)).toEqual([
       "nodeShape",
       "length",
-      "nodeFont"
+      "nodeFont",
+      "color"
     ]);
+  });
+
+  it("exposes node text color through the node section using the text key", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,text=red] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+    const textColor = nodeSection.properties.find((property) => property.id === "node-text-color");
+    if (!textColor || textColor.kind !== "color") {
+      throw new Error("Expected node text color property");
+    }
+
+    expect(textColor.syntaxValue).toBe("red");
+    expect(textColor.write.key).toBe("text");
+  });
+
+  it("removes node text color when setProperty receives an empty text value", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[circle,text=red] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+    const textColor = nodeSection.properties.find((property) => property.id === "node-text-color");
+    if (!textColor || textColor.kind !== "color") {
+      throw new Error("Expected node text color property");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: textColor.write.elementId,
+      level: textColor.write.level,
+      key: textColor.write.key,
+      value: "",
+      clearKeys: ["text", "text color"]
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected successful text color reset mutation");
+    }
+
+    expect(result.newSource).not.toContain("text=red");
+    expect(result.newSource).not.toContain("text color=");
   });
 
   it("detects node shape from flags and shape= values, including custom fallback note", () => {

@@ -482,6 +482,28 @@ export function InspectorPanel() {
     return normalized.length > 0 ? [normalized] : undefined;
   }
 
+  function normalizeColorSetPropertyChange(
+    write: SetPropertyWriteTarget,
+    nextValue: string,
+    syntaxValue: string | null
+  ): { value: string; clearKeys?: string[] } {
+    if (write.key === "text" && nextValue === "none") {
+      const clearKeySet = new Set<string>(["text", "text color"]);
+      for (const key of colorSyntaxClearKeys(syntaxValue) ?? []) {
+        clearKeySet.add(key);
+      }
+      return {
+        value: "",
+        clearKeys: [...clearKeySet]
+      };
+    }
+
+    return {
+      value: nextValue,
+      clearKeys: colorSyntaxClearKeys(syntaxValue)
+    };
+  }
+
   function applyArrowTipValue(
     write: ArrowTipWriteTarget,
     side: ArrowTipSide,
@@ -1807,7 +1829,7 @@ export function InspectorPanel() {
               aria-pressed={!property.familyMixed && property.family === "serif"}
               onClick={() => onFamilyChange("serif")}
             >
-              <RiFontSerif size={14} />
+              <RiFontSerif size={13} />
             </button>
             <button
               type="button"
@@ -1817,7 +1839,7 @@ export function InspectorPanel() {
               aria-pressed={!property.familyMixed && property.family === "sans"}
               onClick={() => onFamilyChange("sans")}
             >
-              <RiFontSansSerif size={14} />
+              <RiFontSansSerif size={13} />
             </button>
             <button
               type="button"
@@ -1827,7 +1849,7 @@ export function InspectorPanel() {
               aria-pressed={!property.familyMixed && property.family === "monospace"}
               onClick={() => onFamilyChange("monospace")}
             >
-              <RiFontMono size={14} />
+              <RiFontMono size={13} />
             </button>
           </div>
           <div className={css.nodeFontButtonGroup} role="group" aria-label="Font style">
@@ -1839,7 +1861,7 @@ export function InspectorPanel() {
               aria-pressed={boldActive}
               onClick={onWeightToggle}
             >
-              <RiBold size={14} />
+              <RiBold size={13} />
             </button>
             <button
               type="button"
@@ -1849,22 +1871,22 @@ export function InspectorPanel() {
               aria-pressed={italicActive}
               onClick={onStyleToggle}
             >
-              <RiItalic size={14} />
+              <RiItalic size={13} />
             </button>
           </div>
-        </div>
-        <div className={css.nodeFontSizeRow}>
-          {renderNodeFontSizeDropdown(
-            {
-              label: `${property.label} size`,
-              value: property.sizePreset,
-              options: property.sizeOptions,
-              customSizePt: property.customSizePt
-            },
-            writable,
-            onSizePresetChange,
-            sizeValue
-          )}
+          <div className={css.nodeFontSizeRow}>
+            {renderNodeFontSizeDropdown(
+              {
+                label: `${property.label} size`,
+                value: property.sizePreset,
+                options: property.sizeOptions,
+                customSizePt: property.customSizePt
+              },
+              writable,
+              onSizePresetChange,
+              sizeValue
+            )}
+          </div>
         </div>
       </div>
     );
@@ -2017,11 +2039,12 @@ export function InspectorPanel() {
             options={property.options}
             namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
-            onChange={(nextValue) =>
-              applySetProperty(property.write, nextValue, {
-                clearKeys: colorSyntaxClearKeys(property.syntaxValue)
-              })
-            }
+            onChange={(nextValue) => {
+              const change = normalizeColorSetPropertyChange(property.write, nextValue, property.syntaxValue);
+              applySetProperty(property.write, change.value, {
+                clearKeys: change.clearKeys
+              });
+            }}
           />
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2547,11 +2570,16 @@ export function InspectorPanel() {
             options={property.options}
             namedColorSwatches={projectNamedColorSwatches}
             disabled={!writable}
-            onChange={(nextValue) =>
-              applySetPropertyMany(property.writes, nextValue, {
-                clearKeys: colorSyntaxClearKeys(property.syntaxValue)
-              })
-            }
+            onChange={(nextValue) => {
+              const firstWrite = property.writes[0];
+              if (!firstWrite) {
+                return;
+              }
+              const change = normalizeColorSetPropertyChange(firstWrite, nextValue, property.syntaxValue);
+              applySetPropertyMany(property.writes, change.value, {
+                clearKeys: change.clearKeys
+              });
+            }}
           />
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>

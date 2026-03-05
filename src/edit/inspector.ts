@@ -1581,6 +1581,15 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           context: nodeInspectorState.font.context,
           note: nodeInspectorState.font.note,
           write: makeSetPropertyWriteTarget(inlineTarget, nodeInspectorState.font.context.key)
+        },
+        {
+          kind: "color",
+          id: "node-text-color",
+          label: "Text color",
+          value: textColor,
+          syntaxValue: textColorSyntax,
+          options: colorOptionsForValue(textColor),
+          write: makeSetPropertyWriteTarget(inlineTarget, "text")
         }
       ]
     });
@@ -2002,7 +2011,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
   }
 
-  if (element.kind === "Text") {
+  if (element.kind === "Text" && !nodeInspectorState) {
     sections.push({
       id: "text",
       title: "Text",
