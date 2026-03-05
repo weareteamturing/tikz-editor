@@ -1,4 +1,5 @@
 import { resolvePropertyTarget } from "../property-target.js";
+import { normalizeOptionKey } from "../option-key.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../../semantic/style-chain.js";
 import { normalizeColor, resolveDefineColorModel } from "../../semantic/style/colors.js";
@@ -321,8 +322,4 @@ export function colorOptionsForValue(value: string | null): string[] {
     return COLOR_OPTIONS;
   }
   return [value, ...COLOR_OPTIONS];
-}
-
-function normalizeOptionKey(key: string): string {
-  return key.trim().toLowerCase();
 }

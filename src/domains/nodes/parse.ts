@@ -6,6 +6,7 @@ import { parseForeachHeaderRaw, stripForeachCommandPrefix } from "../../foreach/
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
 import { findFirstChildByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
+import { stripWrappingBraces } from "../../utils/braces.js";
 
 export function mapNodeItem(node: SyntaxNode, source: string, statementIndex: number, itemIndex: number): NodeItem {
   const raw = source.slice(node.from, node.to);
@@ -505,37 +506,4 @@ function trimCoordinateShell(raw: string): string {
     return trimmed.slice(1, -1).trim();
   }
   return trimmed;
-}
-
-function stripWrappingBraces(valueRaw: string): string {
-  let value = valueRaw.trim();
-  while (value.startsWith("{") && value.endsWith("}") && isWrappedBySingleBracePair(value)) {
-    value = value.slice(1, -1).trim();
-  }
-  return value;
-}
-
-function isWrappedBySingleBracePair(raw: string): boolean {
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return false;
-      }
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
 }

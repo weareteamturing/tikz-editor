@@ -51,6 +51,8 @@ import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { identityMatrix } from "./transform.js";
 import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
+import { parseBooleanishNormalized } from "../utils/booleanish.js";
+import { stripWrappingBraces } from "../utils/braces.js";
 import type {
   Bounds,
   EditHandle,
@@ -2618,49 +2620,9 @@ function resolveOptionValueStartOffset(entry: Extract<OptionListAst["entries"][n
 }
 
 function parseBoolish(raw: string): boolean | null {
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "0") {
-    return false;
-  }
-  return null;
-}
-
-function stripWrappingBraces(raw: string): string {
-  let value = raw.trim();
-  while (value.startsWith("{") && value.endsWith("}") && isWrappedBySingleBracePair(value)) {
-    value = value.slice(1, -1).trim();
-  }
-  return value;
+  return parseBooleanishNormalized(raw);
 }
 
 function normalizeLabelPinPosition(raw: string): string {
   return stripWrappingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function isWrappedBySingleBracePair(raw: string): boolean {
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return false;
-      }
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
 }

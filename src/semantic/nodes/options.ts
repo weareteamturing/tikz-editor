@@ -7,6 +7,7 @@ import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import type { ResolvedStyle } from "../types.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
 
@@ -480,12 +481,5 @@ export function resolveNodeLayer(options: PathOptionItem["options"] | undefined,
 }
 
 function parseBoolish(raw: string): boolean | null {
-  const normalized = normalizeOptionValue(raw).toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "0") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(normalizeOptionValue(raw));
 }

@@ -1,7 +1,8 @@
-import type { NodeItem, PathItem, Statement } from "../ast/types.js";
+import type { NodeItem } from "../ast/types.js";
 import type { ParseTikzResult } from "../parser/index.js";
 import { parseOptionListRaw } from "../options/parse.js";
 import { readBalancedBlock } from "../semantic/style/option-utils.js";
+import { walkStatements } from "../ast/walk.js";
 
 export type DocumentSymbols = {
   nodeNames: string[];
@@ -27,7 +28,14 @@ export function collectSymbols(snapshot: SymbolSnapshot): DocumentSymbols {
   const coordinateNames = new Set<string>();
   const styleNames = new Set<string>();
 
-  collectSymbolsFromStatements(parseResult.figure.body, nodeNames, coordinateNames);
+  walkStatements(parseResult.figure.body, {
+    onNode: (node) => {
+      collectNodeIdentifiers(node, nodeNames);
+    },
+    onCoordinateOperation: (item) => {
+      addTrimmedSymbol(coordinateNames, item.name);
+    }
+  });
   collectStandaloneNodeCommandNamesFromSource(parseResult.source, nodeNames);
   collectStyleSymbolsFromSource(parseResult.source, styleNames);
 
@@ -36,59 +44,6 @@ export function collectSymbols(snapshot: SymbolSnapshot): DocumentSymbols {
     styleNames: [...styleNames].sort(compareSymbolName),
     coordinateNames: [...coordinateNames].sort(compareSymbolName)
   };
-}
-
-function collectSymbolsFromStatements(
-  statements: readonly Statement[],
-  nodeNames: Set<string>,
-  coordinateNames: Set<string>
-): void {
-  for (const statement of statements) {
-    if (statement.kind === "Path") {
-      collectSymbolsFromPathItems(statement.items, nodeNames, coordinateNames);
-      continue;
-    }
-
-    if (statement.kind === "Scope") {
-      collectSymbolsFromStatements(statement.body, nodeNames, coordinateNames);
-    }
-  }
-}
-
-function collectSymbolsFromPathItems(
-  items: readonly PathItem[],
-  nodeNames: Set<string>,
-  coordinateNames: Set<string>
-): void {
-  for (const item of items) {
-    if (item.kind === "Node") {
-      collectNodeIdentifiers(item, nodeNames);
-      continue;
-    }
-
-    if (item.kind === "CoordinateOperation") {
-      addTrimmedSymbol(coordinateNames, item.name);
-      continue;
-    }
-
-    if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
-      for (const node of item.nodes) {
-        collectNodeIdentifiers(node, nodeNames);
-      }
-      continue;
-    }
-
-    if (item.kind === "EdgeFromParentOperation" && item.nodes) {
-      for (const node of item.nodes) {
-        collectNodeIdentifiers(node, nodeNames);
-      }
-      continue;
-    }
-
-    if (item.kind === "ChildOperation") {
-      collectSymbolsFromPathItems(item.body, nodeNames, coordinateNames);
-    }
-  }
 }
 
 function collectNodeIdentifiers(node: NodeItem, nodeNames: Set<string>): void {

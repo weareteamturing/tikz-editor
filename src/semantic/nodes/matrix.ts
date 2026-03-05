@@ -9,6 +9,7 @@ import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
 import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
 import type { Point, ResolvedStyle, SceneElement } from "../types.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
   applyNodeBoxPaintMode,
@@ -1307,14 +1308,7 @@ function makeMatrixLayout(width: number, height: number): NodeLayout {
 }
 
 function parseBoolish(raw: string): boolean | null {
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(raw, { allowOnOff: true });
 }
 
 function dedupeNames(names: string[]): string[] {

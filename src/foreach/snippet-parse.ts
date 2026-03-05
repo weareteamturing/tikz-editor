@@ -1,5 +1,6 @@
 import type { PathItem, Statement } from "../ast/types.js";
 import { parseTikz } from "../parser/index.js";
+import { isWrappedBySingleBracePair } from "../utils/braces.js";
 
 export type ForeachSnippetParseResult<T> = {
   value: T;
@@ -55,29 +56,9 @@ export function parseNodeItemsFromTemplate(nodeTemplateRaw: string): ForeachSnip
 }
 
 function stripWrappingBraces(raw: string): string {
-  if (!raw.startsWith("{") || !raw.endsWith("}")) {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}") || !isWrappedBySingleBracePair(trimmed)) {
     return raw;
   }
-
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return raw;
-      }
-    }
-  }
-
-  return raw.slice(1, -1).trim();
+  return trimmed.slice(1, -1).trim();
 }

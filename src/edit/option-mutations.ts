@@ -4,6 +4,7 @@ import { NAMED_COLORS } from "../semantic/style/constants.js";
 import { replaceSpan } from "./patch.js";
 import type { PropertyTarget } from "./property-target.js";
 import type { SourcePatch } from "./types.js";
+import { normalizeOptionKey as normalizeSharedOptionKey } from "./option-key.js";
 
 export type OptionMutation =
   | { kind: "set"; value: string }
@@ -142,9 +143,7 @@ export function rewriteOptionListMutations(
   return `[${parts.join(", ")}]`;
 }
 
-export function normalizeOptionKey(key: string): string {
-  return key.trim().toLowerCase();
-}
+export const normalizeOptionKey = normalizeSharedOptionKey;
 
 export function serializeOptionEntry(
   key: string,

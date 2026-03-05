@@ -6,6 +6,7 @@ import {
   normalizeInspectorColorValue,
   resolveColorSyntaxValue
 } from "./inspector/color-syntax.js";
+import { normalizeOptionKey } from "./option-key.js";
 import {
   clampRoundedCornersRadius,
   computePathRoundedCornersMax,
@@ -32,6 +33,7 @@ import type {
   SceneElement,
   ScenePathCommand
 } from "../semantic/types.js";
+import { parseBooleanishNormalized } from "../utils/booleanish.js";
 export { TIKZPICTURE_GLOBAL_TARGET_ID } from "./property-target.js";
 
 export type ArrowTipPresetId =
@@ -2435,14 +2437,11 @@ function findTopLevelOpenBracket(input: string): number {
 }
 
 function parseInspectorBoolean(raw: string): boolean | null {
-  const normalized = stripEnclosingBraces(raw).trim().toLowerCase();
-  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "none" || normalized === "no" || normalized === "off" || normalized === "0") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(stripEnclosingBraces(raw), {
+    allowOnOff: true,
+    allowNoneAsFalse: true,
+    empty: true
+  });
 }
 
 function fillShadingPresetFromActivationKey(key: string): FillShadingPresetId | null {
@@ -2693,14 +2692,7 @@ function resolvePathMorphingDecorationPreset(
 }
 
 function parseDecorationBoolean(raw: string): boolean | null {
-  const normalized = stripEnclosingBraces(raw).trim().toLowerCase();
-  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(stripEnclosingBraces(raw), { allowOnOff: true, empty: true });
 }
 
 function parseDecorationNameFromOptionValue(valueRaw: string): string | null {
@@ -3593,10 +3585,6 @@ function sanitizeTransformInspectorValues(values: TransformInspectorValues): Tra
 
 function normalizeTinyNumber(value: number): number {
   return Math.abs(value) <= 1e-9 ? 0 : value;
-}
-
-function normalizeOptionKey(key: string): string {
-  return key.trim().toLowerCase();
 }
 
 function canonicalDecorationName(raw: string | null | undefined): string | null {

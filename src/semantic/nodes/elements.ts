@@ -886,7 +886,10 @@ function makeNodePolygonElement(
   span: { from: number; to: number },
   styleChain: StyleChainEntry[] = []
 ): ScenePath {
-  const first = corners[0] ?? { x: 0, y: 0 };
+  const first = corners[0];
+  if (!first) {
+    throw new Error("Node polygon geometry requires at least one corner.");
+  }
   const commands: ScenePathCommand[] = [{ kind: "M", to: first }];
   for (let index = 1; index < corners.length; index += 1) {
     commands.push({ kind: "L", to: corners[index] });
@@ -925,7 +928,7 @@ function makeNodeMultiPolygonElement(
   }
 
   if (commands.length === 0) {
-    commands.push({ kind: "M", to: { x: 0, y: 0 } }, { kind: "Z" });
+    throw new Error("Node multi-polygon geometry requires at least one non-empty polygon.");
   }
 
   return {

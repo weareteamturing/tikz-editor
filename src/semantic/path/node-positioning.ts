@@ -6,6 +6,8 @@ import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import { applyMatrixToVector } from "../transform.js";
 import type { Matrix2D, Point } from "../types.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
+import { normalizeOptionValue } from "./shared.js";
 
 export type PositioningDirection =
   | "above"
@@ -476,45 +478,5 @@ function toCoordinateRaw(raw: string): string {
 }
 
 function parseBoolish(raw: string): boolean | null {
-  const normalized = normalizeOptionValue(raw).toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "0") {
-    return false;
-  }
-  return null;
-}
-
-function normalizeOptionValue(raw: string): string {
-  let value = raw.trim();
-  while (value.startsWith("{") && value.endsWith("}") && isWrappedBySingleBracePair(value)) {
-    value = value.slice(1, -1).trim();
-  }
-  return value;
-}
-
-function isWrappedBySingleBracePair(raw: string): boolean {
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return false;
-      }
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
+  return parseBooleanishNormalized(normalizeOptionValue(raw));
 }

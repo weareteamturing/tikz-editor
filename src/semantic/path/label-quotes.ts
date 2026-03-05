@@ -13,6 +13,7 @@ import { applyNameScope } from "../nodes/named-coordinates.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 import { findTopLevelCharacter, readBalancedBlock, parseStyleValueAsOptionList } from "../style/option-utils.js";
 import type { Point } from "../types.js";
+import { stripWrappingBraces } from "../../utils/braces.js";
 
 type QuotesMode = NodeQuotesMode;
 
@@ -988,39 +989,6 @@ function optionListFromEntries(entries: OptionEntry[], span: Span, raw: string):
     raw: raw.length > 0 ? raw : `[${entries.map((entry) => entry.raw).join(", ")}]`,
     entries
   };
-}
-
-function stripWrappingBraces(valueRaw: string): string {
-  let value = valueRaw.trim();
-  while (value.startsWith("{") && value.endsWith("}") && isWrappedBySingleBracePair(value)) {
-    value = value.slice(1, -1).trim();
-  }
-  return value;
-}
-
-function isWrappedBySingleBracePair(raw: string): boolean {
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return false;
-      }
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
 }
 
 function normalizeText(raw: string): string {

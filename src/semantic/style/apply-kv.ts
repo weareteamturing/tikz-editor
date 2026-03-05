@@ -19,6 +19,7 @@ import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName, typ
 import { parseDashPattern, parseDashValue } from "./dash.js";
 import { normalizeOptionValue, parseAxisVector, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
 import { parsePatternValue } from "./patterns.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
   const currentColor = style.textColor ?? style.stroke ?? style.fill ?? "black";
   return normalizeColor(valueRaw, { currentColor, resolveAlias: resolveColorAlias });
@@ -1087,14 +1088,7 @@ function applyDecorationSetting(
 }
 
 function parseDecorationBoolean(raw: string): boolean | null {
-  const normalized = normalizeOptionValue(raw).toLowerCase();
-  if (normalized === "" || normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(normalizeOptionValue(raw), { allowOnOff: true, empty: true });
 }
 
 function parseDecorationAction(baseDecoration: DecorationStyle, valueRaw: string): DecorationStyle | null {

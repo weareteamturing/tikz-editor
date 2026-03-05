@@ -5,6 +5,7 @@ import { parseCoordinate } from "../../domains/coordinates/parse.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import type { SemanticContext } from "../context.js";
 import { normalizeOptionValue } from "./utils.js";
+import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 
 export type ShapeGeometryParams = {
   diamondAspect: number;
@@ -1612,21 +1613,11 @@ function parseIntegerOption(raw: string): number | null {
   if (numeric == null) {
     return null;
   }
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
   return Math.round(numeric);
 }
 
 function parseBoolishOption(raw: string): boolean | null {
-  const normalized = normalizeOptionValue(raw).toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "1" || normalized === "on") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "0" || normalized === "off") {
-    return false;
-  }
-  return null;
+  return parseBooleanishNormalized(normalizeOptionValue(raw), { allowOnOff: true });
 }
 
 function parseKiteVertexAngles(raw: string): { upper: number; lower: number } | null {
@@ -1657,10 +1648,11 @@ function parseRandomStarburstOption(raw: string): number | null {
   if (normalized.length === 0) {
     return null;
   }
-  if (normalized === "true" || normalized === "yes" || normalized === "1" || normalized === "on") {
+  const boolish = parseBooleanishNormalized(normalized, { allowOnOff: true });
+  if (boolish === true) {
     return Math.floor(Math.random() * 0x7fffffff) + 1;
   }
-  if (normalized === "false" || normalized === "no" || normalized === "0" || normalized === "off") {
+  if (boolish === false) {
     return 0;
   }
   const numeric = parseNumericOption(normalized);
@@ -1697,11 +1689,8 @@ function parseTapeBendStyle(raw: string, fallback: TapeBendStyle): TapeBendStyle
   if (normalized === "out and in") {
     return "out and in";
   }
-  if (normalized === "none" || normalized === "false" || normalized === "off" || normalized === "0") {
+  if (parseBooleanishNormalized(normalized, { allowOnOff: true, allowNoneAsFalse: true }) === false) {
     return "none";
-  }
-  if (normalized === "true" || normalized === "on" || normalized === "1" || normalized === "yes") {
-    return fallback;
   }
   return fallback;
 }

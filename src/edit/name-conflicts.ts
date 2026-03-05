@@ -1,6 +1,7 @@
 import type { PathItem, Statement } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
 import { parseTikz } from "../parser/index.js";
+import { isWrappedBySingleBracePair } from "../utils/braces.js";
 
 const DECLARATION_OPTION_KEY_PATTERN = /\b(?:name|alias|name\s+path(?:\s+(?:global|local))?)\s*=\s*/iu;
 const DECLARATION_OPTION_KEY_REGEX = /(\b(?:name|alias|name\s+path(?:\s+(?:global|local))?)\s*=\s*)(\{[^{}]*\}|\([^()]*\)|[^,\]\s]+)/giu;
@@ -317,31 +318,6 @@ function normalizeNameToken(raw: string): string {
     value = value.slice(1, -1).trim();
   }
   return value.trim();
-}
-
-function isWrappedBySingleBracePair(raw: string): boolean {
-  let depth = 0;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === "\\") {
-      index += 1;
-      continue;
-    }
-    if (char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0 && index !== raw.length - 1) {
-        return false;
-      }
-      if (depth < 0) {
-        return false;
-      }
-    }
-  }
-  return depth === 0;
 }
 
 function escapeRegExp(value: string): string {

@@ -644,10 +644,13 @@ function makeEllipseAnchorPolygon(rx: number, ry: number, steps = 64): Point[] {
 }
 
 function trapeziumAnchorOffset(anchor: string, polygon: Point[], baseLineY: number, midLineY: number): Point {
-  const bottomLeft = polygon[0] ?? { x: 0, y: 0 };
-  const topLeft = polygon[1] ?? { x: 0, y: 0 };
-  const topRight = polygon[2] ?? { x: 0, y: 0 };
-  const bottomRight = polygon[3] ?? { x: 0, y: 0 };
+  const bottomLeft = polygon[0];
+  const topLeft = polygon[1];
+  const topRight = polygon[2];
+  const bottomRight = polygon[3];
+  if (!bottomLeft || !topLeft || !topRight || !bottomRight) {
+    return polygonShapeAnchorOffset(anchor, polygon, baseLineY, midLineY);
+  }
 
   if (anchor === "bottom left corner") {
     return bottomLeft;

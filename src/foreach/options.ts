@@ -2,6 +2,7 @@ import { splitAllAtTopLevel } from "../domains/coordinates/parse.js";
 import type { Span } from "../ast/types.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { parseQuantityExpression } from "../semantic/coords/parse-length.js";
+import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { expandForeachList } from "./list.js";
 import { substituteForeachBindings } from "./substitute.js";
 import type { ForeachExpansionDiagnostic, ForeachIterationBinding } from "./types.js";
@@ -322,14 +323,7 @@ function pushUnsupportedOptionDiagnostic(config: ForeachOptionsConfig, entry: Op
 }
 
 function parseBoolean(raw: string, fallback: boolean): boolean {
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "true" || normalized === "yes" || normalized === "on" || normalized === "1") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "no" || normalized === "off" || normalized === "0") {
-    return false;
-  }
-  return fallback;
+  return parseBooleanishNormalized(raw, { allowOnOff: true }) ?? fallback;
 }
 
 function formatNumber(value: number): string {

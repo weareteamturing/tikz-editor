@@ -1,8 +1,9 @@
 import type { Tree } from "@lezer/common";
 
 import type { Diagnostic } from "../diagnostics/types.js";
-import type { NodeItem, PathItem, Statement } from "../ast/types.js";
+import type { NodeItem, Statement } from "../ast/types.js";
 import { FeatureFlags } from "../ast/features.js";
+import { walkStatements } from "../ast/walk.js";
 import { fromCst } from "../transform/cst-to-ast.js";
 import type { TikzFigure } from "../ast/types.js";
 import { parseSyntax } from "../syntax/parse.js";
@@ -72,36 +73,12 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
 
 function collectNodeItems(statements: Statement[]): NodeItem[] {
   const nodes: NodeItem[] = [];
-  for (const statement of statements) {
-    if (statement.kind === "Path") {
-      collectPathNodes(statement.items, nodes);
-      continue;
+  walkStatements(statements, {
+    onNode: (node) => {
+      nodes.push(node);
     }
-    if (statement.kind === "Scope") {
-      nodes.push(...collectNodeItems(statement.body));
-    }
-  }
+  });
   return nodes;
-}
-
-function collectPathNodes(items: PathItem[], target: NodeItem[]): void {
-  for (const item of items) {
-    if (item.kind === "Node") {
-      target.push(item);
-      continue;
-    }
-    if ((item.kind === "ToOperation" || item.kind === "EdgeOperation") && item.nodes) {
-      target.push(...item.nodes);
-      continue;
-    }
-    if (item.kind === "EdgeFromParentOperation" && item.nodes) {
-      target.push(...item.nodes);
-      continue;
-    }
-    if (item.kind === "ChildOperation") {
-      collectPathNodes(item.body, target);
-    }
-  }
 }
 
 export type { Diagnostic } from "../diagnostics/types.js";
