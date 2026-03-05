@@ -419,6 +419,7 @@ export function HitRegionLayer({
   editableTextRegionKeys,
   draggableSourceIds,
   onElementPointerDown,
+  onElementContextMenu,
   onElementDoubleClick,
   onHoverChange
 }: {
@@ -428,6 +429,7 @@ export function HitRegionLayer({
   editableTextRegionKeys: ReadonlySet<string>;
   draggableSourceIds: ReadonlySet<string>;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onHoverChange: (sourceId: string | null) => void;
 }) {
@@ -464,6 +466,7 @@ export function HitRegionLayer({
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
               onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
@@ -485,6 +488,7 @@ export function HitRegionLayer({
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
               onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
@@ -512,6 +516,7 @@ export function HitRegionLayer({
               style={cursor ? { cursor } : undefined}
               pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
               onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+              onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
@@ -536,6 +541,7 @@ export function HitRegionLayer({
             style={cursor ? { cursor } : undefined}
             pointerEvents={toolMode === "select" ? "all" : "none"}
             onPointerDown={(event) => onElementPointerDown(event, region.sourceId, region)}
+            onContextMenu={(event) => onElementContextMenu(event, region.sourceId, region)}
             onDoubleClick={(event) => onElementDoubleClick(event, region.sourceId, region)}
             onPointerEnter={onEnter}
             onPointerLeave={onLeave}
@@ -644,13 +650,15 @@ export function SelectionDragLayer({
   selectionBoxes,
   dragStrokeWidth,
   draggableSourceIds,
-  onElementPointerDown
+  onElementPointerDown,
+  onElementContextMenu
 }: {
   toolMode: ToolMode;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
   dragStrokeWidth: number;
   draggableSourceIds: ReadonlySet<string>;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
 }) {
   if (toolMode !== "select" || selectionBoxes.length === 0) {
     return null;
@@ -670,6 +678,7 @@ export function SelectionDragLayer({
               points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
               strokeWidth={dragStrokeWidth}
               onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
+              onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
             />
           );
         }
@@ -684,6 +693,7 @@ export function SelectionDragLayer({
             height={Math.max(0.001, bounds.maxY - bounds.minY)}
             strokeWidth={dragStrokeWidth}
             onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
+            onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
           />
         );
       })}
@@ -697,6 +707,7 @@ export function HandleOverlay({
   handleStrokeWidth,
   onHandlePointerDown,
   onElementPointerDown,
+  onElementContextMenu,
   onResizeHandlePointerDown
 }: {
   handleDisplays: readonly HandleDisplay[];
@@ -704,6 +715,7 @@ export function HandleOverlay({
   handleStrokeWidth: number;
   onHandlePointerDown: (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => void;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onResizeHandlePointerDown: (
     event: ReactPointerEvent<SVGElement>,
     sourceId: string,
@@ -720,6 +732,8 @@ export function HandleOverlay({
             : display.kind === "move-element"
               ? onElementPointerDown(event, display.elementId)
               : onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor);
+        const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
+          onElementContextMenu(event, display.kind === "move-handle" ? display.handle.sourceId : display.elementId);
 
         if (
           display.kind === "move-handle" &&
@@ -735,6 +749,7 @@ export function HandleOverlay({
               strokeWidth={handleStrokeWidth}
               style={{ cursor: display.cursor }}
               onPointerDown={onPointerDown}
+              onContextMenu={onContextMenu}
             />
           );
         }
@@ -750,6 +765,7 @@ export function HandleOverlay({
             strokeWidth={handleStrokeWidth}
             style={{ cursor: display.cursor }}
             onPointerDown={onPointerDown}
+            onContextMenu={onContextMenu}
           />
         );
       })}

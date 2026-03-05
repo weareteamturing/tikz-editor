@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+import { APP_MENU_COMMAND_IDS } from "../src/app-menu/index.js";
+import { CANVAS_CONTEXT_MENU_DEFINITION } from "../src/context-menu/index.js";
+import type { AppMenuItem } from "../src/app-menu/types.js";
+
+describe("canvas context menu definition", () => {
+  it("defines entries for all context menu targets", () => {
+    expect(Object.keys(CANVAS_CONTEXT_MENU_DEFINITION).sort()).toEqual([
+      "canvas-empty",
+      "selection-multi",
+      "selection-single"
+    ]);
+  });
+
+  it("uses only known app command ids", () => {
+    const knownCommandIds = new Set(Object.values(APP_MENU_COMMAND_IDS));
+    const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["canvas-empty"])
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
+
+    for (const commandId of commandIds) {
+      expect(knownCommandIds.has(commandId)).toBe(true);
+    }
+  });
+
+  it("defines canvas-empty with edit and view actions", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["canvas-empty"];
+    const commandIds = collectCommandIds(items);
+
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.UNDO);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.REDO);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.PASTE);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.FIT_TO_CONTENT);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_GRID);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_RULERS);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_GUIDES);
+  });
+
+  it("defines selection-single with reorder submenu", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single"];
+    const reorder = items.find((item) => item.kind === "submenu" && item.label === "Reorder");
+
+    expect(reorder).toBeDefined();
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Align")).toBe(false);
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(false);
+  });
+
+  it("defines selection-multi with align, distribute, and reorder submenus", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"];
+
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Align")).toBe(true);
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(true);
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Reorder")).toBe(true);
+  });
+});
+
+function collectCommandIds(items: readonly AppMenuItem[]): string[] {
+  const result: string[] = [];
+  for (const item of items) {
+    if (item.kind === "command") {
+      result.push(item.commandId);
+      continue;
+    }
+    if (item.kind === "submenu") {
+      result.push(...collectCommandIds(item.items));
+    }
+  }
+  return result;
+}

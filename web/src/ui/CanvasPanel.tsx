@@ -8,6 +8,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
+import type { AppMenuCommandId } from "tikz-editor/app-menu";
+import type { CanvasContextMenuTarget } from "tikz-editor/context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import { applyEditAction, type EditAction, type ResizeRole } from "tikz-editor/edit/actions";
 import { createMathJaxNodeTextEngine } from "tikz-editor/text/mathjax-engine";
@@ -110,6 +112,7 @@ import {
   SnapOverlay,
   ToolPreviewOverlay
 } from "./canvas-panel/overlays";
+import { resolveCanvasContextMenuTarget } from "./canvas-panel/context-menu-target";
 import {
   RESIZE_FRAME_CORNER_ROLES,
   resolveResizeFrameForSource
@@ -118,6 +121,8 @@ import {
   isToolCreateMode,
   type ToolCreateMode
 } from "./tool-config";
+import { CanvasContextMenu } from "./CanvasContextMenu";
+import { useEditorCommandRuntime } from "./editor-command-runtime";
 import {
   addGuide,
   buildAnchoredGridPreviewLines,
@@ -227,6 +232,12 @@ type GuideDragState = {
   overDeleteZone: boolean;
 };
 
+type CanvasContextMenuState = {
+  target: CanvasContextMenuTarget;
+  anchorX: number;
+  anchorY: number;
+};
+
 type SnapDebugOverlayState = {
   atIso: string;
   phase: string;
@@ -326,6 +337,9 @@ export function CanvasPanel() {
   const [textSelectionOverlay, setTextSelectionOverlay] = useState<TextSelectionOverlay | null>(null);
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
+  const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
+
+  const commandRuntime = useEditorCommandRuntime();
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topRulerRef = useRef<SVGSVGElement | null>(null);
@@ -1996,6 +2010,58 @@ export function CanvasPanel() {
     ]
   );
 
+  const openCanvasContextMenuAt = useCallback(
+    (clientX: number, clientY: number, clickedSourceId: string | null) => {
+      const viewport = viewportRef.current;
+      if (!viewport) {
+        return;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const resolution = resolveCanvasContextMenuTarget({
+        toolMode,
+        clickedSourceId,
+        selectedElementIds
+      });
+
+      if (resolution.selectionAction.kind === "clear") {
+        if (selectedElementIds.size > 0) {
+          dispatch({ type: "CLEAR_SELECTION" });
+        }
+      } else if (resolution.selectionAction.kind === "select-only") {
+        dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
+      }
+
+      setContextMenuState({
+        target: resolution.target,
+        anchorX: clientX - rect.left,
+        anchorY: clientY - rect.top
+      });
+      viewport.focus({ preventScroll: true });
+    },
+    [dispatch, selectedElementIds, toolMode]
+  );
+
+  const onElementContextMenu = useCallback(
+    (event: ReactMouseEvent<SVGElement>, sourceId: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setTextSelectionOverlay(null);
+      openCanvasContextMenuAt(event.clientX, event.clientY, sourceId);
+    },
+    [openCanvasContextMenuAt]
+  );
+
+  const onCanvasContextMenu = useCallback(
+    (event: ReactMouseEvent<SVGElement | HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setTextSelectionOverlay(null);
+      openCanvasContextMenuAt(event.clientX, event.clientY, null);
+    },
+    [openCanvasContextMenuAt]
+  );
+
   const onViewportPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       viewportRef.current?.focus({ preventScroll: true });
@@ -2347,6 +2413,13 @@ export function CanvasPanel() {
 
   const onViewportKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape" && contextMenuState) {
+        setContextMenuState(null);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       if (event.key === "Escape") {
         if (toolMode !== "select") {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
@@ -2468,6 +2541,7 @@ export function CanvasPanel() {
     },
     [
       applyActionWithFeedback,
+      contextMenuState,
       dispatch,
       logSnapDebug,
       setDragState,
@@ -3210,6 +3284,7 @@ export function CanvasPanel() {
             viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
             preserveAspectRatio="none"
             onPointerDown={onTopRulerPointerDown}
+            onContextMenu={onCanvasContextMenu}
           >
             <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
             {rulers.topTicks.map((tick, index) => (
@@ -3238,6 +3313,7 @@ export function CanvasPanel() {
             viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
             preserveAspectRatio="none"
             onPointerDown={onLeftRulerPointerDown}
+            onContextMenu={onCanvasContextMenu}
           >
             <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
             {rulers.leftTicks.map((tick, index) => (
@@ -3273,6 +3349,15 @@ export function CanvasPanel() {
           tabIndex={0}
           onKeyDown={onViewportKeyDown}
           onPointerDown={onViewportPointerDown}
+          onContextMenu={(event) => {
+            if (event.defaultPrevented) {
+              return;
+            }
+            if (svgResult && event.target !== event.currentTarget) {
+              return;
+            }
+            onCanvasContextMenu(event);
+          }}
         >
           {!svgResult ? (
             <div className={css.noSvg}>{snapshot.source ? "Computing…" : "No source"}</div>
@@ -3300,6 +3385,7 @@ export function CanvasPanel() {
                 onPointerMove={onInteractionPointerMove}
                 onPointerEnter={onInteractionPointerEnter}
                 onPointerLeave={onInteractionPointerLeave}
+                onContextMenu={onCanvasContextMenu}
               >
                 {gridLines && (
                   <g className={css.gridOverlay}>
@@ -3421,6 +3507,7 @@ export function CanvasPanel() {
                   editableTextRegionKeys={editableTextRegionKeys}
                   draggableSourceIds={draggableSourceIds}
                   onElementPointerDown={onElementPointerDown}
+                  onElementContextMenu={onElementContextMenu}
                   onElementDoubleClick={onElementDoubleClick}
                   onHoverChange={(id) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
                 />
@@ -3438,6 +3525,7 @@ export function CanvasPanel() {
                   dragStrokeWidth={selectionDragStrokeWidth}
                   draggableSourceIds={matrixSelectionSourceIds}
                   onElementPointerDown={onElementPointerDown}
+                  onElementContextMenu={onElementContextMenu}
                 />
 
                 <CurveControlOverlay
@@ -3460,12 +3548,28 @@ export function CanvasPanel() {
                     handleStrokeWidth={handleStrokeWidth}
                     onHandlePointerDown={onHandlePointerDown}
                     onElementPointerDown={onElementPointerDown}
+                    onElementContextMenu={onElementContextMenu}
                     onResizeHandlePointerDown={onResizeHandlePointerDown}
                   />
                 )}
               </svg>
             </div>
           )}
+
+          <CanvasContextMenu
+            open={contextMenuState != null}
+            anchor={{
+              x: contextMenuState?.anchorX ?? 0,
+              y: contextMenuState?.anchorY ?? 0
+            }}
+            target={contextMenuState?.target ?? "canvas-empty"}
+            bindings={commandRuntime.bindings}
+            containerRef={viewportRef}
+            onClose={() => setContextMenuState(null)}
+            onCommandRun={(commandId: AppMenuCommandId, origin) => {
+              commandRuntime.runCommand(commandId, origin);
+            }}
+          />
 
           {warning && (
             <div

@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useRef } from "react";
+import { APP_MENU_COMMAND_IDS } from "tikz-editor/app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
 import { AppMenuBar } from "./AppMenuBar";
@@ -6,17 +7,11 @@ import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
 import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
-import {
-  cutSelection,
-  copySelection,
-  duplicateSelection,
-  isCodeMirrorEventTarget,
-  pasteSelectionAnchor
-} from "./editor-commands";
+import { isCodeMirrorEventTarget } from "./editor-commands";
+import { useEditorCommandRuntime } from "./editor-command-runtime";
 import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
-import { requestSourceFormat } from "./source-sync";
 import css from "./App.module.css";
 
 const SourcePanel = lazy(async () => {
@@ -39,14 +34,12 @@ export function App() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const toolMode = useEditorStore((s) => s.toolMode);
-  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
-  const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const commandRuntime = useEditorCommandRuntime();
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
 
   useEffect(() => {
@@ -144,8 +137,7 @@ export function App() {
 
       const key = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && key === "f") {
-        if (showSourcePanel) {
-          requestSourceFormat({ reason: "shortcut" });
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.FORMAT_TIKZ, "shortcut")) {
           e.preventDefault();
         }
         return;
@@ -153,7 +145,7 @@ export function App() {
 
       // Ctrl+Shift+D: toggle dev panel
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "d") {
-        dispatch({ type: "TOGGLE_DEV_PANEL" });
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_DEV_PANEL, "shortcut");
         e.preventDefault();
         return;
       }
@@ -171,15 +163,6 @@ export function App() {
         return;
       }
 
-      const commandContext = {
-        source,
-        snapshotSource: snapshot.source,
-        scene: snapshot.scene,
-        editHandles: snapshot.editHandles,
-        selectedElementIds,
-        dispatch
-      };
-
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && key === "escape" && toolMode !== "select") {
         dispatch({ type: "SET_TOOL_MODE", mode: "select" });
         e.preventDefault();
@@ -188,28 +171,25 @@ export function App() {
 
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (!e.shiftKey && key === "c") {
-          void copySelection(commandContext);
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.COPY, "shortcut");
           e.preventDefault();
           return;
         }
 
         if (!e.shiftKey && key === "x") {
-          void cutSelection(commandContext);
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.CUT, "shortcut");
           e.preventDefault();
           return;
         }
 
         if (!e.shiftKey && key === "v") {
-          pasteSelectionAnchor({
-            ...commandContext,
-            internalClipboard
-          });
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.PASTE, "shortcut");
           e.preventDefault();
           return;
         }
 
         if (!e.shiftKey && key === "d") {
-          duplicateSelection(commandContext);
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.DUPLICATE, "shortcut");
           e.preventDefault();
           return;
         }
@@ -225,12 +205,12 @@ export function App() {
       }
 
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && key === "z") {
-        dispatch({ type: "UNDO" });
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.UNDO, "shortcut");
         e.preventDefault();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && ((e.shiftKey && key === "z") || (!e.shiftKey && key === "y"))) {
-        dispatch({ type: "REDO" });
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.REDO, "shortcut");
         e.preventDefault();
       }
     }
@@ -238,14 +218,8 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    commandRuntime,
     dispatch,
-    internalClipboard,
-    selectedElementIds,
-    showSourcePanel,
-    snapshot.editHandles,
-    snapshot.scene,
-    snapshot.source,
-    source,
     toolMode
   ]);
 

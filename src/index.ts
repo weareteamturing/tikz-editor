@@ -13,6 +13,7 @@ export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
 export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 export { collectSymbols } from "./completion/index.js";
+export { CANVAS_CONTEXT_MENU_DEFINITION } from "./context-menu/index.js";
 export {
   createSvgExportArtifact,
   normalizeSvgExportFileName,
@@ -53,6 +54,11 @@ export type {
 export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js";
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
 export type { DocumentSymbols } from "./completion/index.js";
+export type {
+  CanvasContextMenuTarget,
+  CanvasContextMenuCommandId,
+  CanvasContextMenuDefinition
+} from "./context-menu/index.js";
 export type { SvgExportArtifact, CreateSvgExportArtifactOptions } from "./export/index.js";
 export type {
   AppMenuDefinition,
