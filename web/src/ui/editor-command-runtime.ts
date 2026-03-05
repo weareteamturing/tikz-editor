@@ -49,6 +49,7 @@ type RuntimeInput = {
   dispatch: Dispatch;
   onOpenExample?: () => void;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
+  onShowCompiledPicture?: () => void;
 };
 
 export type EditorCommandRuntime = {
@@ -74,7 +75,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showDevPanel,
     dispatch,
     onOpenExample,
-    onAddNodeAdornment
+    onAddNodeAdornment,
+    onShowCompiledPicture
   } = input;
 
   const commandContext = {
@@ -134,6 +136,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.EXPORT_TIKZ]: {
       enabled: false,
       run: () => undefined
+    },
+    [APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE]: {
+      enabled: onShowCompiledPicture != null,
+      run: () => onShowCompiledPicture?.()
     },
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD]: {
       enabled: canExport,
@@ -333,7 +339,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 }
 
 export function useEditorCommandRuntime(
-  options: { onOpenExample?: () => void; onAddNodeAdornment?: (kind: "label" | "pin") => void } = {}
+  options: {
+    onOpenExample?: () => void;
+    onAddNodeAdornment?: (kind: "label" | "pin") => void;
+    onShowCompiledPicture?: () => void;
+  } = {}
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
@@ -370,7 +380,8 @@ export function useEditorCommandRuntime(
         showDevPanel,
         dispatch,
         onOpenExample: options.onOpenExample,
-        onAddNodeAdornment: options.onAddNodeAdornment
+        onAddNodeAdornment: options.onAddNodeAdornment,
+        onShowCompiledPicture: options.onShowCompiledPicture
       }),
     [
       source,
@@ -389,7 +400,8 @@ export function useEditorCommandRuntime(
       showDevPanel,
       dispatch,
       options.onOpenExample,
-      options.onAddNodeAdornment
+      options.onAddNodeAdornment,
+      options.onShowCompiledPicture
     ]
   );
 }

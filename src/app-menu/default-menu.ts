@@ -20,6 +20,12 @@ export const APP_MENU_DEFINITION = [
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY,
         label: "Copy SVG"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE,
+        label: "Show Compiled Picture"
       }
     ]
   },
