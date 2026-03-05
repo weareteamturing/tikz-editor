@@ -11,7 +11,7 @@ export type ToolMode =
   | "addCircle"
   | "addArrow"
   | "addBezier";
-export type CanvasDragKind = "element" | "resize" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
+export type CanvasDragKind = "element" | "resize" | "rotate" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
 export type CanvasAid = "grid" | "rulers" | "guides";
 
 export type CanvasTransform = {

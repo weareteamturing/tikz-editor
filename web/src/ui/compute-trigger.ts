@@ -3,7 +3,7 @@ import type { CanvasDragKind } from "../store/types";
 export function dragKindToComputeTrigger(
   dragKind: CanvasDragKind | null
 ): "drag-element" | "drag-handle" | "other" {
-  if (dragKind === "element" || dragKind === "resize") {
+  if (dragKind === "element" || dragKind === "resize" || dragKind === "rotate") {
     return "drag-element";
   }
   if (dragKind === "handle") {

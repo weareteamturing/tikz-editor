@@ -12,6 +12,8 @@ import css from "../CanvasPanel.module.css";
 
 const SNAP_GAP_ARROW_MARKER_ID = "snap-gap-arrow-marker";
 const TOOL_PREVIEW_NODE_RADIUS_PX = 12;
+const ROTATE_GLYPH_PATH_1 = "M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z";
+const ROTATE_GLYPH_PATH_2 = "M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466";
 
 type ToolPreview =
   | { kind: "cursor"; x: number; y: number }
@@ -48,6 +50,17 @@ type HandleDisplay =
       kind: "resize-element";
       elementId: string;
       role: ResizeRole;
+      rotationDeg: number;
+    }
+  | {
+      key: string;
+      x: number;
+      y: number;
+      anchorX: number;
+      anchorY: number;
+      cursor: string;
+      kind: "rotate-element";
+      elementId: string;
     };
 
 type SelectionBoxDisplay =
@@ -708,7 +721,8 @@ export function HandleOverlay({
   onHandlePointerDown,
   onElementPointerDown,
   onElementContextMenu,
-  onResizeHandlePointerDown
+  onResizeHandlePointerDown,
+  onRotateHandlePointerDown
 }: {
   handleDisplays: readonly HandleDisplay[];
   handleHalfSize: number;
@@ -722,6 +736,12 @@ export function HandleOverlay({
     role: ResizeRole,
     cursor: string
   ) => void;
+  onRotateHandlePointerDown: (
+    event: ReactPointerEvent<SVGElement>,
+    sourceId: string,
+    centerWorld: Point,
+    cursor: string
+  ) => void;
 }) {
   return (
     <g className={css.handleOverlay}>
@@ -731,9 +751,52 @@ export function HandleOverlay({
             ? onHandlePointerDown(event, display.handle)
             : display.kind === "move-element"
               ? onElementPointerDown(event, display.elementId)
-              : onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor);
+              : display.kind === "resize-element"
+                ? onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor)
+                : onRotateHandlePointerDown(event, display.elementId, display.centerWorld, display.cursor);
         const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
-          onElementContextMenu(event, display.kind === "move-handle" ? display.handle.sourceId : display.elementId);
+          onElementContextMenu(
+            event,
+            display.kind === "move-handle" ? display.handle.sourceId : display.elementId
+          );
+
+        if (display.kind === "rotate-element") {
+          const rotateCursorClass =
+            display.cursor === "not-allowed" ? css.rotateHandleCursorDisabled : css.rotateHandleCursor;
+          const rotateRadius = handleHalfSize * 1.3;
+          const glyphSize = rotateRadius * 1.4;
+          const glyphScale = glyphSize / 16;
+          return (
+            <g key={display.key}>
+              <line
+                className={`${css.rotateHandleStem} ${rotateCursorClass}`}
+                x1={display.anchorX}
+                y1={display.anchorY}
+                x2={display.x}
+                y2={display.y}
+                strokeWidth={handleStrokeWidth}
+                onPointerDown={onPointerDown}
+                onContextMenu={onContextMenu}
+              />
+              <circle
+                className={`${css.handle} ${css.rotateHandleCircle} ${rotateCursorClass}`}
+                cx={display.x}
+                cy={display.y}
+                r={rotateRadius}
+                strokeWidth={handleStrokeWidth*0.75}
+                onPointerDown={onPointerDown}
+                onContextMenu={onContextMenu}
+              />
+              <g
+                className={css.rotateHandleGlyph}
+                transform={`translate(${fmt(display.x)} ${fmt(display.y)}) scale(${fmt(glyphScale)}) translate(-8 -8)`}
+              >
+                <path d={ROTATE_GLYPH_PATH_1} />
+                <path d={ROTATE_GLYPH_PATH_2} />
+              </g>
+            </g>
+          );
+        }
 
         if (
           display.kind === "move-handle" &&
@@ -763,6 +826,11 @@ export function HandleOverlay({
             width={handleHalfSize * 2}
             height={handleHalfSize * 2}
             strokeWidth={handleStrokeWidth}
+            transform={
+              display.kind === "resize-element" && Math.abs(display.rotationDeg) > 1e-6
+                ? `rotate(${fmt(display.rotationDeg)} ${fmt(display.x)} ${fmt(display.y)})`
+                : undefined
+            }
             style={{ cursor: display.cursor }}
             onPointerDown={onPointerDown}
             onContextMenu={onContextMenu}

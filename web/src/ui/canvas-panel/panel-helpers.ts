@@ -1,5 +1,6 @@
 import type { NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
+import type { OptionListAst } from "tikz-editor/options/types";
 import type {
   EditHandle,
   Point,
@@ -487,6 +488,36 @@ export function findPathStatementById(
   return null;
 }
 
+export function resolveStatementRotateDegrees(statement: Statement | null | undefined): number {
+  if (!statement || statement.kind !== "Path") {
+    return 0;
+  }
+  return resolveRotateDegreesFromOptions(statement.options);
+}
+
+export function resolveRotateDegreesFromOptions(options: OptionListAst | undefined): number {
+  const entries = options?.entries ?? [];
+  let rotate = 0;
+  for (const entry of entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key !== "rotate" && entry.key !== "/tikz/rotate") {
+      continue;
+    }
+    const normalizedRaw = entry.valueRaw.trim();
+    const unwrapped =
+      normalizedRaw.startsWith("{") && normalizedRaw.endsWith("}")
+        ? normalizedRaw.slice(1, -1).trim()
+        : normalizedRaw;
+    const parsed = Number(unwrapped);
+    if (Number.isFinite(parsed)) {
+      rotate = parsed;
+    }
+  }
+  return rotate;
+}
+
 export function resolveScenePathShapeHint(
   path: ScenePath,
   statements: readonly Statement[] | undefined,
@@ -758,7 +789,7 @@ export function dragCursorForState(drag: DragState | null): string | null {
   if (!drag) {
     return null;
   }
-  if (drag.kind === "handle" || drag.kind === "resize") {
+  if (drag.kind === "handle" || drag.kind === "resize" || drag.kind === "rotate") {
     return drag.cursor;
   }
   if (drag.kind === "element") {

@@ -23,6 +23,7 @@ import {
 import type { NodeTextEngine } from "tikz-editor/text/types";
 import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import {
   finalizePrefixWidthTable,
   findNearestPrefixIndexFromTable,
@@ -118,6 +119,7 @@ import {
   RESIZE_FRAME_CORNER_ROLES,
   resolveResizeFrameForSource
 } from "./canvas-panel/resize-frames";
+import { angleDeg, resolveRotateHandlePosition } from "./canvas-panel/rotate-handle";
 import {
   isToolCreateMode,
   type ToolCreateMode
@@ -144,6 +146,8 @@ import {
   previewArrowPoints,
   removeGuide,
   removeGuideValue,
+  findPathStatementById,
+  resolveRotateDegreesFromOptions,
   resolveEditableTextTargetForSelectionOffsets,
   resolveFallbackTextSourceSpanForSourceId,
   resolveScenePathShapeHint,
@@ -188,6 +192,18 @@ type HandleDisplay =
       kind: "resize-element";
       elementId: string;
       role: ResizeRole;
+      rotationDeg: number;
+    }
+  | {
+      key: string;
+      x: number;
+      y: number;
+      anchorX: number;
+      anchorY: number;
+      centerWorld: Point;
+      cursor: string;
+      kind: "rotate-element";
+      elementId: string;
     };
 
 type GridLines = {
@@ -284,6 +300,7 @@ const ZOOM_EXP_FACTOR = 0.0045;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
 const HANDLE_SQUARE_SIZE_PX = 9;
+const ROTATE_HANDLE_OFFSET_PX = 24;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
 const TOOL_PREVIEW_GRID_MAX_LINES = 120;
@@ -735,6 +752,16 @@ export function CanvasPanel() {
 
     const displays: HandleDisplay[] = [];
     const resizeHandleSourceIds = new Set<string>(resizeFrameSourceIds);
+    const singleSelectedSourceId =
+      selectedElementIds.size === 1
+        ? (selectedElementIds.values().next().value ?? null)
+        : null;
+    const rotateHandleSourceId =
+      toolMode === "select" &&
+      singleSelectedSourceId &&
+      resizeHandleSourceIds.has(singleSelectedSourceId)
+        ? singleSelectedSourceId
+        : null;
 
     for (const handle of selectedHandles) {
       if (handle.kind === "node-position") {
@@ -766,6 +793,9 @@ export function CanvasPanel() {
             x: corner.world.x - resizeFrame.centerWorld.x,
             y: corner.world.y - resizeFrame.centerWorld.y
           };
+          const topLeft = resizeFrame.cornersByRole["top-left"].svg;
+          const topRight = resizeFrame.cornersByRole["top-right"].svg;
+          const frameRotationDeg = (Math.atan2(topRight.y - topLeft.y, topRight.x - topLeft.x) * 180) / Math.PI;
           displays.push({
             key: `node-handle:${sourceId}:${role}`,
             x: corner.svg.x,
@@ -776,7 +806,8 @@ export function CanvasPanel() {
                 : resizeCursorForRole(role),
             kind: "resize-element",
             elementId: sourceId,
-            role
+            role,
+            rotationDeg: frameRotationDeg
           });
         }
         continue;
@@ -815,7 +846,8 @@ export function CanvasPanel() {
           cursor: "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
-          role: "top-left"
+          role: "top-left",
+          rotationDeg: 0
         },
         {
           key: `node-handle:${sourceId}:top-right`,
@@ -824,7 +856,8 @@ export function CanvasPanel() {
           cursor: "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
-          role: "top-right"
+          role: "top-right",
+          rotationDeg: 0
         },
         {
           key: `node-handle:${sourceId}:bottom-left`,
@@ -833,7 +866,8 @@ export function CanvasPanel() {
           cursor: "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
-          role: "bottom-left"
+          role: "bottom-left",
+          rotationDeg: 0
         },
         {
           key: `node-handle:${sourceId}:bottom-right`,
@@ -842,13 +876,36 @@ export function CanvasPanel() {
           cursor: "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
-          role: "bottom-right"
+          role: "bottom-right",
+          rotationDeg: 0
         }
       );
     }
 
+    if (rotateHandleSourceId) {
+      const rotateFrame = resizeFramesBySource.get(rotateHandleSourceId) ?? null;
+      if (rotateFrame) {
+        const rotateHandlePosition = resolveRotateHandlePosition(
+          rotateFrame,
+          canvasTransform.scale,
+          ROTATE_HANDLE_OFFSET_PX
+        );
+        displays.push({
+          key: `node-handle:${rotateHandleSourceId}:rotate`,
+          x: rotateHandlePosition.handleSvg.x,
+          y: rotateHandlePosition.handleSvg.y,
+          anchorX: rotateHandlePosition.anchorSvg.x,
+          anchorY: rotateHandlePosition.anchorSvg.y,
+          centerWorld: { ...rotateFrame.centerWorld },
+          cursor: "grab",
+          kind: "rotate-element",
+          elementId: rotateHandleSourceId
+        });
+      }
+    }
+
     return displays;
-  }, [dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult]);
+  }, [canvasTransform.scale, dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult, toolMode]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -1945,6 +2002,121 @@ export function CanvasPanel() {
       selectedElementIds,
       setDragState,
       snapshot.scene,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode
+    ]
+  );
+
+  const resolveRotateWriteTargetId = useCallback(
+    (sourceId: string): string => {
+      const statements = snapshot.parseResult?.figure.body;
+      if (statements) {
+        const statement = findPathStatementById(statements, sourceId);
+        if (statement?.command === "node") {
+          const inlineNode = statement.items.find((item) => item.kind === "Node");
+          if (inlineNode && inlineNode.kind === "Node") {
+            return inlineNode.id;
+          }
+        }
+      }
+
+      const sourceElements = snapshot.scene?.elements.filter((element) => element.sourceId === sourceId) ?? [];
+      const preferredElements = sourceElements.filter((element) => element.kind !== "Text");
+      const candidates = preferredElements.length > 0 ? preferredElements : sourceElements;
+      let fallbackTargetId: string | null = null;
+      for (const element of candidates) {
+        const commandEntry = [...element.styleChain].reverse().find((entry) => entry.kind === "command");
+        const targetId = commandEntry?.sourceRef?.sourceId?.trim();
+        if (!targetId) {
+          continue;
+        }
+        const resolvedTarget = resolvePropertyTarget(source, targetId);
+        if (resolvedTarget.kind !== "found") {
+          continue;
+        }
+        if (resolvedTarget.target.kind === "node-item") {
+          return targetId;
+        }
+        if (resolvedTarget.target.options) {
+          return targetId;
+        }
+        fallbackTargetId ??= targetId;
+      }
+      return fallbackTargetId ?? sourceId;
+    },
+    [snapshot.parseResult, snapshot.scene, source]
+  );
+
+  const onRotateHandlePointerDown = useCallback(
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: Point, cursor: string) => {
+      if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+
+      viewportRef.current?.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopPropagation();
+      setTextSelectionOverlay(null);
+      setNodeAnchorOverlay(null);
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+
+      if (snapshot.source !== source) {
+        setWarning("Wait for recompute to finish before dragging.");
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-start-rotate",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: "rotate",
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(sourceId)) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+      }
+
+      const rotateTargetId = resolveRotateWriteTargetId(sourceId);
+      const resolvedRotateTarget = resolvePropertyTarget(source, rotateTargetId);
+      const baseRotateDeg =
+        resolvedRotateTarget.kind === "found"
+          ? resolveRotateDegreesFromOptions(resolvedRotateTarget.target.options)
+          : 0;
+
+      setSnapLines([]);
+      setDragState({
+        kind: "rotate",
+        pointerId: event.pointerId,
+        elementId: rotateTargetId,
+        cursor: cursor === "not-allowed" ? "not-allowed" : "grabbing",
+        centerWorld,
+        startPointerAngleDeg: angleDeg(centerWorld, world),
+        baseRotateDeg,
+        lastAppliedRotateDeg: baseRotateDeg,
+        historyMergeKey: makeMergeKey("drag-rotate", sourceId, event.pointerId)
+      });
+      logSnapDebug({
+        phase: "drag-start-rotate",
+        snapshotMatchesSource: true,
+        dragKind: "rotate",
+        rawPoint: world,
+        lines: []
+      });
+    },
+    [
+      dispatch,
+      logSnapDebug,
+      resolveRotateWriteTargetId,
+      resolveRotateDegreesFromOptions,
+      selectedElementIds,
+      setDragState,
+      setNodeAnchorOverlay,
       snapshot.source,
       source,
       svgResult,
@@ -3615,6 +3787,7 @@ export function CanvasPanel() {
                     onElementPointerDown={onElementPointerDown}
                     onElementContextMenu={onElementContextMenu}
                     onResizeHandlePointerDown={onResizeHandlePointerDown}
+                    onRotateHandlePointerDown={onRotateHandlePointerDown}
                   />
                 )}
               </svg>

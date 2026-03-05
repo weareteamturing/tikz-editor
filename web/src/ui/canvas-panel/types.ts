@@ -36,6 +36,17 @@ export type DragState =
       historyMergeKey: string;
     }
   | {
+      kind: "rotate";
+      pointerId: number;
+      elementId: string;
+      cursor: string;
+      centerWorld: Point;
+      startPointerAngleDeg: number;
+      baseRotateDeg: number;
+      lastAppliedRotateDeg: number;
+      historyMergeKey: string;
+    }
+  | {
       kind: "handle";
       pointerId: number;
       handleId: string;

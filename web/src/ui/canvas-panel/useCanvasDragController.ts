@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { EditAction } from "tikz-editor/edit/actions";
+import { formatNumber } from "tikz-editor/edit/format";
 import {
   collectSelectionGeometry,
   snapHandlePosition,
@@ -21,6 +22,7 @@ import {
 } from "./interaction-helpers";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
+import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
   ApplyActionFeedback,
@@ -34,6 +36,10 @@ import type {
   TextSelectionOverlay
 } from "./types";
 import { requestSourceSelection } from "../source-sync";
+
+const ROTATE_SHIFT_SNAP_STEP_DEG = 15;
+const ROTATE_SOFT_SNAP_STEP_DEG = 90;
+const ROTATE_SOFT_SNAP_THRESHOLD_DEG = 7;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -373,6 +379,50 @@ export function useCanvasDragController(params: {
           },
           drag.historyMergeKey
         );
+        return;
+      }
+
+      if (drag.kind === "rotate") {
+        setNodeAnchorOverlay(null);
+        setSnapLines([]);
+        const currentPointerAngleDeg = angleDeg(drag.centerWorld, world);
+        const nextRotate = resolveDraggedRotateDeg({
+          baseRotateDeg: drag.baseRotateDeg,
+          startPointerAngleDeg: drag.startPointerAngleDeg,
+          currentPointerAngleDeg,
+          shiftKey: event.shiftKey,
+          ctrlOrMetaKey: ctrlOrMeta,
+          shiftSnapStepDeg: ROTATE_SHIFT_SNAP_STEP_DEG,
+          magneticSnapStepDeg: ROTATE_SOFT_SNAP_STEP_DEG,
+          magneticSnapThresholdDeg: ROTATE_SOFT_SNAP_THRESHOLD_DEG,
+          roundToInteger: true
+        });
+        logSnapDebug({
+          phase: "drag-rotate-move",
+          snapshotMatchesSource: true,
+          dragKind: "rotate",
+          rawPoint: world,
+          lines: []
+        });
+
+        if (Math.abs(normalizeSignedDeg(nextRotate - drag.lastAppliedRotateDeg)) <= 1e-6) {
+          return;
+        }
+
+        const ok = applyActionWithFeedback(
+          {
+            kind: "setProperty",
+            elementId: drag.elementId,
+            level: "command",
+            key: "rotate",
+            value: Math.abs(nextRotate) <= 1e-6 ? "" : formatNumber(nextRotate),
+            clearKeys: ["/tikz/rotate"]
+          },
+          drag.historyMergeKey
+        );
+        if (ok.sourceChanged) {
+          drag.lastAppliedRotateDeg = nextRotate;
+        }
         return;
       }
 
