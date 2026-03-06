@@ -84,11 +84,12 @@ export function measureNodeAnchorExtents(
   defaultPositionFraction?: number
 ): NodeAnchorExtents {
   const frame = context.stack[context.stack.length - 1];
+  const everyNodeStyles = item.adornment ? [] : frame.everyNodeStyles;
   const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
   const effectiveNodeOptions = resolveEffectiveNodeOptions({
     statementOptions: statement.options,
     nodeOptions,
-    everyNodeStyles: frame.everyNodeStyles,
+    everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -111,7 +112,7 @@ export function measureNodeAnchorExtents(
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
     nodeOptions,
-    everyNodeStyles: frame.everyNodeStyles,
+    everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -206,11 +207,12 @@ export function evaluateNodeItem(
 } {
   const frame = context.stack[context.stack.length - 1];
   const effectiveBaseStyleChain = baseStyleChain ?? frame.styleChain;
+  const everyNodeStyles = item.adornment ? [] : frame.everyNodeStyles;
   const nodeOptions = withDefaultNodePosition(item.options, defaultPositionFraction);
   const effectiveNodeOptions = resolveEffectiveNodeOptions({
     statementOptions: statement.options,
     nodeOptions,
-    everyNodeStyles: frame.everyNodeStyles,
+    everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -233,7 +235,7 @@ export function evaluateNodeItem(
   const effectiveNodeLocalOptions = resolveEffectiveNodeOptions({
     statementOptions: undefined,
     nodeOptions,
-    everyNodeStyles: frame.everyNodeStyles,
+    everyNodeStyles,
     everyRectangleNodeStyles: frame.everyRectangleNodeStyles,
     everyCircleNodeStyles: frame.everyCircleNodeStyles,
     everyDiamondNodeStyles: frame.everyDiamondNodeStyles,
@@ -848,6 +850,7 @@ function resolveNodeStyleTrace(params: {
   const frame = params.context.stack[params.context.stack.length - 1];
   const macroTrace = params.context.macroTraceCollector ?? undefined;
   const everyNodeLayers = expandProvenanceOptionLayers(frame.everyNodeStyles, frame, macroTrace);
+  const includeEveryNodeLayers = !params.item.adornment;
   const everyShapeLayers = expandProvenanceOptionLayers(resolveEveryShapeNodeStyleLayers(frame, params.nodeShape), frame, macroTrace);
   const expandedStatementOptions = params.statement.options
     ? expandOptionListMacros([params.statement.options], frame.macroBindings, macroTrace)
@@ -856,13 +859,15 @@ function resolveNodeStyleTrace(params: {
   const commandOptions = [...expandedStatementOptions, ...expandedNodeOptions];
 
   const layers: StyleTraceLayerInput[] = [
-    ...everyNodeLayers.map(
-      (layer): StyleTraceLayerInput => ({
-        kind: "every-node",
-        sourceRef: layer.sourceRef,
-        rawOptions: [layer.options]
-      })
-    ),
+    ...(includeEveryNodeLayers
+      ? everyNodeLayers.map(
+          (layer): StyleTraceLayerInput => ({
+            kind: "every-node",
+            sourceRef: layer.sourceRef,
+            rawOptions: [layer.options]
+          })
+        )
+      : []),
     ...everyShapeLayers.map(
       (layer): StyleTraceLayerInput => ({
         kind: "every-shape",

@@ -169,6 +169,8 @@ export function applyFlagEntry(
 
   if (
     key === "auto" ||
+    key === "every label" ||
+    key === "every pin" ||
     key === "quotes mean label" ||
     key === "quotes mean pin" ||
     key === "every label quotes" ||

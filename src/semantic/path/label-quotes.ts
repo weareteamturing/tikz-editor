@@ -71,13 +71,6 @@ const CONTROL_OPTION_FLAGS = new Set([
   "quotes mean pin"
 ]);
 
-const ADORNMENT_INTERNAL_STYLE_FLAGS = new Set([
-  "every label",
-  "every pin",
-  "every label quotes",
-  "every pin quotes"
-]);
-
 const DIRECTION_SHORTHANDS_TO_POSITION: Record<string, string> = {
   centered: "center",
   above: "90",
@@ -788,10 +781,7 @@ function sanitizeAdornmentOptions(options: OptionListAst | undefined): OptionLis
 
   const filtered: OptionEntry[] = [];
   for (const entry of options.entries) {
-    if (entry.kind === "flag" && (CONTROL_OPTION_FLAGS.has(entry.key) || ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key))) {
-      continue;
-    }
-    if (entry.kind === "kv" && ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key)) {
+    if (entry.kind === "flag" && CONTROL_OPTION_FLAGS.has(entry.key)) {
       continue;
     }
     if (entry.kind === "kv" && CONTROL_OPTION_KEYS.has(entry.key)) {

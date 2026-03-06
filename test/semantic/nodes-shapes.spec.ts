@@ -450,6 +450,27 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(pinEdge).toBeDefined();
     });
 
+    it("does not apply every-node styles to labels and pins", () => {
+      const source = String.raw`\begin{tikzpicture}[every node/.style={circle,draw}]
+    \node[name=a,label=right:L,pin=above:P] at (0,0) {A};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const circles = result.scene.elements.filter(
+        (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Circle" }> => element.kind === "Circle"
+      );
+      expect(circles).toHaveLength(1);
+
+      const byText = new Map(
+        result.scene.elements
+          .filter((element): element is Extract<(typeof result.scene.elements)[number], { kind: "Text" }> => element.kind === "Text")
+          .map((element) => [element.text, element])
+      );
+      expect(byText.get("A")).toBeDefined();
+      expect(byText.get("L")).toBeDefined();
+      expect(byText.get("P")).toBeDefined();
+    });
+
     it("attaches editable adornment metadata to label and pin elements", () => {
       const source = String.raw`\begin{tikzpicture}
     \node[draw,name=a,label=right:L,pin=above:P,"Q" left] at (0,0) {A};
