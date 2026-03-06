@@ -1500,7 +1500,6 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
               value: adornmentState.distancePt,
               step: 0.1,
               unit: "pt",
-              note: adornmentState.distanceExplicit ? undefined : "Using the implicit default until changed.",
               write: makeSetPropertyWriteTarget(inlineTarget, ADORNMENT_DISTANCE_PROPERTY_KEY)
             },
             {

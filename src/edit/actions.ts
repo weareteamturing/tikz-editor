@@ -2521,7 +2521,7 @@ function resolvePathRectangleResizeContext(
     return { kind: "not-rectangle" };
   }
 
-  const sourceElements = elements.filter((element) => element.sourceId === elementId);
+  const sourceElements = elements.filter((element) => element.sourceId === elementId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   if (nonTextElements.length !== 1) {
     return { kind: "not-rectangle" };
@@ -2754,7 +2754,7 @@ function resolvePathShapeResizeContext(
     return { kind: "unsupported", reason: "resizeElement currently supports only node-like or shape-path elements." };
   }
 
-  const sourceElements = elements.filter((element) => element.sourceId === elementId);
+  const sourceElements = elements.filter((element) => element.sourceId === elementId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   const explicitShapeElements = nonTextElements.filter(
     (element): element is SceneCircle | SceneEllipse => element.kind === "Circle" || element.kind === "Ellipse"
@@ -3117,7 +3117,7 @@ function pointDistanceSquared(left: Point, right: Point): number {
 }
 
 function resolveNodeResizeRotationDegrees(elements: readonly SceneElement[], sourceId: string): number {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
   const textElements = sourceElements.filter(
     (element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text"
   );

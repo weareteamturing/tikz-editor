@@ -67,6 +67,7 @@ type SelectionBoxDisplay =
   | {
       key: string;
       sourceId: string;
+      isAdornment: boolean;
       kind: "axis-aligned";
       minX: number;
       minY: number;
@@ -76,9 +77,18 @@ type SelectionBoxDisplay =
   | {
       key: string;
       sourceId: string;
+      isAdornment: boolean;
       kind: "polygon";
       points: ReadonlyArray<{ x: number; y: number }>;
     };
+
+type AdornmentHighlightBox = {
+  key: string;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+};
 
 export function SnapOverlay({
   snapLines,
@@ -452,7 +462,9 @@ export function HitRegionLayer({
         const isHovered = hoveredElementId === region.targetId;
         const cursor =
           toolMode === "select"
-            ? editableTextRegionKeys.has(region.key)
+            ? region.shape === "rect" && region.interactionMode === "move"
+              ? "move"
+              : editableTextRegionKeys.has(region.key)
               ? "text"
               : draggableSourceIds.has(region.targetId)
                 ? "move"
@@ -568,12 +580,14 @@ export function HitRegionLayer({
 export function SelectionOverlay({
   marqueeBounds,
   selectionBoxes,
+  adornmentHighlightBoxes,
   adornmentConnectors,
   selectionStrokeWidth,
   textSelectionVisual
 }: {
   marqueeBounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
+  adornmentHighlightBoxes: ReadonlyArray<AdornmentHighlightBox>;
   adornmentConnectors: ReadonlyArray<{
     key: string;
     kind: "label" | "pin";
@@ -601,6 +615,37 @@ export function SelectionOverlay({
   return (
     <>
       <g className={css.selectionOverlay}>
+        {adornmentHighlightBoxes.map((bounds) => (
+          <rect
+            key={bounds.key}
+            className={css.adornmentSelectionRect}
+            x={bounds.minX}
+            y={bounds.minY}
+            width={Math.max(0.001, bounds.maxX - bounds.minX)}
+            height={Math.max(0.001, bounds.maxY - bounds.minY)}
+            strokeWidth={selectionStrokeWidth}
+          />
+        ))}
+        {selectionBoxes.map((bounds) =>
+          bounds.kind === "polygon" ? (
+            <polygon
+              key={bounds.key}
+              className={bounds.isAdornment ? css.adornmentSelectionRect : css.selectionRect}
+              points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
+              strokeWidth={selectionStrokeWidth}
+            />
+          ) : (
+            <rect
+              key={bounds.key}
+              className={bounds.isAdornment ? css.adornmentSelectionRect : css.selectionRect}
+              x={bounds.minX}
+              y={bounds.minY}
+              width={Math.max(0.001, bounds.maxX - bounds.minX)}
+              height={Math.max(0.001, bounds.maxY - bounds.minY)}
+              strokeWidth={selectionStrokeWidth}
+            />
+          )
+        )}
         {adornmentConnectors.map((connector) => (
           <line
             key={connector.key}
@@ -614,26 +659,6 @@ export function SelectionOverlay({
             strokeWidth={selectionStrokeWidth}
           />
         ))}
-        {selectionBoxes.map((bounds) =>
-          bounds.kind === "polygon" ? (
-            <polygon
-              key={bounds.key}
-              className={css.selectionRect}
-              points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
-              strokeWidth={selectionStrokeWidth}
-            />
-          ) : (
-            <rect
-              key={bounds.key}
-              className={css.selectionRect}
-              x={bounds.minX}
-              y={bounds.minY}
-              width={Math.max(0.001, bounds.maxX - bounds.minX)}
-              height={Math.max(0.001, bounds.maxY - bounds.minY)}
-              strokeWidth={selectionStrokeWidth}
-            />
-          )
-        )}
         {marqueeBounds && (
           <rect
             className={css.marqueeRect}

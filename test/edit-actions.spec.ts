@@ -1303,6 +1303,46 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).not.toContain("minimum height");
   });
 
+  it("resizes nodes with label/pin adornments using only the node geometry", () => {
+    const plainSource = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {A};
+\end{tikzpicture}`;
+    const adornedSource = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L,pin=above:P] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const plainResult = applyEditAction(plainSource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 120, y: 120 }
+    });
+    const adornedResult = applyEditAction(adornedSource, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "bottom-right",
+      newWorld: { x: 120, y: 120 }
+    });
+
+    expect(plainResult.kind).toBe("success");
+    expect(adornedResult.kind).toBe("success");
+    if (plainResult.kind !== "success" || adornedResult.kind !== "success") {
+      return;
+    }
+
+    const extractMinimum = (updatedSource: string, key: "minimum width" | "minimum height") =>
+      updatedSource.match(new RegExp(`${key}=([0-9.]+)pt`))?.[1] ?? null;
+
+    expect(extractMinimum(adornedResult.newSource, "minimum width")).toBe(
+      extractMinimum(plainResult.newSource, "minimum width")
+    );
+    expect(extractMinimum(adornedResult.newSource, "minimum height")).toBe(
+      extractMinimum(plainResult.newSource, "minimum height")
+    );
+    expect(adornedResult.newSource).toContain("label=right:L");
+    expect(adornedResult.newSource).toContain("pin=above:P");
+  });
+
   it("resizes transform-rotated circle statements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rotate=45] (0,0) circle (1cm);

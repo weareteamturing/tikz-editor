@@ -57,7 +57,7 @@ export function resolveResizeFrameForSource(
   viewBox: SvgViewBox,
   pathShapeHintOverride?: ScenePathShapeHint | null
 ): ResizeFrame | null {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   const textElements = sourceElements.filter(
     (element): element is SceneText => element.kind === "Text"

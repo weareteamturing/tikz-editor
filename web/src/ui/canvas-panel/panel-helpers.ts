@@ -1,4 +1,4 @@
-import type { NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
+import type { AdornmentOwnerGeometry, NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { OptionListAst } from "tikz-editor/options/types";
 import type {
@@ -9,6 +9,7 @@ import type {
   ScenePathShapeHint,
   SceneText
 } from "tikz-editor/semantic/types";
+import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 import type { CanvasDragKind } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
@@ -22,6 +23,7 @@ import {
   clamp,
   distanceSquared,
   fmt,
+  rotatePointAroundCenter,
   resizeCursorForVector,
   vectorLengthSquared,
   worldToSvgPoint
@@ -59,10 +61,43 @@ export function rectHitRegionsForTargetId(
   );
 }
 
+export function resolveRectHitRegionContentBox(region: Extract<HitRegion, { shape: "rect" }>): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const width = region.contentWidth ?? region.width;
+  const height = region.contentHeight ?? region.height;
+  return {
+    x: region.cx - width / 2,
+    y: region.cy - height / 2,
+    width,
+    height
+  };
+}
+
+export function isPointInsideRectHitRegionContentBox(
+  point: Point,
+  region: Extract<HitRegion, { shape: "rect" }>
+): boolean {
+  const unrotatedPoint = rotatePointAroundCenter(point, region.cx, region.cy, region.rotation);
+  const contentBox = resolveRectHitRegionContentBox(region);
+  return (
+    unrotatedPoint.x >= contentBox.x &&
+    unrotatedPoint.x <= contentBox.x + contentBox.width &&
+    unrotatedPoint.y >= contentBox.y &&
+    unrotatedPoint.y <= contentBox.y + contentBox.height
+  );
+}
+
 export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBox): Map<string, Bounds> {
   const boundsBySource = new Map<string, Bounds>();
 
   for (const element of elements) {
+    if (element.adornment?.kind === "pin" && element.kind === "Path") {
+      continue;
+    }
     const bounds = elementBoundsInSvg(element, viewBox);
     if (!bounds) continue;
 
@@ -76,6 +111,72 @@ export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBo
   }
 
   return boundsBySource;
+}
+
+export function resolveAdornmentOwnerBoundaryPoint(
+  ownerGeometry: AdornmentOwnerGeometry | undefined,
+  ownerPoint: Point,
+  targetPoint: Point
+): Point {
+  const center = ownerGeometry?.center ?? ownerPoint;
+  const dx = targetPoint.x - center.x;
+  const dy = targetPoint.y - center.y;
+  const radius = Math.hypot(dx, dy);
+  if (radius <= 1e-6 || !ownerGeometry || ownerGeometry.shape === "coordinate") {
+    return center;
+  }
+  const direction = { x: dx / radius, y: dy / radius };
+
+  if (ownerGeometry.anchorPolygon && ownerGeometry.anchorPolygon.length >= 3) {
+    const hit = intersectRayWithPolygon({ x: 0, y: 0 }, direction, ownerGeometry.anchorPolygon);
+    if (hit) {
+      return {
+        x: center.x + hit.x,
+        y: center.y + hit.y
+      };
+    }
+  }
+
+  let borderDistance = 0;
+  if (ownerGeometry.shape === "circle") {
+    borderDistance = Math.max(0, ownerGeometry.anchorRadius);
+  } else if (ownerGeometry.shape === "rectangle") {
+    const hw = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
+    const hh = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
+    const scale = 1 / Math.max(Math.abs(direction.x) / hw, Math.abs(direction.y) / hh);
+    borderDistance = Number.isFinite(scale) ? scale : 0;
+  } else if (ownerGeometry.shape === "ellipse") {
+    const rx = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
+    const ry = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
+    const scale = 1 / Math.sqrt((direction.x * direction.x) / (rx * rx) + (direction.y * direction.y) / (ry * ry));
+    borderDistance = Number.isFinite(scale) ? scale : 0;
+  }
+
+  return {
+    x: center.x + direction.x * borderDistance,
+    y: center.y + direction.y * borderDistance
+  };
+}
+
+export function resolveBoundsEdgePointToward(bounds: Bounds, from: Point): Point {
+  const center = {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2
+  };
+  const vector = {
+    x: from.x - center.x,
+    y: from.y - center.y
+  };
+  const halfWidth = Math.max((bounds.maxX - bounds.minX) / 2, 1e-6);
+  const halfHeight = Math.max((bounds.maxY - bounds.minY) / 2, 1e-6);
+  const scale = Math.max(Math.abs(vector.x) / halfWidth, Math.abs(vector.y) / halfHeight);
+  if (!Number.isFinite(scale) || scale <= 1e-6) {
+    return center;
+  }
+  return {
+    x: center.x + vector.x / scale,
+    y: center.y + vector.y / scale
+  };
 }
 
 export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {
@@ -651,7 +752,7 @@ export function preferredNodeBoundsForSource(
   viewBox: SvgViewBox,
   fallback: Bounds | null
 ): Bounds | null {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
   if (sourceElements.length === 0) {
     return fallback;
   }

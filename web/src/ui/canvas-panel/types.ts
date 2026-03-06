@@ -24,7 +24,6 @@ export type DragState =
       adornmentDrag?: {
         ownerPoint: Point;
         ownerGeometry?: AdornmentOwnerGeometry;
-        pointerOffset: Point;
         allowCenter: boolean;
         defaultDistancePt: number;
       };

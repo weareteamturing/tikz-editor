@@ -276,14 +276,15 @@
 
 .labelSelectionConnector {
   fill: none;
-  stroke: rgba(13, 95, 182, 0.45);
-  stroke-dasharray: 5 4;
+  stroke: rgba(13, 95, 182, 0.82);
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 
 .pinSelectionConnector {
   fill: none;
-  stroke: rgba(13, 95, 182, 0.8);
+  stroke: rgba(13, 95, 182, 0.95);
+  stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 
@@ -332,6 +333,13 @@
   fill: none;
   stroke: rgba(13, 95, 182, 0.9);
   stroke-dasharray: 5 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.adornmentSelectionRect {
+  fill: rgba(13, 95, 182, 0.12);
+  stroke: rgba(13, 95, 182, 0.95);
+  stroke-dasharray: 4 2;
   vector-effect: non-scaling-stroke;
 }
 

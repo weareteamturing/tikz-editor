@@ -115,6 +115,29 @@ describe("resize frame geometry", () => {
     expect(isAabbCorner).toBe(false);
   });
 
+  it("ignores label and pin adornments when resolving node resize frames", () => {
+    const plainSource = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {C};
+\end{tikzpicture}`;
+    const adornedSource = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L,pin=above:P] at (0,0) {C};
+\end{tikzpicture}`;
+
+    const plainFrame = resolveFrame(plainSource, "path:0");
+    const adornedFrame = resolveFrame(adornedSource, "path:0");
+
+    expect(plainFrame).not.toBeNull();
+    expect(adornedFrame).not.toBeNull();
+    if (!plainFrame || !adornedFrame) {
+      return;
+    }
+
+    expect(adornedFrame.boundsSvg.minX).toBeCloseTo(plainFrame.boundsSvg.minX, 6);
+    expect(adornedFrame.boundsSvg.maxX).toBeCloseTo(plainFrame.boundsSvg.maxX, 6);
+    expect(adornedFrame.boundsSvg.minY).toBeCloseTo(plainFrame.boundsSvg.minY, 6);
+    expect(adornedFrame.boundsSvg.maxY).toBeCloseTo(plainFrame.boundsSvg.maxY, 6);
+  });
+
   it("returns null when frame geometry cannot be resolved from handles", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rotate=45] (0,0) circle (1cm);

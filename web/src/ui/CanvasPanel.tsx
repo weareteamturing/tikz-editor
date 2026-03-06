@@ -150,11 +150,15 @@ import {
   findWordRangeAtIndex,
   getHandleCursor,
   isPointInsideRect,
+  isPointInsideRectHitRegionContentBox,
   makeMergeKey,
   moveGuide,
   preferredNodeBoundsForSource,
   previewArrowPoints,
   rectHitRegionsForTargetId,
+  resolveAdornmentOwnerBoundaryPoint,
+  resolveBoundsEdgePointToward,
+  resolveRectHitRegionContentBox,
   removeGuide,
   removeGuideValue,
   findPathStatementById,
@@ -759,6 +763,7 @@ export function CanvasPanel() {
             return {
               key: `selection-box:${sourceId}`,
               sourceId,
+              isAdornment: sourceId.startsWith("node-adornment:"),
               kind: "polygon" as const,
               points: resizeFrame.polygonSvg
             };
@@ -768,6 +773,7 @@ export function CanvasPanel() {
             ? {
                 key: `selection-box:${sourceId}`,
                 sourceId,
+                isAdornment: sourceId.startsWith("node-adornment:"),
                 kind: "axis-aligned" as const,
                 ...bounds
               }
@@ -782,6 +788,16 @@ export function CanvasPanel() {
     if (!snapshot.scene || !svgResult) {
       return [];
     }
+    const highlightedAdornmentTargetIds = new Set<string>();
+    for (const element of snapshot.scene.elements) {
+      const adornment = element.adornment;
+      if (!adornment?.ownerPoint) {
+        continue;
+      }
+      if (selectedElementIds.has(adornment.targetId) || selectedElementIds.has(element.sourceId)) {
+        highlightedAdornmentTargetIds.add(adornment.targetId);
+      }
+    }
     const connectors: Array<{ key: string; kind: "label" | "pin"; x1: number; y1: number; x2: number; y2: number }> = [];
     const seen = new Set<string>();
     for (const element of snapshot.scene.elements) {
@@ -789,7 +805,7 @@ export function CanvasPanel() {
       if (
         !adornment ||
         adornment.kind !== "label" ||
-        !selectedElementIds.has(adornment.targetId) ||
+        !highlightedAdornmentTargetIds.has(adornment.targetId) ||
         !adornment.ownerPoint ||
         seen.has(adornment.targetId)
       ) {
@@ -799,19 +815,55 @@ export function CanvasPanel() {
       if (!bounds) {
         continue;
       }
-      const owner = worldToSvgPoint(adornment.ownerPoint, svgResult.viewBox);
+      const labelCenterWorld = {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: svgResult.viewBox.y + svgResult.viewBox.height - (((bounds.minY + bounds.maxY) / 2) - svgResult.viewBox.y)
+      };
+      const connectorOwnerPoint = resolveAdornmentOwnerBoundaryPoint(
+        adornment.ownerGeometry,
+        adornment.ownerPoint,
+        labelCenterWorld
+      );
+      const owner = worldToSvgPoint(connectorOwnerPoint, svgResult.viewBox);
+      const labelEdge = resolveBoundsEdgePointToward(bounds, owner);
       connectors.push({
         key: `adornment-connector:${adornment.targetId}`,
         kind: adornment.kind,
         x1: owner.x,
         y1: owner.y,
-        x2: (bounds.minX + bounds.maxX) / 2,
-        y2: (bounds.minY + bounds.maxY) / 2
+        x2: labelEdge.x,
+        y2: labelEdge.y
       });
       seen.add(adornment.targetId);
     }
     return connectors;
   }, [selectedElementIds, selectionBoundsBySource, snapshot.scene, svgResult]);
+  const adornmentHighlightBoxes = useMemo(() => {
+    if (!snapshot.scene) {
+      return [];
+    }
+    const boxes: Array<{ key: string; minX: number; minY: number; maxX: number; maxY: number }> = [];
+    const seen = new Set<string>();
+    for (const element of snapshot.scene.elements) {
+      const targetId = element.adornment?.targetId;
+      if (!targetId || seen.has(targetId)) {
+        continue;
+      }
+      if (!selectedElementIds.has(targetId) && !selectedElementIds.has(element.sourceId)) {
+        continue;
+      }
+      const bounds = selectionBoundsBySource.get(targetId);
+      if (!bounds) {
+        continue;
+      }
+      boxes.push({
+        key: `adornment-highlight:${targetId}`,
+        ...bounds
+      });
+      seen.add(targetId);
+    }
+    return boxes;
+  }, [selectedElementIds, selectionBoundsBySource, snapshot.scene]);
   const curveControlLines = useMemo(
     () =>
       snapshot.scene
@@ -1529,10 +1581,10 @@ export function CanvasPanel() {
 
   const resolveEditableTextTarget = useCallback(
     (targetId: string, region: HitRegion | undefined): EditableTextTarget | null => {
-      if (!region || region.shape !== "rect") {
+      if (!region || region.shape !== "rect" || region.interactionMode === "move") {
         return null;
       }
-      const sceneText = sceneTextByRegionKey.get(region.key);
+      const sceneText = sceneTextByRegionKey.get(region.sceneTextKey ?? region.key);
       if (!sceneText) {
         return null;
       }
@@ -1573,6 +1625,9 @@ export function CanvasPanel() {
       return keys;
     }
     for (const region of hitRegions) {
+      if (region.shape === "rect" && region.interactionMode === "move") {
+        continue;
+      }
       if (resolveEditableTextTarget(region.targetId, region)) {
         keys.add(region.key);
       }
@@ -1642,8 +1697,8 @@ export function CanvasPanel() {
       }
 
       const unrotatedPoint = rotatePointAroundCenter(svgPoint, target.region.cx, target.region.cy, target.region.rotation);
-      const left = target.region.cx - target.region.width / 2;
-      const ratio = clamp((unrotatedPoint.x - left) / Math.max(target.region.width, 1e-6), 0, 1);
+      const contentBox = resolveRectHitRegionContentBox(target.region);
+      const ratio = clamp((unrotatedPoint.x - contentBox.x) / Math.max(contentBox.width, 1e-6), 0, 1);
       const units = ratio * target.totalWidth;
       return clamp(
         findNearestPrefixIndexFromTable(units, target.textLength, target.totalWidth, prefixTable),
@@ -1697,6 +1752,10 @@ export function CanvasPanel() {
       }
       const target = resolveEditableTextTarget(targetId, region);
       if (!target) {
+        return false;
+      }
+      const svgPoint = clientToSvgPoint(event.clientX, event.clientY, interactionSvgRef.current);
+      if (!svgPoint || !isPointInsideRectHitRegionContentBox(svgPoint, target.region)) {
         return false;
       }
       const prefixTable = resolvePrefixTableForTarget(target);
@@ -3930,6 +3989,7 @@ export function CanvasPanel() {
                 <SelectionOverlay
                   marqueeBounds={marqueeBounds}
                   selectionBoxes={selectionBoxes}
+                  adornmentHighlightBoxes={adornmentHighlightBoxes}
                   adornmentConnectors={selectedAdornmentConnectors}
                   selectionStrokeWidth={selectionStrokeWidth}
                   textSelectionVisual={textSelectionVisual}

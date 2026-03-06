@@ -45,7 +45,9 @@ const ROTATE_SOFT_SNAP_STEP_DEG = 90;
 const ROTATE_SOFT_SNAP_THRESHOLD_DEG = 7;
 const ADORNMENT_ANGLE_SNAP_STEP_DEG = 45;
 const ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG = 10;
+const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT = 3;
+const ADORNMENT_DISTANCE_STEP_PT = 0.5;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -436,28 +438,20 @@ export function useCanvasDragController(params: {
                 snapshotScene?.elements.filter((element) => element.adornment?.targetId === parsedTarget.id) ?? [];
               const adornmentElement = selectPrimaryAdornmentElement(adornmentElements);
               const ownerPoint = adornmentElement?.adornment?.ownerPoint;
-              const centerWorld = resolveAdornmentCenterWorld(adornmentElements);
-              if (!ownerPoint || !centerWorld) {
+              if (!ownerPoint) {
                 setSnapLines([]);
                 return;
               }
               adornmentDrag = {
                 ownerPoint,
                 ownerGeometry: adornmentElement?.adornment?.ownerGeometry,
-                pointerOffset: {
-                  x: centerWorld.x - drag.startWorld.x,
-                  y: centerWorld.y - drag.startWorld.y
-                },
                 allowCenter: adornmentElement?.adornment?.kind === "label",
                 defaultDistancePt:
                   adornmentElement?.adornment?.defaultDistancePt ?? adornmentElement?.adornment?.distancePt ?? 0
               };
               drag.adornmentDrag = adornmentDrag;
             }
-            const rawWorld = {
-              x: world.x + adornmentDrag.pointerOffset.x,
-              y: world.y + adornmentDrag.pointerOffset.y
-            };
+            const rawWorld = world;
             const placement = resolveAdornmentDragPlacement(rawWorld, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
               allowCenter: adornmentDrag.allowCenter,
               defaultDistancePt: adornmentDrag.defaultDistancePt
@@ -835,40 +829,7 @@ function selectPrimaryAdornmentElement(elements: readonly SceneElement[]): Scene
   );
 }
 
-function resolveAdornmentCenterWorld(elements: readonly SceneElement[]): Point | null {
-  const primary = selectPrimaryAdornmentElement(elements);
-  if (!primary) {
-    return null;
-  }
-  if (primary.kind === "Text") {
-    return primary.position;
-  }
-  if (primary.kind === "Circle" || primary.kind === "Ellipse") {
-    return primary.center;
-  }
-  const path = primary.kind === "Path" ? primary : null;
-  if (!path || path.commands.length === 0) {
-    return null;
-  }
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  for (const command of path.commands) {
-    if (command.kind === "Z") {
-      continue;
-    }
-    minX = Math.min(minX, command.to.x);
-    minY = Math.min(minY, command.to.y);
-    maxX = Math.max(maxX, command.to.x);
-    maxY = Math.max(maxY, command.to.y);
-  }
-  return Number.isFinite(minX) && Number.isFinite(minY) && Number.isFinite(maxX) && Number.isFinite(maxY)
-    ? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
-    : null;
-}
-
-function resolveAdornmentDragPlacement(
+export function resolveAdornmentDragPlacement(
   point: Point,
   ownerPoint: Point,
   ownerGeometry: AdornmentOwnerGeometry | undefined,
@@ -878,7 +839,7 @@ function resolveAdornmentDragPlacement(
   const dx = point.x - center.x;
   const dy = point.y - center.y;
   const radius = Math.sqrt(dx * dx + dy * dy);
-  if (options.allowCenter && radius <= ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
+  if (options.allowCenter && radius <= ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
     return { angleRaw: "center", distancePt: 0 };
   }
 
@@ -898,8 +859,10 @@ function resolveAdornmentDragPlacement(
   let distancePt = Math.max(0, radialDistanceFromCenter - borderDistance);
   if (Math.abs(distancePt - options.defaultDistancePt) <= ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
     distancePt = options.defaultDistancePt;
+  } else {
+    distancePt = Math.round(distancePt / ADORNMENT_DISTANCE_STEP_PT) * ADORNMENT_DISTANCE_STEP_PT;
   }
-  if (options.allowCenter && radialDistanceFromCenter <= borderDistance + ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
+  if (options.allowCenter && radialDistanceFromCenter <= borderDistance + ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
     return { angleRaw: "center", distancePt: 0 };
   }
   return {

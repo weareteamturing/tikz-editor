@@ -2,6 +2,7 @@ import type { SceneElement, ScenePathCommand, SceneText } from "tikz-editor/sema
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
 const HIT_STROKE_PX = 10;
+const ADORNMENT_TEXT_HIT_PADDING_PX = 8;
 
 export type HitRegion =
   | {
@@ -49,6 +50,10 @@ export type HitRegion =
       cx: number;
       cy: number;
       rotation: number;
+      interactionMode?: "move" | "text";
+      sceneTextKey?: string;
+      contentWidth?: number;
+      contentHeight?: number;
     };
 
 export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, scale: number): HitRegion[] {
@@ -109,9 +114,30 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
     }
 
     const textGeometry = textGeometryInSvg(element, viewBox);
+    const sceneTextKey = `hit:${element.id}`;
+    const hitPadding = element.adornment ? ADORNMENT_TEXT_HIT_PADDING_PX / Math.max(scale, 1e-3) : 0;
+    if (element.adornment && hitPadding > 0) {
+      regions.push({
+        shape: "rect",
+        key: `${sceneTextKey}:halo`,
+        sourceId: element.sourceId,
+        targetId: element.adornment.targetId,
+        x: textGeometry.cx - textGeometry.width / 2 - hitPadding,
+        y: textGeometry.cy - textGeometry.height / 2 - hitPadding,
+        width: textGeometry.width + 2 * hitPadding,
+        height: textGeometry.height + 2 * hitPadding,
+        cx: textGeometry.cx,
+        cy: textGeometry.cy,
+        rotation: textGeometry.rotation,
+        interactionMode: "move",
+        sceneTextKey,
+        contentWidth: textGeometry.width,
+        contentHeight: textGeometry.height
+      });
+    }
     regions.push({
       shape: "rect",
-      key: `hit:${element.id}`,
+      key: sceneTextKey,
       sourceId: element.sourceId,
       targetId: element.adornment?.targetId ?? element.sourceId,
       x: textGeometry.cx - textGeometry.width / 2,
@@ -120,7 +146,11 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       height: textGeometry.height,
       cx: textGeometry.cx,
       cy: textGeometry.cy,
-      rotation: textGeometry.rotation
+      rotation: textGeometry.rotation,
+      interactionMode: "text",
+      sceneTextKey,
+      contentWidth: textGeometry.width,
+      contentHeight: textGeometry.height
     });
   }
 

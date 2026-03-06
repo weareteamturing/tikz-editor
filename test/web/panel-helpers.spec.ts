@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { rectHitRegionsForTargetId } from "../../web/src/ui/canvas-panel/panel-helpers.js";
+import type { ScenePath, SceneText } from "../../src/semantic/types.js";
+import { buildHitRegions } from "../../web/src/ui/canvas-panel/hit-regions.js";
+import {
+  collectSourceBounds,
+  isPointInsideRectHitRegionContentBox,
+  rectHitRegionsForTargetId,
+  resolveRectHitRegionContentBox
+} from "../../web/src/ui/canvas-panel/panel-helpers.js";
 import type { HitRegion } from "../../web/src/ui/canvas-panel/hit-regions.js";
 
 describe("rectHitRegionsForTargetId", () => {
@@ -37,5 +44,133 @@ describe("rectHitRegionsForTargetId", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.key).toBe("hit:text");
+  });
+
+  it("keeps a smaller text-edit box inside enlarged adornment hit regions", () => {
+    const region: Extract<HitRegion, { shape: "rect" }> = {
+      shape: "rect",
+      key: "hit:adornment",
+      sourceId: "path:0",
+      targetId: "node-adornment:node:0:2:label:0",
+      x: -10,
+      y: -6,
+      width: 20,
+      height: 12,
+      cx: 0,
+      cy: 0,
+      rotation: 0,
+      contentWidth: 12,
+      contentHeight: 4
+    };
+
+    expect(resolveRectHitRegionContentBox(region)).toEqual({
+      x: -6,
+      y: -2,
+      width: 12,
+      height: 4
+    });
+    expect(isPointInsideRectHitRegionContentBox({ x: 0, y: 0 }, region)).toBe(true);
+    expect(isPointInsideRectHitRegionContentBox({ x: 8, y: 0 }, region)).toBe(false);
+  });
+
+  it("adds an invisible halo around adornment text hit regions", () => {
+    const text: SceneText = {
+      kind: "Text",
+      id: "scene-text:adornment",
+      sourceId: "path:0",
+      sourceSpan: { from: 0, to: 0 },
+      style: {
+        fontSize: 10
+      } as SceneText["style"],
+      styleChain: [],
+      position: { x: 20, y: 30 },
+      text: "Pin",
+      textBlockWidth: 12,
+      textBlockHeight: 4,
+      adornment: {
+        targetId: "node-adornment:node:0:2:pin:0",
+        kind: "pin",
+        ownerSourceId: "node:0:2",
+        ownerNodeId: "node:0:2",
+        adornmentIndex: 0,
+        optionSpan: { from: 0, to: 0 },
+        valueSpan: { from: 0, to: 0 },
+        textSpan: { from: 0, to: 0 },
+        angleRaw: "above",
+        distancePt: 0,
+        defaultDistancePt: 0,
+        distanceExplicit: false
+      }
+    };
+
+    const regions = buildHitRegions([text], { x: 0, y: 0, width: 100, height: 100 }, 2);
+    expect(regions).toHaveLength(2);
+    const haloRegion = regions[0];
+    const textRegion = regions[1];
+
+    expect(haloRegion?.shape).toBe("rect");
+    expect(textRegion?.shape).toBe("rect");
+    if (!haloRegion || haloRegion.shape !== "rect" || !textRegion || textRegion.shape !== "rect") {
+      return;
+    }
+
+    expect(haloRegion.interactionMode).toBe("move");
+    expect(textRegion.interactionMode).toBe("text");
+    expect(haloRegion.width).toBeGreaterThan(textRegion.width);
+    expect(haloRegion.height).toBeGreaterThan(textRegion.height);
+  });
+
+  it("uses only pin label text bounds for pin adornment selection boxes", () => {
+    const pinText: SceneText = {
+      kind: "Text",
+      id: "scene-text:pin",
+      sourceId: "path:0",
+      sourceSpan: { from: 0, to: 0 },
+      style: {
+        fontSize: 10
+      } as SceneText["style"],
+      styleChain: [],
+      position: { x: 40, y: 20 },
+      text: "P",
+      textBlockWidth: 12,
+      textBlockHeight: 4,
+      adornment: {
+        targetId: "node-adornment:node:0:2:pin:0",
+        kind: "pin",
+        ownerSourceId: "node:0:2",
+        ownerNodeId: "node:0:2",
+        adornmentIndex: 0,
+        optionSpan: { from: 0, to: 0 },
+        valueSpan: { from: 0, to: 0 },
+        textSpan: { from: 0, to: 0 },
+        angleRaw: "above",
+        distancePt: 0,
+        defaultDistancePt: 0,
+        distanceExplicit: false
+      }
+    };
+    const pinEdge: ScenePath = {
+      kind: "Path",
+      id: "scene-path:pin-edge",
+      sourceId: "path:0",
+      sourceSpan: { from: 0, to: 0 },
+      style: {} as ScenePath["style"],
+      styleChain: [],
+      commands: [
+        { kind: "M", to: { x: 0, y: 0 } },
+        { kind: "L", to: { x: 40, y: 20 } }
+      ],
+      adornment: pinText.adornment
+    };
+
+    const boundsBySource = collectSourceBounds(
+      [pinText, pinEdge],
+      { x: 0, y: 0, width: 100, height: 100 }
+    );
+    const bounds = boundsBySource.get("node-adornment:node:0:2:pin:0");
+
+    expect(bounds).toBeDefined();
+    expect(bounds?.minX).toBeCloseTo(34, 6);
+    expect(bounds?.maxX).toBeCloseTo(46, 6);
   });
 });

@@ -94,6 +94,9 @@ export function collectSourceWorldBounds(elements: SceneElement[]): Map<string, 
   const boundsBySource = new Map<string, SnapBounds>();
 
   for (const element of elements) {
+    if (element.adornment) {
+      continue;
+    }
     const bounds = elementBoundsInWorld(element);
     if (!bounds) continue;
 
@@ -112,6 +115,9 @@ export function collectSourceReferenceBounds(elements: SceneElement[]): Map<stri
   const boundsBySource = new Map<string, SnapBounds>();
 
   for (const element of elements) {
+    if (element.adornment) {
+      continue;
+    }
     if (!isElementReferenceSnappable(element)) {
       continue;
     }
