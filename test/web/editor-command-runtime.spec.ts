@@ -104,8 +104,9 @@ describe("editor-command-runtime", () => {
     expect(onOpenExample).toHaveBeenCalledTimes(1);
   });
 
-  it("enables PDF and PNG export commands when SVG output is available", () => {
+  it("enables SVG, PDF, and PNG export commands when SVG output is available", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenSvgExport = vi.fn();
     const onOpenPngExport = vi.fn();
     const rendered = renderTikzToSvg(SOURCE);
 
@@ -117,12 +118,38 @@ describe("editor-command-runtime", () => {
         internalClipboard: null,
         historyIndex: 0,
         historyLength: 1,
+        onOpenSvgExport,
         onOpenPngExport
       })
     );
 
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD].enabled).toBe(true);
+  });
+
+  it("routes SVG export through the host callback", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenSvgExport = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        internalClipboard: null,
+        historyIndex: 0,
+        historyLength: 1,
+        onOpenSvgExport
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD, "menu");
+
+    expect(ran).toBe(true);
+    expect(onOpenSvgExport).toHaveBeenCalledTimes(1);
+    expect(onOpenSvgExport).toHaveBeenCalledWith(rendered.svg);
   });
 });
 
@@ -155,6 +182,7 @@ function makeInput({
   showInspectorPanel = true,
   showDevPanel = false,
   onOpenExample,
+  onOpenSvgExport,
   onOpenPngExport
 }: {
   dispatch: (action: EditorAction) => void;
@@ -171,6 +199,7 @@ function makeInput({
   showInspectorPanel?: boolean;
   showDevPanel?: boolean;
   onOpenExample?: () => void;
+  onOpenSvgExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
   onOpenPngExport?: () => void;
 }) {
   return {
@@ -190,6 +219,7 @@ function makeInput({
     showDevPanel,
     dispatch,
     onOpenExample,
+    onOpenSvgExport,
     onOpenPngExport
   };
 }

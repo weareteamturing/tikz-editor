@@ -8,6 +8,7 @@ import { useEditorStore } from "../store/store";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import { OpenExampleModal } from "./OpenExampleModal";
 import { PngExportModal } from "./PngExportModal";
+import { SvgExportModal } from "./SvgExportModal";
 import { TikzJaxModal } from "./TikzJaxModal";
 import { SettingsModal } from "./SettingsModal";
 import { useEditorCommandRuntime, type CommandBindings } from "./editor-command-runtime";
@@ -120,11 +121,13 @@ export function AppMenuBar() {
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
+  const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
   const { bindings } = useEditorCommandRuntime({
     onOpenExample: () => setShowOpenExampleModal(true),
+    onOpenSvgExport: (svgResult) => setSvgExportSvgResult(svgResult),
     onOpenPngExport: (svgResult) => setPngExportSvgResult(svgResult),
     onShowCompiledPicture: () => setCompiledPictureSource(source),
     onOpenSettings: () => setShowSettingsModal(true)
@@ -247,6 +250,13 @@ export function AppMenuBar() {
 
       {showSettingsModal ? (
         <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      ) : null}
+
+      {svgExportSvgResult ? (
+        <SvgExportModal
+          svgResult={svgExportSvgResult}
+          onClose={() => setSvgExportSvgResult(null)}
+        />
       ) : null}
 
       {pngExportSvgResult ? (

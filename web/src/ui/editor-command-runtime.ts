@@ -17,7 +17,7 @@ import {
   pasteSelectionAnchor,
   reorderSelection
 } from "./editor-commands";
-import { canExportSvg, copySvgMarkup, exportPdfDownload, exportSvgDownload } from "./export-commands";
+import { canExportSvg, copySvgMarkup, exportPdfDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
 
 export type CommandOrigin = "menu" | "shortcut" | "context-menu";
@@ -49,6 +49,7 @@ type RuntimeInput = {
   showDevPanel: boolean;
   dispatch: Dispatch;
   onOpenExample?: () => void;
+  onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
   onShowCompiledPicture?: () => void;
@@ -78,6 +79,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showDevPanel,
     dispatch,
     onOpenExample,
+    onOpenSvgExport,
     onOpenPngExport,
     onAddNodeAdornment,
     onShowCompiledPicture,
@@ -107,11 +109,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     };
   };
 
-  const runSvgDownload = () => {
+  const runSvgExport = () => {
     if (!snapshot.svg) {
       return;
     }
-    void exportSvgDownload(snapshot.svg, { fileName: "tikz-export.svg" });
+    onOpenSvgExport?.(snapshot.svg);
   };
 
   const runSvgCopy = () => {
@@ -161,8 +163,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       run: () => onShowCompiledPicture?.()
     },
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD]: {
-      enabled: canExport,
-      run: runSvgDownload
+      enabled: canExport && onOpenSvgExport != null,
+      run: runSvgExport
     },
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY]: {
       enabled: canExport,
@@ -372,6 +374,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 export function useEditorCommandRuntime(
   options: {
     onOpenExample?: () => void;
+    onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
     onShowCompiledPicture?: () => void;
@@ -413,6 +416,7 @@ export function useEditorCommandRuntime(
         showDevPanel,
         dispatch,
         onOpenExample: options.onOpenExample,
+        onOpenSvgExport: options.onOpenSvgExport,
         onOpenPngExport: options.onOpenPngExport,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
@@ -435,6 +439,7 @@ export function useEditorCommandRuntime(
       showDevPanel,
       dispatch,
       options.onOpenExample,
+      options.onOpenSvgExport,
       options.onOpenPngExport,
       options.onAddNodeAdornment,
       options.onShowCompiledPicture,

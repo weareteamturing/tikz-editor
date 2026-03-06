@@ -13,6 +13,10 @@ export function canExportSvg(svgResult: EmitSvgResult | null): svgResult is Emit
   return svgResult != null;
 }
 
+export type SvgTransformPreset = "beautify" | "compress";
+
+type SvgOptimizer = (svgMarkup: string, preset: SvgTransformPreset) => string;
+
 export type RenderPngExportOptions = {
   fileName?: string;
   dpi?: number;
@@ -26,6 +30,8 @@ export type RenderPngExportResult = {
   pixelWidth: number;
   pixelHeight: number;
 };
+
+let svgOptimizerPromise: Promise<SvgOptimizer> | null = null;
 
 export async function exportSvgDownload(
   svgResult: EmitSvgResult,
@@ -44,26 +50,8 @@ export async function exportSvgDownload(
     return false;
   }
 
-  const text = await serializePrettySvgForExport(svgResult);
-  const artifact = createSvgExportArtifact({
-    svg: text,
-    fileName: options.fileName
-  });
-  const blob = new Blob([artifact.text], { type: artifact.mimeType });
-  const objectUrl = URL.createObjectURL(blob);
-
-  try {
-    const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = artifact.fileName;
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    return true;
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
+  const text = await serializeSvgForExport(svgResult);
+  return downloadSvgMarkup(text, options);
 }
 
 export async function renderPngExport(
@@ -74,7 +62,7 @@ export async function renderPngExport(
     throw new Error("PNG export is unavailable in this runtime.");
   }
 
-  const text = await serializePrettySvgForExport(svgResult);
+  const text = await serializeSvgForExport(svgResult);
   const artifact = createPngExportArtifact({ fileName: options.fileName });
   const dpi = normalizePngExportDpi(options.dpi);
   const scale = dpi / 72;
@@ -166,7 +154,7 @@ export async function exportPdfDownload(
   }
 
   try {
-    const text = await serializePrettySvgForExport(svgResult);
+    const text = await serializeSvgForExport(svgResult);
     const svgElement = parseSvgDocument(text);
     if (!svgElement) {
       throw new Error("Failed to parse SVG document for PDF export.");
@@ -191,15 +179,8 @@ export async function copySvgMarkup(svgResult: EmitSvgResult): Promise<boolean> 
     return false;
   }
 
-  const text = await serializePrettySvgForExport(svgResult);
-  const artifact = createSvgExportArtifact({ svg: text });
-  try {
-    await navigator.clipboard.writeText(artifact.text);
-    return true;
-  } catch (error) {
-    console.warn("[tikz-editor] Failed to copy SVG to clipboard.", error);
-    return false;
-  }
+  const text = await serializeSvgForExport(svgResult);
+  return copySvgText(text);
 }
 
 export function normalizePngExportDpi(dpi?: number): number {
@@ -209,7 +190,7 @@ export function normalizePngExportDpi(dpi?: number): number {
   return Math.min(MAX_PNG_EXPORT_DPI, Math.max(MIN_PNG_EXPORT_DPI, Math.round(dpi)));
 }
 
-async function serializePrettySvgForExport(svgResult: EmitSvgResult): Promise<string> {
+export async function serializeSvgForExport(svgResult: EmitSvgResult): Promise<string> {
   try {
     return await serializeSvgModelAsync(svgResult.model, {
       includeXmlns: true,
@@ -219,6 +200,89 @@ async function serializePrettySvgForExport(svgResult: EmitSvgResult): Promise<st
     console.warn("[tikz-editor] Failed to pretty-format SVG; using compact SVG output.", error);
     return svgResult.svg;
   }
+}
+
+export function preloadSvgOptimizer(): Promise<void> {
+  return loadSvgOptimizer().then(() => undefined);
+}
+
+export async function transformSvgMarkup(
+  svgMarkup: string,
+  preset: SvgTransformPreset
+): Promise<string> {
+  const optimize = await loadSvgOptimizer();
+  return optimize(svgMarkup, preset);
+}
+
+export async function downloadSvgMarkup(
+  svgMarkup: string,
+  options: { fileName?: string } = {}
+): Promise<boolean> {
+  if (typeof document === "undefined" || typeof Blob === "undefined") {
+    console.warn("[tikz-editor] SVG export download is unavailable in this runtime.");
+    return false;
+  }
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function" || typeof URL.revokeObjectURL !== "function") {
+    console.warn("[tikz-editor] SVG export download requires URL.createObjectURL support.");
+    return false;
+  }
+  if (!document.body) {
+    console.warn("[tikz-editor] SVG export download requires document.body.");
+    return false;
+  }
+
+  const artifact = createSvgExportArtifact({
+    svg: svgMarkup,
+    fileName: options.fileName
+  });
+  const blob = new Blob([artifact.text], { type: artifact.mimeType });
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = artifact.fileName;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return true;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export async function copySvgText(svgMarkup: string): Promise<boolean> {
+  if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
+    console.warn("[tikz-editor] Clipboard API is unavailable; could not copy SVG.");
+    return false;
+  }
+
+  const artifact = createSvgExportArtifact({ svg: svgMarkup });
+  try {
+    await navigator.clipboard.writeText(artifact.text);
+    return true;
+  } catch (error) {
+    console.warn("[tikz-editor] Failed to copy SVG to clipboard.", error);
+    return false;
+  }
+}
+
+export function validateSvgMarkup(svgMarkup: string): { valid: true } | { valid: false; message: string } {
+  if (typeof DOMParser === "undefined") {
+    return { valid: true };
+  }
+  const parsed = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
+  if (parsed.getElementsByTagName("parsererror").length > 0) {
+    const parserError = parsed.getElementsByTagName("parsererror")[0];
+    const message = parserError?.textContent?.trim() || "The SVG markup could not be parsed.";
+    return { valid: false, message };
+  }
+  const root = parsed.documentElement;
+  if (root == null || root.nodeName.toLowerCase() !== "svg") {
+    return { valid: false, message: "The document must contain a single <svg> root element." };
+  }
+  return { valid: true };
 }
 
 function loadSvgImage(url: string): Promise<HTMLImageElement> {
@@ -272,6 +336,30 @@ function loadPdfExporter(): Promise<PdfExporter> {
     });
   }
   return pdfExporterPromise;
+}
+
+function loadSvgOptimizer(): Promise<SvgOptimizer> {
+  if (!svgOptimizerPromise) {
+    svgOptimizerPromise = import("svgo/browser").then(
+      ({ optimize }) => (svgMarkup: string, preset: SvgTransformPreset) =>
+        optimize(svgMarkup, {
+          multipass: preset === "compress",
+          js2svg: preset === "beautify" ? { pretty: true, indent: 2 } : undefined,
+          plugins: [
+            {
+              name: "preset-default",
+              params: {
+                overrides: {
+                  cleanupIds: false,
+                  removeViewBox: false
+                }
+              }
+            }
+          ]
+        }).data
+    );
+  }
+  return svgOptimizerPromise;
 }
 
 function parseSvgDocument(text: string): SVGSVGElement | null {

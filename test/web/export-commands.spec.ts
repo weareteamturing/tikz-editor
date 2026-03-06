@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderTikzToSvg } from "../../src/render/index.js";
-import { canExportSvg, copySvgMarkup, exportSvgDownload } from "../../web/src/ui/export-commands.js";
+import {
+  canExportSvg,
+  copySvgMarkup,
+  copySvgText,
+  exportSvgDownload,
+  validateSvgMarkup
+} from "../../web/src/ui/export-commands.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -73,6 +79,14 @@ describe("export commands", () => {
     expect(copied).not.toBe(rendered.svg.svg);
   });
 
+  it("copies arbitrary svg text to the clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    await expect(copySvgText("<svg xmlns=\"http://www.w3.org/2000/svg\" />")).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledWith("<svg xmlns=\"http://www.w3.org/2000/svg\" />");
+  });
+
   it("soft-fails and warns when clipboard API is unavailable", async () => {
     const rendered = renderTikzToSvg(SOURCE);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -80,5 +94,35 @@ describe("export commands", () => {
 
     await expect(copySvgMarkup(rendered.svg)).resolves.toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates edited svg markup", () => {
+    vi.stubGlobal("DOMParser", class {
+      parseFromString(text: string) {
+        if (text === "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>") {
+          return {
+            getElementsByTagName: () => [],
+            documentElement: { nodeName: "svg" }
+          };
+        }
+        if (text === "<div></div>") {
+          return {
+            getElementsByTagName: () => [],
+            documentElement: { nodeName: "div" }
+          };
+        }
+        return {
+          getElementsByTagName: () => [{ textContent: "Unexpected close tag" }],
+          documentElement: { nodeName: "svg" }
+        };
+      }
+    });
+
+    expect(validateSvgMarkup("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")).toEqual({ valid: true });
+    expect(validateSvgMarkup("<svg><g></svg>")).toEqual({ valid: false, message: "Unexpected close tag" });
+    expect(validateSvgMarkup("<div></div>")).toEqual({
+      valid: false,
+      message: "The document must contain a single <svg> root element."
+    });
   });
 });
