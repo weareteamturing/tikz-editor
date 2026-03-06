@@ -23,6 +23,7 @@ import {
   resolveHandleIdForDrag,
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
+import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./handle-drag-actions";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
@@ -571,11 +572,11 @@ export function useCanvasDragController(params: {
       });
 
       const ok = applyActionWithFeedback(
-        {
-          kind: "moveHandle",
+        resolveHandleDragAction({
           handleId: resolvedHandleId,
-          newWorld: nextWorld
-        },
+          newWorld: nextWorld,
+          activeEndpointAnchor: drag.activeEndpointAnchor
+        }),
         drag.historyMergeKey
       );
       if (ok.sourceChanged) {
@@ -760,7 +761,14 @@ export function useCanvasDragController(params: {
         return;
       }
 
-      if (drag.kind === "handle") {
+      if (
+        drag.kind === "handle" &&
+        shouldCommitHandleAnchorOnPointerUp({
+          snapshotSource,
+          source,
+          activeEndpointAnchor: drag.activeEndpointAnchor
+        })
+      ) {
         const resolvedHandleId = resolveHandleIdForDrag(drag, snapshotEditHandles);
         if (resolvedHandleId && drag.activeEndpointAnchor) {
           applyActionWithFeedback(
