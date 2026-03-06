@@ -209,8 +209,8 @@ export function pickStepPt(scale: number, targetPixels: number): number {
   return cmSteps[cmSteps.length - 1]! * PT_PER_CM;
 }
 
-export function resolveOverlayGridSteps(scale: number): OverlayGridSteps {
-  const minorStep = pickStepPt(scale, GRID_MINOR_TARGET_PX);
+export function resolveOverlayGridSteps(scale: number, minorTargetPx: number = GRID_MINOR_TARGET_PX): OverlayGridSteps {
+  const minorStep = pickStepPt(scale, minorTargetPx);
   return {
     minorStep,
     majorStep: minorStep * OVERLAY_MAJOR_STEP_MULTIPLE

@@ -38,6 +38,10 @@
   outline: none;
 }
 
+.hideLineNumbers :global(.cm-gutters) {
+  display: none;
+}
+
 .editorWrap :global(.cm-scroller) {
   font-family: var(--font-mono);
   font-size: 12px;

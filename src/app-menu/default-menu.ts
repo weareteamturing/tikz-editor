@@ -26,6 +26,12 @@ export const APP_MENU_DEFINITION = [
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE,
         label: "Show Compiled Picture"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_SETTINGS,
+        label: "Settings..."
       }
     ]
   },

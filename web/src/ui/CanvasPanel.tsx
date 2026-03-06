@@ -172,6 +172,8 @@ import {
   sourceHasSingleResizablePathShape,
   upsertGuideValue
 } from "./canvas-panel/panel-helpers";
+import { useSettingsStore } from "../settings/useSettingsStore";
+import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -340,6 +342,8 @@ export function CanvasPanel() {
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
+  const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
+  const gridMinorTargetPx = GRID_SIZE_MINOR_TARGET_PX[gridSize];
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
@@ -1074,10 +1078,11 @@ export function CanvasPanel() {
   const snapSettingsPatch = useMemo(
     () => ({
       grid: {
-        enabled: snapToGrid
+        enabled: snapToGrid,
+        minorTargetPx: gridMinorTargetPx
       }
     }),
-    [snapToGrid]
+    [snapToGrid, gridMinorTargetPx]
   );
 
   const renderedGuides = useMemo(() => {
@@ -1108,7 +1113,7 @@ export function CanvasPanel() {
     };
   }, [guidePreview, guides.horizontal, guides.vertical]);
 
-  const overlayGridSteps = useMemo(() => resolveOverlayGridSteps(canvasTransform.scale), [canvasTransform.scale]);
+  const overlayGridSteps = useMemo(() => resolveOverlayGridSteps(canvasTransform.scale, gridMinorTargetPx), [canvasTransform.scale, gridMinorTargetPx]);
 
   const rulers = useMemo(() => {
     if (!svgResult || !visibleRanges) {

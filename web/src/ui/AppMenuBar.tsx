@@ -7,6 +7,7 @@ import { useEditorStore } from "../store/store";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import { OpenExampleModal } from "./OpenExampleModal";
 import { TikzJaxModal } from "./TikzJaxModal";
+import { SettingsModal } from "./SettingsModal";
 import { useEditorCommandRuntime, type CommandBindings } from "./editor-command-runtime";
 import css from "./AppMenuBar.module.css";
 
@@ -115,12 +116,14 @@ export function AppMenuBar() {
 
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
   const { bindings } = useEditorCommandRuntime({
     onOpenExample: () => setShowOpenExampleModal(true),
-    onShowCompiledPicture: () => setCompiledPictureSource(source)
+    onShowCompiledPicture: () => setCompiledPictureSource(source),
+    onOpenSettings: () => setShowSettingsModal(true)
   });
 
   useEffect(() => {
@@ -236,6 +239,10 @@ export function AppMenuBar() {
           source={compiledPictureSource}
           onClose={() => setCompiledPictureSource(null)}
         />
+      ) : null}
+
+      {showSettingsModal ? (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       ) : null}
     </>
   );

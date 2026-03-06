@@ -50,6 +50,7 @@ type RuntimeInput = {
   onOpenExample?: () => void;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
   onShowCompiledPicture?: () => void;
+  onOpenSettings?: () => void;
 };
 
 export type EditorCommandRuntime = {
@@ -76,7 +77,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     dispatch,
     onOpenExample,
     onAddNodeAdornment,
-    onShowCompiledPicture
+    onShowCompiledPicture,
+    onOpenSettings
   } = input;
 
   const commandContext = {
@@ -322,6 +324,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: true,
       checked: showDevPanel,
       run: () => dispatch({ type: "TOGGLE_DEV_PANEL" })
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_SETTINGS]: {
+      enabled: onOpenSettings != null,
+      run: () => onOpenSettings?.()
     }
   };
 
@@ -343,6 +349,7 @@ export function useEditorCommandRuntime(
     onOpenExample?: () => void;
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
     onShowCompiledPicture?: () => void;
+    onOpenSettings?: () => void;
   } = {}
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
@@ -381,7 +388,8 @@ export function useEditorCommandRuntime(
         dispatch,
         onOpenExample: options.onOpenExample,
         onAddNodeAdornment: options.onAddNodeAdornment,
-        onShowCompiledPicture: options.onShowCompiledPicture
+        onShowCompiledPicture: options.onShowCompiledPicture,
+        onOpenSettings: options.onOpenSettings
       }),
     [
       source,
@@ -401,7 +409,8 @@ export function useEditorCommandRuntime(
       dispatch,
       options.onOpenExample,
       options.onAddNodeAdornment,
-      options.onShowCompiledPicture
+      options.onShowCompiledPicture,
+      options.onOpenSettings
     ]
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useSettingsStore } from "../settings/useSettingsStore";
 import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import {
+  Compartment,
   EditorSelection,
   EditorState as CMState,
   Prec,
@@ -40,6 +42,11 @@ import {
 } from "./source-sync";
 import css from "./SourcePanel.module.css";
 import { formatTikzSource } from "tikz-editor/edit/source-format";
+
+// ── Dynamic configuration compartments ──────────────────────────────────────
+
+const wordWrapCompartment = new Compartment();
+const fontSizeCompartment = new Compartment();
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
 
@@ -249,6 +256,9 @@ export function SourcePanel() {
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const editorWordWrap = useSettingsStore((s) => s.settings.editor.wordWrap);
+  const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
+  const editorLineNumbers = useSettingsStore((s) => s.settings.editor.lineNumbers);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -380,6 +390,8 @@ export function SourcePanel() {
         editorKeymap,
         ...completionExtensions,
         tikzLanguage(),
+        wordWrapCompartment.of(editorWordWrap ? EditorView.lineWrapping : []),
+        fontSizeCompartment.of(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })),
         numberScrubber({
           onScrubStateChange: (scrub) => {
             if (!scrub.isActive || scrub.from == null) {
@@ -429,6 +441,20 @@ export function SourcePanel() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally run once; source synced via separate effect below
+
+  // ── Reactively apply editor settings ────────────────────────────────────────
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: wordWrapCompartment.reconfigure(editorWordWrap ? EditorView.lineWrapping : []) });
+  }, [editorWordWrap]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })) });
+  }, [editorFontSize]);
+
 
   // ── Canvas selection → source selection sync ────────────────────────────────
   useEffect(() => {
@@ -678,7 +704,7 @@ export function SourcePanel() {
   return (
     <div className={css.panel}>
       <div className={css.header}>Source</div>
-      <div className={css.editorWrap} ref={editorRef} />
+      <div className={[css.editorWrap, editorLineNumbers ? "" : css.hideLineNumbers].filter(Boolean).join(" ")} ref={editorRef} />
       {activeColorPicker && inlineColorPopoverStyle ? (
         <div className={css.inlineColorPickerPopover} ref={colorPickerRef} style={inlineColorPopoverStyle}>
           <ColorPicker

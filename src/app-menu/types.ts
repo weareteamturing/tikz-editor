@@ -45,7 +45,8 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_SOURCE_PANEL: "view.toggle-source-panel",
   TOGGLE_INSPECTOR_PANEL: "view.toggle-inspector-panel",
   TOGGLE_DEV_PANEL: "view.toggle-dev-panel",
-  SHOW_COMPILED_PICTURE: "file.show-compiled-picture"
+  SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
+  OPEN_SETTINGS: "file.open-settings"
 } as const;
 
 export type AppMenuCommandId = (typeof APP_MENU_COMMAND_IDS)[keyof typeof APP_MENU_COMMAND_IDS];
