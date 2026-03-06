@@ -71,6 +71,13 @@ const CONTROL_OPTION_FLAGS = new Set([
   "quotes mean pin"
 ]);
 
+const ADORNMENT_INTERNAL_STYLE_FLAGS = new Set([
+  "every label",
+  "every pin",
+  "every label quotes",
+  "every pin quotes"
+]);
+
 const DIRECTION_SHORTHANDS_TO_POSITION: Record<string, string> = {
   centered: "center",
   above: "90",
@@ -426,6 +433,21 @@ export function cloneAdornmentOwnerGeometry(
     anchorRadius: geometry.anchorRadius,
     anchorPolygon: geometry.anchorPolygon?.map((point) => ({ ...point }))
   };
+}
+
+export function stripAdornmentInternalStyleOptions(options: OptionListAst | undefined): OptionListAst | undefined {
+  if (!options) {
+    return undefined;
+  }
+
+  const filtered = options.entries.filter((entry) => {
+    if (entry.kind === "flag") {
+      return !ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key);
+    }
+    return !(entry.kind === "kv" && ADORNMENT_INTERNAL_STYLE_FLAGS.has(entry.key));
+  });
+
+  return optionListFromEntries(filtered, options.span, options.raw);
 }
 
 export function extractToLikeOptionPlan<T extends ToOperationItem | EdgeOperationItem>(item: T): {

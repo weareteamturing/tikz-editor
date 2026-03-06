@@ -1923,4 +1923,38 @@ describe("applyEditAction – adornment placement", () => {
     expect(result.newSource).not.toContain("every label");
     expect(result.changedSourceIds).toEqual(["path:0"]);
   });
+
+  it("does not serialize synthetic every-pin styles when rewriting a pin repeatedly", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,pin=above:Pin] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const firstRewrite = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: "__adornment_distance__",
+      value: "23.5pt"
+    });
+
+    expect(firstRewrite.kind).toBe("success");
+    if (firstRewrite.kind !== "success") {
+      throw new Error("Expected first pin rewrite to succeed");
+    }
+    expect(firstRewrite.newSource).not.toContain("every pin");
+
+    const secondRewrite = applyEditAction(firstRewrite.newSource, [], {
+      kind: "setProperty",
+      elementId: "node-adornment:node:0:2:pin:0",
+      level: "command",
+      key: "__adornment_angle__",
+      value: "40"
+    });
+
+    expect(secondRewrite.kind).toBe("success");
+    if (secondRewrite.kind !== "success") {
+      throw new Error("Expected second pin rewrite to succeed");
+    }
+    expect(secondRewrite.newSource).not.toContain("every pin");
+  });
 });

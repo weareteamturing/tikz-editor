@@ -1,7 +1,11 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
 import { parseTikz } from "../parser/index.js";
 import type { OptionListAst } from "../options/types.js";
-import { extractNodeAdornmentPlan, makeNodeAdornmentTargetId } from "../semantic/path/label-quotes.js";
+import {
+  extractNodeAdornmentPlan,
+  makeNodeAdornmentTargetId,
+  stripAdornmentInternalStyleOptions
+} from "../semantic/path/label-quotes.js";
 
 export type PropertyTargetKind =
   | "figure"
@@ -263,7 +267,7 @@ function makeNodeAdornmentTarget(
       id: elementId,
       kind: "node-adornment",
       span: adornment.span,
-      options: adornment.options,
+      options: stripAdornmentInternalStyleOptions(adornment.options),
       optionsSpan: adornment.valueSpan,
       optionSpan: adornment.span,
       valueSpan: adornment.valueSpan,
