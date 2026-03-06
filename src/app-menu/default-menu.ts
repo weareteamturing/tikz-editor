@@ -22,6 +22,11 @@ export const APP_MENU_DEFINITION = [
           },
           {
             kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD,
+            label: "PDF"
+          },
+          {
+            kind: "command",
             commandId: APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD,
             label: "PNG"
           }

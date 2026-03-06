@@ -15,6 +15,10 @@ export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 export { collectSymbols } from "./completion/index.js";
 export { CANVAS_CONTEXT_MENU_DEFINITION } from "./context-menu/index.js";
 export {
+  createPdfExportArtifact,
+  normalizePdfExportFileName,
+  PDF_EXPORT_MIME_TYPE,
+  DEFAULT_PDF_EXPORT_FILE_NAME,
   createPngExportArtifact,
   normalizePngExportFileName,
   PNG_EXPORT_MIME_TYPE,
@@ -64,6 +68,8 @@ export type {
   CanvasContextMenuDefinition
 } from "./context-menu/index.js";
 export type {
+  PdfExportArtifact,
+  CreatePdfExportArtifactOptions,
   PngExportArtifact,
   CreatePngExportArtifactOptions,
   SvgExportArtifact,

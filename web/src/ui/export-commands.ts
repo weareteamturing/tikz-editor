@@ -1,4 +1,8 @@
-import { createPngExportArtifact, createSvgExportArtifact } from "tikz-editor/export/index";
+import {
+  createPdfExportArtifact,
+  createPngExportArtifact,
+  createSvgExportArtifact
+} from "tikz-editor/export/index";
 import { serializeSvgModelAsync, type EmitSvgResult } from "tikz-editor/svg/index";
 
 const DEFAULT_PNG_EXPORT_DPI = 144;
@@ -150,6 +154,37 @@ export async function exportPngDownload(
   }
 }
 
+let pdfExporterPromise: Promise<PdfExporter> | null = null;
+
+export async function exportPdfDownload(
+  svgResult: EmitSvgResult,
+  options: { fileName?: string } = {}
+): Promise<boolean> {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    console.warn("[tikz-editor] PDF export is unavailable in this runtime.");
+    return false;
+  }
+
+  try {
+    const text = await serializePrettySvgForExport(svgResult);
+    const svgElement = parseSvgDocument(text);
+    if (!svgElement) {
+      throw new Error("Failed to parse SVG document for PDF export.");
+    }
+
+    svgElement.setAttribute("width", `${svgResult.viewBox.width}`);
+    svgElement.setAttribute("height", `${svgResult.viewBox.height}`);
+
+    const artifact = createPdfExportArtifact({ fileName: options.fileName });
+    const exportPdf = await loadPdfExporter();
+    await exportPdf(svgElement, svgResult.viewBox.width, svgResult.viewBox.height, artifact.fileName);
+    return true;
+  } catch (error) {
+    console.warn("[tikz-editor] Failed to export PDF.", error);
+    return false;
+  }
+}
+
 export async function copySvgMarkup(svgResult: EmitSvgResult): Promise<boolean> {
   if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
     console.warn("[tikz-editor] Clipboard API is unavailable; could not copy SVG.");
@@ -206,4 +241,47 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string): Promise<Blob
       resolve(blob);
     }, mimeType);
   });
+}
+
+type PdfExporter = (
+  svgElement: SVGSVGElement,
+  width: number,
+  height: number,
+  fileName: string
+) => Promise<void>;
+
+function loadPdfExporter(): Promise<PdfExporter> {
+  if (!pdfExporterPromise) {
+    pdfExporterPromise = import("jspdf").then(async ({ jsPDF }) => {
+      await import("svg2pdf.js");
+      return async (svgElement: SVGSVGElement, width: number, height: number, fileName: string) => {
+        const orientation = width > height ? "landscape" : "portrait";
+        const document = new jsPDF({
+          orientation,
+          unit: "pt",
+          format: [width, height]
+        });
+        await document.svg(svgElement, {
+          x: 0,
+          y: 0,
+          width,
+          height
+        });
+        document.save(fileName);
+      };
+    });
+  }
+  return pdfExporterPromise;
+}
+
+function parseSvgDocument(text: string): SVGSVGElement | null {
+  if (typeof DOMParser === "undefined") {
+    return null;
+  }
+  const parsed = new DOMParser().parseFromString(text, "image/svg+xml");
+  const svgElement = parsed.documentElement;
+  if (svgElement == null || svgElement.nodeName.toLowerCase() !== "svg") {
+    return null;
+  }
+  return svgElement as SVGSVGElement;
 }

@@ -8,6 +8,7 @@ describe("app menu definition", () => {
 
   it("defines svg export command ids", () => {
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD).toBe("file.export-svg-download");
+    expect(APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD).toBe("file.export-pdf-download");
     expect(APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD).toBe("file.export-png-download");
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY).toBe("file.export-svg-copy");
   });
@@ -46,7 +47,7 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Open Example...");
   });
 
-  it("exposes Export SVG and PNG in the File > Export submenu", () => {
+  it("exposes Export SVG, PDF, and PNG in the File > Export submenu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
@@ -61,16 +62,28 @@ describe("app menu definition", () => {
     const svgItem = exportMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD
     );
+    const pdfItem = exportMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD
+    );
     const pngItem = exportMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD
     );
 
     expect(svgItem).toBeDefined();
+    expect(pdfItem).toBeDefined();
     expect(pngItem).toBeDefined();
-    if (!svgItem || svgItem.kind !== "command" || !pngItem || pngItem.kind !== "command") {
-      throw new Error("Expected SVG and PNG export commands in File > Export.");
+    if (
+      !svgItem ||
+      svgItem.kind !== "command" ||
+      !pdfItem ||
+      pdfItem.kind !== "command" ||
+      !pngItem ||
+      pngItem.kind !== "command"
+    ) {
+      throw new Error("Expected SVG, PDF, and PNG export commands in File > Export.");
     }
     expect(svgItem.label).toBe("SVG");
+    expect(pdfItem.label).toBe("PDF");
     expect(pngItem.label).toBe("PNG");
   });
 

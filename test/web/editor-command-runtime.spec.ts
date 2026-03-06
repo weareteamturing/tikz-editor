@@ -103,6 +103,27 @@ describe("editor-command-runtime", () => {
     expect(ran).toBe(true);
     expect(onOpenExample).toHaveBeenCalledTimes(1);
   });
+
+  it("enables PDF and PNG export commands when SVG output is available", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenPngExport = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        internalClipboard: null,
+        historyIndex: 0,
+        historyLength: 1,
+        onOpenPngExport
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD].enabled).toBe(true);
+  });
 });
 
 function makeSnapshot(rendered: ReturnType<typeof renderTikzToSvg>) {
@@ -133,7 +154,8 @@ function makeInput({
   showSourcePanel = true,
   showInspectorPanel = true,
   showDevPanel = false,
-  onOpenExample
+  onOpenExample,
+  onOpenPngExport
 }: {
   dispatch: (action: EditorAction) => void;
   snapshot: ReturnType<typeof makeSnapshot>;
@@ -149,6 +171,7 @@ function makeInput({
   showInspectorPanel?: boolean;
   showDevPanel?: boolean;
   onOpenExample?: () => void;
+  onOpenPngExport?: () => void;
 }) {
   return {
     source: SOURCE,
@@ -166,6 +189,7 @@ function makeInput({
     showInspectorPanel,
     showDevPanel,
     dispatch,
-    onOpenExample
+    onOpenExample,
+    onOpenPngExport
   };
 }

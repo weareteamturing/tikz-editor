@@ -1,4 +1,13 @@
 export {
+  createPdfExportArtifact,
+  normalizePdfExportFileName,
+  PDF_EXPORT_MIME_TYPE,
+  DEFAULT_PDF_EXPORT_FILE_NAME
+} from "./pdf.js";
+
+export type { PdfExportArtifact, CreatePdfExportArtifactOptions } from "./pdf.js";
+
+export {
   createPngExportArtifact,
   normalizePngExportFileName,
   PNG_EXPORT_MIME_TYPE,

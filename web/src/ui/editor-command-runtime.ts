@@ -17,7 +17,7 @@ import {
   pasteSelectionAnchor,
   reorderSelection
 } from "./editor-commands";
-import { canExportSvg, copySvgMarkup, exportSvgDownload } from "./export-commands";
+import { canExportSvg, copySvgMarkup, exportPdfDownload, exportSvgDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
 
 export type CommandOrigin = "menu" | "shortcut" | "context-menu";
@@ -121,6 +121,13 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     void copySvgMarkup(snapshot.svg);
   };
 
+  const runPdfDownload = () => {
+    if (!snapshot.svg) {
+      return;
+    }
+    void exportPdfDownload(snapshot.svg, { fileName: "tikz-export.pdf" });
+  };
+
   const runPngExport = () => {
     if (!snapshot.svg) {
       return;
@@ -160,6 +167,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY]: {
       enabled: canExport,
       run: runSvgCopy
+    },
+    [APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD]: {
+      enabled: canExport,
+      run: runPdfDownload
     },
     [APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD]: {
       enabled: canExport && onOpenPngExport != null,
