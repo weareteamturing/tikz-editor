@@ -12,14 +12,25 @@ export const APP_MENU_DEFINITION = [
       },
       { kind: "separator" },
       {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD,
-        label: "Export SVG..."
+        kind: "submenu",
+        label: "Export",
+        items: [
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD,
+            label: "SVG"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD,
+            label: "PNG"
+          }
+        ]
       },
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY,
-        label: "Copy SVG"
+        label: "Copy as SVG"
       },
       { kind: "separator" },
       {

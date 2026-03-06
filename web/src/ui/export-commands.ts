@@ -1,9 +1,27 @@
-import { createSvgExportArtifact } from "tikz-editor/export/index";
+import { createPngExportArtifact, createSvgExportArtifact } from "tikz-editor/export/index";
 import { serializeSvgModelAsync, type EmitSvgResult } from "tikz-editor/svg/index";
+
+const DEFAULT_PNG_EXPORT_DPI = 144;
+const MIN_PNG_EXPORT_DPI = 36;
+const MAX_PNG_EXPORT_DPI = 1200;
 
 export function canExportSvg(svgResult: EmitSvgResult | null): svgResult is EmitSvgResult {
   return svgResult != null;
 }
+
+export type RenderPngExportOptions = {
+  fileName?: string;
+  dpi?: number;
+  transparentBackground?: boolean;
+};
+
+export type RenderPngExportResult = {
+  artifact: ReturnType<typeof createPngExportArtifact>;
+  blob: Blob;
+  dpi: number;
+  pixelWidth: number;
+  pixelHeight: number;
+};
 
 export async function exportSvgDownload(
   svgResult: EmitSvgResult,
@@ -44,6 +62,94 @@ export async function exportSvgDownload(
   }
 }
 
+export async function renderPngExport(
+  svgResult: EmitSvgResult,
+  options: RenderPngExportOptions = {}
+): Promise<RenderPngExportResult> {
+  if (typeof document === "undefined" || typeof Blob === "undefined" || typeof Image === "undefined") {
+    throw new Error("PNG export is unavailable in this runtime.");
+  }
+
+  const text = await serializePrettySvgForExport(svgResult);
+  const artifact = createPngExportArtifact({ fileName: options.fileName });
+  const dpi = normalizePngExportDpi(options.dpi);
+  const scale = dpi / 72;
+  const pixelWidth = Math.max(1, Math.ceil(svgResult.viewBox.width * scale));
+  const pixelHeight = Math.max(1, Math.ceil(svgResult.viewBox.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = pixelWidth;
+  canvas.height = pixelHeight;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("PNG export requires a 2D canvas context.");
+  }
+
+  if (options.transparentBackground === false) {
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, pixelWidth, pixelHeight);
+  } else {
+    context.clearRect(0, 0, pixelWidth, pixelHeight);
+  }
+
+  const svgBlob = new Blob([text], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await loadSvgImage(svgUrl);
+    context.drawImage(image, 0, 0, pixelWidth, pixelHeight);
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+
+  const blob = await canvasToBlob(canvas, artifact.mimeType);
+  return {
+    artifact,
+    blob,
+    dpi,
+    pixelWidth,
+    pixelHeight
+  };
+}
+
+export async function exportPngDownload(
+  svgResult: EmitSvgResult,
+  options: RenderPngExportOptions = {}
+): Promise<boolean> {
+  if (typeof document === "undefined" || typeof URL === "undefined") {
+    console.warn("[tikz-editor] PNG export download is unavailable in this runtime.");
+    return false;
+  }
+  if (typeof URL.createObjectURL !== "function" || typeof URL.revokeObjectURL !== "function") {
+    console.warn("[tikz-editor] PNG export download requires URL.createObjectURL support.");
+    return false;
+  }
+  if (!document.body) {
+    console.warn("[tikz-editor] PNG export download requires document.body.");
+    return false;
+  }
+
+  try {
+    const result = await renderPngExport(svgResult, options);
+    const objectUrl = URL.createObjectURL(result.blob);
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = result.artifact.fileName;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      return true;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  } catch (error) {
+    console.warn("[tikz-editor] Failed to export PNG.", error);
+    return false;
+  }
+}
+
 export async function copySvgMarkup(svgResult: EmitSvgResult): Promise<boolean> {
   if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
     console.warn("[tikz-editor] Clipboard API is unavailable; could not copy SVG.");
@@ -61,6 +167,13 @@ export async function copySvgMarkup(svgResult: EmitSvgResult): Promise<boolean> 
   }
 }
 
+export function normalizePngExportDpi(dpi?: number): number {
+  if (typeof dpi !== "number" || !Number.isFinite(dpi)) {
+    return DEFAULT_PNG_EXPORT_DPI;
+  }
+  return Math.min(MAX_PNG_EXPORT_DPI, Math.max(MIN_PNG_EXPORT_DPI, Math.round(dpi)));
+}
+
 async function serializePrettySvgForExport(svgResult: EmitSvgResult): Promise<string> {
   try {
     return await serializeSvgModelAsync(svgResult.model, {
@@ -71,4 +184,26 @@ async function serializePrettySvgForExport(svgResult: EmitSvgResult): Promise<st
     console.warn("[tikz-editor] Failed to pretty-format SVG; using compact SVG output.", error);
     return svgResult.svg;
   }
+}
+
+function loadSvgImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to decode SVG for PNG export."));
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Canvas export returned no blob."));
+        return;
+      }
+      resolve(blob);
+    }, mimeType);
+  });
 }

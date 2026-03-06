@@ -8,6 +8,7 @@ describe("app menu definition", () => {
 
   it("defines svg export command ids", () => {
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD).toBe("file.export-svg-download");
+    expect(APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD).toBe("file.export-png-download");
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY).toBe("file.export-svg-copy");
   });
 
@@ -45,18 +46,32 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Open Example...");
   });
 
-  it("exposes Export SVG in the File menu", () => {
+  it("exposes Export SVG and PNG in the File > Export submenu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
-    const commandItem = items.find(
+    const exportMenu = items.find(
+      (item) => item.kind === "submenu" && item.label === "Export"
+    );
+    expect(exportMenu).toBeDefined();
+    if (!exportMenu || exportMenu.kind !== "submenu") {
+      throw new Error("Expected Export submenu in File menu.");
+    }
+
+    const svgItem = exportMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD
     );
-    expect(commandItem).toBeDefined();
-    if (!commandItem || commandItem.kind !== "command") {
-      throw new Error("Expected file.export-svg-download command item in File menu.");
+    const pngItem = exportMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD
+    );
+
+    expect(svgItem).toBeDefined();
+    expect(pngItem).toBeDefined();
+    if (!svgItem || svgItem.kind !== "command" || !pngItem || pngItem.kind !== "command") {
+      throw new Error("Expected SVG and PNG export commands in File > Export.");
     }
-    expect(commandItem.label).toBe("Export SVG...");
+    expect(svgItem.label).toBe("SVG");
+    expect(pngItem.label).toBe("PNG");
   });
 
   it("exposes Copy SVG in the File menu", () => {
@@ -70,7 +85,7 @@ describe("app menu definition", () => {
     if (!commandItem || commandItem.kind !== "command") {
       throw new Error("Expected file.export-svg-copy command item in File menu.");
     }
-    expect(commandItem.label).toBe("Copy SVG");
+    expect(commandItem.label).toBe("Copy as SVG");
   });
 
   it("exposes Snap to Grid in the View menu", () => {

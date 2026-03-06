@@ -3,9 +3,11 @@ import {
   APP_MENU_DEFINITION,
   type AppMenuItem
 } from "tikz-editor/app-menu";
+import type { EmitSvgResult } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import { OpenExampleModal } from "./OpenExampleModal";
+import { PngExportModal } from "./PngExportModal";
 import { TikzJaxModal } from "./TikzJaxModal";
 import { SettingsModal } from "./SettingsModal";
 import { useEditorCommandRuntime, type CommandBindings } from "./editor-command-runtime";
@@ -118,10 +120,12 @@ export function AppMenuBar() {
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
+  const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
   const { bindings } = useEditorCommandRuntime({
     onOpenExample: () => setShowOpenExampleModal(true),
+    onOpenPngExport: (svgResult) => setPngExportSvgResult(svgResult),
     onShowCompiledPicture: () => setCompiledPictureSource(source),
     onOpenSettings: () => setShowSettingsModal(true)
   });
@@ -243,6 +247,13 @@ export function AppMenuBar() {
 
       {showSettingsModal ? (
         <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      ) : null}
+
+      {pngExportSvgResult ? (
+        <PngExportModal
+          svgResult={pngExportSvgResult}
+          onClose={() => setPngExportSvgResult(null)}
+        />
       ) : null}
     </>
   );
