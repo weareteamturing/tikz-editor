@@ -34,7 +34,6 @@ export function makeInitialState(): EditorState {
     historyIndex: -1,
 
     selectedElementIds: new Set(),
-    internalClipboard: null,
 
     toolMode: "select",
     canvasTransform: DEFAULT_CANVAS_TRANSFORM,
@@ -262,24 +261,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "CLEAR_SELECTION": {
       if (state.selectedElementIds.size === 0) return state;
       return { ...state, selectedElementIds: new Set() };
-    }
-
-    case "SET_INTERNAL_CLIPBOARD": {
-      if (action.clipboard == null) {
-        if (state.internalClipboard == null) {
-          return state;
-        }
-        return { ...state, internalClipboard: null };
-      }
-      return {
-        ...state,
-        internalClipboard: {
-          snippets: [...action.clipboard.snippets],
-          plainText: action.clipboard.plainText,
-          copiedAt: action.clipboard.copiedAt,
-          pasteBehavior: action.clipboard.pasteBehavior ?? "offset"
-        }
-      };
     }
 
     // ── Canvas ────────────────────────────────────────────────────────────────

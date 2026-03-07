@@ -455,33 +455,6 @@ describe("editorReducer – selection", () => {
     expect(state.selectedElementIds).toEqual(new Set(["elem-1", "elem-2", "elem-3"]));
   });
 
-  it("SET_INTERNAL_CLIPBOARD stores a copied payload", () => {
-    const clipboard = {
-      snippets: ["\\draw (0,0) -- (1,0);"],
-      plainText: "\\draw (0,0) -- (1,0);",
-      copiedAt: 1234,
-      pasteBehavior: "offset" as const
-    };
-    const state = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
-    expect(state.internalClipboard).toEqual(clipboard);
-    expect(state.internalClipboard).not.toBe(clipboard);
-  });
-
-  it("SET_INTERNAL_CLIPBOARD clears clipboard and no-ops when already null", () => {
-    const clipboard = {
-      snippets: ["\\draw (0,0) -- (1,0);"],
-      plainText: "\\draw (0,0) -- (1,0);",
-      copiedAt: 1234,
-      pasteBehavior: "offset" as const
-    };
-    const withClipboard = applyActions([{ type: "SET_INTERNAL_CLIPBOARD", clipboard }]);
-    const cleared = editorReducer(withClipboard, { type: "SET_INTERNAL_CLIPBOARD", clipboard: null });
-    expect(cleared.internalClipboard).toBeNull();
-
-    const initial = makeInitialState();
-    const unchanged = editorReducer(initial, { type: "SET_INTERNAL_CLIPBOARD", clipboard: null });
-    expect(unchanged).toBe(initial);
-  });
 });
 
 // ── SET_TOOL_MODE ──────────────────────────────────────────────────────────────

@@ -341,7 +341,7 @@ export function InspectorPanel() {
     [dispatch, selectedIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
   );
   const arrangeAvailability = useMemo(
-    () => actionAvailability(commandContext, null),
+    () => actionAvailability(commandContext),
     [commandContext]
   );
 

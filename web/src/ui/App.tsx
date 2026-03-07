@@ -153,6 +153,11 @@ export function App() {
       const target = e.target as HTMLElement | null;
       const inCodeMirror = isCodeMirrorEventTarget(target);
       if (inCodeMirror) return;
+      const canvasShortcutContext = Boolean(
+        target?.closest("[data-canvas-viewport=\"true\"]") ||
+          (document.activeElement instanceof HTMLElement &&
+            document.activeElement.closest("[data-canvas-viewport=\"true\"]"))
+      );
 
       // Keep browser/field-native undo for editable fields outside CM.
       if (
@@ -170,25 +175,36 @@ export function App() {
       }
 
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const hasTextSelection = Boolean(window.getSelection()?.toString().trim());
+
         if (!e.shiftKey && key === "c") {
-          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.COPY, "shortcut");
-          e.preventDefault();
+          if (!canvasShortcutContext || hasTextSelection) {
+            return;
+          }
+          // Allow native copy event on the focused canvas viewport.
           return;
         }
 
         if (!e.shiftKey && key === "x") {
-          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.CUT, "shortcut");
-          e.preventDefault();
+          if (!canvasShortcutContext || hasTextSelection) {
+            return;
+          }
+          // Allow native cut event on the focused canvas viewport.
           return;
         }
 
         if (!e.shiftKey && key === "v") {
-          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.PASTE, "shortcut");
-          e.preventDefault();
+          if (!canvasShortcutContext) {
+            return;
+          }
+          // Allow the native paste event to fire on the canvas viewport; CanvasPanel handles parsing.
           return;
         }
 
         if (!e.shiftKey && key === "d") {
+          if (!canvasShortcutContext) {
+            return;
+          }
           commandRuntime.runCommand(APP_MENU_COMMAND_IDS.DUPLICATE, "shortcut");
           e.preventDefault();
           return;

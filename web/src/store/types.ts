@@ -35,14 +35,6 @@ export type HistoryEntry = {
   sourceAfter: string;
 };
 
-export type InternalClipboard = {
-  snippets: string[];
-  plainText: string;
-  copiedAt: number;
-  /** How pasted snippets should be positioned relative to their original coordinates. */
-  pasteBehavior?: "offset" | "preserve";
-};
-
 export type EditorState = {
   // ── document slice ──────────────────────────────────────────────────────────
   source: string;
@@ -62,7 +54,6 @@ export type EditorState = {
 
   // ── selection slice ──────────────────────────────────────────────────────────
   selectedElementIds: ReadonlySet<string>;
-  internalClipboard: InternalClipboard | null;
 
   // ── canvas slice ─────────────────────────────────────────────────────────────
   toolMode: ToolMode;
@@ -113,7 +104,6 @@ export type EditorAction =
   | { type: "SELECT"; id: string; additive: boolean }
   | { type: "SELECT_RANGE"; ids: string[] }
   | { type: "CLEAR_SELECTION" }
-  | { type: "SET_INTERNAL_CLIPBOARD"; clipboard: InternalClipboard | null }
   // Canvas
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }

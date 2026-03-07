@@ -4,7 +4,7 @@ import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
 import { useEditorStore } from "../store/store";
-import type { EditorAction, InternalClipboard, ToolMode } from "../store/types";
+import type { EditorAction, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
 import {
   actionAvailability,
@@ -14,7 +14,7 @@ import {
   deleteSelection,
   distributeSelection,
   duplicateSelection,
-  pasteSelectionAnchor,
+  pasteSelectionFromSystemClipboard,
   reorderSelection
 } from "./editor-commands";
 import { canExportSvg, copySvgMarkup, exportPdfDownload } from "./export-commands";
@@ -37,7 +37,6 @@ type RuntimeInput = {
   snapshot: SessionSnapshot;
   toolMode: ToolMode;
   selectedElementIds: ReadonlySet<string>;
-  internalClipboard: InternalClipboard | null;
   historyIndex: number;
   historyLength: number;
   showGrid: boolean;
@@ -67,7 +66,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     snapshot,
     toolMode,
     selectedElementIds,
-    internalClipboard,
     historyIndex,
     historyLength,
     showGrid,
@@ -95,7 +93,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     dispatch
   };
 
-  const availability = actionAvailability(commandContext, internalClipboard);
+  const availability = actionAvailability(commandContext);
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
   const canExport = canExportSvg(snapshot.svg);
@@ -205,11 +203,16 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.PASTE]: {
-      enabled: availability.paste.enabled,
+      enabled: true,
       run: () => {
-        pasteSelectionAnchor({
-          ...commandContext,
-          internalClipboard
+        void pasteSelectionFromSystemClipboard(commandContext).then((result) => {
+          if (result.kind !== "failure" || result.reason === "empty") {
+            return;
+          }
+          const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+          if (typeof alertFn === "function") {
+            alertFn("Clipboard access was blocked. Focus the canvas and press Cmd/Ctrl+V to paste.");
+          }
         });
       }
     },
@@ -385,7 +388,6 @@ export function useEditorCommandRuntime(
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
-  const internalClipboard = useEditorStore((s) => s.internalClipboard);
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
   const showGrid = useEditorStore((s) => s.showGrid);
@@ -404,7 +406,6 @@ export function useEditorCommandRuntime(
         snapshot,
         toolMode,
         selectedElementIds,
-        internalClipboard,
         historyIndex,
         historyLength,
         showGrid,
@@ -427,7 +428,6 @@ export function useEditorCommandRuntime(
       snapshot,
       toolMode,
       selectedElementIds,
-      internalClipboard,
       historyIndex,
       historyLength,
       showGrid,

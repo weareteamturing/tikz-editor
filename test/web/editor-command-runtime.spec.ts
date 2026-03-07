@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { APP_MENU_COMMAND_IDS } from "../../src/app-menu/index.js";
 import { renderTikzToSvg } from "../../src/render/index.js";
 import { createEditorCommandRuntime } from "../../web/src/ui/editor-command-runtime.js";
-import type { EditorAction, InternalClipboard } from "../../web/src/store/types.js";
+import type { EditorAction } from "../../web/src/store/types.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -18,12 +18,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(["path:0"]),
-        internalClipboard: {
-          snippets: ["\\draw (0,0) -- (1,0);"],
-          plainText: "\\draw (0,0) -- (1,0);",
-          copiedAt: 1,
-          pasteBehavior: "offset"
-        },
         historyIndex: 0,
         historyLength: 2,
         showGrid: true
@@ -44,7 +38,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(["path:0"]),
-        internalClipboard: null,
         historyIndex: 0,
         historyLength: 1
       })
@@ -68,7 +61,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(),
-        internalClipboard: null,
         historyIndex: -1,
         historyLength: 0
       })
@@ -76,7 +68,7 @@ describe("editor-command-runtime", () => {
 
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.UNDO].enabled).toBe(false);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.COPY].enabled).toBe(false);
-    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(true);
     expect(runtime.runCommand(APP_MENU_COMMAND_IDS.UNDO, "shortcut")).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
   });
@@ -91,7 +83,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(),
-        internalClipboard: null,
         historyIndex: -1,
         historyLength: 0,
         onOpenExample
@@ -115,7 +106,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(),
-        internalClipboard: null,
         historyIndex: 0,
         historyLength: 1,
         onOpenSvgExport,
@@ -138,7 +128,6 @@ describe("editor-command-runtime", () => {
         dispatch,
         snapshot: makeSnapshot(rendered),
         selectedElementIds: new Set(),
-        internalClipboard: null,
         historyIndex: 0,
         historyLength: 1,
         onOpenSvgExport
@@ -150,6 +139,33 @@ describe("editor-command-runtime", () => {
     expect(ran).toBe(true);
     expect(onOpenSvgExport).toHaveBeenCalledTimes(1);
     expect(onOpenSvgExport).toHaveBeenCalledWith(rendered.svg);
+  });
+
+  it("shows a warning when menu paste cannot read system clipboard", async () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    vi.stubGlobal("navigator", {
+      clipboard: {
+        read: vi.fn().mockRejectedValue(new Error("blocked"))
+      }
+    });
+    const alert = vi.fn();
+    vi.stubGlobal("alert", alert);
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.PASTE, "menu");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ran).toBe(true);
+    expect(alert).toHaveBeenCalledWith("Clipboard access was blocked. Focus the canvas and press Cmd/Ctrl+V to paste.");
   });
 });
 
@@ -171,7 +187,6 @@ function makeInput({
   dispatch,
   snapshot,
   selectedElementIds,
-  internalClipboard,
   historyIndex,
   historyLength,
   showGrid = false,
@@ -188,7 +203,6 @@ function makeInput({
   dispatch: (action: EditorAction) => void;
   snapshot: ReturnType<typeof makeSnapshot>;
   selectedElementIds: ReadonlySet<string>;
-  internalClipboard: InternalClipboard | null;
   historyIndex: number;
   historyLength: number;
   showGrid?: boolean;
@@ -207,7 +221,6 @@ function makeInput({
     snapshot,
     toolMode: "select" as const,
     selectedElementIds,
-    internalClipboard,
     historyIndex,
     historyLength,
     showGrid,

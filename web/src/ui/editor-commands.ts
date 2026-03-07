@@ -1,5 +1,6 @@
-import type { ReorderDirection } from "tikz-editor/edit/actions";
+import { applyEditAction, type ReorderDirection } from "tikz-editor/edit/actions";
 import { getEditActionAvailability } from "tikz-editor/edit/action-availability";
+import { PT_PER_CM } from "tikz-editor/edit/format";
 import {
   parseStatementSnapshot,
   resolveStatementRefs,
@@ -8,7 +9,19 @@ import {
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
-import type { EditorAction, InternalClipboard } from "../store/types";
+import type { EditorAction } from "../store/types";
+import {
+  buildSelectionSvgSync,
+  buildSelectionSvg,
+  createClipboardPayload,
+  readClipboardPayloadFromDataTransfer,
+  readClipboardPayloadFromSystemClipboard,
+  type ClipboardPasteBehavior,
+  type ClipboardReadFailureReason,
+  type TikzClipboardPayload,
+  writePayloadToDataTransfer,
+  writeClipboardPayload
+} from "./editor-clipboard";
 
 type Dispatch = (action: EditorAction) => void;
 
@@ -21,13 +34,15 @@ type SelectionCommandContext = {
   dispatch: Dispatch;
 };
 
-type PasteCommandContext = SelectionCommandContext & {
-  internalClipboard: InternalClipboard | null;
-};
+type PasteCommandContext = SelectionCommandContext;
 
 type AlignMode = "left" | "center" | "right" | "top" | "middle" | "bottom";
 type DistributeAxis = "horizontal" | "vertical";
-type ClipboardPasteBehavior = NonNullable<InternalClipboard["pasteBehavior"]>;
+const DEFAULT_PASTE_OFFSET_PT = 0.25 * PT_PER_CM;
+
+export type PasteSelectionResult =
+  | { kind: "success" }
+  | { kind: "failure"; reason: ClipboardReadFailureReason | "unsupported" };
 
 export function isCodeMirrorEventTarget(target: EventTarget | null): boolean {
   const element = target as { closest?: (selector: string) => unknown } | null;
@@ -46,26 +61,29 @@ export async function copySelection(
   if (snippets.length === 0) {
     return false;
   }
-  const plainText = snippets.join("\n");
-  context.dispatch({
-    type: "SET_INTERNAL_CLIPBOARD",
-    clipboard: {
-      snippets,
-      plainText,
-      copiedAt: Date.now(),
-      pasteBehavior: options?.pasteBehavior ?? "offset"
-    }
-  });
-
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(plainText);
-    }
-  } catch {
-    // Keep internal clipboard even if system clipboard write fails.
+  const payload = createClipboardPayload(snippets, options?.pasteBehavior ?? "offset", 0);
+  if (!payload) {
+    return false;
   }
+  const svgText = await buildSelectionSvg(payload.snippets);
+  return writeClipboardPayload(payload, { svgText });
+}
 
-  return true;
+export function copySelectionToClipboardData(
+  context: SelectionCommandContext,
+  dataTransfer: DataTransfer | null,
+  options?: { pasteBehavior?: ClipboardPasteBehavior }
+): boolean {
+  if (!canCopySelection(context)) {
+    return false;
+  }
+  const snippets = selectedSnippets(context.source, context.selectedElementIds);
+  const payload = createClipboardPayload(snippets, options?.pasteBehavior ?? "offset", 0);
+  if (!payload) {
+    return false;
+  }
+  const svgText = buildSelectionSvgSync(payload.snippets);
+  return writePayloadToDataTransfer(payload, dataTransfer, { svgText });
 }
 
 export function deleteSelection(context: SelectionCommandContext): boolean {
@@ -113,27 +131,77 @@ export async function cutSelection(context: SelectionCommandContext): Promise<bo
   return deleteSelection(context);
 }
 
-export function pasteSelectionAnchor(context: PasteCommandContext): boolean {
-  if (!canPasteSelection(context)) {
+export function cutSelectionToClipboardData(
+  context: SelectionCommandContext,
+  dataTransfer: DataTransfer | null
+): boolean {
+  const copied = copySelectionToClipboardData(context, dataTransfer, { pasteBehavior: "preserve" });
+  if (!copied) {
     return false;
   }
+  return deleteSelection(context);
+}
 
-  const clipboard = context.internalClipboard;
-  if (!clipboard) {
+export async function pasteSelectionFromClipboardData(
+  context: PasteCommandContext,
+  dataTransfer: DataTransfer | null
+): Promise<PasteSelectionResult> {
+  const parsed = readClipboardPayloadFromDataTransfer(dataTransfer);
+  if (parsed.kind === "failure") {
+    return parsed;
+  }
+  const didPaste = runPasteFromPayload(context, parsed.payload);
+  return didPaste ? { kind: "success" } : { kind: "failure", reason: "unsupported" };
+}
+
+export async function pasteSelectionFromSystemClipboard(
+  context: PasteCommandContext
+): Promise<PasteSelectionResult> {
+  const readResult = await readClipboardPayloadFromSystemClipboard();
+  if (readResult.kind === "failure") {
+    return readResult;
+  }
+  const didPaste = runPasteFromPayload(context, readResult.payload);
+  return didPaste ? { kind: "success" } : { kind: "failure", reason: "unsupported" };
+}
+
+function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboardPayload): boolean {
+  if (!canPasteSelection(context)) {
     return false;
   }
 
   const refs = selectedStatementRefs(context.source, context.selectedElementIds);
   const anchor = refs.length > 0 ? refs[refs.length - 1] : null;
+  const pasteCount = Math.max(0, Math.floor(payload.pasteCount));
+  const offset = DEFAULT_PASTE_OFFSET_PT * (pasteCount + 1);
+  const delta = payload.pasteBehavior === "preserve"
+    ? { x: 0, y: 0 }
+    : { x: offset, y: -offset };
+  const action = {
+    kind: "pasteStatements" as const,
+    snippets: [...payload.snippets],
+    anchorElementId: anchor?.id,
+    delta
+  };
+  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action);
+  if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
+    return false;
+  }
+
   context.dispatch({
     type: "APPLY_EDIT_ACTION",
-    action: {
-      kind: "pasteStatements",
-      snippets: [...clipboard.snippets],
-      anchorElementId: anchor?.id,
-      delta: clipboard.pasteBehavior === "preserve" ? { x: 0, y: 0 } : undefined
-    }
+    action,
+    precomputedResult
   });
+
+  if (payload.pasteBehavior === "offset") {
+    const nextPayload = {
+      ...payload,
+      pasteCount: pasteCount + 1
+    };
+    void buildSelectionSvg(nextPayload.snippets).then((svgText) => writeClipboardPayload(nextPayload, { svgText }));
+  }
+
   return true;
 }
 
@@ -256,7 +324,7 @@ export function canReorderSelection(
 }
 
 export function canPasteSelection(context: PasteCommandContext): boolean {
-  return availabilityFor(context, context.internalClipboard).paste.enabled;
+  return availabilityFor(context).paste.enabled;
 }
 
 export function canAlignSelection(context: SelectionCommandContext, mode: AlignMode): boolean {
@@ -281,10 +349,9 @@ export function canDistributeSelection(context: SelectionCommandContext, axis: D
 }
 
 export function actionAvailability(
-  context: SelectionCommandContext,
-  internalClipboard: InternalClipboard | null
+  context: SelectionCommandContext
 ) {
-  return availabilityFor(context, internalClipboard);
+  return availabilityFor(context);
 }
 
 function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string>): string[] {
@@ -341,17 +408,14 @@ function selectedStatementRefs(source: string, selectedElementIds: ReadonlySet<s
   return refs;
 }
 
-function availabilityFor(
-  context: SelectionCommandContext,
-  clipboard: InternalClipboard | null
-) {
+function availabilityFor(context: SelectionCommandContext) {
   return getEditActionAvailability({
     source: context.source,
     snapshotSource: context.snapshotSource,
     selectedSourceIds: [...context.selectedElementIds],
     scene: context.scene,
     editHandles: context.editHandles,
-    hasClipboardContent: Boolean(clipboard && clipboard.snippets.length > 0)
+    hasClipboardContent: true
   });
 }
 

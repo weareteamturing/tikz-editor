@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ClipboardEvent as ReactClipboardEvent,
   type MouseEvent as ReactMouseEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
@@ -136,6 +137,11 @@ import {
 } from "./tool-config";
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import { useEditorCommandRuntime } from "./editor-command-runtime";
+import {
+  copySelectionToClipboardData,
+  cutSelectionToClipboardData,
+  pasteSelectionFromClipboardData
+} from "./editor-commands";
 import {
   addGuide,
   buildAnchoredGridPreviewLines,
@@ -2958,6 +2964,88 @@ export function CanvasPanel() {
     ]
   );
 
+  const onViewportPaste = useCallback(
+    (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      event.preventDefault();
+      void pasteSelectionFromClipboardData(
+        {
+          source,
+          snapshotSource: snapshot.source,
+          scene: snapshot.scene,
+          editHandles: snapshot.editHandles,
+          selectedElementIds,
+          dispatch
+        },
+        event.clipboardData
+      ).then((result) => {
+        if (result.kind === "success") {
+          return;
+        }
+        if (result.reason === "empty") {
+          return;
+        }
+        if (result.reason === "invalid") {
+          setWarning("Clipboard did not contain a valid TikZ payload.");
+          return;
+        }
+        setWarning("Paste failed. Try copying again, then press Cmd/Ctrl+V while the canvas is focused.");
+      });
+    },
+    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+  );
+
+  const onViewportCopy = useCallback(
+    (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      const copied = copySelectionToClipboardData(
+        {
+          source,
+          snapshotSource: snapshot.source,
+          scene: snapshot.scene,
+          editHandles: snapshot.editHandles,
+          selectedElementIds,
+          dispatch
+        },
+        event.clipboardData,
+        { pasteBehavior: "offset" }
+      );
+      if (!copied) {
+        return;
+      }
+      event.preventDefault();
+    },
+    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+  );
+
+  const onViewportCut = useCallback(
+    (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      const cut = cutSelectionToClipboardData(
+        {
+          source,
+          snapshotSource: snapshot.source,
+          scene: snapshot.scene,
+          editHandles: snapshot.editHandles,
+          selectedElementIds,
+          dispatch
+        },
+        event.clipboardData
+      );
+      if (!cut) {
+        return;
+      }
+      event.preventDefault();
+    },
+    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+  );
+
   useEffect(() => {
     const onModifierKeyChange = (event: KeyboardEvent) => {
       if (event.key !== "Shift") {
@@ -3825,8 +3913,12 @@ export function CanvasPanel() {
         <div
           className={[css.viewport, toolMode === "select" ? "" : css.viewportTool].filter(Boolean).join(" ")}
           ref={viewportRef}
+          data-canvas-viewport="true"
           tabIndex={0}
           onKeyDown={onViewportKeyDown}
+          onCopy={onViewportCopy}
+          onCut={onViewportCut}
+          onPaste={onViewportPaste}
           onPointerDown={onViewportPointerDown}
           onContextMenu={(event) => {
             if (event.defaultPrevented) {
