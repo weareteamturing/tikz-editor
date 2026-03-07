@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "../settings/useSettingsStore";
-import type { GridSize } from "../settings/types";
+import type { ColorPickerAccuracy, GridSize } from "../settings/types";
 import css from "./SettingsModal.module.css";
 
 type CategoryId = "editor" | "canvas";
@@ -26,6 +26,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const settings = useSettingsStore((s) => s.settings);
   const updateEditorSettings = useSettingsStore((s) => s.updateEditorSettings);
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
+  const updateColorPickerSettings = useSettingsStore((s) => s.updateColorPickerSettings);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -114,6 +115,24 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     {[11, 12, 13, 14, 15, 16, 18, 20].map((size) => (
                       <option key={size} value={size}>{size}px</option>
                     ))}
+                  </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-color-picker-accuracy">
+                    Color Picker Precision
+                    <span className={css.settingDesc}>
+                      Approximate uses faster integer mixes. Exact enables higher-precision white-tail mixes.
+                    </span>
+                  </label>
+                  <select
+                    id="setting-color-picker-accuracy"
+                    className={css.select}
+                    value={settings.colorPicker.accuracy}
+                    onChange={(e) => updateColorPickerSettings({ accuracy: e.target.value as ColorPickerAccuracy })}
+                  >
+                    <option value="approximate">Approximate (default)</option>
+                    <option value="exact">Exact</option>
                   </select>
                 </div>
               </div>

@@ -3,6 +3,8 @@ import { rgbToXcolorExpressionFast, type RgbColor, type RgbToXcolorMode } from "
 import { normalizeColor } from "tikz-editor/semantic/style/colors";
 import { BASIC_PICKER_COLORS, BASIC_PICKER_COLOR_SET } from "../color-palette";
 import type { NamedColorSwatch } from "../project-named-colors";
+import { useSettingsStore } from "../settings/useSettingsStore";
+import type { ColorPickerAccuracy } from "../settings/types";
 import { expandGrayAliasToBlackMix, serializeBlackMixToGrayAlias } from "./color-picker-grayscale";
 import { parseCustomColorInput } from "./custom-color-input";
 import css from "./ColorPicker.module.css";
@@ -217,6 +219,7 @@ export function ColorPicker({
   disabled = false,
   onChange
 }: ColorPickerProps) {
+  const colorPickerAccuracy = useSettingsStore((s) => s.settings.colorPicker.accuracy);
   const normalizedSyntaxValue = normalizeColorToken(syntaxValue);
   const normalizedValue = normalizeColorToken(value);
   const driverValue = normalizedSyntaxValue ?? normalizedValue;
@@ -265,10 +268,10 @@ export function ColorPicker({
   const [customRgb, setCustomRgb] = useState<RgbColor>(() => resolveCustomRgbFromDriver(driverValue, namedColorLookup));
   const [customInputValue, setCustomInputValue] = useState<string>(() => rgbToHex(resolveCustomRgbFromDriver(driverValue, namedColorLookup)));
   const [customExpression, setCustomExpression] = useState<string>(() =>
-    rgbToXcolorExpressionFast(resolveCustomRgbFromDriver(driverValue, namedColorLookup), {
-      mode: "drag",
-      maxMixes: 2
-    }).expression
+    rgbToXcolorExpressionFast(
+      resolveCustomRgbFromDriver(driverValue, namedColorLookup),
+      resolveRgbToXcolorOptions("drag", colorPickerAccuracy)
+    ).expression
   );
   const [customInputError, setCustomInputError] = useState<string | null>(null);
   const [customInputWarning, setCustomInputWarning] = useState<string | null>(null);
@@ -307,6 +310,12 @@ export function ColorPicker({
       syncCustomStateFromDriver();
     }
   }, [tab, driverValue, namedColorLookup]);
+
+  useEffect(() => {
+    setCustomExpression(
+      rgbToXcolorExpressionFast(customRgb, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
+    );
+  }, [customRgb, colorPickerAccuracy]);
 
   const selectedSwatchColor = useMemo(
     () => resolveSelectedSwatchColor(driverValue, namedColorTokenSet, toneSelectableTokens),
@@ -435,10 +444,7 @@ export function ColorPicker({
     setCustomRgb(resolved);
     setCustomInputValue(rgbToHex(resolved));
     setCustomExpression(
-      rgbToXcolorExpressionFast(resolved, {
-        mode: "drag",
-        maxMixes: 2
-      }).expression
+      rgbToXcolorExpressionFast(resolved, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
     );
     setCustomInputError(null);
     setCustomInputWarning(null);
@@ -446,10 +452,7 @@ export function ColorPicker({
 
   function applyCustomRgb(nextRgb: RgbColor, mode: RgbToXcolorMode, warning: string | null = null): void {
     const normalizedRgb = clampRgbColor(nextRgb);
-    const result = rgbToXcolorExpressionFast(normalizedRgb, {
-      mode,
-      maxMixes: 2
-    });
+    const result = rgbToXcolorExpressionFast(normalizedRgb, resolveRgbToXcolorOptions(mode, colorPickerAccuracy));
     setCustomRgb(normalizedRgb);
     setCustomExpression(result.expression);
     setCustomInputError(null);
@@ -745,6 +748,24 @@ export function ColorPicker({
       )}
     </div>
   );
+}
+
+function resolveRgbToXcolorOptions(
+  mode: RgbToXcolorMode,
+  accuracy: ColorPickerAccuracy
+): { mode: RgbToXcolorMode; maxMixes: 2 | 3; exact?: true; threeMixWhiteTail?: true } {
+  if (accuracy === "exact") {
+    return {
+      mode,
+      maxMixes: 3,
+      exact: true,
+      threeMixWhiteTail: true
+    };
+  }
+  return {
+    mode,
+    maxMixes: 2
+  };
 }
 
 function isStandardTabColorSupported(

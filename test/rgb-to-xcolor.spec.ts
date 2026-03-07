@@ -82,4 +82,38 @@ describe("rgbToXcolorExpressionFast", () => {
       expect(release.error2).toBeLessThanOrEqual(drag.error2);
     }
   });
+
+  it("supports exact white-tail search with implicit final white mix", () => {
+    const sample: RgbColor = { r: 123, g: 45, b: 67 };
+    const result = rgbToXcolorExpressionFast(sample, {
+      mode: "release",
+      maxMixes: 3,
+      exact: true,
+      threeMixWhiteTail: true
+    });
+
+    expect(result.mixes).toBeGreaterThanOrEqual(1);
+    expect(result.expression.length).toBeGreaterThan(0);
+    expect(result.expression).not.toContain("!white");
+  });
+
+  it("three-mix white-tail mode is deterministic", () => {
+    const sample: RgbColor = { r: 26, g: 43, b: 60 };
+    const first = rgbToXcolorExpressionFast(sample, {
+      mode: "release",
+      maxMixes: 3,
+      exact: true,
+      threeMixWhiteTail: true
+    });
+    const second = rgbToXcolorExpressionFast(sample, {
+      mode: "release",
+      maxMixes: 3,
+      exact: true,
+      threeMixWhiteTail: true
+    });
+
+    expect(second.expression).toBe(first.expression);
+    expect(second.error2).toBe(first.error2);
+    expect(second.mixes).toBe(first.mixes);
+  });
 });

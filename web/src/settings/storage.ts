@@ -16,6 +16,10 @@ export function loadSettings(): AppSettings {
       canvas: {
         ...DEFAULT_SETTINGS.canvas,
         ...(parsed.canvas ?? {})
+      },
+      colorPicker: {
+        ...DEFAULT_SETTINGS.colorPicker,
+        ...(parsed.colorPicker ?? {})
       }
     };
   } catch {

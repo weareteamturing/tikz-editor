@@ -6,6 +6,7 @@ type SettingsStore = {
   settings: AppSettings;
   updateEditorSettings: (patch: Partial<AppSettings["editor"]>) => void;
   updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
+  updateColorPickerSettings: (patch: Partial<AppSettings["colorPicker"]>) => void;
 };
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -25,6 +26,16 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       const next: AppSettings = {
         ...state.settings,
         canvas: { ...state.settings.canvas, ...patch }
+      };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
+  updateColorPickerSettings: (patch) => {
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        colorPicker: { ...state.settings.colorPicker, ...patch }
       };
       saveSettings(next);
       return { settings: next };
