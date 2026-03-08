@@ -180,6 +180,7 @@ import {
 } from "./canvas-panel/panel-helpers";
 import { useSettingsStore } from "../settings/useSettingsStore";
 import { GRID_SIZE_MINOR_TARGET_PX } from "../settings/types";
+import { RenderedTooltip } from "./RenderedTooltip";
 import css from "./CanvasPanel.module.css";
 
 type DiagnosticRow = {
@@ -4147,17 +4148,18 @@ export function CanvasPanel() {
           />
 
           {warning && (
-            <div
-              className={css.warningBar}
-              onClick={copyWarningToClipboard}
-              onKeyDown={onWarningBarKeyDown}
-              role="button"
-              tabIndex={0}
-              title="Click to copy message"
-              aria-label="Warning message. Click to copy."
-            >
-              {warning}
-            </div>
+            <RenderedTooltip content="Click to copy message" block>
+              <div
+                className={css.warningBar}
+                onClick={copyWarningToClipboard}
+                onKeyDown={onWarningBarKeyDown}
+                role="button"
+                tabIndex={0}
+                aria-label="Warning message. Click to copy."
+              >
+                {warning}
+              </div>
+            </RenderedTooltip>
           )}
           {showDevPanel && (
             <div
@@ -4177,11 +4179,12 @@ export function CanvasPanel() {
                   ? JSON.stringify(snapDebug, null, 2)
                   : "Trigger a snap interaction to populate diagnostics."}
               </pre>
-              <div
-                className={css.snapDebugResizeHandle}
-                onPointerDown={onSnapDebugResizePointerDown}
-                title="Drag to resize"
-              />
+              <RenderedTooltip content="Drag to resize">
+                <div
+                  className={css.snapDebugResizeHandle}
+                  onPointerDown={onSnapDebugResizePointerDown}
+                />
+              </RenderedTooltip>
             </div>
           )}
         </div>

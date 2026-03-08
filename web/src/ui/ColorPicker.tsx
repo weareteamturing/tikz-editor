@@ -7,6 +7,7 @@ import { useSettingsStore } from "../settings/useSettingsStore";
 import type { ColorPickerAccuracy } from "../settings/types";
 import { expandGrayAliasToBlackMix, serializeBlackMixToGrayAlias } from "./color-picker-grayscale";
 import { parseCustomColorInput } from "./custom-color-input";
+import { RenderedTooltip } from "./RenderedTooltip";
 import css from "./ColorPicker.module.css";
 
 type ColorPickerTabId = "standard" | "custom";
@@ -702,17 +703,17 @@ export function ColorPicker({
                   {normalizedNamedColorSwatches.map((swatch) => {
                     const selected = selectedSwatchColor === swatch.token;
                     return (
-                      <button
-                        key={swatch.token}
-                        type="button"
-                        className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
-                        title={swatch.token}
-                        aria-label={`${ariaLabel} ${swatch.token}`}
-                        onClick={() => handleSwatchClick(swatch.token)}
-                        disabled={disabled}
-                      >
-                        <span className={css.swatchDot} style={{ background: swatch.cssColor }} aria-hidden="true" />
-                      </button>
+                      <RenderedTooltip key={swatch.token} content={swatch.token}>
+                        <button
+                          type="button"
+                          className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
+                          aria-label={`${ariaLabel} ${swatch.token}`}
+                          onClick={() => handleSwatchClick(swatch.token)}
+                          disabled={disabled}
+                        >
+                          <span className={css.swatchDot} style={{ background: swatch.cssColor }} aria-hidden="true" />
+                        </button>
+                      </RenderedTooltip>
                     );
                   })}
                 </div>
@@ -724,25 +725,25 @@ export function ColorPicker({
               {builtInColors.map((colorName) => {
                 const selected = selectedSwatchColor === colorName;
                 return (
-                  <button
-                    key={colorName}
-                    type="button"
-                    className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
-                    title={colorName}
-                    aria-label={`${ariaLabel} ${colorName}`}
-                    onClick={() => handleSwatchClick(colorName)}
-                    disabled={disabled}
-                  >
-                    <span
-                      className={[css.swatchDot, colorName === "none" ? css.swatchDotNone : ""].filter(Boolean).join(" ")}
-                      style={
-                        colorName !== "none"
-                          ? { background: cssColorForToken(colorName, namedColorLookup) ?? "transparent" }
-                          : undefined
-                      }
-                      aria-hidden="true"
-                    />
-                  </button>
+                  <RenderedTooltip key={colorName} content={colorName}>
+                    <button
+                      type="button"
+                      className={[css.swatchButton, selected ? css.swatchButtonSelected : ""].filter(Boolean).join(" ")}
+                      aria-label={`${ariaLabel} ${colorName}`}
+                      onClick={() => handleSwatchClick(colorName)}
+                      disabled={disabled}
+                    >
+                      <span
+                        className={[css.swatchDot, colorName === "none" ? css.swatchDotNone : ""].filter(Boolean).join(" ")}
+                        style={
+                          colorName !== "none"
+                            ? { background: cssColorForToken(colorName, namedColorLookup) ?? "transparent" }
+                            : undefined
+                        }
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </RenderedTooltip>
                 );
               })}
             </div>
@@ -871,28 +872,29 @@ export function ColorPicker({
               Color Input
             </label>
             <div className={css.customTextInputWrap}>
-              <input
-                id={`${customIdPrefix}-custom-text`}
-                className={[css.customTextInput, customInputError ? css.customTextInputError : ""].filter(Boolean).join(" ")}
-                type="text"
-                value={customInputValue}
-                placeholder="#00ff00, rgb(...), hsl(...), hsb(...)"
-                spellCheck={false}
-                autoCapitalize="none"
-                autoCorrect="off"
-                disabled={disabled}
-                aria-invalid={customInputError ? "true" : "false"}
-                title={customInputError ?? undefined}
-                onChange={(event) => handleCustomTextInputChange(event.currentTarget.value)}
-                onBlur={() => commitCustomTextInput()}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter") {
-                    return;
-                  }
-                  event.preventDefault();
-                  commitCustomTextInput();
-                }}
-              />
+              <RenderedTooltip content={customInputError ?? undefined}>
+                <input
+                  id={`${customIdPrefix}-custom-text`}
+                  className={[css.customTextInput, customInputError ? css.customTextInputError : ""].filter(Boolean).join(" ")}
+                  type="text"
+                  value={customInputValue}
+                  placeholder="#00ff00, rgb(...), hsl(...), hsb(...)"
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  disabled={disabled}
+                  aria-invalid={customInputError ? "true" : "false"}
+                  onChange={(event) => handleCustomTextInputChange(event.currentTarget.value)}
+                  onBlur={() => commitCustomTextInput()}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    event.preventDefault();
+                    commitCustomTextInput();
+                  }}
+                />
+              </RenderedTooltip>
               {customInputError ? (
                 <span className={css.customTextInputStatus} aria-hidden="true">
                   !

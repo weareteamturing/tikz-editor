@@ -1,0 +1,24 @@
+.anchorInline {
+  position: relative;
+  display: inline-flex;
+}
+
+.anchorBlock {
+  position: relative;
+  display: block;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 280px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-pane);
+  color: var(--text);
+  font: 12px/1.35 var(--font-ui);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  white-space: pre-line;
+  pointer-events: none;
+}

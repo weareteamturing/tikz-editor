@@ -61,6 +61,7 @@ import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown } from "./CustomDropdown";
 import { actionAvailability, alignSelection, distributeSelection } from "./editor-commands";
+import { RenderedTooltip } from "./RenderedTooltip";
 import {
   ARROW_TIP_MIXED_OPTION_VALUE,
   DASH_STYLE_MIXED_OPTION_VALUE,
@@ -3395,20 +3396,20 @@ export function InspectorPanel() {
         : action.label;
       const Icon = action.icon;
       return (
-        <button
-          key={action.id}
-          type="button"
-          className={css.multiArrangeIconButton}
-          aria-label={action.label}
-          title={title}
-          disabled={disabled}
-          onClick={() => {
-            clearHoverPreviewSession();
-            action.run(commandContext);
-          }}
-        >
-          <Icon size={14} />
-        </button>
+        <RenderedTooltip key={action.id} content={title}>
+          <button
+            type="button"
+            className={css.multiArrangeIconButton}
+            aria-label={action.label}
+            disabled={disabled}
+            onClick={() => {
+              clearHoverPreviewSession();
+              action.run(commandContext);
+            }}
+          >
+            <Icon size={14} />
+          </button>
+        </RenderedTooltip>
       );
     };
 

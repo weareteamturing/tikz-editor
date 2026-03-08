@@ -1,7 +1,5 @@
 TODOS
 
-* Support for tooltips
-
 * Switch cap / join selectors to be similar to https://boxy-svg.com/app/
 
 * SVG style path adder

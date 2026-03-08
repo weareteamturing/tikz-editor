@@ -1,5 +1,6 @@
 import { useEditorStore } from "../store/store";
 import { getToolCapabilityStatus } from "./capabilities";
+import { RenderedTooltip } from "./RenderedTooltip";
 import { resolveToolbarToolMode, TOOL_BUTTONS } from "./tool-config";
 import css from "./Toolbar.module.css";
 
@@ -24,23 +25,24 @@ export function Toolbar() {
             : title;
 
           return (
-            <button
-              key={mode}
-              className={[
-                css.btn,
-                toolMode === mode ? css.btnActive : ""
-              ].filter(Boolean).join(" ")}
-              title={buttonTitle}
-              disabled={unsupported}
-              onClick={() =>
-                dispatch({
-                  type: "SET_TOOL_MODE",
-                  mode: resolveToolbarToolMode(toolMode, mode)
-                })
-              }
-            >
-              <Icon size={14} />
-            </button>
+            <RenderedTooltip key={mode} content={buttonTitle}>
+              <button
+                className={[
+                  css.btn,
+                  toolMode === mode ? css.btnActive : ""
+                ].filter(Boolean).join(" ")}
+                aria-label={label}
+                disabled={unsupported}
+                onClick={() =>
+                  dispatch({
+                    type: "SET_TOOL_MODE",
+                    mode: resolveToolbarToolMode(toolMode, mode)
+                  })
+                }
+              >
+                <Icon size={14} />
+              </button>
+            </RenderedTooltip>
           );
         })}
       </div>
