@@ -3,6 +3,8 @@ export type EditorSettings = {
   fontSize: number;
   lineNumbers: boolean;
   indentSize: 2 | 4;
+  formatterReflowLongOptions: boolean;
+  formatterMaxLineLength: number;
 };
 
 export type ColorPickerAccuracy = "approximate" | "exact";
@@ -42,7 +44,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
     wordWrap: false,
     fontSize: 12,
     lineNumbers: true,
-    indentSize: 2
+    indentSize: 2,
+    formatterReflowLongOptions: true,
+    formatterMaxLineLength: 100
   },
   canvas: {
     gridSize: "standard",

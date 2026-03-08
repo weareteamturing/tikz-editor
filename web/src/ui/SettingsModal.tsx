@@ -13,6 +13,8 @@ const CATEGORIES: { id: CategoryId; label: string }[] = [
 ];
 
 let rememberedCategory: CategoryId = "general";
+const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
+const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 
 type SettingsModalProps = {
   onClose: () => void;
@@ -20,6 +22,7 @@ type SettingsModalProps = {
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState<CategoryId>(rememberedCategory);
+  const [formatterMaxLineLengthInput, setFormatterMaxLineLengthInput] = useState<string | null>(null);
 
   const selectCategory = (id: CategoryId) => {
     rememberedCategory = id;
@@ -30,6 +33,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const updateEditorSettings = useSettingsStore((s) => s.updateEditorSettings);
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const updateColorPickerSettings = useSettingsStore((s) => s.updateColorPickerSettings);
+  const formatterMaxLineLengthValue = formatterMaxLineLengthInput ?? String(settings.editor.formatterMaxLineLength);
+
+  const commitFormatterMaxLineLength = () => {
+    const parsed = Number(formatterMaxLineLengthValue);
+    const clamped = Number.isFinite(parsed)
+      ? Math.max(MIN_FORMATTER_MAX_LINE_LENGTH, Math.min(MAX_FORMATTER_MAX_LINE_LENGTH, Math.round(parsed)))
+      : settings.editor.formatterMaxLineLength;
+
+    updateEditorSettings({ formatterMaxLineLength: clamped });
+    setFormatterMaxLineLengthInput(null);
+  };
 
   return (
     <Modal onClose={onClose} className={css.dialog} labelledBy="settings-title">
@@ -159,6 +173,42 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     <option value={2}>2 spaces</option>
                     <option value={4}>4 spaces</option>
                   </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-formatter-reflow-long-options">
+                    Reflow Long Option Key/Value Lists
+                    <span className={css.settingDesc}>Split long option lists into one entry per line while formatting.</span>
+                  </label>
+                  <input
+                    id="setting-formatter-reflow-long-options"
+                    type="checkbox"
+                    className={css.checkbox}
+                    checked={settings.editor.formatterReflowLongOptions}
+                    onChange={(e) => updateEditorSettings({ formatterReflowLongOptions: e.target.checked })}
+                  />
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-formatter-max-line-length">
+                    Formatter Max Line Length
+                    <span className={css.settingDesc}>Longer option lists are reflowed when this limit is exceeded.</span>
+                  </label>
+                  <input
+                    id="setting-formatter-max-line-length"
+                    type="number"
+                    className={css.numberInput}
+                    min={MIN_FORMATTER_MAX_LINE_LENGTH}
+                    max={MAX_FORMATTER_MAX_LINE_LENGTH}
+                    value={formatterMaxLineLengthValue}
+                    onChange={(e) => setFormatterMaxLineLengthInput(e.target.value)}
+                    onBlur={commitFormatterMaxLineLength}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        commitFormatterMaxLineLength();
+                      }
+                    }}
+                  />
                 </div>
               </div>
             )}

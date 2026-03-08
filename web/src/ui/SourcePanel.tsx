@@ -106,6 +106,8 @@ const EMPTY_SYMBOLS: DocumentSymbols = {
 const MAX_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DEBOUNCE_MS = 120;
+const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
+const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 
 const COMMON_OPTION_KEYS = [
   "draw",
@@ -261,6 +263,8 @@ export function SourcePanel() {
   const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
   const editorLineNumbers = useSettingsStore((s) => s.settings.editor.lineNumbers);
   const editorIndentSize = useSettingsStore((s) => s.settings.editor.indentSize);
+  const formatterReflowLongOptions = useSettingsStore((s) => s.settings.editor.formatterReflowLongOptions);
+  const formatterMaxLineLength = useSettingsStore((s) => s.settings.editor.formatterMaxLineLength);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -664,7 +668,11 @@ export function SourcePanel() {
       }
 
       const currentSource = view.state.doc.toString();
-      const formattedSource = formatTikzSource(currentSource, { indentUnit: " ".repeat(editorIndentSize) });
+      const formattedSource = formatTikzSource(currentSource, {
+        indentUnit: " ".repeat(editorIndentSize),
+        reflowLongOptionLists: formatterReflowLongOptions,
+        maxLineLength: clampFormatterMaxLineLength(formatterMaxLineLength)
+      });
       if (formattedSource === currentSource) {
         return;
       }
@@ -682,7 +690,7 @@ export function SourcePanel() {
 
     window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
     return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
-  }, [editorIndentSize]);
+  }, [editorIndentSize, formatterMaxLineLength, formatterReflowLongOptions]);
 
   const handleInlineColorChange = (nextToken: string): void => {
     const session = activeColorPicker;
@@ -747,6 +755,14 @@ function insertSoftIndent(view: EditorView): boolean {
     })
   );
   return true;
+}
+
+function clampFormatterMaxLineLength(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 100;
+  }
+  const rounded = Math.round(value);
+  return Math.max(MIN_FORMATTER_MAX_LINE_LENGTH, Math.min(MAX_FORMATTER_MAX_LINE_LENGTH, rounded));
 }
 
 function completeTikz(context: CompletionContext, symbols: DocumentSymbols) {

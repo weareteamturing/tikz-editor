@@ -2,7 +2,7 @@ TODOS
 
 * Switch cap / join selectors to be similar to https://boxy-svg.com/app/
 
-* SVG style path adder
+* context menu for path segments: add/remove segments, convert control point to bezier / straight, etc
 
 * Selecting and transforming scopes. Group/ungroup
 * Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
@@ -42,4 +42,6 @@ TODOS
 
 * Dark mode; other display customizations
 
-* App settings: handle size, UI font size, scroll / zoom speed, geometry precision digits, code formatter options
+* App settings: geometry precision digits, code formatter options
+
+* code folding in the code editor (e.g. for scopes)
