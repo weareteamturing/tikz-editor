@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from "react";
 import {
   RiAlignItemBottomLine,
   RiAlignItemHorizontalCenterLine,
@@ -152,6 +152,10 @@ import {
   type NodeShapeDropdownValue,
   type PathMorphingDecorationDropdownValue
 } from "./inspector-panel/panel-helpers";
+import {
+  createNumberScrubState,
+  updateNumberScrubState
+} from "./inspector-panel/number-scrub";
 import css from "./InspectorPanel.module.css";
 
 
@@ -159,6 +163,20 @@ type ApplySetPropertyOptions = {
   key?: string;
   clearKeys?: string[];
   recordInHistory?: boolean;
+};
+
+type NumberChangeOptions = {
+  recordInHistory?: boolean;
+};
+
+type NumberLabelScrubBinding = {
+  writable: boolean;
+  value: number;
+  step: number;
+  min?: number;
+  max?: number;
+  onPreview: (value: number) => void;
+  onCommit: (value: number) => void;
 };
 
 type HoverPreviewSession = {
@@ -170,6 +188,14 @@ type FrozenInspectorView = {
   selectedSourceIds: string[];
   descriptor: InspectorDescriptor | null;
   multiModel: MultiInspectorModel | null;
+};
+
+type NumberLabelScrubSession = {
+  pointerId: number;
+  baseSource: string;
+  state: ReturnType<typeof createNumberScrubState>;
+  onPreview: (value: number) => void;
+  onCommit: (value: number) => void;
 };
 
 type ArrangeCommandContext = Parameters<typeof alignSelection>[0];
@@ -277,6 +303,8 @@ export function InspectorPanel() {
   const [fillAdvancedOptionsOpen, setFillAdvancedOptionsOpen] = useState(false);
   const [frozenInspectorView, setFrozenInspectorView] = useState<FrozenInspectorView | null>(null);
   const hoverPreviewSessionRef = useRef<HoverPreviewSession | null>(null);
+  const numberLabelScrubSessionRef = useRef<NumberLabelScrubSession | null>(null);
+  const numberLabelScrubListenersAttachedRef = useRef(false);
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
   const projectNamedColorSwatches = useMemo(
@@ -416,15 +444,138 @@ export function InspectorPanel() {
     commit();
   }, [dispatch]);
 
+  const stopNumberLabelScrubRef = useRef<(commit: boolean, pointerId?: number) => void>(() => {});
+
+  const handleNumberLabelScrubPointerMove = useCallback((event: PointerEvent) => {
+    const session = numberLabelScrubSessionRef.current;
+    if (!session || event.pointerId !== session.pointerId) {
+      return;
+    }
+
+    const result = updateNumberScrubState(session.state, {
+      currentX: event.clientX,
+      modifiers: {
+        shiftKey: event.shiftKey,
+        altKey: event.altKey
+      }
+    });
+    session.state = result.nextState;
+    if (result.didActivate) {
+      document.body.classList.add("is-scrubbing");
+    }
+    if (result.nextValue == null) {
+      return;
+    }
+    session.onPreview(result.nextValue);
+  }, []);
+
+  const handleNumberLabelScrubPointerUp = useCallback((event: PointerEvent) => {
+    stopNumberLabelScrubRef.current(true, event.pointerId);
+  }, []);
+
+  const handleNumberLabelScrubPointerCancel = useCallback((event: PointerEvent) => {
+    stopNumberLabelScrubRef.current(false, event.pointerId);
+  }, []);
+
+  const handleNumberLabelScrubWindowBlur = useCallback(() => {
+    stopNumberLabelScrubRef.current(false);
+  }, []);
+
+  const removeNumberLabelScrubListeners = useCallback(() => {
+    if (!numberLabelScrubListenersAttachedRef.current) {
+      return;
+    }
+    window.removeEventListener("pointermove", handleNumberLabelScrubPointerMove);
+    window.removeEventListener("pointerup", handleNumberLabelScrubPointerUp);
+    window.removeEventListener("pointercancel", handleNumberLabelScrubPointerCancel);
+    window.removeEventListener("blur", handleNumberLabelScrubWindowBlur);
+    numberLabelScrubListenersAttachedRef.current = false;
+  }, [
+    handleNumberLabelScrubPointerCancel,
+    handleNumberLabelScrubPointerMove,
+    handleNumberLabelScrubPointerUp,
+    handleNumberLabelScrubWindowBlur
+  ]);
+
+  const stopNumberLabelScrub = useCallback((commit: boolean, pointerId?: number) => {
+    const session = numberLabelScrubSessionRef.current;
+    if (!session || (pointerId != null && pointerId !== session.pointerId)) {
+      return;
+    }
+    numberLabelScrubSessionRef.current = null;
+    removeNumberLabelScrubListeners();
+
+    if (session.state.hasActivated) {
+      const currentSource = useEditorStore.getState().source;
+      if (currentSource !== session.baseSource) {
+        dispatch({
+          type: "SET_SOURCE_TRANSIENT",
+          source: session.baseSource
+        });
+      }
+      if (commit) {
+        session.onCommit(session.state.lastValue);
+      }
+    }
+
+    document.body.classList.remove("is-scrubbing");
+  }, [dispatch, removeNumberLabelScrubListeners]);
+
+  useEffect(() => {
+    stopNumberLabelScrubRef.current = stopNumberLabelScrub;
+  }, [stopNumberLabelScrub]);
+
+  const ensureNumberLabelScrubListeners = useCallback(() => {
+    if (numberLabelScrubListenersAttachedRef.current) {
+      return;
+    }
+    window.addEventListener("pointermove", handleNumberLabelScrubPointerMove);
+    window.addEventListener("pointerup", handleNumberLabelScrubPointerUp);
+    window.addEventListener("pointercancel", handleNumberLabelScrubPointerCancel);
+    window.addEventListener("blur", handleNumberLabelScrubWindowBlur);
+    numberLabelScrubListenersAttachedRef.current = true;
+  }, [
+    handleNumberLabelScrubPointerCancel,
+    handleNumberLabelScrubPointerMove,
+    handleNumberLabelScrubPointerUp,
+    handleNumberLabelScrubWindowBlur
+  ]);
+
+  const beginNumberLabelScrub = useCallback((event: ReactPointerEvent<HTMLElement>, binding: NumberLabelScrubBinding) => {
+    if (!binding.writable || event.button !== 0 || event.ctrlKey || event.metaKey) {
+      return;
+    }
+    event.preventDefault();
+    clearHoverPreviewSession();
+    stopNumberLabelScrub(false);
+
+    numberLabelScrubSessionRef.current = {
+      pointerId: event.pointerId,
+      baseSource: useEditorStore.getState().source,
+      state: createNumberScrubState({
+        startX: event.clientX,
+        startValue: binding.value,
+        step: binding.step,
+        min: binding.min,
+        max: binding.max
+      }),
+      onPreview: binding.onPreview,
+      onCommit: binding.onCommit
+    };
+    ensureNumberLabelScrubListeners();
+  }, [clearHoverPreviewSession, ensureNumberLabelScrubListeners, stopNumberLabelScrub]);
+
   useEffect(() => {
     clearHoverPreviewSession();
-  }, [selectedSourceIds, clearHoverPreviewSession]);
+    stopNumberLabelScrub(false);
+  }, [selectedSourceIds, clearHoverPreviewSession, stopNumberLabelScrub]);
 
   useEffect(() => {
     return () => {
       clearHoverPreviewSession();
+      stopNumberLabelScrub(false);
     };
-  }, [clearHoverPreviewSession]);
+  }, [clearHoverPreviewSession, stopNumberLabelScrub]);
 
   useEffect(() => {
     setStrokeMoreOptionsOpen(false);
@@ -1092,14 +1243,19 @@ export function InspectorPanel() {
     }
   }
 
-  function handleNumberChange(property: Extract<InspectorProperty, { kind: "number" }>, raw: string): void {
+  function handleNumberChange(
+    property: Extract<InspectorProperty, { kind: "number" }>,
+    raw: string,
+    options: NumberChangeOptions = {}
+  ): void {
     const write = property.write;
     if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
     if (!write.transformContext) {
       applySetProperty(write, formatNumberWriteValue(property, next), {
-        clearKeys: property.clearKeys
+        clearKeys: property.clearKeys,
+        recordInHistory: options.recordInHistory
       });
       return;
     }
@@ -1118,6 +1274,7 @@ export function InspectorPanel() {
       dispatch({
         type: "APPLY_EDIT_ACTION",
         historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
         action: {
           kind: "setProperty",
           elementId: write.elementId,
@@ -1150,7 +1307,11 @@ export function InspectorPanel() {
     );
   }
 
-  function handleMultiNumberChange(property: Extract<MultiInspectorProperty, { kind: "number" }>, raw: string): void {
+  function handleMultiNumberChange(
+    property: Extract<MultiInspectorProperty, { kind: "number" }>,
+    raw: string,
+    options: NumberChangeOptions = {}
+  ): void {
     const next = Number(raw);
     if (!Number.isFinite(next)) return;
 
@@ -1165,6 +1326,7 @@ export function InspectorPanel() {
         dispatch({
           type: "APPLY_EDIT_ACTION",
           historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
           action: {
             kind: "setProperty",
             elementId: write.elementId,
@@ -1185,6 +1347,7 @@ export function InspectorPanel() {
         dispatch({
           type: "APPLY_EDIT_ACTION",
           historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
           action: {
             kind: "setProperty",
             elementId: write.elementId,
@@ -1209,6 +1372,63 @@ export function InspectorPanel() {
     return formatted;
   }
 
+  function applySingleLengthValue(
+    property: Extract<InspectorProperty, { kind: "length" }>,
+    value: number,
+    options: NumberChangeOptions = {}
+  ): void {
+    applySetProperty(property.write, `${formatNumber(value)}pt`, {
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyMultiLengthValue(
+    property: Extract<MultiInspectorProperty, { kind: "length" }>,
+    value: number,
+    options: NumberChangeOptions = {}
+  ): void {
+    applySetPropertyMany(property.writes, `${formatNumber(value)}pt`, {
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applySingleFillPatternOptionValue(
+    property: Extract<InspectorProperty, { kind: "fillPatternOption" }>,
+    value: number,
+    options: NumberChangeOptions = {}
+  ): void {
+    applyFillPatternOptionValue(property.write, property.option, value, property.context, {
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function applyMultiFillPatternOptionValue(
+    property: Extract<MultiInspectorProperty, { kind: "fillPatternOption" }>,
+    value: number,
+    options: NumberChangeOptions = {}
+  ): void {
+    applyFillPatternOptionValueMany(property.writes, property.option, value, property.contexts, {
+      recordInHistory: options.recordInHistory
+    });
+  }
+
+  function renderScrubbableNumberLabel(
+    label: string,
+    binding: NumberLabelScrubBinding
+  ): JSX.Element {
+    const className = binding.writable
+      ? `${css.propertyLabel} ${css.propertyLabelScrubbable}`
+      : `${css.propertyLabel} ${css.propertyLabelScrubbableDisabled}`;
+    return (
+      <div
+        className={className}
+        onPointerDown={(event) => beginNumberLabelScrub(event, binding)}
+      >
+        {label}
+      </div>
+    );
+  }
+
   function getSingleNumberPropertyState(property: Extract<InspectorProperty, { kind: "number" }>): {
     writable: boolean;
     readOnlyReason: string | null;
@@ -1228,7 +1448,13 @@ export function InspectorPanel() {
     const { writable, readOnlyReason } = getSingleNumberPropertyState(property);
     return (
       <div className={compact ? css.compactNumberField : undefined}>
-        <div className={css.propertyLabel}>{property.label}</div>
+        {renderScrubbableNumberLabel(property.label, {
+          writable,
+          value: property.value,
+          step: property.step,
+          onPreview: (next) => handleNumberChange(property, String(next), { recordInHistory: false }),
+          onCommit: (next) => handleNumberChange(property, String(next))
+        })}
         <div className={css.controlRow}>
           <input
             className={css.numberInput}
@@ -1252,7 +1478,13 @@ export function InspectorPanel() {
     const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
     return (
       <div className={compact ? css.compactNumberField : undefined}>
-        <div className={css.propertyLabel}>{property.label}</div>
+        {renderScrubbableNumberLabel(property.label, {
+          writable,
+          value: property.value,
+          step: property.step,
+          onPreview: (next) => handleMultiNumberChange(property, String(next), { recordInHistory: false }),
+          onCommit: (next) => handleMultiNumberChange(property, String(next))
+        })}
         <div className={css.controlRow}>
           <input
             className={css.numberInput}
@@ -1981,7 +2213,13 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
         <div key={property.id} className={propertyClassName}>
-          <div className={css.propertyLabel}>{property.label}</div>
+          {renderScrubbableNumberLabel(property.label, {
+            writable,
+            value: property.value,
+            step: property.step,
+            onPreview: (next) => applySingleLengthValue(property, next, { recordInHistory: false }),
+            onCommit: (next) => applySingleLengthValue(property, next)
+          })}
           <div className={css.controlRow}>
             <input
               className={css.numberInput}
@@ -1994,7 +2232,7 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applySetProperty(property.write, `${formatNumber(next)}pt`);
+                applySingleLengthValue(property, next);
               }}
             />
             <span className={css.unitLabel}>{property.unit}</span>
@@ -2203,7 +2441,13 @@ export function InspectorPanel() {
       const writable = property.write.writable && capability.status !== "unsupported";
       return (
         <div key={property.id} className={propertyClassName}>
-          <div className={css.propertyLabel}>{property.label}</div>
+          {renderScrubbableNumberLabel(property.label, {
+            writable,
+            value: property.value,
+            step: property.step,
+            onPreview: (next) => applySingleFillPatternOptionValue(property, next, { recordInHistory: false }),
+            onCommit: (next) => applySingleFillPatternOptionValue(property, next)
+          })}
           <div className={css.controlRow}>
             <input
               className={css.numberInput}
@@ -2216,7 +2460,7 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applyFillPatternOptionValue(property.write, property.option, next, property.context);
+                applySingleFillPatternOptionValue(property, next);
               }}
             />
             {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
@@ -2546,7 +2790,13 @@ export function InspectorPanel() {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       return (
         <div key={property.id} className={propertyClassName}>
-          <div className={css.propertyLabel}>{property.label}</div>
+          {renderScrubbableNumberLabel(property.label, {
+            writable,
+            value: property.value,
+            step: property.step,
+            onPreview: (next) => applyMultiLengthValue(property, next, { recordInHistory: false }),
+            onCommit: (next) => applyMultiLengthValue(property, next)
+          })}
           <div className={css.controlRow}>
             <input
               className={css.numberInput}
@@ -2559,10 +2809,7 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applySetPropertyMany(
-                  property.writes,
-                  `${formatNumber(next)}pt`
-                );
+                applyMultiLengthValue(property, next);
               }}
             />
             <span className={css.unitLabel}>{property.unit}</span>
@@ -2777,7 +3024,13 @@ export function InspectorPanel() {
       const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
       return (
         <div key={property.id} className={propertyClassName}>
-          <div className={css.propertyLabel}>{property.label}</div>
+          {renderScrubbableNumberLabel(property.label, {
+            writable,
+            value: property.value,
+            step: property.step,
+            onPreview: (next) => applyMultiFillPatternOptionValue(property, next, { recordInHistory: false }),
+            onCommit: (next) => applyMultiFillPatternOptionValue(property, next)
+          })}
           <div className={css.controlRow}>
             <input
               className={css.numberInput}
@@ -2790,7 +3043,7 @@ export function InspectorPanel() {
                 if (!Number.isFinite(next)) {
                   return;
                 }
-                applyFillPatternOptionValueMany(property.writes, property.option, next, property.contexts);
+                applyMultiFillPatternOptionValue(property, next);
               }}
             />
             {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}

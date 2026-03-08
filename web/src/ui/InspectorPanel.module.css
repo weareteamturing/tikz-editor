@@ -205,6 +205,15 @@
   color: var(--text-muted);
 }
 
+.propertyLabelScrubbable {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.propertyLabelScrubbableDisabled {
+  cursor: default;
+}
+
 .controlRow {
   display: flex;
   align-items: center;

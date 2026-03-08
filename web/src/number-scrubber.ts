@@ -2,6 +2,14 @@ import { syntaxTree } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
+import {
+  SCRUB_ACTIVATION_DELTA_PX,
+  clamp,
+  computeScrubbedValue,
+  formatScrubNumber,
+  fractionDigits,
+  shouldStartScrub
+} from "./scrub-utils";
 
 interface NumberScrubberOptions {
   onScrubStateChange?: (state: { isActive: boolean; from: number | null; to: number | null }) => void;
@@ -49,8 +57,6 @@ interface PendingScrub {
 }
 
 const LENGTH_UNITS = /^(cm|mm|pt|bp|pc|in|dd|cc|sp|em|ex|mu)\b/i;
-const SCRUB_ACTIVATION_DELTA_PX = 5;
-
 const LENGTH_KEYS = new Set([
   "line width",
   "radius",
@@ -191,7 +197,7 @@ export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
           return;
         }
         const deltaX = event.clientX - pending.startX;
-        if (Math.abs(deltaX) < SCRUB_ACTIVATION_DELTA_PX) {
+        if (!shouldStartScrub(deltaX)) {
           return;
         }
 
@@ -227,11 +233,19 @@ export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
         }
         event.preventDefault();
 
-        const pixelsPerStep = pixelsPerStepFor(event);
-        const deltaSteps = Math.round((event.clientX - active.startX) / pixelsPerStep);
-        const unclampedValue = active.startValue + deltaSteps * active.step;
-        const nextValue = clamp(unclampedValue, active.min, active.max);
-        const nextText = formatNumber(nextValue, active.precision, active.minDisplayPrecision);
+        const nextValue = computeScrubbedValue({
+          startX: active.startX,
+          currentX: event.clientX,
+          startValue: active.startValue,
+          step: active.step,
+          min: active.min,
+          max: active.max,
+          modifiers: {
+            shiftKey: event.shiftKey,
+            altKey: event.altKey
+          }
+        });
+        const nextText = formatScrubNumber(nextValue, active.precision, active.minDisplayPrecision);
         if (nextText === active.lastText) {
           return;
         }
@@ -273,7 +287,7 @@ export function numberScrubber(options: NumberScrubberOptions = {}): Extension {
         this.removeWindowListenersIfIdle();
         this.updateHoverCursorClass();
 
-        if (Math.abs(event.clientX - pending.startX) >= SCRUB_ACTIVATION_DELTA_PX) {
+        if (shouldStartScrub(event.clientX - pending.startX)) {
           return;
         }
 
@@ -589,54 +603,4 @@ function signedNumberStart(doc: EditorView["state"]["doc"], numberStart: number)
     return numberStart;
   }
   return numberStart - 1;
-}
-
-function pixelsPerStepFor(event: MouseEvent): number {
-  let pixelsPerStep = 8;
-  if (event.shiftKey) {
-    pixelsPerStep *= 4;
-  }
-  if (event.altKey) {
-    pixelsPerStep = Math.max(1, pixelsPerStep / 4);
-  }
-  return pixelsPerStep;
-}
-
-function clamp(value: number, min?: number, max?: number): number {
-  if (min != null && value < min) {
-    return min;
-  }
-  if (max != null && value > max) {
-    return max;
-  }
-  return value;
-}
-
-function formatNumber(value: number, precision: number, minDisplayPrecision: number): string {
-  const normalized = Math.abs(value) < 1e-10 ? 0 : value;
-  if (precision <= 0) {
-    return String(Math.round(normalized));
-  }
-
-  const fixed = normalized.toFixed(precision);
-  const dotIndex = fixed.indexOf(".");
-  if (dotIndex === -1) {
-    return fixed;
-  }
-
-  const intPart = fixed.slice(0, dotIndex);
-  let fraction = fixed.slice(dotIndex + 1);
-  while (fraction.length > minDisplayPrecision && fraction.endsWith("0")) {
-    fraction = fraction.slice(0, -1);
-  }
-
-  return fraction.length > 0 ? `${intPart}.${fraction}` : intPart;
-}
-
-function fractionDigits(text: string): number {
-  const dotIndex = text.indexOf(".");
-  if (dotIndex === -1) {
-    return 0;
-  }
-  return text.length - dotIndex - 1;
 }

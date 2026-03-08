@@ -37,8 +37,6 @@ TODOS
 
 * Add codex app server support for AI assistance
 
-* Number scrubbing in inspector
-
 * Take libraries of public domain / open license SVGs (e.g. icon libraries) and treat them as "clip art" style things that can be inserted -- see boxy svg for example of this
 
 * Support for multi-line text in nodes (special difficulty: mathjax select / caret)
