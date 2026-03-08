@@ -18,14 +18,14 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(var(--app-ui-scale, 1) * 15px);
   color: var(--text);
 }
 
 .subtitle {
   margin: 4px 0 0;
   max-width: 520px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   line-height: 1.4;
   color: var(--text-muted);
 }
@@ -44,7 +44,7 @@
   border: 1px solid var(--border-light);
   border-radius: 3px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
 }
 
@@ -125,7 +125,7 @@
 }
 
 .previewStatus {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
 }
 
@@ -133,7 +133,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
 }
 
@@ -154,7 +154,7 @@
 }
 
 .label {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
 }
 
@@ -179,7 +179,7 @@
 }
 
 .help {
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   line-height: 1.4;
   color: var(--text-faint);
 }
@@ -191,7 +191,7 @@
   padding: 12px;
   resize: none;
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   line-height: 1.5;
   tab-size: 2;
 }

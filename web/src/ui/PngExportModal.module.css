@@ -18,13 +18,13 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(var(--app-ui-scale, 1) * 15px);
   color: var(--text);
 }
 
 .subtitle {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
   max-width: 460px;
   line-height: 1.4;
@@ -43,7 +43,7 @@
   border: 1px solid var(--border-light);
   border-radius: 3px;
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
 }
 
@@ -138,12 +138,12 @@
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--bg-pane) 88%, white);
   color: var(--text);
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   box-shadow: 0 6px 16px color-mix(in srgb, black 12%, transparent);
 }
 
 .previewStatus {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
 }
 
@@ -151,7 +151,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
 }
 
@@ -172,7 +172,7 @@
 }
 
 .label {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
 }
 
@@ -187,7 +187,7 @@
 }
 
 .help {
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-faint);
   line-height: 1.4;
 }
@@ -196,7 +196,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
 }
 
@@ -212,7 +212,7 @@
 
 .helpBlock {
   display: block;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-faint);
   line-height: 1.4;
 }
@@ -229,7 +229,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
 }
 

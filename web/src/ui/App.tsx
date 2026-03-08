@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef } from "react";
+import { Suspense, lazy, useEffect, useRef, type CSSProperties } from "react";
 import { APP_MENU_COMMAND_IDS } from "tikz-editor/app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
@@ -12,6 +12,7 @@ import { useEditorCommandRuntime } from "./editor-command-runtime";
 import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
+import { useSettingsStore } from "../settings/useSettingsStore";
 import css from "./App.module.css";
 
 const SourcePanel = lazy(async () => {
@@ -38,6 +39,7 @@ export function App() {
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
+  const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
   const dispatch = useEditorStore((s) => s.dispatch);
   const commandRuntime = useEditorCommandRuntime();
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
@@ -239,8 +241,13 @@ export function App() {
     toolMode
   ]);
 
+  const appStyle = {
+    "--app-ui-font-size": `${uiFontSizePx}px`,
+    "--app-ui-scale": `${uiFontSizePx / 11}`
+  } as CSSProperties;
+
   return (
-    <div className={css.app}>
+    <div className={css.app} style={appStyle}>
       <AppMenuBar />
       <Toolbar />
       <div className={css.body}>

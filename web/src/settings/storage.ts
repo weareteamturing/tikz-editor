@@ -9,6 +9,10 @@ export function loadSettings(): AppSettings {
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     return {
+      general: {
+        ...DEFAULT_SETTINGS.general,
+        ...(parsed.general ?? {})
+      },
       editor: {
         ...DEFAULT_SETTINGS.editor,
         ...(parsed.editor ?? {})

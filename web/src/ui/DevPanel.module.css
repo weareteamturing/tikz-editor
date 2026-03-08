@@ -61,7 +61,7 @@
   padding: 6px 10px;
   background: #1a3050;
   color: #e0e8f0;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -76,7 +76,7 @@
 
 .tab {
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   border: none;
   border-right: 1px solid var(--border);
   background: var(--bg-app);
@@ -100,7 +100,7 @@
   overflow: auto;
   padding: 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .json {
@@ -113,7 +113,7 @@
   background: transparent;
   border: none;
   color: #e0e8f0;
-  font-size: 16px;
+  font-size: calc(var(--app-ui-scale, 1) * 16px);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
@@ -124,7 +124,7 @@
 }
 
 .treeWrap {
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   line-height: 1.5;
 }
 

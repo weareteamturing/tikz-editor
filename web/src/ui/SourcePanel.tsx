@@ -47,6 +47,7 @@ import { formatTikzSource } from "tikz-editor/edit/source-format";
 
 const wordWrapCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
+const tabSizeCompartment = new Compartment();
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
 
@@ -259,6 +260,7 @@ export function SourcePanel() {
   const editorWordWrap = useSettingsStore((s) => s.settings.editor.wordWrap);
   const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
   const editorLineNumbers = useSettingsStore((s) => s.settings.editor.lineNumbers);
+  const editorIndentSize = useSettingsStore((s) => s.settings.editor.indentSize);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -392,6 +394,7 @@ export function SourcePanel() {
         tikzLanguage(),
         wordWrapCompartment.of(editorWordWrap ? EditorView.lineWrapping : []),
         fontSizeCompartment.of(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })),
+        tabSizeCompartment.of(CMState.tabSize.of(editorIndentSize)),
         numberScrubber({
           onScrubStateChange: (scrub) => {
             if (!scrub.isActive || scrub.from == null) {
@@ -454,6 +457,12 @@ export function SourcePanel() {
     if (!view) return;
     view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })) });
   }, [editorFontSize]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: tabSizeCompartment.reconfigure(CMState.tabSize.of(editorIndentSize)) });
+  }, [editorIndentSize]);
 
 
   // ── Canvas selection → source selection sync ────────────────────────────────
@@ -655,7 +664,7 @@ export function SourcePanel() {
       }
 
       const currentSource = view.state.doc.toString();
-      const formattedSource = formatTikzSource(currentSource);
+      const formattedSource = formatTikzSource(currentSource, { indentUnit: " ".repeat(editorIndentSize) });
       if (formattedSource === currentSource) {
         return;
       }
@@ -673,7 +682,7 @@ export function SourcePanel() {
 
     window.addEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
     return () => window.removeEventListener(SOURCE_FORMAT_REQUEST_EVENT, handleFormatRequest as EventListener);
-  }, []);
+  }, [editorIndentSize]);
 
   const handleInlineColorChange = (nextToken: string): void => {
     const session = activeColorPicker;
@@ -725,9 +734,11 @@ export function SourcePanel() {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function insertSoftIndent(view: EditorView): boolean {
+  const indentSize = Math.max(1, view.state.facet(CMState.tabSize));
+  const indentUnit = " ".repeat(indentSize);
   const transactionSpec = view.state.changeByRange((range) => ({
-    changes: { from: range.from, to: range.to, insert: "  " },
-    range: EditorSelection.cursor(range.from + 2)
+    changes: { from: range.from, to: range.to, insert: indentUnit },
+    range: EditorSelection.cursor(range.from + indentUnit.length)
   }));
   view.dispatch(
     view.state.update(transactionSpec, {

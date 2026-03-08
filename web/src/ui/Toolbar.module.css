@@ -12,7 +12,7 @@
 }
 
 .title {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   font-weight: 700;
   color: var(--text);
   padding: 0 8px 0 2px;
@@ -44,7 +44,7 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   font-family: inherit;
   color: var(--text);
   cursor: pointer;
@@ -88,7 +88,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   line-height: 1;
 }
 
@@ -98,7 +98,7 @@
 
 /* Mode label indicator in toolbar */
 .modeLabel {
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);
   padding: 0 4px;
 }
@@ -125,6 +125,6 @@
   .btn {
     min-height: 28px;
     padding: 4px 9px;
-    font-size: 12px;
+    font-size: calc(var(--app-ui-scale, 1) * 12px);
   }
 }

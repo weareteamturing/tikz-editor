@@ -4,6 +4,7 @@ import { loadSettings, saveSettings } from "./storage";
 
 type SettingsStore = {
   settings: AppSettings;
+  updateGeneralSettings: (patch: Partial<AppSettings["general"]>) => void;
   updateEditorSettings: (patch: Partial<AppSettings["editor"]>) => void;
   updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
   updateColorPickerSettings: (patch: Partial<AppSettings["colorPicker"]>) => void;
@@ -11,6 +12,16 @@ type SettingsStore = {
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
   settings: loadSettings(),
+  updateGeneralSettings: (patch) => {
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        general: { ...state.settings.general, ...patch }
+      };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
   updateEditorSettings: (patch) => {
     set((state) => {
       const next: AppSettings = {

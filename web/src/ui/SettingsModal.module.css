@@ -17,7 +17,7 @@
 }
 
 .title {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   font-weight: 600;
   color: var(--text);
 }
@@ -30,7 +30,7 @@
   background: var(--bg-app);
   color: var(--text);
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
 }
 
@@ -66,7 +66,7 @@
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -100,7 +100,7 @@
 }
 
 .panelTitle {
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -127,13 +127,13 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
   cursor: pointer;
 }
 
 .settingDesc {
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-faint);
   cursor: default;
 }
@@ -154,10 +154,15 @@
   background: var(--bg-app);
   color: var(--text);
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
 }
 
 .select:hover {
   border-color: var(--border);
+}
+
+.range {
+  width: 180px;
+  cursor: pointer;
 }

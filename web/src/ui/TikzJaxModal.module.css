@@ -16,7 +16,7 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(var(--app-ui-scale, 1) * 15px);
   color: var(--text);
 }
 
@@ -34,7 +34,7 @@
   background: var(--bg-app);
   color: var(--text);
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -45,7 +45,7 @@
 }
 
 .status {
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
   padding: 2px 0;
 }

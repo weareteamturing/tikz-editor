@@ -17,13 +17,13 @@
 
 .title {
   margin: 0;
-  font-size: 15px;
+  font-size: calc(var(--app-ui-scale, 1) * 15px);
   color: var(--text);
 }
 
 .subtitle {
   margin: 4px 0 0;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
 }
 
@@ -35,7 +35,7 @@
   background: var(--bg-app);
   color: var(--text);
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
 }
 
@@ -95,7 +95,7 @@
   display: grid;
   place-items: center;
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .content {
@@ -107,13 +107,13 @@
 
 .cardTitle {
   margin: 0;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text);
 }
 
 .cardDescription {
   margin: 0;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -128,14 +128,14 @@
   padding: 1px 6px;
   border: 1px solid var(--border-lighter);
   border-radius: 999px;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);
   background: var(--bg-diagnostics);
 }
 
 .diagnostics {
   margin: 0;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);
 }
 

@@ -4,14 +4,15 @@ import type { ColorPickerAccuracy, GridSize } from "../settings/types";
 import { Modal } from "./Modal";
 import css from "./SettingsModal.module.css";
 
-type CategoryId = "editor" | "canvas";
+type CategoryId = "general" | "editor" | "canvas";
 
 const CATEGORIES: { id: CategoryId; label: string }[] = [
+  { id: "general", label: "General" },
   { id: "editor", label: "Code Editor" },
   { id: "canvas", label: "Canvas" }
 ];
 
-let rememberedCategory: CategoryId = "editor";
+let rememberedCategory: CategoryId = "general";
 
 type SettingsModalProps = {
   onClose: () => void;
@@ -25,6 +26,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     setActiveCategory(id);
   };
   const settings = useSettingsStore((s) => s.settings);
+  const updateGeneralSettings = useSettingsStore((s) => s.updateGeneralSettings);
   const updateEditorSettings = useSettingsStore((s) => s.updateEditorSettings);
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const updateColorPickerSettings = useSettingsStore((s) => s.updateColorPickerSettings);
@@ -53,6 +55,47 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </nav>
 
           <div className={css.content}>
+            {activeCategory === "general" && (
+              <div className={css.panel}>
+                <div className={css.panelTitle}>General</div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-ui-font-size">
+                    UI Font Size
+                    <span className={css.settingDesc}>Adjusts app chrome text size.</span>
+                  </label>
+                  <select
+                    id="setting-ui-font-size"
+                    className={css.select}
+                    value={settings.general.uiFontSizePx}
+                    onChange={(e) => updateGeneralSettings({ uiFontSizePx: Number(e.target.value) })}
+                  >
+                    {[10, 11, 12, 13, 14].map((size) => (
+                      <option key={size} value={size}>{size}px</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-color-picker-accuracy">
+                    Color Picker Precision
+                    <span className={css.settingDesc}>
+                      Approximate uses faster integer mixes. Exact enables higher-precision white-tail mixes.
+                    </span>
+                  </label>
+                  <select
+                    id="setting-color-picker-accuracy"
+                    className={css.select}
+                    value={settings.colorPicker.accuracy}
+                    onChange={(e) => updateColorPickerSettings({ accuracy: e.target.value as ColorPickerAccuracy })}
+                  >
+                    <option value="approximate">Approximate (default)</option>
+                    <option value="exact">Exact</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
             {activeCategory === "editor" && (
               <div className={css.panel}>
                 <div className={css.panelTitle}>Code Editor</div>
@@ -96,27 +139,25 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     value={settings.editor.fontSize}
                     onChange={(e) => updateEditorSettings({ fontSize: Number(e.target.value) })}
                   >
-                    {[11, 12, 13, 14, 15, 16, 18, 20].map((size) => (
+                    {[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20].map((size) => (
                       <option key={size} value={size}>{size}px</option>
                     ))}
                   </select>
                 </div>
 
                 <div className={css.settingRow}>
-                  <label className={css.settingLabel} htmlFor="setting-color-picker-accuracy">
-                    Color Picker Precision
-                    <span className={css.settingDesc}>
-                      Approximate uses faster integer mixes. Exact enables higher-precision white-tail mixes.
-                    </span>
+                  <label className={css.settingLabel} htmlFor="setting-indent-size">
+                    Indent Size
+                    <span className={css.settingDesc}>Spaces inserted by Tab and formatting.</span>
                   </label>
                   <select
-                    id="setting-color-picker-accuracy"
+                    id="setting-indent-size"
                     className={css.select}
-                    value={settings.colorPicker.accuracy}
-                    onChange={(e) => updateColorPickerSettings({ accuracy: e.target.value as ColorPickerAccuracy })}
+                    value={settings.editor.indentSize}
+                    onChange={(e) => updateEditorSettings({ indentSize: Number(e.target.value) as 2 | 4 })}
                   >
-                    <option value="approximate">Approximate (default)</option>
-                    <option value="exact">Exact</option>
+                    <option value={2}>2 spaces</option>
+                    <option value={4}>4 spaces</option>
                   </select>
                 </div>
               </div>
@@ -141,6 +182,42 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     <option value="standard">Standard</option>
                     <option value="coarse">Coarse</option>
                   </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-handle-size">
+                    Edit Handle Size
+                    <span className={css.settingDesc}>Controls the size of draggable edit handles.</span>
+                  </label>
+                  <select
+                    id="setting-handle-size"
+                    className={css.select}
+                    value={settings.canvas.handleSizePx}
+                    onChange={(e) => updateCanvasSettings({ handleSizePx: Number(e.target.value) })}
+                  >
+                    <option value={7}>Small</option>
+                    <option value={9}>Medium</option>
+                    <option value={11}>Large</option>
+                  </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-zoom-speed">
+                    Zoom Speed
+                    <span className={css.settingDesc}>
+                      Slow ↔ Fast ({settings.canvas.zoomSpeed.toFixed(4)})
+                    </span>
+                  </label>
+                  <input
+                    id="setting-zoom-speed"
+                    className={css.range}
+                    type="range"
+                    min={0.0015}
+                    max={0.009}
+                    step={0.0005}
+                    value={settings.canvas.zoomSpeed}
+                    onChange={(e) => updateCanvasSettings({ zoomSpeed: Number(e.target.value) })}
+                  />
                 </div>
               </div>
             )}

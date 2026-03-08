@@ -345,10 +345,8 @@ const RULER_SIZE = 24;
 const FIT_PADDING = 44;
 const MIN_SCALE = 0.05;
 const MAX_SCALE = 20;
-const ZOOM_EXP_FACTOR = 0.0045;
 const NUDGE_STEP_PT = 0.05 * PT_PER_CM;
 const NUDGE_STEP_SHIFT_PT = 0.25 * PT_PER_CM;
-const HANDLE_SQUARE_SIZE_PX = 9;
 const ROTATE_HANDLE_OFFSET_PX = 24;
 const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
 const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
@@ -373,6 +371,8 @@ export function CanvasPanel() {
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
+  const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
+  const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
   const gridMinorTargetPx = GRID_SIZE_MINOR_TARGET_PX[gridSize];
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
@@ -3531,7 +3531,7 @@ export function CanvasPanel() {
             : event.deltaMode === 2
               ? Math.max(1, viewport.clientHeight)
               : 1;
-        const zoomFactor = Math.exp(-event.deltaY * deltaModeFactor * ZOOM_EXP_FACTOR);
+        const zoomFactor = Math.exp(-event.deltaY * deltaModeFactor * zoomSpeed);
         const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
         const svgPoint = viewportToSvgPoint(localX, localY, currentTransform, currentSvg.viewBox);
         const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
@@ -3569,7 +3569,7 @@ export function CanvasPanel() {
       viewport.removeEventListener("gesturechange", preventGesture);
       viewport.removeEventListener("gestureend", preventGesture);
     };
-  }, [dispatch]);
+  }, [dispatch, zoomSpeed]);
 
   useEffect(() => {
     function clearGuideDragState() {
@@ -4072,7 +4072,7 @@ export function CanvasPanel() {
     [activeCanvasDragKind]
   );
 
-  const handleHalfSize = (HANDLE_SQUARE_SIZE_PX / 2) / Math.max(canvasTransform.scale, 1e-3);
+  const handleHalfSize = (handleSizePx / 2) / Math.max(canvasTransform.scale, 1e-3);
   const handleStrokeWidth = 1.2 / Math.max(canvasTransform.scale, 1e-3);
   const curveControlStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);
   const selectionStrokeWidth = 1.1 / Math.max(canvasTransform.scale, 1e-3);

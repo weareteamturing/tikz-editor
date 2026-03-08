@@ -15,7 +15,7 @@
   background: #fff;
   color: var(--text);
   font-family: inherit;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   text-align: left;
   cursor: pointer;
   padding: 2px 5px;
@@ -142,7 +142,7 @@
   background: transparent;
   color: var(--text-dim);
   font-family: inherit;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   line-height: 1;
   padding: 2px 7px;
   cursor: pointer;
@@ -184,7 +184,7 @@
 
 .customLabel {
   min-width: 56px;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-dim);
   font-weight: 600;
 }
@@ -288,7 +288,7 @@
 }
 
 .customChannelLabel {
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-dim);
   font-weight: 600;
   text-align: left;
@@ -302,7 +302,7 @@
   background: #fff;
   color: var(--text);
   font-family: inherit;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   padding: 2px 4px;
 }
 
@@ -330,7 +330,7 @@
   background: #fff;
   color: var(--text);
   font-family: inherit;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   padding: 2px 5px;
 }
 
@@ -352,7 +352,7 @@
   border-radius: 999px;
   background: #bf2c29;
   color: #fff;
-  font-size: 9px;
+  font-size: calc(var(--app-ui-scale, 1) * 9px);
   font-weight: 700;
   line-height: 12px;
   text-align: center;
@@ -373,7 +373,7 @@
 }
 
 .customMessageWarning {
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   line-height: 1.3;
 }
 
@@ -493,7 +493,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
   color: var(--text-faint);
   line-height: 1;
 }
