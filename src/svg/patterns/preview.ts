@@ -44,6 +44,7 @@ export function renderFillPatternPreviewSvg(pattern: PreviewPatternPreset): stri
   const figure: SceneFigure = {
     kind: "SceneFigure",
     span: PREVIEW_SOURCE_SPAN,
+    requiredTikzLibraries: [],
     elements: [path],
     bounds: { minX: 4, minY: 3, maxX: 52, maxY: 13 }
   };

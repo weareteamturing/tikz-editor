@@ -26,7 +26,12 @@ export {
   createSvgExportArtifact,
   normalizeSvgExportFileName,
   SVG_EXPORT_MIME_TYPE,
-  DEFAULT_SVG_EXPORT_FILE_NAME
+  DEFAULT_SVG_EXPORT_FILE_NAME,
+  buildStandaloneLatexDocument,
+  createStandaloneLatexExportArtifact,
+  normalizeStandaloneLatexExportFileName,
+  STANDALONE_LATEX_EXPORT_MIME_TYPE,
+  DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME
 } from "./export/index.js";
 export { EDIT_ACTION_IDS, getEditActionAvailability } from "./edit/action-availability.js";
 export { APP_MENU_DEFINITION, APP_MENU_COMMAND_IDS } from "./app-menu/index.js";
@@ -73,7 +78,9 @@ export type {
   PngExportArtifact,
   CreatePngExportArtifactOptions,
   SvgExportArtifact,
-  CreateSvgExportArtifactOptions
+  CreateSvgExportArtifactOptions,
+  StandaloneLatexExportArtifact,
+  CreateStandaloneLatexExportArtifactOptions
 } from "./export/index.js";
 export type {
   AppMenuDefinition,

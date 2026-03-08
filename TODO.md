@@ -4,9 +4,9 @@ TODOS
 
 * SVG style path adder
 
-* Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
-
 * Selecting and transforming scopes. Group/ungroup
+
+* Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
 
 * Inspector: cascade view like in browser dev tools
 * Inspector: origin tracking
@@ -17,9 +17,6 @@ TODOS
 * Make tauri app
 
 * Open tex document with potentially multiple tikz images; parse relevant macro definitions etc
-
-* keep track of which libraries are required by the current image
-* this is needed to allow File > Export > Standalone LaTeX
 
 * Support adding nodes to path
 

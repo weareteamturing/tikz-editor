@@ -6,6 +6,7 @@ export const APP_MENU_COMMAND_IDS = {
    */
   EXPORT_TIKZ: "file.export-tikz",
   EXPORT_SVG_DOWNLOAD: "file.export-svg-download",
+  EXPORT_STANDALONE_LATEX_DOWNLOAD: "file.export-standalone-latex-download",
   EXPORT_PDF_DOWNLOAD: "file.export-pdf-download",
   EXPORT_PNG_DOWNLOAD: "file.export-png-download",
   EXPORT_SVG_COPY: "file.export-svg-copy",

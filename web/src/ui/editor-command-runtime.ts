@@ -17,7 +17,7 @@ import {
   pasteSelectionFromSystemClipboard,
   reorderSelection
 } from "./editor-commands";
-import { canExportSvg, copySvgMarkup, exportPdfDownload } from "./export-commands";
+import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
 
 export type CommandOrigin = "menu" | "shortcut" | "context-menu";
@@ -135,6 +135,15 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onOpenPngExport?.(snapshot.svg);
   };
 
+  const runStandaloneLatexDownload = () => {
+    if (!snapshot.semanticResult) {
+      return;
+    }
+    void exportStandaloneLatexDownload(source, snapshot.semanticResult.scene.requiredTikzLibraries, {
+      fileName: "tikz-export.tex"
+    });
+  };
+
   const singleSelectedId = selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null;
   const canAddAdornment =
     singleSelectedId != null &&
@@ -163,6 +172,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD]: {
       enabled: canExport && onOpenSvgExport != null,
       run: runSvgExport
+    },
+    [APP_MENU_COMMAND_IDS.EXPORT_STANDALONE_LATEX_DOWNLOAD]: {
+      enabled: snapshot.semanticResult != null,
+      run: runStandaloneLatexDownload
     },
     [APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY]: {
       enabled: canExport,

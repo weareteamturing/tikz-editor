@@ -1,4 +1,5 @@
 import {
+  createStandaloneLatexExportArtifact,
   createPdfExportArtifact,
   createPngExportArtifact,
   createSvgExportArtifact
@@ -32,6 +33,46 @@ export type RenderPngExportResult = {
 };
 
 let svgOptimizerPromise: Promise<SvgOptimizer> | null = null;
+
+export async function exportStandaloneLatexDownload(
+  source: string,
+  requiredLibraries: readonly string[],
+  options: { fileName?: string } = {}
+): Promise<boolean> {
+  if (typeof document === "undefined" || typeof Blob === "undefined") {
+    console.warn("[tikz-editor] Standalone LaTeX export download is unavailable in this runtime.");
+    return false;
+  }
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function" || typeof URL.revokeObjectURL !== "function") {
+    console.warn("[tikz-editor] Standalone LaTeX export download requires URL.createObjectURL support.");
+    return false;
+  }
+  if (!document.body) {
+    console.warn("[tikz-editor] Standalone LaTeX export download requires document.body.");
+    return false;
+  }
+
+  const artifact = createStandaloneLatexExportArtifact({
+    source,
+    requiredLibraries,
+    fileName: options.fileName
+  });
+  const blob = new Blob([artifact.text], { type: artifact.mimeType });
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = artifact.fileName;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    return true;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 export async function exportSvgDownload(
   svgResult: EmitSvgResult,

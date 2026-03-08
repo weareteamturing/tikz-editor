@@ -114,6 +114,7 @@ describe("editor-command-runtime", () => {
     );
 
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_STANDALONE_LATEX_DOWNLOAD].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD].enabled).toBe(true);
   });

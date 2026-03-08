@@ -53,6 +53,7 @@ export function renderPathMorphingDecorationPreviewSvg(
   const figure: SceneFigure = {
     kind: "SceneFigure",
     span: PREVIEW_SOURCE_SPAN,
+    requiredTikzLibraries: [],
     elements: applyPathMorphingDecoration(path, style.decoration)
   };
   const bounds = computeSceneBounds(figure.elements);

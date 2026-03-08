@@ -24,3 +24,16 @@ export {
 } from "./svg.js";
 
 export type { SvgExportArtifact, CreateSvgExportArtifactOptions } from "./svg.js";
+
+export {
+  buildStandaloneLatexDocument,
+  createStandaloneLatexExportArtifact,
+  normalizeStandaloneLatexExportFileName,
+  STANDALONE_LATEX_EXPORT_MIME_TYPE,
+  DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME
+} from "./standalone-latex.js";
+
+export type {
+  StandaloneLatexExportArtifact,
+  CreateStandaloneLatexExportArtifactOptions
+} from "./standalone-latex.js";

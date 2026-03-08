@@ -82,6 +82,7 @@ export type Matrix2D = {
 export type SceneFigure = {
   kind: "SceneFigure";
   span: Span;
+  requiredTikzLibraries: readonly string[];
   elements: SceneElement[];
   bounds?: Bounds;
 };

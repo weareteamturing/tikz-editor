@@ -51,6 +51,7 @@ import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { identityMatrix } from "./transform.js";
 import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourceRef, type StyleTraceLayerInput } from "./style-chain.js";
+import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
 import type {
@@ -293,6 +294,10 @@ export function finalizeSemanticEvaluationRun(
     scene: {
       kind: "SceneFigure",
       span: run.figure.span,
+      requiredTikzLibraries: inferRequiredTikzLibraries({
+        featureUsage: run.featureUsage,
+        elements
+      }),
       elements,
       bounds: computeBounds(elements)
     },
