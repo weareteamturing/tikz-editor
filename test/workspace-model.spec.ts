@@ -7,7 +7,7 @@ describe("workspace model", () => {
     expect(state.tabOrder).toHaveLength(1);
     expect(state.documents[state.activeDocumentId]).toBeDefined();
     expect(state.source).toBe(state.documents[state.activeDocumentId]?.source);
-    expect(state.workspaceVersion).toBe(1);
+    expect(state.workspaceVersion).toBe(2);
   });
 
   it("creates and switches documents", () => {

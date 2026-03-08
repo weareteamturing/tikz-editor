@@ -6,7 +6,10 @@
   "scripts": {
     "generate:example-previews": "tsx scripts/generate-open-example-previews.ts",
     "dev": "npm run generate:example-previews && vite",
-    "build": "npm run generate:example-previews && vite build"
+    "build": "npm run generate:example-previews && vite build",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ci": "playwright test --reporter=line"
   },
   "dependencies": {
     "@tikz-editor/app": "0.1.0",

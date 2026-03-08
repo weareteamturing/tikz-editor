@@ -24,7 +24,7 @@ export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={
         (C) edge (A);
 \end{tikzpicture}`;
 
-const WORKSPACE_VERSION = 1;
+const WORKSPACE_VERSION = 2;
 export { WORKSPACE_VERSION };
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {

@@ -18,13 +18,15 @@ type PersistedWorkspaceV1 = {
   recentDocumentIds?: string[];
 };
 
+type PersistedWorkspaceV2 = PersistedWorkspaceV1;
+
 export function loadWorkspaceSeed(): WorkspaceSeed | null {
   try {
     const raw = getActiveEditorPlatform().persistence.load(WORKSPACE_STORAGE_KEY);
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1>;
+    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2>;
     const migrated = migrateWorkspace(parsed);
     if (!migrated) {
       return null;
@@ -35,9 +37,34 @@ export function loadWorkspaceSeed(): WorkspaceSeed | null {
   }
 }
 
-function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1>): WorkspaceSeed | null {
+function normalizeFileRef(raw: unknown): DocumentFileRef | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const candidate = raw as Partial<DocumentFileRef>;
+  if (typeof candidate.name !== "string" || candidate.name.trim().length === 0) {
+    return null;
+  }
+  const kind =
+    candidate.kind === "browser-file"
+      ? "browser-file"
+      : candidate.kind === "file"
+        ? "file"
+        : "virtual";
+  return {
+    kind,
+    name: candidate.name,
+    handleId: typeof candidate.handleId === "string" ? candidate.handleId : undefined,
+    provider:
+      candidate.provider === "browser-fsa" || candidate.provider === "download"
+        ? candidate.provider
+        : undefined
+  };
+}
+
+function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2>): WorkspaceSeed | null {
   const version = typeof parsed.workspaceVersion === "number" ? parsed.workspaceVersion : 1;
-  if (version !== 1) {
+  if (version !== 1 && version !== 2) {
     return null;
   }
   const docs = Array.isArray(parsed.documents)
@@ -49,12 +76,7 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1>): WorkspaceSeed 
           title: typeof doc.title === "string" && doc.title.trim().length > 0 ? doc.title : "Untitled",
           source: doc.source,
           savedSource: typeof doc.savedSource === "string" ? doc.savedSource : doc.source,
-          fileRef: doc.fileRef && typeof doc.fileRef.name === "string"
-            ? {
-                kind: doc.fileRef.kind === "file" ? "file" : "virtual",
-                name: doc.fileRef.name
-              }
-            : null
+          fileRef: normalizeFileRef(doc.fileRef)
         }))
     : [];
   if (docs.length === 0) {
@@ -92,7 +114,7 @@ export function saveWorkspace(state: {
   tabOrder: string[];
   activeDocumentId: string;
 }): void {
-  const payload: PersistedWorkspaceV1 = {
+  const payload: PersistedWorkspaceV2 = {
     workspaceVersion: WORKSPACE_VERSION,
     documents: state.tabOrder
       .map((id) => state.documents[id])

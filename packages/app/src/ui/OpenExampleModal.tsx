@@ -12,6 +12,7 @@ type OpenExampleModalProps = {
 export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExampleModalProps) {
   return (
     <Modal onClose={onClose} className={css.dialog} labelledBy="open-example-title">
+        <div data-testid="open-example-modal">
         <div className={css.header}>
           <div>
             <h2 id="open-example-title" className={css.title}>Open Example</h2>
@@ -31,6 +32,7 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
                 key={example.id}
                 type="button"
                 className={css.card}
+                data-testid={`open-example-card-${example.id}`}
                 onClick={() => onSelectExample(example)}
               >
                 <div className={css.previewFrame}>
@@ -65,6 +67,7 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
               </button>
             );
           })}
+        </div>
         </div>
     </Modal>
   );

@@ -39,7 +39,10 @@ export function createDesktopPlatformAdapter(): EditorPlatform {
     },
     files: {
       openText: async () => null,
-      saveText: async () => false,
+      saveText: async (_text, options) => ({
+        ok: false,
+        fileRef: options?.fileRef ?? null
+      }),
       exportFile: async () => false
     }
   };

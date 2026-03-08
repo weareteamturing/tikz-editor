@@ -2,8 +2,21 @@ import { describe, expect, it } from "vitest";
 import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION } from "../packages/app/src/app-menu/index.js";
 
 describe("app menu definition", () => {
+  it("defines file lifecycle command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.NEW_DOCUMENT).toBe("file.new-document");
+    expect(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT).toBe("file.open-document");
+    expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT).toBe("file.save-document");
+    expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS).toBe("file.save-document-as");
+    expect(APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT).toBe("file.close-document");
+    expect(APP_MENU_COMMAND_IDS.CLOSE_ALL_DOCUMENTS).toBe("file.close-all-documents");
+  });
+
   it("defines an open-example command id", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_EXAMPLE).toBe("file.open-example");
+  });
+
+  it("defines open-example-in-new-tab command id", () => {
+    expect(APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB).toBe("file.open-example-in-new-tab");
   });
 
   it("defines svg export command ids", () => {

@@ -181,11 +181,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         if (!openText) {
           return;
         }
-        void openText().then((source) => {
-          if (typeof source !== "string") {
+        void openText().then((opened) => {
+          if (!opened) {
             return;
           }
-          dispatch({ type: "NEW_DOCUMENT", source, title: "Opened document" });
+          dispatch({ type: "NEW_DOCUMENT", source: opened.source, title: opened.fileRef?.name ?? "Opened document" });
+          dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: opened.fileRef });
         });
       }
     },
@@ -196,17 +197,18 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         if (!saveText) {
           return;
         }
-        void saveText(source, { suggestedName: fileRef?.name ?? "tikz-document.tex" }).then((ok) => {
-          if (!ok) {
+        void saveText(source, {
+          suggestedName: fileRef?.name ?? "tikz-document.tex",
+          fileRef,
+          mode: "save"
+        }).then((result) => {
+          if (!result.ok) {
             return;
           }
           dispatch({
             type: "MARK_DOCUMENT_SAVED",
             documentId: activeDocumentId,
-            fileRef: {
-              kind: "file",
-              name: fileRef?.name ?? "tikz-document.tex"
-            }
+            fileRef: result.fileRef
           });
         });
       }
@@ -218,17 +220,18 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         if (!saveText) {
           return;
         }
-        void saveText(source, { suggestedName: fileRef?.name ?? "tikz-document.tex" }).then((ok) => {
-          if (!ok) {
+        void saveText(source, {
+          suggestedName: fileRef?.name ?? "tikz-document.tex",
+          fileRef,
+          mode: "save-as"
+        }).then((result) => {
+          if (!result.ok) {
             return;
           }
           dispatch({
             type: "MARK_DOCUMENT_SAVED",
             documentId: activeDocumentId,
-            fileRef: {
-              kind: "file",
-              name: fileRef?.name ?? "tikz-document.tex"
-            }
+            fileRef: result.fileRef
           });
         });
       }

@@ -1,3 +1,4 @@
+import type { DocumentFileRef } from "../store/types.js";
 import type { AppMenuCommandId } from "../app-menu/index.js";
 
 export type MenuCommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
@@ -15,8 +16,11 @@ export type PlatformClipboard = {
 };
 
 export type PlatformFileApi = {
-  openText?: () => Promise<string | null>;
-  saveText?: (text: string, options?: { suggestedName?: string }) => Promise<boolean>;
+  openText?: () => Promise<{ source: string; fileRef: DocumentFileRef | null } | null>;
+  saveText?: (
+    text: string,
+    options?: { suggestedName?: string; fileRef?: DocumentFileRef | null; mode?: "save" | "save-as" }
+  ) => Promise<{ ok: boolean; fileRef: DocumentFileRef | null }>;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
 };
 

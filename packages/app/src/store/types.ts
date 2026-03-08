@@ -38,8 +38,10 @@ export type HistoryEntry = {
 };
 
 export type DocumentFileRef = {
-  kind: "virtual" | "file";
+  kind: "virtual" | "file" | "browser-file";
   name: string;
+  handleId?: string;
+  provider?: "browser-fsa" | "download";
 };
 
 export type DocumentSession = {

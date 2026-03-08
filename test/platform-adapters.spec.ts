@@ -71,4 +71,67 @@ describe("platform adapter contracts", () => {
     const read = await platform.clipboard?.readText?.();
     expect(read).toBe("desktop-hello");
   });
+
+  it("desktop saveText returns result object", async () => {
+    const platform = createDesktopPlatformAdapter();
+    const result = await platform.files?.saveText?.("abc", {
+      suggestedName: "a.tex",
+      fileRef: { kind: "file", name: "a.tex" },
+      mode: "save"
+    });
+    expect(result).toEqual({ ok: false, fileRef: { kind: "file", name: "a.tex" } });
+  });
+
+  it("web adapter openText returns source and fileRef via fallback input", async () => {
+    const platform = createBrowserPlatformAdapter({
+      fsApi: {},
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      }
+    });
+    expect(typeof platform.files?.openText).toBe("function");
+  });
+
+  it("web adapter saveText supports fs-handle rebinding flow", async () => {
+    const handleStore = new Map<string, unknown>();
+    const writes: string[] = [];
+    const fakeFsHandle = {
+      name: "bound.tex",
+      queryPermission: async () => "granted",
+      requestPermission: async () => "granted",
+      createWritable: async () => ({
+        write: async (value: string) => {
+          writes.push(value);
+        },
+        close: async () => undefined
+      })
+    };
+    const platform = createBrowserPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      fsApi: {
+        showSaveFilePicker: async () => fakeFsHandle as never
+      },
+      fsHandleStore: {
+        load: async (handleId) => handleStore.get(handleId) ?? null,
+        save: async (handleId, handle) => {
+          handleStore.set(handleId, handle);
+        }
+      }
+    });
+
+    const firstSave = await platform.files?.saveText?.("v1", { mode: "save-as", suggestedName: "first.tex" });
+    expect(firstSave?.ok).toBe(true);
+    expect(firstSave?.fileRef?.kind).toBe("browser-file");
+    const secondSave = await platform.files?.saveText?.("v2", {
+      mode: "save",
+      fileRef: firstSave?.fileRef ?? null,
+      suggestedName: "first.tex"
+    });
+    expect(secondSave?.ok).toBe(true);
+    expect(writes).toEqual(["v1", "v2"]);
+  });
 });
