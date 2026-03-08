@@ -9,6 +9,6 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["test", "scripts", "packages/core/src", "apps/web/src"],
+  "include": ["test", "scripts", "packages/core/src", "packages/app/src", "apps/web/src"],
   "exclude": ["node_modules", "packages/core/dist", "apps/web/dist"]
 }

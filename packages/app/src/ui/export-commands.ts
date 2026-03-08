@@ -5,6 +5,7 @@ import {
   createSvgExportArtifact
 } from "tikz-editor/export/index";
 import { serializeSvgModelAsync, type EmitSvgResult } from "tikz-editor/svg/index";
+import { getActiveEditorPlatform } from "../platform/current";
 
 const DEFAULT_PNG_EXPORT_DPI = 144;
 const MIN_PNG_EXPORT_DPI = 36;
@@ -39,6 +40,19 @@ export async function exportStandaloneLatexDownload(
   requiredLibraries: readonly string[],
   options: { fileName?: string } = {}
 ): Promise<boolean> {
+  const artifact = createStandaloneLatexExportArtifact({
+    source,
+    requiredLibraries,
+    fileName: options.fileName
+  });
+  const platformExportResult = await getActiveEditorPlatform().files?.exportFile?.(
+    [artifact.text],
+    { fileName: artifact.fileName, mimeType: artifact.mimeType }
+  );
+  if (platformExportResult) {
+    return true;
+  }
+
   if (typeof document === "undefined" || typeof Blob === "undefined") {
     console.warn("[tikz-editor] Standalone LaTeX export download is unavailable in this runtime.");
     return false;
@@ -52,11 +66,6 @@ export async function exportStandaloneLatexDownload(
     return false;
   }
 
-  const artifact = createStandaloneLatexExportArtifact({
-    source,
-    requiredLibraries,
-    fileName: options.fileName
-  });
   const blob = new Blob([artifact.text], { type: artifact.mimeType });
   const objectUrl = URL.createObjectURL(blob);
 
@@ -164,6 +173,13 @@ export async function exportPngDownload(
 
   try {
     const result = await renderPngExport(svgResult, options);
+    const platformExportResult = await getActiveEditorPlatform().files?.exportFile?.(
+      [result.blob],
+      { fileName: result.artifact.fileName, mimeType: result.artifact.mimeType }
+    );
+    if (platformExportResult) {
+      return true;
+    }
     const objectUrl = URL.createObjectURL(result.blob);
     try {
       const anchor = document.createElement("a");
@@ -259,6 +275,18 @@ export async function downloadSvgMarkup(
   svgMarkup: string,
   options: { fileName?: string } = {}
 ): Promise<boolean> {
+  const artifact = createSvgExportArtifact({
+    svg: svgMarkup,
+    fileName: options.fileName
+  });
+  const platformExportResult = await getActiveEditorPlatform().files?.exportFile?.(
+    [artifact.text],
+    { fileName: artifact.fileName, mimeType: artifact.mimeType }
+  );
+  if (platformExportResult) {
+    return true;
+  }
+
   if (typeof document === "undefined" || typeof Blob === "undefined") {
     console.warn("[tikz-editor] SVG export download is unavailable in this runtime.");
     return false;
@@ -272,10 +300,6 @@ export async function downloadSvgMarkup(
     return false;
   }
 
-  const artifact = createSvgExportArtifact({
-    svg: svgMarkup,
-    fileName: options.fileName
-  });
   const blob = new Blob([artifact.text], { type: artifact.mimeType });
   const objectUrl = URL.createObjectURL(blob);
 
@@ -294,12 +318,22 @@ export async function downloadSvgMarkup(
 }
 
 export async function copySvgText(svgMarkup: string): Promise<boolean> {
+  const artifact = createSvgExportArtifact({ svg: svgMarkup });
+  const platformClipboard = getActiveEditorPlatform().clipboard?.writeText;
+  if (typeof platformClipboard === "function") {
+    try {
+      await platformClipboard(artifact.text);
+      return true;
+    } catch (error) {
+      console.warn("[tikz-editor] Platform clipboard write failed; falling back to browser clipboard.", error);
+    }
+  }
+
   if (typeof navigator === "undefined" || typeof navigator.clipboard?.writeText !== "function") {
     console.warn("[tikz-editor] Clipboard API is unavailable; could not copy SVG.");
     return false;
   }
 
-  const artifact = createSvgExportArtifact({ svg: svgMarkup });
   try {
     await navigator.clipboard.writeText(artifact.text);
     return true;

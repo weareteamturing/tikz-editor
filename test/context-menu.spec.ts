@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { APP_MENU_COMMAND_IDS } from "../packages/core/src/app-menu/index.js";
-import { CANVAS_CONTEXT_MENU_DEFINITION } from "../packages/core/src/context-menu/index.js";
-import type { AppMenuItem } from "../packages/core/src/app-menu/types.js";
+import { APP_MENU_COMMAND_IDS } from "../packages/app/src/app-menu/index.js";
+import { CANVAS_CONTEXT_MENU_DEFINITION } from "../packages/app/src/context-menu/index.js";
+import type { AppMenuItem } from "../packages/app/src/app-menu/types.js";
 
 describe("canvas context menu definition", () => {
   it("defines entries for all context menu targets", () => {

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef, type CSSProperties } from "react";
-import { APP_MENU_COMMAND_IDS } from "tikz-editor/app-menu";
+import { APP_MENU_COMMAND_IDS } from "../app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
 import { AppMenuBar } from "./AppMenuBar";
@@ -13,7 +13,9 @@ import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
 import { useSettingsStore } from "../settings/useSettingsStore";
+import { getActiveEditorPlatform } from "../platform/current";
 import css from "./App.module.css";
+import "./variables.css";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -129,6 +131,20 @@ export function App() {
       window.clearTimeout(timer);
     };
   }, [activeCanvasDragKind, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
+
+  useEffect(() => {
+    const unbind = getActiveEditorPlatform().menu?.bindCommandHandler?.((commandId) => {
+      commandRuntime.runCommand(commandId, "platform");
+    });
+    return typeof unbind === "function" ? unbind : undefined;
+  }, [commandRuntime]);
+
+  useEffect(() => {
+    getActiveEditorPlatform().window?.setDocumentState?.({
+      title: "TikZ Editor",
+      dirty: snapshot.source !== source
+    });
+  }, [snapshot.source, source]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {

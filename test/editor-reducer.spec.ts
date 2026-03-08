@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../apps/web/src/store/reducer.js";
-import type { EditorAction, EditorState } from "../apps/web/src/store/types.js";
-import { makeEmptySnapshot } from "../apps/web/src/compute.js";
+import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../packages/app/src/store/reducer.js";
+import type { EditorAction, EditorState } from "../packages/app/src/store/types.js";
+import { makeEmptySnapshot } from "../packages/app/src/compute.js";
 import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../packages/core/src/semantic/transform.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";

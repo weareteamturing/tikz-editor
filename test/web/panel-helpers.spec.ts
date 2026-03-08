@@ -3,15 +3,15 @@ import type { ScenePath, SceneText } from "../../packages/core/src/semantic/type
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
 import { parseLength } from "../../packages/core/src/semantic/coords/parse-length.js";
-import { buildHitRegions } from "../../apps/web/src/ui/canvas-panel/hit-regions.js";
+import { buildHitRegions } from "../../packages/app/src/ui/canvas-panel/hit-regions.js";
 import {
   collectSourceBounds,
   isPointInsideRectHitRegionContentBox,
   rectHitRegionsForTargetId,
   resolveGridResizeSnapForHandleDrag,
   resolveRectHitRegionContentBox
-} from "../../apps/web/src/ui/canvas-panel/panel-helpers.js";
-import type { HitRegion } from "../../apps/web/src/ui/canvas-panel/hit-regions.js";
+} from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
+import type { HitRegion } from "../../packages/app/src/ui/canvas-panel/hit-regions.js";
 
 describe("rectHitRegionsForTargetId", () => {
   it("matches rect regions by target id rather than statement source id", () => {

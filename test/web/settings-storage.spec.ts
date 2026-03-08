@@ -1,28 +1,35 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadSettings } from "../../apps/web/src/settings/storage.js";
-import { DEFAULT_SETTINGS } from "../../apps/web/src/settings/types.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { loadSettings } from "../../packages/app/src/settings/storage.js";
+import { DEFAULT_SETTINGS } from "../../packages/app/src/settings/types.js";
+import { setActiveEditorPlatform } from "../../packages/app/src/platform/current.js";
+import { createBrowserPlatformAdapter } from "../../apps/web/src/platform/browser-platform.js";
 
 const STORAGE_KEY = "tikz-editor:settings";
 
 describe("settings storage", () => {
   beforeEach(() => {
     const store = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        store.set(key, value);
-      },
-      removeItem: (key: string) => {
-        store.delete(key);
-      },
-      clear: () => {
-        store.clear();
+    setActiveEditorPlatform(createBrowserPlatformAdapter({
+      storage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        }
       }
-    });
+    }));
   });
 
   it("fills new formatter settings from defaults for legacy settings objects", () => {
-    localStorage.setItem(
+    const storage = new Map<string, string>();
+    setActiveEditorPlatform(createBrowserPlatformAdapter({
+      storage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value);
+        }
+      }
+    }));
+    storage.set(
       STORAGE_KEY,
       JSON.stringify({
         editor: {
@@ -42,7 +49,16 @@ describe("settings storage", () => {
   });
 
   it("clamps formatter max line length when loading persisted values", () => {
-    localStorage.setItem(
+    const storage = new Map<string, string>();
+    setActiveEditorPlatform(createBrowserPlatformAdapter({
+      storage: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          storage.set(key, value);
+        }
+      }
+    }));
+    storage.set(
       STORAGE_KEY,
       JSON.stringify({
         editor: {

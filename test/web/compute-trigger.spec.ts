@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeTrigger, dragKindToComputeTrigger } from "../../apps/web/src/ui/compute-trigger";
+import { computeTrigger, dragKindToComputeTrigger } from "../../packages/app/src/ui/compute-trigger";
 
 describe("compute trigger mapping", () => {
   it("maps resize drags to drag-element incremental trigger", () => {

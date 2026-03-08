@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { NodeAnchorTarget } from "../../packages/core/src/semantic/types.js";
-import { resolveEndpointAnchorSnap } from "../../apps/web/src/ui/canvas-panel/endpoint-anchor-snap";
+import { resolveEndpointAnchorSnap } from "../../packages/app/src/ui/canvas-panel/endpoint-anchor-snap";
 
 const TARGETS: NodeAnchorTarget[] = [
   { nodeName: "A", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },

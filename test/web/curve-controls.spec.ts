@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EditHandle, SceneElement, ScenePath } from "../../packages/core/src/semantic/types.js";
 import { identityMatrix } from "../../packages/core/src/semantic/transform.js";
-import { deriveCurveControlLines } from "../../apps/web/src/ui/canvas-panel/curve-controls";
+import { deriveCurveControlLines } from "../../packages/app/src/ui/canvas-panel/curve-controls";
 
 function makePath(sourceId: string, commands: ScenePath["commands"]): SceneElement {
   return {

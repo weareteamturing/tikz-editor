@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderTikzToSvgAsync } from "../../packages/core/src/render/index.js";
-import { OPEN_EXAMPLE_CATALOG } from "../../apps/web/src/ui/examples/open-example-catalog.js";
+import { OPEN_EXAMPLE_CATALOG } from "../../packages/app/src/ui/examples/open-example-catalog.js";
 
 describe("open example catalog", () => {
   it("contains eight built-in examples", () => {

@@ -3,8 +3,8 @@ import {
   CANVAS_CONTEXT_MENU_DEFINITION,
   type CanvasContextMenuDefinition,
   type CanvasContextMenuTarget
-} from "tikz-editor/context-menu";
-import type { AppMenuCommandId, AppMenuItem } from "tikz-editor/app-menu";
+} from "../context-menu";
+import type { AppMenuCommandId, AppMenuItem } from "../app-menu";
 import type { CommandOrigin, CommandBindings } from "./editor-command-runtime";
 import { clampContextMenuAnchor, type ContextMenuAnchor } from "./canvas-panel/context-menu-target";
 import css from "./CanvasContextMenu.module.css";

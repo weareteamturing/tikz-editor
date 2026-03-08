@@ -6,7 +6,7 @@ import {
   generatePathToolSource,
   pathToolCloseRadiusWorld,
   pathToolShouldClose
-} from "../../apps/web/src/ui/canvas-panel/path-tool.js";
+} from "../../packages/app/src/ui/canvas-panel/path-tool.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

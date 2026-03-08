@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
-import { resolveNodeAdornmentContextAction } from "../../apps/web/src/ui/canvas-panel/node-adornment-context-action.js";
+import { resolveNodeAdornmentContextAction } from "../../packages/app/src/ui/canvas-panel/node-adornment-context-action.js";
 
 describe("resolveNodeAdornmentContextAction", () => {
   it("resolves a rendered node selection into an add-label action with a nearest-side keyword", () => {

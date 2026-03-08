@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   APP_MENU_DEFINITION,
   type AppMenuItem
-} from "tikz-editor/app-menu";
+} from "../app-menu";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";

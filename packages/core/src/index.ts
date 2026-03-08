@@ -13,7 +13,6 @@ export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
 export { createMathJaxNodeTextEngine } from "./text/mathjax-engine.js";
 export { collectSymbols } from "./completion/index.js";
-export { CANVAS_CONTEXT_MENU_DEFINITION } from "./context-menu/index.js";
 export {
   createPdfExportArtifact,
   normalizePdfExportFileName,
@@ -34,7 +33,6 @@ export {
   DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME
 } from "./export/index.js";
 export { EDIT_ACTION_IDS, getEditActionAvailability } from "./edit/action-availability.js";
-export { APP_MENU_DEFINITION, APP_MENU_COMMAND_IDS } from "./app-menu/index.js";
 export {
   buildSnapContext,
   snapSelectionTranslation,
@@ -68,11 +66,6 @@ export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
 export type { DocumentSymbols } from "./completion/index.js";
 export type {
-  CanvasContextMenuTarget,
-  CanvasContextMenuCommandId,
-  CanvasContextMenuDefinition
-} from "./context-menu/index.js";
-export type {
   PdfExportArtifact,
   CreatePdfExportArtifactOptions,
   PngExportArtifact,
@@ -82,16 +75,6 @@ export type {
   StandaloneLatexExportArtifact,
   CreateStandaloneLatexExportArtifactOptions
 } from "./export/index.js";
-export type {
-  AppMenuDefinition,
-  AppMenuSection,
-  AppMenuSectionId,
-  AppMenuItem,
-  AppMenuCommandItem,
-  AppMenuSubmenuItem,
-  AppMenuSeparatorItem,
-  AppMenuCommandId
-} from "./app-menu/index.js";
 export type {
   ActionAvailability,
   EditActionAvailability,

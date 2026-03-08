@@ -5,7 +5,7 @@ import {
   formatScrubNumber,
   pixelsPerStepForModifiers,
   shouldStartScrub
-} from "../../apps/web/src/scrub-utils";
+} from "../../packages/app/src/scrub-utils";
 
 describe("scrub-utils", () => {
   it("uses the shared activation threshold", () => {

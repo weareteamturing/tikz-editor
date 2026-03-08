@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderTikzToSvgAsync } from "../../../packages/core/src/render/index";
-import { OPEN_EXAMPLE_CATALOG } from "../src/ui/examples/open-example-catalog";
+import { OPEN_EXAMPLE_CATALOG } from "../../../packages/app/src/ui/examples/open-example-catalog";
 
 type GeneratedOpenExamplePreview = {
   exampleId: string;
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   ].join("\n");
 
   const thisDir = dirname(fileURLToPath(import.meta.url));
-  const outputPath = resolve(thisDir, "../src/ui/examples/generated-open-example-previews.ts");
+  const outputPath = resolve(thisDir, "../../../packages/app/src/ui/examples/generated-open-example-previews.ts");
   const previous = await readIfExists(outputPath);
   if (previous === moduleSource) {
     console.log("[open-example-previews] up to date");

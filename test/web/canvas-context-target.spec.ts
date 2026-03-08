@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampContextMenuAnchor,
   resolveCanvasContextMenuTarget
-} from "../../apps/web/src/ui/canvas-panel/context-menu-target.js";
+} from "../../packages/app/src/ui/canvas-panel/context-menu-target.js";
 
 describe("canvas context menu target resolution", () => {
   it("selects unselected element before opening context menu", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getInspectorPropertyCapabilityStatus } from "../../apps/web/src/ui/capabilities.js";
+import { getInspectorPropertyCapabilityStatus } from "../../packages/app/src/ui/capabilities.js";
 
 describe("inspector capabilities", () => {
   it("supports text inspector properties", () => {

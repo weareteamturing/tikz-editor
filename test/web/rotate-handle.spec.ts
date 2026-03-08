@@ -7,8 +7,8 @@ import {
   resolveDraggedRotateDeg,
   resolveRotateHandlePosition,
   snapAngleDeg
-} from "../../apps/web/src/ui/canvas-panel/rotate-handle.js";
-import { resolveStatementRotateDegrees } from "../../apps/web/src/ui/canvas-panel/panel-helpers.js";
+} from "../../packages/app/src/ui/canvas-panel/rotate-handle.js";
+import { resolveStatementRotateDegrees } from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
 
 describe("rotate handle geometry", () => {
   it("places the rotate handle outward from the top edge midpoint", () => {

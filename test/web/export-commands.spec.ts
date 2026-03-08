@@ -6,7 +6,7 @@ import {
   copySvgText,
   exportSvgDownload,
   validateSvgMarkup
-} from "../../apps/web/src/ui/export-commands.js";
+} from "../../packages/app/src/ui/export-commands.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

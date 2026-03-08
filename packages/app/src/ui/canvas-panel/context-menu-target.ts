@@ -1,4 +1,4 @@
-import type { CanvasContextMenuTarget } from "tikz-editor/context-menu";
+import type { CanvasContextMenuTarget } from "../../context-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { ToolMode } from "../../store/types";
 

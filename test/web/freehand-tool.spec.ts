@@ -6,7 +6,7 @@ import {
   createFreehandToolDraft,
   generateFreehandToolSource,
   simplifyFreehandPoints
-} from "../../apps/web/src/ui/canvas-panel/freehand-tool.js";
+} from "../../packages/app/src/ui/canvas-panel/freehand-tool.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSnapshot } from "../../apps/web/src/compute";
+import { computeSnapshot } from "../../packages/app/src/compute";
 
 describe("computeSnapshot incremental triggers", () => {
   it("uses incremental compute for drag-element triggers used by resize drags", async () => {

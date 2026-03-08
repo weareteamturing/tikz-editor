@@ -10,15 +10,15 @@ import {
   isCodeMirrorEventTarget,
   pasteSelectionFromClipboardData,
   pasteSelectionFromSystemClipboard
-} from "../apps/web/src/ui/editor-commands.js";
+} from "../packages/app/src/ui/editor-commands.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 import {
   SVG_CLIPBOARD_MIME,
   PLAIN_TEXT_CLIPBOARD_MIME,
   TIKZ_CLIPBOARD_MIME
-} from "../apps/web/src/ui/editor-clipboard.js";
+} from "../packages/app/src/ui/editor-clipboard.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
-import type { EditorAction } from "../apps/web/src/store/types.js";
+import type { EditorAction } from "../packages/app/src/store/types.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

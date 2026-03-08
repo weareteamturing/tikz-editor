@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "tikz-editor/app-menu";
+import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "../app-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
@@ -20,7 +20,7 @@ import {
 import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
 
-export type CommandOrigin = "menu" | "shortcut" | "context-menu";
+export type CommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
 
 export type CommandBinding = {
   enabled: boolean;

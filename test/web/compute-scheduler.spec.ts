@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSingleFlightScheduler } from "../../apps/web/src/ui/compute-scheduler";
+import { createSingleFlightScheduler } from "../../packages/app/src/ui/compute-scheduler";
 
 describe("single-flight compute scheduler", () => {
   it("runs at most one request in flight and coalesces to the latest pending input", async () => {

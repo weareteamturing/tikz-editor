@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@tikz-editor/app": "0.1.0"
+  },
   "scripts": {
     "dev": "echo \"Desktop shell placeholder (Phase 1).\"",
     "build": "echo \"Desktop shell placeholder (Phase 1).\""

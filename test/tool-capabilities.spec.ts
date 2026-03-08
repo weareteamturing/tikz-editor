@@ -3,7 +3,7 @@ import type { InspectorProperty } from "../packages/core/src/edit/inspector.js";
 import {
   getInspectorPropertyCapabilityStatus,
   getToolCapabilityStatus
-} from "../apps/web/src/ui/capabilities.js";
+} from "../packages/app/src/ui/capabilities.js";
 
 describe("tool capability status", () => {
   it("reports select/addNode as supported", () => {

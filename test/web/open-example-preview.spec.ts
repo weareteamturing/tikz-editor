@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { OPEN_EXAMPLE_CATALOG } from "../../apps/web/src/ui/examples/open-example-catalog.js";
-import { GENERATED_OPEN_EXAMPLE_PREVIEWS } from "../../apps/web/src/ui/examples/generated-open-example-previews.js";
-import { renderOpenExamplePreviews } from "../../apps/web/src/ui/examples/render-open-example-preview.js";
+import { OPEN_EXAMPLE_CATALOG } from "../../packages/app/src/ui/examples/open-example-catalog.js";
+import { GENERATED_OPEN_EXAMPLE_PREVIEWS } from "../../packages/app/src/ui/examples/generated-open-example-previews.js";
+import { renderOpenExamplePreviews } from "../../packages/app/src/ui/examples/render-open-example-preview.js";
 
 describe("open example preview rendering", () => {
   it("generated preview map covers all examples", () => {

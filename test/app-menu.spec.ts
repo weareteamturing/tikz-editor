@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION } from "../packages/core/src/app-menu/index.js";
+import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION } from "../packages/app/src/app-menu/index.js";
 
 describe("app menu definition", () => {
   it("defines an open-example command id", () => {

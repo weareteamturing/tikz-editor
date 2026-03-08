@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parser } from "tikz-editor/syntax/parse";
-import { collectDeclaredColors, collectDetectedColors } from "../../apps/web/src/source-color-detection";
+import { collectDeclaredColors, collectDetectedColors } from "../../packages/app/src/source-color-detection";
 
 function detect(source: string) {
   const tree = parser.parse(source);

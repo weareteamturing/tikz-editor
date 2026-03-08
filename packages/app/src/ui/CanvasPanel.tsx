@@ -9,8 +9,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
-import type { AppMenuCommandId } from "tikz-editor/app-menu";
-import type { CanvasContextMenuTarget } from "tikz-editor/context-menu";
+import type { AppMenuCommandId } from "../app-menu";
+import type { CanvasContextMenuTarget } from "../context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import {
   ADORNMENT_EDIT_NOOP_REASON,

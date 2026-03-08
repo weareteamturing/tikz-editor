@@ -4,7 +4,7 @@ import {
   createBezierTemplateFromBend,
   resolveBezierControlsFromBend,
   snapPointDeltaToAxisStepMultiples
-} from "../../apps/web/src/ui/canvas-panel/interaction-helpers.js";
+} from "../../packages/app/src/ui/canvas-panel/interaction-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

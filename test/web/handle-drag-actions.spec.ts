@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   resolveHandleDragAction,
   shouldCommitHandleAnchorOnPointerUp
-} from "../../apps/web/src/ui/canvas-panel/handle-drag-actions.js";
+} from "../../packages/app/src/ui/canvas-panel/handle-drag-actions.js";
 
 describe("handle drag actions", () => {
   it("uses connectHandle during drag when an endpoint anchor is active", () => {
