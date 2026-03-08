@@ -71,6 +71,7 @@ import type {
   Bounds,
   DragState,
   EditableTextTarget,
+  FreehandToolDraft,
   NodeAnchorOverlayState,
   PendingAddedSelection,
   PendingBezier,
@@ -137,6 +138,12 @@ import {
   pathToolShouldClose,
   type PathToolGestureSegment
 } from "./canvas-panel/path-tool";
+import {
+  appendFreehandToolPoint,
+  createFreehandToolDraft,
+  generateFreehandToolSource,
+  resolveFreehandPreviewSegments
+} from "./canvas-panel/freehand-tool";
 import {
   RESIZE_FRAME_CORNER_ROLES,
   resolveResizeFrameForSource
@@ -262,6 +269,13 @@ type ToolPreview =
       startY: number;
       closeCandidate: boolean;
       canClose: boolean;
+      segments: Array<
+        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
+        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+      >;
+    }
+  | {
+      kind: "freehand";
       segments: Array<
         | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
         | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
@@ -399,6 +413,7 @@ export function CanvasPanel() {
   const [rulerAlignmentOffsets, setRulerAlignmentOffsets] = useState<RulerAlignmentOffsets>({ topX: 0, leftY: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
+  const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
   const [pathSegmentDraft, setPathSegmentDraft] = useState<Extract<DragState, { kind: "tool-path-segment" }> | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
   const [bezierBendDraft, setBezierBendDraft] = useState<Extract<DragState, { kind: "tool-bezier-bend" }> | null>(null);
@@ -441,6 +456,7 @@ export function CanvasPanel() {
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const pathDraftRef = useRef<PathToolDraft | null>(null);
+  const freehandDraftRef = useRef<FreehandToolDraft | null>(null);
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
   const autoFitDoneRef = useRef(false);
   const canvasTransformRef = useRef(canvasTransform);
@@ -475,6 +491,10 @@ export function CanvasPanel() {
   useEffect(() => {
     pathDraftRef.current = pathDraft;
   }, [pathDraft]);
+
+  useEffect(() => {
+    freehandDraftRef.current = freehandDraft;
+  }, [freehandDraft]);
 
   const logSnapDebug = useCallback(
     (input: SnapDebugLogInput) => {
@@ -1234,6 +1254,50 @@ export function CanvasPanel() {
       return { kind: "node", x: point.x, y: point.y };
     }
 
+    if (toolMode === "addFreehand") {
+      if (!freehandDraft || freehandDraft.points.length < 2) {
+        if (!toolCursorWorld) {
+          return null;
+        }
+        const point = worldToSvgPoint(toolCursorWorld, svgResult.viewBox);
+        return { kind: "cursor", x: point.x, y: point.y };
+      }
+
+      const segments: Extract<ToolPreview, { kind: "freehand" }>["segments"] = [];
+      for (const segment of resolveFreehandPreviewSegments(freehandDraft)) {
+        if (segment.kind === "line") {
+          const from = worldToSvgPoint(segment.from, svgResult.viewBox);
+          const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+          continue;
+        }
+
+        const from = worldToSvgPoint(segment.from, svgResult.viewBox);
+        const c1 = worldToSvgPoint(segment.control1, svgResult.viewBox);
+        const c2 = worldToSvgPoint(segment.control2, svgResult.viewBox);
+        const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+        segments.push({
+          kind: "bezier",
+          x1: from.x,
+          y1: from.y,
+          c1x: c1.x,
+          c1y: c1.y,
+          c2x: c2.x,
+          c2y: c2.y,
+          x2: to.x,
+          y2: to.y
+        });
+      }
+
+      return { kind: "freehand", segments };
+    }
+
     const makeBezierPreview = (startWorld: Point, endWorld: Point, bendWorld: Point): ToolPreview => {
       const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
       const start = worldToSvgPoint(startWorld, svgResult.viewBox);
@@ -1471,7 +1535,7 @@ export function CanvasPanel() {
       cy: start.y,
       r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
     };
-  }, [bezierBendDraft, canvasTransform.scale, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
 
   const fitToContent = useCallback(() => {
     if (!svgResult || !viewportRef.current) return;
@@ -1601,6 +1665,66 @@ export function CanvasPanel() {
     setPathSegmentDraft(null);
     setToolCursorWorld(segment.endWorld);
   }, []);
+
+  const appendFreehandSamplePoint = useCallback((point: Point): Point[] | null => {
+    let nextPoints: Point[] | null = null;
+    setFreehandDraft((previousDraft) => {
+      if (!previousDraft) {
+        return previousDraft;
+      }
+      const nextDraft = appendFreehandToolPoint(previousDraft, point);
+      nextPoints = nextDraft.points;
+      return nextDraft;
+    });
+    return nextPoints;
+  }, []);
+
+  const finalizeFreehandDraft = useCallback((overridePoints?: Point[]) => {
+    const baseDraft = freehandDraftRef.current;
+    const draft =
+      baseDraft && overridePoints
+        ? {
+            ...baseDraft,
+            points: overridePoints.map((point) => ({ ...point }))
+          }
+        : baseDraft;
+    setNodeAnchorOverlay(null);
+    setSnapLines([]);
+    if (dragRef.current?.kind === "tool-freehand") {
+      setDragState(null);
+    }
+
+    if (!draft) {
+      setFreehandDraft(null);
+      setToolCursorWorld(null);
+      dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+      return;
+    }
+
+    const snippet = generateFreehandToolSource(draft, canvasTransform.scale);
+    if (snippet) {
+      const firstPoint = draft.points[0]!;
+      const lastPoint = draft.points[draft.points.length - 1]!;
+      queueSelectionForAddedElement({
+        x: (firstPoint.x + lastPoint.x) / 2,
+        y: (firstPoint.y + lastPoint.y) / 2
+      });
+      const ok = applyActionWithFeedback({
+        kind: "pasteStatements",
+        snippets: [snippet],
+        delta: { x: 0, y: 0 }
+      });
+      if (!ok.sourceChanged) {
+        pendingAddedSelectionRef.current = null;
+      }
+    } else {
+      pendingAddedSelectionRef.current = null;
+    }
+
+    setFreehandDraft(null);
+    setToolCursorWorld(null);
+    dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+  }, [applyActionWithFeedback, canvasTransform.scale, dispatch, queueSelectionForAddedElement, setDragState]);
 
   const finalizePathDraft = useCallback(
     (closed: boolean) => {
@@ -2649,6 +2773,8 @@ export function CanvasPanel() {
         const drawDragKind: DragState["kind"] =
           toolMode === "addPath"
             ? "tool-path-segment"
+            : toolMode === "addFreehand"
+              ? "tool-freehand"
             : toolMode === "addBezier" && pendingBezier
               ? "tool-bezier-bend"
               : "tool-create";
@@ -2665,7 +2791,8 @@ export function CanvasPanel() {
           });
           return;
         }
-        const toolSnapContext = snapshot.scene
+        const shouldSnapToolStart = toolMode !== "addFreehand";
+        const toolSnapContext = shouldSnapToolStart && snapshot.scene
           ? buildSnapContext({
               sceneElements: snapshot.scene.elements,
               selectedSourceIds: [],
@@ -2675,7 +2802,7 @@ export function CanvasPanel() {
               viewportWorld: viewportWorldBounds
             })
           : null;
-        const startSnapResult = toolSnapContext
+        const startSnapResult = toolSnapContext && shouldSnapToolStart
           ? snapToolPointer({
               context: toolSnapContext,
               pointer: world,
@@ -2697,6 +2824,34 @@ export function CanvasPanel() {
 
         setToolCursorWorld(resolvedStart);
         event.preventDefault();
+
+        if (toolMode === "addFreehand") {
+          const nextFreehandDraft = createFreehandToolDraft(resolvedStart, canvasTransform.scale);
+          setPathDraft(null);
+          setPathSegmentDraft(null);
+          setToolDraft(null);
+          setBezierBendDraft(null);
+          setPendingBezier(null);
+          setSnapLines([]);
+          setNodeAnchorOverlay(null);
+          setFreehandDraft(nextFreehandDraft);
+          const nextFreehandDrag: Extract<DragState, { kind: "tool-freehand" }> = {
+            kind: "tool-freehand",
+            pointerId: event.pointerId,
+            points: nextFreehandDraft.points,
+            minSampleDistanceWorld: nextFreehandDraft.minSampleDistanceWorld
+          };
+          setDragState(nextFreehandDrag);
+          logSnapDebug({
+            phase: "tool-freehand-start",
+            snapshotMatchesSource: true,
+            dragKind: "tool-freehand",
+            rawPoint: world,
+            snappedPoint: resolvedStart,
+            lines: []
+          });
+          return;
+        }
 
         if (toolMode === "addPath") {
           const activeDraft = pathDraftRef.current;
@@ -2918,6 +3073,19 @@ export function CanvasPanel() {
         setNodeAnchorOverlay(null);
         return;
       }
+      if (toolMode === "addFreehand") {
+        setToolCursorWorld(world);
+        setNodeAnchorOverlay(null);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "tool-hover-move",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: dragRef.current?.kind ?? null,
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
       if (!snapshot.scene || snapshot.source !== source) {
         setToolCursorWorld(world);
         setNodeAnchorOverlay(null);
@@ -3010,13 +3178,13 @@ export function CanvasPanel() {
   );
 
   const onInteractionPointerLeave = useCallback(() => {
-    if (toolMode === "select" || toolDraft || bezierBendDraft || pathSegmentDraft) {
+    if (toolMode === "select" || toolDraft || bezierBendDraft || pathSegmentDraft || freehandDraft) {
       return;
     }
     setNodeAnchorOverlay(null);
     setToolCursorWorld(null);
     setSnapLines([]);
-  }, [bezierBendDraft, pathSegmentDraft, setNodeAnchorOverlay, toolDraft, toolMode]);
+  }, [bezierBendDraft, freehandDraft, pathSegmentDraft, setNodeAnchorOverlay, toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -3030,6 +3198,19 @@ export function CanvasPanel() {
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (toolMode === "addFreehand") {
+        setToolCursorWorld(world);
+        setNodeAnchorOverlay(null);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "tool-hover-enter",
+          snapshotMatchesSource: snapshot.source === source,
+          dragKind: dragRef.current?.kind ?? null,
+          rawPoint: world,
+          lines: []
+        });
         return;
       }
       if (!snapshot.scene || snapshot.source !== source) {
@@ -3139,6 +3320,18 @@ export function CanvasPanel() {
           event.preventDefault();
           return;
         }
+        if (toolMode === "addFreehand") {
+          setFreehandDraft(null);
+          if (dragRef.current?.kind === "tool-freehand") {
+            setDragState(null);
+          }
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          setToolCursorWorld(null);
+          setWarning(null);
+          setSnapLines([]);
+          event.preventDefault();
+          return;
+        }
 
         if (toolMode !== "select") {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
@@ -3156,7 +3349,8 @@ export function CanvasPanel() {
           dragRef.current?.kind === "marquee" ||
           dragRef.current?.kind === "tool-create" ||
           dragRef.current?.kind === "tool-bezier-bend" ||
-          dragRef.current?.kind === "tool-path-segment"
+          dragRef.current?.kind === "tool-path-segment" ||
+          dragRef.current?.kind === "tool-freehand"
         ) {
           setDragState(null);
         }
@@ -3764,6 +3958,7 @@ export function CanvasPanel() {
   useEffect(() => {
     if (toolMode === "select") {
       setPathDraft(null);
+      setFreehandDraft(null);
       setPathSegmentDraft(null);
       setToolDraft(null);
       setBezierBendDraft(null);
@@ -3773,7 +3968,8 @@ export function CanvasPanel() {
       if (
         dragRef.current?.kind === "tool-create" ||
         dragRef.current?.kind === "tool-bezier-bend" ||
-        dragRef.current?.kind === "tool-path-segment"
+        dragRef.current?.kind === "tool-path-segment" ||
+        dragRef.current?.kind === "tool-freehand"
       ) {
         setDragState(null);
       }
@@ -3784,6 +3980,13 @@ export function CanvasPanel() {
       setPathDraft(null);
       setPathSegmentDraft(null);
       if (dragRef.current?.kind === "tool-path-segment") {
+        setDragState(null);
+      }
+    }
+
+    if (toolMode !== "addFreehand") {
+      setFreehandDraft(null);
+      if (dragRef.current?.kind === "tool-freehand") {
         setDragState(null);
       }
     }
@@ -4034,6 +4237,8 @@ export function CanvasPanel() {
     setBezierBendDraft,
     setPathSegmentDraft,
     commitPathToolSegment,
+    appendFreehandSamplePoint,
+    finalizeFreehandDraft,
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,

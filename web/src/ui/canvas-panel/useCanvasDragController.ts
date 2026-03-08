@@ -80,6 +80,8 @@ export function useCanvasDragController(params: {
   setBezierBendDraft: (draft: Extract<DragState, { kind: "tool-bezier-bend" }> | null) => void;
   setPathSegmentDraft: (draft: Extract<DragState, { kind: "tool-path-segment" }> | null) => void;
   commitPathToolSegment: (segment: PathToolGestureSegment) => void;
+  appendFreehandSamplePoint: (point: Point) => Point[] | null;
+  finalizeFreehandDraft: (overridePoints?: Point[]) => void;
   setPendingBezier: (pending: PendingBezier | null) => void;
   setToolCursorWorld: (point: Point | null) => void;
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
@@ -116,6 +118,8 @@ export function useCanvasDragController(params: {
     setBezierBendDraft,
     setPathSegmentDraft,
     commitPathToolSegment,
+    appendFreehandSamplePoint,
+    finalizeFreehandDraft,
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
@@ -374,6 +378,24 @@ export function useCanvasDragController(params: {
           snappedPoint: drag.bendWorld,
           offset: snapped.offset,
           lines: snapped.lines
+        });
+        return;
+      }
+
+      if (drag.kind === "tool-freehand") {
+        setNodeAnchorOverlay(null);
+        const nextPoints = appendFreehandSamplePoint(world);
+        if (nextPoints) {
+          drag.points = nextPoints;
+        }
+        setToolCursorWorld(world);
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-tool-freehand-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "tool-freehand",
+          rawPoint: world,
+          lines: []
         });
         return;
       }
@@ -844,6 +866,21 @@ export function useCanvasDragController(params: {
         return;
       }
 
+      if (drag.kind === "tool-freehand") {
+        setNodeAnchorOverlay(null);
+        let nextPoints: Point[] | null = null;
+        if (world) {
+          nextPoints = appendFreehandSamplePoint(world);
+          if (nextPoints) {
+            drag.points = nextPoints;
+          }
+          setToolCursorWorld(world);
+        }
+        setSnapLines([]);
+        finalizeFreehandDraft(nextPoints ?? undefined);
+        return;
+      }
+
       if (drag.kind === "text-select") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
@@ -904,6 +941,8 @@ export function useCanvasDragController(params: {
     setBezierBendDraft,
     setPathSegmentDraft,
     commitPathToolSegment,
+    appendFreehandSamplePoint,
+    finalizeFreehandDraft,
     setPendingBezier,
     setToolCursorWorld,
     setToolDraft,

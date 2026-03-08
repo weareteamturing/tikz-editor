@@ -30,6 +30,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_PATH).toBe("insert.path");
   });
 
+  it("defines a freehand insert command id", () => {
+    expect(APP_MENU_COMMAND_IDS.INSERT_FREEHAND).toBe("insert.freehand");
+  });
+
   it("defines a grid insert command id", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_GRID).toBe("insert.grid");
   });
@@ -154,6 +158,21 @@ describe("app menu definition", () => {
     }
     expect(commandItem.label).toBe("Path");
     expect(commandItem.accelerator).toBe("P");
+  });
+
+  it("exposes Freehand in the Insert menu", () => {
+    const insertSection = APP_MENU_DEFINITION.find((section) => section.id === "insert");
+    expect(insertSection).toBeDefined();
+    const items = insertSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.INSERT_FREEHAND
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected insert.freehand command item in Insert menu.");
+    }
+    expect(commandItem.label).toBe("Freehand");
+    expect(commandItem.accelerator).toBe("F");
   });
 
   it("exposes Grid in the Insert menu without an accelerator", () => {

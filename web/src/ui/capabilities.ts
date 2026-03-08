@@ -36,6 +36,11 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
     { feature: "keyword_controls", layers: ["parser", "semantic", "svg"], label: "Bezier control-point parsing" },
     { feature: "path_cycle", layers: ["parser", "semantic", "svg"], label: "cycle closure rendering" }
   ],
+  addFreehand: [
+    { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "path rendering" },
+    { feature: "path_operator_curves", layers: ["parser", "semantic", "svg"], label: "Bezier curve rendering" },
+    { feature: "keyword_controls", layers: ["parser", "semantic", "svg"], label: "Bezier control-point parsing" }
+  ],
   addLine: [
     { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "line path rendering" }
   ],

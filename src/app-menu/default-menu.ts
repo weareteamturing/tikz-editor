@@ -210,6 +210,12 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_FREEHAND,
+        label: "Freehand",
+        accelerator: "F"
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_LINE,
         label: "Line",
         accelerator: "L"

@@ -5,6 +5,7 @@ export type ToolMode =
   | "select"
   | "addNode"
   | "addPath"
+  | "addFreehand"
   | "addLine"
   | "addGrid"
   | "addRect"

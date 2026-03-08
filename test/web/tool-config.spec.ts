@@ -30,9 +30,15 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModeFromShortcut("P")).toBe("addPath");
   });
 
+  it("maps keyboard shortcut F to addFreehand", () => {
+    expect(toolModeFromShortcut("f")).toBe("addFreehand");
+    expect(toolModeFromShortcut("F")).toBe("addFreehand");
+  });
+
   it("treats addBezier as a tool-create mode", () => {
     expect(isToolCreateMode("addBezier")).toBe(true);
     expect(isToolCreateMode("addPath")).toBe(true);
+    expect(isToolCreateMode("addFreehand")).toBe(false);
     expect(isToolCreateMode("select")).toBe(false);
   });
 

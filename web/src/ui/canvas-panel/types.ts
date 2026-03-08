@@ -120,6 +120,12 @@ export type DragState =
       snapContext: SnapContext | null;
     }
   | {
+      kind: "tool-freehand";
+      pointerId: number;
+      points: Point[];
+      minSampleDistanceWorld: number;
+    }
+  | {
       kind: "text-select";
       pointerId: number;
       sourceId: string;
@@ -150,6 +156,11 @@ export type PendingBezier = {
 export type PathToolDraft = {
   startWorld: Point;
   segments: ComplexPathSegment[];
+};
+
+export type FreehandToolDraft = {
+  points: Point[];
+  minSampleDistanceWorld: number;
 };
 
 export type TextSelectionOverlay = {

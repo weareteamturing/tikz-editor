@@ -1049,6 +1049,9 @@ export function canvasDragKindFromDragState(drag: DragState | null): CanvasDragK
   if (drag.kind === "tool-bezier-bend" || drag.kind === "tool-path-segment") {
     return "tool-create";
   }
+  if (drag.kind === "tool-freehand") {
+    return "tool-create";
+  }
   return drag.kind;
 }
 
@@ -1069,7 +1072,8 @@ export function dragCursorForState(drag: DragState | null): string | null {
     drag.kind === "marquee" ||
     drag.kind === "tool-create" ||
     drag.kind === "tool-bezier-bend" ||
-    drag.kind === "tool-path-segment"
+    drag.kind === "tool-path-segment" ||
+    drag.kind === "tool-freehand"
   ) {
     return "crosshair";
   }
