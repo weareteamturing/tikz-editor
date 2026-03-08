@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Modal } from "./Modal";
 import css from "./TikzJaxModal.module.css";
 
 const TIKZJAX_FONTS_CSS = "https://cdn.jsdelivr.net/npm/@drgrice1/tikzjax@1.0.0-beta24/dist/fonts.css";
@@ -94,14 +95,6 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
     };
   }, [phase, source]);
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   const statusText =
     phase === "loading-lib" ? "Loading TikZJax…" :
     phase === "lib-error" ? "Failed to load TikZJax from CDN." :
@@ -109,14 +102,7 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
     null;
 
   return (
-    <div className={css.backdrop} onMouseDown={onClose}>
-      <div
-        className={css.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tikzjax-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} className={css.dialog} labelledBy="tikzjax-title">
         <div className={css.header}>
           <h2 id="tikzjax-title" className={css.title}>Compiled Picture</h2>
           <div className={css.headerActions}>
@@ -165,7 +151,6 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
         {statusText ? <div className={css.status}>{statusText}</div> : null}
 
         <div className={css.output} ref={outputRef} />
-      </div>
-    </div>
+    </Modal>
   );
 }

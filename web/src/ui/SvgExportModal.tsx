@@ -9,6 +9,7 @@ import {
   validateSvgMarkup,
   type SvgTransformPreset
 } from "./export-commands";
+import { Modal } from "./Modal";
 import css from "./SvgExportModal.module.css";
 
 const DEFAULT_FILE_NAME = "tikz-export.svg";
@@ -42,17 +43,6 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
   const [copyPending, setCopyPending] = useState(false);
   const [downloadPending, setDownloadPending] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
 
   useEffect(() => {
     rememberedFileName = fileName;
@@ -171,14 +161,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
   };
 
   return (
-    <div className={css.backdrop} onMouseDown={onClose}>
-      <div
-        className={css.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="svg-export-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal onClose={onClose} className={css.dialog} labelledBy="svg-export-title">
         <div className={css.header}>
           <div>
             <h2 id="svg-export-title" className={css.title}>Export SVG</h2>
@@ -313,8 +296,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
             </label>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

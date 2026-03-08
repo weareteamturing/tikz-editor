@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSettingsStore } from "../settings/useSettingsStore";
 import type { ColorPickerAccuracy, GridSize } from "../settings/types";
+import { Modal } from "./Modal";
 import css from "./SettingsModal.module.css";
 
 type CategoryId = "editor" | "canvas";
@@ -28,25 +29,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const updateColorPickerSettings = useSettingsStore((s) => s.updateColorPickerSettings);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   return (
-    <div className={css.backdrop} onMouseDown={onClose}>
-      <div
-        className={css.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} className={css.dialog} labelledBy="settings-title">
         <div className={css.titleBar}>
           <span id="settings-title" className={css.title}>Settings</span>
           <button type="button" className={css.closeBtn} onClick={onClose}>
@@ -162,7 +146,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

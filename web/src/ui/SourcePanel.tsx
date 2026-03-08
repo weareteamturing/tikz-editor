@@ -1140,7 +1140,7 @@ function computeInlineColorPopoverStyle(anchorRect: DOMRectReadOnly): CSSPropert
 
   const spaceBelow = window.innerHeight - anchorRect.bottom - POPOVER_GAP_PX - VIEWPORT_PADDING_PX;
   const spaceAbove = anchorRect.top - POPOVER_GAP_PX - VIEWPORT_PADDING_PX;
-  const openUpward = spaceBelow < POPOVER_HEIGHT_PX && spaceAbove > spaceBelow;
+  const openUpward = POPOVER_HEIGHT_PX > spaceBelow && spaceAbove > 0;
   const top = openUpward
     ? Math.max(VIEWPORT_PADDING_PX, anchorRect.top - POPOVER_HEIGHT_PX - POPOVER_GAP_PX)
     : Math.min(

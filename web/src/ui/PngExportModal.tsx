@@ -5,6 +5,7 @@ import {
   normalizePngExportDpi,
   renderPngExport
 } from "./export-commands";
+import { Modal } from "./Modal";
 import css from "./PngExportModal.module.css";
 
 const DEFAULT_FILE_NAME = "tikz-export.png";
@@ -48,17 +49,6 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
   const [showRefreshOverlay, setShowRefreshOverlay] = useState(false);
 
   const effectiveDpi = useMemo(() => normalizePngExportDpi(parseDpiInput(dpiInput)), [dpiInput]);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
 
   useEffect(() => {
     rememberedDpi = dpiInput;
@@ -185,14 +175,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
         : null;
 
   return (
-    <div className={css.backdrop} onMouseDown={onClose}>
-      <div
-        className={css.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="png-export-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal onClose={onClose} className={css.dialog} labelledBy="png-export-title">
         <div className={css.header}>
           <div>
             <h2 id="png-export-title" className={css.title}>Export PNG</h2>
@@ -313,8 +296,7 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
             </div>
           </form>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

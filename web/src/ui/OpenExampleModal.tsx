@@ -1,6 +1,6 @@
-import { useEffect } from "react";
 import type { TikzOpenExample } from "./examples/open-example-catalog";
 import { GENERATED_OPEN_EXAMPLE_PREVIEWS } from "./examples/generated-open-example-previews";
+import { Modal } from "./Modal";
 import css from "./OpenExampleModal.module.css";
 
 type OpenExampleModalProps = {
@@ -10,26 +10,8 @@ type OpenExampleModalProps = {
 };
 
 export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExampleModalProps) {
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
   return (
-    <div className={css.backdrop} onMouseDown={onClose}>
-      <div
-        className={css.dialog}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="open-example-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal onClose={onClose} className={css.dialog} labelledBy="open-example-title">
         <div className={css.header}>
           <div>
             <h2 id="open-example-title" className={css.title}>Open Example</h2>
@@ -84,7 +66,6 @@ export function OpenExampleModal({ examples, onClose, onSelectExample }: OpenExa
             );
           })}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

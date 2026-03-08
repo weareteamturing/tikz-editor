@@ -182,12 +182,6 @@
   gap: 8px;
 }
 
-.customColorWellRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .customLabel {
   min-width: 56px;
   font-size: 10px;
@@ -195,37 +189,109 @@
   font-weight: 600;
 }
 
-.customColorWell {
+.customShadePickerStack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.customHueTrack {
+  position: relative;
   width: 100%;
-  min-height: 24px;
+  min-height: 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    #ff0000 0%,
+    #ffff00 16.66%,
+    #00ff00 33.33%,
+    #00ffff 50%,
+    #0000ff 66.66%,
+    #ff00ff 83.33%,
+    #ff0000 100%
+  );
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.customHueTrackDisabled {
+  cursor: default;
+  filter: saturate(0.4);
+}
+
+.customHueThumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 18px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 35%, transparent);
+  pointer-events: none;
+}
+
+.customShadeArea {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.8 / 1;
   border: 1px solid var(--border-light);
   border-radius: 3px;
-  background: #fff;
-  padding: 1px;
+  overflow: hidden;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.customShadeArea::before,
+.customShadeArea::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.customShadeArea::before {
+  background: linear-gradient(to right, #ffffff 0%, transparent 100%);
+}
+
+.customShadeArea::after {
+  background: linear-gradient(to top, #000000 0%, transparent 100%);
+}
+
+.customShadeAreaDisabled {
+  cursor: default;
+}
+
+.customShadeThumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #fff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .customChannelStack {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .customChannelRow {
-  display: grid;
-  grid-template-columns: 14px minmax(0, 1fr) 50px;
-  gap: 6px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .customChannelLabel {
   font-size: 10px;
   color: var(--text-dim);
   font-weight: 600;
-}
-
-.customChannelRange {
-  width: 100%;
-  margin: 0;
+  text-align: left;
 }
 
 .customChannelNumber {
@@ -238,6 +304,11 @@
   font-family: inherit;
   font-size: 10px;
   padding: 2px 4px;
+}
+
+.customChannelNumber::-webkit-outer-spin-button,
+.customChannelNumber::-webkit-inner-spin-button {
+  margin: 0;
 }
 
 .customField {
@@ -289,10 +360,11 @@
 }
 
 .customResultInput {
-  background: #f7f7f7;
+  background: #fff;
 }
 
-.customColorWell:disabled,
+.customHueTrackDisabled,
+.customShadeAreaDisabled,
 .customChannelNumber:disabled,
 .customTextInput:disabled,
 .customResultInput:disabled {

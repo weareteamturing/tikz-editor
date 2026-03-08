@@ -1,5 +1,11 @@
 TODOS
 
+* Support for tooltips
+
+* Switch cap / join selectors to be similar to https://boxy-svg.com/app/
+
+* SVG style path adder
+
 * Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
 
 * Selecting and transforming scopes. Group/ungroup
@@ -38,8 +44,10 @@ TODOS
 
 * Number scrubbing in inspector
 
-* Take libraries of public domain / open license SVGs (e.g. icon libraries) and treat them as "clip art" style things that can be inserted
+* Take libraries of public domain / open license SVGs (e.g. icon libraries) and treat them as "clip art" style things that can be inserted -- see boxy svg for example of this
 
 * Support for multi-line text in nodes (special difficulty: mathjax select / caret)
 
 * Darkmode; other display customizations
+
+* App settings: handle size, UI font size, scroll / zoom speed, geometry precision digits, code formatter options

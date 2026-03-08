@@ -264,7 +264,11 @@ export function ColorPicker({
     pickInitialBaseColor(grayscaleDriverValue, builtInColors, toneSelectableTokens)
   );
   const brightnessTrackRef = useRef<HTMLDivElement | null>(null);
+  const customHueTrackRef = useRef<HTMLDivElement | null>(null);
+  const customShadeAreaRef = useRef<HTMLDivElement | null>(null);
   const [dragPointerId, setDragPointerId] = useState<number | null>(null);
+  const [customHueDragPointerId, setCustomHueDragPointerId] = useState<number | null>(null);
+  const [customShadeDragPointerId, setCustomShadeDragPointerId] = useState<number | null>(null);
   const [customRgb, setCustomRgb] = useState<RgbColor>(() => resolveCustomRgbFromDriver(driverValue, namedColorLookup));
   const [customInputValue, setCustomInputValue] = useState<string>(() => rgbToHex(resolveCustomRgbFromDriver(driverValue, namedColorLookup)));
   const [customExpression, setCustomExpression] = useState<string>(() =>
@@ -280,6 +284,7 @@ export function ColorPicker({
     () => deriveToneState(grayscaleDriverValue, activeBaseColor, toneSelectableTokens),
     [grayscaleDriverValue, activeBaseColor, toneSelectableTokens]
   );
+  const customHsv = useMemo(() => rgbToHsv(customRgb), [customRgb]);
 
   useEffect(() => {
     if (!isToneBaseColor(toneState.baseColor) || toneState.baseColor === activeBaseColor) {
@@ -300,6 +305,8 @@ export function ColorPicker({
       return;
     }
     setDragPointerId(null);
+    setCustomHueDragPointerId(null);
+    setCustomShadeDragPointerId(null);
   }, [disabled]);
 
   useEffect(() => {
@@ -439,6 +446,157 @@ export function ColorPicker({
     applyTone(clampTonePosition(nextPosition));
   }
 
+  function customHueFromClientX(clientX: number): number {
+    const track = customHueTrackRef.current;
+    if (!track) {
+      return customHsv.h;
+    }
+    const rect = track.getBoundingClientRect();
+    if (rect.width <= 0) {
+      return customHsv.h;
+    }
+    const ratioFromLeft = clamp01((clientX - rect.left) / rect.width);
+    return ratioFromLeft * 360;
+  }
+
+  function customShadeFromClient(clientX: number, clientY: number): { s: number; v: number } {
+    const area = customShadeAreaRef.current;
+    if (!area) {
+      return { s: customHsv.s, v: customHsv.v };
+    }
+    const rect = area.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return { s: customHsv.s, v: customHsv.v };
+    }
+    const s = clamp01((clientX - rect.left) / rect.width);
+    const v = 1 - clamp01((clientY - rect.top) / rect.height);
+    return { s, v };
+  }
+
+  function applyCustomHsv(nextH: number, nextS: number, nextV: number, mode: RgbToXcolorMode): void {
+    const nextRgb = hsvToRgb(nextH, nextS, nextV);
+    setCustomInputValue(rgbToHex(nextRgb));
+    applyCustomRgb(nextRgb, mode, null);
+  }
+
+  function handleCustomHuePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (disabled || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    setCustomHueDragPointerId(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    applyCustomHsv(customHueFromClientX(event.clientX), customHsv.s, customHsv.v, "drag");
+  }
+
+  function handleCustomHuePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    if (disabled || customHueDragPointerId == null || event.pointerId !== customHueDragPointerId) {
+      return;
+    }
+    applyCustomHsv(customHueFromClientX(event.clientX), customHsv.s, customHsv.v, "drag");
+  }
+
+  function handleCustomHuePointerEnd(event: React.PointerEvent<HTMLDivElement>): void {
+    if (customHueDragPointerId == null || event.pointerId !== customHueDragPointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setCustomHueDragPointerId(null);
+    applyCustomHsv(customHueFromClientX(event.clientX), customHsv.s, customHsv.v, "release");
+  }
+
+  function handleCustomHueKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (disabled) {
+      return;
+    }
+    let nextHue: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      nextHue = customHsv.h + 1;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      nextHue = customHsv.h - 1;
+    } else if (event.key === "PageUp") {
+      nextHue = customHsv.h + 15;
+    } else if (event.key === "PageDown") {
+      nextHue = customHsv.h - 15;
+    } else if (event.key === "Home") {
+      nextHue = 0;
+    } else if (event.key === "End") {
+      nextHue = 360;
+    }
+    if (nextHue == null) {
+      return;
+    }
+    event.preventDefault();
+    applyCustomHsv(normalizeHueDegrees(nextHue), customHsv.s, customHsv.v, "release");
+  }
+
+  function handleCustomShadePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (disabled || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    setCustomShadeDragPointerId(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const nextShade = customShadeFromClient(event.clientX, event.clientY);
+    applyCustomHsv(customHsv.h, nextShade.s, nextShade.v, "drag");
+  }
+
+  function handleCustomShadePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    if (disabled || customShadeDragPointerId == null || event.pointerId !== customShadeDragPointerId) {
+      return;
+    }
+    const nextShade = customShadeFromClient(event.clientX, event.clientY);
+    applyCustomHsv(customHsv.h, nextShade.s, nextShade.v, "drag");
+  }
+
+  function handleCustomShadePointerEnd(event: React.PointerEvent<HTMLDivElement>): void {
+    if (customShadeDragPointerId == null || event.pointerId !== customShadeDragPointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setCustomShadeDragPointerId(null);
+    const nextShade = customShadeFromClient(event.clientX, event.clientY);
+    applyCustomHsv(customHsv.h, nextShade.s, nextShade.v, "release");
+  }
+
+  function handleCustomShadeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (disabled) {
+      return;
+    }
+    let nextS = customHsv.s;
+    let nextV = customHsv.v;
+    const step = 0.01;
+    const pageStep = 0.1;
+
+    if (event.key === "ArrowRight") {
+      nextS += step;
+    } else if (event.key === "ArrowLeft") {
+      nextS -= step;
+    } else if (event.key === "ArrowUp") {
+      nextV += step;
+    } else if (event.key === "ArrowDown") {
+      nextV -= step;
+    } else if (event.key === "PageUp") {
+      nextV += pageStep;
+    } else if (event.key === "PageDown") {
+      nextV -= pageStep;
+    } else if (event.key === "Home") {
+      nextS = 0;
+      nextV = 1;
+    } else if (event.key === "End") {
+      nextS = 1;
+      nextV = 0;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    applyCustomHsv(customHsv.h, clamp01(nextS), clamp01(nextV), "release");
+  }
+
   function syncCustomStateFromDriver(): void {
     const resolved = resolveCustomRgbFromDriver(driverValue, namedColorLookup);
     setCustomRgb(resolved);
@@ -458,15 +616,6 @@ export function ColorPicker({
     setCustomInputError(null);
     setCustomInputWarning(warning);
     applyColor(result.expression);
-  }
-
-  function handleCustomColorWell(rawHex: string, mode: RgbToXcolorMode): void {
-    const parsed = parseCustomColorInput(rawHex);
-    if (!parsed) {
-      return;
-    }
-    setCustomInputValue(parsed.hex);
-    applyCustomRgb(parsed.rgb, mode, parsed.warning ?? null);
   }
 
   function handleCustomChannelChange(channel: keyof RgbColor, rawValue: string, mode: RgbToXcolorMode): void {
@@ -505,6 +654,18 @@ export function ColorPicker({
     }
     setCustomInputValue(parsed.hex);
     applyCustomRgb(parsed.rgb, "release", parsed.warning ?? null);
+  }
+
+  function handleCustomExpressionInputChange(rawValue: string): void {
+    setCustomExpression(rawValue);
+  }
+
+  function commitCustomExpression(): void {
+    const normalized = customExpression.trim();
+    if (normalized.length === 0) {
+      return;
+    }
+    applyColor(normalized);
   }
 
   return (
@@ -629,19 +790,47 @@ export function ColorPicker({
         </div>
       ) : (
         <div className={css.customTabPanel} role="tabpanel">
-          <div className={css.customColorWellRow}>
-            <label className={css.customLabel} htmlFor={`${customIdPrefix}-custom-well`}>
-              Color
-            </label>
-            <input
-              id={`${customIdPrefix}-custom-well`}
-              className={css.customColorWell}
-              type="color"
-              value={rgbToHex(customRgb)}
-              disabled={disabled}
-              onInput={(event) => handleCustomColorWell(event.currentTarget.value, "drag")}
-              onChange={(event) => handleCustomColorWell(event.currentTarget.value, "release")}
-            />
+          <div className={css.customShadePickerStack}>
+            <div
+              ref={customHueTrackRef}
+              className={[css.customHueTrack, disabled ? css.customHueTrackDisabled : ""].filter(Boolean).join(" ")}
+              role="slider"
+              aria-label={`${ariaLabel} hue`}
+              aria-orientation="horizontal"
+              aria-valuemin={0}
+              aria-valuemax={360}
+              aria-valuenow={Math.round(customHsv.h)}
+              tabIndex={disabled ? -1 : 0}
+              onPointerDown={handleCustomHuePointerDown}
+              onPointerMove={handleCustomHuePointerMove}
+              onPointerUp={handleCustomHuePointerEnd}
+              onPointerCancel={handleCustomHuePointerEnd}
+              onKeyDown={handleCustomHueKeyDown}
+            >
+              <span className={css.customHueThumb} style={{ left: `${(customHsv.h / 360) * 100}%` }} aria-hidden="true" />
+            </div>
+            <div
+              ref={customShadeAreaRef}
+              className={[css.customShadeArea, disabled ? css.customShadeAreaDisabled : ""].filter(Boolean).join(" ")}
+              role="slider"
+              aria-label={`${ariaLabel} saturation and value`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(customHsv.v * 100)}
+              tabIndex={disabled ? -1 : 0}
+              style={{ backgroundColor: hsvToHex(customHsv.h, 1, 1) }}
+              onPointerDown={handleCustomShadePointerDown}
+              onPointerMove={handleCustomShadePointerMove}
+              onPointerUp={handleCustomShadePointerEnd}
+              onPointerCancel={handleCustomShadePointerEnd}
+              onKeyDown={handleCustomShadeKeyDown}
+            >
+              <span
+                className={css.customShadeThumb}
+                style={{ left: `${customHsv.s * 100}%`, top: `${(1 - customHsv.v) * 100}%` }}
+                aria-hidden="true"
+              />
+            </div>
           </div>
 
           <div className={css.customChannelStack}>
@@ -650,23 +839,11 @@ export function ColorPicker({
               const channelValue = customRgb[channel];
               return (
                 <div key={channel} className={css.customChannelRow}>
-                  <label className={css.customChannelLabel} htmlFor={`${customIdPrefix}-custom-${channel}-range`}>
+                  <label className={css.customChannelLabel} htmlFor={`${customIdPrefix}-custom-${channel}-number`}>
                     {channelLabel}
                   </label>
                   <input
-                    id={`${customIdPrefix}-custom-${channel}-range`}
-                    className={css.customChannelRange}
-                    type="range"
-                    min={0}
-                    max={255}
-                    step={1}
-                    value={channelValue}
-                    disabled={disabled}
-                    onChange={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "drag")}
-                    onPointerUp={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
-                    onBlur={(event) => handleCustomChannelChange(channel, event.currentTarget.value, "release")}
-                  />
-                  <input
+                    id={`${customIdPrefix}-custom-${channel}-number`}
                     className={css.customChannelNumber}
                     type="number"
                     min={0}
@@ -733,9 +910,16 @@ export function ColorPicker({
               className={css.customResultInput}
               type="text"
               value={customExpression}
-              readOnly
-              aria-readonly="true"
               disabled={disabled}
+              onChange={(event) => handleCustomExpressionInputChange(event.currentTarget.value)}
+              onBlur={() => commitCustomExpression()}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") {
+                  return;
+                }
+                event.preventDefault();
+                commitCustomExpression();
+              }}
             />
           </div>
 
@@ -1188,6 +1372,82 @@ function rgbToHex(rgb: { r: number; g: number; b: number }): string {
       .map((component) => component.toString(16).padStart(2, "0"))
       .join("")
   );
+}
+
+function hsvToRgb(hueDegrees: number, saturationRaw: number, valueRaw: number): RgbColor {
+  const h = normalizeHueDegrees(hueDegrees);
+  const s = clamp01(saturationRaw);
+  const v = clamp01(valueRaw);
+
+  const c = v * s;
+  const hPrime = h / 60;
+  const x = c * (1 - Math.abs((hPrime % 2) - 1));
+  let rPrime = 0;
+  let gPrime = 0;
+  let bPrime = 0;
+
+  if (hPrime >= 0 && hPrime < 1) {
+    rPrime = c;
+    gPrime = x;
+  } else if (hPrime >= 1 && hPrime < 2) {
+    rPrime = x;
+    gPrime = c;
+  } else if (hPrime >= 2 && hPrime < 3) {
+    gPrime = c;
+    bPrime = x;
+  } else if (hPrime >= 3 && hPrime < 4) {
+    gPrime = x;
+    bPrime = c;
+  } else if (hPrime >= 4 && hPrime < 5) {
+    rPrime = x;
+    bPrime = c;
+  } else {
+    rPrime = c;
+    bPrime = x;
+  }
+
+  const m = v - c;
+  return {
+    r: clampRgbByte((rPrime + m) * 255),
+    g: clampRgbByte((gPrime + m) * 255),
+    b: clampRgbByte((bPrime + m) * 255)
+  };
+}
+
+function rgbToHsv(rgb: RgbColor): { h: number; s: number; v: number } {
+  const r = clampRgbByte(rgb.r) / 255;
+  const g = clampRgbByte(rgb.g) / 255;
+  const b = clampRgbByte(rgb.b) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+
+  let h = 0;
+  if (delta > 0) {
+    if (max === r) {
+      h = 60 * (((g - b) / delta) % 6);
+    } else if (max === g) {
+      h = 60 * ((b - r) / delta + 2);
+    } else {
+      h = 60 * ((r - g) / delta + 4);
+    }
+  }
+  h = normalizeHueDegrees(h);
+
+  const s = max === 0 ? 0 : delta / max;
+  return { h, s, v: max };
+}
+
+function hsvToHex(hueDegrees: number, saturation: number, value: number): string {
+  return rgbToHex(hsvToRgb(hueDegrees, saturation, value));
+}
+
+function normalizeHueDegrees(value: number): number {
+  const normalized = ((value % 360) + 360) % 360;
+  if (normalized === 0 && value > 0) {
+    return 360;
+  }
+  return normalized;
 }
 
 function isGrayscaleMode(driverValue: string | null): boolean {

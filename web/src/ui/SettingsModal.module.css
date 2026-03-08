@@ -1,21 +1,8 @@
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, #1b2430 45%, transparent);
-  padding: 20px;
-}
-
 .dialog {
   width: min(620px, calc(100vw - 40px));
   max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  background: var(--bg-pane);
-  box-shadow: 0 14px 40px color-mix(in srgb, black 32%, transparent);
   overflow: hidden;
 }
 
