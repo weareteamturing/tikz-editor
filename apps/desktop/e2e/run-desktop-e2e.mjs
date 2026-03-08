@@ -23,7 +23,9 @@ if (driverProbe.status !== 0) {
   throw new Error(`tauri-driver check failed:\n${driverProbe.stderr ?? driverProbe.stdout ?? ""}`);
 }
 
-const driver = spawn("tauri-driver", [], {
+const nativeDriver = resolveNativeWebkitDriver();
+const driverArgs = nativeDriver ? ["--native-driver", nativeDriver] : [];
+const driver = spawn("tauri-driver", driverArgs, {
   stdio: "pipe"
 });
 
@@ -284,4 +286,40 @@ async function expectTextContains(browserInstance, selector, snippet) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveNativeWebkitDriver() {
+  const envCandidates = [
+    process.env.WEBKIT_WEBDRIVER_PATH,
+    process.env.NATIVE_WEBDRIVER_PATH
+  ].filter(Boolean);
+  const pathCandidates = binariesFromPath(process.platform === "win32" ? ["WebKitWebDriver.exe"] : ["WebKitWebDriver"]);
+  const fallbackCandidates = [
+    "/usr/bin/WebKitWebDriver",
+    "/usr/libexec/webkit2gtk-4.1/WebKitWebDriver",
+    "/usr/libexec/webkit2gtk-4.0/WebKitWebDriver"
+  ];
+
+  const candidates = [...envCandidates, ...pathCandidates, ...fallbackCandidates];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function binariesFromPath(names) {
+  const rawPath = process.env.PATH ?? "";
+  if (!rawPath) {
+    return [];
+  }
+  const entries = rawPath.split(path.delimiter).filter(Boolean);
+  const candidates = [];
+  for (const entry of entries) {
+    for (const name of names) {
+      candidates.push(path.join(entry, name));
+    }
+  }
+  return candidates;
 }
