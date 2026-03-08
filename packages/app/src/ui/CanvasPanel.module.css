@@ -214,12 +214,14 @@
 .guideLine {
   stroke: rgba(39, 99, 163, 0.95);
   vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
 }
 
 .guideHitLine {
   stroke: transparent;
   vector-effect: non-scaling-stroke;
   pointer-events: stroke;
+  shape-rendering: crispEdges;
 }
 
 .guideLineVertical {
@@ -238,6 +240,7 @@
   stroke: #ff4d4f;
   fill: none;
   vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
 }
 
 .snapGapLine {
@@ -251,11 +254,13 @@
 .gridMinor {
   stroke: rgba(85, 82, 76, 0.12);
   vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
 }
 
 .gridMajor {
   stroke: rgba(69, 65, 59, 0.18);
   vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
 }
 
 .hitRegions {

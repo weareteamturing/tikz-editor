@@ -3704,7 +3704,14 @@ export function CanvasPanel() {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
+    // Safari trackpad pinch uses gesturestart/change/end events.
+    // We use this flag to skip the companion ctrlKey wheel events that
+    // some Safari versions also fire, avoiding double application of zoom.
+    let inGesture = false;
+    let lastGestureScale = 1;
+
     const onWheel = (event: WheelEvent) => {
+      if (inGesture) return;
       const currentSvg = svgResultRef.current;
       if (!currentSvg) return;
       const currentTransform = canvasTransformRef.current;
@@ -3748,20 +3755,49 @@ export function CanvasPanel() {
       });
     };
 
-    const preventGesture = (event: Event) => {
+    const onGestureStart = (event: Event) => {
       event.preventDefault();
+      inGesture = true;
+      lastGestureScale = 1;
+    };
+
+    const onGestureChange = (event: Event) => {
+      event.preventDefault();
+      const currentSvg = svgResultRef.current;
+      if (!currentSvg) return;
+      const currentTransform = canvasTransformRef.current;
+      // GestureEvent is Safari-specific; cast to access scale/clientX/clientY.
+      const ge = event as Event & { scale: number; clientX: number; clientY: number };
+      const deltaScale = ge.scale / lastGestureScale;
+      lastGestureScale = ge.scale;
+      const nextScale = clamp(currentTransform.scale * deltaScale, MIN_SCALE, MAX_SCALE);
+      const rect = viewport.getBoundingClientRect();
+      const localX = ge.clientX - rect.left;
+      const localY = ge.clientY - rect.top;
+      const svgPoint = viewportToSvgPoint(localX, localY, currentTransform, currentSvg.viewBox);
+      const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
+      const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
+      dispatch({
+        type: "SET_CANVAS_TRANSFORM",
+        transform: { translateX, translateY, scale: nextScale }
+      });
+    };
+
+    const onGestureEnd = (event: Event) => {
+      event.preventDefault();
+      inGesture = false;
     };
 
     viewport.addEventListener("wheel", onWheel, { passive: false });
-    viewport.addEventListener("gesturestart", preventGesture, { passive: false });
-    viewport.addEventListener("gesturechange", preventGesture, { passive: false });
-    viewport.addEventListener("gestureend", preventGesture, { passive: false });
+    viewport.addEventListener("gesturestart", onGestureStart, { passive: false });
+    viewport.addEventListener("gesturechange", onGestureChange, { passive: false });
+    viewport.addEventListener("gestureend", onGestureEnd, { passive: false });
 
     return () => {
       viewport.removeEventListener("wheel", onWheel);
-      viewport.removeEventListener("gesturestart", preventGesture);
-      viewport.removeEventListener("gesturechange", preventGesture);
-      viewport.removeEventListener("gestureend", preventGesture);
+      viewport.removeEventListener("gesturestart", onGestureStart);
+      viewport.removeEventListener("gesturechange", onGestureChange);
+      viewport.removeEventListener("gestureend", onGestureEnd);
     };
   }, [dispatch, zoomSpeed]);
 
@@ -4472,9 +4508,9 @@ export function CanvasPanel() {
             <div
               className={css.worldStage}
               style={{
-                width: svgResult.viewBox.width,
-                height: svgResult.viewBox.height,
-                transform: `translate(${canvasTransform.translateX}px, ${canvasTransform.translateY}px) scale(${canvasTransform.scale})`
+                width: svgResult.viewBox.width * canvasTransform.scale,
+                height: svgResult.viewBox.height * canvasTransform.scale,
+                transform: `translate(${canvasTransform.translateX}px, ${canvasTransform.translateY}px)`
               }}
             >
               <CanvasSVGLayer
