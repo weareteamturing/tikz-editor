@@ -598,3 +598,52 @@ describe("editorReducer – TOGGLE_DEV_PANEL", () => {
     expect(restored.showDevPanel).toBe(false);
   });
 });
+
+describe("editorReducer – assistant integration", () => {
+  it("applies assistant source updates to the active document", () => {
+    const initial = makeInitialState();
+    const next = editorReducer(initial, {
+      type: "ASSISTANT_SOURCE_UPDATED",
+      source: "\\draw (5,5)--(6,6);",
+      revisionToken: "rev-1"
+    });
+    expect(next.source).toBe("\\draw (5,5)--(6,6);");
+    expect(next.documents[next.activeDocumentId]?.assistantLastSourceRevision).toBe("rev-1");
+  });
+
+  it("coalesces assistant source updates into one undo entry per turn", () => {
+    const initial = makeInitialState();
+    const first = editorReducer(initial, {
+      type: "ASSISTANT_SOURCE_UPDATED",
+      source: "\\draw (1,1)--(2,2);",
+      revisionToken: "rev-1",
+      historyMergeKey: "assistant-turn:doc"
+    });
+    const second = editorReducer(first, {
+      type: "ASSISTANT_SOURCE_UPDATED",
+      source: "\\draw (3,3)--(4,4);",
+      revisionToken: "rev-2",
+      historyMergeKey: "assistant-turn:doc"
+    });
+
+    expect(second.history).toHaveLength(1);
+    expect(second.history[0]?.label).toBe("AI assistant edit");
+    expect(second.history[0]?.sourceBefore).toBe(DEFAULT_SOURCE);
+    expect(second.history[0]?.sourceAfter).toBe("\\draw (3,3)--(4,4);");
+  });
+
+  it("blocks direct user edits while the assistant lock is active", () => {
+    const initial = makeInitialState();
+    const locked = editorReducer(initial, {
+      type: "ASSISTANT_TURN_STATUS",
+      status: "inProgress",
+      turnId: "turn-1"
+    });
+    const afterEdit = editorReducer(locked, {
+      type: "CODE_EDITED",
+      source: "\\draw (9,9)--(10,10);"
+    });
+    expect(afterEdit.source).toBe(initial.source);
+    expect(afterEdit.documents[afterEdit.activeDocumentId]?.assistantLockReason).toBeTruthy();
+  });
+});

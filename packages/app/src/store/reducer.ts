@@ -10,6 +10,7 @@ import type {
   WorkspacePersistedState
 } from "./types";
 import { makeEmptySnapshot } from "../compute";
+import type { AssistantItem } from "../platform/types";
 
 export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
   \draw (-3,-3) rectangle (3,3);
@@ -44,6 +45,10 @@ function createDocumentSession(params: {
   source: string;
   title?: string;
   fileRef?: DocumentFileRef | null;
+  assistantThreadId?: string | null;
+  assistantWorkspacePath?: string | null;
+  assistantFigurePath?: string | null;
+  assistantPreviewPath?: string | null;
 }): DocumentSession {
   const title = params.title?.trim() || "Untitled";
   return {
@@ -59,7 +64,18 @@ function createDocumentSession(params: {
     selectedElementIds: new Set(),
     fileRef: params.fileRef ?? null,
     savedSource: params.source,
-    dirty: false
+    dirty: false,
+    assistantThreadId: params.assistantThreadId ?? null,
+    assistantWorkspacePath: params.assistantWorkspacePath ?? null,
+    assistantFigurePath: params.assistantFigurePath ?? null,
+    assistantPreviewPath: params.assistantPreviewPath ?? null,
+    assistantItems: [],
+    assistantPendingApprovals: [],
+    assistantTurnStatus: "idle",
+    assistantCurrentTurnId: null,
+    assistantLockReason: null,
+    assistantLastSourceRevision: null,
+    assistantError: null
   };
 }
 
@@ -79,6 +95,7 @@ function initialUiState(): WorkspaceEphemeralState {
     rightPanelWidth: 280,
     showSourcePanel: true,
     showInspectorPanel: true,
+    rightSidebarTab: "inspector",
     showDevPanel: false
   };
 }
@@ -100,6 +117,10 @@ export type WorkspaceSeedDocument = {
   source: string;
   savedSource?: string;
   fileRef?: DocumentFileRef | null;
+  assistantThreadId?: string | null;
+  assistantWorkspacePath?: string | null;
+  assistantFigurePath?: string | null;
+  assistantPreviewPath?: string | null;
 };
 
 export type WorkspaceSeed = {
@@ -116,7 +137,11 @@ function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedS
     const doc = createDocumentSession({
       source: raw.source,
       title: raw.title,
-      fileRef: raw.fileRef ?? null
+      fileRef: raw.fileRef ?? null,
+      assistantThreadId: raw.assistantThreadId ?? null,
+      assistantWorkspacePath: raw.assistantWorkspacePath ?? null,
+      assistantFigurePath: raw.assistantFigurePath ?? null,
+      assistantPreviewPath: raw.assistantPreviewPath ?? null
     });
     doc.id = raw.id;
     doc.savedSource = raw.savedSource ?? raw.source;
@@ -188,6 +213,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     rightPanelWidth: ui.rightPanelWidth,
     showSourcePanel: ui.showSourcePanel,
     showInspectorPanel: ui.showInspectorPanel,
+    rightSidebarTab: ui.rightSidebarTab,
     showDevPanel: ui.showDevPanel
   };
 }
@@ -244,6 +270,37 @@ function rememberRecentDocument(workspace: WorkspacePersistedState, documentId: 
 
 function activeDocumentIdFromAction(state: EditorState, documentId?: string): string {
   return documentId ?? state.workspace.activeDocumentId;
+}
+
+function mergeAssistantItem(items: AssistantItem[], nextItem: AssistantItem): AssistantItem[] {
+  const index = items.findIndex((item) => item.id === nextItem.id);
+  if (index < 0) {
+    return [...items, nextItem];
+  }
+  const merged = [...items];
+  merged[index] = { ...merged[index], ...nextItem };
+  return merged;
+}
+
+function appendAssistantDelta(item: AssistantItem, deltaType: string, delta: string): AssistantItem {
+  if (item.type === "agentMessage" && deltaType === "item/agentMessage/delta") {
+    return { ...item, text: `${item.text ?? ""}${delta}` };
+  }
+  if (item.type === "plan" && deltaType === "item/plan/delta") {
+    return { ...item, text: `${item.text ?? ""}${delta}` };
+  }
+  if (item.type === "reasoning") {
+    if (deltaType === "item/reasoning/summaryTextDelta") {
+      return { ...item, summary: `${item.summary ?? ""}${delta}` };
+    }
+    if (deltaType === "item/reasoning/textDelta") {
+      return { ...item, content: `${item.content ?? ""}${delta}` };
+    }
+  }
+  if (item.type === "commandExecution" && deltaType === "item/commandExecution/outputDelta") {
+    return { ...item, aggregatedOutput: `${item.aggregatedOutput ?? ""}${delta}` };
+  }
+  return item;
 }
 
 export function makeInitialState(seed?: WorkspaceSeed): EditorState {
@@ -388,6 +445,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "CODE_EDITED": {
       const documentId = activeId;
       workspace = updateDocument(workspace, documentId, (doc) => {
+        if (doc.assistantLockReason) {
+          return doc;
+        }
         if (action.source === doc.source) {
           return doc;
         }
@@ -426,10 +486,162 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
     }
 
+    case "SET_RIGHT_SIDEBAR_TAB":
+      if (ui.rightSidebarTab === action.tab) {
+        return state;
+      }
+      ui = { ...ui, rightSidebarTab: action.tab, showInspectorPanel: true };
+      break;
+
+    case "ASSISTANT_THREAD_READY": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantThreadId: action.threadId,
+        assistantWorkspacePath: action.workspacePath,
+        assistantFigurePath: action.figurePath,
+        assistantPreviewPath: action.previewPath,
+        assistantError: null
+      }));
+      break;
+    }
+
+    case "ASSISTANT_THREAD_LOADED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantThreadId: action.state.threadId,
+        assistantWorkspacePath: action.state.workspacePath,
+        assistantFigurePath: action.state.figurePath,
+        assistantPreviewPath: action.state.previewPath,
+        assistantItems: action.state.items,
+        assistantError: null
+      }));
+      break;
+    }
+
+    case "ASSISTANT_TURN_STATUS": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantTurnStatus: action.status,
+        assistantCurrentTurnId: action.turnId ?? (action.status === "idle" ? null : doc.assistantCurrentTurnId),
+        assistantLockReason:
+          action.status === "starting" || action.status === "inProgress"
+            ? "Assistant is editing this figure."
+            : null,
+        assistantError: action.error ?? (action.status === "failed" ? doc.assistantError : doc.assistantError)
+      }));
+      break;
+    }
+
+    case "ASSISTANT_ITEM_STARTED":
+    case "ASSISTANT_ITEM_UPDATED":
+    case "ASSISTANT_ITEM_COMPLETED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      const item = action.item;
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantItems: mergeAssistantItem(doc.assistantItems, item)
+      }));
+      break;
+    }
+
+    case "ASSISTANT_ITEM_DELTA": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => {
+        const index = doc.assistantItems.findIndex((item) => item.id === action.itemId);
+        if (index < 0) {
+          return doc;
+        }
+        const nextItems = [...doc.assistantItems];
+        nextItems[index] = appendAssistantDelta(nextItems[index]!, action.deltaType, action.delta);
+        return {
+          ...doc,
+          assistantItems: nextItems
+        };
+      });
+      break;
+    }
+
+    case "ASSISTANT_APPROVAL_REQUESTED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantPendingApprovals: [
+          ...doc.assistantPendingApprovals.filter((approval) => approval.requestId !== action.approval.requestId),
+          action.approval
+        ]
+      }));
+      break;
+    }
+
+    case "ASSISTANT_APPROVAL_CLEARED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantPendingApprovals: doc.assistantPendingApprovals.filter((approval) => approval.requestId !== action.requestId)
+      }));
+      break;
+    }
+
+    case "ASSISTANT_SOURCE_UPDATED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => {
+        if (doc.assistantLastSourceRevision === action.revisionToken || doc.source === action.source) {
+          return {
+            ...doc,
+            assistantLastSourceRevision: action.revisionToken
+          };
+        }
+        const truncated = doc.history.slice(0, doc.historyIndex + 1);
+        const mergeKey = action.historyMergeKey ?? "assistant-turn";
+        const lastIndex = truncated.length - 1;
+        const lastEntry = truncated[lastIndex];
+        const nextEntry: HistoryEntry = {
+          kind: "set-property",
+          label: "AI assistant edit",
+          mergeKey,
+          forward: [],
+          backward: [],
+          sourceBefore: lastEntry?.mergeKey === mergeKey ? lastEntry.sourceBefore : doc.source,
+          sourceAfter: action.source
+        };
+        const nextHistory =
+          lastEntry?.mergeKey === mergeKey
+            ? [...truncated.slice(0, -1), nextEntry]
+            : [...truncated, nextEntry];
+        return {
+          ...doc,
+          source: action.source,
+          lastEditChangedSourceIds: null,
+          lastEditChangeToken: doc.lastEditChangeToken + 1,
+          history: nextHistory,
+          historyIndex: nextHistory.length - 1,
+          dirty: action.source !== doc.savedSource,
+          assistantLastSourceRevision: action.revisionToken,
+          assistantError: null
+        };
+      });
+      break;
+    }
+
+    case "ASSISTANT_SET_ERROR": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        assistantError: action.message
+      }));
+      break;
+    }
+
     case "APPLY_EDIT_ACTION": {
       const documentId = activeId;
       const activeDoc = workspace.documents[documentId];
       if (!activeDoc) {
+        return state;
+      }
+      if (activeDoc.assistantLockReason) {
         return state;
       }
       const result =
@@ -533,6 +745,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "SET_SOURCE_TRANSIENT": {
       workspace = updateDocument(workspace, activeId, (doc) => {
+        if (doc.assistantLockReason) {
+          return doc;
+        }
         if (action.source === doc.source) {
           return doc;
         }
@@ -625,6 +840,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
 
     case "SET_TOOL_MODE":
+      if (workspace.documents[activeId]?.assistantLockReason) return state;
       if (ui.toolMode === action.mode) return state;
       ui = { ...ui, toolMode: action.mode };
       break;

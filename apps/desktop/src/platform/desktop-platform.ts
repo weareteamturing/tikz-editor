@@ -1,5 +1,9 @@
 import {
   APP_MENU_COMMAND_IDS,
+  type AssistantDynamicToolResult,
+  type AssistantEvent,
+  type AssistantThreadState,
+  type AssistantThreadSummary,
   type AppMenuCommandId,
   type AppMenuDefinition,
   type AppMenuItem,
@@ -45,6 +49,29 @@ type DesktopBridge = {
   openExternalUrl: (url: string) => Promise<boolean>;
   listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
+  assistantEnsureDocumentThread?: (params: {
+    documentId: string;
+    source: string;
+    threadId?: string | null;
+    workspacePath?: string | null;
+    figurePath?: string | null;
+    previewPath?: string | null;
+  }) => Promise<AssistantThreadSummary>;
+  assistantStartTurn?: (params: { documentId: string; prompt: string; source: string; pngBase64?: string | null }) => Promise<{ turnId: string | null }>;
+  assistantInterruptTurn?: (params: { documentId: string }) => Promise<void>;
+  assistantSyncSource?: (params: { documentId: string; source: string }) => Promise<void>;
+  assistantRespondToApproval?: (params: {
+    documentId: string;
+    requestId: string;
+    decision: "accept" | "acceptForSession" | "decline" | "cancel";
+  }) => Promise<void>;
+  assistantRespondToDynamicToolCall?: (params: {
+    documentId: string;
+    requestId: string;
+    result: AssistantDynamicToolResult;
+  }) => Promise<void>;
+  assistantLoadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  onAssistantEvent?: (handler: (event: AssistantEvent) => void) => Promise<() => void>;
 };
 
 export type DesktopPlatformEnvironment = {
@@ -176,7 +203,7 @@ function createNativeDesktopMenuManager(options: {
     item: AppMenuItem,
     commandStates: Record<AppMenuCommandId, NativeCommandState>,
     recentFiles: readonly string[]
-  ): Promise<unknown | null> {
+  ): Promise<any | null> {
     const menuApi = await import("@tauri-apps/api/menu");
 
     if (item.kind === "separator") {
@@ -184,7 +211,7 @@ function createNativeDesktopMenuManager(options: {
     }
 
     if (item.kind === "recent-files") {
-      const recentItems = recentFiles.length > 0
+      const recentItems: any[] = recentFiles.length > 0
         ? await Promise.all(
           recentFiles.map(async (path, index) =>
             await menuApi.MenuItem.new({
@@ -211,7 +238,7 @@ function createNativeDesktopMenuManager(options: {
     }
 
     if (item.kind === "submenu") {
-      const builtItems = (
+      const builtItems: any[] = (
         await Promise.all(item.items.map(async (child) => await buildMenuItem(child, commandStates, recentFiles)))
       ).filter((child): child is NonNullable<typeof child> => child != null);
 
@@ -258,7 +285,7 @@ function createNativeDesktopMenuManager(options: {
 
   async function buildMacApplicationSubmenu(
     commandStates: Record<AppMenuCommandId, NativeCommandState>
-  ): Promise<unknown> {
+  ): Promise<any> {
     const menuApi = await import("@tauri-apps/api/menu");
     const aboutItem = await menuApi.PredefinedMenuItem.new({
       text: `About ${APP_DISPLAY_NAME}`,
@@ -298,14 +325,14 @@ function createNativeDesktopMenuManager(options: {
     const recentFiles = await getBridge().listRecentFiles().catch(() => [] as string[]);
 
     commandRefs.clear();
-    const topLevelItems: unknown[] = [];
+    const topLevelItems: any[] = [];
 
     if (isMacPlatform()) {
       topLevelItems.push(await buildMacApplicationSubmenu(payload.commandStates));
     }
 
     for (const section of payload.definition) {
-      const sectionItems = (
+      const sectionItems: any[] = (
         await Promise.all(
           section.items.map(async (item) => await buildMenuItem(item, payload.commandStates, recentFiles))
         )
@@ -416,6 +443,47 @@ function createDefaultBridge(): DesktopBridge {
       const { listen } = await import("@tauri-apps/api/event");
       return await listen("desktop-window-close-request", () => {
         handler();
+      });
+    },
+    assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<AssistantThreadSummary>("desktop_assistant_ensure_document_thread", {
+        documentId,
+        source,
+        threadId,
+        workspacePath,
+        figurePath,
+        previewPath
+      });
+    },
+    assistantStartTurn: async ({ documentId, prompt, source, pngBase64 }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<{ turnId: string | null }>("desktop_assistant_start_turn", { documentId, prompt, source, pngBase64 });
+    },
+    assistantInterruptTurn: async ({ documentId }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_interrupt_turn", { documentId });
+    },
+    assistantSyncSource: async ({ documentId, source }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_sync_source", { documentId, source });
+    },
+    assistantRespondToApproval: async ({ documentId, requestId, decision }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_respond_to_approval", { documentId, requestId, decision });
+    },
+    assistantRespondToDynamicToolCall: async ({ documentId, requestId, result }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_respond_to_dynamic_tool_call", { documentId, requestId, result });
+    },
+    assistantLoadThreadState: async ({ documentId }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<AssistantThreadState | null>("desktop_assistant_load_thread_state", { documentId });
+    },
+    onAssistantEvent: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen<AssistantEvent>("desktop-assistant-event", (event) => {
+        handler(event.payload);
       });
     }
   };
@@ -586,6 +654,40 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           mimeType: options.mimeType,
           bytesBase64: base64FromBytes(new Uint8Array(arrayBuffer))
         });
+      }
+    },
+    assistant: {
+      ensureDocumentThread: async (params) => await getBridge().assistantEnsureDocumentThread?.(params)
+        ?? Promise.reject(new Error("Assistant bridge unavailable.")),
+      startTurn: async (params) => await getBridge().assistantStartTurn?.(params)
+        ?? Promise.reject(new Error("Assistant bridge unavailable.")),
+      interruptTurn: async (params) => {
+        await getBridge().assistantInterruptTurn?.(params);
+      },
+      syncSource: async (params) => {
+        await getBridge().assistantSyncSource?.(params);
+      },
+      respondToApproval: async (params) => {
+        await getBridge().assistantRespondToApproval?.(params);
+      },
+      respondToDynamicToolCall: async (params) => {
+        await getBridge().assistantRespondToDynamicToolCall?.(params);
+      },
+      loadThreadState: async (params) => await getBridge().assistantLoadThreadState?.(params) ?? null,
+      bindEvents: (handler) => {
+        let disposed = false;
+        let unlisten: (() => void) | null = null;
+        void getBridge().onAssistantEvent?.(handler).then((fn) => {
+          if (disposed) {
+            fn();
+            return;
+          }
+          unlisten = fn;
+        });
+        return () => {
+          disposed = true;
+          unlisten?.();
+        };
       }
     }
   };

@@ -33,7 +33,29 @@ function makeMockBridge() {
       closeWindow: async () => undefined,
       openExternalUrl: async () => true,
       listRecentFiles: async () => [opened.path],
-      onWindowCloseRequest: async () => () => undefined
+      onWindowCloseRequest: async () => () => undefined,
+      assistantEnsureDocumentThread: async ({ documentId }) => ({
+        threadId: `thr-${documentId}`,
+        workspacePath: `/tmp/${documentId}`,
+        figurePath: `/tmp/${documentId}/figure.tex`,
+        previewPath: `/tmp/${documentId}/current.png`
+      }),
+      assistantStartTurn: async () => ({ turnId: "turn-123" }),
+      assistantInterruptTurn: async () => undefined,
+      assistantSyncSource: async () => undefined,
+      assistantRespondToApproval: async () => undefined,
+      assistantRespondToDynamicToolCall: async () => undefined,
+      assistantLoadThreadState: async ({ documentId }) => ({
+        threadId: `thr-${documentId}`,
+        workspacePath: `/tmp/${documentId}`,
+        figurePath: `/tmp/${documentId}/figure.tex`,
+        previewPath: `/tmp/${documentId}/current.png`,
+        items: [{ type: "agentMessage", id: "item-1", text: "hello" }]
+      }),
+      onAssistantEvent: async (handler) => {
+        handler({ type: "error", documentId: "doc-1", message: "mock-event" });
+        return () => undefined;
+      }
     }
   };
 }
@@ -104,6 +126,43 @@ describe("desktop shell flows", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(seenSource).toContain("\\draw");
+    if (typeof unbind === "function") {
+      unbind();
+    }
+  });
+
+  it("exposes assistant bridge methods", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    const summary = await platform.assistant?.ensureDocumentThread?.({
+      documentId: "doc-1",
+      source: "\\draw (0,0)--(1,1);"
+    });
+    expect(summary?.threadId).toBe("thr-doc-1");
+
+    const turn = await platform.assistant?.startTurn?.({
+      documentId: "doc-1",
+      prompt: "help",
+      source: "\\draw (0,0)--(1,1);",
+      pngBase64: null
+    });
+    expect(turn?.turnId).toBe("turn-123");
+
+    const state = await platform.assistant?.loadThreadState?.({ documentId: "doc-1" });
+    expect(state?.items).toHaveLength(1);
+
+    let seenMessage = "";
+    const unbind = platform.assistant?.bindEvents?.((event) => {
+      if (event.type === "error") {
+        seenMessage = event.message;
+      }
+    });
+    await Promise.resolve();
+    expect(seenMessage).toBe("mock-event");
     if (typeof unbind === "function") {
       unbind();
     }

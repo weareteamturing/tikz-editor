@@ -12,6 +12,10 @@ type PersistedWorkspaceV1 = {
     source: string;
     savedSource?: string;
     fileRef?: DocumentFileRef | null;
+    assistantThreadId?: string | null;
+    assistantWorkspacePath?: string | null;
+    assistantFigurePath?: string | null;
+    assistantPreviewPath?: string | null;
   }>;
   tabOrder: string[];
   activeDocumentId: string;
@@ -78,7 +82,11 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorksp
           title: typeof doc.title === "string" && doc.title.trim().length > 0 ? doc.title : "Untitled",
           source: doc.source,
           savedSource: typeof doc.savedSource === "string" ? doc.savedSource : doc.source,
-          fileRef: normalizeFileRef(doc.fileRef)
+          fileRef: normalizeFileRef(doc.fileRef),
+          assistantThreadId: typeof doc.assistantThreadId === "string" ? doc.assistantThreadId : null,
+          assistantWorkspacePath: typeof doc.assistantWorkspacePath === "string" ? doc.assistantWorkspacePath : null,
+          assistantFigurePath: typeof doc.assistantFigurePath === "string" ? doc.assistantFigurePath : null,
+          assistantPreviewPath: typeof doc.assistantPreviewPath === "string" ? doc.assistantPreviewPath : null
         }))
     : [];
   if (docs.length === 0) {
@@ -112,6 +120,10 @@ export function saveWorkspace(state: {
     source: string;
     savedSource: string;
     fileRef: DocumentFileRef | null;
+    assistantThreadId: string | null;
+    assistantWorkspacePath: string | null;
+    assistantFigurePath: string | null;
+    assistantPreviewPath: string | null;
   }>;
   tabOrder: string[];
   activeDocumentId: string;
@@ -127,7 +139,11 @@ export function saveWorkspace(state: {
         title: doc.title,
         source: doc.source,
         savedSource: doc.savedSource,
-        fileRef: doc.fileRef
+        fileRef: doc.fileRef,
+        assistantThreadId: doc.assistantThreadId,
+        assistantWorkspacePath: doc.assistantWorkspacePath,
+        assistantFigurePath: doc.assistantFigurePath,
+        assistantPreviewPath: doc.assistantPreviewPath
       })),
     tabOrder: [...state.tabOrder],
     activeDocumentId: state.activeDocumentId,

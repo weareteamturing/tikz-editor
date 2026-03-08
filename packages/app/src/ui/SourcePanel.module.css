@@ -30,6 +30,20 @@
   overflow: hidden;
 }
 
+.lockBanner {
+  position: absolute;
+  right: 8px;
+  top: 24px;
+  z-index: 2;
+  padding: 4px 8px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: rgba(255, 248, 230, 0.96);
+  color: #8a5a00;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
 .editorWrap :global(.cm-editor) {
   height: 100%;
 }

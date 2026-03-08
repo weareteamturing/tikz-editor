@@ -18,5 +18,18 @@ export type {
   CanvasContextMenuCommandId,
   CanvasContextMenuDefinition
 } from "./context-menu/index.js";
-export type { EditorPlatform, MenuCommandOrigin, MenuCommandHandler } from "./platform/types.js";
+export type {
+  AssistantApi,
+  AssistantChatContent,
+  AssistantDynamicToolResult,
+  AssistantEvent,
+  AssistantItem,
+  AssistantPendingApproval,
+  AssistantThreadState,
+  AssistantThreadSummary,
+  AssistantTurnStatus,
+  EditorPlatform,
+  MenuCommandOrigin,
+  MenuCommandHandler
+} from "./platform/types.js";
 export type { DocumentFileRef } from "./store/types.js";

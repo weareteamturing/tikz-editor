@@ -5,7 +5,6 @@ import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeRe
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
-import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
 import { isCodeMirrorEventTarget } from "./editor-commands";
 import { useEditorCommandRuntime } from "./editor-command-runtime";
@@ -26,6 +25,9 @@ import type { EmitSvgResult } from "tikz-editor/svg/index";
 import { SvgExportModal } from "./SvgExportModal";
 import { PngExportModal } from "./PngExportModal";
 import { TikzJaxModal } from "./TikzJaxModal";
+import { RightSidebar } from "./RightSidebar";
+import { renderPngExport } from "./export-commands";
+import type { AssistantEvent } from "../platform/types";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -75,6 +77,10 @@ export function App() {
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+  const sourceRef = useRef(source);
+  const snapshotRef = useRef(snapshot);
+  const activeDocumentIdRef = useRef(activeDocumentId);
+  const documentsRef = useRef(documents);
 
   function executeCloseIntent(intent: CloseIntent): void {
     if (intent.kind === "close-document") {
@@ -118,6 +124,12 @@ export function App() {
     onOpenSettings: () => {
       setShowSettingsModal(true);
     },
+    onFocusAssistant: () => {
+      dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
+    },
+    onInterruptAssistant: () => {
+      void platform.assistant?.interruptTurn?.({ documentId: activeDocumentId });
+    },
     onRequestCloseDocument: (documentId) => {
       requestCloseIntent({ kind: "close-document", documentId });
     },
@@ -125,6 +137,15 @@ export function App() {
       requestCloseIntent({ kind: "close-all" });
     }
   });
+
+  useEffect(() => {
+    sourceRef.current = source;
+    snapshotRef.current = snapshot;
+    activeDocumentIdRef.current = activeDocumentId;
+    documentsRef.current = documents;
+  }, [activeDocumentId, documents, snapshot, source]);
+
+  const activeAssistantDoc = documents[activeDocumentId];
 
   useEffect(() => {
     const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
@@ -217,6 +238,232 @@ export function App() {
   }, [activeCanvasDragKind, activeDocumentId, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
 
   useEffect(() => {
+    if (!platform.assistant?.bindEvents) {
+      return;
+    }
+    const assistantApi = platform.assistant;
+    const bindAssistantEvents = assistantApi.bindEvents!;
+
+    async function respondToDynamicTool(event: Extract<AssistantEvent, { type: "dynamic-tool-call" }>): Promise<void> {
+      const doc = documentsRef.current[event.documentId];
+      if (!doc) {
+        return;
+      }
+      const sourceForDoc = event.documentId === activeDocumentIdRef.current ? sourceRef.current : doc.source;
+      const snapshotForDoc = event.documentId === activeDocumentIdRef.current ? snapshotRef.current : doc.snapshot;
+      let result: { success?: boolean; contentItems?: unknown[] } = {
+        success: false,
+        contentItems: [{ type: "text", text: "Preview could not be rendered." }]
+      };
+
+      if (snapshotForDoc.svg && snapshotForDoc.source === sourceForDoc) {
+        try {
+          const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144 });
+          const pngBase64 = await blobToBase64(rendered.blob);
+          result = {
+            success: true,
+            contentItems: [
+              { type: "text", text: "Rendered an updated PNG preview for the current figure." },
+              { type: "localImage", path: doc.assistantPreviewPath ?? "" },
+              { type: "image", data: pngBase64, mimeType: rendered.artifact.mimeType }
+            ]
+          };
+        } catch (error) {
+          result = {
+            success: false,
+            contentItems: [{ type: "text", text: error instanceof Error ? error.message : String(error) }]
+          };
+        }
+      }
+
+      await assistantApi.respondToDynamicToolCall?.({
+        documentId: event.documentId,
+        requestId: event.requestId,
+        result
+      });
+    }
+
+    const unbind = bindAssistantEvents((event) => {
+      switch (event.type) {
+        case "thread-ready":
+          dispatch({
+            type: "ASSISTANT_THREAD_READY",
+            documentId: event.documentId,
+            threadId: event.thread.threadId,
+            workspacePath: event.thread.workspacePath,
+            figurePath: event.thread.figurePath,
+            previewPath: event.thread.previewPath
+          });
+          break;
+        case "thread-state":
+          dispatch({ type: "ASSISTANT_THREAD_LOADED", documentId: event.documentId, state: event.state });
+          break;
+        case "turn-status":
+          dispatch({
+            type: "ASSISTANT_TURN_STATUS",
+            documentId: event.documentId,
+            status: event.status,
+            turnId: event.turnId ?? null,
+            error: event.error ?? null
+          });
+          break;
+        case "item-started":
+          dispatch({ type: "ASSISTANT_ITEM_STARTED", documentId: event.documentId, item: event.item });
+          break;
+        case "item-updated":
+          dispatch({ type: "ASSISTANT_ITEM_UPDATED", documentId: event.documentId, item: event.item });
+          break;
+        case "item-completed":
+          dispatch({ type: "ASSISTANT_ITEM_COMPLETED", documentId: event.documentId, item: event.item });
+          break;
+        case "item-delta":
+          dispatch({
+            type: "ASSISTANT_ITEM_DELTA",
+            documentId: event.documentId,
+            itemId: event.itemId,
+            deltaType: event.deltaType,
+            delta: event.delta
+          });
+          break;
+        case "approval-requested":
+          dispatch({ type: "ASSISTANT_APPROVAL_REQUESTED", documentId: event.documentId, approval: event.approval });
+          break;
+        case "approval-cleared":
+          dispatch({ type: "ASSISTANT_APPROVAL_CLEARED", documentId: event.documentId, requestId: event.requestId });
+          break;
+        case "source-updated":
+          dispatch({
+            type: "ASSISTANT_SOURCE_UPDATED",
+            documentId: event.documentId,
+            source: event.source,
+            revisionToken: event.revisionToken,
+            historyMergeKey: `assistant-turn:${event.documentId}`
+          });
+          break;
+        case "dynamic-tool-call":
+          void respondToDynamicTool(event);
+          break;
+        case "error":
+          dispatch({ type: "ASSISTANT_SET_ERROR", documentId: event.documentId, message: event.message });
+          break;
+      }
+    });
+
+    return typeof unbind === "function" ? unbind : undefined;
+  }, [dispatch, platform.assistant]);
+
+  useEffect(() => {
+    const assistant = platform.assistant;
+    if (!assistant?.ensureDocumentThread) {
+      return;
+    }
+    void assistant.ensureDocumentThread({
+      documentId: activeDocumentId,
+      source,
+      threadId: activeAssistantDoc?.assistantThreadId ?? null,
+      workspacePath: activeAssistantDoc?.assistantWorkspacePath ?? null,
+      figurePath: activeAssistantDoc?.assistantFigurePath ?? null,
+      previewPath: activeAssistantDoc?.assistantPreviewPath ?? null
+    }).then((thread) => {
+      dispatch({
+        type: "ASSISTANT_THREAD_READY",
+        documentId: activeDocumentId,
+        threadId: thread.threadId,
+        workspacePath: thread.workspacePath,
+        figurePath: thread.figurePath,
+        previewPath: thread.previewPath
+      });
+      return assistant.loadThreadState?.({ documentId: activeDocumentId });
+    }).then((state) => {
+      if (state) {
+        dispatch({ type: "ASSISTANT_THREAD_LOADED", documentId: activeDocumentId, state });
+      }
+    }).catch((error) => {
+      dispatch({
+        type: "ASSISTANT_SET_ERROR",
+        documentId: activeDocumentId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    });
+  }, [
+    activeAssistantDoc?.assistantFigurePath,
+    activeAssistantDoc?.assistantPreviewPath,
+    activeAssistantDoc?.assistantThreadId,
+    activeAssistantDoc?.assistantWorkspacePath,
+    activeDocumentId,
+    dispatch,
+    platform.assistant,
+    source
+  ]);
+
+  useEffect(() => {
+    const assistant = platform.assistant;
+    if (!assistant?.syncSource || !activeAssistantDoc?.assistantThreadId) {
+      return;
+    }
+    if (activeAssistantDoc.assistantTurnStatus === "starting" || activeAssistantDoc.assistantTurnStatus === "inProgress") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void assistant.syncSource?.({ documentId: activeDocumentId, source }).catch((error) => {
+        dispatch({
+          type: "ASSISTANT_SET_ERROR",
+          documentId: activeDocumentId,
+          message: error instanceof Error ? error.message : String(error)
+        });
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [activeAssistantDoc?.assistantThreadId, activeAssistantDoc?.assistantTurnStatus, activeDocumentId, dispatch, platform.assistant, source]);
+
+  async function buildCurrentPreviewBase64(): Promise<string | null> {
+    if (!snapshot.svg || snapshot.source !== source) {
+      return null;
+    }
+    const rendered = await renderPngExport(snapshot.svg, { dpi: 144 });
+    return await blobToBase64(rendered.blob);
+  }
+
+  async function handleAssistantPrompt(prompt: string): Promise<void> {
+    dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
+    dispatch({ type: "ASSISTANT_TURN_STATUS", documentId: activeDocumentId, status: "starting", turnId: null });
+    try {
+      const pngBase64 = await buildCurrentPreviewBase64();
+      await platform.assistant?.startTurn?.({
+        documentId: activeDocumentId,
+        prompt,
+        source,
+        pngBase64
+      });
+    } catch (error) {
+      dispatch({
+        type: "ASSISTANT_TURN_STATUS",
+        documentId: activeDocumentId,
+        status: "failed",
+        turnId: null,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      dispatch({
+        type: "ASSISTANT_SET_ERROR",
+        documentId: activeDocumentId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  async function handleInterruptAssistantTurn(): Promise<void> {
+    try {
+      await platform.assistant?.interruptTurn?.({ documentId: activeDocumentId });
+    } catch (error) {
+      dispatch({
+        type: "ASSISTANT_SET_ERROR",
+        documentId: activeDocumentId,
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  useEffect(() => {
     const unbind = getActiveEditorPlatform().menu?.bindCommandHandler?.((commandId) => {
       commandRuntime.runCommand(commandId, "platform");
     });
@@ -286,7 +533,7 @@ export function App() {
         commandId,
         { enabled: binding.enabled, checked: binding.checked }
       ])
-    );
+    ) as Record<keyof typeof commandRuntime.bindings, { enabled: boolean; checked?: boolean }>;
     void sync({
       definition: menuDefinition,
       commandStates
@@ -303,6 +550,13 @@ export function App() {
       const key = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && key === "f") {
         if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.FORMAT_TIKZ, "shortcut")) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && key === "a") {
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_ASSISTANT_PANEL, "shortcut")) {
           e.preventDefault();
         }
         return;
@@ -514,7 +768,7 @@ export function App() {
               <CanvasPanel />
             </Suspense>
           )}
-          right={<InspectorPanel />}
+          right={<RightSidebar onSubmitPrompt={handleAssistantPrompt} onInterruptTurn={handleInterruptAssistantTurn} />}
         />
       </div>
       <StatusBar />
@@ -559,4 +813,14 @@ export function App() {
       ) : null}
     </div>
   );
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]!);
+  }
+  return btoa(binary);
 }

@@ -1,5 +1,11 @@
 import type { SessionSnapshot } from "../compute";
 import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
+import type {
+  AssistantItem,
+  AssistantPendingApproval,
+  AssistantThreadState,
+  AssistantTurnStatus
+} from "../platform/types";
 
 export type ToolMode =
   | "select"
@@ -59,6 +65,17 @@ export type DocumentSession = {
   fileRef: DocumentFileRef | null;
   savedSource: string;
   dirty: boolean;
+  assistantThreadId: string | null;
+  assistantWorkspacePath: string | null;
+  assistantFigurePath: string | null;
+  assistantPreviewPath: string | null;
+  assistantItems: AssistantItem[];
+  assistantPendingApprovals: AssistantPendingApproval[];
+  assistantTurnStatus: AssistantTurnStatus;
+  assistantCurrentTurnId: string | null;
+  assistantLockReason: string | null;
+  assistantLastSourceRevision: string | null;
+  assistantError: string | null;
 };
 
 export type WorkspacePersistedState = {
@@ -89,6 +106,7 @@ export type WorkspaceEphemeralState = {
   rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  rightSidebarTab: "inspector" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
@@ -140,6 +158,7 @@ export type EditorState = {
   rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  rightSidebarTab: "inspector" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
@@ -169,6 +188,31 @@ export type EditorAction =
     }
   | { type: "COMPUTE_REQUESTED"; requestId: string; documentId?: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot; documentId?: string }
+  | { type: "SET_RIGHT_SIDEBAR_TAB"; tab: "inspector" | "assistant" }
+  | {
+      type: "ASSISTANT_THREAD_READY";
+      documentId?: string;
+      threadId: string;
+      workspacePath: string;
+      figurePath: string;
+      previewPath: string;
+    }
+  | { type: "ASSISTANT_THREAD_LOADED"; documentId?: string; state: AssistantThreadState }
+  | { type: "ASSISTANT_TURN_STATUS"; documentId?: string; status: AssistantTurnStatus; turnId?: string | null; error?: string | null }
+  | { type: "ASSISTANT_ITEM_STARTED"; documentId?: string; item: AssistantItem }
+  | { type: "ASSISTANT_ITEM_UPDATED"; documentId?: string; item: AssistantItem }
+  | { type: "ASSISTANT_ITEM_COMPLETED"; documentId?: string; item: AssistantItem }
+  | { type: "ASSISTANT_ITEM_DELTA"; documentId?: string; itemId: string; deltaType: string; delta: string }
+  | { type: "ASSISTANT_APPROVAL_REQUESTED"; documentId?: string; approval: AssistantPendingApproval }
+  | { type: "ASSISTANT_APPROVAL_CLEARED"; documentId?: string; requestId: string }
+  | {
+      type: "ASSISTANT_SOURCE_UPDATED";
+      documentId?: string;
+      source: string;
+      revisionToken: string;
+      historyMergeKey?: string;
+    }
+  | { type: "ASSISTANT_SET_ERROR"; documentId?: string; message: string | null }
   // History
   | { type: "UNDO" }
   | { type: "REDO" }

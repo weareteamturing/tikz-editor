@@ -48,6 +48,7 @@ import { formatTikzSource } from "tikz-editor/edit/source-format";
 const wordWrapCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
 const tabSizeCompartment = new Compartment();
+const editableCompartment = new Compartment();
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
 
@@ -258,6 +259,7 @@ export function SourcePanel() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
+  const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const dispatch = useEditorStore((s) => s.dispatch);
   const editorWordWrap = useSettingsStore((s) => s.settings.editor.wordWrap);
   const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
@@ -399,6 +401,7 @@ export function SourcePanel() {
         wordWrapCompartment.of(editorWordWrap ? EditorView.lineWrapping : []),
         fontSizeCompartment.of(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })),
         tabSizeCompartment.of(CMState.tabSize.of(editorIndentSize)),
+        editableCompartment.of(EditorView.editable.of(!assistantLockReason)),
         numberScrubber({
           onScrubStateChange: (scrub) => {
             if (!scrub.isActive || scrub.from == null) {
@@ -467,6 +470,12 @@ export function SourcePanel() {
     if (!view) return;
     view.dispatch({ effects: tabSizeCompartment.reconfigure(CMState.tabSize.of(editorIndentSize)) });
   }, [editorIndentSize]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: editableCompartment.reconfigure(EditorView.editable.of(!assistantLockReason)) });
+  }, [assistantLockReason]);
 
 
   // ── Canvas selection → source selection sync ────────────────────────────────
@@ -722,6 +731,7 @@ export function SourcePanel() {
     <div className={css.panel}>
       <div className={css.header}>Source</div>
       <div className={[css.editorWrap, editorLineNumbers ? "" : css.hideLineNumbers].filter(Boolean).join(" ")} ref={editorRef} />
+      {assistantLockReason ? <div className={css.lockBanner}>{assistantLockReason}</div> : null}
       {activeColorPicker && inlineColorPopoverStyle ? (
         <div className={css.inlineColorPickerPopover} ref={colorPickerRef} style={inlineColorPopoverStyle}>
           <ColorPicker

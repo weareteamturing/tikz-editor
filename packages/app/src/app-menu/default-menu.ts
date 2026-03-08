@@ -343,6 +343,18 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.TOGGLE_INSPECTOR_PANEL,
         label: "Inspector Panel"
       },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_ASSISTANT_PANEL,
+        label: "Assistant Panel",
+        platforms: ["desktop"]
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN,
+        label: "Interrupt Assistant",
+        platforms: ["desktop"]
+      },
       { kind: "separator" },
       {
         kind: "command",

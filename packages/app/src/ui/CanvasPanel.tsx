@@ -372,6 +372,7 @@ const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
 const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 
 export function CanvasPanel() {
+  const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
@@ -4502,6 +4503,7 @@ export function CanvasPanel() {
             onCanvasContextMenu(event);
           }}
         >
+          {assistantLockReason ? <div className={css.lockOverlay}>{assistantLockReason}</div> : null}
           {!svgResult ? (
             <div className={css.noSvg}>{snapshot.source ? "Computing…" : "No source"}</div>
           ) : (

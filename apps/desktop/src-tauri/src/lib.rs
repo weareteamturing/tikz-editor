@@ -1,6 +1,10 @@
+mod assistant;
+
+use assistant::{AssistantState, AssistantThreadStatePayload, AssistantThreadSummary};
 use base64::Engine;
 use rfd::FileDialog;
 use serde::Serialize;
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
@@ -234,6 +238,83 @@ fn desktop_open_external(url: String) -> Result<bool, String> {
     .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_ensure_document_thread(
+  documentId: String,
+  source: String,
+  threadId: Option<String>,
+  workspacePath: Option<String>,
+  figurePath: Option<String>,
+  previewPath: Option<String>,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<AssistantThreadSummary, String> {
+  assistant.ensure_document_thread(documentId, source, threadId, workspacePath, figurePath, previewPath)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_start_turn(
+  documentId: String,
+  prompt: String,
+  source: String,
+  pngBase64: Option<String>,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<serde_json::Value, String> {
+  let turn_id = assistant.start_turn(documentId, prompt, source, pngBase64)?;
+  Ok(serde_json::json!({ "turnId": turn_id }))
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_interrupt_turn(
+  documentId: String,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+  assistant.interrupt_turn(documentId)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_sync_source(
+  documentId: String,
+  source: String,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+  assistant.sync_source(documentId, source)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_respond_to_approval(
+  documentId: String,
+  requestId: String,
+  decision: String,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+  assistant.respond_to_approval(documentId, requestId, decision)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_respond_to_dynamic_tool_call(
+  documentId: String,
+  requestId: String,
+  result: Value,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+  assistant.respond_to_dynamic_tool_call(documentId, requestId, result)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_load_thread_state(
+  documentId: String,
+  assistant: tauri::State<'_, AssistantState>,
+) -> Result<Option<AssistantThreadStatePayload>, String> {
+  assistant.load_thread_state(documentId)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -270,7 +351,14 @@ pub fn run() {
       desktop_export_file,
       desktop_confirm_window_close,
       desktop_list_recent_files,
-      desktop_open_external
+      desktop_open_external,
+      desktop_assistant_ensure_document_thread,
+      desktop_assistant_start_turn,
+      desktop_assistant_interrupt_turn,
+      desktop_assistant_sync_source,
+      desktop_assistant_respond_to_approval,
+      desktop_assistant_respond_to_dynamic_tool_call,
+      desktop_assistant_load_thread_state
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -286,6 +374,7 @@ pub fn run() {
         *entries = loaded.clone();
       }
       save_recent_files_to_disk(&app.handle(), &loaded);
+      app.manage(AssistantState::new(app.handle().clone()));
       Ok(())
     })
     .run(tauri::generate_context!())

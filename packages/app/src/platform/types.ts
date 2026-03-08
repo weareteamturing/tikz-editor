@@ -48,6 +48,115 @@ export type PlatformWindowApi = {
   openExternalUrl?: (url: string) => Promise<boolean> | boolean;
 };
 
+export type AssistantChatContent =
+  | { type: "text"; text: string }
+  | { type: "image"; url: string }
+  | { type: "localImage"; path: string };
+
+export type AssistantItem =
+  | { type: "userMessage"; id: string; content: AssistantChatContent[] }
+  | { type: "agentMessage"; id: string; text: string; phase?: "commentary" | "final_answer" | string }
+  | { type: "plan"; id: string; text: string }
+  | { type: "reasoning"; id: string; summary?: string; content?: string }
+  | {
+      type: "commandExecution";
+      id: string;
+      command?: string[];
+      cwd?: string;
+      status?: string;
+      aggregatedOutput?: string;
+      exitCode?: number;
+      durationMs?: number;
+    }
+  | { type: "fileChange"; id: string; status?: string; changes?: Array<{ path: string; kind?: string; diff?: string }> }
+  | { type: "mcpToolCall"; id: string; server?: string; tool?: string; status?: string; arguments?: unknown; result?: unknown; error?: unknown }
+  | { type: "dynamicToolCall"; id: string; tool?: string; arguments?: unknown; status?: string; contentItems?: unknown[]; success?: boolean; durationMs?: number }
+  | { type: "webSearch"; id: string; query?: string; action?: unknown }
+  | { type: "imageView"; id: string; path: string }
+  | { type: "enteredReviewMode"; id: string; review?: string }
+  | { type: "exitedReviewMode"; id: string; review?: string }
+  | { type: "contextCompaction"; id: string }
+  | { type: string; id: string; [key: string]: unknown };
+
+export type AssistantPendingApproval =
+  | {
+      kind: "command";
+      requestId: string;
+      itemId: string;
+      threadId: string;
+      turnId: string;
+      reason?: string;
+      command?: string[];
+      cwd?: string;
+      availableDecisions?: string[];
+    }
+  | {
+      kind: "fileChange";
+      requestId: string;
+      itemId: string;
+      threadId: string;
+      turnId: string;
+      reason?: string;
+      grantRoot?: string;
+    }
+  | {
+      kind: "toolInput";
+      requestId: string;
+      threadId: string;
+      turnId?: string;
+      payload: unknown;
+    };
+
+export type AssistantTurnStatus = "idle" | "starting" | "inProgress" | "completed" | "failed" | "interrupted";
+
+export type AssistantThreadSummary = {
+  threadId: string;
+  workspacePath: string;
+  figurePath: string;
+  previewPath: string;
+};
+
+export type AssistantThreadState = AssistantThreadSummary & {
+  items: AssistantItem[];
+};
+
+export type AssistantDynamicToolResult = {
+  success?: boolean;
+  contentItems?: unknown[];
+};
+
+export type AssistantEvent =
+  | { type: "thread-ready"; documentId: string; thread: AssistantThreadSummary }
+  | { type: "thread-state"; documentId: string; state: AssistantThreadState }
+  | { type: "turn-status"; documentId: string; turnId?: string; status: AssistantTurnStatus; error?: string | null }
+  | { type: "item-started"; documentId: string; item: AssistantItem }
+  | { type: "item-updated"; documentId: string; item: AssistantItem }
+  | { type: "item-completed"; documentId: string; item: AssistantItem }
+  | { type: "item-delta"; documentId: string; itemId: string; deltaType: string; delta: string }
+  | { type: "approval-requested"; documentId: string; approval: AssistantPendingApproval }
+  | { type: "approval-cleared"; documentId: string; requestId: string }
+  | { type: "source-updated"; documentId: string; source: string; revisionToken: string }
+  | { type: "dynamic-tool-call"; documentId: string; requestId: string; itemId?: string; tool: string; arguments?: unknown }
+  | { type: "error"; documentId?: string; message: string };
+
+export type AssistantApi = {
+  ensureDocumentThread?: (params: {
+    documentId: string;
+    source: string;
+    threadId?: string | null;
+    workspacePath?: string | null;
+    figurePath?: string | null;
+    previewPath?: string | null;
+  }) => Promise<AssistantThreadSummary>;
+  startTurn?: (params: { documentId: string; prompt: string; source: string; pngBase64?: string | null }) => Promise<{ turnId: string | null }>;
+  interruptTurn?: (params: { documentId: string }) => Promise<void>;
+  syncSource?: (params: { documentId: string; source: string }) => Promise<void>;
+  respondToApproval?: (params: { documentId: string; requestId: string; decision: "accept" | "acceptForSession" | "decline" | "cancel" }) => Promise<void>;
+  respondToDynamicToolCall?: (params: { documentId: string; requestId: string; result: AssistantDynamicToolResult }) => Promise<void>;
+  loadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  bindEvents?: (handler: (event: AssistantEvent) => void) => (() => void) | void;
+};
+
 export type EditorPlatform = {
   id: string;
   persistence: PlatformPersistence;
@@ -55,4 +164,5 @@ export type EditorPlatform = {
   files?: PlatformFileApi;
   menu?: PlatformMenu;
   window?: PlatformWindowApi;
+  assistant?: AssistantApi;
 };

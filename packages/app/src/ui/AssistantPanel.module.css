@@ -1,0 +1,143 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: linear-gradient(180deg, #f9fbff 0%, #f2f6fb 100%);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.title {
+  font-weight: 700;
+}
+
+.meta {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-muted);
+}
+
+.interrupt {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-pane);
+  padding: 6px 10px;
+}
+
+.timeline {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.card {
+  border: 1px solid rgba(24, 55, 90, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 10px;
+  box-shadow: 0 8px 18px rgba(31, 52, 79, 0.06);
+}
+
+.userCard {
+  background: #fff8eb;
+}
+
+.agentCard {
+  background: #ffffff;
+}
+
+.cardTitle {
+  margin-bottom: 6px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.messageBody {
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  line-height: 1.5;
+}
+
+.messageBody :global(p:first-child) {
+  margin-top: 0;
+}
+
+.messageBody :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.details {
+  border: 1px solid rgba(24, 55, 90, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 10px;
+}
+
+.detail {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.actions button,
+.composer button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  padding: 6px 10px;
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.composer textarea {
+  resize: vertical;
+  min-height: 88px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+  background: white;
+}
+
+.empty {
+  color: var(--text-muted);
+  padding: 16px;
+}
+
+.error {
+  margin: 10px 10px 0;
+  border: 1px solid rgba(176, 44, 44, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 240, 240, 0.95);
+  color: #912b2b;
+  padding: 10px;
+}

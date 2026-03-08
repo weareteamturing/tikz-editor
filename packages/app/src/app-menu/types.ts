@@ -56,6 +56,8 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_GUIDES: "view.toggle-guides",
   TOGGLE_SOURCE_PANEL: "view.toggle-source-panel",
   TOGGLE_INSPECTOR_PANEL: "view.toggle-inspector-panel",
+  TOGGLE_ASSISTANT_PANEL: "view.toggle-assistant-panel",
+  INTERRUPT_ASSISTANT_TURN: "view.interrupt-assistant-turn",
   TOGGLE_DEV_PANEL: "view.toggle-dev-panel",
   OPEN_PGF_TIKZ_MANUAL: "help.open-pgf-tikz-manual",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",

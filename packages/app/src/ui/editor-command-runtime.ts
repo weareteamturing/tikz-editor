@@ -50,6 +50,9 @@ type RuntimeInput = {
   showGuides: boolean;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
+  rightSidebarTab: "inspector" | "assistant";
+  assistantAvailable: boolean;
+  assistantRunning: boolean;
   showDevPanel: boolean;
   dispatch: Dispatch;
   onOpenExample?: () => void;
@@ -61,6 +64,8 @@ type RuntimeInput = {
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
   onShowCompiledPicture?: () => void;
   onOpenSettings?: () => void;
+  onFocusAssistant?: () => void;
+  onInterruptAssistant?: () => void;
 };
 
 export type EditorCommandRuntime = {
@@ -86,6 +91,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showGuides,
     showSourcePanel,
     showInspectorPanel,
+    rightSidebarTab,
+    assistantAvailable,
+    assistantRunning,
     showDevPanel,
     dispatch,
     onOpenExample,
@@ -96,7 +104,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onRequestCloseAllDocuments,
     onAddNodeAdornment,
     onShowCompiledPicture,
-    onOpenSettings
+    onOpenSettings,
+    onFocusAssistant,
+    onInterruptAssistant
   } = input;
 
   const commandContext = {
@@ -473,6 +483,15 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       checked: showInspectorPanel,
       run: () => dispatch({ type: "TOGGLE_PANEL", panel: "inspector" })
     },
+    [APP_MENU_COMMAND_IDS.TOGGLE_ASSISTANT_PANEL]: {
+      enabled: assistantAvailable,
+      checked: assistantAvailable && rightSidebarTab === "assistant",
+      run: () => onFocusAssistant?.()
+    },
+    [APP_MENU_COMMAND_IDS.INTERRUPT_ASSISTANT_TURN]: {
+      enabled: assistantAvailable && assistantRunning,
+      run: () => onInterruptAssistant?.()
+    },
     [APP_MENU_COMMAND_IDS.TOGGLE_DEV_PANEL]: {
       enabled: true,
       checked: showDevPanel,
@@ -518,6 +537,8 @@ export function useEditorCommandRuntime(
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
     onShowCompiledPicture?: () => void;
     onOpenSettings?: () => void;
+    onFocusAssistant?: () => void;
+    onInterruptAssistant?: () => void;
   } = {}
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
@@ -536,8 +557,14 @@ export function useEditorCommandRuntime(
   const showGuides = useEditorStore((s) => s.showGuides);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
   const showInspectorPanel = useEditorStore((s) => s.showInspectorPanel);
+  const rightSidebarTab = useEditorStore((s) => s.rightSidebarTab);
+  const assistantRunning = useEditorStore((s) => {
+    const doc = s.documents[s.activeDocumentId];
+    return doc?.assistantTurnStatus === "starting" || doc?.assistantTurnStatus === "inProgress";
+  });
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
 
   return useMemo(
     () =>
@@ -558,6 +585,9 @@ export function useEditorCommandRuntime(
         showGuides,
         showSourcePanel,
         showInspectorPanel,
+        rightSidebarTab,
+        assistantAvailable,
+        assistantRunning,
         showDevPanel,
         dispatch,
         onOpenExample: options.onOpenExample,
@@ -568,7 +598,9 @@ export function useEditorCommandRuntime(
         onRequestCloseAllDocuments: options.onRequestCloseAllDocuments,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
-        onOpenSettings: options.onOpenSettings
+        onOpenSettings: options.onOpenSettings,
+        onFocusAssistant: options.onFocusAssistant,
+        onInterruptAssistant: options.onInterruptAssistant
       }),
     [
       source,
@@ -587,6 +619,9 @@ export function useEditorCommandRuntime(
       showGuides,
       showSourcePanel,
       showInspectorPanel,
+      rightSidebarTab,
+      assistantAvailable,
+      assistantRunning,
       showDevPanel,
       dispatch,
       options.onOpenExample,
@@ -597,7 +632,9 @@ export function useEditorCommandRuntime(
       options.onRequestCloseAllDocuments,
       options.onAddNodeAdornment,
       options.onShowCompiledPicture,
-      options.onOpenSettings
+      options.onOpenSettings,
+      options.onFocusAssistant,
+      options.onInterruptAssistant
     ]
   );
 }

@@ -33,7 +33,11 @@ describe("workspace storage migration", () => {
           title: "Doc",
           source: "\\draw (0,0)--(1,1);",
           savedSource: "\\draw (0,0)--(1,1);",
-          fileRef: { kind: "file", name: "old.tex" }
+          fileRef: { kind: "file", name: "old.tex" },
+          assistantThreadId: "thr_123",
+          assistantWorkspacePath: "/tmp/codex/doc-1",
+          assistantFigurePath: "/tmp/codex/doc-1/figure.tex",
+          assistantPreviewPath: "/tmp/codex/doc-1/current.png"
         }
       ],
       tabOrder: ["doc-1"],
@@ -46,6 +50,7 @@ describe("workspace storage migration", () => {
     expect(seed?.workspaceVersion).toBe(3);
     expect(seed?.documents[0]?.fileRef?.kind).toBe("file");
     expect(seed?.documents[0]?.fileRef?.name).toBe("old.tex");
+    expect(seed?.documents[0]?.assistantThreadId).toBe("thr_123");
   });
 
   it("round-trips browser file refs with handle metadata", () => {
@@ -62,7 +67,11 @@ describe("workspace storage migration", () => {
             name: "bound.tex",
             handleId: "handle-123",
             provider: "browser-fsa"
-          }
+          },
+          assistantThreadId: "thr_saved",
+          assistantWorkspacePath: "/tmp/codex/doc-1",
+          assistantFigurePath: "/tmp/codex/doc-1/figure.tex",
+          assistantPreviewPath: "/tmp/codex/doc-1/current.png"
         }
       },
       tabOrder: ["doc-1"],
@@ -77,6 +86,7 @@ describe("workspace storage migration", () => {
       handleId: "handle-123",
       provider: "browser-fsa"
     });
+    expect(seed?.documents[0]?.assistantThreadId).toBe("thr_saved");
     expect(seed?.recentDocumentIds).toEqual(["doc-1"]);
   });
 });
