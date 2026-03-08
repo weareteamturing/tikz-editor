@@ -1,7 +1,11 @@
 import { useEditorStore } from "../store/store";
 import css from "./TabStrip.module.css";
 
-export function TabStrip() {
+export function TabStrip({
+  onRequestCloseDocument
+}: {
+  onRequestCloseDocument?: (documentId: string) => void;
+} = {}) {
   const documents = useEditorStore((s) => s.documents);
   const tabOrder = useEditorStore((s) => s.tabOrder);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -36,7 +40,13 @@ export function TabStrip() {
               type="button"
               className={css.close}
               aria-label={`Close ${doc.title}`}
-              onClick={() => dispatch({ type: "CLOSE_DOCUMENT", documentId: id })}
+              onClick={() => {
+                if (onRequestCloseDocument) {
+                  onRequestCloseDocument(id);
+                  return;
+                }
+                dispatch({ type: "CLOSE_DOCUMENT", documentId: id });
+              }}
               data-testid={`tab-close-${id}`}
             >
               ×

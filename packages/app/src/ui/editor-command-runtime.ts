@@ -56,6 +56,8 @@ type RuntimeInput = {
   onOpenExampleInNewTab?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
+  onRequestCloseDocument?: (documentId: string) => void;
+  onRequestCloseAllDocuments?: () => void;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
   onShowCompiledPicture?: () => void;
   onOpenSettings?: () => void;
@@ -90,6 +92,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onOpenExampleInNewTab,
     onOpenSvgExport,
     onOpenPngExport,
+    onRequestCloseDocument,
+    onRequestCloseAllDocuments,
     onAddNodeAdornment,
     onShowCompiledPicture,
     onOpenSettings
@@ -202,7 +206,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
           fileRef,
           mode: "save"
         }).then((result) => {
-          if (!result.ok) {
+          if (result.status !== "saved") {
             return;
           }
           dispatch({
@@ -225,7 +229,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
           fileRef,
           mode: "save-as"
         }).then((result) => {
-          if (!result.ok) {
+          if (result.status !== "saved") {
             return;
           }
           dispatch({
@@ -238,11 +242,23 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT]: {
       enabled: tabCount > 0,
-      run: () => dispatch({ type: "CLOSE_DOCUMENT", documentId: activeDocumentId })
+      run: () => {
+        if (onRequestCloseDocument) {
+          onRequestCloseDocument(activeDocumentId);
+          return;
+        }
+        dispatch({ type: "CLOSE_DOCUMENT", documentId: activeDocumentId });
+      }
     },
     [APP_MENU_COMMAND_IDS.CLOSE_ALL_DOCUMENTS]: {
       enabled: tabCount > 1 || dirty,
-      run: () => dispatch({ type: "CLOSE_ALL_DOCUMENTS" })
+      run: () => {
+        if (onRequestCloseAllDocuments) {
+          onRequestCloseAllDocuments();
+          return;
+        }
+        dispatch({ type: "CLOSE_ALL_DOCUMENTS" });
+      }
     },
     [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE]: {
       enabled: onOpenExample != null,
@@ -486,6 +502,8 @@ export function useEditorCommandRuntime(
     onOpenExampleInNewTab?: () => void;
     onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
+    onRequestCloseDocument?: (documentId: string) => void;
+    onRequestCloseAllDocuments?: () => void;
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
     onShowCompiledPicture?: () => void;
     onOpenSettings?: () => void;
@@ -535,6 +553,8 @@ export function useEditorCommandRuntime(
         onOpenExampleInNewTab: options.onOpenExampleInNewTab,
         onOpenSvgExport: options.onOpenSvgExport,
         onOpenPngExport: options.onOpenPngExport,
+        onRequestCloseDocument: options.onRequestCloseDocument,
+        onRequestCloseAllDocuments: options.onRequestCloseAllDocuments,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
         onOpenSettings: options.onOpenSettings
@@ -562,6 +582,8 @@ export function useEditorCommandRuntime(
       options.onOpenExampleInNewTab,
       options.onOpenSvgExport,
       options.onOpenPngExport,
+      options.onRequestCloseDocument,
+      options.onRequestCloseAllDocuments,
       options.onAddNodeAdornment,
       options.onShowCompiledPicture,
       options.onOpenSettings

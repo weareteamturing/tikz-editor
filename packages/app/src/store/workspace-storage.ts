@@ -19,6 +19,7 @@ type PersistedWorkspaceV1 = {
 };
 
 type PersistedWorkspaceV2 = PersistedWorkspaceV1;
+type PersistedWorkspaceV3 = PersistedWorkspaceV2;
 
 export function loadWorkspaceSeed(): WorkspaceSeed | null {
   try {
@@ -26,7 +27,7 @@ export function loadWorkspaceSeed(): WorkspaceSeed | null {
     if (!raw) {
       return null;
     }
-    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2>;
+    const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2 | PersistedWorkspaceV3>;
     const migrated = migrateWorkspace(parsed);
     if (!migrated) {
       return null;
@@ -63,9 +64,9 @@ function normalizeFileRef(raw: unknown): DocumentFileRef | null {
   };
 }
 
-function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2>): WorkspaceSeed | null {
+function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorkspaceV2 | PersistedWorkspaceV3>): WorkspaceSeed | null {
   const version = typeof parsed.workspaceVersion === "number" ? parsed.workspaceVersion : 1;
-  if (version !== 1 && version !== 2) {
+  if (version !== 1 && version !== 2 && version !== 3) {
     return null;
   }
   const docs = Array.isArray(parsed.documents)
@@ -114,8 +115,9 @@ export function saveWorkspace(state: {
   }>;
   tabOrder: string[];
   activeDocumentId: string;
+  recentDocumentIds: string[];
 }): void {
-  const payload: PersistedWorkspaceV2 = {
+  const payload: PersistedWorkspaceV3 = {
     workspaceVersion: WORKSPACE_VERSION,
     documents: state.tabOrder
       .map((id) => state.documents[id])
@@ -129,7 +131,7 @@ export function saveWorkspace(state: {
       })),
     tabOrder: [...state.tabOrder],
     activeDocumentId: state.activeDocumentId,
-    recentDocumentIds: []
+    recentDocumentIds: [...state.recentDocumentIds]
   };
   try {
     getActiveEditorPlatform().persistence.save(WORKSPACE_STORAGE_KEY, JSON.stringify(payload));

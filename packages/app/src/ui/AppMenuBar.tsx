@@ -113,7 +113,13 @@ function MenuPopup({
   );
 }
 
-export function AppMenuBar() {
+export function AppMenuBar({
+  onRequestCloseDocument,
+  onRequestCloseAllDocuments
+}: {
+  onRequestCloseDocument?: (documentId: string) => void;
+  onRequestCloseAllDocuments?: () => void;
+} = {}) {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const dispatch = useEditorStore((s) => s.dispatch);
@@ -135,6 +141,8 @@ export function AppMenuBar() {
     },
     onOpenSvgExport: (svgResult) => setSvgExportSvgResult(svgResult),
     onOpenPngExport: (svgResult) => setPngExportSvgResult(svgResult),
+    onRequestCloseDocument,
+    onRequestCloseAllDocuments,
     onShowCompiledPicture: () => setCompiledPictureSource(source),
     onOpenSettings: () => setShowSettingsModal(true)
   });

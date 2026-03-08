@@ -43,14 +43,14 @@ describe("workspace storage migration", () => {
 
     const seed = loadWorkspaceSeed();
     expect(seed).not.toBeNull();
-    expect(seed?.workspaceVersion).toBe(2);
+    expect(seed?.workspaceVersion).toBe(3);
     expect(seed?.documents[0]?.fileRef?.kind).toBe("file");
     expect(seed?.documents[0]?.fileRef?.name).toBe("old.tex");
   });
 
   it("round-trips browser file refs with handle metadata", () => {
     saveWorkspace({
-      workspaceVersion: 2,
+      workspaceVersion: 3,
       documents: {
         "doc-1": {
           id: "doc-1",
@@ -66,7 +66,8 @@ describe("workspace storage migration", () => {
         }
       },
       tabOrder: ["doc-1"],
-      activeDocumentId: "doc-1"
+      activeDocumentId: "doc-1",
+      recentDocumentIds: ["doc-1"]
     });
 
     const seed = loadWorkspaceSeed();
@@ -76,5 +77,6 @@ describe("workspace storage migration", () => {
       handleId: "handle-123",
       provider: "browser-fsa"
     });
+    expect(seed?.recentDocumentIds).toEqual(["doc-1"]);
   });
 });

@@ -23,7 +23,11 @@ export type PlatformFileApi = {
   saveText?: (
     text: string,
     options?: { suggestedName?: string; fileRef?: DocumentFileRef | null; mode?: "save" | "save-as" }
-  ) => Promise<{ ok: boolean; fileRef: DocumentFileRef | null }>;
+  ) => Promise<
+    | { status: "saved"; fileRef: DocumentFileRef | null }
+    | { status: "cancelled"; fileRef: DocumentFileRef | null }
+    | { status: "failed"; fileRef: DocumentFileRef | null; reason?: string }
+  >;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
 };
 
@@ -34,6 +38,8 @@ export type PlatformMenu = {
 
 export type PlatformWindowApi = {
   setDocumentState?: (state: { title?: string; dirty?: boolean }) => void;
+  bindCloseRequest?: (handler: () => void) => (() => void) | void;
+  close?: () => Promise<void> | void;
 };
 
 export type EditorPlatform = {

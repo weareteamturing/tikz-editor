@@ -31,6 +31,11 @@ struct RecentFilesState {
   files: Mutex<Vec<String>>,
 }
 
+#[derive(Default)]
+struct WindowCloseState {
+  allow_next_close: Mutex<bool>,
+}
+
 #[derive(Serialize)]
 struct OpenTextPayload {
   source: String,
@@ -255,6 +260,22 @@ fn desktop_export_file(
   Ok(true)
 }
 
+#[tauri::command]
+fn desktop_confirm_window_close(app: AppHandle) -> Result<(), String> {
+  {
+    let state = app.state::<WindowCloseState>();
+    let mut allow = state
+      .allow_next_close
+      .lock()
+      .map_err(|_| "close state unavailable".to_string())?;
+    *allow = true;
+  }
+  let window = app
+    .get_webview_window("main")
+    .ok_or_else(|| "main window not found".to_string())?;
+  window.close().map_err(|error| error.to_string())
+}
+
 fn handle_menu_event(app: &AppHandle, id: &MenuId) {
   let event_id = id.0.as_str();
   if let Some(index_raw) = event_id.strip_prefix("file.open-recent.") {
@@ -300,11 +321,37 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_clipboard_manager::init())
     .manage(RecentFilesState::default())
+    .manage(WindowCloseState::default())
     .on_menu_event(|app, event| handle_menu_event(app, event.id()))
+    .on_window_event(|window, event| {
+      if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        let allow_close = {
+          let state = window.state::<WindowCloseState>();
+          let decision = match state.allow_next_close.lock() {
+            Ok(mut allow) => {
+              if *allow {
+                *allow = false;
+                true
+              } else {
+                false
+              }
+            }
+            Err(_) => false,
+          };
+          decision
+        };
+        if allow_close {
+          return;
+        }
+        api.prevent_close();
+        let _ = window.emit("desktop-window-close-request", ());
+      }
+    })
     .invoke_handler(tauri::generate_handler![
       desktop_open_text,
       desktop_save_text,
-      desktop_export_file
+      desktop_export_file,
+      desktop_confirm_window_close
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

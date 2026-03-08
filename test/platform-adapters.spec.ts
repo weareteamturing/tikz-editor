@@ -64,8 +64,10 @@ describe("platform adapter contracts", () => {
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
+        closeWindow: async () => undefined,
         onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined
+        onOpenRecent: async () => () => undefined,
+        onWindowCloseRequest: async () => () => undefined
       }
       });
     })()
@@ -103,8 +105,10 @@ describe("platform adapter contracts", () => {
           clipboardText = text;
         },
         setWindowTitle: async () => undefined,
+        closeWindow: async () => undefined,
         onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined
+        onOpenRecent: async () => () => undefined,
+        onWindowCloseRequest: async () => () => undefined
       }
     });
     await platform.clipboard?.writeText?.("desktop-hello");
@@ -125,8 +129,10 @@ describe("platform adapter contracts", () => {
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
+        closeWindow: async () => undefined,
         onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined
+        onOpenRecent: async () => () => undefined,
+        onWindowCloseRequest: async () => () => undefined
       }
     });
     const result = await platform.files?.saveText?.("abc", {
@@ -135,7 +141,7 @@ describe("platform adapter contracts", () => {
       mode: "save"
     });
     expect(result).toEqual({
-      ok: true,
+      status: "saved",
       fileRef: {
         kind: "file",
         name: "a.tex",
@@ -162,6 +168,7 @@ describe("platform adapter contracts", () => {
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
+        closeWindow: async () => undefined,
         onMenuCommand: async () => () => undefined,
         onOpenRecent: async (handler) => {
           openRecentHandler = handler;
@@ -170,7 +177,8 @@ describe("platform adapter contracts", () => {
               openRecentHandler = null;
             }
           };
-        }
+        },
+        onWindowCloseRequest: async () => () => undefined
       }
     });
     let seenSource = "";
@@ -181,6 +189,53 @@ describe("platform adapter contracts", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(seenSource).toContain("\\draw");
+    if (typeof unbind === "function") {
+      unbind();
+    }
+  });
+
+  it("desktop adapter bindCloseRequest and close bridge window lifecycle", async () => {
+    let closeRequestHandler: (() => void) | null = null;
+    let closeCalled = false;
+    const platform = createDesktopPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      bridge: {
+        openText: async () => null,
+        saveText: async () => ({ ok: false, path: null, name: null }),
+        exportFile: async () => false,
+        readClipboard: async () => "",
+        writeClipboard: async () => undefined,
+        setWindowTitle: async () => undefined,
+        closeWindow: async () => {
+          closeCalled = true;
+        },
+        onMenuCommand: async () => () => undefined,
+        onOpenRecent: async () => () => undefined,
+        onWindowCloseRequest: async (handler) => {
+          closeRequestHandler = handler;
+          return () => {
+            if (closeRequestHandler === handler) {
+              closeRequestHandler = null;
+            }
+          };
+        }
+      }
+    });
+
+    let seenCloseRequest = 0;
+    const unbind = platform.window?.bindCloseRequest?.(() => {
+      seenCloseRequest += 1;
+    });
+    closeRequestHandler?.();
+    await Promise.resolve();
+    expect(seenCloseRequest).toBe(1);
+
+    await platform.window?.close?.();
+    expect(closeCalled).toBe(true);
+
     if (typeof unbind === "function") {
       unbind();
     }
@@ -228,14 +283,14 @@ describe("platform adapter contracts", () => {
     });
 
     const firstSave = await platform.files?.saveText?.("v1", { mode: "save-as", suggestedName: "first.tex" });
-    expect(firstSave?.ok).toBe(true);
+    expect(firstSave?.status).toBe("saved");
     expect(firstSave?.fileRef?.kind).toBe("browser-file");
     const secondSave = await platform.files?.saveText?.("v2", {
       mode: "save",
       fileRef: firstSave?.fileRef ?? null,
       suggestedName: "first.tex"
     });
-    expect(secondSave?.ok).toBe(true);
+    expect(secondSave?.status).toBe("saved");
     expect(writes).toEqual(["v1", "v2"]);
   });
 });

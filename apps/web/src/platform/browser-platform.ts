@@ -328,9 +328,13 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
   async function saveAsViaFsApi(
     text: string,
     suggestedName: string
-  ): Promise<{ ok: boolean; fileRef: DocumentFileRef | null }> {
+  ): Promise<
+    | { status: "saved"; fileRef: DocumentFileRef | null }
+    | { status: "cancelled"; fileRef: DocumentFileRef | null }
+    | { status: "failed"; fileRef: DocumentFileRef | null; reason?: string }
+  > {
     if (!fsApi?.showSaveFilePicker) {
-      return { ok: false, fileRef: null };
+      return { status: "failed", fileRef: null };
     }
     try {
       const handle = await fsApi.showSaveFilePicker({
@@ -339,11 +343,11 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       });
       const written = await saveWithHandle(text, handle);
       if (!written) {
-        return { ok: false, fileRef: null };
+        return { status: "failed", fileRef: null };
       }
       const { handleId } = await persistHandle(handle);
       return {
-        ok: true,
+        status: "saved",
         fileRef: {
           kind: "browser-file",
           name: handle.name ?? suggestedName,
@@ -351,8 +355,14 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           provider: BROWSER_FILE_PROVIDER
         }
       };
-    } catch {
-      return { ok: false, fileRef: null };
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        (error.name === "AbortError" || error.name === "NotAllowedError")
+      ) {
+        return { status: "cancelled", fileRef: null };
+      }
+      return { status: "failed", fileRef: null };
     }
   }
 
@@ -406,24 +416,24 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
         if (mode === "save" && currentRef?.kind === "browser-file") {
           const handle = await resolvePersistedHandle(currentRef);
           if (handle && (await saveWithHandle(text, handle))) {
-            return { ok: true, fileRef: currentRef };
+            return { status: "saved", fileRef: currentRef };
           }
         }
 
         const fsResult = await saveAsViaFsApi(text, suggestedName);
-        if (fsResult.ok) {
+        if (fsResult.status === "saved" || fsResult.status === "cancelled") {
           return fsResult;
         }
 
         const downloaded = downloadTextFile(text, suggestedName);
         return {
-          ok: downloaded,
+          status: downloaded ? "saved" : "failed",
           fileRef: downloaded
             ? {
-                kind: "file",
-                name: suggestedName,
-                provider: DOWNLOAD_PROVIDER
-              }
+              kind: "file",
+              name: suggestedName,
+              provider: DOWNLOAD_PROVIDER
+            }
             : currentRef
         };
       },

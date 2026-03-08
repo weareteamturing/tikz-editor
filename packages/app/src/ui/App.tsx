@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, type CSSProperties } from "react";
+import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties } from "react";
 import { APP_MENU_COMMAND_IDS } from "../app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
@@ -17,6 +17,8 @@ import { getActiveEditorPlatform } from "../platform/current";
 import css from "./App.module.css";
 import "./variables.css";
 import { TabStrip } from "./TabStrip";
+import { UnsavedChangesModal, type UnsavedChangesDecision } from "./UnsavedChangesModal";
+import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guard";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -38,6 +40,8 @@ export function App() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
+  const documents = useEditorStore((s) => s.documents);
+  const tabOrder = useEditorStore((s) => s.tabOrder);
   const toolMode = useEditorStore((s) => s.toolMode);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
@@ -45,8 +49,41 @@ export function App() {
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
   const dispatch = useEditorStore((s) => s.dispatch);
-  const commandRuntime = useEditorCommandRuntime();
+  const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
+  const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+
+  function executeCloseIntent(intent: CloseIntent): void {
+    if (intent.kind === "close-document") {
+      dispatch({ type: "CLOSE_DOCUMENT", documentId: intent.documentId });
+      return;
+    }
+    if (intent.kind === "close-all") {
+      dispatch({ type: "CLOSE_ALL_DOCUMENTS" });
+      return;
+    }
+    void getActiveEditorPlatform().window?.close?.();
+  }
+
+  function requestCloseIntent(intent: CloseIntent): void {
+    const dirtyDocumentIds = collectDirtyDocumentIdsForIntent(intent, documents, tabOrder);
+    if (dirtyDocumentIds.length === 0) {
+      executeCloseIntent(intent);
+      return;
+    }
+    setPendingClose({ intent, dirtyDocumentIds });
+  }
+
+  requestCloseIntentRef.current = requestCloseIntent;
+
+  const commandRuntime = useEditorCommandRuntime({
+    onRequestCloseDocument: (documentId) => {
+      requestCloseIntent({ kind: "close-document", documentId });
+    },
+    onRequestCloseAllDocuments: () => {
+      requestCloseIntent({ kind: "close-all" });
+    }
+  });
 
   useEffect(() => {
     const scheduler = createSingleFlightScheduler<ComputeRequest, ComputeResponse>({
@@ -146,6 +183,22 @@ export function App() {
   }, [commandRuntime]);
 
   useEffect(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        setSource: (nextSource: string) => void;
+      };
+    };
+    globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
+      setSource: (nextSource) => {
+        dispatch({ type: "CODE_EDITED", source: nextSource });
+      }
+    };
+    return () => {
+      delete globalLike.__TIKZ_EDITOR_APP_TEST_API__;
+    };
+  }, [dispatch]);
+
+  useEffect(() => {
     const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.((opened) => {
       dispatch({
         type: "NEW_DOCUMENT",
@@ -156,6 +209,13 @@ export function App() {
     });
     return typeof unbind === "function" ? unbind : undefined;
   }, [dispatch]);
+
+  useEffect(() => {
+    const unbind = getActiveEditorPlatform().window?.bindCloseRequest?.(() => {
+      requestCloseIntentRef.current({ kind: "window-close" });
+    });
+    return typeof unbind === "function" ? unbind : undefined;
+  }, []);
 
   useEffect(() => {
     getActiveEditorPlatform().window?.setDocumentState?.({
@@ -301,11 +361,74 @@ export function App() {
     "--app-ui-scale": `${uiFontSizePx / 11}`
   } as CSSProperties;
 
+  async function handleUnsavedDecision(decision: UnsavedChangesDecision): Promise<void> {
+    if (!pendingClose) {
+      return;
+    }
+    if (decision === "cancel") {
+      setPendingClose(null);
+      return;
+    }
+    if (decision === "discard") {
+      const intent = pendingClose.intent;
+      setPendingClose(null);
+      executeCloseIntent(intent);
+      return;
+    }
+
+    const saveText = getActiveEditorPlatform().files?.saveText;
+    if (!saveText) {
+      setPendingClose(null);
+      return;
+    }
+    for (const documentId of pendingClose.dirtyDocumentIds) {
+      const doc = documents[documentId];
+      if (!doc || !doc.dirty) {
+        continue;
+      }
+      const result = await saveText(doc.source, {
+        mode: "save",
+        fileRef: doc.fileRef,
+        suggestedName: doc.fileRef?.name ?? "tikz-document.tex"
+      });
+      if (result.status === "saved") {
+        dispatch({
+          type: "MARK_DOCUMENT_SAVED",
+          documentId,
+          fileRef: result.fileRef
+        });
+        continue;
+      }
+      if (result.status === "failed") {
+        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+        if (typeof alertFn === "function") {
+          alertFn(result.reason ?? "Save failed. Close action was cancelled.");
+        }
+      }
+      setPendingClose(null);
+      return;
+    }
+    const intent = pendingClose.intent;
+    setPendingClose(null);
+    executeCloseIntent(intent);
+  }
+
   return (
     <div className={css.app} style={appStyle}>
-      <AppMenuBar />
+      <AppMenuBar
+        onRequestCloseDocument={(documentId) => {
+          requestCloseIntent({ kind: "close-document", documentId });
+        }}
+        onRequestCloseAllDocuments={() => {
+          requestCloseIntent({ kind: "close-all" });
+        }}
+      />
       <Toolbar />
-      <TabStrip />
+      <TabStrip
+        onRequestCloseDocument={(documentId) => {
+          requestCloseIntent({ kind: "close-document", documentId });
+        }}
+      />
       <div className={css.body}>
         <ResizableLayout
           left={(
@@ -325,6 +448,14 @@ export function App() {
       <Suspense fallback={null}>
         <DevPanel />
       </Suspense>
+      {pendingClose ? (
+        <UnsavedChangesModal
+          documentTitles={pendingClose.dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled")}
+          onChoose={(decision) => {
+            void handleUnsavedDecision(decision);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

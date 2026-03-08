@@ -38,6 +38,7 @@ function makeMockBridge() {
       readClipboard: async () => "mock-clipboard",
       writeClipboard: async () => undefined,
       setWindowTitle: async () => undefined,
+      closeWindow: async () => undefined,
       onMenuCommand: async (handler: (commandId: string) => void) => {
         menuHandler = handler;
         return () => {
@@ -53,7 +54,8 @@ function makeMockBridge() {
             recentHandler = null;
           }
         };
-      }
+      },
+      onWindowCloseRequest: async () => () => undefined
     }
   };
 }
@@ -94,7 +96,7 @@ describe("desktop shell flows", () => {
       fileRef: opened?.fileRef ?? null,
       suggestedName: "diagram.tex"
     });
-    expect(saved?.ok).toBe(true);
+    expect(saved?.status).toBe("saved");
     expect(mock.saved).toContain("hello");
     expect(saved?.fileRef?.provider).toBe("desktop-fs");
   });

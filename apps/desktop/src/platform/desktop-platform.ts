@@ -33,8 +33,10 @@ type DesktopBridge = {
   readClipboard: () => Promise<string>;
   writeClipboard: (text: string) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
+  closeWindow: () => Promise<void>;
   onMenuCommand: (handler: (commandId: AppMenuCommandId) => void) => Promise<() => void>;
   onOpenRecent: (handler: (path: string) => void) => Promise<() => void>;
+  onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
 };
 
 export type DesktopPlatformEnvironment = {
@@ -44,6 +46,12 @@ export type DesktopPlatformEnvironment = {
 
 type BrowserLikeGlobal = typeof globalThis & {
   __TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__?: DesktopPlatformEnvironment;
+  __TIKZ_EDITOR_DESKTOP_TEST_API__?: {
+    setBridgeOverride: (bridge: DesktopBridge | null) => void;
+    dispatchCommand: (commandId: AppMenuCommandId) => void;
+    triggerOpenRequest: (opened: { source: string; path: string; name: string }) => void;
+    triggerWindowCloseRequest: () => void;
+  };
 };
 
 function readInjectedTestEnvironment(): DesktopPlatformEnvironment {
@@ -117,6 +125,10 @@ function createDefaultBridge(): DesktopBridge {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       await getCurrentWindow().setTitle(title);
     },
+    closeWindow: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_confirm_window_close");
+    },
     onMenuCommand: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
       return await listen<string>("desktop-menu-command", (event) => {
@@ -132,6 +144,12 @@ function createDefaultBridge(): DesktopBridge {
           handler(event.payload);
         }
       });
+    },
+    onWindowCloseRequest: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen("desktop-window-close-request", () => {
+        handler();
+      });
     }
   };
 }
@@ -139,24 +157,28 @@ function createDefaultBridge(): DesktopBridge {
 export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {}): EditorPlatform {
   const mergedEnv = { ...readInjectedTestEnvironment(), ...env };
   const storage = resolveStorage(mergedEnv);
-  const bridge = mergedEnv.bridge ?? createDefaultBridge();
+  const defaultBridge = mergedEnv.bridge ?? createDefaultBridge();
+  let bridgeOverride: DesktopBridge | null = null;
+  const getBridge = () => bridgeOverride ?? readInjectedTestEnvironment().bridge ?? mergedEnv.bridge ?? defaultBridge;
   let menuHandler: MenuCommandHandler | null = null;
   let openRequestHandler: ((opened: { source: string; fileRef: DocumentFileRef | null }) => void) | null = null;
+  let closeRequestHandler: (() => void) | null = null;
   let menuUnlistenPromise: Promise<(() => void) | null> | null = null;
   let openRecentUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let windowCloseUnlistenPromise: Promise<(() => void) | null> | null = null;
 
   function ensureNativeEventHooks(): void {
     if (!menuUnlistenPromise) {
-      menuUnlistenPromise = bridge.onMenuCommand((commandId) => {
+      menuUnlistenPromise = getBridge().onMenuCommand((commandId) => {
         menuHandler?.(commandId, "platform");
       }).catch(() => null);
     }
     if (!openRecentUnlistenPromise) {
-      openRecentUnlistenPromise = bridge.onOpenRecent((path) => {
+      openRecentUnlistenPromise = getBridge().onOpenRecent((path) => {
         if (!openRequestHandler) {
           return;
         }
-        void bridge.openText(path).then((opened) => {
+        void getBridge().openText(path).then((opened) => {
           if (!opened) {
             return;
           }
@@ -167,9 +189,32 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         });
       }).catch(() => null);
     }
+    if (!windowCloseUnlistenPromise) {
+      windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
+        closeRequestHandler?.();
+      }).catch(() => null);
+    }
   }
 
   ensureNativeEventHooks();
+
+  (globalThis as BrowserLikeGlobal).__TIKZ_EDITOR_DESKTOP_TEST_API__ = {
+    setBridgeOverride: (bridge) => {
+      bridgeOverride = bridge;
+    },
+    dispatchCommand: (commandId) => {
+      menuHandler?.(commandId, "platform");
+    },
+    triggerOpenRequest: (opened) => {
+      openRequestHandler?.({
+        source: opened.source,
+        fileRef: toDesktopFileRef(opened.path, opened.name)
+      });
+    },
+    triggerWindowCloseRequest: () => {
+      closeRequestHandler?.();
+    }
+  };
 
   return {
     id: "desktop-tauri",
@@ -180,9 +225,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       }
     },
     clipboard: {
-      readText: async () => await bridge.readClipboard(),
+      readText: async () => await getBridge().readClipboard(),
       writeText: async (text) => {
-        await bridge.writeClipboard(text);
+        await getBridge().writeClipboard(text);
       }
     },
     menu: {
@@ -203,7 +248,19 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       setDocumentState: ({ title, dirty }) => {
         const baseTitle = title ?? "TikZ Editor";
         const fullTitle = dirty ? `• ${baseTitle}` : baseTitle;
-        void bridge.setWindowTitle(fullTitle);
+        void getBridge().setWindowTitle(fullTitle);
+      },
+      bindCloseRequest: (handler) => {
+        closeRequestHandler = handler;
+        ensureNativeEventHooks();
+        return () => {
+          if (closeRequestHandler === handler) {
+            closeRequestHandler = null;
+          }
+        };
+      },
+      close: async () => {
+        await getBridge().closeWindow();
       }
     },
     files: {
@@ -217,7 +274,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         };
       },
       openText: async () => {
-        const opened = await bridge.openText(null);
+        const opened = await getBridge().openText(null);
         if (!opened) {
           return null;
         }
@@ -229,24 +286,29 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       saveText: async (text, options) => {
         const mode = options?.mode ?? "save";
         const currentRef = options?.fileRef ?? null;
-        const result = await bridge.saveText({
-          text,
-          suggestedName: options?.suggestedName ?? currentRef?.name ?? "tikz-document.tex",
-          path: currentRef?.provider === "desktop-fs" ? (currentRef.path ?? null) : null,
-          forceSaveAs: mode === "save-as"
-        });
+        let result: DesktopSaveTextResult;
+        try {
+          result = await getBridge().saveText({
+            text,
+            suggestedName: options?.suggestedName ?? currentRef?.name ?? "tikz-document.tex",
+            path: currentRef?.provider === "desktop-fs" ? (currentRef.path ?? null) : null,
+            forceSaveAs: mode === "save-as"
+          });
+        } catch (error) {
+          return { status: "failed", fileRef: currentRef };
+        }
         if (!result.ok || !result.path || !result.name) {
-          return { ok: false, fileRef: currentRef };
+          return { status: "cancelled", fileRef: currentRef };
         }
         return {
-          ok: true,
+          status: "saved",
           fileRef: toDesktopFileRef(result.path, result.name)
         };
       },
       exportFile: async (content, options) => {
         const blob = new Blob(content, { type: options.mimeType });
         const arrayBuffer = await blob.arrayBuffer();
-        return await bridge.exportFile({
+        return await getBridge().exportFile({
           fileName: options.fileName,
           mimeType: options.mimeType,
           bytesBase64: base64FromBytes(new Uint8Array(arrayBuffer))

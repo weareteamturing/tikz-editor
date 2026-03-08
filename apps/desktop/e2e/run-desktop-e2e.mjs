@@ -1,0 +1,287 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawn, spawnSync } from "node:child_process";
+import { remote } from "webdriverio";
+
+const appPath = resolveAppBinary();
+
+if (!fs.existsSync(appPath)) {
+  throw new Error(`Desktop binary not found at ${appPath}. Run "npm run tauri:build -- --no-bundle" first.`);
+}
+
+const driverProbe = spawnSync("tauri-driver", ["--help"], { encoding: "utf8" });
+if (driverProbe.error) {
+  throw new Error("tauri-driver is required for desktop e2e. Install it with: cargo install tauri-driver --locked");
+}
+if (driverProbe.status !== 0) {
+  const output = `${driverProbe.stdout ?? ""}\n${driverProbe.stderr ?? ""}`.toLowerCase();
+  if (output.includes("not supported on this platform")) {
+    console.log("Skipping desktop e2e: tauri-driver is not supported on this platform.");
+    process.exit(0);
+  }
+  throw new Error(`tauri-driver check failed:\n${driverProbe.stderr ?? driverProbe.stdout ?? ""}`);
+}
+
+const driver = spawn("tauri-driver", [], {
+  stdio: "pipe"
+});
+
+driver.stderr.on("data", (chunk) => {
+  process.stderr.write(chunk);
+});
+
+await waitForDriverReady(driver);
+
+const browser = await createSession(appPath);
+
+try {
+  await installDeterministicBridge(browser);
+  await scenarioBootAndTabLifecycle(browser);
+  await scenarioIsolationAndRestore(browser);
+  await scenarioExampleOpen(browser);
+  await scenarioOpenSaveSaveAs(browser);
+  await scenarioExportSmoke(browser);
+  await scenarioUnsavedGuard(browser);
+} finally {
+  await browser.deleteSession().catch(() => undefined);
+  driver.kill("SIGTERM");
+}
+
+function resolveAppBinary() {
+  const root = process.cwd();
+  const plain = path.resolve(root, "src-tauri/target/release/app");
+  if (fs.existsSync(plain)) {
+    return plain;
+  }
+  if (process.platform === "darwin") {
+    return path.resolve(root, "src-tauri/target/release/app.app/Contents/MacOS/app");
+  }
+  if (process.platform === "win32") {
+    return path.resolve(root, "src-tauri/target/release/app.exe");
+  }
+  return plain;
+}
+
+async function waitForDriverReady(driverProcess) {
+  const deadline = Date.now() + 30_000;
+  let stdout = "";
+  while (Date.now() < deadline) {
+    const chunk = await new Promise((resolve) => {
+      let resolved = false;
+      const onData = (data) => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        driverProcess.stdout.off("data", onData);
+        resolve(data.toString("utf8"));
+      };
+      driverProcess.stdout.on("data", onData);
+      setTimeout(() => {
+        if (resolved) {
+          return;
+        }
+        resolved = true;
+        driverProcess.stdout.off("data", onData);
+        resolve("");
+      }, 400);
+    });
+    stdout += chunk;
+    if (/listening|webdriver|ready/i.test(stdout)) {
+      return;
+    }
+    if (driverProcess.exitCode != null) {
+      throw new Error(`tauri-driver exited early with code ${driverProcess.exitCode}`);
+    }
+  }
+  throw new Error("Timed out waiting for tauri-driver to become ready.");
+}
+
+async function createSession(application) {
+  const deadline = Date.now() + 20_000;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      return await remote({
+        hostname: "127.0.0.1",
+        port: 4444,
+        path: "/",
+        capabilities: {
+          browserName: "wry",
+          "tauri:options": {
+            application
+          }
+        },
+        logLevel: "error"
+      });
+    } catch (error) {
+      lastError = error;
+      await delay(500);
+    }
+  }
+  throw new Error(`Unable to create desktop WebDriver session: ${String(lastError)}`);
+}
+
+async function installDeterministicBridge(browserInstance) {
+  await browserInstance.execute(() => {
+    const writes = [];
+    const exports = [];
+    const bridge = {
+      openText: async (path) => {
+        const resolvedPath = path ?? "/tmp/opened-from-e2e.tex";
+        return {
+          source: "\\\\draw (9,9)--(10,10); % desktop-opened",
+          path: resolvedPath,
+          name: resolvedPath.split("/").pop() ?? "opened-from-e2e.tex"
+        };
+      },
+      saveText: async ({ text, suggestedName, path, forceSaveAs }) => {
+        const computedPath =
+          forceSaveAs || !path
+            ? `/tmp/${(suggestedName ?? "tikz-document").replace(/[^A-Za-z0-9_.-]/g, "_")}`
+            : path;
+        writes.push({ text, path: computedPath, forceSaveAs });
+        return {
+          ok: true,
+          path: computedPath,
+          name: computedPath.split("/").pop() ?? "tikz-document.tex"
+        };
+      },
+      exportFile: async ({ fileName }) => {
+        exports.push(fileName);
+        return true;
+      },
+      readClipboard: async () => "",
+      writeClipboard: async () => undefined,
+      setWindowTitle: async (title) => {
+        window.__DESKTOP_E2E_TITLE__ = title;
+      },
+      closeWindow: async () => {
+        window.__DESKTOP_E2E_CLOSED__ = true;
+      },
+      onMenuCommand: async () => () => undefined,
+      onOpenRecent: async () => () => undefined,
+      onWindowCloseRequest: async () => () => undefined
+    };
+    window.__DESKTOP_E2E_WRITES__ = writes;
+    window.__DESKTOP_E2E_EXPORTS__ = exports;
+    window.__DESKTOP_E2E_CLOSED__ = false;
+    window.__TIKZ_EDITOR_DESKTOP_TEST_API__.setBridgeOverride(bridge);
+  });
+}
+
+async function scenarioBootAndTabLifecycle(browserInstance) {
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+  await dispatchCommand(browserInstance, "file.new-document");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 2);
+  await dispatchCommand(browserInstance, "file.close-all-documents");
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 1);
+}
+
+async function scenarioIsolationAndRestore(browserInstance) {
+  await setSource(browserInstance, "\\draw (0,0)--(1,0); % doc1");
+  await dispatchCommand(browserInstance, "file.new-document");
+  await setSource(browserInstance, "\\draw (2,0)--(3,0); % doc2");
+
+  const tabs = await browserInstance.$$("[data-testid^='tab-switch-']");
+  await tabs[0].click();
+  await expectTextContains(browserInstance, ".cm-content", "% doc1");
+  await tabs[1].click();
+  await expectTextContains(browserInstance, ".cm-content", "% doc2");
+
+  await browserInstance.refresh();
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", 2);
+}
+
+async function scenarioExampleOpen(browserInstance) {
+  const before = await count(browserInstance, "[data-testid^='tab-switch-']");
+  await dispatchCommand(browserInstance, "file.open-example");
+  await browserInstance.$("[data-testid^='open-example-card-']").click();
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", before + 1);
+}
+
+async function scenarioOpenSaveSaveAs(browserInstance) {
+  await dispatchCommand(browserInstance, "file.open-document");
+  await expectTextContains(browserInstance, ".cm-content", "desktop-opened");
+
+  await dispatchCommand(browserInstance, "file.save-document");
+  await dispatchCommand(browserInstance, "file.save-document-as");
+  const writes = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__.length);
+  assert.ok(writes >= 2, "expected at least two writes after save and save as");
+}
+
+async function scenarioExportSmoke(browserInstance) {
+  await dispatchCommand(browserInstance, "file.export-svg-download");
+  await browserInstance.$("button=Cancel").click();
+
+  await dispatchCommand(browserInstance, "file.export-png-download");
+  await browserInstance.$("button=Cancel").click();
+
+  await dispatchCommand(browserInstance, "file.export-pdf-download");
+  await dispatchCommand(browserInstance, "file.export-standalone-latex-download");
+
+  const exports = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORTS__);
+  assert.ok(exports.includes("tikz-export.pdf"), "expected PDF export to run");
+  assert.ok(exports.includes("tikz-export.tex"), "expected LaTeX export to run");
+}
+
+async function scenarioUnsavedGuard(browserInstance) {
+  await setSource(browserInstance, "\\draw (5,5)--(6,6); % dirty-close");
+  const initialTabs = await count(browserInstance, "[data-testid^='tab-switch-']");
+
+  await dispatchCommand(browserInstance, "file.close-document");
+  await browserInstance.$("[data-testid='unsaved-changes-modal']").waitForExist();
+  await browserInstance.$("[data-testid='unsaved-cancel']").click();
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", initialTabs);
+
+  await dispatchCommand(browserInstance, "file.close-document");
+  await browserInstance.$("[data-testid='unsaved-save']").click();
+  await expectCount(browserInstance, "[data-testid^='tab-switch-']", Math.max(1, initialTabs - 1));
+
+  await setSource(browserInstance, "\\draw (7,7)--(8,8); % dirty-window-close");
+  await browserInstance.execute(() => {
+    window.__TIKZ_EDITOR_DESKTOP_TEST_API__.triggerWindowCloseRequest();
+  });
+  await browserInstance.$("[data-testid='unsaved-changes-modal']").waitForExist();
+  await browserInstance.$("[data-testid='unsaved-discard']").click();
+  const closed = await browserInstance.execute(() => window.__DESKTOP_E2E_CLOSED__);
+  assert.equal(closed, true, "window close should be confirmed after discard");
+}
+
+async function dispatchCommand(browserInstance, commandId) {
+  await browserInstance.execute((id) => {
+    window.__TIKZ_EDITOR_DESKTOP_TEST_API__.dispatchCommand(id);
+  }, commandId);
+}
+
+async function setSource(browserInstance, value) {
+  await browserInstance.execute((nextSource) => {
+    window.__TIKZ_EDITOR_APP_TEST_API__.setSource(nextSource);
+  }, value);
+}
+
+async function expectCount(browserInstance, selector, expectedCount) {
+  await browserInstance.waitUntil(async () => (await count(browserInstance, selector)) === expectedCount, {
+    timeout: 10_000,
+    timeoutMsg: `Expected ${selector} count to become ${expectedCount}`
+  });
+}
+
+async function count(browserInstance, selector) {
+  return (await browserInstance.$$(selector)).length;
+}
+
+async function expectTextContains(browserInstance, selector, snippet) {
+  await browserInstance.waitUntil(async () => {
+    const text = await browserInstance.$(selector).getText();
+    return text.includes(snippet);
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Expected ${selector} text to include ${snippet}`
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

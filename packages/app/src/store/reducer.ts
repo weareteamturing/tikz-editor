@@ -24,7 +24,7 @@ export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={
         (C) edge (A);
 \end{tikzpicture}`;
 
-const WORKSPACE_VERSION = 2;
+const WORKSPACE_VERSION = 3;
 export { WORKSPACE_VERSION };
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
@@ -90,7 +90,7 @@ function initialWorkspaceState(): WorkspacePersistedState {
     documents: { [first.id]: first },
     tabOrder: [first.id],
     activeDocumentId: first.id,
-    recentDocumentIds: []
+    recentDocumentIds: [first.id]
   };
 }
 
@@ -130,12 +130,14 @@ function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedS
     return initialWorkspaceState();
   }
   const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0]!;
+  const seededRecents = (seed.recentDocumentIds ?? []).filter((id) => docs[id]);
+  const normalizedRecents = seededRecents.length > 0 ? seededRecents : [activeDocumentId];
   return {
     workspaceVersion: WORKSPACE_VERSION,
     documents: docs,
     tabOrder: fallbackOrder,
     activeDocumentId,
-    recentDocumentIds: (seed.recentDocumentIds ?? []).filter((id) => docs[id])
+    recentDocumentIds: normalizedRecents
   };
 }
 
@@ -226,6 +228,20 @@ function updateDocument(
   };
 }
 
+function rememberRecentDocument(workspace: WorkspacePersistedState, documentId: string): WorkspacePersistedState {
+  if (!workspace.documents[documentId]) {
+    return workspace;
+  }
+  const nextRecents = [
+    documentId,
+    ...workspace.recentDocumentIds.filter((id) => id !== documentId && workspace.documents[id])
+  ].slice(0, 24);
+  return {
+    ...workspace,
+    recentDocumentIds: nextRecents
+  };
+}
+
 function activeDocumentIdFromAction(state: EditorState, documentId?: string): string {
   return documentId ?? state.workspace.activeDocumentId;
 }
@@ -280,6 +296,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         tabOrder: [...workspace.tabOrder, next.id],
         activeDocumentId: next.id
       };
+      workspace = rememberRecentDocument(workspace, next.id);
       break;
     }
 
@@ -294,6 +311,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         tabOrder: [...workspace.tabOrder, next.id],
         activeDocumentId: next.id
       };
+      workspace = rememberRecentDocument(workspace, next.id);
       break;
     }
 
@@ -305,6 +323,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...workspace,
         activeDocumentId: action.documentId
       };
+      workspace = rememberRecentDocument(workspace, action.documentId);
       break;
     }
 
@@ -322,7 +341,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...workspace,
           documents: { [replacement.id]: replacement },
           tabOrder: [replacement.id],
-          activeDocumentId: replacement.id
+          activeDocumentId: replacement.id,
+          recentDocumentIds: [replacement.id]
         };
         break;
       }
@@ -334,8 +354,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...workspace,
         documents: nextDocs,
         tabOrder: nextOrder,
-        activeDocumentId: nextActiveId
+        activeDocumentId: nextActiveId,
+        recentDocumentIds: workspace.recentDocumentIds.filter((id) => id !== closeId && nextDocs[id])
       };
+      workspace = rememberRecentDocument(workspace, nextActiveId);
       break;
     }
 
@@ -345,7 +367,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...workspace,
         documents: { [replacement.id]: replacement },
         tabOrder: [replacement.id],
-        activeDocumentId: replacement.id
+        activeDocumentId: replacement.id,
+        recentDocumentIds: [replacement.id]
       };
       break;
     }
