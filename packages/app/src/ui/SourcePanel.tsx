@@ -729,7 +729,7 @@ export function SourcePanel() {
 
   return (
     <div className={css.panel}>
-      <div className={css.header}>Source</div>
+
       <div className={[css.editorWrap, editorLineNumbers ? "" : css.hideLineNumbers].filter(Boolean).join(" ")} ref={editorRef} />
       {assistantLockReason ? <div className={css.lockBanner}>{assistantLockReason}</div> : null}
       {activeColorPicker && inlineColorPopoverStyle ? (

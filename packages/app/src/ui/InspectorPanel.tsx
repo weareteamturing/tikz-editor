@@ -3683,7 +3683,7 @@ export function InspectorPanel() {
 
   return (
     <div className={css.panel}>
-      <div className={css.header}>Inspector</div>
+
       <div className={css.content}>
         {selectedSourceIds.length === 0 ? (
           renderGlobalTransformPanel()

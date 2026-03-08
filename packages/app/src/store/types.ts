@@ -188,6 +188,7 @@ export type EditorAction =
     }
   | { type: "COMPUTE_REQUESTED"; requestId: string; documentId?: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot; documentId?: string }
+  | { type: "REORDER_TABS"; fromId: string; toId: string }
   | { type: "SET_RIGHT_SIDEBAR_TAB"; tab: "inspector" | "assistant" }
   | {
       type: "ASSISTANT_THREAD_READY";

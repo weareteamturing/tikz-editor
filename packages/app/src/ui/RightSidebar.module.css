@@ -8,24 +8,58 @@
 
 .tabs {
   display: flex;
-  gap: 6px;
-  padding: 6px;
+  align-items: flex-end;
+  gap: 0;
+  padding: 0 8px;
+  padding-top: 4px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(246, 249, 252, 0.95) 100%);
+  background: var(--bg-app);
+  flex-shrink: 0;
 }
 
 .tab {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--text-muted);
-  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  position: relative;
+  margin-bottom: -1px;
+  transition: background 0.05s ease;
+}
+
+.tab::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--border);
+}
+
+.tab:last-child::after,
+.tabActive::after,
+.tab:has(+ .tabActive)::after {
+  display: none;
+}
+
+.tab:hover:not(.tabActive) {
+  background: color-mix(in srgb, var(--btn-hover-bg) 40%, transparent);
 }
 
 .tabActive {
-  background: #10263f;
-  color: white;
-  border-color: #10263f;
+  background: var(--bg-pane);
+  border-color: var(--border);
+  border-bottom: 1px solid var(--bg-pane);
+  z-index: 1;
 }
 
 .body {

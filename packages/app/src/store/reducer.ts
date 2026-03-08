@@ -384,6 +384,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
     }
 
+    case "REORDER_TABS": {
+      const fromIndex = workspace.tabOrder.indexOf(action.fromId);
+      const toIndex = workspace.tabOrder.indexOf(action.toId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) break;
+      const next = [...workspace.tabOrder];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, action.fromId);
+      workspace = { ...workspace, tabOrder: next };
+      break;
+    }
+
     case "CLOSE_DOCUMENT": {
       const closeId = action.documentId ?? workspace.activeDocumentId;
       if (!workspace.documents[closeId]) {
