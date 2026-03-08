@@ -542,7 +542,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const item = action.item;
       workspace = updateDocument(workspace, documentId, (doc) => ({
         ...doc,
-        assistantItems: mergeAssistantItem(doc.assistantItems, item)
+        assistantItems: mergeAssistantItem(
+          item.type === "userMessage"
+            ? doc.assistantItems.filter((entry) => !entry.id.startsWith("optimistic-user-message:"))
+            : doc.assistantItems,
+          item
+        )
       }));
       break;
     }

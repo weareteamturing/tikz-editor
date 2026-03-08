@@ -1,6 +1,9 @@
 mod assistant;
 
-use assistant::{AssistantState, AssistantThreadStatePayload, AssistantThreadSummary};
+use assistant::{
+    AssistantAccountSnapshot, AssistantModelOption, AssistantState, AssistantThreadStatePayload,
+    AssistantThreadSummary,
+};
 use base64::Engine;
 use rfd::FileDialog;
 use serde::Serialize;
@@ -272,9 +275,24 @@ fn desktop_assistant_start_turn(
     prompt: String,
     source: String,
     pngBase64: Option<String>,
+    threadId: Option<String>,
+    workspacePath: Option<String>,
+    figurePath: Option<String>,
+    previewPath: Option<String>,
+    model: Option<String>,
     assistant: tauri::State<'_, AssistantState>,
 ) -> Result<serde_json::Value, String> {
-    let turn_id = assistant.start_turn(documentId, prompt, source, pngBase64)?;
+    let turn_id = assistant.start_turn(
+        documentId,
+        prompt,
+        source,
+        pngBase64,
+        threadId,
+        workspacePath,
+        figurePath,
+        previewPath,
+        model,
+    )?;
     Ok(serde_json::json!({ "turnId": turn_id }))
 }
 
@@ -328,6 +346,20 @@ fn desktop_assistant_load_thread_state(
     assistant.load_thread_state(documentId)
 }
 
+#[tauri::command]
+fn desktop_assistant_list_models(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<Vec<AssistantModelOption>, String> {
+    assistant.list_models()
+}
+
+#[tauri::command]
+fn desktop_assistant_read_account_snapshot(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<AssistantAccountSnapshot, String> {
+    assistant.read_account_snapshot()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -371,7 +403,9 @@ pub fn run() {
             desktop_assistant_sync_source,
             desktop_assistant_respond_to_approval,
             desktop_assistant_respond_to_dynamic_tool_call,
-            desktop_assistant_load_thread_state
+            desktop_assistant_load_thread_state,
+            desktop_assistant_list_models,
+            desktop_assistant_read_account_snapshot
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

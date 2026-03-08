@@ -58,6 +58,12 @@
   background: #ffffff;
 }
 
+.reasoningCard {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(24, 55, 90, 0.08);
+  box-shadow: none;
+}
+
 .cardTitle {
   margin-bottom: 6px;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
@@ -70,6 +76,30 @@
 .messageBody {
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   line-height: 1.5;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reasoningBody {
+  color: color-mix(in srgb, var(--text) 62%, white);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  line-height: 1.45;
+}
+
+.reasoningBody :global(pre) {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.reasoningBody :global(strong) {
+  font-weight: 600;
+}
+
+.reasoningInline {
+  padding: 0 2px;
 }
 
 .messageBody :global(p:first-child) {
@@ -78,6 +108,18 @@
 
 .messageBody :global(p:last-child) {
   margin-bottom: 0;
+}
+
+.messageBody :global(ol),
+.messageBody :global(ul) {
+  margin: 6px 0;
+  padding-left: 1.2em;
+  list-style-position: inside;
+}
+
+.messageBody :global(li > p) {
+  display: inline;
+  margin: 0;
 }
 
 .details {
@@ -128,6 +170,49 @@
   background: white;
 }
 
+.accountMeta {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.composerRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.modelPicker {
+  min-width: 0;
+  flex: 1;
+}
+
+.dropdownMeta {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.modelTrigger {
+  border: 0;
+  background: color-mix(in srgb, var(--bg-pane) 86%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.modelMenu {
+  border-color: color-mix(in srgb, var(--border) 65%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, black 18%, transparent);
+}
+
+.modelOption {
+  border: 0;
+}
+
+.modelOptionSelected {
+  border: 0;
+  background: color-mix(in srgb, var(--accent-btn-bg) 68%, white);
+}
+
 .empty {
   color: var(--text-muted);
   padding: 16px;
@@ -140,4 +225,28 @@
   background: rgba(255, 240, 240, 0.95);
   color: #912b2b;
   padding: 10px;
+}
+
+.rawPrompt {
+  margin-top: 8px;
+}
+
+.rawPromptSummary {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-muted);
+}
+
+.attachmentHint {
+  margin-top: 6px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-muted);
+}
+
+.toolPreviewImage {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  margin-top: 6px;
 }

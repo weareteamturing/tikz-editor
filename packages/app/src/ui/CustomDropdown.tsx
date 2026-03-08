@@ -21,10 +21,17 @@ type CustomDropdownProps<TValue extends string> = {
   options: readonly CustomDropdownItem<TValue>[];
   value: TValue;
   onChange: (value: TValue) => void;
+  onOpen?: () => void;
   onOptionHover?: (value: TValue) => void;
   onOptionHoverEnd?: () => void;
   renderOption?: (option: CustomDropdownOption<TValue>, state: { selected: boolean }) => ReactNode;
   renderValue?: (option: CustomDropdownOption<TValue> | null) => ReactNode;
+  menuHeader?: ReactNode;
+  rootClassName?: string;
+  triggerClassName?: string;
+  menuClassName?: string;
+  optionClassName?: string;
+  optionSelectedClassName?: string;
 };
 
 const MENU_GAP_PX = 2;
@@ -40,10 +47,17 @@ export function CustomDropdown<TValue extends string>({
   options,
   value,
   onChange,
+  onOpen,
   onOptionHover,
   onOptionHoverEnd,
   renderOption,
-  renderValue
+  renderValue,
+  menuHeader,
+  rootClassName,
+  triggerClassName,
+  menuClassName,
+  optionClassName,
+  optionSelectedClassName
 }: CustomDropdownProps<TValue>) {
   const [open, setOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("down");
@@ -145,10 +159,10 @@ export function CustomDropdown<TValue extends string>({
   }, [open]);
 
   return (
-    <div className={css.root} ref={rootRef}>
+    <div className={[css.root, rootClassName].filter(Boolean).join(" ")} ref={rootRef}>
       <button
         type="button"
-        className={[css.trigger, open ? css.triggerOpen : ""].filter(Boolean).join(" ")}
+        className={[css.trigger, open ? css.triggerOpen : "", triggerClassName].filter(Boolean).join(" ")}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
@@ -161,6 +175,7 @@ export function CustomDropdown<TValue extends string>({
             closeMenu();
             return;
           }
+          onOpen?.();
           setOpen(true);
         }}
       >
@@ -176,7 +191,7 @@ export function CustomDropdown<TValue extends string>({
 
       {open ? (
         <div
-          className={[css.menu, menuPlacement === "up" ? css.menuUp : ""].filter(Boolean).join(" ")}
+          className={[css.menu, menuPlacement === "up" ? css.menuUp : "", menuClassName].filter(Boolean).join(" ")}
         >
           <div
             className={css.menuScroll}
@@ -186,6 +201,7 @@ export function CustomDropdown<TValue extends string>({
             ref={menuListRef}
             onPointerLeave={() => onOptionHoverEnd?.()}
           >
+            {menuHeader ? <div className={css.menuHeader}>{menuHeader}</div> : null}
             {options.map((item) => {
               if (!isCustomDropdownOption(item)) {
                 return <div key={item.id} role="separator" className={css.separator} />;
@@ -198,7 +214,12 @@ export function CustomDropdown<TValue extends string>({
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  className={[css.option, selected ? css.optionSelected : ""].filter(Boolean).join(" ")}
+                  className={[
+                    css.option,
+                    selected ? css.optionSelected : "",
+                    optionClassName,
+                    selected ? optionSelectedClassName : ""
+                  ].filter(Boolean).join(" ")}
                   onPointerEnter={() => onOptionHover?.(item.value)}
                   onClick={() => {
                     onChange(item.value);

@@ -1,8 +1,10 @@
 use base64::Engine;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
@@ -60,6 +62,7 @@ struct DocumentAssistantSession {
     items: Vec<Value>,
     pending_server_requests: HashMap<String, PendingServerRequest>,
     current_turn_id: Option<String>,
+    has_sent_initial_context: bool,
     last_seen_figure_source: String,
     revision_counter: u64,
 }
@@ -87,6 +90,19 @@ pub struct AssistantThreadStatePayload {
     #[serde(rename = "previewPath")]
     pub preview_path: String,
     pub items: Vec<Value>,
+}
+
+#[derive(Serialize)]
+pub struct AssistantModelOption {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Serialize)]
+pub struct AssistantAccountSnapshot {
+    pub account: Value,
+    #[serde(rename = "rateLimits")]
+    pub rate_limits: Value,
 }
 
 #[derive(Clone, Serialize)]
@@ -394,6 +410,7 @@ impl AssistantState {
         fs::create_dir_all(&workspace).map_err(|error| error.to_string())?;
         fs::write(&figure, &source).map_err(|error| error.to_string())?;
 
+        let resumed_existing_thread = thread_id.is_some();
         let thread_id = if let Some(existing_thread_id) = thread_id {
             let _ = self.request(
                 "thread/resume",
@@ -439,6 +456,7 @@ impl AssistantState {
             items: Vec::new(),
             pending_server_requests: HashMap::new(),
             current_turn_id: None,
+            has_sent_initial_context: resumed_existing_thread,
             last_seen_figure_source: source,
             revision_counter: 0,
         };
@@ -456,40 +474,60 @@ impl AssistantState {
         prompt: String,
         source: String,
         png_base64: Option<String>,
+        thread_id: Option<String>,
+        workspace_path: Option<String>,
+        figure_path: Option<String>,
+        preview_path: Option<String>,
+        model: Option<String>,
     ) -> Result<Option<String>, String> {
         let summary = self.ensure_document_thread(
             document_id.clone(),
             source.clone(),
-            None,
-            None,
-            None,
-            None,
+            thread_id,
+            workspace_path,
+            figure_path,
+            preview_path,
         )?;
         self.sync_source(document_id.clone(), source.clone())?;
         if let Some(base64_png) = png_base64 {
             write_base64_file(Path::new(&summary.preview_path), &base64_png)?;
         }
 
+        let is_first_turn = {
+            let docs = self
+                .inner
+                .documents
+                .lock()
+                .map_err(|_| "documents lock unavailable".to_string())?;
+            let session = docs
+                .get(&document_id)
+                .ok_or_else(|| "Assistant thread not initialized for document".to_string())?;
+            !session.has_sent_initial_context
+        };
         let input = build_turn_input(
             &summary.figure_path,
             &summary.preview_path,
             &prompt,
             &source,
+            is_first_turn,
         );
-        let result = self.request(
-      "turn/start",
-      json!({
-        "threadId": summary.thread_id,
-        "cwd": summary.workspace_path,
-        "input": input,
-        "approvalPolicy": self.inner.approval_policy.lock().map_err(|_| "approval policy unavailable".to_string())?.clone(),
-        "sandboxPolicy": {
-          "type": "workspaceWrite",
-          "writableRoots": [summary.workspace_path],
-          "networkAccess": false
+        let mut turn_start_params = json!({
+          "threadId": summary.thread_id,
+          "cwd": summary.workspace_path,
+          "input": input,
+          "approvalPolicy": self.inner.approval_policy.lock().map_err(|_| "approval policy unavailable".to_string())?.clone(),
+          "sandboxPolicy": {
+            "type": "workspaceWrite",
+            "writableRoots": [summary.workspace_path],
+            "networkAccess": false
+          }
+        });
+        if let Some(model) = model.filter(|value| !value.trim().is_empty()) {
+            if let Some(map) = turn_start_params.as_object_mut() {
+                map.insert("model".to_string(), Value::String(model));
+            }
         }
-      }),
-    )?;
+        let result = self.request("turn/start", turn_start_params)?;
 
         let turn_id = result
             .get("turn")
@@ -504,8 +542,48 @@ impl AssistantState {
             .get_mut(&document_id)
         {
             session.current_turn_id = turn_id.clone();
+            session.has_sent_initial_context = true;
         }
         Ok(turn_id)
+    }
+
+    pub fn list_models(&self) -> Result<Vec<AssistantModelOption>, String> {
+        let result = self.request(
+            "model/list",
+            json!({
+                "includeHidden": false
+            }),
+        )?;
+        let Some(models) = result.get("data").and_then(Value::as_array) else {
+            return Ok(Vec::new());
+        };
+        Ok(models
+            .iter()
+            .filter_map(|model| {
+                let id = model.get("id").and_then(Value::as_str)?.to_string();
+                let label = model
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .filter(|name| !name.trim().is_empty())
+                    .map(ToOwned::to_owned)
+                    .unwrap_or_else(|| id.clone());
+                Some(AssistantModelOption { id, label })
+            })
+            .collect())
+    }
+
+    pub fn read_account_snapshot(&self) -> Result<AssistantAccountSnapshot, String> {
+        self.ensure_process()?;
+        let account = self
+            .request("account/read", json!({ "refreshToken": false }))
+            .unwrap_or(Value::Null);
+        let rate_limits = self
+            .request("account/rateLimits/read", json!({}))
+            .unwrap_or(Value::Null);
+        Ok(AssistantAccountSnapshot {
+            account,
+            rate_limits,
+        })
     }
 
     pub fn interrupt_turn(&self, document_id: String) -> Result<(), String> {
@@ -1168,12 +1246,13 @@ fn resolve_workspace(
     if let Some(path) = provided {
         return Ok(PathBuf::from(path));
     }
+    let workspace_name = short_workspace_name(document_id);
     let base = app
         .path()
         .app_cache_dir()
         .map_err(|error| error.to_string())?
         .join("codex-assistant")
-        .join(document_id);
+        .join(workspace_name);
     Ok(base)
 }
 
@@ -1192,13 +1271,26 @@ fn build_turn_input(
     preview_path: &str,
     prompt: &str,
     source: &str,
+    is_first_turn: bool,
 ) -> Vec<Value> {
-    let mut input = vec![json!({
-      "type": "text",
-      "text": format!(
-        "You are helping edit the current TikZ figure. Edit `{figure_path}` in the current working directory when needed. The current figure source is:\n```tex\n{source}\n```\nUser request: {prompt}"
-      )
-    })];
+    let mut input = if is_first_turn {
+        vec![json!({
+          "type": "text",
+          "text": format!(
+            "You are assisting a user inside a WYSIWYG TikZ editor. The user edits the figure visually and sees the current TikZ source directly in the interface.\n\
+        Apply requested changes to `{figure_path}` as needed, but do not mention local filenames or paths in your user-facing response.\n\
+        After making edits, call the `get_latest_preview_png` tool to verify the rendered output before finalizing your response.\n\
+        Explain figure-level edits clearly and keep the response focused on what changed in the picture.\n\n\
+        Current figure source:\n```tex\n{source}\n```\n\n\
+        User request: {prompt}"
+          )
+        })]
+    } else {
+        vec![json!({
+          "type": "text",
+          "text": prompt
+        })]
+    };
     if Path::new(preview_path).exists() {
         input.push(json!({
           "type": "localImage",
@@ -1206,6 +1298,26 @@ fn build_turn_input(
         }));
     }
     input
+}
+
+fn short_workspace_name(document_id: &str) -> String {
+    let compact = document_id
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_lowercase();
+    if compact.len() >= 7 {
+        return compact.chars().take(7).collect();
+    }
+
+    let mut hasher = DefaultHasher::new();
+    document_id.hash(&mut hasher);
+    let hash_hex = format!("{:016x}", hasher.finish());
+    format!("{compact}{hash_hex}")
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .take(7)
+        .collect()
 }
 
 fn merge_json(existing: Value, incoming: Value) -> Value {

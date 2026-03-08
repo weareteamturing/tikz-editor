@@ -1,7 +1,9 @@
 import {
   APP_MENU_COMMAND_IDS,
+  type AssistantAccountSnapshot,
   type AssistantDynamicToolResult,
   type AssistantEvent,
+  type AssistantModelOption,
   type AssistantThreadState,
   type AssistantThreadSummary,
   type AppMenuCommandId,
@@ -57,7 +59,17 @@ type DesktopBridge = {
     figurePath?: string | null;
     previewPath?: string | null;
   }) => Promise<AssistantThreadSummary>;
-  assistantStartTurn?: (params: { documentId: string; prompt: string; source: string; pngBase64?: string | null }) => Promise<{ turnId: string | null }>;
+  assistantStartTurn?: (params: {
+    documentId: string;
+    prompt: string;
+    source: string;
+    pngBase64?: string | null;
+    threadId?: string | null;
+    workspacePath?: string | null;
+    figurePath?: string | null;
+    previewPath?: string | null;
+    model?: string | null;
+  }) => Promise<{ turnId: string | null }>;
   assistantInterruptTurn?: (params: { documentId: string }) => Promise<void>;
   assistantSyncSource?: (params: { documentId: string; source: string }) => Promise<void>;
   assistantRespondToApproval?: (params: {
@@ -71,6 +83,8 @@ type DesktopBridge = {
     result: AssistantDynamicToolResult;
   }) => Promise<void>;
   assistantLoadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  assistantListModels?: () => Promise<AssistantModelOption[]>;
+  assistantReadAccountSnapshot?: () => Promise<AssistantAccountSnapshot | null>;
   onAssistantEvent?: (handler: (event: AssistantEvent) => void) => Promise<() => void>;
 };
 
@@ -456,9 +470,19 @@ function createDefaultBridge(): DesktopBridge {
         previewPath
       });
     },
-    assistantStartTurn: async ({ documentId, prompt, source, pngBase64 }) => {
+    assistantStartTurn: async ({ documentId, prompt, source, pngBase64, threadId, workspacePath, figurePath, previewPath, model }) => {
       const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<{ turnId: string | null }>("desktop_assistant_start_turn", { documentId, prompt, source, pngBase64 });
+      return await invoke<{ turnId: string | null }>("desktop_assistant_start_turn", {
+        documentId,
+        prompt,
+        source,
+        pngBase64,
+        threadId,
+        workspacePath,
+        figurePath,
+        previewPath,
+        model
+      });
     },
     assistantInterruptTurn: async ({ documentId }) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -479,6 +503,14 @@ function createDefaultBridge(): DesktopBridge {
     assistantLoadThreadState: async ({ documentId }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantThreadState | null>("desktop_assistant_load_thread_state", { documentId });
+    },
+    assistantListModels: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<AssistantModelOption[]>("desktop_assistant_list_models");
+    },
+    assistantReadAccountSnapshot: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<AssistantAccountSnapshot | null>("desktop_assistant_read_account_snapshot");
     },
     onAssistantEvent: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
@@ -674,6 +706,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         await getBridge().assistantRespondToDynamicToolCall?.(params);
       },
       loadThreadState: async (params) => await getBridge().assistantLoadThreadState?.(params) ?? null,
+      listModels: async () => await getBridge().assistantListModels?.() ?? [],
+      readAccountSnapshot: async () => await getBridge().assistantReadAccountSnapshot?.() ?? null,
       bindEvents: (handler) => {
         let disposed = false;
         let unlisten: (() => void) | null = null;

@@ -85,6 +85,10 @@
   padding: 4px;
 }
 
+.menuHeader {
+  padding: 3px 6px 5px;
+}
+
 .menuUp {
   top: auto;
   bottom: calc(100% + 2px);

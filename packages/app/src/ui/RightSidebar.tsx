@@ -5,7 +5,7 @@ import { useEditorStore } from "../store/store";
 import css from "./RightSidebar.module.css";
 
 type RightSidebarProps = {
-  onSubmitPrompt: (prompt: string) => Promise<void>;
+  onSubmitPrompt: (prompt: string, model: string | null) => Promise<void>;
   onInterruptTurn: () => Promise<void>;
 };
 

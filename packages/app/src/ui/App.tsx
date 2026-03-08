@@ -352,100 +352,73 @@ export function App() {
     return typeof unbind === "function" ? unbind : undefined;
   }, [dispatch, platform.assistant]);
 
-  useEffect(() => {
-    const assistant = platform.assistant;
-    if (!assistant?.ensureDocumentThread) {
-      return;
-    }
-    void assistant.ensureDocumentThread({
-      documentId: activeDocumentId,
-      source,
-      threadId: activeAssistantDoc?.assistantThreadId ?? null,
-      workspacePath: activeAssistantDoc?.assistantWorkspacePath ?? null,
-      figurePath: activeAssistantDoc?.assistantFigurePath ?? null,
-      previewPath: activeAssistantDoc?.assistantPreviewPath ?? null
-    }).then((thread) => {
-      dispatch({
-        type: "ASSISTANT_THREAD_READY",
-        documentId: activeDocumentId,
-        threadId: thread.threadId,
-        workspacePath: thread.workspacePath,
-        figurePath: thread.figurePath,
-        previewPath: thread.previewPath
-      });
-      return assistant.loadThreadState?.({ documentId: activeDocumentId });
-    }).then((state) => {
-      if (state) {
-        dispatch({ type: "ASSISTANT_THREAD_LOADED", documentId: activeDocumentId, state });
-      }
-    }).catch((error) => {
-      dispatch({
-        type: "ASSISTANT_SET_ERROR",
-        documentId: activeDocumentId,
-        message: error instanceof Error ? error.message : String(error)
-      });
-    });
-  }, [
-    activeAssistantDoc?.assistantFigurePath,
-    activeAssistantDoc?.assistantPreviewPath,
-    activeAssistantDoc?.assistantThreadId,
-    activeAssistantDoc?.assistantWorkspacePath,
-    activeDocumentId,
-    dispatch,
-    platform.assistant,
-    source
-  ]);
-
-  useEffect(() => {
-    const assistant = platform.assistant;
-    if (!assistant?.syncSource || !activeAssistantDoc?.assistantThreadId) {
-      return;
-    }
-    if (activeAssistantDoc.assistantTurnStatus === "starting" || activeAssistantDoc.assistantTurnStatus === "inProgress") {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      void assistant.syncSource?.({ documentId: activeDocumentId, source }).catch((error) => {
-        dispatch({
-          type: "ASSISTANT_SET_ERROR",
-          documentId: activeDocumentId,
-          message: error instanceof Error ? error.message : String(error)
-        });
-      });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [activeAssistantDoc?.assistantThreadId, activeAssistantDoc?.assistantTurnStatus, activeDocumentId, dispatch, platform.assistant, source]);
-
-  async function buildCurrentPreviewBase64(): Promise<string | null> {
-    if (!snapshot.svg || snapshot.source !== source) {
+  async function buildCurrentPreviewBase64(sourceForDoc: string, snapshotForDoc: ComputeResponse["snapshot"]): Promise<string | null> {
+    if (!snapshotForDoc.svg || snapshotForDoc.source !== sourceForDoc) {
       return null;
     }
-    const rendered = await renderPngExport(snapshot.svg, { dpi: 144 });
+    const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144 });
     return await blobToBase64(rendered.blob);
   }
 
-  async function handleAssistantPrompt(prompt: string): Promise<void> {
+  async function handleAssistantPrompt(prompt: string, model: string | null): Promise<void> {
+    const documentId = activeDocumentId;
+    const currentDocument = documents[documentId];
+    const currentSource = currentDocument?.source ?? source;
+    const currentSnapshot = currentDocument?.snapshot ?? snapshot;
     dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
-    dispatch({ type: "ASSISTANT_TURN_STATUS", documentId: activeDocumentId, status: "starting", turnId: null });
+    dispatch({ type: "ASSISTANT_TURN_STATUS", documentId, status: "starting", turnId: null });
+    dispatch({
+      type: "ASSISTANT_ITEM_STARTED",
+      documentId,
+      item: {
+        type: "userMessage",
+        id: `optimistic-user-message:${documentId}:${Date.now()}`,
+        content: [{ type: "text", text: prompt }]
+      }
+    });
     try {
-      const pngBase64 = await buildCurrentPreviewBase64();
-      await platform.assistant?.startTurn?.({
-        documentId: activeDocumentId,
+      const assistant = platform.assistant;
+      const thread = await assistant?.ensureDocumentThread?.({
+        documentId,
+        source: currentSource,
+        threadId: currentDocument?.assistantThreadId ?? null,
+        workspacePath: currentDocument?.assistantWorkspacePath ?? null,
+        figurePath: currentDocument?.assistantFigurePath ?? null,
+        previewPath: currentDocument?.assistantPreviewPath ?? null
+      });
+      if (thread) {
+        dispatch({
+          type: "ASSISTANT_THREAD_READY",
+          documentId,
+          threadId: thread.threadId,
+          workspacePath: thread.workspacePath,
+          figurePath: thread.figurePath,
+          previewPath: thread.previewPath
+        });
+      }
+      const pngBase64 = await buildCurrentPreviewBase64(currentSource, currentSnapshot);
+      await assistant?.startTurn?.({
+        documentId,
         prompt,
-        source,
-        pngBase64
+        source: currentSource,
+        pngBase64,
+        threadId: thread?.threadId ?? currentDocument?.assistantThreadId ?? null,
+        workspacePath: thread?.workspacePath ?? currentDocument?.assistantWorkspacePath ?? null,
+        figurePath: thread?.figurePath ?? currentDocument?.assistantFigurePath ?? null,
+        previewPath: thread?.previewPath ?? currentDocument?.assistantPreviewPath ?? null,
+        model
       });
     } catch (error) {
       dispatch({
         type: "ASSISTANT_TURN_STATUS",
-        documentId: activeDocumentId,
+        documentId,
         status: "failed",
         turnId: null,
         error: error instanceof Error ? error.message : String(error)
       });
       dispatch({
         type: "ASSISTANT_SET_ERROR",
-        documentId: activeDocumentId,
+        documentId,
         message: error instanceof Error ? error.message : String(error)
       });
     }

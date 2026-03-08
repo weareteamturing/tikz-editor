@@ -61,7 +61,7 @@ export type AssistantItem =
   | {
       type: "commandExecution";
       id: string;
-      command?: string[];
+      command?: string | string[];
       cwd?: string;
       status?: string;
       aggregatedOutput?: string;
@@ -86,9 +86,9 @@ export type AssistantPendingApproval =
       threadId: string;
       turnId: string;
       reason?: string;
-      command?: string[];
+      command?: string | string[];
       cwd?: string;
-      availableDecisions?: string[];
+      availableDecisions?: unknown[];
     }
   | {
       kind: "fileChange";
@@ -120,6 +120,16 @@ export type AssistantThreadState = AssistantThreadSummary & {
   items: AssistantItem[];
 };
 
+export type AssistantModelOption = {
+  id: string;
+  label: string;
+};
+
+export type AssistantAccountSnapshot = {
+  account: unknown;
+  rateLimits: unknown;
+};
+
 export type AssistantDynamicToolResult = {
   success?: boolean;
   contentItems?: unknown[];
@@ -148,12 +158,24 @@ export type AssistantApi = {
     figurePath?: string | null;
     previewPath?: string | null;
   }) => Promise<AssistantThreadSummary>;
-  startTurn?: (params: { documentId: string; prompt: string; source: string; pngBase64?: string | null }) => Promise<{ turnId: string | null }>;
+  startTurn?: (params: {
+    documentId: string;
+    prompt: string;
+    source: string;
+    pngBase64?: string | null;
+    threadId?: string | null;
+    workspacePath?: string | null;
+    figurePath?: string | null;
+    previewPath?: string | null;
+    model?: string | null;
+  }) => Promise<{ turnId: string | null }>;
   interruptTurn?: (params: { documentId: string }) => Promise<void>;
   syncSource?: (params: { documentId: string; source: string }) => Promise<void>;
-  respondToApproval?: (params: { documentId: string; requestId: string; decision: "accept" | "acceptForSession" | "decline" | "cancel" }) => Promise<void>;
+  respondToApproval?: (params: { documentId: string; requestId: string; decision: "accept" | "acceptForSession" | "decline" | "cancel" | string }) => Promise<void>;
   respondToDynamicToolCall?: (params: { documentId: string; requestId: string; result: AssistantDynamicToolResult }) => Promise<void>;
   loadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  listModels?: () => Promise<AssistantModelOption[]>;
+  readAccountSnapshot?: () => Promise<AssistantAccountSnapshot | null>;
   bindEvents?: (handler: (event: AssistantEvent) => void) => (() => void) | void;
 };
 

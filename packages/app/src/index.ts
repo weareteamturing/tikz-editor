@@ -20,10 +20,12 @@ export type {
 } from "./context-menu/index.js";
 export type {
   AssistantApi,
+  AssistantAccountSnapshot,
   AssistantChatContent,
   AssistantDynamicToolResult,
   AssistantEvent,
   AssistantItem,
+  AssistantModelOption,
   AssistantPendingApproval,
   AssistantThreadState,
   AssistantThreadSummary,
