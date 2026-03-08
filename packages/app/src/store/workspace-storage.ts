@@ -55,8 +55,9 @@ function normalizeFileRef(raw: unknown): DocumentFileRef | null {
     kind,
     name: candidate.name,
     handleId: typeof candidate.handleId === "string" ? candidate.handleId : undefined,
+    path: typeof candidate.path === "string" ? candidate.path : undefined,
     provider:
-      candidate.provider === "browser-fsa" || candidate.provider === "download"
+      candidate.provider === "browser-fsa" || candidate.provider === "download" || candidate.provider === "desktop-fs"
         ? candidate.provider
         : undefined
   };

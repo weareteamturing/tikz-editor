@@ -22,8 +22,11 @@
     "compare:kottwitz-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book",
     "compare:kolda-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book",
     "dev:web": "npm run -w @tikz-editor/web dev",
+    "dev:desktop": "npm run -w @tikz-editor/desktop tauri:dev",
+    "build:desktop": "npm run -w @tikz-editor/desktop tauri:build",
     "test:e2e": "npm run -w @tikz-editor/web test:e2e",
-    "test:e2e:ci": "npm run -w @tikz-editor/web test:e2e:ci"
+    "test:e2e:ci": "npm run -w @tikz-editor/web test:e2e:ci",
+    "test:desktop:e2e": "npm run -w @tikz-editor/desktop test:e2e"
   },
   "keywords": [
     "tikz",

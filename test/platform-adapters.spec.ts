@@ -47,7 +47,29 @@ describe("platform adapter contracts", () => {
     });
   });
 
-  runPlatformContract("desktop adapter", () => createDesktopPlatformAdapter());
+  runPlatformContract("desktop adapter", () =>
+    (() => {
+      const storageMap = new Map<string, string>();
+      return createDesktopPlatformAdapter({
+      storage: {
+        getItem: (key) => storageMap.get(key) ?? null,
+        setItem: (key, value) => {
+          storageMap.set(key, value);
+        }
+      },
+      bridge: {
+        openText: async () => null,
+        saveText: async () => ({ ok: false, path: null, name: null }),
+        exportFile: async () => false,
+        readClipboard: async () => "",
+        writeClipboard: async () => undefined,
+        setWindowTitle: async () => undefined,
+        onMenuCommand: async () => () => undefined,
+        onOpenRecent: async () => () => undefined
+      }
+      });
+    })()
+  );
 
   it("web adapter clipboard read/write uses provided environment", async () => {
     let clipboardText = "";
@@ -66,20 +88,102 @@ describe("platform adapter contracts", () => {
   });
 
   it("desktop adapter clipboard round-trips text", async () => {
-    const platform = createDesktopPlatformAdapter();
+    let clipboardText = "";
+    const platform = createDesktopPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      bridge: {
+        openText: async () => null,
+        saveText: async () => ({ ok: false, path: null, name: null }),
+        exportFile: async () => false,
+        readClipboard: async () => clipboardText,
+        writeClipboard: async (text) => {
+          clipboardText = text;
+        },
+        setWindowTitle: async () => undefined,
+        onMenuCommand: async () => () => undefined,
+        onOpenRecent: async () => () => undefined
+      }
+    });
     await platform.clipboard?.writeText?.("desktop-hello");
     const read = await platform.clipboard?.readText?.();
     expect(read).toBe("desktop-hello");
   });
 
-  it("desktop saveText returns result object", async () => {
-    const platform = createDesktopPlatformAdapter();
+  it("desktop saveText returns desktop fileRef when save succeeds", async () => {
+    const platform = createDesktopPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      bridge: {
+        openText: async () => null,
+        saveText: async () => ({ ok: true, path: "/tmp/a.tex", name: "a.tex" }),
+        exportFile: async () => false,
+        readClipboard: async () => "",
+        writeClipboard: async () => undefined,
+        setWindowTitle: async () => undefined,
+        onMenuCommand: async () => () => undefined,
+        onOpenRecent: async () => () => undefined
+      }
+    });
     const result = await platform.files?.saveText?.("abc", {
       suggestedName: "a.tex",
       fileRef: { kind: "file", name: "a.tex" },
       mode: "save"
     });
-    expect(result).toEqual({ ok: false, fileRef: { kind: "file", name: "a.tex" } });
+    expect(result).toEqual({
+      ok: true,
+      fileRef: {
+        kind: "file",
+        name: "a.tex",
+        path: "/tmp/a.tex",
+        provider: "desktop-fs"
+      }
+    });
+  });
+
+  it("desktop adapter bindOpenRequest receives open recent files", async () => {
+    let openRecentHandler: ((path: string) => void) | null = null;
+    const platform = createDesktopPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      bridge: {
+        openText: async (path) =>
+          path
+            ? { source: "\\draw (0,0)--(1,1);", path, name: "recent.tex" }
+            : null,
+        saveText: async () => ({ ok: false, path: null, name: null }),
+        exportFile: async () => false,
+        readClipboard: async () => "",
+        writeClipboard: async () => undefined,
+        setWindowTitle: async () => undefined,
+        onMenuCommand: async () => () => undefined,
+        onOpenRecent: async (handler) => {
+          openRecentHandler = handler;
+          return () => {
+            if (openRecentHandler === handler) {
+              openRecentHandler = null;
+            }
+          };
+        }
+      }
+    });
+    let seenSource = "";
+    const unbind = platform.files?.bindOpenRequest?.((opened) => {
+      seenSource = opened.source;
+    });
+    openRecentHandler?.("/tmp/recent.tex");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(seenSource).toContain("\\draw");
+    if (typeof unbind === "function") {
+      unbind();
+    }
   });
 
   it("web adapter openText returns source and fileRef via fallback input", async () => {

@@ -41,7 +41,8 @@ export type DocumentFileRef = {
   kind: "virtual" | "file" | "browser-file";
   name: string;
   handleId?: string;
-  provider?: "browser-fsa" | "download";
+  path?: string;
+  provider?: "browser-fsa" | "download" | "desktop-fs";
 };
 
 export type DocumentSession = {

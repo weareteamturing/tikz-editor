@@ -146,6 +146,18 @@ export function App() {
   }, [commandRuntime]);
 
   useEffect(() => {
+    const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.((opened) => {
+      dispatch({
+        type: "NEW_DOCUMENT",
+        source: opened.source,
+        title: opened.fileRef?.name ?? "Opened document"
+      });
+      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: opened.fileRef });
+    });
+    return typeof unbind === "function" ? unbind : undefined;
+  }, [dispatch]);
+
+  useEffect(() => {
     getActiveEditorPlatform().window?.setDocumentState?.({
       title: "TikZ Editor",
       dirty: snapshot.source !== source
