@@ -116,6 +116,17 @@ blue
 \end{tikzpicture}`);
   });
 
+  it("normalizes spaces around top-level equals in inline option lists", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node[draw = red, shape = circle, fill=purple!10, node font = \ttfamily] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const formatted = formatTikzSource(source, { maxLineLength: 200 });
+    expect(formatted).toBe(String.raw`\begin{tikzpicture}
+  \node[draw=red, shape=circle, fill=purple!10, node font=\ttfamily] (C) at (0, 1.5) {C};
+\end{tikzpicture}`);
+  });
+
   it("honors disabled long-option reflow", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw[draw=red, line width=2pt, rounded corners=4pt, fill=blue!10] (0,0) rectangle (2,1);

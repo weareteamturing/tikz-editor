@@ -159,7 +159,7 @@ function rewriteOptionList(
 
   const inner = raw.slice(1, -1);
   const entries = splitTopLevelByComma(inner)
-    .map((entry) => entry.trim())
+    .map((entry) => normalizeOptionEntry(entry.trim()))
     .filter((entry) => entry.length > 0);
   if (entries.length < 2) {
     return null;
@@ -234,6 +234,62 @@ function splitTopLevelByComma(input: string): string[] {
 
   parts.push(input.slice(tokenStart));
   return parts;
+}
+
+function normalizeOptionEntry(entry: string): string {
+  const separatorIndex = findTopLevelEquals(entry);
+  if (separatorIndex < 0) {
+    return entry;
+  }
+
+  const key = entry.slice(0, separatorIndex).trimEnd();
+  const value = entry.slice(separatorIndex + 1).trimStart();
+  return `${key}=${value}`;
+}
+
+function findTopLevelEquals(input: string): number {
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    const char = input[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth += 1;
+      continue;
+    }
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+    if (char === "{") {
+      braceDepth += 1;
+      continue;
+    }
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+    if (char === "[") {
+      bracketDepth += 1;
+      continue;
+    }
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (char === "=" && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function findClosingBracket(source: string, openIndex: number): number {
