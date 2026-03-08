@@ -222,7 +222,11 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
                 </div>
               ) : (
                 <div className={css.previewStatus}>
-                  {preview.status === "loading" ? "Rendering preview..." : preview.message}
+                  {preview.status === "loading"
+                    ? "Rendering preview..."
+                    : preview.status === "error"
+                      ? preview.message
+                      : "Preview unavailable."}
                 </div>
               )}
             </div>

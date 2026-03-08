@@ -265,7 +265,7 @@ export function alignSelection(context: SelectionCommandContext, mode: AlignMode
               ? "align-middle"
               : "align-bottom";
 
-  const availability = availabilityFor(context, null);
+  const availability = availabilityFor(context);
   if (!availability[actionId].enabled) {
     return false;
   }
@@ -283,7 +283,7 @@ export function alignSelection(context: SelectionCommandContext, mode: AlignMode
 
 export function distributeSelection(context: SelectionCommandContext, axis: DistributeAxis): boolean {
   const actionId = axis === "horizontal" ? "distribute-horizontal" : "distribute-vertical";
-  const availability = availabilityFor(context, null);
+  const availability = availabilityFor(context);
   if (!availability[actionId].enabled) {
     return false;
   }
@@ -300,27 +300,27 @@ export function distributeSelection(context: SelectionCommandContext, axis: Dist
 }
 
 export function canCopySelection(context: SelectionCommandContext): boolean {
-  return availabilityFor(context, null).copy.enabled;
+  return availabilityFor(context).copy.enabled;
 }
 
 export function canDuplicateSelection(context: SelectionCommandContext): boolean {
-  return availabilityFor(context, null).duplicate.enabled;
+  return availabilityFor(context).duplicate.enabled;
 }
 
 export function canCutSelection(context: SelectionCommandContext): boolean {
-  const availability = availabilityFor(context, null);
+  const availability = availabilityFor(context);
   return availability.cut.enabled && availability.delete.enabled;
 }
 
 export function canDeleteSelection(context: SelectionCommandContext): boolean {
-  return availabilityFor(context, null).delete.enabled;
+  return availabilityFor(context).delete.enabled;
 }
 
 export function canReorderSelection(
   context: SelectionCommandContext,
   direction: ReorderDirection = "bringForward"
 ): boolean {
-  return availabilityFor(context, null)[reorderActionId(direction)].enabled;
+  return availabilityFor(context)[reorderActionId(direction)].enabled;
 }
 
 export function canPasteSelection(context: PasteCommandContext): boolean {
@@ -340,12 +340,12 @@ export function canAlignSelection(context: SelectionCommandContext, mode: AlignM
             : mode === "middle"
               ? "align-middle"
               : "align-bottom";
-  return availabilityFor(context, null)[actionId].enabled;
+  return availabilityFor(context)[actionId].enabled;
 }
 
 export function canDistributeSelection(context: SelectionCommandContext, axis: DistributeAxis): boolean {
   const actionId = axis === "horizontal" ? "distribute-horizontal" : "distribute-vertical";
-  return availabilityFor(context, null)[actionId].enabled;
+  return availabilityFor(context)[actionId].enabled;
 }
 
 export function actionAvailability(

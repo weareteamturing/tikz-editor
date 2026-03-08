@@ -11,10 +11,8 @@ export function loadSettings(): AppSettings {
   try {
     const raw = getActiveEditorPlatform().persistence.load(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsedRaw = JSON.parse(raw) as Partial<AppSettings> | { settingsVersion?: number; settings?: Partial<AppSettings> };
-    const parsed = "settings" in parsedRaw
-      ? (parsedRaw.settings ?? {})
-      : parsedRaw;
+    const parsedRaw = JSON.parse(raw) as unknown;
+    const parsed = unwrapStoredSettings(parsedRaw);
     const parsedFormatterMaxLineLength =
       typeof parsed.editor?.formatterMaxLineLength === "number"
         ? clampFormatterMaxLineLength(parsed.editor.formatterMaxLineLength)
@@ -41,6 +39,21 @@ export function loadSettings(): AppSettings {
   } catch {
     return DEFAULT_SETTINGS;
   }
+}
+
+function unwrapStoredSettings(
+  value: unknown
+): Partial<AppSettings> {
+  if (value == null || typeof value !== "object") {
+    return {};
+  }
+
+  const maybeWrapped = value as { settings?: unknown };
+  const candidate = "settings" in maybeWrapped ? maybeWrapped.settings : value;
+  if (candidate == null || typeof candidate !== "object") {
+    return {};
+  }
+  return candidate as Partial<AppSettings>;
 }
 
 function clampFormatterMaxLineLength(value: number): number {

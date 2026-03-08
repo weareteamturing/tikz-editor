@@ -76,6 +76,7 @@ type HandleDisplay =
       y: number;
       anchorX: number;
       anchorY: number;
+      centerWorld: Point;
       cursor: string;
       kind: "rotate-element";
       elementId: string;
@@ -883,14 +884,21 @@ export function HandleOverlay({
   return (
     <g className={css.handleOverlay}>
       {handleDisplays.map((display) => {
-        const onPointerDown = (event: ReactPointerEvent<SVGElement>) =>
-          display.kind === "move-handle"
-            ? onHandlePointerDown(event, display.handle)
-            : display.kind === "move-element"
-              ? onElementPointerDown(event, display.elementId)
-              : display.kind === "resize-element"
-                ? onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor)
-                : onRotateHandlePointerDown(event, display.elementId, display.centerWorld, display.cursor);
+        const onPointerDown = (event: ReactPointerEvent<SVGElement>) => {
+          if (display.kind === "move-handle") {
+            onHandlePointerDown(event, display.handle);
+            return;
+          }
+          if (display.kind === "move-element") {
+            onElementPointerDown(event, display.elementId);
+            return;
+          }
+          if (display.kind === "resize-element") {
+            onResizeHandlePointerDown(event, display.elementId, display.role, display.cursor);
+            return;
+          }
+          onRotateHandlePointerDown(event, display.elementId, display.centerWorld, display.cursor);
+        };
         const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
           onElementContextMenu(
             event,

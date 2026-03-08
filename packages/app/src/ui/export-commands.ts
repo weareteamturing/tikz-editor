@@ -446,5 +446,5 @@ function parseSvgDocument(text: string): SVGSVGElement | null {
   if (svgElement == null || svgElement.nodeName.toLowerCase() !== "svg") {
     return null;
   }
-  return svgElement as SVGSVGElement;
+  return svgElement as unknown as SVGSVGElement;
 }

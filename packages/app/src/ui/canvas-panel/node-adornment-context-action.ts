@@ -1,5 +1,5 @@
 import { parseTikz } from "tikz-editor/parser/index";
-import type { Statement } from "tikz-editor/ast/types";
+import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { extractNodeAdornmentPlan } from "tikz-editor/semantic/path/label-quotes";
@@ -81,7 +81,7 @@ export function resolveNodeAdornmentOwnerTargetId(source: string, targetId: stri
 
   const statements = parseTikz(source, { recover: true }).figure.body;
   const statement = findPathStatementById(statements, targetId);
-  const inlineNode = statement?.items.find((item) => item.kind === "Node");
+  const inlineNode = statement?.items.find((item: PathStatement["items"][number]) => item.kind === "Node");
   return inlineNode?.kind === "Node" ? inlineNode.id : null;
 }
 
@@ -111,13 +111,13 @@ export function resolveContextMenuAdornmentAngleKeyword(
   return ["right", "above right", "above", "above left", "left", "below left", "below", "below right"][octant] ?? "above";
 }
 
-function findPathStatementById(statements: readonly Statement[], sourceId: string) {
+function findPathStatementById(statements: readonly Statement[], sourceId: string): PathStatement | null {
   for (const statement of statements) {
     if (statement.kind === "Path" && statement.id === sourceId) {
       return statement;
     }
     if (statement.kind === "Scope") {
-      const nested = findPathStatementById(statement.body, sourceId);
+      const nested: PathStatement | null = findPathStatementById(statement.body, sourceId);
       if (nested) {
         return nested;
       }

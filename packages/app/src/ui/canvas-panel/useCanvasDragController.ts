@@ -206,6 +206,7 @@ export function useCanvasDragController(params: {
               shape: "rect",
               key: "",
               sourceId: drag.sourceId,
+              targetId: drag.sourceId,
               x: drag.cx - drag.width / 2,
               y: drag.cy - drag.height / 2,
               width: drag.width,

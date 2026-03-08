@@ -19,3 +19,4 @@ export type {
   CanvasContextMenuDefinition
 } from "./context-menu/index.js";
 export type { EditorPlatform, MenuCommandOrigin, MenuCommandHandler } from "./platform/types.js";
+export type { DocumentFileRef } from "./store/types.js";

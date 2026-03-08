@@ -883,19 +883,20 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
 
   const sameKind = properties.every((property) => property.kind === "arrowTip");
   if (!sameKind) return null;
+  const arrowBase = base as Extract<InspectorProperty, { kind: "arrowTip" }>;
   const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
   const values = arrowProperties.map((property) => property.value);
   const writes = arrowProperties.map((property) => property.write);
 
   return {
     kind: "arrowTip",
-    id: base.id,
-    label: base.label,
-    side: base.side,
+    id: arrowBase.id,
+    label: arrowBase.label,
+    side: arrowBase.side,
     value: values[0] ?? "none",
     mixed: !allValuesEqual(values),
     previewLineWidth: averageNumbers(arrowProperties.map((property) => property.previewLineWidth)),
-    options: base.options,
+    options: arrowBase.options,
     writes,
     readOnlyReason: deriveReadOnlyReason(writes)
   };
