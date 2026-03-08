@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { EditHandle, Point } from "../src/semantic/types.js";
-import type { NodeTextEngine } from "../src/text/types.js";
-import { identityMatrix } from "../src/semantic/transform.js";
-import { applyEditAction } from "../src/edit/actions.js";
-import { PT_PER_CM } from "../src/edit/format.js";
-import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../src/edit/property-target.js";
-import { computeSourceFingerprint } from "../src/utils/source-fingerprint.js";
-import { parseTikz } from "../src/parser/index.js";
-import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
+import type { NodeTextEngine } from "../packages/core/src/text/types.js";
+import { identityMatrix } from "../packages/core/src/semantic/transform.js";
+import { applyEditAction } from "../packages/core/src/edit/actions.js";
+import { PT_PER_CM } from "../packages/core/src/edit/format.js";
+import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
+import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 
 const cm = (v: number) => v * PT_PER_CM;
 

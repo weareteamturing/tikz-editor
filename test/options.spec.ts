@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseOptionListRaw, splitTopLevel } from "../src/options/parse.js";
+import { parseOptionListRaw, splitTopLevel } from "../packages/core/src/options/parse.js";
 
 describe("options parser", () => {
   it("splits top-level commas while preserving nested structures", () => {

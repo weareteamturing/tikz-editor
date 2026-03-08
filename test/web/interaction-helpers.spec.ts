@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { PT_PER_CM } from "../../src/edit/format.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import {
   createBezierTemplateFromBend,
   resolveBezierControlsFromBend,
   snapPointDeltaToAxisStepMultiples
-} from "../../web/src/ui/canvas-panel/interaction-helpers.js";
+} from "../../apps/web/src/ui/canvas-panel/interaction-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

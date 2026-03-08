@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseTikz } from "../src/parser/index.js";
-import { collectSymbols } from "../src/completion/index.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { collectSymbols } from "../packages/core/src/completion/index.js";
 
 describe("collectSymbols", () => {
   it("collects node names, coordinate names, and style names", () => {

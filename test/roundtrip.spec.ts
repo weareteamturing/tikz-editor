@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTikz } from "../src/parser/index.js";
-import { applyEdit } from "../src/edit/apply.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { applyEdit } from "../packages/core/src/edit/apply.js";
 import { loadFixture } from "./helpers.js";
 
 describe("roundtrip edits", () => {

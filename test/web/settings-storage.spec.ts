@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadSettings } from "../../web/src/settings/storage.js";
-import { DEFAULT_SETTINGS } from "../../web/src/settings/types.js";
+import { loadSettings } from "../../apps/web/src/settings/storage.js";
+import { DEFAULT_SETTINGS } from "../../apps/web/src/settings/types.js";
 
 const STORAGE_KEY = "tikz-editor:settings";
 

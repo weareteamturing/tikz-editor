@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { OptionListAst } from "../../src/options/types.js";
-import type { StyleChainEntry } from "../../src/semantic/style-chain.js";
+import type { OptionListAst } from "../../packages/core/src/options/types.js";
+import type { StyleChainEntry } from "../../packages/core/src/semantic/style-chain.js";
 import {
   cloneResolvedStyle,
   cloneStyleChain,
   cloneStyleChainEntry,
   diffResolvedStyle
-} from "../../src/semantic/style-chain.js";
-import { defaultStyle } from "../../src/semantic/style/defaults.js";
+} from "../../packages/core/src/semantic/style-chain.js";
+import { defaultStyle } from "../../packages/core/src/semantic/style/defaults.js";
 
 function makeOptionList(raw = "draw"): OptionListAst {
   return {

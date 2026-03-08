@@ -32,7 +32,7 @@ async function runCli() {
 
     const distModule = await import(pathToFileURL(distEntry).href);
     if (typeof distModule.extractTikzSnippetsFromSource !== "function") {
-      throw new Error("extractTikzSnippetsFromSource export not found in dist/index.js.");
+      throw new Error("extractTikzSnippetsFromSource export not found in packages/core/dist/index.js.");
     }
 
     const source = loadSnippetsForMode(args, distModule);

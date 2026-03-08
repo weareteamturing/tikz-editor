@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAdornmentDragPlacement } from "../../web/src/ui/canvas-panel/useCanvasDragController.js";
+import { resolveAdornmentDragPlacement } from "../../apps/web/src/ui/canvas-panel/useCanvasDragController.js";
 
 describe("adornment drag placement", () => {
   it("quantizes dragged adornment distance to 0.5pt increments", () => {

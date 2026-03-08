@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { SceneCircle, SceneElement } from "../src/semantic/types.js";
+import type { SceneCircle, SceneElement } from "../packages/core/src/semantic/types.js";
 import {
   buildSnapContext,
   selectionSnapPointsFromBounds,
   snapHandlePosition,
   snapSelectionTranslation,
   snapToolPointer
-} from "../src/edit/snapping/index.js";
+} from "../packages/core/src/edit/snapping/index.js";
 
 function makeCircle(sourceId: string, centerX: number, centerY: number, radius: number): SceneElement {
   const circle: SceneCircle = {

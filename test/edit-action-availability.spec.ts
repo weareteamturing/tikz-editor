@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getEditActionAvailability } from "../src/edit/action-availability.js";
-import { renderTikzToSvg } from "../src/render/index.js";
+import { getEditActionAvailability } from "../packages/core/src/edit/action-availability.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 
 describe("getEditActionAvailability", () => {
   it("gates align/distribute actions by selection size", () => {

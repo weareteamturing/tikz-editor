@@ -4,7 +4,7 @@ import {
   DEFAULT_PDF_EXPORT_FILE_NAME,
   normalizePdfExportFileName,
   PDF_EXPORT_MIME_TYPE
-} from "../src/export/index.js";
+} from "../packages/core/src/export/index.js";
 
 describe("PDF export helpers", () => {
   it("defaults to the standard export file name", () => {

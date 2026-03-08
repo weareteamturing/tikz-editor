@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
-import { PT_PER_CM } from "../../src/edit/format.js";
-import { resolveResizeFrameForSource } from "../../web/src/ui/canvas-panel/resize-frames";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
+import { resolveResizeFrameForSource } from "../../apps/web/src/ui/canvas-panel/resize-frames";
 
 const TEST_VIEW_BOX = {
   x: -200,

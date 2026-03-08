@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
-import { emitSvg, emitSvgModel } from "../../src/svg/emit.js";
-import { serializeSvgModel, serializeSvgModelAsync } from "../../src/svg/model.js";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import { emitSvg, emitSvgModel } from "../../packages/core/src/svg/emit.js";
+import { serializeSvgModel, serializeSvgModelAsync } from "../../packages/core/src/svg/model.js";
 
 describe("svg render model", () => {
   it("is deterministic for equivalent scene input", () => {

@@ -83,7 +83,7 @@ export async function compareTikzRenderers(options = {}) {
   const renderSync = typeof rendererModule.renderTikzToSvg === "function" ? rendererModule.renderTikzToSvg : null;
   if (!renderAsync && !renderSync) {
     throwWithReport(
-      "Neither renderTikzToSvgAsync nor renderTikzToSvg export found in dist/index.js.",
+      "Neither renderTikzToSvgAsync nor renderTikzToSvg export found in packages/core/dist/index.js.",
       reportPath,
       runDir,
       report

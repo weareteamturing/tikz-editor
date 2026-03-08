@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
 
 describe("semantic nodeAnchorTargets", () => {
   it("exports named node anchors with basic vs special tiers", () => {

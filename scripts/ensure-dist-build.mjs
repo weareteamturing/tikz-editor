@@ -7,20 +7,20 @@ const DIST_EXTENSIONS = new Set([".js", ".d.ts", ".map"]);
 let alreadyEnsured = false;
 
 export function ensureDistBuildFresh(repoRoot) {
-  const distEntry = join(repoRoot, "dist", "index.js");
+  const distEntry = join(repoRoot, "packages", "core", "dist", "index.js");
   if (alreadyEnsured && existsSync(distEntry)) {
     return distEntry;
   }
 
   if (!existsSync(distEntry) || isDistStale(repoRoot)) {
-    const build = spawnSync("npm", ["run", "build"], { cwd: repoRoot, stdio: "inherit" });
+    const build = spawnSync("npm", ["run", "-w", "@tikz-editor/core", "build"], { cwd: repoRoot, stdio: "inherit" });
     if (build.status !== 0) {
-      throw new Error("Failed to build dist output (`npm run build`).");
+      throw new Error("Failed to build core dist output (`npm run -w @tikz-editor/core build`).");
     }
   }
 
   if (!existsSync(distEntry)) {
-    throw new Error("Build output missing at dist/index.js after `npm run build`.");
+    throw new Error("Build output missing at packages/core/dist/index.js after core build.");
   }
 
   alreadyEnsured = true;
@@ -29,11 +29,13 @@ export function ensureDistBuildFresh(repoRoot) {
 
 function isDistStale(repoRoot) {
   const newestSource = Math.max(
-    latestFileMtime(join(repoRoot, "src"), SOURCE_EXTENSIONS),
+    latestFileMtime(join(repoRoot, "packages", "core", "src"), SOURCE_EXTENSIONS),
     fileMtime(join(repoRoot, "tsconfig.json")),
-    fileMtime(join(repoRoot, "package.json"))
+    fileMtime(join(repoRoot, "package.json")),
+    fileMtime(join(repoRoot, "packages", "core", "tsconfig.json")),
+    fileMtime(join(repoRoot, "packages", "core", "package.json"))
   );
-  const newestDist = latestFileMtime(join(repoRoot, "dist"), DIST_EXTENSIONS);
+  const newestDist = latestFileMtime(join(repoRoot, "packages", "core", "dist"), DIST_EXTENSIONS);
   return newestDist < newestSource;
 }
 

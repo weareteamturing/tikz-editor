@@ -1,5 +1,5 @@
 {
-  "name": "tikz-editor-playground",
+  "name": "@tikz-editor/web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "build": "npm run generate:example-previews && vite build"
   },
   "dependencies": {
+    "@tikz-editor/app": "0.1.0",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/lang-xml": "^6.1.0",
     "@codemirror/language": "^6.12.1",

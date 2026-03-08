@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { InspectorProperty } from "../src/edit/inspector.js";
+import type { InspectorProperty } from "../packages/core/src/edit/inspector.js";
 import {
   getInspectorPropertyCapabilityStatus,
   getToolCapabilityStatus
-} from "../web/src/ui/capabilities.js";
+} from "../apps/web/src/ui/capabilities.js";
 
 describe("tool capability status", () => {
   it("reports select/addNode as supported", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collectGeometryInvalidation } from "../../src/semantic/dependencies.js";
+import { collectGeometryInvalidation } from "../../packages/core/src/semantic/dependencies.js";
 import { evaluateSemantic } from "./helpers.js";
 
 describe("semantic dependencies / dom diff hints", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rgbToXcolorExpressionFast, type RgbColor } from "../src/edit/rgb-to-xcolor";
+import { rgbToXcolorExpressionFast, type RgbColor } from "../packages/core/src/edit/rgb-to-xcolor";
 
 const BASE_COLORS: Array<{ name: string; rgb: RgbColor }> = [
   { name: "black", rgb: { r: 0, g: 0, b: 0 } },

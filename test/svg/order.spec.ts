@@ -4,7 +4,7 @@ import {
   nextPartIdInOrder,
   removePartOrder,
   upsertPartOrder
-} from "../../src/svg/order.js";
+} from "../../packages/core/src/svg/order.js";
 
 describe("svg part ordering", () => {
   it("inserts at the head when afterPartId is null", () => {

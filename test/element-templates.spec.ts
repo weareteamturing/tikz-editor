@@ -3,8 +3,8 @@ import {
   generateComplexPathSource,
   generateElementSource,
   insertElementIntoSource
-} from "../src/edit/element-templates.js";
-import { PT_PER_CM } from "../src/edit/format.js";
+} from "../packages/core/src/edit/element-templates.js";
+import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 
 const cm = (value: number) => value * PT_PER_CM;
 

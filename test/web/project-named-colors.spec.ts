@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectProjectNamedColorSwatches } from "../../web/src/project-named-colors";
+import { collectProjectNamedColorSwatches } from "../../apps/web/src/project-named-colors";
 
 describe("project named colors", () => {
   it("collects \\colorlet and \\definecolor in declaration order", () => {

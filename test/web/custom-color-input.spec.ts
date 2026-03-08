@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCustomColorInput } from "../../web/src/ui/custom-color-input";
+import { parseCustomColorInput } from "../../apps/web/src/ui/custom-color-input";
 
 describe("parseCustomColorInput", () => {
   it("parses hex colors", () => {

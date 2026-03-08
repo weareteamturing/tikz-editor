@@ -1,6 +1,6 @@
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
-import type { SemanticEvaluationResult, SceneElement } from "../../src/semantic/types.js";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import type { SemanticEvaluationResult, SceneElement } from "../../packages/core/src/semantic/types.js";
 
 export function evaluateSemantic(
   source: string,

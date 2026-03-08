@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PT_PER_CM } from "../../src/edit/format.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import {
   appendFreehandToolPoint,
   catmullRomToBezierSegments,
   createFreehandToolDraft,
   generateFreehandToolSource,
   simplifyFreehandPoints
-} from "../../web/src/ui/canvas-panel/freehand-tool.js";
+} from "../../apps/web/src/ui/canvas-panel/freehand-tool.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

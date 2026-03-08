@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { applyEditAction } from "../../src/edit/actions.js";
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
-import { createIncrementalSemanticSession } from "../../src/semantic/incremental.js";
-import type { EditHandle, EvaluateOptions } from "../../src/semantic/types.js";
+import { applyEditAction } from "../../packages/core/src/edit/actions.js";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import { createIncrementalSemanticSession } from "../../packages/core/src/semantic/incremental.js";
+import type { EditHandle, EvaluateOptions } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic incremental evaluation", () => {
   it("matches full evaluation for repeated move-element drag updates", () => {

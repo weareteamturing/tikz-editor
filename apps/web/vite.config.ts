@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "tikz-editor": path.resolve(__dirname, "../src"),
+      "tikz-editor": path.resolve(__dirname, "../../packages/core/src"),
     },
   },
   // Content-Security-Policy should be configured at the production web server level:

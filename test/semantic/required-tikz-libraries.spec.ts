@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FEATURE_IDS } from "../../src/capabilities/feature-ids.js";
-import { inferRequiredTikzLibraries } from "../../src/semantic/required-tikz-libraries.js";
+import { FEATURE_IDS } from "../../packages/core/src/capabilities/feature-ids.js";
+import { inferRequiredTikzLibraries } from "../../packages/core/src/semantic/required-tikz-libraries.js";
 import { evaluateSemantic } from "./helpers.js";
 
 describe("semantic evaluator / required tikz libraries", () => {

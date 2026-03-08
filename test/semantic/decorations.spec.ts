@@ -5,7 +5,7 @@ import {
   firstElementOfKind,
   elementsOfKind
 } from "./helpers.js";
-import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../src/semantic/types.js";
+import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic evaluator / decorations", () => {
     it("supports decorate option and decoration key without generic unsupported diagnostics", () => {

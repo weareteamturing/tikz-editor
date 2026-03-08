@@ -5,7 +5,7 @@ import {
   firstElementOfKind,
   elementsOfKind
 } from "./helpers.js";
-import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../src/semantic/types.js";
+import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
 describe("semantic evaluator / trees", () => {
     it("lays out default child trees downward and auto-inserts parent edges", () => {

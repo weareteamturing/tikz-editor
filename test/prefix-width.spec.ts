@@ -6,7 +6,7 @@ import {
   readPrefixUnitsFromTable,
   scanTeXPrefixState,
   stabilizePrefixForMeasurement
-} from "../src/text/prefix-width.js";
+} from "../packages/core/src/text/prefix-width.js";
 
 describe("prefix width helpers", () => {
   it("tracks \\[ ... \\] as math mode and stabilizes by closing \\]", () => {

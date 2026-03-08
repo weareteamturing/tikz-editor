@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderTikzToSvg } from "../../src/render/index.js";
+import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import {
   canExportSvg,
   copySvgMarkup,
   copySvgText,
   exportSvgDownload,
   validateSvgMarkup
-} from "../../web/src/ui/export-commands.js";
+} from "../../apps/web/src/ui/export-commands.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

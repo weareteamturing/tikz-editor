@@ -3,7 +3,7 @@ import {
   isToolCreateMode,
   resolveToolbarToolMode,
   toolModeFromShortcut
-} from "../../web/src/ui/tool-config.js";
+} from "../../apps/web/src/ui/tool-config.js";
 
 describe("resolveToolbarToolMode", () => {
   it("deactivates non-select tool when reclicked", () => {

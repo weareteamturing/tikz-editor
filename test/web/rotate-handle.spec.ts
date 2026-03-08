@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Statement } from "../../src/ast/types.js";
+import type { Statement } from "../../packages/core/src/ast/types.js";
 import {
   angleDeg,
   magneticSnapAngleDeg,
@@ -7,8 +7,8 @@ import {
   resolveDraggedRotateDeg,
   resolveRotateHandlePosition,
   snapAngleDeg
-} from "../../web/src/ui/canvas-panel/rotate-handle.js";
-import { resolveStatementRotateDegrees } from "../../web/src/ui/canvas-panel/panel-helpers.js";
+} from "../../apps/web/src/ui/canvas-panel/rotate-handle.js";
+import { resolveStatementRotateDegrees } from "../../apps/web/src/ui/canvas-panel/panel-helpers.js";
 
 describe("rotate handle geometry", () => {
   it("places the rotate handle outward from the top edge midpoint", () => {

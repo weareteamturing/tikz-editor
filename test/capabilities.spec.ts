@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { FEATURE_IDS } from "../src/capabilities/feature-ids.js";
-import { capabilityMatrix } from "../src/capabilities/matrix.js";
+import { FEATURE_IDS } from "../packages/core/src/capabilities/feature-ids.js";
+import { capabilityMatrix } from "../packages/core/src/capabilities/matrix.js";
 import {
   editFeatureRegistry,
   parserFeatureRegistry,
   semanticFeatureRegistry,
   svgFeatureRegistry
-} from "../src/capabilities/registries.js";
-import { renderTikzToSvg } from "../src/render/index.js";
+} from "../packages/core/src/capabilities/registries.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { capabilityFixtures } from "./capability-fixtures.js";
 
 describe("capability matrix guards", () => {

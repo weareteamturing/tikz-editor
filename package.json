@@ -2,12 +2,15 @@
   "name": "tikz-editor",
   "version": "0.1.0",
   "description": "WYSIWYG editor foundations for TikZ",
+  "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "generate:grammar": "lezer-generator src/syntax/grammar/tikz.grammar -o src/syntax/grammar/tikz-parser.ts",
-    "build": "npm run generate:grammar && tsc -p tsconfig.json",
+    "generate:grammar": "npm run -w @tikz-editor/core generate:grammar",
+    "build": "npm run -w @tikz-editor/core build",
     "test": "npm run generate:grammar && vitest run",
     "test:capabilities": "npm run generate:grammar && vitest run test/capabilities.spec.ts",
     "test:watch": "npm run generate:grammar && vitest",
@@ -18,7 +21,7 @@
     "compare:pgf-docs": "node scripts/compare-pgf-docs-renderings.mjs",
     "compare:kottwitz-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book",
     "compare:kolda-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book",
-    "dev:web": "cd web && npm run dev"
+    "dev:web": "npm run -w @tikz-editor/web dev"
   },
   "keywords": [
     "tikz",
@@ -27,16 +30,8 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {
-    "@lezer/common": "^1.3.0",
-    "@lezer/lr": "^1.4.3",
-    "mathjax": "^4.1.0",
-    "xml-formatter": "^3.6.7"
-  },
   "devDependencies": {
-    "@lezer/generator": "^1.8.0",
     "@types/node": "^22.13.0",
-    "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   }
 }

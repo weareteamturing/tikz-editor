@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../web/src/store/reducer.js";
-import type { EditorAction, EditorState } from "../web/src/store/types.js";
-import { makeEmptySnapshot } from "../web/src/compute.js";
-import type { EditHandle, Point } from "../src/semantic/types.js";
-import { identityMatrix } from "../src/semantic/transform.js";
-import { computeSourceFingerprint } from "../src/utils/source-fingerprint.js";
-import { PT_PER_CM } from "../src/edit/format.js";
+import { editorReducer, makeInitialState, DEFAULT_SOURCE } from "../apps/web/src/store/reducer.js";
+import type { EditorAction, EditorState } from "../apps/web/src/store/types.js";
+import { makeEmptySnapshot } from "../apps/web/src/compute.js";
+import type { EditHandle, Point } from "../packages/core/src/semantic/types.js";
+import { identityMatrix } from "../packages/core/src/semantic/transform.js";
+import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
+import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 
 // Helper to dispatch a sequence of actions
 function applyActions(actions: EditorAction[], initial?: EditorState): EditorState {

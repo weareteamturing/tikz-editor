@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EditorSession } from "../../src/edit/session.js";
-import { PT_PER_CM } from "../../src/edit/format.js";
+import { EditorSession } from "../../packages/core/src/edit/session.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

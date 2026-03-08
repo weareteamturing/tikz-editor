@@ -13,7 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // Mirror the Vite alias so tests can import from "tikz-editor/..."
-      "tikz-editor": path.resolve(rootDir, "./src")
+      "tikz-editor": path.resolve(rootDir, "./packages/core/src")
     }
   }
 });

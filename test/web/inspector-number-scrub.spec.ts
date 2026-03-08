@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNumberScrubState,
   updateNumberScrubState
-} from "../../web/src/ui/inspector-panel/number-scrub";
+} from "../../apps/web/src/ui/inspector-panel/number-scrub";
 
 describe("inspector number scrub state", () => {
   it("does not activate before crossing the threshold", () => {

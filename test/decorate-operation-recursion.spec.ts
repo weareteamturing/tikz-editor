@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseTikz } from "../src/parser/index.js";
-import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 
 describe("decorate operation recursion guard", () => {
   it("does not recurse indefinitely when decorate has no subpath", () => {

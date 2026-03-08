@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { diffSvgModels } from "../../src/svg/patch.js";
-import type { SvgRenderModel, SvgRenderPart, SvgViewBox } from "../../src/svg/types.js";
+import { diffSvgModels } from "../../packages/core/src/svg/patch.js";
+import type { SvgRenderModel, SvgRenderPart, SvgViewBox } from "../../packages/core/src/svg/types.js";
 
 describe("svg model diff", () => {
   it("emits a single upsert for one changed part when scoped by source hint", () => {

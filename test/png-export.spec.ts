@@ -4,7 +4,7 @@ import {
   DEFAULT_PNG_EXPORT_FILE_NAME,
   normalizePngExportFileName,
   PNG_EXPORT_MIME_TYPE
-} from "../src/export/index.js";
+} from "../packages/core/src/export/index.js";
 
 describe("PNG export helpers", () => {
   it("defaults to the standard export file name", () => {

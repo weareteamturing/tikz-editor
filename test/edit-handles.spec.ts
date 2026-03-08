@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTikz } from "../src/parser/index.js";
-import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 
 const PT_PER_CM = 72.27 / 2.54;
 const cm = (value: number): number => value * PT_PER_CM;

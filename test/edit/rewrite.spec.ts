@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { EditHandle, Point } from "../../src/semantic/types.js";
-import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../src/semantic/transform.js";
-import { rewriteCoordinate } from "../../src/edit/rewrite.js";
-import { PT_PER_CM } from "../../src/edit/format.js";
+import type { EditHandle, Point } from "../../packages/core/src/semantic/types.js";
+import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../packages/core/src/semantic/transform.js";
+import { rewriteCoordinate } from "../../packages/core/src/edit/rewrite.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

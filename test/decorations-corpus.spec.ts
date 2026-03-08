@@ -3,9 +3,9 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { collectTikzSnippetsFromDocs } from "../src/corpus/extract.js";
-import { parseTikz } from "../src/parser/index.js";
-import { evaluateTikzFigure } from "../src/semantic/evaluate.js";
+import { collectTikzSnippetsFromDocs } from "../packages/core/src/corpus/extract.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 
 describe("decorations corpus regression", () => {
   const docsRoot = join(process.cwd(), "pgf-docs");

@@ -5,7 +5,7 @@ import {
   DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME,
   normalizeStandaloneLatexExportFileName,
   STANDALONE_LATEX_EXPORT_MIME_TYPE
-} from "../src/export/index.js";
+} from "../packages/core/src/export/index.js";
 
 describe("standalone latex export helpers", () => {
   it("defaults to the standard export file name", () => {

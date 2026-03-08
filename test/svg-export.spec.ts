@@ -4,7 +4,7 @@ import {
   DEFAULT_SVG_EXPORT_FILE_NAME,
   normalizeSvgExportFileName,
   SVG_EXPORT_MIME_TYPE
-} from "../src/export/index.js";
+} from "../packages/core/src/export/index.js";
 
 describe("svg export module", () => {
   it("uses the default filename when none is provided", () => {

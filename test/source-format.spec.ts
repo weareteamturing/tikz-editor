@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTikzSource } from "../src/edit/source-format.js";
+import { formatTikzSource } from "../packages/core/src/edit/source-format.js";
 
 describe("formatTikzSource", () => {
   it("reindents nested scope blocks with 2-space indentation", () => {

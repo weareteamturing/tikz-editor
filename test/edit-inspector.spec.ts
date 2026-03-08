@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { renderTikzToSvg } from "../src/render/index.js";
-import { applyEditAction } from "../src/edit/actions.js";
-import { parseTikz } from "../src/parser/index.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
+import { applyEditAction } from "../packages/core/src/edit/actions.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
 import {
   buildArrowTipSetPropertyMutation,
   buildFillModeSetPropertyMutations,
@@ -17,7 +17,7 @@ import {
   getInspectorDescriptor,
   resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID
-} from "../src/edit/inspector.js";
+} from "../packages/core/src/edit/inspector.js";
 
 describe("getInspectorDescriptor", () => {
   it("returns adornment-specific sections for pins", () => {

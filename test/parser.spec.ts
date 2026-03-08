@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTikz } from "../src/parser/index.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
 import { loadFixture } from "./helpers.js";
 
 describe("parseTikz", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { EditHandle, Point } from "../../src/semantic/types.js";
-import { identityMatrix } from "../../src/semantic/transform.js";
-import { computeDragCapability } from "../../web/src/ui/canvas-panel/drag-capability";
+import type { EditHandle, Point } from "../../packages/core/src/semantic/types.js";
+import { identityMatrix } from "../../packages/core/src/semantic/transform.js";
+import { computeDragCapability } from "../../apps/web/src/ui/canvas-panel/drag-capability";
 
 function makeHandle(
   overrides: Partial<EditHandle> & {

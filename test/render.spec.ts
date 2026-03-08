@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { renderTikzToSvg, renderTikzToSvgAsync } from "../src/render/index.js";
-import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../src/text/types.js";
+import { renderTikzToSvg, renderTikzToSvgAsync } from "../packages/core/src/render/index.js";
+import type { NodeTextEngine, NodeTextMeasureRequest, NodeTextMetrics } from "../packages/core/src/text/types.js";
 
 describe("render pipeline", () => {
   it("renders basic source end-to-end", () => {

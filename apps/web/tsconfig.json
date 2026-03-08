@@ -9,7 +9,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "paths": {
-      "tikz-editor/*": ["../src/*"]
+      "tikz-editor/*": ["../../packages/core/src/*"]
     }
   },
   "include": ["src"]

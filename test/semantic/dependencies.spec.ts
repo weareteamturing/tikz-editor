@@ -6,8 +6,8 @@ import {
   resourceNodeId,
   type SemanticDependencyGraph,
   type SemanticDependencyResourceKind
-} from "../../src/semantic/dependencies.js";
-import { collectGeometryInvalidation as collectGeometryInvalidationFromRoot } from "../../src/index.js";
+} from "../../packages/core/src/semantic/dependencies.js";
+import { collectGeometryInvalidation as collectGeometryInvalidationFromRoot } from "../../packages/core/src/index.js";
 import { evaluateSemantic } from "./helpers.js";
 
 describe("semantic dependencies / graph + invalidation query", () => {

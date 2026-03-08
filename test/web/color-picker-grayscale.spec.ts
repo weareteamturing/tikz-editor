@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expandGrayAliasToBlackMix, serializeBlackMixToGrayAlias } from "../../web/src/ui/color-picker-grayscale";
+import { expandGrayAliasToBlackMix, serializeBlackMixToGrayAlias } from "../../apps/web/src/ui/color-picker-grayscale";
 
 describe("color-picker grayscale aliases", () => {
   it("expands named gray aliases to black mix tokens", () => {

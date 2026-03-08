@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { PT_PER_CM } from "../../src/edit/format.js";
+import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import {
   appendPathToolSegmentFromGesture,
   createPathToolDraft,
   generatePathToolSource,
   pathToolCloseRadiusWorld,
   pathToolShouldClose
-} from "../../web/src/ui/canvas-panel/path-tool.js";
+} from "../../apps/web/src/ui/canvas-panel/path-tool.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 

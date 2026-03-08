@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearPathMorphingDecorationPreviewCache,
   renderPathMorphingDecorationPreviewSvg
-} from "../src/svg/decorations/preview.js";
+} from "../packages/core/src/svg/decorations/preview.js";
 
 describe("svg decoration preview helper", () => {
   it("emits non-empty SVG previews", () => {

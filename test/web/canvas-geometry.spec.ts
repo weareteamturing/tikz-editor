@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { pickGridStepPt } from "../../src/edit/snapping/grid-snaps.js";
-import { GRID_MINOR_TARGET_PX } from "../../src/edit/snapping/types.js";
-import { resolveOverlayGridSteps } from "../../web/src/ui/canvas-panel/geometry.js";
+import { pickGridStepPt } from "../../packages/core/src/edit/snapping/grid-snaps.js";
+import { GRID_MINOR_TARGET_PX } from "../../packages/core/src/edit/snapping/types.js";
+import { resolveOverlayGridSteps } from "../../apps/web/src/ui/canvas-panel/geometry.js";
 
 describe("canvas overlay grid/ruler steps", () => {
   it("keeps overlay minor steps aligned with snapping grid steps across zoom levels", () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { APP_MENU_COMMAND_IDS } from "../../src/app-menu/index.js";
-import { renderTikzToSvg } from "../../src/render/index.js";
-import { createEditorCommandRuntime } from "../../web/src/ui/editor-command-runtime.js";
-import type { EditorAction } from "../../web/src/store/types.js";
+import { APP_MENU_COMMAND_IDS } from "../../packages/core/src/app-menu/index.js";
+import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
+import { createEditorCommandRuntime } from "../../apps/web/src/ui/editor-command-runtime.js";
+import type { EditorAction } from "../../apps/web/src/store/types.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

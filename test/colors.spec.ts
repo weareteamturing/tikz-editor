@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeColor, resolveDefineColorModel } from "../src/semantic/style/colors.js";
-import { COLOR_HEX, NAMED_COLORS } from "../src/semantic/style/constants.js";
+import { normalizeColor, resolveDefineColorModel } from "../packages/core/src/semantic/style/colors.js";
+import { COLOR_HEX, NAMED_COLORS } from "../packages/core/src/semantic/style/constants.js";
 
 describe("color normalization", () => {
   it("supports chained xcolor mixes left-to-right", () => {

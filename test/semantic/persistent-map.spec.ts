@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PersistentMap } from "../../src/semantic/persistent-map.js";
+import { PersistentMap } from "../../packages/core/src/semantic/persistent-map.js";
 
 describe("PersistentMap", () => {
   it("restores older snapshots after subsequent writes", () => {

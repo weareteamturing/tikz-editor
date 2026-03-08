@@ -6,7 +6,7 @@ import {
   type MacroBinding,
   type MacroExpansionTraceEvent,
   type MacroOriginFrame
-} from "../src/macros/index.js";
+} from "../packages/core/src/macros/index.js";
 
 function makeOrigin(
   macroName: string,

@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderTikzToSvgAsync } from "../../src/render/index";
+import { renderTikzToSvgAsync } from "../../../packages/core/src/render/index";
 import { OPEN_EXAMPLE_CATALOG } from "../src/ui/examples/open-example-catalog";
 
 type GeneratedOpenExamplePreview = {

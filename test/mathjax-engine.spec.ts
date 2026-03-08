@@ -79,7 +79,7 @@ describe("mathjax node text engine", () => {
       startup: {}
     };
 
-    const { createMathJaxNodeTextEngine } = await import("../src/text/mathjax-engine.js");
+    const { createMathJaxNodeTextEngine } = await import("../packages/core/src/text/mathjax-engine.js");
     const engine = await createMathJaxNodeTextEngine();
 
     const issue = engine.validate(String.raw`$\ell^2$`);
@@ -104,7 +104,7 @@ describe("mathjax node text engine", () => {
       startup: {}
     };
 
-    const { createMathJaxNodeTextEngine } = await import("../src/text/mathjax-engine.js");
+    const { createMathJaxNodeTextEngine } = await import("../packages/core/src/text/mathjax-engine.js");
     const engine = await createMathJaxNodeTextEngine();
 
     const issue = engine.validate(String.raw`$\unknownmacro$`);
@@ -136,7 +136,7 @@ describe("mathjax node text engine", () => {
       startup: {}
     };
 
-    const { createMathJaxNodeTextEngine } = await import("../src/text/mathjax-engine.js");
+    const { createMathJaxNodeTextEngine } = await import("../packages/core/src/text/mathjax-engine.js");
     const engine = await createMathJaxNodeTextEngine();
 
     const measured = engine.measure({

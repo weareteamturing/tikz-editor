@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { ScenePath, SceneText } from "../../src/semantic/types.js";
-import { parseTikz } from "../../src/parser/index.js";
-import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
-import { parseLength } from "../../src/semantic/coords/parse-length.js";
-import { buildHitRegions } from "../../web/src/ui/canvas-panel/hit-regions.js";
+import type { ScenePath, SceneText } from "../../packages/core/src/semantic/types.js";
+import { parseTikz } from "../../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
+import { parseLength } from "../../packages/core/src/semantic/coords/parse-length.js";
+import { buildHitRegions } from "../../apps/web/src/ui/canvas-panel/hit-regions.js";
 import {
   collectSourceBounds,
   isPointInsideRectHitRegionContentBox,
   rectHitRegionsForTargetId,
   resolveGridResizeSnapForHandleDrag,
   resolveRectHitRegionContentBox
-} from "../../web/src/ui/canvas-panel/panel-helpers.js";
-import type { HitRegion } from "../../web/src/ui/canvas-panel/hit-regions.js";
+} from "../../apps/web/src/ui/canvas-panel/panel-helpers.js";
+import type { HitRegion } from "../../apps/web/src/ui/canvas-panel/hit-regions.js";
 
 describe("rectHitRegionsForTargetId", () => {
   it("matches rect regions by target id rather than statement source id", () => {
