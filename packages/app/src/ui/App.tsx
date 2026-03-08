@@ -253,25 +253,25 @@ export function App() {
       const snapshotForDoc = event.documentId === activeDocumentIdRef.current ? snapshotRef.current : doc.snapshot;
       let result: { success?: boolean; contentItems?: unknown[] } = {
         success: false,
-        contentItems: [{ type: "text", text: "Preview could not be rendered." }]
+        contentItems: [{ type: "inputText", text: "Preview could not be rendered." }]
       };
 
       if (snapshotForDoc.svg && snapshotForDoc.source === sourceForDoc) {
         try {
           const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144 });
           const pngBase64 = await blobToBase64(rendered.blob);
+          const dataUrl = `data:${rendered.artifact.mimeType};base64,${pngBase64}`;
           result = {
             success: true,
             contentItems: [
-              { type: "text", text: "Rendered an updated PNG preview for the current figure." },
-              { type: "localImage", path: doc.assistantPreviewPath ?? "" },
-              { type: "image", data: pngBase64, mimeType: rendered.artifact.mimeType }
+              { type: "inputText", text: "Rendered an updated PNG preview for the current figure." },
+              { type: "inputImage", imageUrl: dataUrl }
             ]
           };
         } catch (error) {
           result = {
             success: false,
-            contentItems: [{ type: "text", text: error instanceof Error ? error.message : String(error) }]
+            contentItems: [{ type: "inputText", text: error instanceof Error ? error.message : String(error) }]
           };
         }
       }
