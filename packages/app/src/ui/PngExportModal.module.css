@@ -100,15 +100,15 @@
 
 .previewFrameTransparent {
   background:
-    linear-gradient(45deg, #edf1f5 25%, transparent 25%, transparent 75%, #edf1f5 75%, #edf1f5),
-    linear-gradient(45deg, #edf1f5 25%, transparent 25%, transparent 75%, #edf1f5 75%, #edf1f5);
+    linear-gradient(45deg, var(--bg-app) 25%, transparent 25%, transparent 75%, var(--bg-app) 75%, var(--bg-app)),
+    linear-gradient(45deg, var(--bg-app) 25%, transparent 25%, transparent 75%, var(--bg-app) 75%, var(--bg-app));
   background-position: 0 0, 10px 10px;
   background-size: 20px 20px;
-  background-color: #f8fafc;
+  background-color: var(--bg-header);
 }
 
 .previewFrameOpaque {
-  background: #ffffff;
+  background: var(--bg-pane);
 }
 
 .previewStack {

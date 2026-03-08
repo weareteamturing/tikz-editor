@@ -64,7 +64,7 @@
 
 .section {
   border: 1px solid var(--border-lighter);
-  background: #f9f7f3;
+  background: var(--bg-diagnostics);
 }
 
 .sectionHeader {
@@ -73,7 +73,7 @@
   justify-content: space-between;
   padding: 4px 6px;
   border-bottom: 1px solid var(--border-lighter);
-  background: #f2efe8;
+  background: var(--bg-app);
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   font-weight: 700;
   text-transform: uppercase;
@@ -138,7 +138,7 @@
   border: 1px solid var(--border-light);
   border-radius: 3px;
   overflow: hidden;
-  background: #f4f1eb;
+  background: var(--btn-disabled-bg);
 }
 
 .multiArrangeIconButton {
@@ -149,7 +149,7 @@
   height: 22px;
   border: 0;
   border-right: 1px solid var(--border-light);
-  background: #f4f1eb;
+  background: var(--btn-disabled-bg);
   color: var(--text-faint);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
@@ -160,14 +160,14 @@
 }
 
 .multiArrangeIconButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bg-header) 64%, #f4f1eb);
+  background: color-mix(in srgb, var(--bg-header) 64%, var(--btn-disabled-bg));
   color: var(--text);
 }
 
 .multiArrangeIconButton:disabled {
   cursor: default;
-  color: color-mix(in srgb, var(--text-faint) 52%, #c8c8c8);
-  background: #e8e4dc;
+  color: color-mix(in srgb, var(--text-faint) 52%, var(--btn-disabled-text));
+  background: var(--btn-disabled-bg);
 }
 
 .multiArrangeIconButton:focus-visible {
@@ -239,7 +239,7 @@
   border: 1px solid var(--border-light);
   border-radius: 3px;
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-pane);
 }
 
 .nodeFontIconButton {
@@ -250,7 +250,7 @@
   height: 20px;
   border: 0;
   border-right: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--bg-pane);
   color: var(--text-muted);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
@@ -261,23 +261,23 @@
 }
 
 .nodeFontIconButton:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bg-header) 72%, #fff);
+  background: color-mix(in srgb, var(--bg-header) 72%, var(--bg-pane));
   color: var(--text);
 }
 
 .nodeFontIconButton:disabled {
   cursor: default;
   color: var(--text-faint);
-  background: #f3f1ec;
+  background: var(--btn-disabled-bg);
 }
 
 .nodeFontIconButtonActive {
-  background: color-mix(in srgb, #d9dcab 58%, #fff);
+  background: color-mix(in srgb, var(--toggle-active-bg) 58%, var(--bg-pane));
   color: var(--text);
 }
 
 .nodeFontIconButtonMixed {
-  background: color-mix(in srgb, #e4dcc0 72%, #fff);
+  background: color-mix(in srgb, var(--toggle-mixed-bg) 72%, var(--bg-pane));
   color: var(--text);
 }
 
@@ -318,7 +318,7 @@
   padding: 2px 5px;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text);
-  background: #fff;
+  background: var(--bg-pane);
   border: 1px solid var(--border-light);
   border-radius: 2px;
 }
@@ -327,7 +327,7 @@
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--bg-pane);
   color: var(--text);
   font: inherit;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
@@ -340,7 +340,7 @@
 
 .numberInput:disabled {
   color: var(--text-dim);
-  background: #f3f1ec;
+  background: var(--btn-disabled-bg);
 }
 
 .unitLabel {
@@ -439,7 +439,7 @@
 }
 
 .lineWidthSvgLine {
-  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke: color-mix(in srgb, var(--text) 72%, var(--text-faint));
   stroke-linecap: round;
 }
 
@@ -548,7 +548,7 @@
 }
 
 .dashStyleSvgLine {
-  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke: color-mix(in srgb, var(--text) 72%, var(--text-faint));
   stroke-width: 1;
   stroke-linecap: butt;
 }
@@ -730,22 +730,22 @@
   width: 64px;
   height: 20px;
   overflow: visible;
-  background: color-mix(in srgb, #d9dcab 85%, var(--panel-bg));
+  background: color-mix(in srgb, var(--toggle-active-bg) 85%, var(--panel-bg));
   border-radius: 2px;
 }
 
 .lineCapSvgGuide {
-  stroke: color-mix(in srgb, #5b5b5b 65%, #000);
+  stroke: color-mix(in srgb, var(--text-muted) 65%, var(--text));
   stroke-width: 1;
 }
 
 .lineCapSvgLine {
-  stroke: #000;
+  stroke: var(--text);
   fill: none;
 }
 
 .lineCapSvgCenter {
-  stroke: #fff;
+  stroke: var(--bg-pane);
   stroke-width: 1.2;
   stroke-linecap: butt;
   fill: none;
@@ -804,18 +804,18 @@
   width: 64px;
   height: 20px;
   overflow: visible;
-  background: color-mix(in srgb, #d9dcab 85%, var(--panel-bg));
+  background: color-mix(in srgb, var(--toggle-active-bg) 85%, var(--panel-bg));
   border-radius: 2px;
 }
 
 .lineJoinSvgLine {
-  stroke: #000;
+  stroke: var(--text);
   fill: none;
   stroke-linecap: butt;
 }
 
 .lineJoinSvgCenter {
-  stroke: #fff;
+  stroke: var(--bg-pane);
   stroke-width: 1.2;
   stroke-linecap: butt;
   stroke-linejoin: miter;
@@ -829,19 +829,19 @@
 }
 
 .arrowTipSvgLine {
-  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke: color-mix(in srgb, var(--text) 72%, var(--text-faint));
   stroke-linecap: round;
 }
 
 .arrowTipSvgOpen {
   fill: none;
-  stroke: color-mix(in srgb, var(--text) 72%, #666);
+  stroke: color-mix(in srgb, var(--text) 72%, var(--text-faint));
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .arrowTipSvgFill {
-  fill: color-mix(in srgb, var(--text) 72%, #666);
+  fill: color-mix(in srgb, var(--text) 72%, var(--text-faint));
   color: var(--text);
 }
 

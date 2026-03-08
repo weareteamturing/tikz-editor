@@ -12,7 +12,7 @@
   gap: 6px;
   border: 1px solid var(--border-light);
   border-radius: 2px;
-  background: #fff;
+  background: var(--bg-pane);
   color: var(--text);
   font-family: inherit;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
@@ -27,7 +27,7 @@
 
 .trigger:disabled {
   color: var(--text-dim);
-  background: #f3f1ec;
+  background: var(--btn-disabled-bg);
   cursor: default;
 }
 
@@ -119,6 +119,6 @@
 .separator {
   height: 0;
   margin: 4px 6px 3px;
-  border-top: 1px solid var(--border-lighter, #cfc9be);
+  border-top: 1px solid var(--border-lighter, var(--border-lighter));
   pointer-events: none;
 }

@@ -15,7 +15,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #f8f8f8;
+  background: var(--bg-header);
   border-left: 2px solid var(--accent);
   box-shadow: -4px 0 20px rgba(0,0,0,0.3);
   position: relative;
@@ -59,8 +59,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: #1a3050;
-  color: #e0e8f0;
+  background: var(--text);
+  color: var(--bg-pane);
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   font-weight: 700;
   flex-shrink: 0;
@@ -90,7 +90,7 @@
 }
 
 .tabActive {
-  background: #f8f8f8;
+  background: var(--bg-header);
   font-weight: 700;
   color: var(--text);
 }
@@ -112,7 +112,7 @@
 .closeBtn {
   background: transparent;
   border: none;
-  color: #e0e8f0;
+  color: var(--bg-pane);
   font-size: calc(var(--app-ui-scale, 1) * 16px);
   cursor: pointer;
   padding: 0 4px;
@@ -120,7 +120,7 @@
 }
 
 .closeBtn:hover {
-  color: #fff;
+  color: var(--bg-pane);
 }
 
 .treeWrap {

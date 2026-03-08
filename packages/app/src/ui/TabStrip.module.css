@@ -1,26 +1,51 @@
 .strip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 0;
+  padding: 0 8px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-panel) 85%, var(--bg-app));
+  background: var(--bg-app);
   overflow-x: auto;
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--border);
-  border-bottom-color: color-mix(in srgb, var(--border) 65%, transparent);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  height: 28px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   min-width: 0;
+  position: relative;
+  transition: background 0.05s ease;
+}
+
+/* Separator line between inactive tabs */
+.tab::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+/* Hide separators around the active tab and the last tab */
+.tab:last-child::after,
+.tabActive::after,
+.tab:has(+ .tabActive)::after {
+  display: none;
+}
+
+.tab:hover:not(.tabActive) {
+  background: color-mix(in srgb, var(--btn-hover-bg) 40%, transparent);
 }
 
 .tabActive {
-  background: color-mix(in srgb, var(--accent-btn-bg) 65%, var(--bg-panel));
-  border-color: color-mix(in srgb, var(--accent-btn-border) 55%, var(--border));
+  background: var(--bg-pane);
+  box-shadow: -1px 0 0 0 var(--border), 1px 0 0 0 var(--border);
+  z-index: 1;
 }
 
 .tabButton {
@@ -28,7 +53,9 @@
   align-items: center;
   gap: 6px;
   max-width: 220px;
-  padding: 4px 10px;
+  height: 100%;
+  padding: 0;
+  padding-left: 10px;
   border: none;
   background: transparent;
   color: var(--text);
@@ -43,7 +70,7 @@
 }
 
 .dirty {
-  color: var(--color-warning);
+  color: var(--accent);
   line-height: 1;
 }
 
@@ -55,6 +82,10 @@
   cursor: pointer;
   padding: 4px 8px;
   font-size: calc(var(--app-ui-scale, 1) * 13px);
+}
+
+.close {
+  padding-left: 6px;
 }
 
 .close:hover,

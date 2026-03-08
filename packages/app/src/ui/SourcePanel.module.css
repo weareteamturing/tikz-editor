@@ -57,7 +57,7 @@
   height: 0.86em;
   margin-left: 0.12em;
   margin-right: 0.1em;
-  border: 1px solid #73849a;
+  border: 1px solid var(--border);
   border-radius: 2px;
   box-sizing: border-box;
   vertical-align: middle;
@@ -67,8 +67,8 @@
 
 .editorWrap :global(.cm-inline-color-swatch-none) {
   background:
-    linear-gradient(45deg, #d9e2ec 25%, transparent 25%, transparent 75%, #d9e2ec 75%, #d9e2ec),
-    linear-gradient(45deg, #d9e2ec 25%, transparent 25%, transparent 75%, #d9e2ec 75%, #d9e2ec);
+    linear-gradient(45deg, var(--bg-app) 25%, transparent 25%, transparent 75%, var(--bg-app) 75%, var(--bg-app)),
+    linear-gradient(45deg, var(--bg-app) 25%, transparent 25%, transparent 75%, var(--bg-app) 75%, var(--bg-app));
   background-size: 8px 8px;
   background-position: 0 0, 4px 4px;
 }
@@ -79,14 +79,14 @@
 }
 
 .editorWrap :global(.cm-inline-color-swatch:not(.cm-inline-color-swatch-readonly):hover) {
-  border-color: #2f7ad8;
+  border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(47, 122, 216, 0.18);
 }
 
 /* Diagnostic decorations (reused from playground) */
 .editorWrap :global(.cm-highlight-range) {
   background: rgba(217, 119, 6, 0.15);
-  border-bottom: 2px solid #d97706;
+  border-bottom: 2px solid var(--color-warning);
 }
 
 .editorWrap :global(.cm-editor-diagnostic-range) {
@@ -101,13 +101,13 @@
 }
 
 .editorWrap :global(.cm-editor-diagnostic-warning) {
-  text-decoration-color: #d97706;
+  text-decoration-color: var(--color-warning);
 }
 
 .editorWrap :global(.cm-editor-diagnostic-tooltip) {
   max-width: 360px;
-  border: 1px solid #c9d6e4;
-  background: #fff;
+  border: 1px solid var(--border-light);
+  background: var(--bg-pane);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   padding: 6px 8px;
   font-family: var(--font-mono);
@@ -119,7 +119,7 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  color: #596b7d;
+  color: var(--text-muted);
   margin-bottom: 3px;
 }
 
@@ -128,7 +128,7 @@
 }
 
 .editorWrap :global(.cm-editor-diagnostic-tooltip-message) {
-  color: #1f3347;
+  color: var(--text);
   white-space: normal;
 }
 
@@ -137,7 +137,7 @@
 }
 
 .editorWrap :global(.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code) {
-  color: #d97706;
+  color: var(--color-warning);
 }
 
 .inlineColorPickerPopover {
@@ -145,9 +145,9 @@
   z-index: 150;
   width: 284px;
   max-width: calc(100vw - 16px);
-  border: 1px solid #c9d6e4;
+  border: 1px solid var(--border-light);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-pane);
   box-shadow: 0 16px 30px rgba(16, 33, 52, 0.22);
   overflow: hidden;
 }

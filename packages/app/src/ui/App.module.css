@@ -32,7 +32,7 @@
     height: auto !important;
     min-height: auto !important;
     overflow: visible !important;
-    background: #fff !important;
+    background: var(--bg-pane) !important;
   }
 
   .body {

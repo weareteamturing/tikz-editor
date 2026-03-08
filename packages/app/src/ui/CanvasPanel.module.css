@@ -93,7 +93,7 @@
   justify-content: center;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  background: #dfdbd2;
+  background: var(--bg-app);
   color: var(--text-faint);
   font-size: calc(var(--app-ui-scale, 1) * 9px);
   user-select: none;
@@ -105,7 +105,7 @@
   width: 100%;
   height: 100%;
   border-bottom: 1px solid var(--border);
-  background: #dfdbd2;
+  background: var(--bg-app);
   user-select: none;
   cursor: ns-resize;
 }
@@ -116,7 +116,7 @@
   width: 100%;
   height: 100%;
   border-right: 1px solid var(--border);
-  background: #dfdbd2;
+  background: var(--bg-app);
   user-select: none;
 }
 
@@ -125,25 +125,25 @@
 }
 
 .rulerAxis {
-  stroke: #8f8a82;
+  stroke: var(--border);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .rulerTickMinor {
-  stroke: #8f8a82;
+  stroke: var(--border);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .rulerTickMajor {
-  stroke: #5f5b55;
+  stroke: var(--text-dim);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
 .rulerLabel {
-  fill: #5f5b55;
+  fill: var(--text-dim);
   font-size: calc(var(--app-ui-scale, 1) * 9px);
   font-family: var(--font-mono);
   text-transform: none;
@@ -182,7 +182,7 @@
 .svgLayer {
   position: absolute;
   inset: 0;
-  background: #fff;
+  background: var(--bg-pane);
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
   pointer-events: none;
 }
@@ -237,7 +237,7 @@
 }
 
 .snapLine {
-  stroke: #ff4d4f;
+  stroke: var(--color-snap);
   fill: none;
   vector-effect: non-scaling-stroke;
   shape-rendering: crispEdges;
@@ -248,7 +248,7 @@
 }
 
 .snapGapArrowHead {
-  fill: #ff4d4f;
+  fill: var(--color-snap);
 }
 
 .gridMinor {
@@ -313,7 +313,7 @@
 }
 
 .textCaret {
-  stroke: #0d5fb6;
+  stroke: var(--accent-dark);
   animation: textCaretBlink 1.08s steps(1, end) infinite;
 }
 
@@ -368,18 +368,18 @@
 
 .handle {
   pointer-events: all;
-  fill: #ffffff;
-  stroke: #0d5fb6;
+  fill: var(--bg-pane);
+  stroke: var(--accent-dark);
 }
 
 .handleControl {
-  fill: #ffffff;
+  fill: var(--bg-pane);
 }
 
 .rotateHandleStem {
   pointer-events: all;
   fill: none;
-  stroke: #0d5fb6;
+  stroke: var(--accent-dark);
   vector-effect: non-scaling-stroke;
 }
 
@@ -399,7 +399,7 @@
 
 .rotateHandleGlyph {
   pointer-events: none;
-  fill: #0d5fb6;
+  fill: var(--accent-dark);
 }
 
 .nodeAnchorOverlay {
@@ -475,9 +475,9 @@
   pointer-events: auto;
   padding: 5px 8px;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
-  color: #6a4700;
-  background: rgba(255, 205, 90, 0.8);
-  border: 1px solid rgba(160, 96, 16, 0.38);
+  color: var(--tooltip-warning-text);
+  background: var(--tooltip-warning-bg);
+  border: 1px solid var(--tooltip-warning-border);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   font-family: var(--font-mono);
   cursor: copy;
@@ -492,9 +492,9 @@
   min-width: 280px;
   min-height: 140px;
   border: 1px solid rgba(55, 120, 145, 0.52);
-  background: rgba(17, 27, 34, 0.9);
+  background: var(--tooltip-dark-bg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-  color: #d9ebf3;
+  color: var(--tooltip-dark-text);
   font-family: var(--font-mono);
   font-size: calc(var(--app-ui-scale, 1) * 10px);
   pointer-events: auto;
@@ -503,8 +503,8 @@
 
 .snapDebugTitle {
   padding: 4px 7px;
-  border-bottom: 1px solid rgba(66, 132, 160, 0.4);
-  color: #9fd0e5;
+  border-bottom: 1px solid var(--tooltip-dark-border);
+  color: var(--tooltip-dark-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -611,7 +611,7 @@
     min-height: auto !important;
     margin: 0 !important;
     border: 0 !important;
-    background: #fff !important;
+    background: var(--bg-pane) !important;
     z-index: 2147483647;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -623,7 +623,7 @@
     height: auto !important;
     min-height: auto !important;
     min-width: 0 !important;
-    background: #fff !important;
+    background: var(--bg-pane) !important;
   }
 
   .header,
@@ -670,7 +670,7 @@
     max-width: 100% !important;
     max-height: calc(100vh - 24mm) !important;
     overflow: visible !important;
-    background: #fff !important;
+    background: var(--bg-pane) !important;
     box-shadow: none !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

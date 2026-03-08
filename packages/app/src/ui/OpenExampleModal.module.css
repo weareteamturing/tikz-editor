@@ -55,7 +55,7 @@
 .card {
   border: 1px solid var(--border-light);
   border-radius: 3px;
-  background: #fff;
+  background: var(--bg-pane);
   color: var(--text);
   text-align: left;
   font-family: inherit;
@@ -74,7 +74,7 @@
 .previewFrame {
   height: 150px;
   border-bottom: 1px solid var(--border-lighter);
-  background: linear-gradient(160deg, #f6f8fa 0%, #e7edf2 100%);
+  background: linear-gradient(160deg, var(--bg-header) 0%, var(--bg-app) 100%);
   overflow: hidden;
 }
 

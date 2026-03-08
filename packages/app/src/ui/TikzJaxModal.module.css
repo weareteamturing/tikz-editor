@@ -54,7 +54,7 @@
   flex: 1;
   min-height: 0;
   border: 1px solid var(--border-light);
-  background: #fff;
+  background: var(--bg-pane);
   overflow: auto;
   padding: 20px;
   box-sizing: border-box;

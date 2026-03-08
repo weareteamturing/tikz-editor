@@ -11,10 +11,6 @@ TODOS
 * Inspector: cascade view like in browser dev tools
 * Inspector: allow adding styles to an element with visual style preview
 
-* Multiple images open with tabs
-
-* Make tauri app
-
 * Open tex document with potentially multiple tikz images; parse relevant macro definitions etc
 
 * Support adding nodes to path
@@ -45,3 +41,5 @@ TODOS
 * App settings: geometry precision digits, code formatter options
 
 * code folding in the code editor (e.g. for scopes)
+
+* drag and drop tabs
