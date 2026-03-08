@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MathJax SVG Fake Edit Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel input-panel">
+        <h1>MathJax SVG Fake Edit Prototype</h1>
+        <p>
+          Type into the textarea and mirror a fake cursor or selection over MathJax-rendered SVG.
+          The source is flowed into a fixed-width text box and wrapped into multiple lines.
+        </p>
+        <label for="source-input">Source</label>
+        <textarea id="source-input" spellcheck="false" autocapitalize="off"></textarea>
+        <p class="meta">
+          Wrapped TeX:
+          <code id="wrapped-tex"></code>
+        </p>
+        <p id="status" class="status">Loading MathJax runtime...</p>
+      </section>
+
+      <section class="panel render-panel">
+        <h2>Rendered Output</h2>
+        <div id="render-stage" class="render-stage" aria-live="polite">
+          <div id="flow-box" class="flow-box">
+            <div id="svg-host" class="svg-host"></div>
+            <div id="selection-layer" class="selection-layer hidden"></div>
+            <div id="caret-overlay" class="caret-overlay hidden"></div>
+          </div>
+        </div>
+        <p class="hint">
+          This is intentionally a visual fake: selection and caret are positioned on top of SVG using
+          prefix measurements from MathJax.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
