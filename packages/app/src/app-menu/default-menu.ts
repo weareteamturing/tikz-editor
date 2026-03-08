@@ -17,6 +17,11 @@ export const APP_MENU_DEFINITION = [
         label: "Open..."
       },
       {
+        kind: "recent-files",
+        label: "Open Recent",
+        platforms: ["desktop"]
+      },
+      {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.SAVE_DOCUMENT,
         label: "Save",

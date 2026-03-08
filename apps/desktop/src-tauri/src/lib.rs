@@ -4,27 +4,10 @@ use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::menu::{MenuBuilder, MenuId, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager};
 
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
-
-const CMD_NEW_DOCUMENT: &str = "file.new-document";
-const CMD_OPEN_DOCUMENT: &str = "file.open-document";
-const CMD_SAVE_DOCUMENT: &str = "file.save-document";
-const CMD_SAVE_DOCUMENT_AS: &str = "file.save-document-as";
-const CMD_CLOSE_DOCUMENT: &str = "file.close-document";
-const CMD_CLOSE_ALL_DOCUMENTS: &str = "file.close-all-documents";
-const CMD_EXPORT_SVG: &str = "file.export-svg-download";
-const CMD_EXPORT_PNG: &str = "file.export-png-download";
-const CMD_EXPORT_PDF: &str = "file.export-pdf-download";
-const CMD_EXPORT_TEX: &str = "file.export-standalone-latex-download";
-const CMD_UNDO: &str = "edit.undo";
-const CMD_REDO: &str = "edit.redo";
-const CMD_CUT: &str = "edit.cut";
-const CMD_COPY: &str = "edit.copy";
-const CMD_PASTE: &str = "edit.paste";
 
 #[derive(Default)]
 struct RecentFilesState {
@@ -96,69 +79,6 @@ fn normalize_recents(entries: Vec<String>) -> Vec<String> {
   out
 }
 
-fn build_app_menu(app: &AppHandle, recents: &[String]) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-  let mut open_recent_menu = SubmenuBuilder::new(app, "Open Recent");
-  if recents.is_empty() {
-    let disabled = MenuItemBuilder::with_id("file.open-recent.empty", "No Recent Files")
-      .enabled(false)
-      .build(app)?;
-    open_recent_menu = open_recent_menu.item(&disabled);
-  } else {
-    for (idx, path) in recents.iter().enumerate() {
-      let label = PathBuf::from(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(path)
-        .to_string();
-      let item = MenuItemBuilder::with_id(format!("file.open-recent.{idx}"), label).build(app)?;
-      open_recent_menu = open_recent_menu.item(&item);
-    }
-  }
-
-  let file_menu = SubmenuBuilder::new(app, "File")
-    .item(&MenuItemBuilder::with_id(CMD_NEW_DOCUMENT, "New").accelerator("CmdOrCtrl+N").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_OPEN_DOCUMENT, "Open...").accelerator("CmdOrCtrl+O").build(app)?)
-    .item(&open_recent_menu.build()?)
-    .separator()
-    .item(&MenuItemBuilder::with_id(CMD_SAVE_DOCUMENT, "Save").accelerator("CmdOrCtrl+S").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_SAVE_DOCUMENT_AS, "Save As...").build(app)?)
-    .separator()
-    .item(&MenuItemBuilder::with_id(CMD_CLOSE_DOCUMENT, "Close Tab").accelerator("CmdOrCtrl+W").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_CLOSE_ALL_DOCUMENTS, "Close All Tabs").build(app)?)
-    .separator()
-    .item(&MenuItemBuilder::with_id(CMD_EXPORT_SVG, "Export SVG...").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_EXPORT_PNG, "Export PNG...").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_EXPORT_PDF, "Export PDF...").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_EXPORT_TEX, "Export LaTeX...").build(app)?)
-    .build()?;
-
-  let edit_menu = SubmenuBuilder::new(app, "Edit")
-    .item(&MenuItemBuilder::with_id(CMD_UNDO, "Undo").accelerator("CmdOrCtrl+Z").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_REDO, "Redo").accelerator("CmdOrCtrl+Shift+Z").build(app)?)
-    .separator()
-    .item(&MenuItemBuilder::with_id(CMD_CUT, "Cut").accelerator("CmdOrCtrl+X").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_COPY, "Copy").accelerator("CmdOrCtrl+C").build(app)?)
-    .item(&MenuItemBuilder::with_id(CMD_PASTE, "Paste").accelerator("CmdOrCtrl+V").build(app)?)
-    .build()?;
-
-  MenuBuilder::new(app)
-    .item(&file_menu)
-    .item(&edit_menu)
-    .build()
-}
-
-fn refresh_menu(app: &AppHandle) -> tauri::Result<()> {
-  let current = app
-    .state::<RecentFilesState>()
-    .files
-    .lock()
-    .map(|guard| guard.clone())
-    .unwrap_or_default();
-  let menu = build_app_menu(app, &current)?;
-  app.set_menu(menu)?;
-  Ok(())
-}
-
 fn add_recent_file(app: &AppHandle, path: String) {
   let normalized = {
     let state = app.state::<RecentFilesState>();
@@ -173,7 +93,6 @@ fn add_recent_file(app: &AppHandle, path: String) {
     compact
   };
   save_recent_files_to_disk(app, &normalized);
-  let _ = refresh_menu(app);
 }
 
 #[tauri::command]
@@ -276,44 +195,14 @@ fn desktop_confirm_window_close(app: AppHandle) -> Result<(), String> {
   window.close().map_err(|error| error.to_string())
 }
 
-fn handle_menu_event(app: &AppHandle, id: &MenuId) {
-  let event_id = id.0.as_str();
-  if let Some(index_raw) = event_id.strip_prefix("file.open-recent.") {
-    if let Ok(index) = index_raw.parse::<usize>() {
-      let maybe_path = app
-        .state::<RecentFilesState>()
-        .files
-        .lock()
-        .ok()
-        .and_then(|entries| entries.get(index).cloned());
-      if let Some(path) = maybe_path {
-        let _ = app.emit("desktop-open-recent", path);
-      }
-    }
-    return;
-  }
-
-  let supported = matches!(
-    event_id,
-    CMD_NEW_DOCUMENT
-      | CMD_OPEN_DOCUMENT
-      | CMD_SAVE_DOCUMENT
-      | CMD_SAVE_DOCUMENT_AS
-      | CMD_CLOSE_DOCUMENT
-      | CMD_CLOSE_ALL_DOCUMENTS
-      | CMD_EXPORT_SVG
-      | CMD_EXPORT_PNG
-      | CMD_EXPORT_PDF
-      | CMD_EXPORT_TEX
-      | CMD_UNDO
-      | CMD_REDO
-      | CMD_CUT
-      | CMD_COPY
-      | CMD_PASTE
-  );
-  if supported {
-    let _ = app.emit("desktop-menu-command", event_id.to_string());
-  }
+#[tauri::command]
+fn desktop_list_recent_files(app: AppHandle) -> Result<Vec<String>, String> {
+  let state = app.state::<RecentFilesState>();
+  let entries = state
+    .files
+    .lock()
+    .map_err(|_| "recent files state unavailable".to_string())?;
+  Ok(entries.clone())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -322,7 +211,6 @@ pub fn run() {
     .plugin(tauri_plugin_clipboard_manager::init())
     .manage(RecentFilesState::default())
     .manage(WindowCloseState::default())
-    .on_menu_event(|app, event| handle_menu_event(app, event.id()))
     .on_window_event(|window, event| {
       if let tauri::WindowEvent::CloseRequested { api, .. } = event {
         let allow_close = {
@@ -351,7 +239,8 @@ pub fn run() {
       desktop_open_text,
       desktop_save_text,
       desktop_export_file,
-      desktop_confirm_window_close
+      desktop_confirm_window_close,
+      desktop_list_recent_files
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -367,7 +256,6 @@ pub fn run() {
         *entries = loaded.clone();
       }
       save_recent_files_to_disk(&app.handle(), &loaded);
-      refresh_menu(&app.handle())?;
       Ok(())
     })
     .run(tauri::generate_context!())

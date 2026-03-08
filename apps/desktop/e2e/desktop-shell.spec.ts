@@ -9,16 +9,8 @@ function makeMockBridge() {
     name: "diagram.tex"
   };
   const saved: string[] = [];
-  let menuHandler: ((commandId: string) => void) | null = null;
-  let recentHandler: ((path: string) => void) | null = null;
   return {
     saved,
-    emitMenu(commandId: string) {
-      menuHandler?.(commandId);
-    },
-    emitRecent(path: string) {
-      recentHandler?.(path);
-    },
     bridge: {
       openText: async (path?: string | null) => {
         if (path && path !== opened.path) {
@@ -39,22 +31,7 @@ function makeMockBridge() {
       writeClipboard: async () => undefined,
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,
-      onMenuCommand: async (handler: (commandId: string) => void) => {
-        menuHandler = handler;
-        return () => {
-          if (menuHandler === handler) {
-            menuHandler = null;
-          }
-        };
-      },
-      onOpenRecent: async (handler: (path: string) => void) => {
-        recentHandler = handler;
-        return () => {
-          if (recentHandler === handler) {
-            recentHandler = null;
-          }
-        };
-      },
+      listRecentFiles: async () => [opened.path],
       onWindowCloseRequest: async () => () => undefined
     }
   };
@@ -72,7 +49,7 @@ describe("desktop shell flows", () => {
     platform.menu?.bindCommandHandler?.((commandId) => {
       received = commandId;
     });
-    mock.emitMenu(APP_MENU_COMMAND_IDS.UNDO);
+    platform.menu?.dispatchCommand?.(APP_MENU_COMMAND_IDS.UNDO, "platform");
     await Promise.resolve();
     expect(received).toBe(APP_MENU_COMMAND_IDS.UNDO);
   });
@@ -101,7 +78,7 @@ describe("desktop shell flows", () => {
     expect(saved?.fileRef?.provider).toBe("desktop-fs");
   });
 
-  it("handles native Open Recent events as open requests", async () => {
+  it("handles bridge open requests", async () => {
     const mock = makeMockBridge();
     const platform = createDesktopPlatformAdapter({
       storage: { getItem: () => null, setItem: () => undefined },
@@ -109,10 +86,20 @@ describe("desktop shell flows", () => {
     });
 
     let seenSource = "";
-    const unbind = platform.files?.bindOpenRequest?.((opened) => {
-      seenSource = opened.source;
+    const unbind = platform.files?.bindOpenRequest?.((openedRequest) => {
+      seenSource = openedRequest.source;
     });
-    mock.emitRecent("/tmp/diagram.tex");
+    (
+      globalThis as typeof globalThis & {
+        __TIKZ_EDITOR_DESKTOP_TEST_API__?: {
+          triggerOpenRequest: (opened: { source: string; path: string; name: string }) => void;
+        };
+      }
+    ).__TIKZ_EDITOR_DESKTOP_TEST_API__?.triggerOpenRequest({
+      source: "\\draw (0,0)--(1,1);",
+      path: "/tmp/diagram.tex",
+      name: "diagram.tex"
+    });
     await Promise.resolve();
     await Promise.resolve();
     expect(seenSource).toContain("\\draw");

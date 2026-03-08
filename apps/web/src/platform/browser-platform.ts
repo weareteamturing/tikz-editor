@@ -379,6 +379,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       writeText: clipboard?.writeText ? async (text) => clipboard.writeText!(text) : undefined
     },
     menu: {
+      usesNativeMenuBar: false,
       bindCommandHandler: (handler) => {
         menuHandler = handler;
         return () => {
@@ -389,7 +390,8 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       },
       dispatchCommand: (commandId, origin = "platform") => {
         menuHandler?.(commandId, origin);
-      }
+      },
+      syncNativeMenu: () => undefined
     },
     window: {
       setDocumentState: ({ title, dirty }) => {

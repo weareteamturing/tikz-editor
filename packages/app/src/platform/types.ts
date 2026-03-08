@@ -1,5 +1,5 @@
 import type { DocumentFileRef } from "../store/types.js";
-import type { AppMenuCommandId } from "../app-menu/index.js";
+import type { AppMenuCommandId, AppMenuDefinition } from "../app-menu/index.js";
 
 export type MenuCommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
 
@@ -32,8 +32,13 @@ export type PlatformFileApi = {
 };
 
 export type PlatformMenu = {
+  usesNativeMenuBar?: boolean;
   bindCommandHandler?: (handler: MenuCommandHandler) => (() => void) | void;
   dispatchCommand?: (commandId: AppMenuCommandId, origin?: MenuCommandOrigin) => void;
+  syncNativeMenu?: (payload: {
+    definition: AppMenuDefinition;
+    commandStates: Record<AppMenuCommandId, { enabled: boolean; checked?: boolean }>;
+  }) => Promise<void> | void;
 };
 
 export type PlatformWindowApi = {

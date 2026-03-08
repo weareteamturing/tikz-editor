@@ -1,17 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  APP_MENU_DEFINITION,
-  type AppMenuItem
-} from "../app-menu";
-import type { EmitSvgResult } from "tikz-editor/svg/index";
-import { useEditorStore } from "../store/store";
-import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
-import { OpenExampleModal } from "./OpenExampleModal";
-import { PngExportModal } from "./PngExportModal";
-import { SvgExportModal } from "./SvgExportModal";
-import { TikzJaxModal } from "./TikzJaxModal";
-import { SettingsModal } from "./SettingsModal";
-import { useEditorCommandRuntime, type CommandBindings } from "./editor-command-runtime";
+import type { AppMenuDefinition, AppMenuItem } from "../app-menu";
+import type { CommandBindings } from "./editor-command-runtime";
 import css from "./AppMenuBar.module.css";
 
 const IS_MAC_PLATFORM =
@@ -57,6 +46,10 @@ function MenuPopup({
         const itemKey = `${path}-${index}`;
         if (item.kind === "separator") {
           return <div key={`${itemKey}-separator`} className={css.separator} role="separator" />;
+        }
+
+        if (item.kind === "recent-files") {
+          return null;
         }
 
         if (item.kind === "submenu") {
@@ -114,38 +107,14 @@ function MenuPopup({
 }
 
 export function AppMenuBar({
-  onRequestCloseDocument,
-  onRequestCloseAllDocuments
+  definition,
+  bindings
 }: {
-  onRequestCloseDocument?: (documentId: string) => void;
-  onRequestCloseAllDocuments?: () => void;
-} = {}) {
-  const source = useEditorStore((s) => s.source);
-  const snapshot = useEditorStore((s) => s.snapshot);
-  const dispatch = useEditorStore((s) => s.dispatch);
-
+  definition: AppMenuDefinition;
+  bindings: CommandBindings;
+}) {
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
-  const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
-  const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
-  const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
-  const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
-  const { bindings } = useEditorCommandRuntime({
-    onOpenExample: () => {
-      setShowOpenExampleModal(true);
-    },
-    onOpenExampleInNewTab: () => {
-      setShowOpenExampleModal(true);
-    },
-    onOpenSvgExport: (svgResult) => setSvgExportSvgResult(svgResult),
-    onOpenPngExport: (svgResult) => setPngExportSvgResult(svgResult),
-    onRequestCloseDocument,
-    onRequestCloseAllDocuments,
-    onShowCompiledPicture: () => setCompiledPictureSource(source),
-    onOpenSettings: () => setShowSettingsModal(true)
-  });
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent) {
@@ -177,108 +146,56 @@ export function AppMenuBar({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openSectionId]);
 
-  useEffect(() => {
-    if (!pendingAutoFit) {
-      return;
-    }
-    if (snapshot.source !== source) {
-      return;
-    }
-    dispatch({ type: "REQUEST_FIT_TO_CONTENT" });
-    setPendingAutoFit(false);
-  }, [dispatch, pendingAutoFit, snapshot.source, source]);
-
-  const loadExampleIntoEditor = (example: TikzOpenExample) => {
-    dispatch({ type: "OPEN_EXAMPLE_IN_NEW_TAB", source: example.source, title: example.title });
-    setShowOpenExampleModal(false);
-    setPendingAutoFit(true);
-  };
-
   return (
-    <>
-      <div
-        className={css.menuBar}
-        role="menubar"
-        data-testid="app-menubar"
-        ref={menuRootRef}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) {
-            setOpenSectionId(null);
-          }
-        }}
-      >
-        {APP_MENU_DEFINITION.map((section) => {
-          const isOpen = openSectionId === section.id;
-          return (
-            <div
-              key={section.id}
-              className={css.section}
-              onMouseEnter={() => {
-                if (openSectionId && openSectionId !== section.id) {
-                  setOpenSectionId(section.id);
-                }
+    <div
+      className={css.menuBar}
+      role="menubar"
+      data-testid="app-menubar"
+      ref={menuRootRef}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) {
+          setOpenSectionId(null);
+        }
+      }}
+    >
+      {definition.map((section) => {
+        const isOpen = openSectionId === section.id;
+        return (
+          <div
+            key={section.id}
+            className={css.section}
+            onMouseEnter={() => {
+              if (openSectionId && openSectionId !== section.id) {
+                setOpenSectionId(section.id);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={[css.trigger, isOpen ? css.triggerActive : ""].filter(Boolean).join(" ")}
+              role="menuitem"
+              aria-haspopup="menu"
+              aria-expanded={isOpen}
+              data-testid={`menu-section-${section.id}`}
+              onClick={() => {
+                setOpenSectionId((current) => current === section.id ? null : section.id);
               }}
             >
-              <button
-                type="button"
-                className={[css.trigger, isOpen ? css.triggerActive : ""].filter(Boolean).join(" ")}
-                role="menuitem"
-                aria-haspopup="menu"
-                aria-expanded={isOpen}
-                data-testid={`menu-section-${section.id}`}
-                onClick={() => {
-                  setOpenSectionId((current) => current === section.id ? null : section.id);
-                }}
-              >
-                {section.label}
-              </button>
+              {section.label}
+            </button>
 
-              {isOpen ? (
-                <MenuPopup
-                  items={section.items}
-                  path={section.id}
-                  nested={false}
-                  bindings={bindings}
-                  onCommandRun={() => setOpenSectionId(null)}
-                />
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-
-      {showOpenExampleModal ? (
-        <OpenExampleModal
-          examples={OPEN_EXAMPLE_CATALOG}
-          onClose={() => setShowOpenExampleModal(false)}
-          onSelectExample={loadExampleIntoEditor}
-        />
-      ) : null}
-
-      {compiledPictureSource !== null ? (
-        <TikzJaxModal
-          source={compiledPictureSource}
-          onClose={() => setCompiledPictureSource(null)}
-        />
-      ) : null}
-
-      {showSettingsModal ? (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
-      ) : null}
-
-      {svgExportSvgResult ? (
-        <SvgExportModal
-          svgResult={svgExportSvgResult}
-          onClose={() => setSvgExportSvgResult(null)}
-        />
-      ) : null}
-
-      {pngExportSvgResult ? (
-        <PngExportModal
-          svgResult={pngExportSvgResult}
-          onClose={() => setPngExportSvgResult(null)}
-        />
-      ) : null}
-    </>
+            {isOpen ? (
+              <MenuPopup
+                items={section.items}
+                path={section.id}
+                nested={false}
+                bindings={bindings}
+                onCommandRun={() => setOpenSectionId(null)}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }

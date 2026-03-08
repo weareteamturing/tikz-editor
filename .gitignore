@@ -143,3 +143,4 @@ dist
 /examples
 /.claude
 /prototypes/rgb-to-xcolor
+/tauri-docs

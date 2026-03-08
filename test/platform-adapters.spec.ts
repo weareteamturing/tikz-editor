@@ -65,8 +65,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
-        onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined,
+        listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
       });
@@ -106,8 +105,7 @@ describe("platform adapter contracts", () => {
         },
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
-        onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined,
+        listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
     });
@@ -130,8 +128,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
-        onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined,
+        listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
     });
@@ -151,8 +148,7 @@ describe("platform adapter contracts", () => {
     });
   });
 
-  it("desktop adapter bindOpenRequest receives open recent files", async () => {
-    let openRecentHandler: ((path: string) => void) | null = null;
+  it("desktop adapter bindOpenRequest receives test open requests", async () => {
     const platform = createDesktopPlatformAdapter({
       storage: {
         getItem: () => null,
@@ -169,15 +165,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
-        onMenuCommand: async () => () => undefined,
-        onOpenRecent: async (handler) => {
-          openRecentHandler = handler;
-          return () => {
-            if (openRecentHandler === handler) {
-              openRecentHandler = null;
-            }
-          };
-        },
+        listRecentFiles: async () => ["/tmp/recent.tex"],
         onWindowCloseRequest: async () => () => undefined
       }
     });
@@ -185,7 +173,17 @@ describe("platform adapter contracts", () => {
     const unbind = platform.files?.bindOpenRequest?.((opened) => {
       seenSource = opened.source;
     });
-    openRecentHandler?.("/tmp/recent.tex");
+    (
+      globalThis as typeof globalThis & {
+        __TIKZ_EDITOR_DESKTOP_TEST_API__?: {
+          triggerOpenRequest: (opened: { source: string; path: string; name: string }) => void;
+        };
+      }
+    ).__TIKZ_EDITOR_DESKTOP_TEST_API__?.triggerOpenRequest({
+      source: "\\draw (0,0)--(1,1);",
+      path: "/tmp/recent.tex",
+      name: "recent.tex"
+    });
     await Promise.resolve();
     await Promise.resolve();
     expect(seenSource).toContain("\\draw");
@@ -212,8 +210,7 @@ describe("platform adapter contracts", () => {
         closeWindow: async () => {
           closeCalled = true;
         },
-        onMenuCommand: async () => () => undefined,
-        onOpenRecent: async () => () => undefined,
+        listRecentFiles: async () => [],
         onWindowCloseRequest: async (handler) => {
           closeRequestHandler = handler;
           return () => {

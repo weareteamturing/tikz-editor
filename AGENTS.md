@@ -30,3 +30,7 @@ The repository includes `pgf-docs/`, a copy of the PGF manual source files. It a
 
 ## Testing note
 vitest doesn’t support --runInBand in this environment.
+
+## Tauri
+
+Tauri docs for the desktop app are available in `tauri-docs/` for local search.

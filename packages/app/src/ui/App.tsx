@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect, useRef, useState, type CSSProperties } from "react";
-import { APP_MENU_COMMAND_IDS } from "../app-menu";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION, filterAppMenuDefinitionForTarget } from "../app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
 import { AppMenuBar } from "./AppMenuBar";
@@ -19,6 +19,13 @@ import "./variables.css";
 import { TabStrip } from "./TabStrip";
 import { UnsavedChangesModal, type UnsavedChangesDecision } from "./UnsavedChangesModal";
 import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guard";
+import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
+import { OpenExampleModal } from "./OpenExampleModal";
+import { SettingsModal } from "./SettingsModal";
+import type { EmitSvgResult } from "tikz-editor/svg/index";
+import { SvgExportModal } from "./SvgExportModal";
+import { PngExportModal } from "./PngExportModal";
+import { TikzJaxModal } from "./TikzJaxModal";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -35,6 +42,13 @@ const DevPanel = lazy(async () => {
   return { default: mod.DevPanel };
 });
 
+function menuTargetFromPlatformId(platformId: string): "desktop" | "web" {
+  if (platformId.startsWith("desktop")) {
+    return "desktop";
+  }
+  return "web";
+}
+
 export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
@@ -49,6 +63,15 @@ export function App() {
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const platform = getActiveEditorPlatform();
+  const menuTarget = menuTargetFromPlatformId(platform.id);
+  const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
+  const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
+  const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
+  const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
+  const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
@@ -77,6 +100,24 @@ export function App() {
   requestCloseIntentRef.current = requestCloseIntent;
 
   const commandRuntime = useEditorCommandRuntime({
+    onOpenExample: () => {
+      setShowOpenExampleModal(true);
+    },
+    onOpenExampleInNewTab: () => {
+      setShowOpenExampleModal(true);
+    },
+    onOpenSvgExport: (svgResult) => {
+      setSvgExportSvgResult(svgResult);
+    },
+    onOpenPngExport: (svgResult) => {
+      setPngExportSvgResult(svgResult);
+    },
+    onShowCompiledPicture: () => {
+      setCompiledPictureSource(source);
+    },
+    onOpenSettings: () => {
+      setShowSettingsModal(true);
+    },
     onRequestCloseDocument: (documentId) => {
       requestCloseIntent({ kind: "close-document", documentId });
     },
@@ -224,6 +265,34 @@ export function App() {
     });
   }, [snapshot.source, source]);
 
+  useEffect(() => {
+    if (!pendingAutoFit) {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+    dispatch({ type: "REQUEST_FIT_TO_CONTENT" });
+    setPendingAutoFit(false);
+  }, [dispatch, pendingAutoFit, snapshot.source, source]);
+
+  useEffect(() => {
+    const sync = platform.menu?.syncNativeMenu;
+    if (typeof sync !== "function") {
+      return;
+    }
+    const commandStates = Object.fromEntries(
+      Object.entries(commandRuntime.bindings).map(([commandId, binding]) => [
+        commandId,
+        { enabled: binding.enabled, checked: binding.checked }
+      ])
+    );
+    void sync({
+      definition: menuDefinition,
+      commandStates
+    });
+  }, [commandRuntime.bindings, menuDefinition, platform.menu]);
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────────
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -361,6 +430,12 @@ export function App() {
     "--app-ui-scale": `${uiFontSizePx / 11}`
   } as CSSProperties;
 
+  const loadExampleIntoEditor = (example: TikzOpenExample) => {
+    dispatch({ type: "OPEN_EXAMPLE_IN_NEW_TAB", source: example.source, title: example.title });
+    setShowOpenExampleModal(false);
+    setPendingAutoFit(true);
+  };
+
   async function handleUnsavedDecision(decision: UnsavedChangesDecision): Promise<void> {
     if (!pendingClose) {
       return;
@@ -415,14 +490,12 @@ export function App() {
 
   return (
     <div className={css.app} style={appStyle}>
-      <AppMenuBar
-        onRequestCloseDocument={(documentId) => {
-          requestCloseIntent({ kind: "close-document", documentId });
-        }}
-        onRequestCloseAllDocuments={() => {
-          requestCloseIntent({ kind: "close-all" });
-        }}
-      />
+      {platform.menu?.usesNativeMenuBar ? null : (
+        <AppMenuBar
+          definition={menuDefinition}
+          bindings={commandRuntime.bindings}
+        />
+      )}
       <Toolbar />
       <TabStrip
         onRequestCloseDocument={(documentId) => {
@@ -448,6 +521,34 @@ export function App() {
       <Suspense fallback={null}>
         <DevPanel />
       </Suspense>
+      {showOpenExampleModal ? (
+        <OpenExampleModal
+          examples={OPEN_EXAMPLE_CATALOG}
+          onClose={() => setShowOpenExampleModal(false)}
+          onSelectExample={loadExampleIntoEditor}
+        />
+      ) : null}
+      {compiledPictureSource !== null ? (
+        <TikzJaxModal
+          source={compiledPictureSource}
+          onClose={() => setCompiledPictureSource(null)}
+        />
+      ) : null}
+      {showSettingsModal ? (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      ) : null}
+      {svgExportSvgResult ? (
+        <SvgExportModal
+          svgResult={svgExportSvgResult}
+          onClose={() => setSvgExportSvgResult(null)}
+        />
+      ) : null}
+      {pngExportSvgResult ? (
+        <PngExportModal
+          svgResult={pngExportSvgResult}
+          onClose={() => setPngExportSvgResult(null)}
+        />
+      ) : null}
       {pendingClose ? (
         <UnsavedChangesModal
           documentTitles={pendingClose.dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled")}

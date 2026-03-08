@@ -1,4 +1,5 @@
 import { useEditorStore } from "../store/store";
+import { getActiveEditorPlatform } from "../platform/current";
 import { getToolCapabilityStatus } from "./capabilities";
 import { RenderedTooltip } from "./RenderedTooltip";
 import { resolveToolbarToolMode, TOOL_BUTTONS } from "./tool-config";
@@ -7,12 +8,16 @@ import css from "./Toolbar.module.css";
 export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const showAppTitle = !getActiveEditorPlatform().id.startsWith("desktop");
 
   return (
     <div className={css.toolbar}>
-      <span className={css.title}>TikZ Editor</span>
-
-      <div className={css.separator} />
+      {showAppTitle ? (
+        <>
+          <span className={css.title}>TikZ Editor</span>
+          <div className={css.separator} />
+        </>
+      ) : null}
 
       {/* Tool mode buttons */}
       <div className={css.group}>

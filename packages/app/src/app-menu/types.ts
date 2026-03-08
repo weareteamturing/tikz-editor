@@ -63,24 +63,35 @@ export const APP_MENU_COMMAND_IDS = {
 
 export type AppMenuCommandId = (typeof APP_MENU_COMMAND_IDS)[keyof typeof APP_MENU_COMMAND_IDS];
 
+export type AppMenuPlatformTarget = "web" | "desktop";
+
+type AppMenuPlatformScoped = {
+  platforms?: readonly AppMenuPlatformTarget[];
+};
+
 export type AppMenuSeparatorItem = {
   kind: "separator";
-};
+} & AppMenuPlatformScoped;
 
 export type AppMenuCommandItem = {
   kind: "command";
   commandId: AppMenuCommandId;
   label: string;
   accelerator?: string;
-};
+} & AppMenuPlatformScoped;
 
 export type AppMenuSubmenuItem = {
   kind: "submenu";
   label: string;
   items: readonly AppMenuItem[];
-};
+} & AppMenuPlatformScoped;
 
-export type AppMenuItem = AppMenuSeparatorItem | AppMenuCommandItem | AppMenuSubmenuItem;
+export type AppMenuRecentFilesItem = {
+  kind: "recent-files";
+  label: string;
+} & AppMenuPlatformScoped;
+
+export type AppMenuItem = AppMenuSeparatorItem | AppMenuCommandItem | AppMenuSubmenuItem | AppMenuRecentFilesItem;
 
 export type AppMenuSectionId = "file" | "edit" | "insert" | "view";
 
@@ -88,6 +99,6 @@ export type AppMenuSection = {
   id: AppMenuSectionId;
   label: string;
   items: readonly AppMenuItem[];
-};
+} & AppMenuPlatformScoped;
 
 export type AppMenuDefinition = readonly AppMenuSection[];

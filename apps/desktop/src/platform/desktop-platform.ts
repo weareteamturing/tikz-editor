@@ -1,4 +1,12 @@
-import type { AppMenuCommandId, DocumentFileRef, EditorPlatform, MenuCommandHandler } from "@tikz-editor/app";
+import {
+  APP_MENU_COMMAND_IDS,
+  type AppMenuCommandId,
+  type AppMenuDefinition,
+  type AppMenuItem,
+  type DocumentFileRef,
+  type EditorPlatform,
+  type MenuCommandHandler
+} from "@tikz-editor/app";
 
 type StorageLike = {
   getItem: (key: string) => string | null;
@@ -34,8 +42,7 @@ type DesktopBridge = {
   writeClipboard: (text: string) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
-  onMenuCommand: (handler: (commandId: AppMenuCommandId) => void) => Promise<() => void>;
-  onOpenRecent: (handler: (path: string) => void) => Promise<() => void>;
+  listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
 };
 
@@ -51,6 +58,24 @@ type BrowserLikeGlobal = typeof globalThis & {
     dispatchCommand: (commandId: AppMenuCommandId) => void;
     triggerOpenRequest: (opened: { source: string; path: string; name: string }) => void;
     triggerWindowCloseRequest: () => void;
+  };
+};
+
+type NativeCommandState = {
+  enabled: boolean;
+  checked?: boolean;
+};
+
+type NativeMenuSyncPayload = {
+  definition: AppMenuDefinition;
+  commandStates: Record<AppMenuCommandId, NativeCommandState>;
+};
+
+type NativeCommandRef = {
+  kind: "command" | "check";
+  item: {
+    setEnabled: (enabled: boolean) => Promise<void>;
+    setChecked?: (checked: boolean) => Promise<void>;
   };
 };
 
@@ -94,6 +119,242 @@ function base64FromBytes(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+function isMacPlatform(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+  return /(mac|iphone|ipad)/i.test(navigator.platform);
+}
+
+function hasModifierAccelerator(accelerator: string | undefined): accelerator is string {
+  if (!accelerator) {
+    return false;
+  }
+  return /cmd|ctrl|alt|shift|meta|option|super/i.test(accelerator);
+}
+
+function basename(path: string): string {
+  const segments = path.split(/[\\/]/g);
+  const last = segments[segments.length - 1];
+  return last && last.trim() ? last : path;
+}
+
+function createNativeDesktopMenuManager(options: {
+  getBridge: () => DesktopBridge;
+  dispatchCommand: (commandId: AppMenuCommandId) => void;
+  dispatchOpenRecent: (path: string) => void;
+}) {
+  const { getBridge, dispatchCommand, dispatchOpenRecent } = options;
+  const commandRefs = new Map<AppMenuCommandId, NativeCommandRef[]>();
+  let currentMenu: { setAsAppMenu: () => Promise<unknown> } | null = null;
+  let latestPayload: NativeMenuSyncPayload | null = null;
+  let definitionKey: string | null = null;
+  let recentsDirty = true;
+  let syncQueue = Promise.resolve();
+
+  function addCommandRef(commandId: AppMenuCommandId, ref: NativeCommandRef): void {
+    const known = commandRefs.get(commandId) ?? [];
+    known.push(ref);
+    commandRefs.set(commandId, known);
+  }
+
+  async function applyCommandStates(commandStates: Record<AppMenuCommandId, NativeCommandState>): Promise<void> {
+    for (const [commandId, refs] of commandRefs.entries()) {
+      const state = commandStates[commandId] ?? { enabled: false };
+      for (const ref of refs) {
+        await ref.item.setEnabled(state.enabled);
+        if (ref.kind === "check") {
+          await ref.item.setChecked?.(Boolean(state.checked));
+        }
+      }
+    }
+  }
+
+  async function buildMenuItem(
+    item: AppMenuItem,
+    commandStates: Record<AppMenuCommandId, NativeCommandState>,
+    recentFiles: readonly string[]
+  ): Promise<unknown | null> {
+    const menuApi = await import("@tauri-apps/api/menu");
+
+    if (item.kind === "separator") {
+      return await menuApi.PredefinedMenuItem.new({ item: "Separator" });
+    }
+
+    if (item.kind === "recent-files") {
+      const recentItems = recentFiles.length > 0
+        ? await Promise.all(
+          recentFiles.map(async (path, index) =>
+            await menuApi.MenuItem.new({
+              id: `file.open-recent.${index}`,
+              text: basename(path),
+              action: () => {
+                dispatchOpenRecent(path);
+              }
+            })
+          )
+        )
+        : [
+          await menuApi.MenuItem.new({
+            id: "file.open-recent.empty",
+            text: "No Recent Files",
+            enabled: false
+          })
+        ];
+      return await menuApi.Submenu.new({
+        id: "file.open-recent",
+        text: item.label,
+        items: recentItems
+      });
+    }
+
+    if (item.kind === "submenu") {
+      const builtItems = (
+        await Promise.all(item.items.map(async (child) => await buildMenuItem(child, commandStates, recentFiles)))
+      ).filter((child): child is NonNullable<typeof child> => child != null);
+
+      if (builtItems.length === 0) {
+        return null;
+      }
+
+      return await menuApi.Submenu.new({
+        text: item.label,
+        items: builtItems
+      });
+    }
+
+    const state = commandStates[item.commandId] ?? { enabled: false };
+    const accelerator = hasModifierAccelerator(item.accelerator) ? item.accelerator : undefined;
+
+    if (state.checked != null) {
+      const checkItem = await menuApi.CheckMenuItem.new({
+        id: item.commandId,
+        text: item.label,
+        checked: state.checked,
+        enabled: state.enabled,
+        accelerator,
+        action: (id) => {
+          dispatchCommand(id as AppMenuCommandId);
+        }
+      });
+      addCommandRef(item.commandId, { kind: "check", item: checkItem });
+      return checkItem;
+    }
+
+    const commandItem = await menuApi.MenuItem.new({
+      id: item.commandId,
+      text: item.label,
+      enabled: state.enabled,
+      accelerator,
+      action: (id) => {
+        dispatchCommand(id as AppMenuCommandId);
+      }
+    });
+    addCommandRef(item.commandId, { kind: "command", item: commandItem });
+    return commandItem;
+  }
+
+  async function buildMacApplicationSubmenu(
+    commandStates: Record<AppMenuCommandId, NativeCommandState>
+  ): Promise<unknown> {
+    const menuApi = await import("@tauri-apps/api/menu");
+    const aboutItem = await menuApi.PredefinedMenuItem.new({ item: { About: null } });
+    const separator1 = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
+    const separator2 = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
+    const quitItem = await menuApi.PredefinedMenuItem.new({ item: "Quit" });
+
+    const settingsState = commandStates[APP_MENU_COMMAND_IDS.OPEN_SETTINGS] ?? { enabled: false };
+    const settingsItem = await menuApi.MenuItem.new({
+      id: "app.open-settings",
+      text: "Settings...",
+      enabled: settingsState.enabled,
+      action: () => {
+        dispatchCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS);
+      }
+    });
+    addCommandRef(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, { kind: "command", item: settingsItem });
+
+    return await menuApi.Submenu.new({
+      id: "app",
+      text: "App",
+      items: [aboutItem, separator1, settingsItem, separator2, quitItem]
+    });
+  }
+
+  async function rebuildMenu(payload: NativeMenuSyncPayload): Promise<void> {
+    const menuApi = await import("@tauri-apps/api/menu");
+    const recentFiles = await getBridge().listRecentFiles().catch(() => [] as string[]);
+
+    commandRefs.clear();
+    const topLevelItems: unknown[] = [];
+
+    if (isMacPlatform()) {
+      topLevelItems.push(await buildMacApplicationSubmenu(payload.commandStates));
+    }
+
+    for (const section of payload.definition) {
+      const sectionItems = (
+        await Promise.all(
+          section.items.map(async (item) => await buildMenuItem(item, payload.commandStates, recentFiles))
+        )
+      ).filter((item): item is NonNullable<typeof item> => item != null);
+
+      if (sectionItems.length === 0) {
+        continue;
+      }
+
+      topLevelItems.push(
+        await menuApi.Submenu.new({
+          id: `section.${section.id}`,
+          text: section.label,
+          items: sectionItems
+        })
+      );
+    }
+
+    const menu = await menuApi.Menu.new({ items: topLevelItems });
+    await menu.setAsAppMenu();
+    currentMenu = menu;
+    await applyCommandStates(payload.commandStates);
+  }
+
+  async function performSync(): Promise<void> {
+    if (!latestPayload) {
+      return;
+    }
+    const nextDefinitionKey = JSON.stringify(latestPayload.definition);
+    if (!currentMenu || recentsDirty || definitionKey !== nextDefinitionKey) {
+      await rebuildMenu(latestPayload);
+      definitionKey = nextDefinitionKey;
+      recentsDirty = false;
+      return;
+    }
+
+    await applyCommandStates(latestPayload.commandStates);
+  }
+
+  function enqueueSync(): void {
+    syncQueue = syncQueue.then(async () => {
+      await performSync();
+    }).catch(() => undefined);
+  }
+
+  return {
+    sync(payload: NativeMenuSyncPayload): Promise<void> {
+      latestPayload = payload;
+      enqueueSync();
+      return syncQueue;
+    },
+    refreshRecents(): void {
+      recentsDirty = true;
+      if (!latestPayload) {
+        return;
+      }
+      enqueueSync();
+    }
+  };
+}
+
 function createDefaultBridge(): DesktopBridge {
   return {
     openText: async (path) => {
@@ -129,21 +390,9 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_confirm_window_close");
     },
-    onMenuCommand: async (handler) => {
-      const { listen } = await import("@tauri-apps/api/event");
-      return await listen<string>("desktop-menu-command", (event) => {
-        if (typeof event.payload === "string") {
-          handler(event.payload as AppMenuCommandId);
-        }
-      });
-    },
-    onOpenRecent: async (handler) => {
-      const { listen } = await import("@tauri-apps/api/event");
-      return await listen<string>("desktop-open-recent", (event) => {
-        if (typeof event.payload === "string") {
-          handler(event.payload);
-        }
-      });
+    listRecentFiles: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<string[]>("desktop_list_recent_files");
     },
     onWindowCloseRequest: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
@@ -163,32 +412,31 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   let menuHandler: MenuCommandHandler | null = null;
   let openRequestHandler: ((opened: { source: string; fileRef: DocumentFileRef | null }) => void) | null = null;
   let closeRequestHandler: (() => void) | null = null;
-  let menuUnlistenPromise: Promise<(() => void) | null> | null = null;
-  let openRecentUnlistenPromise: Promise<(() => void) | null> | null = null;
   let windowCloseUnlistenPromise: Promise<(() => void) | null> | null = null;
 
-  function ensureNativeEventHooks(): void {
-    if (!menuUnlistenPromise) {
-      menuUnlistenPromise = getBridge().onMenuCommand((commandId) => {
-        menuHandler?.(commandId, "platform");
-      }).catch(() => null);
-    }
-    if (!openRecentUnlistenPromise) {
-      openRecentUnlistenPromise = getBridge().onOpenRecent((path) => {
-        if (!openRequestHandler) {
+  const nativeMenuManager = createNativeDesktopMenuManager({
+    getBridge,
+    dispatchCommand: (commandId) => {
+      menuHandler?.(commandId, "platform");
+    },
+    dispatchOpenRecent: (path) => {
+      if (!openRequestHandler) {
+        return;
+      }
+      void getBridge().openText(path).then((opened) => {
+        if (!opened) {
           return;
         }
-        void getBridge().openText(path).then((opened) => {
-          if (!opened) {
-            return;
-          }
-          openRequestHandler?.({
-            source: opened.source,
-            fileRef: toDesktopFileRef(opened.path, opened.name)
-          });
+        openRequestHandler?.({
+          source: opened.source,
+          fileRef: toDesktopFileRef(opened.path, opened.name)
         });
-      }).catch(() => null);
+        nativeMenuManager.refreshRecents();
+      });
     }
+  });
+
+  function ensureNativeEventHooks(): void {
     if (!windowCloseUnlistenPromise) {
       windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
         closeRequestHandler?.();
@@ -231,9 +479,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       }
     },
     menu: {
+      usesNativeMenuBar: true,
       bindCommandHandler: (handler) => {
         menuHandler = handler;
-        ensureNativeEventHooks();
         return () => {
           if (menuHandler === handler) {
             menuHandler = null;
@@ -242,6 +490,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       dispatchCommand: (commandId, origin = "platform") => {
         menuHandler?.(commandId, origin);
+      },
+      syncNativeMenu: async (payload) => {
+        await nativeMenuManager.sync(payload);
       }
     },
     window: {
@@ -266,7 +517,6 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     files: {
       bindOpenRequest: (handler) => {
         openRequestHandler = handler;
-        ensureNativeEventHooks();
         return () => {
           if (openRequestHandler === handler) {
             openRequestHandler = null;
@@ -278,6 +528,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         if (!opened) {
           return null;
         }
+        nativeMenuManager.refreshRecents();
         return {
           source: opened.source,
           fileRef: toDesktopFileRef(opened.path, opened.name)
@@ -294,12 +545,13 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
             path: currentRef?.provider === "desktop-fs" ? (currentRef.path ?? null) : null,
             forceSaveAs: mode === "save-as"
           });
-        } catch (error) {
+        } catch {
           return { status: "failed", fileRef: currentRef };
         }
         if (!result.ok || !result.path || !result.name) {
           return { status: "cancelled", fileRef: currentRef };
         }
+        nativeMenuManager.refreshRecents();
         return {
           status: "saved",
           fileRef: toDesktopFileRef(result.path, result.name)

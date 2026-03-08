@@ -81,6 +81,9 @@ function ContextMenuPopup({
             </div>
           );
         }
+        if (item.kind === "recent-files") {
+          return null;
+        }
 
         const binding = bindings[item.commandId];
         const role = binding.checked == null ? "menuitem" : "menuitemcheckbox";
