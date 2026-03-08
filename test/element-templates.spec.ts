@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  generateComplexPathSource,
   generateElementSource,
   insertElementIntoSource
 } from "../src/edit/element-templates.js";
@@ -94,6 +95,45 @@ describe("element templates", () => {
       { x: cm(1), y: cm(2) }
     );
     expect(snippet).toBe("\\draw (1,2) grid (3.2,3.4);");
+  });
+
+  it("generates an open multi-segment complex path snippet", () => {
+    const snippet = generateComplexPathSource(
+      { x: cm(0), y: cm(0) },
+      [
+        { kind: "line", to: { x: cm(1), y: cm(0) } },
+        { kind: "line", to: { x: cm(2), y: cm(1) } }
+      ]
+    );
+    expect(snippet).toBe("\\draw (0,0) -- (1,0) -- (2,1);");
+  });
+
+  it("generates a mixed line/bezier complex path snippet", () => {
+    const snippet = generateComplexPathSource(
+      { x: cm(0), y: cm(0) },
+      [
+        { kind: "line", to: { x: cm(1), y: cm(0) } },
+        {
+          kind: "bezier",
+          control1: { x: cm(2), y: cm(1) },
+          control2: { x: cm(3), y: cm(1) },
+          to: { x: cm(4), y: cm(0) }
+        }
+      ]
+    );
+    expect(snippet).toBe("\\draw (0,0) -- (1,0) .. controls (2,1) and (3,1) .. (4,0);");
+  });
+
+  it("generates a closed complex path snippet with cycle", () => {
+    const snippet = generateComplexPathSource(
+      { x: cm(0), y: cm(0) },
+      [
+        { kind: "line", to: { x: cm(1), y: cm(0) } },
+        { kind: "line", to: { x: cm(1), y: cm(1) } }
+      ],
+      { closed: true }
+    );
+    expect(snippet).toBe("\\draw (0,0) -- (1,0) -- (1,1) -- cycle;");
   });
 });
 

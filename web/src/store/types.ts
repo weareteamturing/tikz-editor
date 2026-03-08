@@ -4,6 +4,7 @@ import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
 export type ToolMode =
   | "select"
   | "addNode"
+  | "addPath"
   | "addLine"
   | "addGrid"
   | "addRect"

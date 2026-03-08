@@ -314,6 +314,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.INSERT_NODE]: insertBinding("addNode"),
+    [APP_MENU_COMMAND_IDS.INSERT_PATH]: insertBinding("addPath"),
     [APP_MENU_COMMAND_IDS.INSERT_LINE]: insertBinding("addLine"),
     [APP_MENU_COMMAND_IDS.INSERT_ARROW]: insertBinding("addArrow"),
     [APP_MENU_COMMAND_IDS.INSERT_BEZIER]: insertBinding("addBezier"),

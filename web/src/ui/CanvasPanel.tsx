@@ -47,7 +47,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
-import type { CanvasDragKind, ToolMode } from "../store/types";
+import type { CanvasDragKind } from "../store/types";
 import {
   requestSourceSelection,
   SOURCE_SELECTION_CHANGED_EVENT,
@@ -74,6 +74,7 @@ import type {
   NodeAnchorOverlayState,
   PendingAddedSelection,
   PendingBezier,
+  PathToolDraft,
   SelectionBounds,
   SnapDebugLogInput,
   TextEditingSession,
@@ -100,7 +101,6 @@ import {
   viewportToWorldPoint,
   worldToSvgPoint,
   worldToSvgY,
-  svgToWorldPoint,
   type RulerTick,
   type VisibleRanges
 } from "./canvas-panel/geometry";
@@ -126,6 +126,17 @@ import {
 } from "./canvas-panel/overlays";
 import { resolveCanvasContextMenuTarget } from "./canvas-panel/context-menu-target";
 import { resolveNodeAdornmentContextAction } from "./canvas-panel/node-adornment-context-action";
+import {
+  appendPathToolSegmentFromGesture,
+  createPathToolDraft,
+  generatePathToolSource,
+  pathToolCanClose,
+  pathToolCloseRadiusWorld,
+  pathToolCurrentPoint,
+  pathToolHasDrawableSegments,
+  pathToolShouldClose,
+  type PathToolGestureSegment
+} from "./canvas-panel/path-tool";
 import {
   RESIZE_FRAME_CORNER_ROLES,
   resolveResizeFrameForSource
@@ -245,6 +256,17 @@ type ToolPreview =
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+  | {
+      kind: "complex-path";
+      startX: number;
+      startY: number;
+      closeCandidate: boolean;
+      canClose: boolean;
+      segments: Array<
+        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
+        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+      >;
+    }
   | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
@@ -376,6 +398,8 @@ export function CanvasPanel() {
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [rulerAlignmentOffsets, setRulerAlignmentOffsets] = useState<RulerAlignmentOffsets>({ topX: 0, leftY: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
+  const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
+  const [pathSegmentDraft, setPathSegmentDraft] = useState<Extract<DragState, { kind: "tool-path-segment" }> | null>(null);
   const [toolDraft, setToolDraft] = useState<Extract<DragState, { kind: "tool-create" }> | null>(null);
   const [bezierBendDraft, setBezierBendDraft] = useState<Extract<DragState, { kind: "tool-bezier-bend" }> | null>(null);
   const [pendingBezier, setPendingBezier] = useState<PendingBezier | null>(null);
@@ -416,6 +440,7 @@ export function CanvasPanel() {
   const leftRulerRef = useRef<SVGSVGElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const pathDraftRef = useRef<PathToolDraft | null>(null);
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
   const autoFitDoneRef = useRef(false);
   const canvasTransformRef = useRef(canvasTransform);
@@ -446,6 +471,10 @@ export function CanvasPanel() {
     },
     [setActiveCanvasDragKind]
   );
+
+  useEffect(() => {
+    pathDraftRef.current = pathDraft;
+  }, [pathDraft]);
 
   const logSnapDebug = useCallback(
     (input: SnapDebugLogInput) => {
@@ -1224,6 +1253,116 @@ export function CanvasPanel() {
       };
     };
 
+    if (toolMode === "addPath") {
+      if (!pathDraft) {
+        if (!toolCursorWorld) {
+          return null;
+        }
+        const point = worldToSvgPoint(toolCursorWorld, svgResult.viewBox);
+        return { kind: "cursor", x: point.x, y: point.y };
+      }
+
+      const segments: Extract<ToolPreview, { kind: "complex-path" }>["segments"] = [];
+      let currentPoint = pathDraft.startWorld;
+      for (const segment of pathDraft.segments) {
+        const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+        if (segment.kind === "line") {
+          const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+          currentPoint = segment.to;
+          continue;
+        }
+
+        const c1 = worldToSvgPoint(segment.control1, svgResult.viewBox);
+        const c2 = worldToSvgPoint(segment.control2, svgResult.viewBox);
+        const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+        segments.push({
+          kind: "bezier",
+          x1: from.x,
+          y1: from.y,
+          c1x: c1.x,
+          c1y: c1.y,
+          c2x: c2.x,
+          c2y: c2.y,
+          x2: to.x,
+          y2: to.y
+        });
+        currentPoint = segment.to;
+      }
+      if (pathSegmentDraft) {
+        if (pathSegmentDraft.isBending) {
+          const controls = resolveBezierControlsFromBend(
+            pathSegmentDraft.startWorld,
+            pathSegmentDraft.endWorld,
+            pathSegmentDraft.bendWorld
+          );
+          const from = worldToSvgPoint(pathSegmentDraft.startWorld, svgResult.viewBox);
+          const c1 = worldToSvgPoint(controls.control1, svgResult.viewBox);
+          const c2 = worldToSvgPoint(controls.control2, svgResult.viewBox);
+          const to = worldToSvgPoint(pathSegmentDraft.endWorld, svgResult.viewBox);
+          segments.push({
+            kind: "bezier",
+            x1: from.x,
+            y1: from.y,
+            c1x: c1.x,
+            c1y: c1.y,
+            c2x: c2.x,
+            c2y: c2.y,
+            x2: to.x,
+            y2: to.y
+          });
+        } else {
+          const from = worldToSvgPoint(pathSegmentDraft.startWorld, svgResult.viewBox);
+          const to = worldToSvgPoint(pathSegmentDraft.endWorld, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+        }
+      } else if (toolCursorWorld) {
+        const closeCandidate = pathToolShouldClose(
+          pathDraft,
+          toolCursorWorld,
+          pathToolCloseRadiusWorld(canvasTransform.scale)
+        );
+        const candidateTarget = closeCandidate ? pathDraft.startWorld : toolCursorWorld;
+        if (distanceSquared(currentPoint, candidateTarget) > 1e-6) {
+          const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+          const to = worldToSvgPoint(candidateTarget, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+        }
+      }
+
+      const start = worldToSvgPoint(pathDraft.startWorld, svgResult.viewBox);
+      const closeCandidate =
+        toolCursorWorld != null
+          ? pathToolShouldClose(pathDraft, toolCursorWorld, pathToolCloseRadiusWorld(canvasTransform.scale))
+          : false;
+      return {
+        kind: "complex-path",
+        startX: start.x,
+        startY: start.y,
+        closeCandidate,
+        canClose: pathToolCanClose(pathDraft),
+        segments
+      };
+    }
+
     if (toolMode === "addBezier" && pendingBezier) {
       const midpoint = {
         x: (pendingBezier.startWorld.x + pendingBezier.endWorld.x) / 2,
@@ -1332,7 +1471,7 @@ export function CanvasPanel() {
       cy: start.y,
       r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
     };
-  }, [bezierBendDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, canvasTransform.scale, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
 
   const fitToContent = useCallback(() => {
     if (!svgResult || !viewportRef.current) return;
@@ -1450,6 +1589,58 @@ export function CanvasPanel() {
       pendingAddedSelectionRef.current = { beforeIds, preferredWorld };
     },
     [snapshot.scene]
+  );
+
+  const commitPathToolSegment = useCallback((segment: PathToolGestureSegment) => {
+    setPathDraft((previousDraft) => {
+      if (!previousDraft) {
+        return previousDraft;
+      }
+      return appendPathToolSegmentFromGesture(previousDraft, segment);
+    });
+    setPathSegmentDraft(null);
+    setToolCursorWorld(segment.endWorld);
+  }, []);
+
+  const finalizePathDraft = useCallback(
+    (closed: boolean) => {
+      const draft = pathDraftRef.current;
+      setPathSegmentDraft(null);
+      setNodeAnchorOverlay(null);
+      setSnapLines([]);
+      if (dragRef.current?.kind === "tool-path-segment") {
+        setDragState(null);
+      }
+
+      if (!draft || !pathToolHasDrawableSegments(draft)) {
+        setPathDraft(null);
+        setToolCursorWorld(null);
+        dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+        return;
+      }
+
+      const snippet = generatePathToolSource(draft, { closed });
+      if (!snippet) {
+        setPathDraft(null);
+        setToolCursorWorld(null);
+        dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+        return;
+      }
+
+      const ok = applyActionWithFeedback({
+        kind: "pasteStatements",
+        snippets: [snippet],
+        delta: { x: 0, y: 0 }
+      });
+      if (!ok.sourceChanged) {
+        pendingAddedSelectionRef.current = null;
+      }
+
+      setPathDraft(null);
+      setToolCursorWorld(null);
+      dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+    },
+    [applyActionWithFeedback, dispatch, setDragState]
   );
 
   const resolveGuideFromClient = useCallback(
@@ -2456,7 +2647,11 @@ export function CanvasPanel() {
           return;
         }
         const drawDragKind: DragState["kind"] =
-          toolMode === "addBezier" && pendingBezier ? "tool-bezier-bend" : "tool-create";
+          toolMode === "addPath"
+            ? "tool-path-segment"
+            : toolMode === "addBezier" && pendingBezier
+              ? "tool-bezier-bend"
+              : "tool-create";
         if (snapshot.source !== source) {
           setWarning("Wait for recompute to finish before starting a draw gesture.");
           setSnapLines([]);
@@ -2480,14 +2675,15 @@ export function CanvasPanel() {
               viewportWorld: viewportWorldBounds
             })
           : null;
-        const snappedStart = toolSnapContext
-          ? (snapToolPointer({
+        const startSnapResult = toolSnapContext
+          ? snapToolPointer({
               context: toolSnapContext,
               pointer: world,
-              kind: "node",
+              kind: toolMode === "addPath" ? "line-end" : "node",
               modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
-            }).snappedPoint ?? world)
-          : world;
+            })
+          : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
+        const snappedStart = startSnapResult.snappedPoint ?? world;
         const lineToolStartAnchorSnap =
           toolMode === "addLine" || toolMode === "addArrow"
             ? resolveEndpointAnchorSnap({
@@ -2501,6 +2697,73 @@ export function CanvasPanel() {
 
         setToolCursorWorld(resolvedStart);
         event.preventDefault();
+
+        if (toolMode === "addPath") {
+          const activeDraft = pathDraftRef.current;
+          if (!activeDraft) {
+            setPathDraft(createPathToolDraft(resolvedStart));
+            setPathSegmentDraft(null);
+            setToolDraft(null);
+            setBezierBendDraft(null);
+            setSnapLines(startSnapResult.lines);
+            logSnapDebug({
+              phase: "tool-path-start",
+              snapshotMatchesSource: true,
+              dragKind: null,
+              context: toolSnapContext,
+              rawPoint: world,
+              snappedPoint: resolvedStart,
+              offset: startSnapResult.offset,
+              lines: startSnapResult.lines
+            });
+            return;
+          }
+
+          const closeRadiusWorld = pathToolCloseRadiusWorld(canvasTransform.scale);
+          if (pathToolShouldClose(activeDraft, resolvedStart, closeRadiusWorld)) {
+            finalizePathDraft(true);
+            return;
+          }
+
+          const segmentStart = pathToolCurrentPoint(activeDraft);
+          if (distanceSquared(segmentStart, resolvedStart) <= 1e-6) {
+            setSnapLines(startSnapResult.lines);
+            return;
+          }
+
+          const midpoint = {
+            x: (segmentStart.x + resolvedStart.x) / 2,
+            y: (segmentStart.y + resolvedStart.y) / 2
+          };
+          const nextPathSegmentDraft: Extract<DragState, { kind: "tool-path-segment" }> = {
+            kind: "tool-path-segment",
+            pointerId: event.pointerId,
+            startWorld: segmentStart,
+            endWorld: resolvedStart,
+            startPointerWorld: resolvedStart,
+            rawBendWorld: midpoint,
+            bendWorld: midpoint,
+            isBending: false,
+            snapContext: toolSnapContext
+          };
+          setNodeAnchorOverlay(null);
+          setToolDraft(null);
+          setBezierBendDraft(null);
+          setPathSegmentDraft(nextPathSegmentDraft);
+          setDragState(nextPathSegmentDraft);
+          setSnapLines([]);
+          logSnapDebug({
+            phase: "tool-path-segment-start",
+            snapshotMatchesSource: true,
+            dragKind: "tool-path-segment",
+            context: toolSnapContext,
+            rawPoint: world,
+            snappedPoint: resolvedStart,
+            offset: startSnapResult.offset,
+            lines: startSnapResult.lines
+          });
+          return;
+        }
 
         if (toolMode === "addBezier" && pendingBezier) {
           const bendSnap = toolSnapContext
@@ -2621,6 +2884,7 @@ export function CanvasPanel() {
       applyActionWithFeedback,
       canvasTransform,
       dispatch,
+      finalizePathDraft,
       logSnapDebug,
       queueSelectionForAddedElement,
       setDragState,
@@ -2643,6 +2907,9 @@ export function CanvasPanel() {
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (pathSegmentDraft) {
         return;
       }
 
@@ -2677,12 +2944,13 @@ export function CanvasPanel() {
       const snapped = snapToolPointer({
         context: snapContext,
         pointer: world,
-        kind: "node",
+        kind: toolMode === "addPath" ? "line-end" : "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
       const hoverEndpointAnchorOverlay =
         !toolDraft &&
         !bezierBendDraft &&
+        !pathSegmentDraft &&
         (toolMode === "addLine" || toolMode === "addArrow")
           ? resolveEndpointAnchorSnap({
               pointerWorld: world,
@@ -2696,14 +2964,24 @@ export function CanvasPanel() {
           ? hoverEndpointAnchorOverlay
           : null
       );
-      setToolCursorWorld(hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
-      if (!toolDraft && !bezierBendDraft) {
+      const closeCandidateWorld =
+        toolMode === "addPath" &&
+        pathDraft &&
+        pathToolShouldClose(
+          pathDraft,
+          snapped.snappedPoint ?? world,
+          pathToolCloseRadiusWorld(canvasTransform.scale)
+        )
+          ? pathDraft.startWorld
+          : null;
+      setToolCursorWorld(closeCandidateWorld ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
+      if (!toolDraft && !bezierBendDraft && !pathSegmentDraft) {
         setSnapLines(snapped.lines);
       }
       logSnapDebug({
         phase: "tool-hover-move",
         snapshotMatchesSource: true,
-        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : null,
+        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : pathSegmentDraft ? "tool-path-segment" : null,
         context: snapContext,
         rawPoint: world,
         snappedPoint: snapped.snappedPoint ?? world,
@@ -2721,6 +2999,8 @@ export function CanvasPanel() {
       setNodeAnchorOverlay,
       svgResult,
       bezierBendDraft,
+      pathDraft,
+      pathSegmentDraft,
       toolDraft,
       toolMode,
       snapGuideInput,
@@ -2730,18 +3010,21 @@ export function CanvasPanel() {
   );
 
   const onInteractionPointerLeave = useCallback(() => {
-    if (toolMode === "select" || toolDraft || bezierBendDraft) {
+    if (toolMode === "select" || toolDraft || bezierBendDraft || pathSegmentDraft) {
       return;
     }
     setNodeAnchorOverlay(null);
     setToolCursorWorld(null);
     setSnapLines([]);
-  }, [bezierBendDraft, setNodeAnchorOverlay, toolDraft, toolMode]);
+  }, [bezierBendDraft, pathSegmentDraft, setNodeAnchorOverlay, toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (pathSegmentDraft) {
         return;
       }
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
@@ -2775,12 +3058,13 @@ export function CanvasPanel() {
       const snapped = snapToolPointer({
         context: snapContext,
         pointer: world,
-        kind: "node",
+        kind: toolMode === "addPath" ? "line-end" : "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
       const hoverEndpointAnchorOverlay =
         !toolDraft &&
         !bezierBendDraft &&
+        !pathSegmentDraft &&
         (toolMode === "addLine" || toolMode === "addArrow")
           ? resolveEndpointAnchorSnap({
               pointerWorld: world,
@@ -2794,14 +3078,24 @@ export function CanvasPanel() {
           ? hoverEndpointAnchorOverlay
           : null
       );
-      setToolCursorWorld(hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
-      if (!toolDraft && !bezierBendDraft) {
+      const closeCandidateWorld =
+        toolMode === "addPath" &&
+        pathDraft &&
+        pathToolShouldClose(
+          pathDraft,
+          snapped.snappedPoint ?? world,
+          pathToolCloseRadiusWorld(canvasTransform.scale)
+        )
+          ? pathDraft.startWorld
+          : null;
+      setToolCursorWorld(closeCandidateWorld ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
+      if (!toolDraft && !bezierBendDraft && !pathSegmentDraft) {
         setSnapLines(snapped.lines);
       }
       logSnapDebug({
         phase: "tool-hover-enter",
         snapshotMatchesSource: true,
-        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : null,
+        dragKind: toolDraft ? "tool-create" : bezierBendDraft ? "tool-bezier-bend" : pathSegmentDraft ? "tool-path-segment" : null,
         context: snapContext,
         rawPoint: world,
         snappedPoint: snapped.snappedPoint ?? world,
@@ -2819,6 +3113,8 @@ export function CanvasPanel() {
       setNodeAnchorOverlay,
       svgResult,
       bezierBendDraft,
+      pathDraft,
+      pathSegmentDraft,
       toolDraft,
       toolMode,
       snapGuideInput,
@@ -2837,6 +3133,13 @@ export function CanvasPanel() {
       }
 
       if (event.key === "Escape") {
+        if (toolMode === "addPath") {
+          finalizePathDraft(false);
+          setWarning(null);
+          event.preventDefault();
+          return;
+        }
+
         if (toolMode !== "select") {
           dispatch({ type: "SET_TOOL_MODE", mode: "select" });
           setToolDraft(null);
@@ -2852,7 +3155,8 @@ export function CanvasPanel() {
         if (
           dragRef.current?.kind === "marquee" ||
           dragRef.current?.kind === "tool-create" ||
-          dragRef.current?.kind === "tool-bezier-bend"
+          dragRef.current?.kind === "tool-bezier-bend" ||
+          dragRef.current?.kind === "tool-path-segment"
         ) {
           setDragState(null);
         }
@@ -2963,6 +3267,7 @@ export function CanvasPanel() {
       applyActionWithFeedback,
       contextMenuState,
       dispatch,
+      finalizePathDraft,
       logSnapDebug,
       setDragState,
       selectedElementIds,
@@ -3458,15 +3763,29 @@ export function CanvasPanel() {
 
   useEffect(() => {
     if (toolMode === "select") {
+      setPathDraft(null);
+      setPathSegmentDraft(null);
       setToolDraft(null);
       setBezierBendDraft(null);
       setPendingBezier(null);
       setToolCursorWorld(null);
       setSnapLines([]);
-      if (dragRef.current?.kind === "tool-create" || dragRef.current?.kind === "tool-bezier-bend") {
+      if (
+        dragRef.current?.kind === "tool-create" ||
+        dragRef.current?.kind === "tool-bezier-bend" ||
+        dragRef.current?.kind === "tool-path-segment"
+      ) {
         setDragState(null);
       }
       return;
+    }
+
+    if (toolMode !== "addPath") {
+      setPathDraft(null);
+      setPathSegmentDraft(null);
+      if (dragRef.current?.kind === "tool-path-segment") {
+        setDragState(null);
+      }
     }
 
     if (toolMode !== "addBezier") {
@@ -3713,6 +4032,8 @@ export function CanvasPanel() {
     setSnapLines,
     setToolDraft,
     setBezierBendDraft,
+    setPathSegmentDraft,
+    commitPathToolSegment,
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,

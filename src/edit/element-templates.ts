@@ -16,6 +16,10 @@ export type ElementTemplate =
   | { kind: "circle"; edge?: Point }
   | { kind: "filledCircle"; edge?: Point };
 
+export type ComplexPathSegment =
+  | { kind: "line"; to: Point }
+  | { kind: "bezier"; to: Point; control1: Point; control2: Point };
+
 const DEFAULT_NODE_TEXT = "node";
 const DEFAULT_LINE_LENGTH_PT = 2 * PT_PER_CM;
 const DEFAULT_RECT_WIDTH_PT = 2.2 * PT_PER_CM;
@@ -109,6 +113,34 @@ export function insertElementIntoSource(source: string, snippet: string): string
   const prefix = needsLeadingNewline ? "\n" : "";
 
   return `${before}${prefix}${bodyIndent}${normalizedSnippet}\n${after}`;
+}
+
+export function generateComplexPathSource(
+  start: Point,
+  segments: readonly ComplexPathSegment[],
+  options: { closed?: boolean } = {}
+): string | null {
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const parts: string[] = [formatPointCm(start)];
+  for (const segment of segments) {
+    if (segment.kind === "line") {
+      parts.push(`-- ${formatPointCm(segment.to)}`);
+      continue;
+    }
+
+    parts.push(
+      `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPointCm(segment.to)}`
+    );
+  }
+
+  if (options.closed) {
+    parts.push("-- cycle");
+  }
+
+  return `\\draw ${parts.join(" ")};`;
 }
 
 function formatPointCm(point: Point): string {

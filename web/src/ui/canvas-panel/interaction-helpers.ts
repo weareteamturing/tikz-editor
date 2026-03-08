@@ -58,6 +58,12 @@ export function createTemplateForToolDrag(
   const dragDistance = Math.hypot(dx, dy);
   const hasDrag = dragDistance >= 1e-3;
 
+  if (mode === "addPath") {
+    return hasDrag
+      ? { kind: "line", hasArrow: false, to: endWorld }
+      : { kind: "line", hasArrow: false };
+  }
+
   if (mode === "addLine") {
     return hasDrag
       ? { kind: "line", hasArrow: false, to: endWorld }

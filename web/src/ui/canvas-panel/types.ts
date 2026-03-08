@@ -1,4 +1,5 @@
 import type { AdornmentOwnerGeometry, Span, Statement } from "tikz-editor/ast/types";
+import type { ComplexPathSegment } from "tikz-editor/edit/element-templates";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { SelectionGeometry, SnapContext, SnapLine } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement, SceneText } from "tikz-editor/semantic/types";
@@ -108,6 +109,17 @@ export type DragState =
       snapContext: SnapContext | null;
     }
   | {
+      kind: "tool-path-segment";
+      pointerId: number;
+      startWorld: Point;
+      endWorld: Point;
+      startPointerWorld: Point;
+      rawBendWorld: Point;
+      bendWorld: Point;
+      isBending: boolean;
+      snapContext: SnapContext | null;
+    }
+  | {
       kind: "text-select";
       pointerId: number;
       sourceId: string;
@@ -133,6 +145,11 @@ export type PendingAddedSelection = {
 export type PendingBezier = {
   startWorld: Point;
   endWorld: Point;
+};
+
+export type PathToolDraft = {
+  startWorld: Point;
+  segments: ComplexPathSegment[];
 };
 
 export type TextSelectionOverlay = {

@@ -25,8 +25,14 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModeFromShortcut("B")).toBe("addBezier");
   });
 
+  it("maps keyboard shortcut P to addPath", () => {
+    expect(toolModeFromShortcut("p")).toBe("addPath");
+    expect(toolModeFromShortcut("P")).toBe("addPath");
+  });
+
   it("treats addBezier as a tool-create mode", () => {
     expect(isToolCreateMode("addBezier")).toBe(true);
+    expect(isToolCreateMode("addPath")).toBe(true);
     expect(isToolCreateMode("select")).toBe(false);
   });
 

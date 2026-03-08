@@ -1046,7 +1046,7 @@ export function canvasDragKindFromDragState(drag: DragState | null): CanvasDragK
   if (!drag) {
     return null;
   }
-  if (drag.kind === "tool-bezier-bend") {
+  if (drag.kind === "tool-bezier-bend" || drag.kind === "tool-path-segment") {
     return "tool-create";
   }
   return drag.kind;
@@ -1065,7 +1065,12 @@ export function dragCursorForState(drag: DragState | null): string | null {
   if (drag.kind === "pan") {
     return "grabbing";
   }
-  if (drag.kind === "marquee" || drag.kind === "tool-create" || drag.kind === "tool-bezier-bend") {
+  if (
+    drag.kind === "marquee" ||
+    drag.kind === "tool-create" ||
+    drag.kind === "tool-bezier-bend" ||
+    drag.kind === "tool-path-segment"
+  ) {
     return "crosshair";
   }
   return drag.kind === "text-select" ? "text" : null;

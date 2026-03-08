@@ -204,6 +204,12 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_PATH,
+        label: "Path",
+        accelerator: "P"
+      },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_LINE,
         label: "Line",
         accelerator: "L"

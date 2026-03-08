@@ -31,6 +31,7 @@ export const APP_MENU_COMMAND_IDS = {
   DISTRIBUTE_HORIZONTAL: "edit.distribute-horizontal",
   DISTRIBUTE_VERTICAL: "edit.distribute-vertical",
   INSERT_NODE: "insert.node",
+  INSERT_PATH: "insert.path",
   INSERT_LINE: "insert.line",
   INSERT_ARROW: "insert.arrow",
   INSERT_BEZIER: "insert.bezier",

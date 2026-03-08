@@ -20,6 +20,17 @@ type ToolPreview =
   | { kind: "node"; x: number; y: number }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
   | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+  | {
+      kind: "complex-path";
+      startX: number;
+      startY: number;
+      closeCandidate: boolean;
+      canClose: boolean;
+      segments: Array<
+        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
+        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+      >;
+    }
   | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
@@ -330,6 +341,54 @@ export function ToolPreviewOverlay({
           <path
             d={`M ${fmt(toolPreview.x1)},${fmt(toolPreview.y1)} C ${fmt(toolPreview.c1x)},${fmt(toolPreview.c1y)} ${fmt(toolPreview.c2x)},${fmt(toolPreview.c2y)} ${fmt(toolPreview.x2)},${fmt(toolPreview.y2)}`}
             className={css.toolPreviewStroke}
+            strokeWidth={handleStrokeWidth}
+          />
+        </g>
+      )}
+      {toolPreview.kind === "complex-path" && (
+        <g>
+          {toolPreview.segments.map((segment, index) =>
+            segment.kind === "line" ? (
+              <line
+                key={`complex-line-${index}`}
+                x1={segment.x1}
+                y1={segment.y1}
+                x2={segment.x2}
+                y2={segment.y2}
+                className={css.toolPreviewStroke}
+                strokeWidth={handleStrokeWidth}
+              />
+            ) : (
+              <g key={`complex-bezier-${index}`}>
+                <line
+                  x1={segment.x1}
+                  y1={segment.y1}
+                  x2={segment.c1x}
+                  y2={segment.c1y}
+                  className={css.curveControlLine}
+                  strokeWidth={handleStrokeWidth}
+                />
+                <line
+                  x1={segment.x2}
+                  y1={segment.y2}
+                  x2={segment.c2x}
+                  y2={segment.c2y}
+                  className={css.curveControlLine}
+                  strokeWidth={handleStrokeWidth}
+                />
+                <path
+                  d={`M ${fmt(segment.x1)},${fmt(segment.y1)} C ${fmt(segment.c1x)},${fmt(segment.c1y)} ${fmt(segment.c2x)},${fmt(segment.c2y)} ${fmt(segment.x2)},${fmt(segment.y2)}`}
+                  className={css.toolPreviewStroke}
+                  strokeWidth={handleStrokeWidth}
+                />
+              </g>
+            )
+          )}
+          <circle
+            cx={toolPreview.startX}
+            cy={toolPreview.startY}
+            r={toolPreview.canClose ? 5 / Math.max(scale, 1e-3) : 3.5 / Math.max(scale, 1e-3)}
+            className={toolPreview.closeCandidate ? css.toolPreviewFill : css.toolPreviewStroke}
             strokeWidth={handleStrokeWidth}
           />
         </g>

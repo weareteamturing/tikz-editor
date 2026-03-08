@@ -4,6 +4,7 @@ import type { ToolMode } from "../store/types";
 import {
   RiCursorLine,
   RiText,
+  RiPencilLine,
   RiSubtractLine,
   RiArrowRightLine,
   RiPenNibLine,
@@ -36,6 +37,7 @@ export type ToolButtonDef = {
 export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",  title: "Select and move elements (V)",                     shortcut: "v", icon: RiCursorLine },
   { mode: "addNode",    label: "Node",    title: "Place a text node (N)",                            shortcut: "n", icon: RiText },
+  { mode: "addPath",    label: "Path",    title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: RiPencilLine },
   { mode: "addLine",    label: "Line",    title: "Draw a line (L)",                                  shortcut: "l", icon: RiSubtractLine },
   { mode: "addArrow",   label: "Arrow",   title: "Draw an arrow (A)",                                shortcut: "a", icon: RiArrowRightLine },
   { mode: "addBezier",  label: "Bezier",  title: "Draw a cubic Bezier curve (B) with two drags",    shortcut: "b", icon: RiPenNibLine },
@@ -45,7 +47,7 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "addCircle",  label: "Circle",  title: "Draw a circle from center (C)",                   shortcut: "c", icon: RiCircleLine },
 ];
 
-export const TOOL_CREATE_MODES = ["addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle"] as const;
+export const TOOL_CREATE_MODES = ["addPath", "addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle"] as const;
 
 export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 

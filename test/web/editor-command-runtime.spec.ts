@@ -73,6 +73,25 @@ describe("editor-command-runtime", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("routes the insert path command to addPath tool mode", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: -1,
+        historyLength: 0
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.INSERT_PATH, "menu");
+
+    expect(ran).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: "SET_TOOL_MODE", mode: "addPath" });
+  });
+
   it("routes open example command to host callback", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const onOpenExample = vi.fn();

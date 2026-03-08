@@ -227,12 +227,10 @@ export function collectGeometryInvalidation(
 
   const queue: string[] = [];
   const visited = new Set<string>();
-  const directlyChangedSourceIds = new Set<string>();
 
   for (const sourceId of new Set(query.changedSourceIds)) {
     const id = sourceNodeId(sourceId);
     if (!nodeById.has(id)) {
-      directlyChangedSourceIds.add(sourceId);
       continue;
     }
     if (visited.has(id)) {
@@ -242,7 +240,7 @@ export function collectGeometryInvalidation(
     queue.push(id);
   }
 
-  const affectedSourceIds = new Set<string>(directlyChangedSourceIds);
+  const affectedSourceIds = new Set<string>();
   const opaqueSourceIds = new Set<string>();
 
   while (queue.length > 0) {

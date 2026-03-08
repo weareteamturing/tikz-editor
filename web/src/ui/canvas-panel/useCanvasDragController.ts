@@ -30,6 +30,7 @@ import {
 import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./handle-drag-actions";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
+import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
@@ -77,6 +78,8 @@ export function useCanvasDragController(params: {
   setSnapLines: (lines: SnapLine[]) => void;
   setToolDraft: (draft: Extract<DragState, { kind: "tool-create" }> | null) => void;
   setBezierBendDraft: (draft: Extract<DragState, { kind: "tool-bezier-bend" }> | null) => void;
+  setPathSegmentDraft: (draft: Extract<DragState, { kind: "tool-path-segment" }> | null) => void;
+  commitPathToolSegment: (segment: PathToolGestureSegment) => void;
   setPendingBezier: (pending: PendingBezier | null) => void;
   setToolCursorWorld: (point: Point | null) => void;
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
@@ -111,6 +114,8 @@ export function useCanvasDragController(params: {
     setSnapLines,
     setToolDraft,
     setBezierBendDraft,
+    setPathSegmentDraft,
+    commitPathToolSegment,
     setPendingBezier,
     setToolCursorWorld,
     setMarqueeDraft,
@@ -335,6 +340,38 @@ export function useCanvasDragController(params: {
           context: drag.snapContext,
           rawPoint: world,
           snappedPoint: drag.currentWorld,
+          offset: snapped.offset,
+          lines: snapped.lines
+        });
+        return;
+      }
+
+      if (drag.kind === "tool-path-segment") {
+        setNodeAnchorOverlay(null);
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: world,
+              kind: "line-end",
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
+        drag.rawBendWorld = snapped.snappedPoint ?? world;
+        drag.bendWorld = drag.rawBendWorld;
+        if (!drag.isBending) {
+          const thresholdWorld = PATH_TOOL_BEND_DRAG_THRESHOLD_PX / Math.max(drag.snapContext?.zoom ?? 1, 1e-3);
+          drag.isBending = distanceSquared(drag.rawBendWorld, drag.startPointerWorld) > thresholdWorld * thresholdWorld;
+        }
+        setPathSegmentDraft({ ...drag });
+        setToolCursorWorld(drag.endWorld);
+        setSnapLines(snapped.lines);
+        logSnapDebug({
+          phase: "drag-tool-path-segment-move",
+          snapshotMatchesSource: snapshotSource === source,
+          dragKind: "tool-path-segment",
+          context: drag.snapContext,
+          rawPoint: world,
+          snappedPoint: drag.bendWorld,
           offset: snapped.offset,
           lines: snapped.lines
         });
@@ -779,6 +816,34 @@ export function useCanvasDragController(params: {
         return;
       }
 
+      if (drag.kind === "tool-path-segment") {
+        setNodeAnchorOverlay(null);
+        const rawFinalBend = world ?? drag.rawBendWorld;
+        const snapped = drag.snapContext
+          ? snapToolPointer({
+              context: drag.snapContext,
+              pointer: rawFinalBend,
+              kind: "line-end",
+              modifiers: { ctrlOrMeta }
+            })
+          : { snappedPoint: rawFinalBend, lines: [] as SnapLine[] };
+        const finalBend = snapped.snappedPoint ?? rawFinalBend;
+        const thresholdWorld = PATH_TOOL_BEND_DRAG_THRESHOLD_PX / Math.max(drag.snapContext?.zoom ?? 1, 1e-3);
+        const asBezier =
+          drag.isBending || distanceSquared(finalBend, drag.startPointerWorld) > thresholdWorld * thresholdWorld;
+
+        commitPathToolSegment({
+          endWorld: drag.endWorld,
+          bendWorld: finalBend,
+          asBezier
+        });
+        setPathSegmentDraft(null);
+        setToolCursorWorld(drag.endWorld);
+        setSnapLines(snapped.lines);
+        setDragState(null);
+        return;
+      }
+
       if (drag.kind === "text-select") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
@@ -837,6 +902,8 @@ export function useCanvasDragController(params: {
     setSnapLines,
     setTextEditingSession,
     setBezierBendDraft,
+    setPathSegmentDraft,
+    commitPathToolSegment,
     setPendingBezier,
     setToolCursorWorld,
     setToolDraft,

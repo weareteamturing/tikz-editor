@@ -30,6 +30,12 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
     { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
     { feature: "svg_text", layers: ["semantic", "svg"], label: "text node rendering" }
   ],
+  addPath: [
+    { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "polyline path rendering" },
+    { feature: "path_operator_curves", layers: ["parser", "semantic", "svg"], label: "Bezier segment rendering" },
+    { feature: "keyword_controls", layers: ["parser", "semantic", "svg"], label: "Bezier control-point parsing" },
+    { feature: "path_cycle", layers: ["parser", "semantic", "svg"], label: "cycle closure rendering" }
+  ],
   addLine: [
     { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "line path rendering" }
   ],
