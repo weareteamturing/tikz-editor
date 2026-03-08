@@ -351,5 +351,16 @@ export const APP_MENU_DEFINITION = [
         accelerator: "CmdOrCtrl+Shift+D"
       }
     ]
+  },
+  {
+    id: "help",
+    label: "Help",
+    items: [
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL,
+        label: "Open PGF/TikZ Manual"
+      }
+    ]
   }
 ] as const satisfies AppMenuDefinition;

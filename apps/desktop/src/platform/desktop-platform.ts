@@ -42,6 +42,7 @@ type DesktopBridge = {
   writeClipboard: (text: string) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
+  openExternalUrl: (url: string) => Promise<boolean>;
   listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
 };
@@ -144,6 +145,7 @@ function createNativeDesktopMenuManager(options: {
   dispatchCommand: (commandId: AppMenuCommandId) => void;
   dispatchOpenRecent: (path: string) => void;
 }) {
+  const APP_DISPLAY_NAME = "TikZ Editor";
   const { getBridge, dispatchCommand, dispatchOpenRecent } = options;
   const commandRefs = new Map<AppMenuCommandId, NativeCommandRef[]>();
   let currentMenu: { setAsAppMenu: () => Promise<unknown> } | null = null;
@@ -258,10 +260,20 @@ function createNativeDesktopMenuManager(options: {
     commandStates: Record<AppMenuCommandId, NativeCommandState>
   ): Promise<unknown> {
     const menuApi = await import("@tauri-apps/api/menu");
-    const aboutItem = await menuApi.PredefinedMenuItem.new({ item: { About: null } });
+    const aboutItem = await menuApi.PredefinedMenuItem.new({
+      text: `About ${APP_DISPLAY_NAME}`,
+      item: {
+        About: {
+          name: APP_DISPLAY_NAME
+        }
+      }
+    });
     const separator1 = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
     const separator2 = await menuApi.PredefinedMenuItem.new({ item: "Separator" });
-    const quitItem = await menuApi.PredefinedMenuItem.new({ item: "Quit" });
+    const quitItem = await menuApi.PredefinedMenuItem.new({
+      text: `Quit ${APP_DISPLAY_NAME}`,
+      item: "Quit"
+    });
 
     const settingsState = commandStates[APP_MENU_COMMAND_IDS.OPEN_SETTINGS] ?? { enabled: false };
     const settingsItem = await menuApi.MenuItem.new({
@@ -276,7 +288,7 @@ function createNativeDesktopMenuManager(options: {
 
     return await menuApi.Submenu.new({
       id: "app",
-      text: "App",
+      text: APP_DISPLAY_NAME,
       items: [aboutItem, separator1, settingsItem, separator2, quitItem]
     });
   }
@@ -303,13 +315,15 @@ function createNativeDesktopMenuManager(options: {
         continue;
       }
 
-      topLevelItems.push(
-        await menuApi.Submenu.new({
-          id: `section.${section.id}`,
-          text: section.label,
-          items: sectionItems
-        })
-      );
+      const submenu = await menuApi.Submenu.new({
+        id: `section.${section.id}`,
+        text: section.label,
+        items: sectionItems
+      });
+      if (isMacPlatform() && section.id === "help") {
+        await submenu.setAsHelpMenuForNSApp();
+      }
+      topLevelItems.push(submenu);
     }
 
     const menu = await menuApi.Menu.new({ items: topLevelItems });
@@ -389,6 +403,10 @@ function createDefaultBridge(): DesktopBridge {
     closeWindow: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_confirm_window_close");
+    },
+    openExternalUrl: async (url) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<boolean>("desktop_open_external", { url });
     },
     listRecentFiles: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -512,6 +530,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       close: async () => {
         await getBridge().closeWindow();
+      },
+      openExternalUrl: async (url) => {
+        return await getBridge().openExternalUrl(url);
       }
     },
     files: {

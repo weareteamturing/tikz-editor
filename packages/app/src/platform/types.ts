@@ -45,6 +45,7 @@ export type PlatformWindowApi = {
   setDocumentState?: (state: { title?: string; dirty?: boolean }) => void;
   bindCloseRequest?: (handler: () => void) => (() => void) | void;
   close?: () => Promise<void> | void;
+  openExternalUrl?: (url: string) => Promise<boolean> | boolean;
 };
 
 export type EditorPlatform = {

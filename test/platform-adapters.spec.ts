@@ -65,6 +65,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
+        openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
@@ -105,6 +106,7 @@ describe("platform adapter contracts", () => {
         },
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
+        openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
@@ -128,6 +130,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
+        openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined
       }
@@ -165,6 +168,7 @@ describe("platform adapter contracts", () => {
         writeClipboard: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
+        openExternalUrl: async () => true,
         listRecentFiles: async () => ["/tmp/recent.tex"],
         onWindowCloseRequest: async () => () => undefined
       }
@@ -210,6 +214,7 @@ describe("platform adapter contracts", () => {
         closeWindow: async () => {
           closeCalled = true;
         },
+        openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async (handler) => {
           closeRequestHandler = handler;

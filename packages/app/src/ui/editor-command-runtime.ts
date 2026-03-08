@@ -114,6 +114,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canExport = canExportSvg(snapshot.svg);
   const canOpen = typeof getActiveEditorPlatform().files?.openText === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
+  const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
 
   const insertBinding = (mode: ToolMode): CommandBinding => {
     const capability = getToolCapabilityStatus(mode);
@@ -480,6 +481,16 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.OPEN_SETTINGS]: {
       enabled: onOpenSettings != null,
       run: () => onOpenSettings?.()
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL]: {
+      enabled: canOpenExternalUrl,
+      run: () => {
+        const openExternalUrl = getActiveEditorPlatform().window?.openExternalUrl;
+        if (typeof openExternalUrl !== "function") {
+          return;
+        }
+        void openExternalUrl("https://tikz.dev");
+      }
     }
   };
 

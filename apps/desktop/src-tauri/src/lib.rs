@@ -3,6 +3,7 @@ use rfd::FileDialog;
 use serde::Serialize;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -205,6 +206,34 @@ fn desktop_list_recent_files(app: AppHandle) -> Result<Vec<String>, String> {
   Ok(entries.clone())
 }
 
+#[tauri::command]
+fn desktop_open_external(url: String) -> Result<bool, String> {
+  #[cfg(target_os = "macos")]
+  let mut cmd = {
+    let mut command = Command::new("open");
+    command.arg(&url);
+    command
+  };
+
+  #[cfg(target_os = "windows")]
+  let mut cmd = {
+    let mut command = Command::new("cmd");
+    command.args(["/C", "start", "", &url]);
+    command
+  };
+
+  #[cfg(all(unix, not(target_os = "macos")))]
+  let mut cmd = {
+    let mut command = Command::new("xdg-open");
+    command.arg(&url);
+    command
+  };
+
+  cmd.status()
+    .map(|status| status.success())
+    .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -240,7 +269,8 @@ pub fn run() {
       desktop_save_text,
       desktop_export_file,
       desktop_confirm_window_close,
-      desktop_list_recent_files
+      desktop_list_recent_files,
+      desktop_open_external
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

@@ -400,6 +400,13 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
         }
         const baseTitle = title ?? "TikZ Editor";
         document.title = dirty ? `• ${baseTitle}` : baseTitle;
+      },
+      openExternalUrl: (url) => {
+        if (typeof window === "undefined" || typeof window.open !== "function") {
+          return false;
+        }
+        const opened = window.open(url, "_blank", "noopener,noreferrer");
+        return opened != null;
       }
     },
     files: {

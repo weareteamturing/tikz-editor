@@ -31,6 +31,7 @@ function makeMockBridge() {
       writeClipboard: async () => undefined,
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,
+      openExternalUrl: async () => true,
       listRecentFiles: async () => [opened.path],
       onWindowCloseRequest: async () => () => undefined
     }

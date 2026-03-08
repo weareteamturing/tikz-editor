@@ -57,6 +57,7 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_SOURCE_PANEL: "view.toggle-source-panel",
   TOGGLE_INSPECTOR_PANEL: "view.toggle-inspector-panel",
   TOGGLE_DEV_PANEL: "view.toggle-dev-panel",
+  OPEN_PGF_TIKZ_MANUAL: "help.open-pgf-tikz-manual",
   SHOW_COMPILED_PICTURE: "file.show-compiled-picture",
   OPEN_SETTINGS: "file.open-settings"
 } as const;
@@ -93,7 +94,7 @@ export type AppMenuRecentFilesItem = {
 
 export type AppMenuItem = AppMenuSeparatorItem | AppMenuCommandItem | AppMenuSubmenuItem | AppMenuRecentFilesItem;
 
-export type AppMenuSectionId = "file" | "edit" | "insert" | "view";
+export type AppMenuSectionId = "file" | "edit" | "insert" | "view" | "help";
 
 export type AppMenuSection = {
   id: AppMenuSectionId;

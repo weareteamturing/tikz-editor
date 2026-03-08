@@ -55,6 +55,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.FORMAT_TIKZ).toBe("edit.format-tikz");
   });
 
+  it("defines a help manual command id", () => {
+    expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
+  });
+
   it("exposes Open Example in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
@@ -233,5 +237,19 @@ describe("app menu definition", () => {
     expect(formatIndex).toBe(duplicateIndex + 2);
     expect(items[duplicateIndex + 1]?.kind).toBe("separator");
     expect(items[formatIndex + 1]?.kind).toBe("separator");
+  });
+
+  it("exposes Open PGF/TikZ Manual in the Help menu", () => {
+    const helpSection = APP_MENU_DEFINITION.find((section) => section.id === "help");
+    expect(helpSection).toBeDefined();
+    const items = helpSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected help.open-pgf-tikz-manual command item in Help menu.");
+    }
+    expect(commandItem.label).toBe("Open PGF/TikZ Manual");
   });
 });
