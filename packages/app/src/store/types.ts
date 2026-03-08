@@ -37,7 +37,64 @@ export type HistoryEntry = {
   sourceAfter: string;
 };
 
+export type DocumentFileRef = {
+  kind: "virtual" | "file";
+  name: string;
+};
+
+export type DocumentSession = {
+  id: string;
+  title: string;
+  source: string;
+  snapshot: SessionSnapshot;
+  pendingRequestId: string | null;
+  lastEditChangedSourceIds: string[] | null;
+  lastEditChangeToken: number;
+  history: HistoryEntry[];
+  historyIndex: number;
+  selectedElementIds: ReadonlySet<string>;
+  fileRef: DocumentFileRef | null;
+  savedSource: string;
+  dirty: boolean;
+};
+
+export type WorkspacePersistedState = {
+  workspaceVersion: number;
+  documents: Record<string, DocumentSession>;
+  tabOrder: string[];
+  activeDocumentId: string;
+  recentDocumentIds: string[];
+};
+
+export type WorkspaceEphemeralState = {
+  // ── canvas slice ─────────────────────────────────────────────────────────────
+  toolMode: ToolMode;
+  canvasTransform: CanvasTransform;
+  hoveredElementId: string | null;
+  activeCanvasDragKind: CanvasDragKind | null;
+  /** Source id currently being edited via source-number scrubbing. */
+  activeSourceScrubSourceId: string | null;
+  showGrid: boolean;
+  snapToGrid: boolean;
+  showRulers: boolean;
+  showGuides: boolean;
+  /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
+  fitToContentRequestToken: number;
+
+  // ── layout slice ─────────────────────────────────────────────────────────────
+  leftPanelWidth: number;
+  rightPanelWidth: number;
+  showSourcePanel: boolean;
+  showInspectorPanel: boolean;
+
+  // ── debug ─────────────────────────────────────────────────────────────────────
+  showDevPanel: boolean;
+};
+
 export type EditorState = {
+  workspace: WorkspacePersistedState;
+  ui: WorkspaceEphemeralState;
+
   // ── document slice ──────────────────────────────────────────────────────────
   source: string;
   snapshot: SessionSnapshot;
@@ -56,6 +113,10 @@ export type EditorState = {
 
   // ── selection slice ──────────────────────────────────────────────────────────
   selectedElementIds: ReadonlySet<string>;
+  activeDocumentId: string;
+  tabOrder: string[];
+  documents: Record<string, DocumentSession>;
+  workspaceVersion: number;
 
   // ── canvas slice ─────────────────────────────────────────────────────────────
   toolMode: ToolMode;
@@ -84,6 +145,12 @@ export type EditorState = {
 export type EditorAction =
   // Document
   | { type: "CODE_EDITED"; source: string }
+  | { type: "NEW_DOCUMENT"; source?: string; title?: string }
+  | { type: "SWITCH_DOCUMENT"; documentId: string }
+  | { type: "CLOSE_DOCUMENT"; documentId?: string }
+  | { type: "CLOSE_ALL_DOCUMENTS" }
+  | { type: "OPEN_EXAMPLE_IN_NEW_TAB"; source: string; title: string }
+  | { type: "MARK_DOCUMENT_SAVED"; documentId?: string; fileRef?: DocumentFileRef | null }
   | {
       type: "APPLY_EDIT_ACTION";
       action: EditAction;
@@ -97,8 +164,8 @@ export type EditorAction =
       source: string;
       changedSourceIds?: string[] | null;
     }
-  | { type: "COMPUTE_REQUESTED"; requestId: string }
-  | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot }
+  | { type: "COMPUTE_REQUESTED"; requestId: string; documentId?: string }
+  | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot; documentId?: string }
   // History
   | { type: "UNDO" }
   | { type: "REDO" }

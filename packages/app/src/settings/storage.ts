@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS } from "./types";
 import { getActiveEditorPlatform } from "../platform/current";
 
 const STORAGE_KEY = "tikz-editor:settings";
+const SETTINGS_VERSION = 1;
 const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
 const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 
@@ -10,7 +11,10 @@ export function loadSettings(): AppSettings {
   try {
     const raw = getActiveEditorPlatform().persistence.load(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const parsedRaw = JSON.parse(raw) as Partial<AppSettings> | { settingsVersion?: number; settings?: Partial<AppSettings> };
+    const parsed = "settings" in parsedRaw
+      ? (parsedRaw.settings ?? {})
+      : parsedRaw;
     const parsedFormatterMaxLineLength =
       typeof parsed.editor?.formatterMaxLineLength === "number"
         ? clampFormatterMaxLineLength(parsed.editor.formatterMaxLineLength)
@@ -49,7 +53,13 @@ function clampFormatterMaxLineLength(value: number): number {
 
 export function saveSettings(settings: AppSettings): void {
   try {
-    getActiveEditorPlatform().persistence.save(STORAGE_KEY, JSON.stringify(settings));
+    getActiveEditorPlatform().persistence.save(
+      STORAGE_KEY,
+      JSON.stringify({
+        settingsVersion: SETTINGS_VERSION,
+        settings
+      })
+    );
   } catch {
     // storage unavailable — ignore
   }

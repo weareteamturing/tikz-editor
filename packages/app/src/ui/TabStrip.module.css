@@ -1,0 +1,63 @@
+.strip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-panel) 85%, var(--bg-app));
+  overflow-x: auto;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-bottom-color: color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
+  min-width: 0;
+}
+
+.tabActive {
+  background: color-mix(in srgb, var(--accent-btn-bg) 65%, var(--bg-panel));
+  border-color: color-mix(in srgb, var(--accent-btn-border) 55%, var(--border));
+}
+
+.tabButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+}
+
+.dirty {
+  color: var(--color-warning);
+  line-height: 1;
+}
+
+.close,
+.add {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 13px);
+}
+
+.close:hover,
+.add:hover {
+  color: var(--text);
+}

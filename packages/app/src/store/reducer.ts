@@ -1,6 +1,14 @@
 import { applyEditAction } from "tikz-editor/edit/actions";
-import type { EditorState, EditorAction, HistoryEntry, CanvasTransform } from "./types";
-import type { SessionSnapshot } from "../compute";
+import type {
+  CanvasTransform,
+  DocumentFileRef,
+  DocumentSession,
+  EditorAction,
+  EditorState,
+  HistoryEntry,
+  WorkspaceEphemeralState,
+  WorkspacePersistedState
+} from "./types";
 import { makeEmptySnapshot } from "../compute";
 
 export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
@@ -16,25 +24,47 @@ export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={
         (C) edge (A);
 \end{tikzpicture}`;
 
+const WORKSPACE_VERSION = 1;
+export { WORKSPACE_VERSION };
+
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
   translateX: 0,
   translateY: 0,
   scale: 1
 };
 
-export function makeInitialState(): EditorState {
+function createDocumentId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `doc-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
+}
+
+function createDocumentSession(params: {
+  source: string;
+  title?: string;
+  fileRef?: DocumentFileRef | null;
+}): DocumentSession {
+  const title = params.title?.trim() || "Untitled";
   return {
-    source: DEFAULT_SOURCE,
-    snapshot: makeEmptySnapshot(DEFAULT_SOURCE),
+    id: createDocumentId(),
+    title,
+    source: params.source,
+    snapshot: makeEmptySnapshot(params.source),
     pendingRequestId: null,
     lastEditChangedSourceIds: null,
     lastEditChangeToken: 0,
-
     history: [],
     historyIndex: -1,
-
     selectedElementIds: new Set(),
+    fileRef: params.fileRef ?? null,
+    savedSource: params.source,
+    dirty: false
+  };
+}
 
+function initialUiState(): WorkspaceEphemeralState {
+  return {
     toolMode: "select",
     canvasTransform: DEFAULT_CANVAS_TRANSFORM,
     hoveredElementId: null,
@@ -45,13 +75,118 @@ export function makeInitialState(): EditorState {
     showRulers: true,
     showGuides: true,
     fitToContentRequestToken: 0,
-
     leftPanelWidth: 340,
     rightPanelWidth: 280,
     showSourcePanel: true,
     showInspectorPanel: true,
-
     showDevPanel: false
+  };
+}
+
+function initialWorkspaceState(): WorkspacePersistedState {
+  const first = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+  return {
+    workspaceVersion: WORKSPACE_VERSION,
+    documents: { [first.id]: first },
+    tabOrder: [first.id],
+    activeDocumentId: first.id,
+    recentDocumentIds: []
+  };
+}
+
+export type WorkspaceSeedDocument = {
+  id: string;
+  title: string;
+  source: string;
+  savedSource?: string;
+  fileRef?: DocumentFileRef | null;
+};
+
+export type WorkspaceSeed = {
+  workspaceVersion: number;
+  documents: WorkspaceSeedDocument[];
+  tabOrder: string[];
+  activeDocumentId: string;
+  recentDocumentIds?: string[];
+};
+
+function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedState {
+  const docs: Record<string, DocumentSession> = {};
+  for (const raw of seed.documents) {
+    const doc = createDocumentSession({
+      source: raw.source,
+      title: raw.title,
+      fileRef: raw.fileRef ?? null
+    });
+    doc.id = raw.id;
+    doc.savedSource = raw.savedSource ?? raw.source;
+    doc.dirty = doc.source !== doc.savedSource;
+    docs[doc.id] = doc;
+  }
+
+  const tabOrder = seed.tabOrder.filter((id) => docs[id]);
+  const fallbackOrder = tabOrder.length > 0 ? tabOrder : Object.keys(docs);
+  if (fallbackOrder.length === 0) {
+    return initialWorkspaceState();
+  }
+  const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0]!;
+  return {
+    workspaceVersion: WORKSPACE_VERSION,
+    documents: docs,
+    tabOrder: fallbackOrder,
+    activeDocumentId,
+    recentDocumentIds: (seed.recentDocumentIds ?? []).filter((id) => docs[id])
+  };
+}
+
+function resolveActiveDocument(workspace: WorkspacePersistedState): DocumentSession {
+  const active = workspace.documents[workspace.activeDocumentId];
+  if (active) {
+    return active;
+  }
+  const fallbackId = workspace.tabOrder[0];
+  if (fallbackId && workspace.documents[fallbackId]) {
+    return workspace.documents[fallbackId]!;
+  }
+  const created = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+  workspace.documents[created.id] = created;
+  workspace.tabOrder = [created.id];
+  workspace.activeDocumentId = created.id;
+  return created;
+}
+
+function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeralState): EditorState {
+  const active = resolveActiveDocument(workspace);
+  return {
+    workspace,
+    ui,
+    source: active.source,
+    snapshot: active.snapshot,
+    pendingRequestId: active.pendingRequestId,
+    lastEditChangedSourceIds: active.lastEditChangedSourceIds,
+    lastEditChangeToken: active.lastEditChangeToken,
+    history: active.history,
+    historyIndex: active.historyIndex,
+    selectedElementIds: active.selectedElementIds,
+    activeDocumentId: workspace.activeDocumentId,
+    tabOrder: workspace.tabOrder,
+    documents: workspace.documents,
+    workspaceVersion: workspace.workspaceVersion,
+    toolMode: ui.toolMode,
+    canvasTransform: ui.canvasTransform,
+    hoveredElementId: ui.hoveredElementId,
+    activeCanvasDragKind: ui.activeCanvasDragKind,
+    activeSourceScrubSourceId: ui.activeSourceScrubSourceId,
+    showGrid: ui.showGrid,
+    snapToGrid: ui.snapToGrid,
+    showRulers: ui.showRulers,
+    showGuides: ui.showGuides,
+    fitToContentRequestToken: ui.fitToContentRequestToken,
+    leftPanelWidth: ui.leftPanelWidth,
+    rightPanelWidth: ui.rightPanelWidth,
+    showSourcePanel: ui.showSourcePanel,
+    showInspectorPanel: ui.showInspectorPanel,
+    showDevPanel: ui.showDevPanel
   };
 }
 
@@ -69,43 +204,216 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
   }
 }
 
+function updateDocument(
+  workspace: WorkspacePersistedState,
+  documentId: string,
+  updater: (doc: DocumentSession) => DocumentSession
+): WorkspacePersistedState {
+  const current = workspace.documents[documentId];
+  if (!current) {
+    return workspace;
+  }
+  const next = updater(current);
+  if (next === current) {
+    return workspace;
+  }
+  return {
+    ...workspace,
+    documents: {
+      ...workspace.documents,
+      [documentId]: next
+    }
+  };
+}
+
+function activeDocumentIdFromAction(state: EditorState, documentId?: string): string {
+  return documentId ?? state.workspace.activeDocumentId;
+}
+
+export function makeInitialState(seed?: WorkspaceSeed): EditorState {
+  const workspace = seed ? initialWorkspaceStateFromSeed(seed) : initialWorkspaceState();
+  return projectState(workspace, initialUiState());
+}
+
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  let workspace = state.workspace;
+  let ui = state.ui;
+  const activeId = state.workspace.activeDocumentId;
+
+  const projectedActive = workspace.documents[activeId];
+  if (
+    projectedActive &&
+    (
+      projectedActive.source !== state.source ||
+      projectedActive.snapshot !== state.snapshot ||
+      projectedActive.pendingRequestId !== state.pendingRequestId ||
+      projectedActive.lastEditChangedSourceIds !== state.lastEditChangedSourceIds ||
+      projectedActive.lastEditChangeToken !== state.lastEditChangeToken ||
+      projectedActive.history !== state.history ||
+      projectedActive.historyIndex !== state.historyIndex ||
+      projectedActive.selectedElementIds !== state.selectedElementIds
+    )
+  ) {
+    workspace = updateDocument(workspace, activeId, (doc) => ({
+      ...doc,
+      source: state.source,
+      snapshot: state.snapshot,
+      pendingRequestId: state.pendingRequestId,
+      lastEditChangedSourceIds: state.lastEditChangedSourceIds,
+      lastEditChangeToken: state.lastEditChangeToken,
+      history: state.history,
+      historyIndex: state.historyIndex,
+      selectedElementIds: state.selectedElementIds
+    }));
+  }
+
   switch (action.type) {
-    // ── Document ──────────────────────────────────────────────────────────────
-    case "CODE_EDITED": {
-      if (action.source === state.source) return state;
-      // Canvas/WYSIWYG history entries are source-versioned snapshots.
-      // Drop them on direct code edits to avoid stale undo restoring old text.
-      const scrubChangedSourceIds = state.activeSourceScrubSourceId ? [state.activeSourceScrubSourceId] : null;
-      return {
-        ...state,
-        source: action.source,
-        lastEditChangedSourceIds: scrubChangedSourceIds,
-        lastEditChangeToken: state.lastEditChangeToken + 1,
-        history: [],
-        historyIndex: -1
+    case "NEW_DOCUMENT": {
+      const untitledCount = Object.values(workspace.documents).filter((doc) => doc.fileRef == null).length + 1;
+      const next = createDocumentSession({
+        source: action.source ?? DEFAULT_SOURCE,
+        title: action.title ?? `Untitled ${untitledCount}`
+      });
+      workspace = {
+        ...workspace,
+        documents: { ...workspace.documents, [next.id]: next },
+        tabOrder: [...workspace.tabOrder, next.id],
+        activeDocumentId: next.id
       };
+      break;
+    }
+
+    case "OPEN_EXAMPLE_IN_NEW_TAB": {
+      const next = createDocumentSession({
+        source: action.source,
+        title: action.title
+      });
+      workspace = {
+        ...workspace,
+        documents: { ...workspace.documents, [next.id]: next },
+        tabOrder: [...workspace.tabOrder, next.id],
+        activeDocumentId: next.id
+      };
+      break;
+    }
+
+    case "SWITCH_DOCUMENT": {
+      if (!workspace.documents[action.documentId]) {
+        return state;
+      }
+      workspace = {
+        ...workspace,
+        activeDocumentId: action.documentId
+      };
+      break;
+    }
+
+    case "CLOSE_DOCUMENT": {
+      const closeId = action.documentId ?? workspace.activeDocumentId;
+      if (!workspace.documents[closeId]) {
+        return state;
+      }
+      const nextOrder = workspace.tabOrder.filter((id) => id !== closeId);
+      const nextDocs = { ...workspace.documents };
+      delete nextDocs[closeId];
+      if (nextOrder.length === 0) {
+        const replacement = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+        workspace = {
+          ...workspace,
+          documents: { [replacement.id]: replacement },
+          tabOrder: [replacement.id],
+          activeDocumentId: replacement.id
+        };
+        break;
+      }
+      const nextActiveId =
+        workspace.activeDocumentId === closeId
+          ? nextOrder[Math.max(0, workspace.tabOrder.indexOf(closeId) - 1)] ?? nextOrder[0]!
+          : workspace.activeDocumentId;
+      workspace = {
+        ...workspace,
+        documents: nextDocs,
+        tabOrder: nextOrder,
+        activeDocumentId: nextActiveId
+      };
+      break;
+    }
+
+    case "CLOSE_ALL_DOCUMENTS": {
+      const replacement = createDocumentSession({ source: DEFAULT_SOURCE, title: "Untitled 1" });
+      workspace = {
+        ...workspace,
+        documents: { [replacement.id]: replacement },
+        tabOrder: [replacement.id],
+        activeDocumentId: replacement.id
+      };
+      break;
+    }
+
+    case "MARK_DOCUMENT_SAVED": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
+        savedSource: doc.source,
+        dirty: false,
+        fileRef: action.fileRef ?? doc.fileRef,
+        title: (action.fileRef ?? doc.fileRef)?.name ?? doc.title
+      }));
+      break;
+    }
+
+    case "CODE_EDITED": {
+      const documentId = activeId;
+      workspace = updateDocument(workspace, documentId, (doc) => {
+        if (action.source === doc.source) {
+          return doc;
+        }
+        const scrubChangedSourceIds = ui.activeSourceScrubSourceId ? [ui.activeSourceScrubSourceId] : null;
+        return {
+          ...doc,
+          source: action.source,
+          lastEditChangedSourceIds: scrubChangedSourceIds,
+          lastEditChangeToken: doc.lastEditChangeToken + 1,
+          history: [],
+          historyIndex: -1,
+          dirty: action.source !== doc.savedSource
+        };
+      });
+      break;
     }
 
     case "COMPUTE_REQUESTED": {
-      return { ...state, pendingRequestId: action.requestId };
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => ({ ...doc, pendingRequestId: action.requestId }));
+      break;
     }
 
     case "SNAPSHOT_READY": {
-      if (action.requestId !== state.pendingRequestId) return state;
-      return {
-        ...state,
-        snapshot: action.snapshot,
-        pendingRequestId: null
-      };
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) => {
+        if (action.requestId !== doc.pendingRequestId) {
+          return doc;
+        }
+        return {
+          ...doc,
+          snapshot: action.snapshot,
+          pendingRequestId: null
+        };
+      });
+      break;
     }
 
     case "APPLY_EDIT_ACTION": {
+      const documentId = activeId;
+      const activeDoc = workspace.documents[documentId];
+      if (!activeDoc) {
+        return state;
+      }
       const result =
         action.precomputedResult ??
         applyEditAction(
-          state.source,
-          state.snapshot.editHandles,
+          activeDoc.source,
+          activeDoc.snapshot.editHandles,
           action.action
         );
 
@@ -113,23 +421,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return state;
       }
 
-      if (result.newSource === state.source) {
+      if (result.newSource === activeDoc.source) {
         return state;
       }
 
       const nextSelection = result.selectedSourceIds
         ? new Set(result.selectedSourceIds)
-        : state.selectedElementIds;
+        : activeDoc.selectedElementIds;
       const recordInHistory = action.recordInHistory ?? true;
 
       if (!recordInHistory) {
-        return {
-          ...state,
+        workspace = updateDocument(workspace, documentId, (doc) => ({
+          ...doc,
           source: result.newSource,
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
-          lastEditChangeToken: state.lastEditChangeToken + 1,
-          selectedElementIds: nextSelection
-        };
+          lastEditChangeToken: doc.lastEditChangeToken + 1,
+          selectedElementIds: nextSelection,
+          dirty: result.newSource !== doc.savedSource
+        }));
+        break;
       }
 
       const historyKind: HistoryEntry["kind"] =
@@ -144,7 +454,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "deleteElement" || action.action.kind === "deleteElements" || action.action.kind === "deleteAdornment" ? "delete" :
         "resize";
 
-      const truncated = state.history.slice(0, state.historyIndex + 1);
+      const truncated = activeDoc.history.slice(0, activeDoc.historyIndex + 1);
       const mergeKey = action.historyMergeKey;
       const lastIndex = truncated.length - 1;
       const lastEntry = truncated[lastIndex];
@@ -162,16 +472,17 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           forward: result.patches,
           sourceAfter: result.newSource
         };
-
-      return {
-        ...state,
-        source: result.newSource,
-        lastEditChangedSourceIds: result.changedSourceIds ?? null,
-        lastEditChangeToken: state.lastEditChangeToken + 1,
-        selectedElementIds: nextSelection,
-        history: nextHistory,
-        historyIndex: lastIndex
-      };
+        workspace = updateDocument(workspace, documentId, (doc) => ({
+          ...doc,
+          source: result.newSource,
+          lastEditChangedSourceIds: result.changedSourceIds ?? null,
+          lastEditChangeToken: doc.lastEditChangeToken + 1,
+          selectedElementIds: nextSelection,
+          history: nextHistory,
+          historyIndex: lastIndex,
+          dirty: result.newSource !== doc.savedSource
+        }));
+        break;
       }
 
       const entry: HistoryEntry = {
@@ -179,154 +490,178 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         label: actionLabel(historyKind),
         mergeKey,
         forward: result.patches,
-        backward: result.patches,  // placeholder; proper undo patches added in Phase 1
-        sourceBefore: state.source,
+        backward: result.patches,
+        sourceBefore: activeDoc.source,
         sourceAfter: result.newSource
       };
 
-      return {
-        ...state,
+      workspace = updateDocument(workspace, documentId, (doc) => ({
+        ...doc,
         source: result.newSource,
         lastEditChangedSourceIds: result.changedSourceIds ?? null,
-        lastEditChangeToken: state.lastEditChangeToken + 1,
+        lastEditChangeToken: doc.lastEditChangeToken + 1,
         selectedElementIds: nextSelection,
         history: [...truncated, entry],
-        historyIndex: truncated.length
-      };
+        historyIndex: truncated.length,
+        dirty: result.newSource !== doc.savedSource
+      }));
+      break;
     }
 
     case "SET_SOURCE_TRANSIENT": {
-      if (action.source === state.source) {
-        return state;
-      }
-      return {
-        ...state,
-        source: action.source,
-        lastEditChangedSourceIds: action.changedSourceIds ?? null,
-        lastEditChangeToken: state.lastEditChangeToken + 1
-      };
+      workspace = updateDocument(workspace, activeId, (doc) => {
+        if (action.source === doc.source) {
+          return doc;
+        }
+        return {
+          ...doc,
+          source: action.source,
+          lastEditChangedSourceIds: action.changedSourceIds ?? null,
+          lastEditChangeToken: doc.lastEditChangeToken + 1,
+          dirty: action.source !== doc.savedSource
+        };
+      });
+      break;
     }
 
-    // ── History ───────────────────────────────────────────────────────────────
     case "UNDO": {
-      if (state.historyIndex < 0) return state;
-      const entry = state.history[state.historyIndex];
-      if (!entry) return state;
-
-      // Use stored sourceBefore for reliable undo
-      return {
-        ...state,
+      const doc = workspace.documents[activeId];
+      if (!doc || doc.historyIndex < 0) {
+        return state;
+      }
+      const entry = doc.history[doc.historyIndex];
+      if (!entry) {
+        return state;
+      }
+      workspace = updateDocument(workspace, activeId, (current) => ({
+        ...current,
         source: entry.sourceBefore,
         lastEditChangedSourceIds: null,
-        lastEditChangeToken: state.lastEditChangeToken + 1,
-        historyIndex: state.historyIndex - 1
-      };
+        lastEditChangeToken: current.lastEditChangeToken + 1,
+        historyIndex: current.historyIndex - 1,
+        dirty: entry.sourceBefore !== current.savedSource
+      }));
+      break;
     }
 
     case "REDO": {
-      if (state.historyIndex >= state.history.length - 1) return state;
-      const entry = state.history[state.historyIndex + 1];
-      if (!entry) return state;
-
-      return {
-        ...state,
-        source: entry.sourceAfter,
-        lastEditChangedSourceIds: null,
-        lastEditChangeToken: state.lastEditChangeToken + 1,
-        historyIndex: state.historyIndex + 1
-      };
-    }
-
-    // ── Selection ─────────────────────────────────────────────────────────────
-    case "SELECT": {
-      if (action.additive) {
-        const next = new Set(state.selectedElementIds);
-        if (next.has(action.id)) {
-          next.delete(action.id);
-        } else {
-          next.add(action.id);
-        }
-        return { ...state, selectedElementIds: next };
-      }
-      if (state.selectedElementIds.size === 1 && state.selectedElementIds.has(action.id)) {
+      const doc = workspace.documents[activeId];
+      if (!doc || doc.historyIndex >= doc.history.length - 1) {
         return state;
       }
-      return { ...state, selectedElementIds: new Set([action.id]) };
+      const entry = doc.history[doc.historyIndex + 1];
+      if (!entry) {
+        return state;
+      }
+      workspace = updateDocument(workspace, activeId, (current) => ({
+        ...current,
+        source: entry.sourceAfter,
+        lastEditChangedSourceIds: null,
+        lastEditChangeToken: current.lastEditChangeToken + 1,
+        historyIndex: current.historyIndex + 1,
+        dirty: entry.sourceAfter !== current.savedSource
+      }));
+      break;
+    }
+
+    case "SELECT": {
+      workspace = updateDocument(workspace, activeId, (doc) => {
+        if (action.additive) {
+          const next = new Set(doc.selectedElementIds);
+          if (next.has(action.id)) {
+            next.delete(action.id);
+          } else {
+            next.add(action.id);
+          }
+          return { ...doc, selectedElementIds: next };
+        }
+        if (doc.selectedElementIds.size === 1 && doc.selectedElementIds.has(action.id)) {
+          return doc;
+        }
+        return { ...doc, selectedElementIds: new Set([action.id]) };
+      });
+      break;
     }
 
     case "SELECT_RANGE": {
-      return { ...state, selectedElementIds: new Set(action.ids) };
+      workspace = updateDocument(workspace, activeId, (doc) => ({
+        ...doc,
+        selectedElementIds: new Set(action.ids)
+      }));
+      break;
     }
 
     case "CLEAR_SELECTION": {
-      if (state.selectedElementIds.size === 0) return state;
-      return { ...state, selectedElementIds: new Set() };
+      workspace = updateDocument(workspace, activeId, (doc) => {
+        if (doc.selectedElementIds.size === 0) {
+          return doc;
+        }
+        return { ...doc, selectedElementIds: new Set() };
+      });
+      break;
     }
 
-    // ── Canvas ────────────────────────────────────────────────────────────────
-    case "SET_TOOL_MODE": {
-      if (state.toolMode === action.mode) return state;
-      return { ...state, toolMode: action.mode };
-    }
+    case "SET_TOOL_MODE":
+      if (ui.toolMode === action.mode) return state;
+      ui = { ...ui, toolMode: action.mode };
+      break;
 
-    case "SET_CANVAS_TRANSFORM": {
-      return { ...state, canvasTransform: action.transform };
-    }
+    case "SET_CANVAS_TRANSFORM":
+      ui = { ...ui, canvasTransform: action.transform };
+      break;
 
-    case "SET_HOVERED_ELEMENT": {
-      if (state.hoveredElementId === action.id) return state;
-      return { ...state, hoveredElementId: action.id };
-    }
+    case "SET_HOVERED_ELEMENT":
+      if (ui.hoveredElementId === action.id) return state;
+      ui = { ...ui, hoveredElementId: action.id };
+      break;
 
-    case "SET_ACTIVE_CANVAS_DRAG": {
-      if (state.activeCanvasDragKind === action.kind) return state;
-      return { ...state, activeCanvasDragKind: action.kind };
-    }
+    case "SET_ACTIVE_CANVAS_DRAG":
+      if (ui.activeCanvasDragKind === action.kind) return state;
+      ui = { ...ui, activeCanvasDragKind: action.kind };
+      break;
 
-    case "SET_ACTIVE_SOURCE_SCRUB": {
-      if (state.activeSourceScrubSourceId === action.sourceId) return state;
-      return { ...state, activeSourceScrubSourceId: action.sourceId };
-    }
+    case "SET_ACTIVE_SOURCE_SCRUB":
+      if (ui.activeSourceScrubSourceId === action.sourceId) return state;
+      ui = { ...ui, activeSourceScrubSourceId: action.sourceId };
+      break;
 
-    case "TOGGLE_CANVAS_AID": {
+    case "TOGGLE_CANVAS_AID":
       if (action.aid === "grid") {
-        return { ...state, showGrid: !state.showGrid };
+        ui = { ...ui, showGrid: !ui.showGrid };
+      } else if (action.aid === "rulers") {
+        ui = { ...ui, showRulers: !ui.showRulers };
+      } else {
+        ui = { ...ui, showGuides: !ui.showGuides };
       }
-      if (action.aid === "rulers") {
-        return { ...state, showRulers: !state.showRulers };
-      }
-      return { ...state, showGuides: !state.showGuides };
-    }
+      break;
 
-    case "TOGGLE_SNAP_TO_GRID": {
-      return { ...state, snapToGrid: !state.snapToGrid };
-    }
+    case "TOGGLE_SNAP_TO_GRID":
+      ui = { ...ui, snapToGrid: !ui.snapToGrid };
+      break;
 
-    case "REQUEST_FIT_TO_CONTENT": {
-      return {
-        ...state,
-        fitToContentRequestToken: state.fitToContentRequestToken + 1
-      };
-    }
+    case "REQUEST_FIT_TO_CONTENT":
+      ui = { ...ui, fitToContentRequestToken: ui.fitToContentRequestToken + 1 };
+      break;
 
-    // ── Layout ────────────────────────────────────────────────────────────────
-    case "SET_PANEL_WIDTH": {
-      if (action.panel === "left") {
-        return { ...state, leftPanelWidth: action.width };
-      }
-      return { ...state, rightPanelWidth: action.width };
-    }
+    case "SET_PANEL_WIDTH":
+      ui = action.panel === "left"
+        ? { ...ui, leftPanelWidth: action.width }
+        : { ...ui, rightPanelWidth: action.width };
+      break;
 
-    case "TOGGLE_PANEL": {
-      if (action.panel === "source") {
-        return { ...state, showSourcePanel: !state.showSourcePanel };
-      }
-      return { ...state, showInspectorPanel: !state.showInspectorPanel };
-    }
+    case "TOGGLE_PANEL":
+      ui = action.panel === "source"
+        ? { ...ui, showSourcePanel: !ui.showSourcePanel }
+        : { ...ui, showInspectorPanel: !ui.showInspectorPanel };
+      break;
 
-    // ── Debug ─────────────────────────────────────────────────────────────────
-    case "TOGGLE_DEV_PANEL": {
-      return { ...state, showDevPanel: !state.showDevPanel };
-    }
+    case "TOGGLE_DEV_PANEL":
+      ui = { ...ui, showDevPanel: !ui.showDevPanel };
+      break;
   }
+
+  if (workspace === state.workspace && ui === state.ui) {
+    return state;
+  }
+  return projectState(workspace, ui);
 }

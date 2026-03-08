@@ -35,6 +35,32 @@ function resolveClipboard(env: BrowserPlatformEnvironment): ClipboardLike | null
   return null;
 }
 
+function openTextFileWithInput(): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(null);
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".tex,.tikz,.txt,text/plain";
+    input.style.display = "none";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) {
+        input.remove();
+        resolve(null);
+        return;
+      }
+      const text = await file.text();
+      input.remove();
+      resolve(text);
+    }, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {}): EditorPlatform {
   const storage = resolveStorage(env);
   const clipboard = resolveClipboard(env);
@@ -75,6 +101,38 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       }
     },
     files: {
+      openText: async () => openTextFileWithInput(),
+      saveText: async (text, options) => {
+        const fileName = options?.suggestedName ?? "tikz-document.tex";
+        return (
+          (await (async () => {
+            if (
+              typeof document === "undefined" ||
+              typeof Blob === "undefined" ||
+              typeof URL === "undefined" ||
+              typeof URL.createObjectURL !== "function" ||
+              typeof URL.revokeObjectURL !== "function" ||
+              !document.body
+            ) {
+              return false;
+            }
+            const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+            const objectUrl = URL.createObjectURL(blob);
+            try {
+              const anchor = document.createElement("a");
+              anchor.href = objectUrl;
+              anchor.download = fileName;
+              anchor.style.display = "none";
+              document.body.appendChild(anchor);
+              anchor.click();
+              anchor.remove();
+              return true;
+            } finally {
+              URL.revokeObjectURL(objectUrl);
+            }
+          })())
+        );
+      },
       exportFile: async (content, options) => {
         if (
           typeof document === "undefined" ||

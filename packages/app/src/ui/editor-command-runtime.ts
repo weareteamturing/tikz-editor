@@ -3,8 +3,9 @@ import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "../app-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
+import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
-import type { EditorAction, ToolMode } from "../store/types";
+import type { DocumentFileRef, EditorAction, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
 import {
   actionAvailability,
@@ -39,6 +40,10 @@ type RuntimeInput = {
   selectedElementIds: ReadonlySet<string>;
   historyIndex: number;
   historyLength: number;
+  activeDocumentId: string;
+  tabCount: number;
+  dirty: boolean;
+  fileRef: DocumentFileRef | null;
   showGrid: boolean;
   snapToGrid: boolean;
   showRulers: boolean;
@@ -48,6 +53,7 @@ type RuntimeInput = {
   showDevPanel: boolean;
   dispatch: Dispatch;
   onOpenExample?: () => void;
+  onOpenExampleInNewTab?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onAddNodeAdornment?: (kind: "label" | "pin") => void;
@@ -68,6 +74,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     selectedElementIds,
     historyIndex,
     historyLength,
+    activeDocumentId,
+    tabCount,
+    dirty,
+    fileRef,
     showGrid,
     snapToGrid,
     showRulers,
@@ -77,6 +87,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showDevPanel,
     dispatch,
     onOpenExample,
+    onOpenExampleInNewTab,
     onOpenSvgExport,
     onOpenPngExport,
     onAddNodeAdornment,
@@ -97,6 +108,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
   const canExport = canExportSvg(snapshot.svg);
+  const canOpen = typeof getActiveEditorPlatform().files?.openText === "function";
+  const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
 
   const insertBinding = (mode: ToolMode): CommandBinding => {
     const capability = getToolCapabilityStatus(mode);
@@ -157,9 +170,84 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     })();
 
   const bindings: CommandBindings = {
+    [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
+      enabled: true,
+      run: () => dispatch({ type: "NEW_DOCUMENT" })
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
+      enabled: canOpen,
+      run: () => {
+        const openText = getActiveEditorPlatform().files?.openText;
+        if (!openText) {
+          return;
+        }
+        void openText().then((source) => {
+          if (typeof source !== "string") {
+            return;
+          }
+          dispatch({ type: "NEW_DOCUMENT", source, title: "Opened document" });
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT]: {
+      enabled: canSave,
+      run: () => {
+        const saveText = getActiveEditorPlatform().files?.saveText;
+        if (!saveText) {
+          return;
+        }
+        void saveText(source, { suggestedName: fileRef?.name ?? "tikz-document.tex" }).then((ok) => {
+          if (!ok) {
+            return;
+          }
+          dispatch({
+            type: "MARK_DOCUMENT_SAVED",
+            documentId: activeDocumentId,
+            fileRef: {
+              kind: "file",
+              name: fileRef?.name ?? "tikz-document.tex"
+            }
+          });
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS]: {
+      enabled: canSave,
+      run: () => {
+        const saveText = getActiveEditorPlatform().files?.saveText;
+        if (!saveText) {
+          return;
+        }
+        void saveText(source, { suggestedName: fileRef?.name ?? "tikz-document.tex" }).then((ok) => {
+          if (!ok) {
+            return;
+          }
+          dispatch({
+            type: "MARK_DOCUMENT_SAVED",
+            documentId: activeDocumentId,
+            fileRef: {
+              kind: "file",
+              name: fileRef?.name ?? "tikz-document.tex"
+            }
+          });
+        });
+      }
+    },
+    [APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT]: {
+      enabled: tabCount > 0,
+      run: () => dispatch({ type: "CLOSE_DOCUMENT", documentId: activeDocumentId })
+    },
+    [APP_MENU_COMMAND_IDS.CLOSE_ALL_DOCUMENTS]: {
+      enabled: tabCount > 1 || dirty,
+      run: () => dispatch({ type: "CLOSE_ALL_DOCUMENTS" })
+    },
     [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE]: {
       enabled: onOpenExample != null,
       run: () => onOpenExample?.()
+    },
+    [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB]: {
+      enabled: onOpenExampleInNewTab != null,
+      run: () => onOpenExampleInNewTab?.()
     },
     [APP_MENU_COMMAND_IDS.EXPORT_TIKZ]: {
       enabled: false,
@@ -392,6 +480,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 export function useEditorCommandRuntime(
   options: {
     onOpenExample?: () => void;
+    onOpenExampleInNewTab?: () => void;
     onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
     onAddNodeAdornment?: (kind: "label" | "pin") => void;
@@ -405,6 +494,10 @@ export function useEditorCommandRuntime(
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
+  const tabCount = useEditorStore((s) => s.tabOrder.length);
+  const dirty = useEditorStore((s) => s.documents[s.activeDocumentId]?.dirty ?? false);
+  const fileRef = useEditorStore((s) => s.documents[s.activeDocumentId]?.fileRef ?? null);
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
   const showRulers = useEditorStore((s) => s.showRulers);
@@ -423,6 +516,10 @@ export function useEditorCommandRuntime(
         selectedElementIds,
         historyIndex,
         historyLength,
+        activeDocumentId,
+        tabCount,
+        dirty,
+        fileRef,
         showGrid,
         snapToGrid,
         showRulers,
@@ -432,6 +529,7 @@ export function useEditorCommandRuntime(
         showDevPanel,
         dispatch,
         onOpenExample: options.onOpenExample,
+        onOpenExampleInNewTab: options.onOpenExampleInNewTab,
         onOpenSvgExport: options.onOpenSvgExport,
         onOpenPngExport: options.onOpenPngExport,
         onAddNodeAdornment: options.onAddNodeAdornment,
@@ -445,6 +543,10 @@ export function useEditorCommandRuntime(
       selectedElementIds,
       historyIndex,
       historyLength,
+      activeDocumentId,
+      tabCount,
+      dirty,
+      fileRef,
       showGrid,
       snapToGrid,
       showRulers,
@@ -454,6 +556,7 @@ export function useEditorCommandRuntime(
       showDevPanel,
       dispatch,
       options.onOpenExample,
+      options.onOpenExampleInNewTab,
       options.onOpenSvgExport,
       options.onOpenPngExport,
       options.onAddNodeAdornment,

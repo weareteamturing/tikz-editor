@@ -1,5 +1,12 @@
 export const APP_MENU_COMMAND_IDS = {
+  NEW_DOCUMENT: "file.new-document",
+  OPEN_DOCUMENT: "file.open-document",
+  SAVE_DOCUMENT: "file.save-document",
+  SAVE_DOCUMENT_AS: "file.save-document-as",
+  CLOSE_DOCUMENT: "file.close-document",
+  CLOSE_ALL_DOCUMENTS: "file.close-all-documents",
   OPEN_EXAMPLE: "file.open-example",
+  OPEN_EXAMPLE_IN_NEW_TAB: "file.open-example-in-new-tab",
   /**
    * Legacy command id retained for compatibility with custom menu consumers.
    * In the playground UI this command remains a disabled no-op.

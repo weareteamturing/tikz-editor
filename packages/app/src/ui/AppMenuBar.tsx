@@ -119,6 +119,7 @@ export function AppMenuBar() {
 
   const [openSectionId, setOpenSectionId] = useState<string | null>(null);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
+  const [openExampleInNewTab, setOpenExampleInNewTab] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
   const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
@@ -126,7 +127,14 @@ export function AppMenuBar() {
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
   const menuRootRef = useRef<HTMLDivElement | null>(null);
   const { bindings } = useEditorCommandRuntime({
-    onOpenExample: () => setShowOpenExampleModal(true),
+    onOpenExample: () => {
+      setOpenExampleInNewTab(false);
+      setShowOpenExampleModal(true);
+    },
+    onOpenExampleInNewTab: () => {
+      setOpenExampleInNewTab(true);
+      setShowOpenExampleModal(true);
+    },
     onOpenSvgExport: (svgResult) => setSvgExportSvgResult(svgResult),
     onOpenPngExport: (svgResult) => setPngExportSvgResult(svgResult),
     onShowCompiledPicture: () => setCompiledPictureSource(source),
@@ -175,9 +183,13 @@ export function AppMenuBar() {
   }, [dispatch, pendingAutoFit, snapshot.source, source]);
 
   const loadExampleIntoEditor = (example: TikzOpenExample) => {
-    dispatch({ type: "CODE_EDITED", source: example.source });
-    dispatch({ type: "CLEAR_SELECTION" });
-    dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+    if (openExampleInNewTab) {
+      dispatch({ type: "OPEN_EXAMPLE_IN_NEW_TAB", source: example.source, title: example.title });
+    } else {
+      dispatch({ type: "CODE_EDITED", source: example.source });
+      dispatch({ type: "CLEAR_SELECTION" });
+      dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+    }
     setShowOpenExampleModal(false);
     setPendingAutoFit(true);
   };

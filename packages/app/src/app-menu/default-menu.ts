@@ -7,8 +7,48 @@ export const APP_MENU_DEFINITION = [
     items: [
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.NEW_DOCUMENT,
+        label: "New",
+        accelerator: "CmdOrCtrl+N"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_DOCUMENT,
+        label: "Open..."
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.SAVE_DOCUMENT,
+        label: "Save",
+        accelerator: "CmdOrCtrl+S"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS,
+        label: "Save As..."
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT,
+        label: "Close Tab",
+        accelerator: "CmdOrCtrl+W"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CLOSE_ALL_DOCUMENTS,
+        label: "Close All Tabs"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE,
         label: "Open Example..."
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB,
+        label: "Open Example in New Tab..."
       },
       { kind: "separator" },
       {

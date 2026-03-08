@@ -16,6 +16,7 @@ import { useSettingsStore } from "../settings/useSettingsStore";
 import { getActiveEditorPlatform } from "../platform/current";
 import css from "./App.module.css";
 import "./variables.css";
+import { TabStrip } from "./TabStrip";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -36,6 +37,7 @@ export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const toolMode = useEditorStore((s) => s.toolMode);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
@@ -56,7 +58,8 @@ export function App() {
         dispatch({
           type: "SNAPSHOT_READY",
           requestId: response.id,
-          snapshot: response.snapshot
+          snapshot: response.snapshot,
+          documentId: response.documentId
         });
       },
       onError: (request) => {
@@ -66,7 +69,8 @@ export function App() {
         dispatch({
           type: "SNAPSHOT_READY",
           requestId: request.id,
-          snapshot: makeEmptySnapshot(request.source)
+          snapshot: makeEmptySnapshot(request.source),
+          documentId: request.documentId
         });
       }
     });
@@ -85,16 +89,17 @@ export function App() {
       return;
     }
     const requestId = crypto.randomUUID();
-    dispatch({ type: "COMPUTE_REQUESTED", requestId });
+    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
     const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
     scheduler.schedule({
       id: requestId,
+      documentId: activeDocumentId,
       kind: "render",
       source,
       changedSourceIds,
       trigger: computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId)
     });
-  }, [activeCanvasDragKind, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
+  }, [activeCanvasDragKind, activeDocumentId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
 
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;
@@ -120,6 +125,7 @@ export function App() {
     const timer = window.setTimeout(() => {
       scheduler.schedule({
         id: crypto.randomUUID(),
+        documentId: activeDocumentId,
         kind: "prewarm",
         source,
         changedSourceIds: [hoveredElementId],
@@ -130,7 +136,7 @@ export function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeCanvasDragKind, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
+  }, [activeCanvasDragKind, activeDocumentId, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
 
   useEffect(() => {
     const unbind = getActiveEditorPlatform().menu?.bindCommandHandler?.((commandId) => {
@@ -158,6 +164,27 @@ export function App() {
         if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.FORMAT_TIKZ, "shortcut")) {
           e.preventDefault();
         }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "n") {
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.NEW_DOCUMENT, "shortcut");
+        e.preventDefault();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "w") {
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT, "shortcut");
+        e.preventDefault();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "s") {
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT, "shortcut");
+        e.preventDefault();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "o") {
+        commandRuntime.runCommand(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT, "shortcut");
+        e.preventDefault();
         return;
       }
 
@@ -266,6 +293,7 @@ export function App() {
     <div className={css.app} style={appStyle}>
       <AppMenuBar />
       <Toolbar />
+      <TabStrip />
       <div className={css.body}>
         <ResizableLayout
           left={(

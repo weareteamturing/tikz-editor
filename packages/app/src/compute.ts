@@ -39,6 +39,7 @@ export type SessionSnapshotIncrementalInfo = {
 export type ComputeRequest = {
   /** UUID identifying this request; used to discard stale responses. */
   id: string;
+  documentId?: string;
   source: string;
   changedSourceIds?: string[] | null;
   trigger?: IncrementalSemanticTrigger;
@@ -48,6 +49,7 @@ export type ComputeRequest = {
 export type ComputeResponse = {
   /** Matches the request id. */
   id: string;
+  documentId?: string;
   snapshot: SessionSnapshot;
   diagnostics: RenderDiagnostic[];
 };
@@ -88,6 +90,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     if (requestKind === "prewarm" && incrementalWarmSource === request.source) {
       return {
         id: request.id,
+        documentId: request.documentId,
         snapshot: makeEmptySnapshot(request.source),
         diagnostics: []
       };
@@ -115,6 +118,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       };
       return {
         id: request.id,
+        documentId: request.documentId,
         snapshot,
         diagnostics: result.renderDiagnostics
       };
@@ -145,6 +149,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
     return {
       id: request.id,
+      documentId: request.documentId,
       snapshot,
       diagnostics: result.renderDiagnostics
     };
@@ -166,6 +171,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
     return {
       id: request.id,
+      documentId: request.documentId,
       snapshot,
       diagnostics: [
         {
