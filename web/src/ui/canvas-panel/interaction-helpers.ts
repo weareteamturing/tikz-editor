@@ -8,6 +8,8 @@ import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-
 import type { Bounds, DragState } from "./types";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
+const STEP_SNAP_EPSILON = 1e-9;
+export const DEFAULT_GRID_TOOL_STEP_PT = PT_PER_CM;
 
 export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
   return {
@@ -169,6 +171,18 @@ export function resolveToolCreateCurrentWorld(
     : rawCurrentWorld;
 }
 
+export function snapPointDeltaToAxisStepMultiples(
+  anchorWorld: Point,
+  currentWorld: Point,
+  stepX: number,
+  stepY: number
+): Point {
+  return {
+    x: anchorWorld.x + snapDeltaToStep(currentWorld.x - anchorWorld.x, stepX),
+    y: anchorWorld.y + snapDeltaToStep(currentWorld.y - anchorWorld.y, stepY)
+  };
+}
+
 export function resolveHandleIdForDrag(
   drag: Extract<DragState, { kind: "handle" }>,
   handles: EditHandle[]
@@ -227,6 +241,13 @@ function constrainRectCornerToSquare(startWorld: Point, cornerWorld: Point): Poi
     x: startWorld.x + xSign * side,
     y: startWorld.y + ySign * side
   };
+}
+
+function snapDeltaToStep(delta: number, step: number): number {
+  if (!(step > STEP_SNAP_EPSILON)) {
+    return delta;
+  }
+  return Math.round(delta / step) * step;
 }
 
 export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string): Point {

@@ -171,6 +171,7 @@ import {
   resolveRotateDegreesFromOptions,
   resolveEditableTextTargetForSelectionOffsets,
   resolveFallbackTextSourceSpanForSourceId,
+  resolveGridResizeSnapForHandleDrag,
   resolveScenePathShapeHint,
   resizeCursorForRole,
   selectNudgeAnchorHandle,
@@ -2064,6 +2065,11 @@ export function CanvasPanel() {
         : null;
       setSnapLines([]);
       const handleCursor = getHandleCursor(handle, snapshot.scene, snapshot.editHandles);
+      const gridResizeSnap = resolveGridResizeSnapForHandleDrag(
+        handle,
+        snapshot.editHandles,
+        snapshot.parseResult?.figure.body
+      );
 
       setDragState({
         kind: "handle",
@@ -2074,6 +2080,7 @@ export function CanvasPanel() {
         cursor: handleCursor,
         lastKnownWorld: { ...handle.world },
         snapContext,
+        gridResizeSnap,
         historyMergeKey: makeMergeKey("drag-handle", handle.id, event.pointerId),
         activeEndpointAnchor: null
       });
@@ -2094,6 +2101,8 @@ export function CanvasPanel() {
       setDragState,
       setNodeAnchorOverlay,
       selectedElementIds,
+      snapshot.editHandles,
+      snapshot.parseResult,
       snapshot.scene,
       snapshot.source,
       source,

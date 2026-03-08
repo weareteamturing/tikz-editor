@@ -27,3 +27,6 @@ Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabili
 
 ## Corpus Source
 The repository includes `pgf-docs/`, a copy of the PGF manual source files. It also includes `pgf-src/`, a copy of the PGF source files. Both should be used to check the intended rendering of TikZ features against the reference implementation. The `pgf-docs/` snippets are also used for testing and capability tracking.
+
+## Testing note
+vitest doesn’t support --runInBand in this environment.

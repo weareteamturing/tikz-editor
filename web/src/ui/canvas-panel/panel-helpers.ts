@@ -1,5 +1,6 @@
 import type { AdornmentOwnerGeometry, NodeItem, PathItem, Span, Statement } from "tikz-editor/ast/types";
 import type { ResizeRole } from "tikz-editor/edit/actions";
+import { parseCoordinateLike, parseLength } from "tikz-editor/semantic/coords/parse-length";
 import type { OptionListAst } from "tikz-editor/options/types";
 import type {
   EditHandle,
@@ -17,6 +18,7 @@ import type {
   Bounds,
   DragState,
   EditableTextTarget,
+  GridResizeSnapConfig,
   SelectionBounds
 } from "./types";
 import {
@@ -35,6 +37,9 @@ type GuidesState = {
   vertical: number[];
   horizontal: number[];
 };
+
+const GRID_SNAP_STEP_EPSILON = 1e-9;
+const DEFAULT_GRID_STEP = parseLength("1", "cm") ?? 28.4527559055;
 
 export function collectSelectionBounds(
   elements: SceneElement[],
@@ -598,6 +603,156 @@ export function findPathStatementById(
     }
   }
   return null;
+}
+
+export function resolveGridResizeSnapForHandleDrag(
+  handle: EditHandle,
+  editHandles: readonly EditHandle[],
+  statements: readonly Statement[] | undefined
+): GridResizeSnapConfig | null {
+  if (handle.kind !== "path-point" || !statements) {
+    return null;
+  }
+  const siblingPathPointHandles = editHandles.filter(
+    (candidate) => candidate.sourceId === handle.sourceId && candidate.kind === "path-point"
+  );
+  if (siblingPathPointHandles.length !== 2) {
+    return null;
+  }
+  const anchorHandle = siblingPathPointHandles.find((candidate) => candidate.id !== handle.id);
+  if (!anchorHandle || !transformsApproximatelyEqual(handle.transform, anchorHandle.transform)) {
+    return null;
+  }
+
+  const pathStatement = findPathStatementById(statements, handle.sourceId);
+  if (!pathStatement) {
+    return null;
+  }
+  const gridCandidate = resolveSingleGridResizeCandidate(pathStatement.items);
+  if (!gridCandidate) {
+    return null;
+  }
+
+  const handleIsStart = spansEqual(handle.sourceSpan, gridCandidate.startSpan);
+  const handleIsEnd = spansEqual(handle.sourceSpan, gridCandidate.endSpan);
+  const anchorIsStart = spansEqual(anchorHandle.sourceSpan, gridCandidate.startSpan);
+  const anchorIsEnd = spansEqual(anchorHandle.sourceSpan, gridCandidate.endSpan);
+  if ((!handleIsStart && !handleIsEnd) || (!anchorIsStart && !anchorIsEnd)) {
+    return null;
+  }
+
+  return {
+    anchorWorld: anchorHandle.world,
+    stepX: gridCandidate.stepX,
+    stepY: gridCandidate.stepY,
+    transform: handle.transform
+  };
+}
+
+type GridResizeCandidate = {
+  startSpan: Span;
+  endSpan: Span;
+  stepX: number;
+  stepY: number;
+};
+
+function resolveSingleGridResizeCandidate(items: readonly PathItem[]): GridResizeCandidate | null {
+  const candidates: GridResizeCandidate[] = [];
+  let previousCoordinate: Extract<PathItem, { kind: "Coordinate" }> | null = null;
+  let pending: { startSpan: Span; stepX: number; stepY: number } | null = null;
+
+  for (const item of items) {
+    if (item.kind === "Coordinate") {
+      if (pending) {
+        candidates.push({
+          startSpan: pending.startSpan,
+          endSpan: item.span,
+          stepX: pending.stepX,
+          stepY: pending.stepY
+        });
+        pending = null;
+      }
+      previousCoordinate = item;
+      continue;
+    }
+
+    if (item.kind === "PathKeyword" && item.keyword === "grid") {
+      pending =
+        previousCoordinate == null
+          ? null
+          : {
+              startSpan: previousCoordinate.span,
+              stepX: DEFAULT_GRID_STEP,
+              stepY: DEFAULT_GRID_STEP
+            };
+      continue;
+    }
+
+    if (pending && item.kind === "PathOption") {
+      applyGridStepOptionOverrides(pending, item);
+      continue;
+    }
+
+    if (pending && item.kind !== "PathComment") {
+      pending = null;
+    }
+  }
+
+  if (candidates.length !== 1) {
+    return null;
+  }
+  return candidates[0] ?? null;
+}
+
+function applyGridStepOptionOverrides(
+  pending: { stepX: number; stepY: number },
+  optionItem: Extract<PathItem, { kind: "PathOption" }>
+): void {
+  for (const entry of optionItem.options.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+
+    if (entry.key === "step") {
+      const pair = parseCoordinateLike(entry.valueRaw);
+      if (pair) {
+        const nextX = parseLength(pair.x, "cm");
+        const nextY = parseLength(pair.y, "cm");
+        if (nextX != null && nextX > GRID_SNAP_STEP_EPSILON) {
+          pending.stepX = nextX;
+        }
+        if (nextY != null && nextY > GRID_SNAP_STEP_EPSILON) {
+          pending.stepY = nextY;
+        }
+        continue;
+      }
+      const scalar = parseLength(entry.valueRaw, "cm");
+      if (scalar != null && scalar > GRID_SNAP_STEP_EPSILON) {
+        pending.stepX = scalar;
+        pending.stepY = scalar;
+      }
+      continue;
+    }
+
+    if (entry.key === "xstep" || entry.key === "x step") {
+      const nextX = parseLength(entry.valueRaw, "cm");
+      if (nextX != null && nextX > GRID_SNAP_STEP_EPSILON) {
+        pending.stepX = nextX;
+      }
+      continue;
+    }
+
+    if (entry.key === "ystep" || entry.key === "y step") {
+      const nextY = parseLength(entry.valueRaw, "cm");
+      if (nextY != null && nextY > GRID_SNAP_STEP_EPSILON) {
+        pending.stepY = nextY;
+      }
+    }
+  }
+}
+
+function spansEqual(left: Span, right: Span): boolean {
+  return left.from === right.from && left.to === right.to;
 }
 
 export function resolveStatementRotateDegrees(statement: Statement | null | undefined): number {

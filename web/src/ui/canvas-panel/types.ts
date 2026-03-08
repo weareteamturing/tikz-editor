@@ -15,6 +15,13 @@ export type Bounds = {
   maxY: number;
 };
 
+export type GridResizeSnapConfig = {
+  anchorWorld: Point;
+  stepX: number;
+  stepY: number;
+  transform: EditHandle["transform"];
+};
+
 export type DragState =
   | {
       kind: "element";
@@ -61,6 +68,7 @@ export type DragState =
       cursor: string;
       lastKnownWorld: Point;
       snapContext: SnapContext | null;
+      gridResizeSnap: GridResizeSnapConfig | null;
       historyMergeKey: string;
       activeEndpointAnchor: NodeAnchorTarget | null;
     }

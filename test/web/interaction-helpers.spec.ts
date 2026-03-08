@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { PT_PER_CM } from "../../src/edit/format.js";
 import {
   createBezierTemplateFromBend,
-  resolveBezierControlsFromBend
+  resolveBezierControlsFromBend,
+  snapPointDeltaToAxisStepMultiples
 } from "../../web/src/ui/canvas-panel/interaction-helpers.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
@@ -70,5 +71,27 @@ describe("interaction-helpers bezier math", () => {
     expect(template.control1).toBeDefined();
     expect(template.control2).toBeDefined();
     expect(template.to).toBeDefined();
+  });
+});
+
+describe("interaction-helpers step snapping", () => {
+  it("snaps point deltas to integer multiples per axis", () => {
+    const snapped = snapPointDeltaToAxisStepMultiples(
+      { x: 10, y: 20 },
+      { x: 13.2, y: 26.1 },
+      2,
+      5
+    );
+    expect(snapped).toEqual({ x: 14, y: 25 });
+  });
+
+  it("keeps axis unchanged when step is non-positive", () => {
+    const snapped = snapPointDeltaToAxisStepMultiples(
+      { x: 10, y: 20 },
+      { x: 13.2, y: 26.1 },
+      0,
+      -1
+    );
+    expect(snapped).toEqual({ x: 13.2, y: 26.1 });
   });
 });

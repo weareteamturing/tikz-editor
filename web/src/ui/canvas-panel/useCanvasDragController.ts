@@ -3,6 +3,7 @@ import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { formatNumber } from "tikz-editor/edit/format";
+import { worldToLocal } from "tikz-editor/edit/coords";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import {
   collectSelectionGeometry,
@@ -12,6 +13,7 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement } from "tikz-editor/semantic/types";
+import { applyMatrix } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import {
@@ -19,8 +21,10 @@ import {
   collectSourceIdsInBounds,
   createBezierTemplateFromBend,
   createTemplateForToolDrag,
+  DEFAULT_GRID_TOOL_STEP_PT,
   deriveSelectionTranslationDeltaFromAnchor,
   resolveHandleIdForDrag,
+  snapPointDeltaToAxisStepMultiples,
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
 import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./handle-drag-actions";
@@ -37,7 +41,8 @@ import type {
   PendingBezier,
   SnapDebugLogInput,
   TextEditingSession,
-  TextIndexMappingTarget
+  TextIndexMappingTarget,
+  GridResizeSnapConfig
 } from "./types";
 import { requestSourceSelection } from "../source-sync";
 
@@ -49,6 +54,7 @@ const ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG = 10;
 const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT = 3;
 const ADORNMENT_DISTANCE_STEP_PT = 0.5;
+const GRID_RESIZE_STEP_EPSILON = 1e-9;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -278,6 +284,14 @@ export function useCanvasDragController(params: {
           drag.toolMode,
           event.shiftKey
         );
+        if (drag.toolMode === "addGrid" && !ctrlOrMeta) {
+          drag.currentWorld = snapPointDeltaToAxisStepMultiples(
+            drag.startWorld,
+            drag.currentWorld,
+            DEFAULT_GRID_TOOL_STEP_PT,
+            DEFAULT_GRID_TOOL_STEP_PT
+          );
+        }
         setNodeAnchorOverlay(
           endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0
             ? endpointAnchorOverlay
@@ -558,6 +572,9 @@ export function useCanvasDragController(params: {
       } else {
         drag.activeEndpointAnchor = null;
       }
+      if (drag.gridResizeSnap && !ctrlOrMeta) {
+        nextWorld = snapGridResizePoint(nextWorld, drag.gridResizeSnap);
+      }
       setNodeAnchorOverlay(endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0 ? endpointAnchorOverlay : null);
       setSnapLines(snapped.lines);
       logSnapDebug({
@@ -646,6 +663,14 @@ export function useCanvasDragController(params: {
           drag.toolMode,
           event.shiftKey
         );
+        if (drag.toolMode === "addGrid" && !ctrlOrMeta) {
+          finalWorld = snapPointDeltaToAxisStepMultiples(
+            drag.startWorld,
+            finalWorld,
+            DEFAULT_GRID_TOOL_STEP_PT,
+            DEFAULT_GRID_TOOL_STEP_PT
+          );
+        }
         if (finalEndpointAnchor && (drag.toolMode === "addLine" || drag.toolMode === "addArrow")) {
           finalWorld = finalEndpointAnchor.world;
         }
@@ -826,6 +851,27 @@ export function useCanvasDragController(params: {
     svgResultRef,
     textIndexFromClient
   ]);
+}
+
+function snapGridResizePoint(point: Point, config: GridResizeSnapConfig): Point {
+  const localPoint = worldToLocal(point, config.transform);
+  const anchorLocal = worldToLocal(config.anchorWorld, config.transform);
+  if (!localPoint || !anchorLocal) {
+    return point;
+  }
+
+  const snappedLocal = {
+    x: anchorLocal.x + snapDeltaToStep(localPoint.x - anchorLocal.x, config.stepX),
+    y: anchorLocal.y + snapDeltaToStep(localPoint.y - anchorLocal.y, config.stepY)
+  };
+  return applyMatrix(config.transform, snappedLocal);
+}
+
+function snapDeltaToStep(delta: number, step: number): number {
+  if (!(step > GRID_RESIZE_STEP_EPSILON)) {
+    return delta;
+  }
+  return Math.round(delta / step) * step;
 }
 
 function selectPrimaryAdornmentElement(elements: readonly SceneElement[]): SceneElement | null {

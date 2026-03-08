@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ScenePath, SceneText } from "../../src/semantic/types.js";
+import { parseTikz } from "../../src/parser/index.js";
+import { evaluateTikzFigure } from "../../src/semantic/evaluate.js";
+import { parseLength } from "../../src/semantic/coords/parse-length.js";
 import { buildHitRegions } from "../../web/src/ui/canvas-panel/hit-regions.js";
 import {
   collectSourceBounds,
   isPointInsideRectHitRegionContentBox,
   rectHitRegionsForTargetId,
+  resolveGridResizeSnapForHandleDrag,
   resolveRectHitRegionContentBox
 } from "../../web/src/ui/canvas-panel/panel-helpers.js";
 import type { HitRegion } from "../../web/src/ui/canvas-panel/hit-regions.js";
@@ -172,5 +176,46 @@ describe("rectHitRegionsForTargetId", () => {
     expect(bounds).toBeDefined();
     expect(bounds?.minX).toBeCloseTo(34, 6);
     expect(bounds?.maxX).toBeCloseTo(46, 6);
+  });
+});
+
+describe("resolveGridResizeSnapForHandleDrag", () => {
+  it("returns axis-specific step snapping for grid handle drags", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) grid[xstep=0.5cm, ystep=2pt] (2,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const pathHandles = semantic.editHandles.filter(
+      (handle) => handle.kind === "path-point"
+    );
+    expect(pathHandles).toHaveLength(2);
+    const dragHandle = pathHandles[1]!;
+
+    const result = resolveGridResizeSnapForHandleDrag(dragHandle, semantic.editHandles, parsed.figure.body);
+    expect(result).toBeDefined();
+    if (!result) {
+      return;
+    }
+
+    expect(result.stepX).toBeCloseTo(parseLength("0.5cm", "cm")!, 6);
+    expect(result.stepY).toBeCloseTo(parseLength("2pt", "cm")!, 6);
+    expect(result.anchorWorld).toEqual(pathHandles[0]!.world);
+  });
+
+  it("returns null for non-grid paths", () => {
+    const source = String.raw`\begin{tikzpicture}
+\draw (0,0) -- (2,3);
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const handle = semantic.editHandles.find((candidate) => candidate.kind === "path-point");
+    expect(handle).toBeDefined();
+    if (!handle) {
+      return;
+    }
+
+    const result = resolveGridResizeSnapForHandleDrag(handle, semantic.editHandles, parsed.figure.body);
+    expect(result).toBeNull();
   });
 });
