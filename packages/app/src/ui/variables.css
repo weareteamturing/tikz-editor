@@ -59,6 +59,119 @@
   --tooltip-warning-text: #a06010;
 }
 
+/* ── Dark mode overrides ────────────────────────────────────────────────────── */
+
+[data-color-scheme="dark"] {
+  /* Surface greys */
+  --bg-pane:         #1e1e1e;
+  --bg-app:          #2a2a2a;
+  --bg-header:       #242424;
+  --bg-canvas-panel: #1a1a1a;
+  --bg-canvas-area:  #202020;
+  --bg-diagnostics:  #1c1c1c;
+
+  /* Borders */
+  --border:          #484848;
+  --border-light:    #383838;
+  --border-lighter:  #2d2d2d;
+
+  /* Text */
+  --text:            #d4d4d4;
+  --text-muted:      #a0a0a0;
+  --text-faint:      #787878;
+  --text-dim:        #565656;
+
+  /* Interactive — neutral buttons */
+  --btn-hover-bg:    #383838;
+  --btn-active-bg:   #454545;
+  --btn-disabled-bg: #252525;
+  --btn-disabled-text: #585858;
+
+  /* Toggles */
+  --toggle-active-bg: #404040;
+  --toggle-mixed-bg:  #363636;
+
+  /* Accent blue (slightly muted for dark) */
+  --accent:              #5898d0;
+  --accent-dark:         #7ab4e0;
+  --accent-btn-bg:       #1e3a5a;
+  --accent-btn-border:   #3a6090;
+  --accent-btn-hover-bg: #25496e;
+  --accent-btn-hover-border: #4878a8;
+
+  /* Semantic colours */
+  --color-error:   #e05555;
+  --color-warning: #c07830;
+  --color-ok:      #40a060;
+  --color-snap:    #ff6b6b;
+
+  /* Tooltips & Overlays */
+  --tooltip-dark-bg: rgba(10, 10, 10, 0.95);
+  --tooltip-dark-text: #e0e0e0;
+  --tooltip-dark-text-muted: #909090;
+  --tooltip-dark-border: rgba(255, 255, 255, 0.12);
+
+  --tooltip-warning-bg: #3a2e10;
+  --tooltip-warning-border: #7a6030;
+  --tooltip-warning-text: #d0a040;
+}
+
+/* ── CodeMirror dark mode chrome ────────────────────────────────────────────── */
+
+[data-color-scheme="dark"] .cm-gutters {
+  background-color: #1e1e1e !important;
+  border-right-color: #383838 !important;
+  color: #565656 !important;
+}
+
+[data-color-scheme="dark"] .cm-activeLineGutter {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+[data-color-scheme="dark"] .cm-activeLine {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+[data-color-scheme="dark"] .cm-selectionBackground {
+  background-color: rgba(88, 152, 208, 0.28) !important;
+}
+
+[data-color-scheme="dark"] .cm-focused .cm-selectionBackground {
+  background-color: rgba(88, 152, 208, 0.38) !important;
+}
+
+[data-color-scheme="dark"] .cm-cursor {
+  border-left-color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-content {
+  caret-color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-tooltip {
+  background-color: #252526 !important;
+  border-color: #454545 !important;
+  color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background-color: #094771 !important;
+  color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-panels {
+  background-color: #1e1e1e !important;
+  color: #d4d4d4 !important;
+}
+
+[data-color-scheme="dark"] .cm-searchMatch {
+  background-color: rgba(255, 200, 0, 0.2) !important;
+}
+
+[data-color-scheme="dark"] .cm-searchMatch-selected {
+  background-color: rgba(255, 200, 0, 0.5) !important;
+}
+
 @page {
   margin: 12mm;
 }

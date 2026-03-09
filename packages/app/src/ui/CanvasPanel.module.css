@@ -196,9 +196,18 @@
 .svgLayer {
   position: absolute;
   inset: 0;
-  background: var(--bg-pane);
+  background: #fff;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
   pointer-events: none;
+}
+
+:global([data-canvas-invert]) .svgLayer {
+  background: #e8e8e8;
+  filter: invert(1) hue-rotate(180deg);
+}
+
+:global([data-color-scheme="dark"]) .viewport {
+  background-image: none;
 }
 
 .svgLayer :global(svg) {
@@ -275,6 +284,14 @@
   stroke: rgba(69, 65, 59, 0.18);
   vector-effect: non-scaling-stroke;
   shape-rendering: crispEdges;
+}
+
+:global([data-color-scheme="dark"]) .gridMinor {
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+:global([data-color-scheme="dark"]) .gridMajor {
+  stroke: rgba(255, 255, 255, 0.2);
 }
 
 .hitRegions {

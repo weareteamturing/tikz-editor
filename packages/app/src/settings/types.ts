@@ -11,8 +11,12 @@ export type ColorPickerAccuracy = "approximate" | "exact";
 
 export type GridSize = "fine" | "standard" | "coarse";
 
+export type ColorScheme = "system" | "light" | "dark";
+
 export type GeneralSettings = {
   uiFontSizePx: number;
+  colorScheme: ColorScheme;
+  canvasInvert: boolean;
 };
 
 export type CanvasSettings = {
@@ -38,7 +42,9 @@ export const GRID_SIZE_MINOR_TARGET_PX: Record<GridSize, number> = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   general: {
-    uiFontSizePx: 11
+    uiFontSizePx: 11,
+    colorScheme: "system" as ColorScheme,
+    canvasInvert: false
   },
   editor: {
     wordWrap: false,

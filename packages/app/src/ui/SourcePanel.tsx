@@ -23,6 +23,8 @@ import {
   hoverTooltip,
   keymap
 } from "@codemirror/view";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
 import { basicSetup } from "codemirror";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
@@ -49,6 +51,29 @@ const wordWrapCompartment = new Compartment();
 const fontSizeCompartment = new Compartment();
 const tabSizeCompartment = new Compartment();
 const editableCompartment = new Compartment();
+const highlightCompartment = new Compartment();
+
+// ── Theme-aware highlight styles ─────────────────────────────────────────────
+
+const darkHighlightStyle = HighlightStyle.define([
+  { tag: t.keyword,        color: "#569cd6", fontWeight: "bold" },
+  { tag: t.typeName,       color: "#4ec9b0" },
+  { tag: t.lineComment,    color: "#6a9955", fontStyle: "italic" },
+  { tag: t.blockComment,   color: "#6a9955", fontStyle: "italic" },
+  { tag: t.string,         color: "#ce9178" },
+  { tag: t.number,         color: "#b5cea8" },
+  { tag: t.variableName,   color: "#9cdcfe" },
+  { tag: t.attributeName,  color: "#9cdcfe" },
+  { tag: t.propertyName,   color: "#9cdcfe" },
+  { tag: t.operator,       color: "#d4d4d4" },
+  { tag: t.punctuation,    color: "#d4d4d4" },
+  { tag: t.bracket,        color: "#ffd700" },
+  { tag: t.name,           color: "#d4d4d4" },
+]);
+
+function buildHighlightExtension(dark: boolean) {
+  return dark ? [Prec.highest(syntaxHighlighting(darkHighlightStyle))] : [];
+}
 
 // ── CodeMirror state effects ────────────────────────────────────────────────
 
@@ -265,6 +290,7 @@ export function SourcePanel() {
   const editorFontSize = useSettingsStore((s) => s.settings.editor.fontSize);
   const editorLineNumbers = useSettingsStore((s) => s.settings.editor.lineNumbers);
   const editorIndentSize = useSettingsStore((s) => s.settings.editor.indentSize);
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.dataset.colorScheme === "dark");
   const formatterReflowLongOptions = useSettingsStore((s) => s.settings.editor.formatterReflowLongOptions);
   const formatterMaxLineLength = useSettingsStore((s) => s.settings.editor.formatterMaxLineLength);
 
@@ -402,6 +428,7 @@ export function SourcePanel() {
         fontSizeCompartment.of(EditorView.theme({ "& .cm-scroller": { fontSize: `${editorFontSize}px` } })),
         tabSizeCompartment.of(CMState.tabSize.of(editorIndentSize)),
         editableCompartment.of(EditorView.editable.of(!assistantLockReason)),
+        highlightCompartment.of(buildHighlightExtension(darkMode)),
         numberScrubber({
           onScrubStateChange: (scrub) => {
             if (!scrub.isActive || scrub.from == null) {
@@ -476,6 +503,20 @@ export function SourcePanel() {
     if (!view) return;
     view.dispatch({ effects: editableCompartment.reconfigure(EditorView.editable.of(!assistantLockReason)) });
   }, [assistantLockReason]);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setDarkMode(document.documentElement.dataset.colorScheme === "dark");
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-color-scheme"] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: highlightCompartment.reconfigure(buildHighlightExtension(darkMode)) });
+  }, [darkMode]);
 
 
   // ── Canvas selection → source selection sync ────────────────────────────────

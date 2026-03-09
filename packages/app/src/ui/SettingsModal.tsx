@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSettingsStore } from "../settings/useSettingsStore";
-import type { ColorPickerAccuracy, GridSize } from "../settings/types";
+import type { ColorPickerAccuracy, ColorScheme, GridSize } from "../settings/types";
 import { Modal } from "./Modal";
 import css from "./SettingsModal.module.css";
 
@@ -88,6 +88,39 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       <option key={size} value={size}>{size}px</option>
                     ))}
                   </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-color-scheme">
+                    Color Scheme
+                    <span className={css.settingDesc}>Controls light/dark mode for the app UI.</span>
+                  </label>
+                  <select
+                    id="setting-color-scheme"
+                    className={css.select}
+                    value={settings.general.colorScheme}
+                    onChange={(e) => updateGeneralSettings({ colorScheme: e.target.value as ColorScheme })}
+                  >
+                    <option value="system">System (default)</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </div>
+
+                <div className={css.settingRow}>
+                  <label className={css.settingLabel} htmlFor="setting-canvas-invert">
+                    Invert Canvas in Dark Mode
+                    <span className={css.settingDesc}>
+                      Applies brightness inversion to the diagram in dark mode, keeping hue intact.
+                    </span>
+                  </label>
+                  <input
+                    id="setting-canvas-invert"
+                    type="checkbox"
+                    className={css.checkbox}
+                    checked={settings.general.canvasInvert}
+                    onChange={(e) => updateGeneralSettings({ canvasInvert: e.target.checked })}
+                  />
                 </div>
 
                 <div className={css.settingRow}>

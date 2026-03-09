@@ -64,6 +64,8 @@ export function App() {
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
+  const colorScheme = useSettingsStore((s) => s.settings.general.colorScheme);
+  const canvasInvert = useSettingsStore((s) => s.settings.general.canvasInvert);
   const dispatch = useEditorStore((s) => s.dispatch);
   const platform = getActiveEditorPlatform();
   const menuTarget = menuTargetFromPlatformId(platform.id);
@@ -137,6 +139,26 @@ export function App() {
       requestCloseIntent({ kind: "close-all" });
     }
   });
+
+  useEffect(() => {
+    const apply = (dark: boolean) => {
+      document.documentElement.dataset.colorScheme = dark ? "dark" : "light";
+      if (dark && canvasInvert) {
+        document.documentElement.dataset.canvasInvert = "true";
+      } else {
+        delete document.documentElement.dataset.canvasInvert;
+      }
+    };
+    if (colorScheme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      apply(mq.matches);
+      const handler = (e: MediaQueryListEvent) => apply(e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    } else {
+      apply(colorScheme === "dark");
+    }
+  }, [colorScheme, canvasInvert]);
 
   useEffect(() => {
     sourceRef.current = source;
