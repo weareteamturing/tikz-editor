@@ -8,10 +8,11 @@ import css from "./Toolbar.module.css";
 export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const dispatch = useEditorStore((s) => s.dispatch);
-  const showAppTitle = !getActiveEditorPlatform().id.startsWith("desktop");
+  const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
+  const showAppTitle = !isDesktop;
 
   return (
-    <div className={css.toolbar}>
+    <div className={`${css.toolbar}${isDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region>
       {showAppTitle ? (
         <>
           <span className={css.title}>TikZ Editor</span>

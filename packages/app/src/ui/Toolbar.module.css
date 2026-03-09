@@ -11,6 +11,11 @@
   flex-shrink: 0;
 }
 
+.toolbarDesktop {
+  padding-left: 90px;
+  min-height: 42px;
+}
+
 .title {
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   font-weight: 700;
