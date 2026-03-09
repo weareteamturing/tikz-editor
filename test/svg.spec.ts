@@ -139,7 +139,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-plot-mode:"))).toBe(false);
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unsupported-plot-mode:"))).toBe(false);
     expect(emitted.svg.match(/<path /g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
@@ -152,7 +152,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-option-flag:"))).toBe(false);
+    expect(semantic.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unsupported-option-flag:"))).toBe(false);
     expect(emitted.svg).toContain("<path");
     expect(emitted.svg).toContain(" C ");
     expect(emitted.svg).toContain(" Z");
@@ -235,7 +235,7 @@ describe("svg emitter", () => {
     expect(emitted.svg).toContain("<radialGradient");
     expect(emitted.svg).toContain('id="tikz-shading-radial-');
     expect(emitted.svg).toContain('id="tikz-shading-ball-');
-    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unsupported-shading:"))).toBe(false);
+    expect(emitted.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unsupported-shading:"))).toBe(false);
   });
 
   it("emits SVG pattern defs and url() fills for pattern styles", () => {

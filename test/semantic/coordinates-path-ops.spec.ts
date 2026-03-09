@@ -109,7 +109,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
       const points = result.scene.elements
         .filter((element) => element.kind === "Path")
         .flatMap((element) =>
@@ -133,7 +133,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-turn-coordinate"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-turn-coordinate"))).toBe(false);
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
       if (path?.kind === "Path") {
@@ -572,7 +572,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const paths = elementsOfKind(result.scene.elements, "Path");
       const drawPath = paths.find((element) => element.kind === "Path" && element.style.stroke != null);
@@ -603,7 +603,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-perpendicular-coordinate")).toBe(false);
   
       const xLabel = result.scene.elements.find((element) => element.kind === "Text" && element.text === "X");
@@ -623,7 +623,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-coordinate-form:explicit")).toBe(false);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "invalid-explicit-coordinate")).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
       expect(drawPath?.kind).toBe("Path");
@@ -653,8 +653,8 @@ describe("semantic evaluator / coordinates and path ops", () => {
   
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:name path")).toBe(false);
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:name intersections")).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:x"))).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-path:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:x"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-path:"))).toBe(false);
   
       const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
       expect(drawPath?.kind).toBe("Path");
@@ -682,7 +682,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:intersection-1"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:intersection-1"))).toBe(false);
       const drawPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.stroke != null);
       expect(drawPath?.kind).toBe("Path");
       if (drawPath?.kind === "Path") {
@@ -703,8 +703,8 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-path:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-path:"))).toBe(false);
   
       const intersectionSegment = result.scene.elements.find(
         (element) =>
@@ -774,7 +774,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-shift:"))).toBe(false);
   
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
@@ -797,7 +797,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-shift:"))).toBe(false);
   
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
@@ -887,7 +887,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate"))).toBe(false);
   
       const circles = elementsOfKind(result.scene.elements, "Circle");
       expect(circles).toHaveLength(3);
@@ -1347,7 +1347,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-positioning-shift"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-positioning-shift"))).toBe(false);
   
       const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
       const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
@@ -1450,7 +1450,7 @@ describe("semantic evaluator / coordinates and path ops", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-rounded-corners"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-rounded-corners"))).toBe(false);
       const rectangle = firstElementOfKind(result.scene.elements, "Path");
       expect(rectangle?.kind).toBe("Path");
       if (rectangle?.kind === "Path") {

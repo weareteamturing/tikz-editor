@@ -231,7 +231,7 @@ describe("platform adapter contracts", () => {
     const unbind = platform.window?.bindCloseRequest?.(() => {
       seenCloseRequest += 1;
     });
-    closeRequestHandler?.();
+    (closeRequestHandler as (() => void) | null)?.();
     await Promise.resolve();
     expect(seenCloseRequest).toBe(1);
 

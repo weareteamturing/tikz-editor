@@ -227,7 +227,7 @@ describe("semantic evaluator / styles and colors", () => {
           "unsupported-option-key:inner color",
           "unsupported-option-key:outer color",
           "unsupported-option-key:ball color"
-        ].includes(diagnostic.code)
+        ].includes(diagnostic.code!)
       );
       expect(unsupportedShadingOptions).toHaveLength(0);
   
@@ -389,7 +389,7 @@ describe("semantic evaluator / styles and colors", () => {
           "unsupported-option-key:double copy shadow",
           "unsupported-option-key:circular drop shadow",
           "unsupported-option-key:circular glow"
-        ].includes(diagnostic.code)
+        ].includes(diagnostic.code!)
       );
       expect(unsupportedShadowDiagnostics).toHaveLength(0);
   
@@ -695,7 +695,7 @@ describe("semantic evaluator / styles and colors", () => {
       const result = evaluateSemantic(source);
   
       const unsupportedAliasDiagnostics = result.diagnostics.filter((diagnostic) =>
-        diagnostic.code.startsWith("unsupported-option-flag:from")
+        diagnostic.code!.startsWith("unsupported-option-flag:from")
       );
       expect(unsupportedAliasDiagnostics).toHaveLength(0);
   

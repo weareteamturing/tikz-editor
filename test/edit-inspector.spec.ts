@@ -369,21 +369,21 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected grid keyword");
     }
 
-    if (step.write.mode !== "setProperty" || xstep.write.mode !== "setProperty" || ystep.write.mode !== "setProperty") {
+    if (step.write!.mode !== "setProperty" || xstep.write!.mode !== "setProperty" || ystep.write!.mode !== "setProperty") {
       throw new Error("Expected setProperty writes for grid properties");
     }
-    expect(step.write.elementId).toBe(gridKeyword.id);
-    expect(xstep.write.elementId).toBe(gridKeyword.id);
-    expect(ystep.write.elementId).toBe(gridKeyword.id);
-    expect(step.write.key).toBe("step");
-    expect(xstep.write.key).toBe("xstep");
-    expect(ystep.write.key).toBe("ystep");
+    expect(step.write!.elementId).toBe(gridKeyword.id);
+    expect(xstep.write!.elementId).toBe(gridKeyword.id);
+    expect(ystep.write!.elementId).toBe(gridKeyword.id);
+    expect(step.write!.key).toBe("step");
+    expect(xstep.write!.key).toBe("xstep");
+    expect(ystep.write!.key).toBe("ystep");
 
     const mutation = applyEditAction(source, [], {
       kind: "setProperty",
-      elementId: step.write.elementId,
-      level: step.write.level,
-      key: step.write.key,
+      elementId: step.write!.elementId,
+      level: step.write!.level,
+      key: step.write!.key,
       value: "2.5cm",
       clearKeys: step.clearKeys
     });
@@ -469,10 +469,10 @@ describe("getInspectorDescriptor", () => {
       .flatMap((section) => section.properties)
       .find((property) => property.kind !== "number");
     expect(firstSetPropertyControl).toBeDefined();
-    if (!firstSetPropertyControl || firstSetPropertyControl.kind === "number") {
+    if (!firstSetPropertyControl) {
       throw new Error("Expected a setProperty-driven control");
     }
-    expect(firstSetPropertyControl.write.writable).toBe(false);
+    expect((firstSetPropertyControl as any).write.writable).toBe(false);
   });
 
   it("marks non-curated tip kinds as custom", () => {

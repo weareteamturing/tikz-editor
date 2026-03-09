@@ -174,7 +174,7 @@ describe("app menu definition", () => {
       throw new Error("Expected insert.path command item in Insert menu.");
     }
     expect(commandItem.label).toBe("Path");
-    expect(commandItem.accelerator).toBe("P");
+    expect((commandItem as any).accelerator).toBe("P");
   });
 
   it("exposes Freehand in the Insert menu", () => {
@@ -189,7 +189,7 @@ describe("app menu definition", () => {
       throw new Error("Expected insert.freehand command item in Insert menu.");
     }
     expect(commandItem.label).toBe("Freehand");
-    expect(commandItem.accelerator).toBe("F");
+    expect((commandItem as any).accelerator).toBe("F");
   });
 
   it("exposes Grid in the Insert menu without an accelerator", () => {
@@ -204,7 +204,7 @@ describe("app menu definition", () => {
       throw new Error("Expected insert.grid command item in Insert menu.");
     }
     expect(commandItem.label).toBe("Grid");
-    expect(commandItem.accelerator).toBeUndefined();
+    expect((commandItem as any).accelerator).toBeUndefined();
   });
 
   it("exposes Format TikZ Code in the Edit menu", () => {

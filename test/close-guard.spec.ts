@@ -17,7 +17,7 @@ function makeDoc(id: string, dirty: boolean): DocumentSession {
     fileRef: null,
     savedSource: "\\draw (0,0)--(1,1);",
     dirty
-  } as DocumentSession;
+  } as unknown as DocumentSession;
 }
 
 describe("close guard helpers", () => {

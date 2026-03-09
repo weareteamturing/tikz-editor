@@ -419,7 +419,7 @@ function summarizeRateMeta(snapshot: AssistantAccountSnapshot | null): string | 
   return null;
 }
 
-function extractRateWindow(snapshot: Record<string, unknown> | null): string | null {
+function extractRateWindow(snapshot: Record<string, unknown> | null | undefined): string | null {
   if (!snapshot) {
     return null;
   }
@@ -435,7 +435,7 @@ function extractRateWindow(snapshot: Record<string, unknown> | null): string | n
 }
 
 function formatRateWindow(
-  window: Record<string, unknown> | null,
+  window: Record<string, unknown> | null | undefined,
   fallbackLabel: "short" | "day"
 ): string | null {
   if (!window) {

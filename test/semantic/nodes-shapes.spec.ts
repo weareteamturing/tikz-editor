@@ -149,7 +149,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
       expect(result.scene.elements.some((element) => element.kind === "Text" && element.text === "Hello")).toBe(true);
     });
 
@@ -263,7 +263,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
       expect(result.scene.elements.some((element) => element.kind === "Text")).toBe(true);
       expect(result.scene.elements.some((element) => element.kind === "Path" && element.style.stroke === "#ff0000")).toBe(true);
     });
@@ -278,7 +278,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
     });
 
     it("orders behind-path nodes before path geometry and front nodes after", () => {
@@ -305,7 +305,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
       expect(result.scene.elements.some((element) => element.kind === "Circle")).toBe(true);
   
       const text = result.scene.elements.find((element) => element.kind === "Text");
@@ -326,7 +326,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const byLabel = new Map<string, Extract<(typeof result.scene.elements)[number], { kind: "Text" }>>();
       for (const element of result.scene.elements) {
@@ -398,7 +398,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const mText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "M");
       const cText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
@@ -807,7 +807,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
       const diamond = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
@@ -833,7 +833,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const trapezium = result.scene.elements.find((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
       expect(trapezium?.kind).toBe("Path");
@@ -941,7 +941,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
       const apex = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
@@ -967,7 +967,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P");
       const corner = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C1");
@@ -991,7 +991,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
       const outer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "O");
@@ -1015,7 +1015,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
       const apex = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
@@ -1040,7 +1040,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "K");
       const upper = result.scene.elements.find((element) => element.kind === "Text" && element.text === "U");
@@ -1062,7 +1062,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "D");
       const tip = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
@@ -1085,7 +1085,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
       const sectorCenter = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
@@ -1116,7 +1116,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "Y");
       const top = result.scene.elements.find((element) => element.kind === "Text" && element.text === "T");
@@ -1141,7 +1141,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "C");
       const puff1 = result.scene.elements.find((element) => element.kind === "Text" && element.text === "P1");
@@ -1166,7 +1166,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const center = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
       const outer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "O");
@@ -1190,7 +1190,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const g = result.scene.elements.find((element) => element.kind === "Text" && element.text === "G");
       const east = result.scene.elements.find((element) => element.kind === "Text" && element.text === "E");
@@ -1225,7 +1225,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const single = result.scene.elements.find((element) => element.kind === "Text" && element.text === "S");
       const singleTip = result.scene.elements.find((element) => element.kind === "Text" && element.text === "ST");
@@ -1286,7 +1286,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const rectangle = result.scene.elements.find((element) => element.kind === "Text" && element.text === "R");
       const rectanglePointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "RP");
@@ -1339,7 +1339,7 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("unknown-named-coordinate:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("unknown-named-coordinate:"))).toBe(false);
   
       const absolutePointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "AP");
       const shortenedPointer = result.scene.elements.find((element) => element.kind === "Text" && element.text === "BP");
@@ -1486,7 +1486,7 @@ describe("semantic evaluator / nodes and shapes", () => {
       const result = evaluateSemantic(source);
   
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unknown-named-coordinate:a")).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-positioning"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-positioning"))).toBe(false);
   
       const aText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "A");
       const bText = result.scene.elements.find((element) => element.kind === "Text" && element.text === "B");
@@ -1617,8 +1617,8 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every node/.style"))).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every circle node/.style"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.includes("every node/.style"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.includes("every circle node/.style"))).toBe(false);
   
       const nodeBoxes = result.scene.elements.filter((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
       const circles = elementsOfKind(result.scene.elements, "Circle");
@@ -1640,8 +1640,8 @@ describe("semantic evaluator / nodes and shapes", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every node/.style"))).toBe(false);
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.includes("every circle node/.style"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.includes("every node/.style"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.includes("every circle node/.style"))).toBe(false);
   
       const nodeBoxes = result.scene.elements.filter((element) => element.kind === "Path" && element.id.startsWith("scene-node-box:"));
       const circles = elementsOfKind(result.scene.elements, "Circle");

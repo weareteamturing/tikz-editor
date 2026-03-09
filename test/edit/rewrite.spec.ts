@@ -10,6 +10,7 @@ const cm = (value: number): number => value * PT_PER_CM;
 function makeHandle(overrides: Partial<EditHandle> & { world: Point; sourceSpan: { from: number; to: number } }): EditHandle {
   return {
     id: "test-handle",
+    sourceId: "test-source-id",
     kind: "path-point",
     sourceText: "",
     sourceFingerprint: "test",

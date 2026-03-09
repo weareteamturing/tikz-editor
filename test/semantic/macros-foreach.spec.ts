@@ -105,7 +105,7 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      const unsupported = result.diagnostics.filter((diagnostic) => diagnostic.code.startsWith("foreach-unsupported-option:"));
+      const unsupported = result.diagnostics.filter((diagnostic) => diagnostic.code!.startsWith("foreach-unsupported-option:"));
       expect(unsupported).toHaveLength(0);
   
       const labels = result.scene.elements
@@ -133,7 +133,7 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-cartesian-coordinate"))).toBe(false);
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
       if (path?.kind === "Path") {
@@ -209,7 +209,7 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-cartesian-coordinate"))).toBe(false);
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
       if (path?.kind === "Path") {
@@ -337,7 +337,7 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cartesian-coordinate"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-cartesian-coordinate"))).toBe(false);
       const path = firstElementOfKind(result.scene.elements, "Path");
       expect(path?.kind).toBe("Path");
       if (path?.kind === "Path") {
@@ -360,7 +360,7 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      expect(result.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-shift:"))).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code!.startsWith("invalid-shift:"))).toBe(false);
       const labels = elementsOfKind(result.scene.elements, "Text");
       expect(labels).toHaveLength(4);
     });

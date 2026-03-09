@@ -21,7 +21,7 @@ describe("canvas context menu definition", () => {
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
 
     for (const commandId of commandIds) {
-      expect(knownCommandIds.has(commandId)).toBe(true);
+      expect(knownCommandIds.has(commandId as any)).toBe(true);
     }
   });
 
@@ -44,8 +44,8 @@ describe("canvas context menu definition", () => {
     const reorder = items.find((item) => item.kind === "submenu" && item.label === "Reorder");
 
     expect(reorder).toBeDefined();
-    expect(items.some((item) => item.kind === "submenu" && item.label === "Align")).toBe(false);
-    expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(false);
+    expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Align")).toBe(false);
+    expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Distribute")).toBe(false);
   });
 
   it("defines selection-single-node with label and pin insertion commands", () => {

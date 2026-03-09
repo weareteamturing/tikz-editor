@@ -700,7 +700,11 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         await getBridge().assistantSyncSource?.(params);
       },
       respondToApproval: async (params) => {
-        await getBridge().assistantRespondToApproval?.(params);
+        await getBridge().assistantRespondToApproval?.(params as {
+          documentId: string;
+          requestId: string;
+          decision: "accept" | "acceptForSession" | "decline" | "cancel";
+        });
       },
       respondToDynamicToolCall: async (params) => {
         await getBridge().assistantRespondToDynamicToolCall?.(params);

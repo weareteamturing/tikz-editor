@@ -19,19 +19,20 @@ function makeHandle(
     sourceId?: string;
   }
 ): EditHandle {
-  const span = overrides.sourceSpan;
+  const { world, sourceSpan, sourceId, ...rest } = overrides;
+  const span = sourceSpan;
   return {
     id: `handle-${span.from}-${span.to}`,
-    sourceId: overrides.sourceId ?? "elem-1",
+    sourceId: sourceId ?? "elem-1",
     kind: "path-point",
-    world: overrides.world,
+    world: world,
     transform: identityMatrix(),
     sourceSpan: span,
     sourceText: source.slice(span.from, span.to),
     sourceFingerprint: computeSourceFingerprint(source),
     coordinateForm: overrides.coordinateForm ?? "cartesian",
     rewriteMode: overrides.rewriteMode ?? "direct",
-    ...overrides
+    ...rest
   };
 }
 

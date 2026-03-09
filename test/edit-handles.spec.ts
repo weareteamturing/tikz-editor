@@ -59,7 +59,7 @@ describe("edit handles", () => {
     );
 
     expect(angleHandles).toHaveLength(2);
-    expect(angleHandles.map((handle) => handle.curveEdit?.role).sort()).toEqual(["in", "out"]);
+    expect(angleHandles.map((handle) => (handle.curveEdit as any).role).sort()).toEqual(["in", "out"]);
   });
 
   it("edge[out=...] also emits synthetic in/out control handles", () => {

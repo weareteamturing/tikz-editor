@@ -72,7 +72,8 @@ export function TabStrip({
             >
               <span className={css.title}>{doc.title}</span>
               {doc.dirty ? (
-                <svg className={css.dirty} width="6" height="6" viewBox="0 0 6 6" title="Unsaved changes" aria-label="Unsaved changes">
+                <svg className={css.dirty} width="6" height="6" viewBox="0 0 6 6" aria-label="Unsaved changes">
+                  <title>Unsaved changes</title>
                   <circle cx="3" cy="3" r="3" />
                 </svg>
               ) : null}
