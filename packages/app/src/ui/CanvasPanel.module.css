@@ -8,67 +8,6 @@
   background: var(--bg-canvas-panel);
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 6px;
-  background: var(--bg-header);
-  border-bottom: 1px solid var(--border);
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  min-height: 20px;
-  flex-shrink: 0;
-}
-
-.headerMeta {
-  flex: 1;
-  min-width: 0;
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
-  font-weight: 400;
-  color: var(--text-faint);
-  text-transform: none;
-  letter-spacing: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.errMeta {
-  color: var(--color-error);
-}
-
-.warnMeta {
-  color: var(--color-warning);
-}
-
-.headerButtons {
-  display: flex;
-  gap: 4px;
-}
-
-.headerBtn {
-  border: 1px solid var(--border);
-  background: var(--bg-pane);
-  color: var(--text);
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
-  line-height: 1;
-  padding: 2px 6px;
-  cursor: pointer;
-}
-
-.headerBtn:hover:not(:disabled) {
-  background: var(--btn-hover-bg);
-}
-
-.headerBtn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 .canvasGrid {
   --ruler-size: 24px;
 
@@ -462,32 +401,6 @@
   stroke: rgba(13, 95, 182, 0.72);
 }
 
-@media (max-width: 768px) {
-  .header {
-    min-height: 32px;
-    padding: 4px 6px;
-  }
-
-  .headerMeta {
-    display: none;
-  }
-
-  .headerButtons {
-    margin-left: auto;
-  }
-
-  .headerBtn {
-    min-height: 28px;
-    padding: 4px 8px;
-    font-size: calc(var(--app-ui-scale, 1) * 11px);
-  }
-
-  .diagnostics {
-    max-height: 78px;
-    overflow-y: auto;
-  }
-}
-
 .noSvg {
   position: absolute;
   inset: 0;
@@ -603,32 +516,6 @@
   user-select: none !important;
 }
 
-.diagnostics {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 4px 8px;
-  background: var(--bg-diagnostics);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.diagnostic {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px;
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
-  font-family: var(--font-mono);
-}
-
-.error {
-  color: var(--color-error);
-}
-
-.warning {
-  color: var(--color-warning);
-}
-
 @media print {
   .panel,
   .panel * {
@@ -657,7 +544,6 @@
     background: var(--bg-pane) !important;
   }
 
-  .header,
   .diagnostics,
   .rulerCorner,
   .topRuler,

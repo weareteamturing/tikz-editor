@@ -768,10 +768,45 @@ export function SourcePanel() {
     ? computeInlineColorPopoverStyle(activeColorPicker.anchorRect)
     : null;
 
+  const diagnostics = useMemo(() => {
+    const parse = snapshot.parseResult;
+    const semantic = snapshot.semanticResult;
+    const result: DiagnosticInput[] = [];
+    if (parse) {
+      for (const d of parse.diagnostics) {
+        result.push({ ...d, from: d.span.from, to: d.span.to, source: "parse" });
+      }
+    }
+    if (semantic) {
+      for (const d of semantic.diagnostics) {
+        result.push({ ...d, from: d.span.from, to: d.span.to, source: "semantic" });
+      }
+    }
+    return result;
+  }, [snapshot.parseResult, snapshot.semanticResult]);
+
   return (
     <div className={css.panel}>
 
       <div className={[css.editorWrap, editorLineNumbers ? "" : css.hideLineNumbers].filter(Boolean).join(" ")} ref={editorRef} />
+
+      {diagnostics.length > 0 && (
+        <div className={css.diagnostics}>
+          {diagnostics.slice(0, 5).map((d, i) => (
+            <div key={i} className={`${css.diagnostic} ${d.severity === "error" ? css.error : css.warning}`}>
+              <code>{d.code ?? d.severity}</code>
+              <span>{d.message}</span>
+            </div>
+          ))}
+          {diagnostics.length > 5 && (
+            <div className={css.diagnostic}>
+              <span />
+              <span>…{diagnostics.length - 5} more</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {assistantLockReason ? <div className={css.lockBanner}>{assistantLockReason}</div> : null}
       {activeColorPicker && inlineColorPopoverStyle ? (
         <div className={css.inlineColorPickerPopover} ref={colorPickerRef} style={inlineColorPopoverStyle}>

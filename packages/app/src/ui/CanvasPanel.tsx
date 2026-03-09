@@ -4564,60 +4564,6 @@ export function CanvasPanel() {
 
   return (
     <div className={css.panel}>
-      <div className={css.header}>
-        <span>Canvas</span>
-        {svgResult && (
-          <span className={css.headerMeta}>
-            {svgResult.viewBox.width.toFixed(0)}×{svgResult.viewBox.height.toFixed(0)} pt · {canvasTransform.scale.toFixed(2)}x
-            {errorCount > 0 && (
-              <>
-                {" "}
-                · <span className={css.errMeta}>{errorCount} err</span>
-              </>
-            )}
-            {warnCount > 0 && (
-              <>
-                {" "}
-                · <span className={css.warnMeta}>{warnCount} warn</span>
-              </>
-            )}
-          </span>
-        )}
-
-        <div className={css.headerButtons}>
-          <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })}>
-            {showGrid ? "Grid On" : "Grid Off"}
-          </button>
-          <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_SNAP_TO_GRID" })}>
-            {snapToGrid ? "Snap On" : "Snap Off"}
-          </button>
-          <button
-            className={css.headerBtn}
-            onClick={() => dispatch({ type: "REQUEST_FIT_TO_CONTENT" })}
-            disabled={!svgResult}
-          >
-            Fit
-          </button>
-        </div>
-      </div>
-
-      {diagnostics.length > 0 && (
-        <div className={css.diagnostics}>
-          {diagnostics.slice(0, 5).map((d, i) => (
-            <div key={i} className={`${css.diagnostic} ${d.severity === "error" ? css.error : css.warning}`}>
-              <code>{d.code ?? d.severity}</code>
-              <span>{d.message}</span>
-            </div>
-          ))}
-          {diagnostics.length > 5 && (
-            <div className={css.diagnostic}>
-              <span />
-              <span>…{diagnostics.length - 5} more</span>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className={[css.canvasGrid, showRulers ? "" : css.canvasGridNoRulers].filter(Boolean).join(" ")}>
         {showRulers ? <div className={css.rulerCorner}>cm</div> : null}
 

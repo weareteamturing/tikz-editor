@@ -175,3 +175,29 @@
   position: relative;
   top: 0;
 }
+
+.diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 8px;
+  background: var(--bg-diagnostics);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.diagnostic {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  font-family: var(--font-mono);
+}
+
+.error {
+  color: var(--color-error);
+}
+
+.warning {
+  color: var(--color-warning);
+}
