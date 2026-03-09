@@ -1,11 +1,12 @@
 TODOS
 
-* Switch cap / join selectors to be similar to https://boxy-svg.com/app/
+* Switch cap / join selectors icons to be similar to https://boxy-svg.com/app/
 
 * context menu for path segments: add/remove segments, convert control point to bezier / straight, etc
 
 * Selecting and transforming scopes. Group/ungroup
-* Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
+
+* Clipboard robustness
 
 * Inspector: allow adding styles to an element with visual style preview
 
@@ -35,3 +36,5 @@ TODOS
 * App settings: geometry precision digits, code formatter options
 
 * Show info tooltips during drag (e.g. current angle when rotating, current length when resizing)
+
+* Actions for flipping elements (negate scale)

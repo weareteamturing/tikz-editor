@@ -255,6 +255,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
 }
 
 function AssistantTimelineItem({ item }: { item: AssistantItem }) {
+  const [imageExpanded, setImageExpanded] = useState(false);
   if (item.type === "userMessage") {
     const contentList = Array.isArray(item.content) ? item.content : [];
     const normalized = normalizeUserMessage(contentList);
@@ -336,7 +337,14 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
         <summary>{isPngPreview ? "Requested PNG snapshot" : "Requested tool call"}</summary>
         <div className={css.messageBody}>
           {previewText ? <div className={css.attachmentHint}>{previewText}</div> : null}
-          {previewImage ? <img alt="Tool preview" src={previewImage} className={css.toolPreviewImage} /> : null}
+          {previewImage ? (
+            <img
+              alt="Tool preview"
+              src={previewImage}
+              className={imageExpanded ? css.toolPreviewImageExpanded : css.toolPreviewImage}
+              onClick={() => setImageExpanded(!imageExpanded)}
+            />
+          ) : null}
         </div>
       </details>
     );
