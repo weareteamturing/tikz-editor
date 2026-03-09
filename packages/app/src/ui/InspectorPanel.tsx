@@ -293,9 +293,24 @@ const MULTI_ARRANGE_ACTIONS: readonly MultiArrangeAction[] = [
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
-  const source = useEditorStore((s) => s.source);
-  const snapshot = useEditorStore((s) => s.snapshot);
   const dispatch = useEditorStore((s) => s.dispatch);
+
+  // Freeze source/snapshot during element drags to avoid per-frame re-renders.
+  // We use a manual subscription so we can skip updates while a drag is active,
+  // then flush once when the drag ends.
+  const [{ source, snapshot }, setSourceSnapshot] = useState(() => {
+    const s = useEditorStore.getState();
+    return { source: s.source, snapshot: s.snapshot };
+  });
+  useEffect(() => {
+    return useEditorStore.subscribe((s, prev) => {
+      const k = s.activeCanvasDragKind;
+      if (k === "element" || k === "resize" || k === "rotate" || k === "handle") return;
+      if (s.source !== prev.source || s.snapshot !== prev.snapshot) {
+        setSourceSnapshot({ source: s.source, snapshot: s.snapshot });
+      }
+    });
+  }, []);
   const [manualLineWidthCustomKeys, setManualLineWidthCustomKeys] = useState<Set<string>>(
     () => new Set()
   );
