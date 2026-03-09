@@ -21,7 +21,6 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
   const hasContent = content != null && !(typeof content === "string" && content.trim().length === 0);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 });
-  const anchorRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -108,7 +107,6 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
 
   return (
     <AnchorTag
-      ref={anchorRef}
       className={block ? css.anchorBlock : css.anchorInline}
       onPointerEnter={handlePointerEnter}
       onPointerMove={handlePointerMove}

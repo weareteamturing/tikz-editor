@@ -1633,8 +1633,8 @@ export function InspectorPanel() {
   function renderSingleNumberPair(
     left: Extract<InspectorProperty, { kind: "number" }>,
     right: Extract<InspectorProperty, { kind: "number" }>,
-    leftProvenance: InspectorPropertyProvenance | null,
-    rightProvenance: InspectorPropertyProvenance | null
+    leftProvenance: InspectorPropertyProvenance | null = null,
+    rightProvenance: InspectorPropertyProvenance | null = null
   ): JSX.Element {
     return (
       <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>

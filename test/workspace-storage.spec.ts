@@ -41,7 +41,8 @@ describe("workspace storage migration", () => {
         }
       ],
       tabOrder: ["doc-1"],
-      activeDocumentId: "doc-1"
+      activeDocumentId: "doc-1",
+      recentDocumentIds: ["doc-1"]
     }));
     expect(map.get("tikz-editor:workspace")).toBeTruthy();
 

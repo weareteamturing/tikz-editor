@@ -19,7 +19,7 @@ type PersistedWorkspaceV1 = {
   }>;
   tabOrder: string[];
   activeDocumentId: string;
-  recentDocumentIds?: string[];
+  recentDocumentIds: string[];
 };
 
 type PersistedWorkspaceV2 = PersistedWorkspaceV1;
@@ -99,9 +99,10 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorksp
     typeof parsed.activeDocumentId === "string" && docIds.has(parsed.activeDocumentId)
       ? parsed.activeDocumentId
       : tabOrder[0] ?? docs[0]!.id;
-  const recentDocumentIds = Array.isArray(parsed.recentDocumentIds)
-    ? parsed.recentDocumentIds.filter((id): id is string => typeof id === "string" && docIds.has(id))
-    : [];
+  if (!Array.isArray(parsed.recentDocumentIds)) {
+    return null;
+  }
+  const recentDocumentIds = parsed.recentDocumentIds.filter((id): id is string => typeof id === "string" && docIds.has(id));
 
   return {
     workspaceVersion: WORKSPACE_VERSION,

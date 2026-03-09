@@ -28,10 +28,6 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY).toBe("file.export-svg-copy");
   });
 
-  it("keeps the legacy export command id", () => {
-    expect(APP_MENU_COMMAND_IDS.EXPORT_TIKZ).toBe("file.export-tikz");
-  });
-
   it("defines a snap-to-grid command id", () => {
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID).toBe("view.toggle-snap-to-grid");
   });

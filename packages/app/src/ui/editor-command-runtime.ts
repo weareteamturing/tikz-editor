@@ -294,10 +294,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: onOpenExampleInNewTab != null,
       run: () => onOpenExampleInNewTab?.()
     },
-    [APP_MENU_COMMAND_IDS.EXPORT_TIKZ]: {
-      enabled: false,
-      run: () => undefined
-    },
     [APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE]: {
       enabled: onShowCompiledPicture != null,
       run: () => onShowCompiledPicture?.()

@@ -576,8 +576,10 @@ export function resolveConsensusPropertyProvenance(
     if (consensus.kind !== provenance.kind) {
       return null;
     }
-    if (consensus.kind === "inherited" && consensus.sourceLabel !== provenance.sourceLabel) {
-      return null;
+    if (consensus.kind === "inherited") {
+      if (provenance.kind !== "inherited" || consensus.sourceLabel !== provenance.sourceLabel) {
+        return null;
+      }
     }
   }
 

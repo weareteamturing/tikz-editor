@@ -128,7 +128,7 @@ export type WorkspaceSeed = {
   documents: WorkspaceSeedDocument[];
   tabOrder: string[];
   activeDocumentId: string;
-  recentDocumentIds?: string[];
+  recentDocumentIds: string[];
 };
 
 function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedState {
@@ -155,7 +155,7 @@ function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedS
     return initialWorkspaceState();
   }
   const activeDocumentId = docs[seed.activeDocumentId] ? seed.activeDocumentId : fallbackOrder[0]!;
-  const seededRecents = (seed.recentDocumentIds ?? []).filter((id) => docs[id]);
+  const seededRecents = seed.recentDocumentIds.filter((id) => docs[id]);
   const normalizedRecents = seededRecents.length > 0 ? seededRecents : [activeDocumentId];
   return {
     workspaceVersion: WORKSPACE_VERSION,

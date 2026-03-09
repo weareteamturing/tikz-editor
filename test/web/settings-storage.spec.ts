@@ -32,11 +32,13 @@ describe("settings storage", () => {
     storage.set(
       STORAGE_KEY,
       JSON.stringify({
-        editor: {
-          wordWrap: true,
-          fontSize: 13,
-          lineNumbers: false,
-          indentSize: 4
+        settings: {
+          editor: {
+            wordWrap: true,
+            fontSize: 13,
+            lineNumbers: false,
+            indentSize: 4
+          }
         }
       })
     );
@@ -61,8 +63,10 @@ describe("settings storage", () => {
     storage.set(
       STORAGE_KEY,
       JSON.stringify({
-        editor: {
-          formatterMaxLineLength: 999
+        settings: {
+          editor: {
+            formatterMaxLineLength: 999
+          }
         }
       })
     );

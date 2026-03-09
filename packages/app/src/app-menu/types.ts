@@ -8,11 +8,6 @@ export const APP_MENU_COMMAND_IDS = {
   CLOSE_ALL_DOCUMENTS: "file.close-all-documents",
   OPEN_EXAMPLE: "file.open-example",
   OPEN_EXAMPLE_IN_NEW_TAB: "file.open-example-in-new-tab",
-  /**
-   * Legacy command id retained for compatibility with custom menu consumers.
-   * In the playground UI this command remains a disabled no-op.
-   */
-  EXPORT_TIKZ: "file.export-tikz",
   EXPORT_SVG_DOWNLOAD: "file.export-svg-download",
   EXPORT_STANDALONE_LATEX_DOWNLOAD: "file.export-standalone-latex-download",
   EXPORT_PDF_DOWNLOAD: "file.export-pdf-download",
