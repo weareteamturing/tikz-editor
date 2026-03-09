@@ -43,6 +43,7 @@ export type ColorPickerProps = {
   syntaxValue?: string | null;
   mixed?: boolean;
   disabled?: boolean;
+  triggerLabelClassName?: string;
   onChange: (value: string) => void;
 };
 
@@ -54,6 +55,7 @@ export function ColorPickerField({
   syntaxValue = null,
   mixed = false,
   disabled = false,
+  triggerLabelClassName,
   onChange
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
@@ -191,7 +193,7 @@ export function ColorPickerField({
             style={displaySwatchColor != null ? { background: displaySwatchColor } : undefined}
             aria-hidden="true"
           />
-          <span className={css.triggerLabel}>{displayLabel}</span>
+          <span className={[css.triggerLabel, triggerLabelClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
         </span>
         <span className={css.triggerCaret} aria-hidden="true">
           <svg className={css.triggerCaretIcon} viewBox="0 0 12 8" focusable="false">

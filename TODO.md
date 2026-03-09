@@ -7,8 +7,6 @@ TODOS
 * Selecting and transforming scopes. Group/ungroup
 * Use svg2tikz to support svg import (Both File > Import > SVG and dropping into the current document so it gets embedded in it as a scope, as well as clipboard paste of SVG images)
 
-* Inspector: origin tracking
-* Inspector: cascade view like in browser dev tools
 * Inspector: allow adding styles to an element with visual style preview
 
 * Open tex document with potentially multiple tikz images; parse relevant macro definitions etc
@@ -30,12 +28,10 @@ TODOS
 
 * Add shape tool (i.e. nodes with a shape)
 
-* Add codex app server support for AI assistance
-
 * Take libraries of public domain / open license SVGs (e.g. icon libraries) and treat them as "clip art" style things that can be inserted -- see boxy svg for example of this
 
 * Support for multi-line text in nodes (special difficulty: mathjax select / caret)
 
-* Dark mode; other display customizations
-
 * App settings: geometry precision digits, code formatter options
+
+* Show info tooltips during drag (e.g. current angle when rotating, current length when resizing)

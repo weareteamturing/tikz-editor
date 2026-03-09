@@ -22,6 +22,7 @@ import {
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
+import type { StylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
 import type { ArrowTipKind } from "tikz-editor/semantic/types";
 import { renderArrowTipPreviewPaths } from "tikz-editor/svg/arrows/preview";
@@ -287,6 +288,19 @@ export type MultiInspectorModel = {
   sections: MultiInspectorSection[];
 };
 
+export type InspectorPropertyProvenance =
+  | {
+      kind: "inherited";
+      sourceLabel: string;
+      tooltip: string;
+    }
+  | {
+      kind: "default";
+      tooltip: string;
+    };
+
+export type InspectorPropertyProvenanceMap = Record<string, InspectorPropertyProvenance>;
+
 export const VALUE_EPSILON = 1e-6;
 export const LINE_WIDTH_CUSTOM_OPTION_VALUE = "__custom-line-width__";
 export const LINE_WIDTH_MIXED_OPTION_VALUE = "__mixed-line-width__";
@@ -507,6 +521,91 @@ export function buildMultiInspectorModel(descriptors: InspectorDescriptor[], sel
     elementKinds: dedupeStrings(descriptors.map((descriptor) => descriptor.elementKind)),
     sections
   };
+}
+
+export function buildInspectorPropertyProvenanceMap(model: StylesCascadeModel): InspectorPropertyProvenanceMap {
+  const map: InspectorPropertyProvenanceMap = {};
+  for (const section of model.sections) {
+    for (const declaration of section.declarations) {
+      if (declaration.status !== "active" || declaration.propertyId == null || map[declaration.propertyId]) {
+        continue;
+      }
+
+      if (section.kind === "command") {
+        continue;
+      }
+
+      if (section.kind === "default") {
+        map[declaration.propertyId] = {
+          kind: "default",
+          tooltip: "TikZ default"
+        };
+        continue;
+      }
+
+      const sourceLabel = section.title.trim() || "parent style";
+      map[declaration.propertyId] = {
+        kind: "inherited",
+        sourceLabel,
+        tooltip: `set by ${sourceLabel}`
+      };
+    }
+  }
+  return map;
+}
+
+export function resolveConsensusPropertyProvenance(
+  propertyId: string,
+  perElementProvenance: readonly InspectorPropertyProvenanceMap[],
+  selectionCount: number
+): InspectorPropertyProvenance | null {
+  if (selectionCount <= 1 || perElementProvenance.length !== selectionCount) {
+    return null;
+  }
+
+  let consensus: InspectorPropertyProvenance | null = null;
+  for (const map of perElementProvenance) {
+    const provenance = map[propertyId];
+    if (!provenance) {
+      return null;
+    }
+    if (!consensus) {
+      consensus = provenance;
+      continue;
+    }
+    if (consensus.kind !== provenance.kind) {
+      return null;
+    }
+    if (consensus.kind === "inherited" && consensus.sourceLabel !== provenance.sourceLabel) {
+      return null;
+    }
+  }
+
+  return consensus;
+}
+
+export function buildMultiInspectorPropertyProvenanceMap(
+  model: MultiInspectorModel | null,
+  perElementProvenance: readonly InspectorPropertyProvenanceMap[],
+  selectionCount: number
+): InspectorPropertyProvenanceMap {
+  if (!model || selectionCount <= 1 || perElementProvenance.length !== selectionCount) {
+    return {};
+  }
+
+  const map: InspectorPropertyProvenanceMap = {};
+  for (const section of model.sections) {
+    for (const property of section.properties) {
+      if ("mixed" in property && property.mixed) {
+        continue;
+      }
+      const consensus = resolveConsensusPropertyProvenance(property.id, perElementProvenance, selectionCount);
+      if (consensus) {
+        map[property.id] = consensus;
+      }
+    }
+  }
+  return map;
 }
 
 export function buildMultiInspectorProperty(properties: InspectorProperty[]): MultiInspectorProperty | null {

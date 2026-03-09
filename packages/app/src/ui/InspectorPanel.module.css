@@ -205,6 +205,11 @@
   color: var(--text-muted);
 }
 
+.provenanceValue {
+  font-style: italic;
+  opacity: 0.82;
+}
+
 .propertyLabelScrubbable {
   cursor: ew-resize;
   user-select: none;

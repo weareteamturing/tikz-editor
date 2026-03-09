@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import css from "./RenderedTooltip.module.css";
 
@@ -8,68 +8,83 @@ type TooltipPosition = {
 };
 
 type RenderedTooltipProps = {
-  content?: string | null;
+  content?: ReactNode;
   children: ReactNode;
   block?: boolean;
 };
 
-const TOOLTIP_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
+const CURSOR_OFFSET_X_PX = 12;
+const CURSOR_OFFSET_Y_PX = 16;
 
 export function RenderedTooltip({ content, children, block = false }: RenderedTooltipProps) {
-  const normalizedContent = useMemo(() => content?.trim() ?? "", [content]);
+  const hasContent = content != null && !(typeof content === "string" && content.trim().length === 0);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 });
-  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const anchorRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 
   const closeTooltip = useCallback(() => setOpen(false), []);
 
   const updatePosition = useCallback(() => {
-    const anchorElement = anchorRef.current;
     const tooltipElement = tooltipRef.current;
-    if (!anchorElement || !tooltipElement) {
+    const pointer = lastPointerRef.current;
+    if (!tooltipElement || !pointer) {
       return;
     }
 
-    const anchorRect = anchorElement.getBoundingClientRect();
     const tooltipRect = tooltipElement.getBoundingClientRect();
-    const centeredLeft = anchorRect.left + (anchorRect.width - tooltipRect.width) / 2;
-    const clampedLeft = Math.max(
-      VIEWPORT_PADDING_PX,
-      Math.min(centeredLeft, window.innerWidth - tooltipRect.width - VIEWPORT_PADDING_PX)
+    const preferredLeft = pointer.x + CURSOR_OFFSET_X_PX;
+    const clampedLeft = Math.min(
+      Math.max(preferredLeft, VIEWPORT_PADDING_PX),
+      window.innerWidth - tooltipRect.width - VIEWPORT_PADDING_PX
     );
-    const placeAbove = anchorRect.top - TOOLTIP_GAP_PX - tooltipRect.height >= VIEWPORT_PADDING_PX;
-    const top = placeAbove
-      ? anchorRect.top - tooltipRect.height - TOOLTIP_GAP_PX
-      : anchorRect.bottom + TOOLTIP_GAP_PX;
+    const preferredTop = pointer.y + CURSOR_OFFSET_Y_PX;
+    const clampedTop = Math.min(
+      Math.max(preferredTop, VIEWPORT_PADDING_PX),
+      window.innerHeight - tooltipRect.height - VIEWPORT_PADDING_PX
+    );
 
-    setPosition({ left: clampedLeft, top });
+    setPosition({ left: clampedLeft, top: clampedTop });
   }, []);
 
+  const updatePointerPosition = useCallback((event: PointerEvent<HTMLElement>) => {
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    if (open) {
+      updatePosition();
+    }
+  }, [open, updatePosition]);
+
   useLayoutEffect(() => {
-    if (!open || !normalizedContent) {
+    if (!open || !hasContent) {
       return;
     }
 
     updatePosition();
     window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [normalizedContent, open, updatePosition]);
+  }, [hasContent, open, updatePosition]);
 
-  if (!normalizedContent) {
+  if (!hasContent) {
     return <>{children}</>;
   }
 
-  function handlePointerEnter(event: PointerEvent<HTMLSpanElement>): void {
+  function handlePointerEnter(event: PointerEvent<HTMLElement>): void {
     if (event.pointerType === "touch") {
       return;
     }
+    updatePointerPosition(event);
     setOpen(true);
+  }
+
+  function handlePointerMove(event: PointerEvent<HTMLElement>): void {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    updatePointerPosition(event);
   }
 
   function handlePointerLeave(): void {
@@ -77,10 +92,11 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
   }
 
   function handleFocus(): void {
-    setOpen(true);
+    // Focus interactions (including opening dropdowns via keyboard) should hide tooltip.
+    closeTooltip();
   }
 
-  function handleBlur(event: FocusEvent<HTMLSpanElement>): void {
+  function handleBlur(event: FocusEvent<HTMLElement>): void {
     const nextFocusedTarget = event.relatedTarget as Node | null;
     if (nextFocusedTarget && event.currentTarget.contains(nextFocusedTarget)) {
       return;
@@ -88,15 +104,19 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
     closeTooltip();
   }
 
+  const AnchorTag = block ? "div" : "span";
+
   return (
-    <span
+    <AnchorTag
       ref={anchorRef}
       className={block ? css.anchorBlock : css.anchorInline}
       onPointerEnter={handlePointerEnter}
+      onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onPointerDown={closeTooltip}
+      onKeyDown={closeTooltip}
     >
       {children}
       {open
@@ -107,11 +127,11 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
             style={{ left: `${position.left}px`, top: `${position.top}px` }}
             role="tooltip"
           >
-            {normalizedContent}
+            {content}
           </div>,
           document.body
         )
         : null}
-    </span>
+    </AnchorTag>
   );
 }

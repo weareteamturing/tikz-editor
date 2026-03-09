@@ -23,6 +23,7 @@ import {
   buildNodeFontSetPropertyMutation,
   buildNodeInnerSepSetPropertyMutation,
   buildNodeShapeSetPropertyMutation,
+  NODE_INNER_SEP_DEFAULT,
   buildFillPatternOptionSetPropertyMutation,
   buildFillPatternSetPropertyMutation,
   buildFillShadingSetPropertyMutations,
@@ -54,6 +55,7 @@ import {
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
 } from "tikz-editor/edit/inspector";
+import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { collectProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
@@ -90,6 +92,8 @@ import {
   arrowTipPreviewPreset,
   arrowTipValueLabel,
   buildMultiInspectorModel,
+  buildInspectorPropertyProvenanceMap,
+  buildMultiInspectorPropertyProvenanceMap,
   clampNumber,
   dashStylePreviewPreset,
   dashStyleValueLabel,
@@ -146,6 +150,8 @@ import {
   type LineJoinDropdownValue,
   type LineWidthDropdownValue,
   type MultiInspectorModel,
+  type InspectorPropertyProvenance,
+  type InspectorPropertyProvenanceMap,
   type MultiInspectorProperty,
   type MultiInspectorSection,
   type NodeFontSizeDropdownValue,
@@ -188,6 +194,8 @@ type FrozenInspectorView = {
   selectedSourceIds: string[];
   descriptor: InspectorDescriptor | null;
   multiModel: MultiInspectorModel | null;
+  singlePropertyProvenance: InspectorPropertyProvenanceMap;
+  multiPropertyProvenance: InspectorPropertyProvenanceMap;
 };
 
 type NumberLabelScrubSession = {
@@ -364,6 +372,39 @@ export function InspectorPanel() {
     return buildMultiInspectorModel(descriptors, selectedSourceIds.length);
   }, [descriptors, selectedSourceIds.length]);
 
+  const perElementPropertyProvenance = useMemo<InspectorPropertyProvenanceMap[]>(() => {
+    return selectedElements.map((element, index) => {
+      const elementDescriptor = descriptors[index];
+      if (!elementDescriptor) {
+        return {};
+      }
+      const cascadeModel = buildStylesCascadeModel(
+        element,
+        {
+          source: snapshot.source,
+          editHandles: snapshot.editHandles
+        },
+        elementDescriptor
+      );
+      return buildInspectorPropertyProvenanceMap(cascadeModel);
+    });
+  }, [descriptors, selectedElements, snapshot.editHandles, snapshot.source]);
+
+  const singlePropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
+    if (selectedSourceIds.length !== 1) {
+      return {};
+    }
+    return perElementPropertyProvenance[0] ?? {};
+  }, [perElementPropertyProvenance, selectedSourceIds.length]);
+
+  const multiPropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
+    return buildMultiInspectorPropertyProvenanceMap(
+      multiModel,
+      perElementPropertyProvenance,
+      selectedSourceIds.length
+    );
+  }, [multiModel, perElementPropertyProvenance, selectedSourceIds.length]);
+
   const usingFrozenInspectorView =
     frozenInspectorView != null &&
     sameOrderedStringArrays(frozenInspectorView.selectedSourceIds, selectedSourceIds);
@@ -373,6 +414,12 @@ export function InspectorPanel() {
   const renderedMultiModel = usingFrozenInspectorView
     ? frozenInspectorView.multiModel
     : multiModel;
+  const renderedSinglePropertyProvenance = usingFrozenInspectorView
+    ? frozenInspectorView.singlePropertyProvenance
+    : singlePropertyProvenance;
+  const renderedMultiPropertyProvenance = usingFrozenInspectorView
+    ? frozenInspectorView.multiPropertyProvenance
+    : multiPropertyProvenance;
   const commandContext = useMemo(
     () => ({
       source,
@@ -418,7 +465,9 @@ export function InspectorPanel() {
       setFrozenInspectorView({
         selectedSourceIds: [...selectedSourceIds],
         descriptor,
-        multiModel
+        multiModel,
+        singlePropertyProvenance,
+        multiPropertyProvenance
       });
       return;
     }
@@ -436,7 +485,7 @@ export function InspectorPanel() {
       ownerKey,
       baseSource: current.baseSource
     };
-  }, [descriptor, dispatch, multiModel, selectedSourceIds]);
+  }, [descriptor, dispatch, multiModel, multiPropertyProvenance, selectedSourceIds, singlePropertyProvenance]);
 
   const applyHoverPreview = useCallback((ownerKey: string, applyPreview: () => void) => {
     ensureHoverPreviewSession(ownerKey);
@@ -1302,20 +1351,26 @@ export function InspectorPanel() {
     }
   }
 
-  function renderSingleTextField(property: Extract<InspectorProperty, { kind: "text" }>): JSX.Element {
+  function renderSingleTextField(
+    property: Extract<InspectorProperty, { kind: "text" }>,
+    provenance: InspectorPropertyProvenance | null
+  ): JSX.Element {
     const writable = property.write.writable && property.write.elementId.length > 0;
     const readOnlyReason = property.readOnlyReason ?? property.write.reason ?? null;
+    const textInput = (
+      <input
+        className={withValueProvenanceClass(css.textInput, provenance)}
+        type="text"
+        value={property.value}
+        disabled={!writable}
+        onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
+      />
+    );
     return (
       <div>
         <div className={css.propertyLabel}>{property.label}</div>
         <div className={css.controlRow}>
-          <input
-            className={css.textInput}
-            type="text"
-            value={property.value}
-            disabled={!writable}
-            onChange={(event) => applySetProperty(property.write, event.currentTarget.value)}
-          />
+          {maybeWrapWithProvenanceTooltip(provenance, textInput, true)}
         </div>
         {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
       </div>
@@ -1385,6 +1440,56 @@ export function InspectorPanel() {
       return `${formatted}${property.unit}`;
     }
     return formatted;
+  }
+
+  function withValueProvenanceClass(
+    className: string | undefined,
+    provenance: InspectorPropertyProvenance | null
+  ): string | undefined {
+    if (!provenance) {
+      return className;
+    }
+    return [className ?? "", css.provenanceValue].filter(Boolean).join(" ");
+  }
+
+  function implicitDefaultProvenance(
+    property: InspectorProperty | MultiInspectorProperty
+  ): InspectorPropertyProvenance | null {
+    if (
+      property.kind === "length"
+      && property.id === "node-inner-sep"
+      && Math.abs(property.value - NODE_INNER_SEP_DEFAULT) <= 1e-6
+      && !("mixed" in property && property.mixed)
+    ) {
+      return { kind: "default", tooltip: "TikZ default" };
+    }
+    return null;
+  }
+
+  function provenanceTooltipContent(provenance: InspectorPropertyProvenance | null): JSX.Element | string | null {
+    if (!provenance) {
+      return null;
+    }
+    if (provenance.kind === "default") {
+      return "TikZ default";
+    }
+    return <>set by <code>{provenance.sourceLabel}</code></>;
+  }
+
+  function maybeWrapWithProvenanceTooltip(
+    provenance: InspectorPropertyProvenance | null,
+    child: JSX.Element,
+    block = false
+  ): JSX.Element {
+    const content = provenanceTooltipContent(provenance);
+    if (!content) {
+      return child;
+    }
+    return (
+      <RenderedTooltip content={content} block={block}>
+        {child}
+      </RenderedTooltip>
+    );
   }
 
   function applySingleLengthValue(
@@ -1458,9 +1563,20 @@ export function InspectorPanel() {
 
   function renderSingleNumberField(
     property: Extract<InspectorProperty, { kind: "number" }>,
-    compact = false
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
   ): JSX.Element {
     const { writable, readOnlyReason } = getSingleNumberPropertyState(property);
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={formatNumber(property.value)}
+        disabled={!writable}
+        onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
+      />
+    );
     return (
       <div className={compact ? css.compactNumberField : undefined}>
         {renderScrubbableNumberLabel(property.label, {
@@ -1471,14 +1587,7 @@ export function InspectorPanel() {
           onCommit: (next) => handleNumberChange(property, String(next))
         })}
         <div className={css.controlRow}>
-          <input
-            className={css.numberInput}
-            type="number"
-            step={property.step}
-            value={formatNumber(property.value)}
-            disabled={!writable}
-            onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
-          />
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
           {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
         </div>
         {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -1488,9 +1597,20 @@ export function InspectorPanel() {
 
   function renderMultiNumberField(
     property: Extract<MultiInspectorProperty, { kind: "number" }>,
-    compact = false
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
   ): JSX.Element {
     const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={property.mixed ? "" : formatNumber(property.value)}
+        disabled={!writable}
+        onChange={(event) => handleMultiNumberChange(property, event.currentTarget.value)}
+      />
+    );
     return (
       <div className={compact ? css.compactNumberField : undefined}>
         {renderScrubbableNumberLabel(property.label, {
@@ -1501,14 +1621,7 @@ export function InspectorPanel() {
           onCommit: (next) => handleMultiNumberChange(property, String(next))
         })}
         <div className={css.controlRow}>
-          <input
-            className={css.numberInput}
-            type="number"
-            step={property.step}
-            value={property.mixed ? "" : formatNumber(property.value)}
-            disabled={!writable}
-            onChange={(event) => handleMultiNumberChange(property, event.currentTarget.value)}
-          />
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
           {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
         </div>
         {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -1518,24 +1631,28 @@ export function InspectorPanel() {
 
   function renderSingleNumberPair(
     left: Extract<InspectorProperty, { kind: "number" }>,
-    right: Extract<InspectorProperty, { kind: "number" }>
+    right: Extract<InspectorProperty, { kind: "number" }>,
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ): JSX.Element {
     return (
       <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
-        {renderSingleNumberField(left, true)}
-        {renderSingleNumberField(right, true)}
+        {renderSingleNumberField(left, true, leftProvenance)}
+        {renderSingleNumberField(right, true, rightProvenance)}
       </div>
     );
   }
 
   function renderMultiNumberPair(
     left: Extract<MultiInspectorProperty, { kind: "number" }>,
-    right: Extract<MultiInspectorProperty, { kind: "number" }>
+    right: Extract<MultiInspectorProperty, { kind: "number" }>,
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
   ): JSX.Element {
     return (
       <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
-        {renderMultiNumberField(left, true)}
-        {renderMultiNumberField(right, true)}
+        {renderMultiNumberField(left, true, leftProvenance)}
+        {renderMultiNumberField(right, true, rightProvenance)}
       </div>
     );
   }
@@ -1574,6 +1691,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<ArrowTipPresetId, "custom">) => void,
     valueOverride?: ArrowTipDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<ArrowTipPresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -1606,7 +1724,7 @@ export function InspectorPanel() {
             <span className={css.arrowTipValuePreview}>
               <ArrowTipPreview side={property.side} preset={previewPreset} lineWidth={property.previewLineWidth} />
             </span>
-            <span className={css.arrowTipValueLabel}>{displayLabel}</span>
+            <span className={[css.arrowTipValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -1637,6 +1755,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<DashStylePresetId, "custom">) => void,
     valueOverride?: DashStyleDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<DashStylePresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -1669,7 +1788,7 @@ export function InspectorPanel() {
             <span className={css.dashStyleValuePreview}>
               <DashStylePreview preset={previewPreset} lineWidth={property.previewLineWidth} />
             </span>
-            <span className={css.dashStyleValueLabel}>{displayLabel}</span>
+            <span className={[css.dashStyleValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -1700,6 +1819,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<LineCapPresetId, "custom">) => void,
     valueOverride?: LineCapDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<LineCapPresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -1732,7 +1852,7 @@ export function InspectorPanel() {
             <span className={css.lineCapValuePreview}>
               <LineCapPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
             </span>
-            <span className={css.lineCapValueLabel}>{displayLabel}</span>
+            <span className={[css.lineCapValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -1763,6 +1883,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<LineJoinPresetId, "custom">) => void,
     valueOverride?: LineJoinDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<LineJoinPresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -1795,7 +1916,7 @@ export function InspectorPanel() {
             <span className={css.lineJoinValuePreview}>
               <LineJoinPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
             </span>
-            <span className={css.lineJoinValueLabel}>{displayLabel}</span>
+            <span className={[css.lineJoinValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -1826,6 +1947,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
     valueOverride?: PathMorphingDecorationDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<PathMorphingDecorationPresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -1858,7 +1980,7 @@ export function InspectorPanel() {
             <span className={css.pathMorphingDecorationValuePreview}>
               <PathMorphingDecorationPreview preset={previewPreset} lineWidth={property.previewLineWidth} />
             </span>
-            <span className={css.pathMorphingDecorationValueLabel}>{displayLabel}</span>
+            <span className={[css.pathMorphingDecorationValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -1887,7 +2009,8 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<FillModePresetId, "custom">) => void,
-    valueOverride?: FillModeDropdownValue
+    valueOverride?: FillModeDropdownValue,
+    valueClassName?: string
   ) {
     const dropdownValue: FillModeDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toFillModeDropdownOptions(property.options);
@@ -1904,7 +2027,7 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
-        renderValue={() => <span>{displayLabel}</span>}
+        renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
       />
     );
   }
@@ -1917,7 +2040,8 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<FillShadingPresetId, "custom">) => void,
-    valueOverride?: FillShadingDropdownValue
+    valueOverride?: FillShadingDropdownValue,
+    valueClassName?: string
   ) {
     const dropdownValue: FillShadingDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toFillShadingDropdownOptions(property.options);
@@ -1934,7 +2058,7 @@ export function InspectorPanel() {
           }
           onApply(nextValue);
         }}
-        renderValue={() => <span>{displayLabel}</span>}
+        renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
       />
     );
   }
@@ -1947,7 +2071,8 @@ export function InspectorPanel() {
     },
     writable: boolean,
     onApply: (value: Exclude<FillPatternPresetId, "custom">) => void,
-    valueOverride?: FillPatternDropdownValue
+    valueOverride?: FillPatternDropdownValue,
+    valueClassName?: string
   ) {
     const dropdownValue: FillPatternDropdownValue = valueOverride ?? property.value;
     const dropdownOptions = toFillPatternDropdownOptions(property.options);
@@ -1970,7 +2095,7 @@ export function InspectorPanel() {
             <span className={css.fillPatternValuePreview}>
               <FillPatternPreview preset={previewPreset} />
             </span>
-            <span className={css.fillPatternValueLabel}>{displayLabel}</span>
+            <span className={[css.fillPatternValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{displayLabel}</span>
           </span>
         )}
         renderOption={(option, state) => {
@@ -2000,6 +2125,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<NodeShapePresetId, "custom">) => void,
     valueOverride?: NodeShapeDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<NodeShapePresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -2026,7 +2152,7 @@ export function InspectorPanel() {
           onHoverPreview(nextValue);
         }}
         onOptionHoverEnd={onHoverPreviewEnd}
-        renderValue={() => <span>{displayLabel}</span>}
+        renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
       />
     );
   }
@@ -2041,6 +2167,7 @@ export function InspectorPanel() {
     writable: boolean,
     onApply: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
     valueOverride?: NodeFontSizeDropdownValue,
+    valueClassName?: string,
     onHoverPreview?: (value: Exclude<NodeFontSizePresetId, "custom">) => void,
     onHoverPreviewEnd?: () => void
   ) {
@@ -2067,7 +2194,7 @@ export function InspectorPanel() {
           onHoverPreview(nextValue);
         }}
         onOptionHoverEnd={onHoverPreviewEnd}
-        renderValue={() => <span>{displayLabel}</span>}
+        renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
         renderOption={(option) => {
           const ptLabel = nodeFontSizePresetPtLabel(option.value as Exclude<NodeFontSizePresetId, "custom">);
           return (
@@ -2100,6 +2227,7 @@ export function InspectorPanel() {
     onWeightToggle: () => void,
     onStyleToggle: () => void,
     onSizePresetChange: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
+    sizeValueClassName?: string,
     onSizePresetHoverPreview?: (sizePreset: Exclude<NodeFontSizePresetId, "custom">) => void,
     onSizePresetHoverPreviewEnd?: () => void
   ) {
@@ -2176,6 +2304,7 @@ export function InspectorPanel() {
               writable,
               onSizePresetChange,
               sizeValue,
+              sizeValueClassName,
               onSizePresetHoverPreview,
               onSizePresetHoverPreviewEnd
             )}
@@ -2186,6 +2315,8 @@ export function InspectorPanel() {
   }
 
   function renderProperty(property: InspectorProperty) {
+    const provenance = renderedSinglePropertyProvenance[property.id] ?? implicitDefaultProvenance(property);
+    const valueClassName = withValueProvenanceClass(undefined, provenance);
     const propertyClassName = isPathMorphingSuboptionPropertyId(property.id)
       ? `${css.property} ${css.subProperty}`
       : css.property;
@@ -2211,7 +2342,7 @@ export function InspectorPanel() {
     if (property.kind === "text") {
       return (
         <div key={property.id} className={propertyClassName}>
-          {renderSingleTextField(property)}
+          {renderSingleTextField(property, provenance)}
         </div>
       );
     }
@@ -2219,7 +2350,7 @@ export function InspectorPanel() {
     if (property.kind === "number") {
       return (
         <div key={property.id} className={propertyClassName}>
-          {renderSingleNumberField(property)}
+          {renderSingleNumberField(property, false, provenance)}
         </div>
       );
     }
@@ -2236,20 +2367,24 @@ export function InspectorPanel() {
             onCommit: (next) => applySingleLengthValue(property, next)
           })}
           <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => {
-                const next = Number(event.currentTarget.value);
-                if (!Number.isFinite(next)) {
-                  return;
-                }
-                applySingleLengthValue(property, next);
-              }}
-            />
+            {maybeWrapWithProvenanceTooltip(
+              provenance,
+              <input
+                className={withValueProvenanceClass(css.numberInput, provenance)}
+                type="number"
+                step={property.step}
+                value={formatNumber(property.value)}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applySingleLengthValue(property, next);
+                }}
+              />,
+              true
+            )}
             <span className={css.unitLabel}>{property.unit}</span>
           </div>
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
@@ -2264,23 +2399,28 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderNodeShapeDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyNodeShapeValue(property.write, nextValue)
-              ),
-            undefined,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyNodeShapeValue(property.write, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeShapeDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyNodeShapeValue(property.write, nextValue)
+                ),
+              undefined,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyNodeShapeValue(property.write, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2294,71 +2434,76 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderNodeFontToolbar(
-            {
-              family: property.family,
-              familyMixed: false,
-              weight: property.weight,
-              weightMixed: false,
-              style: property.style,
-              styleMixed: false,
-              sizePreset: property.sizePreset,
-              sizePresetMixed: false,
-              customSizePt: property.customSizePt,
-              sizeOptions: property.sizeOptions,
-              label: property.label
-            },
-            writable,
-            (nextFamily) =>
-              applyNodeFontValue(property.write, property.context, {
-                family: nextFamily,
-                weight: property.weight,
-                style: property.style,
-                sizePreset: property.sizePreset,
-                customSizePt: property.customSizePt
-              }),
-            () =>
-              applyNodeFontValue(property.write, property.context, {
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeFontToolbar(
+              {
                 family: property.family,
-                weight: property.weight === "bold" ? "normal" : "bold",
-                style: property.style,
-                sizePreset: property.sizePreset,
-                customSizePt: property.customSizePt
-              }),
-            () =>
-              applyNodeFontValue(property.write, property.context, {
-                family: property.family,
+                familyMixed: false,
                 weight: property.weight,
-                style: property.style === "italic" ? "normal" : "italic",
+                weightMixed: false,
+                style: property.style,
+                styleMixed: false,
                 sizePreset: property.sizePreset,
-                customSizePt: property.customSizePt
-              }),
-            (nextSizePreset) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
+                sizePresetMixed: false,
+                customSizePt: property.customSizePt,
+                sizeOptions: property.sizeOptions,
+                label: property.label
+              },
+              writable,
+              (nextFamily) =>
+                applyNodeFontValue(property.write, property.context, {
+                  family: nextFamily,
+                  weight: property.weight,
+                  style: property.style,
+                  sizePreset: property.sizePreset,
+                  customSizePt: property.customSizePt
+                }),
+              () =>
+                applyNodeFontValue(property.write, property.context, {
+                  family: property.family,
+                  weight: property.weight === "bold" ? "normal" : "bold",
+                  style: property.style,
+                  sizePreset: property.sizePreset,
+                  customSizePt: property.customSizePt
+                }),
+              () =>
                 applyNodeFontValue(property.write, property.context, {
                   family: property.family,
                   weight: property.weight,
-                  style: property.style,
-                  sizePreset: nextSizePreset,
+                  style: property.style === "italic" ? "normal" : "italic",
+                  sizePreset: property.sizePreset,
                   customSizePt: property.customSizePt
-                })
-              ),
-            (nextSizePreset) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyNodeFontValue(
-                  property.write,
-                  property.context,
-                  {
+                }),
+              (nextSizePreset) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyNodeFontValue(property.write, property.context, {
                     family: property.family,
                     weight: property.weight,
                     style: property.style,
                     sizePreset: nextSizePreset,
                     customSizePt: property.customSizePt
-                  },
-                  { recordInHistory: false }
-                )
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+                  })
+                ),
+              valueClassName,
+              (nextSizePreset) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyNodeFontValue(
+                    property.write,
+                    property.context,
+                    {
+                      family: property.family,
+                      weight: property.weight,
+                      style: property.style,
+                      sizePreset: nextSizePreset,
+                      customSizePt: property.customSizePt
+                    },
+                    { recordInHistory: false }
+                  )
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2371,20 +2516,25 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <ColorPickerField
-            ariaLabel={property.label}
-            value={property.value ?? "none"}
-            syntaxValue={property.syntaxValue}
-            options={property.options}
-            namedColorSwatches={projectNamedColorSwatches}
-            disabled={!writable}
-            onChange={(nextValue) => {
-              const change = normalizeColorSetPropertyChange(property.write, nextValue, property.syntaxValue);
-              applySetProperty(property.write, change.value, {
-                clearKeys: change.clearKeys
-              });
-            }}
-          />
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <ColorPickerField
+              ariaLabel={property.label}
+              value={property.value ?? "none"}
+              syntaxValue={property.syntaxValue}
+              options={property.options}
+              namedColorSwatches={projectNamedColorSwatches}
+              disabled={!writable}
+              triggerLabelClassName={valueClassName}
+              onChange={(nextValue) => {
+                const change = normalizeColorSetPropertyChange(property.write, nextValue, property.syntaxValue);
+                applySetProperty(property.write, change.value, {
+                  clearKeys: change.clearKeys
+                });
+              }}
+            />,
+            true
+          )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
       );
@@ -2395,17 +2545,23 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillModeDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => {
-              applyFillModeValue(property.write, nextValue, property.context);
-              setFillAdvancedOptionsOpen(nextValue !== "solid");
-            }
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillModeDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => {
+                applyFillModeValue(property.write, nextValue, property.context);
+                setFillAdvancedOptionsOpen(nextValue !== "solid");
+              },
+              undefined,
+              valueClassName
+            ),
+            true
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2417,14 +2573,20 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillShadingDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => applyFillShadingValue(property.write, nextValue)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillShadingDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => applyFillShadingValue(property.write, nextValue),
+              undefined,
+              valueClassName
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2437,14 +2599,20 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillPatternDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => applyFillPatternValue(property.write, nextValue)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillPatternDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => applyFillPatternValue(property.write, nextValue),
+              undefined,
+              valueClassName
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2464,20 +2632,24 @@ export function InspectorPanel() {
             onCommit: (next) => applySingleFillPatternOptionValue(property, next)
           })}
           <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => {
-                const next = Number(event.currentTarget.value);
-                if (!Number.isFinite(next)) {
-                  return;
-                }
-                applySingleFillPatternOptionValue(property, next);
-              }}
-            />
+            {maybeWrapWithProvenanceTooltip(
+              provenance,
+              <input
+                className={withValueProvenanceClass(css.numberInput, provenance)}
+                type="number"
+                step={property.step}
+                value={formatNumber(property.value)}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applySingleFillPatternOptionValue(property, next);
+                }}
+              />,
+              true
+            )}
             {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
           </div>
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
@@ -2498,72 +2670,76 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <CustomDropdown
-            ariaLabel={`${property.label} preset`}
-            value={dropdownValue}
-            options={LINE_WIDTH_DROPDOWN_OPTIONS}
-            disabled={!writable}
-            onChange={(nextValue) => {
-              commitAfterHoverPreview(previewOwnerKey, () => {
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <CustomDropdown
+              ariaLabel={`${property.label} preset`}
+              value={dropdownValue}
+              options={LINE_WIDTH_DROPDOWN_OPTIONS}
+              disabled={!writable}
+              onChange={(nextValue) => {
+                commitAfterHoverPreview(previewOwnerKey, () => {
+                  if (!writable) {
+                    return;
+                  }
+                  if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                    enableManualCustomLineWidth(lineWidthKey);
+                    return;
+                  }
+                  const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+                  if (presetValue == null) {
+                    return;
+                  }
+                  disableManualCustomLineWidth(lineWidthKey);
+                  applySetProperty(property.write, "true", {
+                    key: nextValue,
+                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                  });
+                });
+              }}
+              onOptionHover={(nextValue) => {
                 if (!writable) {
-                  return;
-                }
-                if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                  enableManualCustomLineWidth(lineWidthKey);
                   return;
                 }
                 const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
                 if (presetValue == null) {
+                  clearHoverPreviewSession(previewOwnerKey);
                   return;
                 }
-                disableManualCustomLineWidth(lineWidthKey);
-                applySetProperty(property.write, "true", {
-                  key: nextValue,
-                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                applyHoverPreview(previewOwnerKey, () => {
+                  applySetProperty(property.write, "true", {
+                    key: nextValue,
+                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                    recordInHistory: false
+                  });
                 });
-              });
-            }}
-            onOptionHover={(nextValue) => {
-              if (!writable) {
-                return;
-              }
-              const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
-              if (presetValue == null) {
-                clearHoverPreviewSession(previewOwnerKey);
-                return;
-              }
-              applyHoverPreview(previewOwnerKey, () => {
-                applySetProperty(property.write, "true", {
-                  key: nextValue,
-                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
-                  recordInHistory: false
-                });
-              });
-            }}
-            onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
-            renderValue={() => (
-              <span className={css.lineWidthValue}>
-                <span className={css.lineWidthValuePreview}>
-                  <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
-                </span>
-                <span className={css.lineWidthValueLabel}>{dropdownDisplayLabel}</span>
-              </span>
-            )}
-            renderOption={(option, state) => {
-              const previewValue = lineWidthPreviewLineWidth(option.value, property.value);
-              return (
-                <span className={css.lineWidthOption}>
-                  <span className={css.lineWidthOptionPreview}>
-                    <LineWidthPreview lineWidth={previewValue} />
+              }}
+              onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
+              renderValue={() => (
+                <span className={css.lineWidthValue}>
+                  <span className={css.lineWidthValuePreview}>
+                    <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
                   </span>
-                  <span className={css.lineWidthOptionLabel}>{option.label}</span>
-                  <span className={css.lineWidthOptionCheck} aria-hidden="true">
-                    {state.selected ? "✓" : ""}
-                  </span>
+                  <span className={[css.lineWidthValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{dropdownDisplayLabel}</span>
                 </span>
-              );
-            }}
-          />
+              )}
+              renderOption={(option, state) => {
+                const previewValue = lineWidthPreviewLineWidth(option.value, property.value);
+                return (
+                  <span className={css.lineWidthOption}>
+                    <span className={css.lineWidthOptionPreview}>
+                      <LineWidthPreview lineWidth={previewValue} />
+                    </span>
+                    <span className={css.lineWidthOptionLabel}>{option.label}</span>
+                    <span className={css.lineWidthOptionCheck} aria-hidden="true">
+                      {state.selected ? "✓" : ""}
+                    </span>
+                  </span>
+                );
+              }}
+            />,
+            true
+          )}
           {showCustomRange ? (
             <input
               className={css.rangeInput}
@@ -2594,24 +2770,29 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderDashStyleDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              previewLineWidth: property.previewLineWidth,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyDashStyleValue(property.write, nextValue)
-              ),
-            undefined,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyDashStyleValue(property.write, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderDashStyleDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                previewLineWidth: property.previewLineWidth,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyDashStyleValue(property.write, nextValue)
+                ),
+              undefined,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyDashStyleValue(property.write, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2624,24 +2805,29 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderLineCapDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              previewLineWidth: property.previewLineWidth,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyLineCapValue(property.write, nextValue)
-              ),
-            undefined,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyLineCapValue(property.write, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderLineCapDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                previewLineWidth: property.previewLineWidth,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyLineCapValue(property.write, nextValue)
+                ),
+              undefined,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyLineCapValue(property.write, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2654,24 +2840,29 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderLineJoinDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              previewLineWidth: property.previewLineWidth,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyLineJoinValue(property.write, nextValue)
-              ),
-            undefined,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyLineJoinValue(property.write, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderLineJoinDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                previewLineWidth: property.previewLineWidth,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyLineJoinValue(property.write, nextValue)
+                ),
+              undefined,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyLineJoinValue(property.write, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2684,24 +2875,29 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderPathMorphingDecorationDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              previewLineWidth: property.previewLineWidth,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyPathMorphingDecorationValue(property.write, nextValue)
-              ),
-            undefined,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderPathMorphingDecorationDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                previewLineWidth: property.previewLineWidth,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyPathMorphingDecorationValue(property.write, nextValue)
+                ),
+              undefined,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyPathMorphingDecorationValue(property.write, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
         </div>
@@ -2730,7 +2926,7 @@ export function InspectorPanel() {
                   event.currentTarget.checked ? sliderValue : defaultRadius
                 )}
             />
-            <span className={css.checkboxLabel}>{property.label}</span>
+            <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
           </label>
           {property.enabled ? (
             <div className={css.roundedCornersControl}>
@@ -2763,26 +2959,31 @@ export function InspectorPanel() {
     return (
       <div key={property.id} className={propertyClassName}>
         <div className={css.propertyLabel}>{property.label}</div>
-        {renderArrowTipDropdown(
-          {
-            id: property.id,
-            label: property.label,
-            side: property.side,
-            value: property.value,
-            options: property.options,
-            previewLineWidth: property.previewLineWidth
-          },
-          writable,
-          (nextValue) =>
-            commitAfterHoverPreview(previewOwnerKey, () =>
-              applyArrowTipValue(property.write, property.side, nextValue)
-            ),
-          undefined,
-          (nextValue) =>
-            applyHoverPreview(previewOwnerKey, () =>
-              applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false })
-            ),
-          () => clearHoverPreviewSession(previewOwnerKey)
+        {maybeWrapWithProvenanceTooltip(
+          provenance,
+          renderArrowTipDropdown(
+            {
+              id: property.id,
+              label: property.label,
+              side: property.side,
+              value: property.value,
+              options: property.options,
+              previewLineWidth: property.previewLineWidth
+            },
+            writable,
+            (nextValue) =>
+              commitAfterHoverPreview(previewOwnerKey, () =>
+                applyArrowTipValue(property.write, property.side, nextValue)
+              ),
+            undefined,
+            valueClassName,
+            (nextValue) =>
+              applyHoverPreview(previewOwnerKey, () =>
+                applyArrowTipValue(property.write, property.side, nextValue, { recordInHistory: false })
+              ),
+            () => clearHoverPreviewSession(previewOwnerKey)
+          ),
+          true
         )}
         {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
       </div>
@@ -2790,13 +2991,15 @@ export function InspectorPanel() {
   }
 
   function renderMultiProperty(property: MultiInspectorProperty) {
+    const provenance = renderedMultiPropertyProvenance[property.id] ?? implicitDefaultProvenance(property);
+    const valueClassName = withValueProvenanceClass(undefined, provenance);
     const propertyClassName = isPathMorphingSuboptionPropertyId(property.id)
       ? `${css.property} ${css.subProperty}`
       : css.property;
     if (property.kind === "number") {
       return (
         <div key={property.id} className={propertyClassName}>
-          {renderMultiNumberField(property)}
+          {renderMultiNumberField(property, false, provenance)}
         </div>
       );
     }
@@ -2813,20 +3016,24 @@ export function InspectorPanel() {
             onCommit: (next) => applyMultiLengthValue(property, next)
           })}
           <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={property.mixed ? "" : formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => {
-                const next = Number(event.currentTarget.value);
-                if (!Number.isFinite(next)) {
-                  return;
-                }
-                applyMultiLengthValue(property, next);
-              }}
-            />
+            {maybeWrapWithProvenanceTooltip(
+              provenance,
+              <input
+                className={withValueProvenanceClass(css.numberInput, provenance)}
+                type="number"
+                step={property.step}
+                value={property.mixed ? "" : formatNumber(property.value)}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applyMultiLengthValue(property, next);
+                }}
+              />,
+              true
+            )}
             <span className={css.unitLabel}>{property.unit}</span>
           </div>
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
@@ -2844,23 +3051,28 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderNodeShapeDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyNodeShapeValueMany(property.writes, nextValue)
-              ),
-            dropdownValue,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyNodeShapeValueMany(property.writes, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeShapeDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyNodeShapeValueMany(property.writes, nextValue)
+                ),
+              dropdownValue,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyNodeShapeValueMany(property.writes, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -2876,7 +3088,9 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderNodeFontToolbar(
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderNodeFontToolbar(
             {
               family: property.family,
               familyMixed: property.familyMixed,
@@ -2909,6 +3123,7 @@ export function InspectorPanel() {
                   sizePreset: nextSizePreset
                 })
               ),
+            valueClassName,
             (nextSizePreset) =>
               applyHoverPreview(previewOwnerKey, () =>
                 applyNodeFontValueMany(
@@ -2921,6 +3136,8 @@ export function InspectorPanel() {
                 )
               ),
             () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.notes.map((note) => (
             <div key={`${property.id}:${note}`} className={css.propertyNote}>
@@ -2937,25 +3154,30 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <ColorPickerField
-            ariaLabel={property.label}
-            value={property.mixed ? null : (property.value ?? "none")}
-            syntaxValue={property.mixed ? null : property.syntaxValue}
-            mixed={property.mixed}
-            options={property.options}
-            namedColorSwatches={projectNamedColorSwatches}
-            disabled={!writable}
-            onChange={(nextValue) => {
-              const firstWrite = property.writes[0];
-              if (!firstWrite) {
-                return;
-              }
-              const change = normalizeColorSetPropertyChange(firstWrite, nextValue, property.syntaxValue);
-              applySetPropertyMany(property.writes, change.value, {
-                clearKeys: change.clearKeys
-              });
-            }}
-          />
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <ColorPickerField
+              ariaLabel={property.label}
+              value={property.mixed ? null : (property.value ?? "none")}
+              syntaxValue={property.mixed ? null : property.syntaxValue}
+              mixed={property.mixed}
+              options={property.options}
+              namedColorSwatches={projectNamedColorSwatches}
+              disabled={!writable}
+              triggerLabelClassName={valueClassName}
+              onChange={(nextValue) => {
+                const firstWrite = property.writes[0];
+                if (!firstWrite) {
+                  return;
+                }
+                const change = normalizeColorSetPropertyChange(firstWrite, nextValue, property.syntaxValue);
+                applySetPropertyMany(property.writes, change.value, {
+                  clearKeys: change.clearKeys
+                });
+              }}
+            />,
+            true
+          )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
       );
@@ -2969,18 +3191,23 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillModeDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => {
-              applyFillModeValueMany(property.writes, nextValue, property.contexts);
-              setFillAdvancedOptionsOpen(nextValue !== "solid");
-            },
-            dropdownValue
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillModeDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => {
+                applyFillModeValueMany(property.writes, nextValue, property.contexts);
+                setFillAdvancedOptionsOpen(nextValue !== "solid");
+              },
+              dropdownValue,
+              valueClassName
+            ),
+            true
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -2995,15 +3222,20 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillShadingDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => applyFillShadingValueMany(property.writes, nextValue),
-            dropdownValue
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillShadingDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => applyFillShadingValueMany(property.writes, nextValue),
+              dropdownValue,
+              valueClassName
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -3019,15 +3251,20 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderFillPatternDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              options: property.options
-            },
-            writable,
-            (nextValue) => applyFillPatternValueMany(property.writes, nextValue),
-            dropdownValue
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderFillPatternDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => applyFillPatternValueMany(property.writes, nextValue),
+              dropdownValue,
+              valueClassName
+            ),
+            true
           )}
           {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -3047,20 +3284,24 @@ export function InspectorPanel() {
             onCommit: (next) => applyMultiFillPatternOptionValue(property, next)
           })}
           <div className={css.controlRow}>
-            <input
-              className={css.numberInput}
-              type="number"
-              step={property.step}
-              value={property.mixed ? "" : formatNumber(property.value)}
-              disabled={!writable}
-              onChange={(event) => {
-                const next = Number(event.currentTarget.value);
-                if (!Number.isFinite(next)) {
-                  return;
-                }
-                applyMultiFillPatternOptionValue(property, next);
-              }}
-            />
+            {maybeWrapWithProvenanceTooltip(
+              provenance,
+              <input
+                className={withValueProvenanceClass(css.numberInput, provenance)}
+                type="number"
+                step={property.step}
+                value={property.mixed ? "" : formatNumber(property.value)}
+                disabled={!writable}
+                onChange={(event) => {
+                  const next = Number(event.currentTarget.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  applyMultiFillPatternOptionValue(property, next);
+                }}
+              />,
+              true
+            )}
             {property.unit ? <span className={css.unitLabel}>{property.unit}</span> : null}
           </div>
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
@@ -3090,74 +3331,78 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          <CustomDropdown
-            ariaLabel={`${property.label} preset`}
-            value={dropdownValue}
-            options={LINE_WIDTH_DROPDOWN_OPTIONS}
-            disabled={!writable}
-            onChange={(nextValue) => {
-              commitAfterHoverPreview(previewOwnerKey, () => {
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <CustomDropdown
+              ariaLabel={`${property.label} preset`}
+              value={dropdownValue}
+              options={LINE_WIDTH_DROPDOWN_OPTIONS}
+              disabled={!writable}
+              onChange={(nextValue) => {
+                commitAfterHoverPreview(previewOwnerKey, () => {
+                  if (!writable) {
+                    return;
+                  }
+                  if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
+                    enableManualCustomLineWidth(lineWidthKey);
+                    return;
+                  }
+                  const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
+                  if (presetValue == null) {
+                    return;
+                  }
+                  disableManualCustomLineWidth(lineWidthKey);
+                  applySetPropertyMany(property.writes, "true", {
+                    key: nextValue,
+                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                  });
+                });
+              }}
+              onOptionHover={(nextValue) => {
                 if (!writable) {
-                  return;
-                }
-                if (nextValue === LINE_WIDTH_CUSTOM_OPTION_VALUE) {
-                  enableManualCustomLineWidth(lineWidthKey);
                   return;
                 }
                 const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
                 if (presetValue == null) {
+                  clearHoverPreviewSession(previewOwnerKey);
                   return;
                 }
-                disableManualCustomLineWidth(lineWidthKey);
-                applySetPropertyMany(property.writes, "true", {
-                  key: nextValue,
-                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue)
+                applyHoverPreview(previewOwnerKey, () => {
+                  applySetPropertyMany(property.writes, "true", {
+                    key: nextValue,
+                    clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
+                    recordInHistory: false
+                  });
                 });
-              });
-            }}
-            onOptionHover={(nextValue) => {
-              if (!writable) {
-                return;
-              }
-              const presetValue = LINE_WIDTH_PRESET_BY_LABEL.get(nextValue);
-              if (presetValue == null) {
-                clearHoverPreviewSession(previewOwnerKey);
-                return;
-              }
-              applyHoverPreview(previewOwnerKey, () => {
-                applySetPropertyMany(property.writes, "true", {
-                  key: nextValue,
-                  clearKeys: LINE_WIDTH_ALL_OPTION_KEYS.filter((key) => key !== nextValue),
-                  recordInHistory: false
-                });
-              });
-            }}
-            onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
-            renderValue={() => {
-              return (
-                <span className={css.lineWidthValue}>
-                  <span className={css.lineWidthValuePreview}>
-                    <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
+              }}
+              onOptionHoverEnd={() => clearHoverPreviewSession(previewOwnerKey)}
+              renderValue={() => {
+                return (
+                  <span className={css.lineWidthValue}>
+                    <span className={css.lineWidthValuePreview}>
+                      <LineWidthPreview lineWidth={dropdownPreviewLineWidth} />
+                    </span>
+                    <span className={[css.lineWidthValueLabel, valueClassName ?? ""].filter(Boolean).join(" ")}>{dropdownDisplayLabel}</span>
                   </span>
-                  <span className={css.lineWidthValueLabel}>{dropdownDisplayLabel}</span>
-                </span>
-              );
-            }}
-            renderOption={(option, state) => {
-              const previewValue = lineWidthPreviewLineWidth(option.value, sliderValue);
-              return (
-                <span className={css.lineWidthOption}>
-                  <span className={css.lineWidthOptionPreview}>
-                    <LineWidthPreview lineWidth={previewValue} />
+                );
+              }}
+              renderOption={(option, state) => {
+                const previewValue = lineWidthPreviewLineWidth(option.value, sliderValue);
+                return (
+                  <span className={css.lineWidthOption}>
+                    <span className={css.lineWidthOptionPreview}>
+                      <LineWidthPreview lineWidth={previewValue} />
+                    </span>
+                    <span className={css.lineWidthOptionLabel}>{option.label}</span>
+                    <span className={css.lineWidthOptionCheck} aria-hidden="true">
+                      {state.selected ? "✓" : ""}
+                    </span>
                   </span>
-                  <span className={css.lineWidthOptionLabel}>{option.label}</span>
-                  <span className={css.lineWidthOptionCheck} aria-hidden="true">
-                    {state.selected ? "✓" : ""}
-                  </span>
-                </span>
-              );
-            }}
-          />
+                );
+              }}
+            />,
+            true
+          )}
           {showCustomRange ? (
             <>
               <input
@@ -3192,24 +3437,29 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderDashStyleDropdown(
-            {
-              label: property.label,
-              value: property.value,
-              previewLineWidth: property.previewLineWidth,
-              options: property.options
-            },
-            writable,
-            (nextValue) =>
-              commitAfterHoverPreview(previewOwnerKey, () =>
-                applyDashStyleValueMany(property.writes, nextValue)
-              ),
-            dropdownValue,
-            (nextValue) =>
-              applyHoverPreview(previewOwnerKey, () =>
-                applyDashStyleValueMany(property.writes, nextValue, { recordInHistory: false })
-              ),
-            () => clearHoverPreviewSession(previewOwnerKey)
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderDashStyleDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                previewLineWidth: property.previewLineWidth,
+                options: property.options
+              },
+              writable,
+              (nextValue) =>
+                commitAfterHoverPreview(previewOwnerKey, () =>
+                  applyDashStyleValueMany(property.writes, nextValue)
+                ),
+              dropdownValue,
+              valueClassName,
+              (nextValue) =>
+                applyHoverPreview(previewOwnerKey, () =>
+                  applyDashStyleValueMany(property.writes, nextValue, { recordInHistory: false })
+                ),
+              () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -3223,7 +3473,9 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderLineCapDropdown(
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderLineCapDropdown(
             {
               label: property.label,
               value: property.value,
@@ -3236,11 +3488,14 @@ export function InspectorPanel() {
                 applyLineCapValueMany(property.writes, nextValue)
               ),
             dropdownValue,
+            valueClassName,
             (nextValue) =>
               applyHoverPreview(previewOwnerKey, () =>
                 applyLineCapValueMany(property.writes, nextValue, { recordInHistory: false })
               ),
             () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -3254,7 +3509,9 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderLineJoinDropdown(
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderLineJoinDropdown(
             {
               label: property.label,
               value: property.value,
@@ -3267,11 +3524,14 @@ export function InspectorPanel() {
                 applyLineJoinValueMany(property.writes, nextValue)
               ),
             dropdownValue,
+            valueClassName,
             (nextValue) =>
               applyHoverPreview(previewOwnerKey, () =>
                 applyLineJoinValueMany(property.writes, nextValue, { recordInHistory: false })
               ),
             () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -3287,7 +3547,9 @@ export function InspectorPanel() {
       return (
         <div key={property.id} className={propertyClassName}>
           <div className={css.propertyLabel}>{property.label}</div>
-          {renderPathMorphingDecorationDropdown(
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderPathMorphingDecorationDropdown(
             {
               label: property.label,
               value: property.value,
@@ -3300,11 +3562,14 @@ export function InspectorPanel() {
                 applyPathMorphingDecorationValueMany(property.writes, nextValue)
               ),
             dropdownValue,
+            valueClassName,
             (nextValue) =>
               applyHoverPreview(previewOwnerKey, () =>
                 applyPathMorphingDecorationValueMany(property.writes, nextValue, { recordInHistory: false })
               ),
             () => clearHoverPreviewSession(previewOwnerKey)
+            ),
+            true
           )}
           {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
         </div>
@@ -3338,7 +3603,7 @@ export function InspectorPanel() {
                   event.currentTarget.checked ? sliderValue : defaultRadius
                 )}
             />
-            <span className={css.checkboxLabel}>{property.label}</span>
+            <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
           </label>
           {property.enabled || property.anyEnabled ? (
             <div className={css.roundedCornersControl}>
@@ -3375,7 +3640,9 @@ export function InspectorPanel() {
     return (
       <div key={property.id} className={propertyClassName}>
         <div className={css.propertyLabel}>{property.label}</div>
-        {renderArrowTipDropdown(
+        {maybeWrapWithProvenanceTooltip(
+          provenance,
+          renderArrowTipDropdown(
           {
             id: property.id,
             label: property.label,
@@ -3390,11 +3657,14 @@ export function InspectorPanel() {
               applyArrowTipValueMany(property.writes, property.side, nextValue)
             ),
           dropdownValue,
+          valueClassName,
           (nextValue) =>
             applyHoverPreview(previewOwnerKey, () =>
               applyArrowTipValueMany(property.writes, property.side, nextValue, { recordInHistory: false })
             ),
           () => clearHoverPreviewSession(previewOwnerKey)
+          ),
+          true
         )}
         {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
       </div>
@@ -3443,9 +3713,13 @@ export function InspectorPanel() {
             }
             const next = visibleProperties[index + 1];
             if (shouldRenderCompactNumberPair(property, next)) {
+              const left = property as Extract<InspectorProperty, { kind: "number" }>;
+              const right = next as Extract<InspectorProperty, { kind: "number" }>;
               return renderSingleNumberPair(
-                property as Extract<InspectorProperty, { kind: "number" }>,
-                next as Extract<InspectorProperty, { kind: "number" }>
+                left,
+                right,
+                renderedSinglePropertyProvenance[left.id] ?? null,
+                renderedSinglePropertyProvenance[right.id] ?? null
               );
             }
             return renderProperty(property);
@@ -3543,9 +3817,13 @@ export function InspectorPanel() {
             }
             const next = visibleProperties[index + 1];
             if (shouldRenderCompactNumberPair(property, next)) {
+              const left = property as Extract<MultiInspectorProperty, { kind: "number" }>;
+              const right = next as Extract<MultiInspectorProperty, { kind: "number" }>;
               return renderMultiNumberPair(
-                property as Extract<MultiInspectorProperty, { kind: "number" }>,
-                next as Extract<MultiInspectorProperty, { kind: "number" }>
+                left,
+                right,
+                renderedMultiPropertyProvenance[left.id] ?? null,
+                renderedMultiPropertyProvenance[right.id] ?? null
               );
             }
             return renderMultiProperty(property);
