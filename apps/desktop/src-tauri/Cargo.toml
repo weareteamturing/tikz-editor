@@ -26,3 +26,4 @@ tauri-plugin-log = "2"
 tauri-plugin-clipboard-manager = "2"
 base64 = "0.22"
 rfd = "0.15"
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
