@@ -165,3 +165,13 @@
   box-shadow: 0 16px 30px rgba(16, 33, 52, 0.22);
   overflow: hidden;
 }
+
+.editorWrap :global(.cm-foldGutter .cm-gutterElement span[title="Fold line"]) {
+  position: relative;
+  top: -3px;
+}
+
+.editorWrap :global(.cm-foldGutter .cm-gutterElement span[title="Unfold line"]) {
+  position: relative;
+  top: 0;
+}

@@ -39,7 +39,3 @@ TODOS
 * Dark mode; other display customizations
 
 * App settings: geometry precision digits, code formatter options
-
-* code folding in the code editor (e.g. for scopes)
-
-* drag and drop tabs

@@ -1,4 +1,4 @@
-import { LRLanguage, LanguageSupport } from "@codemirror/language";
+import { LRLanguage, LanguageSupport, foldNodeProp, foldInside, foldService, syntaxTree } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { parser } from "tikz-editor/syntax/grammar/tikz-parser";
 
@@ -71,9 +71,88 @@ const tikzHighlighting = styleTags({
   "⚠": t.invalid,
 });
 
+const tikzEnvironmentFolding = foldService.of((state, lineStart, lineEnd) => {
+  const line = state.doc.lineAt(lineStart);
+  const text = line.text;
+
+  const beginMatch = text.match(/\\begin\{([^}]+)\}/);
+  if (!beginMatch || beginMatch.index === undefined) return null;
+
+  const beginIndex = beginMatch.index;
+  const tree = syntaxTree(state);
+  if (tree.resolveInner(line.from + beginIndex + 1).name === "Comment") return null;
+
+  const envName = beginMatch[1];
+  const beginToken = `\\begin{${envName}}`;
+  const endToken = `\\end{${envName}}`;
+
+  let depth = 1;
+  const from = line.from + beginIndex + beginMatch[0].length;
+
+  let searchPos = beginIndex + beginMatch[0].length;
+  while (true) {
+    const nextBegin = text.indexOf(beginToken, searchPos);
+    const nextEnd = text.indexOf(endToken, searchPos);
+
+    if (nextBegin !== -1 && (nextEnd === -1 || nextBegin < nextEnd)) {
+      if (tree.resolveInner(line.from + nextBegin + 1).name !== "Comment") {
+        depth++;
+      }
+      searchPos = nextBegin + beginToken.length;
+    } else if (nextEnd !== -1) {
+      if (tree.resolveInner(line.from + nextEnd + 1).name !== "Comment") {
+        depth--;
+        if (depth === 0) {
+          return { from, to: line.from + nextEnd };
+        }
+      }
+      searchPos = nextEnd + endToken.length;
+    } else {
+      break;
+    }
+  }
+
+  for (let i = line.number + 1; i <= state.doc.lines; i++) {
+    const searchLine = state.doc.line(i);
+    let lineSearchPos = 0;
+    const lineText = searchLine.text;
+
+    while (true) {
+      const nextBegin = lineText.indexOf(beginToken, lineSearchPos);
+      const nextEnd = lineText.indexOf(endToken, lineSearchPos);
+
+      if (nextBegin !== -1 && (nextEnd === -1 || nextBegin < nextEnd)) {
+        if (tree.resolveInner(searchLine.from + nextBegin + 1).name !== "Comment") {
+          depth++;
+        }
+        lineSearchPos = nextBegin + beginToken.length;
+      } else if (nextEnd !== -1) {
+        if (tree.resolveInner(searchLine.from + nextEnd + 1).name !== "Comment") {
+          depth--;
+          if (depth === 0) {
+            return { from, to: searchLine.from + nextEnd };
+          }
+        }
+        lineSearchPos = nextEnd + endToken.length;
+      } else {
+        break;
+      }
+    }
+  }
+
+  return null;
+});
+
 const tikzLRLanguage = LRLanguage.define({
   parser: parser.configure({
-    props: [tikzHighlighting],
+    props: [
+      tikzHighlighting,
+      foldNodeProp.add({
+        TikzEnvironment: foldInside,
+        ScopeStatement: foldInside,
+        Group: foldInside,
+      })
+    ],
   }),
   languageData: {
     commentTokens: { line: "%" },
@@ -81,5 +160,5 @@ const tikzLRLanguage = LRLanguage.define({
 });
 
 export function tikzLanguage(): LanguageSupport {
-  return new LanguageSupport(tikzLRLanguage);
+  return new LanguageSupport(tikzLRLanguage, [tikzEnvironmentFolding]);
 }
