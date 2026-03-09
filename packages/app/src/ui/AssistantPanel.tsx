@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
 import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
+import { SidePanel } from "./SidePanel";
 import type {
   AssistantAccountSnapshot,
   AssistantItem,
@@ -134,8 +135,8 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   }
 
   return (
-    <div className={css.panel} data-testid="assistant-panel">
-      <div className={css.header}>
+    <SidePanel className={css.panel} data-testid="assistant-panel">
+      <SidePanel.Header className={css.header}>
         <div>
           <div className={css.title}>Assistant</div>
           <div className={css.meta}>
@@ -152,11 +153,11 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
         >
           Interrupt
         </button>
-      </div>
+      </SidePanel.Header>
 
       {doc.assistantError ? <div className={css.error}>{doc.assistantError}</div> : null}
 
-      <div
+      <SidePanel.Content
         className={css.timeline}
         data-testid="assistant-timeline"
         ref={timelineRef}
@@ -183,55 +184,57 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
             </div>
           </div>
         ))}
-      </div>
+      </SidePanel.Content>
 
-      <form className={css.composer} onSubmit={handleSubmit}>
-        <textarea
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
-              void submitPrompt();
-            }
-          }}
-          placeholder="Ask Codex to edit the current figure..."
-          disabled={submitting || running}
-          rows={4}
-          data-testid="assistant-prompt"
-        />
-        <div className={css.composerRow}>
-          <div className={css.modelPicker}>
-            <CustomDropdown
-              ariaLabel="Model"
-              options={dropdownOptions}
-              value={selectedModel}
-              onChange={(value) => setSelectedModel(value)}
-              onOpen={() => {
-                if (!metaRequested) {
-                  setMetaRequested(true);
-                }
-              }}
-              disabled={submitting || running}
-              menuHeader={dropdownMetaLines.length > 0 ? (
-                <div className={css.dropdownMeta}>
-                  {dropdownMetaLines.map((line, index) => (
-                    <div key={`${index}:${line}`}>{line}</div>
-                  ))}
-                </div>
-              ) : null}
-              triggerClassName={css.modelTrigger}
-              menuClassName={css.modelMenu}
-              optionClassName={css.modelOption}
-              optionSelectedClassName={css.modelOptionSelected}
-            />
+      <SidePanel.Footer>
+        <form className={css.composer} onSubmit={handleSubmit}>
+          <textarea
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                void submitPrompt();
+              }
+            }}
+            placeholder="Ask Codex to edit the current figure..."
+            disabled={submitting || running}
+            rows={4}
+            data-testid="assistant-prompt"
+          />
+          <div className={css.composerRow}>
+            <div className={css.modelPicker}>
+              <CustomDropdown
+                ariaLabel="Model"
+                options={dropdownOptions}
+                value={selectedModel}
+                onChange={(value) => setSelectedModel(value)}
+                onOpen={() => {
+                  if (!metaRequested) {
+                    setMetaRequested(true);
+                  }
+                }}
+                disabled={submitting || running}
+                menuHeader={dropdownMetaLines.length > 0 ? (
+                  <div className={css.dropdownMeta}>
+                    {dropdownMetaLines.map((line, index) => (
+                      <div key={`${index}:${line}`}>{line}</div>
+                    ))}
+                  </div>
+                ) : null}
+                triggerClassName={css.modelTrigger}
+                menuClassName={css.modelMenu}
+                optionClassName={css.modelOption}
+                optionSelectedClassName={css.modelOptionSelected}
+              />
+            </div>
+            <button type="submit" disabled={submitting || running || prompt.trim().length === 0} data-testid="assistant-send">
+              Send
+            </button>
           </div>
-          <button type="submit" disabled={submitting || running || prompt.trim().length === 0} data-testid="assistant-send">
-            Send
-          </button>
-        </div>
-      </form>
-    </div>
+        </form>
+      </SidePanel.Footer>
+    </SidePanel>
   );
 }
 

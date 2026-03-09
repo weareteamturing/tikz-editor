@@ -29,6 +29,7 @@ import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown, type CustomDropdownItem } from "./CustomDropdown";
+import { SidePanel } from "./SidePanel";
 import css from "./StylesPanel.module.css";
 
 export function StylesPanel() {
@@ -211,40 +212,58 @@ export function StylesPanel() {
   }
 
   if (selectedSourceIds.length === 0) {
-    return <div className={css.panel}><p className={css.hint}>Select an element to inspect its style cascade.</p></div>;
+    return (
+      <SidePanel className={css.panel}>
+        <SidePanel.Content>
+          <p className={css.hint}>Select an element to inspect its style cascade.</p>
+        </SidePanel.Content>
+      </SidePanel>
+    );
   }
 
   if (selectedSourceIds.length > 1 && !areStylesCascadeModelsIdentical(models)) {
-    return <div className={css.panel}><p className={css.hint}>Styles are available for a single element, or for multiple selected elements with identical cascades.</p></div>;
+    return (
+      <SidePanel className={css.panel}>
+        <SidePanel.Content>
+          <p className={css.hint}>Styles are available for a single element, or for multiple selected elements with identical cascades.</p>
+        </SidePanel.Content>
+      </SidePanel>
+    );
   }
 
   if (!model) {
-    return <div className={css.panel}><p className={css.hint}>Styles data is unavailable for the current selection.</p></div>;
+    return (
+      <SidePanel className={css.panel}>
+        <SidePanel.Content>
+          <p className={css.hint}>Styles data is unavailable for the current selection.</p>
+        </SidePanel.Content>
+      </SidePanel>
+    );
   }
 
   return (
-    <div className={css.panel}>
-      <div className={css.content}>
-        <div className={css.selectionMeta}>
-          {model.elementIds.length > 1 ? `${model.elementIds.length} selected (matching styles)` : model.elementKind}
-        </div>
+    <SidePanel className={css.panel}>
+      <SidePanel.Header>
+        {model.elementIds.length > 1 ? `${model.elementIds.length} selected (matching styles)` : model.elementKind}
+      </SidePanel.Header>
+      <SidePanel.Content className={css.content}>
         {model.sections.map((section) => (
-          <section key={section.id} className={css.section}>
-            <div className={css.sectionHeader}>
+          <SidePanel.Section key={section.id}>
+            <SidePanel.SectionHeader>
               <div className={css.sectionTitleWrap}>
                 <div className={css.sectionTitle}>{section.title}</div>
                 {section.subtitle ? <div className={css.sectionMeta}>{section.subtitle}</div> : null}
               </div>
               {section.sourceLocation ? <div className={css.sectionLocation}>{section.sourceLocation}</div> : null}
-            </div>
-            <div className={css.ruleBody}>
+            </SidePanel.SectionHeader>
+            <SidePanel.SectionBody className={css.ruleBody}>
               {section.declarations.map((declaration) => renderDeclaration(declaration, projectNamedColorSwatches, applyPropertyChange))}
               {section.writable ? renderAddProperty(section, pendingAddBySection[section.id] ?? "", setPendingAddBySection, addProperty) : null}
-            </div>
-          </section>
+            </SidePanel.SectionBody>
+          </SidePanel.Section>
         ))}
-      </div>
-    </div>
+      </SidePanel.Content>
+    </SidePanel>
   );
 }
 

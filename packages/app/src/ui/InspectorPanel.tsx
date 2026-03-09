@@ -162,6 +162,7 @@ import {
   createNumberScrubState,
   updateNumberScrubState
 } from "./inspector-panel/number-scrub";
+import { SidePanel } from "./SidePanel";
 import css from "./InspectorPanel.module.css";
 
 
@@ -3702,11 +3703,11 @@ export function InspectorPanel() {
         : section.properties;
 
     return (
-      <div key={section.id} className={css.section}>
-        <div className={css.sectionHeader}>
+      <SidePanel.Section key={section.id}>
+        <SidePanel.SectionHeader>
           <span>{section.title}</span>
-        </div>
-        <div className={css.sectionBody}>
+        </SidePanel.SectionHeader>
+        <SidePanel.SectionBody>
           {visibleProperties.map((property, index) => {
             if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
               return null;
@@ -3770,8 +3771,8 @@ export function InspectorPanel() {
               </button>
             </div>
           ) : null}
-        </div>
-      </div>
+        </SidePanel.SectionBody>
+      </SidePanel.Section>
     );
   }
 
@@ -3806,11 +3807,11 @@ export function InspectorPanel() {
         : section.properties;
 
     return (
-      <div key={section.id} className={css.section}>
-        <div className={css.sectionHeader}>
+      <SidePanel.Section key={section.id}>
+        <SidePanel.SectionHeader>
           <span>{section.title}</span>
-        </div>
-        <div className={css.sectionBody}>
+        </SidePanel.SectionHeader>
+        <SidePanel.SectionBody>
           {visibleProperties.map((property, index) => {
             if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
               return null;
@@ -3874,8 +3875,8 @@ export function InspectorPanel() {
               </button>
             </div>
           ) : null}
-        </div>
-      </div>
+        </SidePanel.SectionBody>
+      </SidePanel.Section>
     );
   }
 
@@ -3907,15 +3908,19 @@ export function InspectorPanel() {
     const xscale = makeGlobalTransformNumberProperty("xscale", "X scale");
     const yscale = makeGlobalTransformNumberProperty("yscale", "Y scale");
     return (
-      <div className={css.elementInfo}>
-        <div className={css.elementKind}>tikzpicture</div>
-        <div className={css.section}>
-          <div className={css.sectionHeader}>
-            <span>Transform</span>
+      <>
+        <SidePanel.Header>tikzpicture</SidePanel.Header>
+        <SidePanel.Content className={css.content}>
+          <div className={css.elementInfo}>
+            <SidePanel.Section>
+              <SidePanel.SectionHeader>
+                <span>Transform</span>
+              </SidePanel.SectionHeader>
+              <SidePanel.SectionBody>{renderSingleNumberPair(xscale, yscale)}</SidePanel.SectionBody>
+            </SidePanel.Section>
           </div>
-          <div className={css.sectionBody}>{renderSingleNumberPair(xscale, yscale)}</div>
-        </div>
-      </div>
+        </SidePanel.Content>
+      </>
     );
   }
 
@@ -3975,36 +3980,45 @@ export function InspectorPanel() {
   }
 
   return (
-    <div className={css.panel}>
-
-      <div className={css.content}>
-        {selectedSourceIds.length === 0 ? (
-          renderGlobalTransformPanel()
-        ) : selectedSourceIds.length === 1 ? (
-          !renderedDescriptor ? (
+    <SidePanel className={css.panel}>
+      {selectedSourceIds.length === 0 ? (
+        renderGlobalTransformPanel()
+      ) : selectedSourceIds.length === 1 ? (
+        !renderedDescriptor ? (
+          <SidePanel.Content>
             <p className={css.hint}>Inspector data is unavailable for the current selection.</p>
-          ) : (
-            <div className={css.elementInfo}>
-              <div className={css.elementKind}>{renderedDescriptor.elementKind}</div>
-              {renderedDescriptor.readOnlyReason ? (
-                <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
-              ) : null}
-
-              {renderedDescriptor.sections.map((section) => renderSingleSection(section))}
-            </div>
-          )
+          </SidePanel.Content>
         ) : (
-          <div className={css.elementInfo}>
-            <div className={css.elementKind}>{renderedMultiModel?.selectionCount ?? selectedSourceIds.length} selected</div>
-            {renderMultiArrangeQuickActions()}
-            {!renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
-              <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
-            ) : (
-              renderedMultiModel.sections.map((section) => renderMultiSection(section))
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          <>
+            <SidePanel.Header>{renderedDescriptor.elementKind}</SidePanel.Header>
+            <SidePanel.Content className={css.content}>
+              <div className={css.elementInfo}>
+                {renderedDescriptor.readOnlyReason ? (
+                  <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
+                ) : null}
+
+                {renderedDescriptor.sections.map((section) => renderSingleSection(section))}
+              </div>
+            </SidePanel.Content>
+          </>
+        )
+      ) : (
+        <>
+          <SidePanel.Header>
+            {renderedMultiModel?.selectionCount ?? selectedSourceIds.length} selected
+          </SidePanel.Header>
+          <SidePanel.Content className={css.content}>
+            <div className={css.elementInfo}>
+              {renderMultiArrangeQuickActions()}
+              {!renderedMultiModel || renderedMultiModel.sections.length === 0 ? (
+                <p className={css.hint}>No shared editable properties were found across the selected elements.</p>
+              ) : (
+                renderedMultiModel.sections.map((section) => renderMultiSection(section))
+              )}
+            </div>
+          </SidePanel.Content>
+        </>
+      )}
+    </SidePanel>
   );
 }

@@ -1,22 +1,9 @@
 .panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
   color: var(--text);
 }
 
 .content {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0 0 16px;
-}
-
-.selectionMeta {
-  padding: 10px 12px 8px;
-  color: var(--text-muted);
-  font-size: 11px;
+  /* SidePanel.Content has padding: 6px */
 }
 
 .hint {
@@ -25,44 +12,32 @@
   font-size: 12px;
 }
 
-.section {
-  border-top: 1px solid var(--border);
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px 8px;
-}
-
 .sectionTitleWrap {
   min-width: 0;
 }
 
 .sectionTitle {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .sectionMeta {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 9px);
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .sectionLocation {
   margin-left: auto;
   text-align: right;
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 9px);
   color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .ruleBody {
-  padding: 0 12px 10px;
+  /* SidePanel.SectionBody has padding: 6px */
 }
 
 .declaration {
@@ -71,7 +46,7 @@
   gap: 10px;
   align-items: center;
   padding: 4px 0;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .declarationOverridden {
@@ -90,7 +65,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .valueWrap {
@@ -103,25 +78,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 
 .numberInput {
   width: 100%;
   min-width: 0;
-  height: 28px;
-  border: 1px solid var(--border);
-  background: var(--bg-app);
+  height: 22px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-pane);
   color: var(--text);
-  padding: 0 8px;
-  font-size: 12px;
+  padding: 0 5px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  border-radius: 2px;
 }
 
 .checkboxLabel {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .addRow {
@@ -130,9 +106,11 @@
   gap: 10px;
   align-items: center;
   padding-top: 8px;
+  border-top: 1px solid var(--border-lighter);
+  margin-top: 4px;
 }
 
 .addLabel {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
 }
