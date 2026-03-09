@@ -201,6 +201,31 @@
   color: var(--text-faint);
 }
 
+.dropdownLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .modelTrigger {
   border: 1px solid var(--border-light);
   background: var(--bg-pane);

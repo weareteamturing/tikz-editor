@@ -185,8 +185,8 @@ export function CustomDropdown<TValue extends string>({
             closeMenu();
             return;
           }
-          onOpen?.();
           setOpen(true);
+          onOpen?.();
         }}
       >
         <span className={css.triggerValue}>

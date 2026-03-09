@@ -32,6 +32,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   const [accountSnapshot, setAccountSnapshot] = useState<AssistantAccountSnapshot | null>(null);
   const [metaError, setMetaError] = useState<string | null>(null);
   const [metaRequested, setMetaRequested] = useState(false);
+  const [metaLoading, setMetaLoading] = useState(false);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
 
@@ -59,6 +60,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     }
     let disposed = false;
     async function loadAssistantMeta(): Promise<void> {
+      setMetaLoading(true);
       try {
         const [models, account] = await Promise.all([
           assistantApi?.listModels?.() ?? Promise.resolve([]),
@@ -75,6 +77,10 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
           return;
         }
         setMetaError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!disposed) {
+          setMetaLoading(false);
+        }
       }
     }
     void loadAssistantMeta();
@@ -211,11 +217,21 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
                 onChange={(value) => setSelectedModel(value)}
                 onOpen={() => {
                   if (!metaRequested) {
-                    setMetaRequested(true);
+                    setMetaLoading(true);
+                    // Defer metaRequested to ensure the dropdown has a chance to paint 
+                    // the spinner before the potentially blocking listModels call.
+                    setTimeout(() => {
+                      setMetaRequested(true);
+                    }, 100);
                   }
                 }}
                 disabled={submitting || running}
-                menuHeader={dropdownMetaLines.length > 0 ? (
+                menuHeader={metaLoading ? (
+                  <div className={css.dropdownLoading}>
+                    <div className={css.spinner} />
+                    <span>Loading models...</span>
+                  </div>
+                ) : dropdownMetaLines.length > 0 ? (
                   <div className={css.dropdownMeta}>
                     {dropdownMetaLines.map((line, index) => (
                       <div key={`${index}:${line}`}>{line}</div>
