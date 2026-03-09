@@ -201,6 +201,19 @@ function createNativeDesktopMenuManager(options: {
     commandRefs.set(commandId, known);
   }
 
+  function nativeClipboardPredefinedItemFor(commandId: AppMenuCommandId): "Cut" | "Copy" | "Paste" | null {
+    if (commandId === APP_MENU_COMMAND_IDS.CUT) {
+      return "Cut";
+    }
+    if (commandId === APP_MENU_COMMAND_IDS.COPY) {
+      return "Copy";
+    }
+    if (commandId === APP_MENU_COMMAND_IDS.PASTE) {
+      return "Paste";
+    }
+    return null;
+  }
+
   async function applyCommandStates(commandStates: Record<AppMenuCommandId, NativeCommandState>): Promise<void> {
     for (const [commandId, refs] of commandRefs.entries()) {
       const state = commandStates[commandId] ?? { enabled: false };
@@ -268,6 +281,13 @@ function createNativeDesktopMenuManager(options: {
 
     const state = commandStates[item.commandId] ?? { enabled: false };
     const accelerator = hasModifierAccelerator(item.accelerator) ? item.accelerator : undefined;
+    const predefinedClipboardItem = nativeClipboardPredefinedItemFor(item.commandId);
+
+    // Use native clipboard menu roles so Tauri/WebView performs standard copy/cut/paste
+    // for focused text controls and emits DOM clipboard events for the focused canvas.
+    if (predefinedClipboardItem) {
+      return await menuApi.PredefinedMenuItem.new({ item: predefinedClipboardItem });
+    }
 
     if (state.checked != null) {
       const checkItem = await menuApi.CheckMenuItem.new({
