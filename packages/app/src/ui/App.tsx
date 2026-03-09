@@ -52,6 +52,13 @@ function menuTargetFromPlatformId(platformId: string): "desktop" | "web" {
   return "web";
 }
 
+function isCanvasViewportFocused(): boolean {
+  return (
+    document.activeElement instanceof HTMLElement &&
+    document.activeElement.closest("[data-canvas-viewport=\"true\"]") != null
+  );
+}
+
 export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
@@ -461,6 +468,14 @@ export function App() {
 
   useEffect(() => {
     const unbind = getActiveEditorPlatform().menu?.bindCommandHandler?.((commandId) => {
+      if (
+        (commandId === APP_MENU_COMMAND_IDS.COPY ||
+          commandId === APP_MENU_COMMAND_IDS.CUT ||
+          commandId === APP_MENU_COMMAND_IDS.PASTE) &&
+        !isCanvasViewportFocused()
+      ) {
+        return;
+      }
       commandRuntime.runCommand(commandId, "platform");
     });
     return typeof unbind === "function" ? unbind : undefined;
@@ -593,11 +608,7 @@ export function App() {
       const target = e.target as HTMLElement | null;
       const inCodeMirror = isCodeMirrorEventTarget(target);
       if (inCodeMirror) return;
-      const canvasShortcutContext = Boolean(
-        target?.closest("[data-canvas-viewport=\"true\"]") ||
-          (document.activeElement instanceof HTMLElement &&
-            document.activeElement.closest("[data-canvas-viewport=\"true\"]"))
-      );
+      const canvasShortcutContext = isCanvasViewportFocused();
 
       // Keep browser/field-native undo for editable fields outside CM.
       if (
