@@ -165,6 +165,18 @@ export async function pasteSelectionFromSystemClipboard(
   return didPaste ? { kind: "success" } : { kind: "failure", reason: "unsupported" };
 }
 
+export function pasteSnippetsWithOffset(
+  context: PasteCommandContext,
+  snippets: readonly string[],
+  options: { pasteCount?: number } = {}
+): boolean {
+  const payload = createClipboardPayload(snippets, "offset", options.pasteCount ?? 0);
+  if (!payload) {
+    return false;
+  }
+  return runPasteFromPayload(context, payload);
+}
+
 function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboardPayload): boolean {
   if (!canPasteSelection(context)) {
     return false;

@@ -1,14 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { APP_MENU_COMMAND_IDS } from "../../packages/app/src/app-menu/index.js";
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import { createEditorCommandRuntime } from "../../packages/app/src/ui/editor-command-runtime.js";
 import type { EditorAction } from "../../packages/app/src/store/types.js";
+import { setActiveEditorPlatform } from "../../packages/app/src/platform/current.js";
+
+const svgToTikzMock = vi.hoisted(() => vi.fn<(source: string) => string>());
+
+vi.mock("svg2tikz", () => ({
+  svgToTikz: svgToTikzMock
+}));
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
 \end{tikzpicture}`;
 
 describe("editor-command-runtime", () => {
+  afterEach(() => {
+    svgToTikzMock.mockReset();
+    setActiveEditorPlatform({
+      id: "test-platform",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      }
+    });
+  });
+
   it("computes enabled and checked states for menu commands", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -205,6 +223,97 @@ describe("editor-command-runtime", () => {
 
     expect(ran).toBe(true);
     expect(alert).toHaveBeenCalledWith("Clipboard access was blocked. Focus the canvas and press Cmd/Ctrl+V to paste.");
+  });
+
+  it("routes import svg command through svg conversion and opens a new document", async () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    svgToTikzMock.mockReturnValue(String.raw`\begin{tikzpicture}
+  \draw (4,4)--(5,5);
+\end{tikzpicture}`);
+    setActiveEditorPlatform({
+      id: "test-platform",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      files: {
+        openText: async () => ({
+          source: `<svg xmlns="http://www.w3.org/2000/svg"></svg>`,
+          fileRef: { kind: "file", name: "shape.svg" }
+        })
+      }
+    });
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.IMPORT_SVG, "menu");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ran).toBe(true);
+    expect(svgToTikzMock).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenNthCalledWith(1, {
+      type: "NEW_DOCUMENT",
+      source: String.raw`\begin{tikzpicture}
+  \draw (4,4)--(5,5);
+\end{tikzpicture}`,
+      title: "shape.tex"
+    });
+    expect(dispatch).toHaveBeenNthCalledWith(2, {
+      type: "MARK_DOCUMENT_SAVED",
+      fileRef: { kind: "virtual", name: "shape.tex" }
+    });
+  });
+
+  it("keeps non-svg open path unchanged", async () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    setActiveEditorPlatform({
+      id: "test-platform",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      files: {
+        openText: async () => ({
+          source: "\\draw (9,9)--(10,10);",
+          fileRef: { kind: "file", name: "opened.tex", provider: "download" }
+        })
+      }
+    });
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT, "menu");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(ran).toBe(true);
+    expect(svgToTikzMock).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenNthCalledWith(1, {
+      type: "NEW_DOCUMENT",
+      source: "\\draw (9,9)--(10,10);",
+      title: "opened.tex"
+    });
+    expect(dispatch).toHaveBeenNthCalledWith(2, {
+      type: "MARK_DOCUMENT_SAVED",
+      fileRef: { kind: "file", name: "opened.tex", provider: "download" }
+    });
   });
 });
 

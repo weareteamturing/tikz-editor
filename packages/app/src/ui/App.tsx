@@ -28,6 +28,7 @@ import { TikzJaxModal } from "./TikzJaxModal";
 import { RightSidebar } from "./RightSidebar";
 import { renderPngExport } from "./export-commands";
 import type { AssistantEvent } from "../platform/types";
+import { resolveOpenedFileForDocument } from "./svg-import";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -483,12 +484,16 @@ export function App() {
 
   useEffect(() => {
     const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.((opened) => {
-      dispatch({
-        type: "NEW_DOCUMENT",
-        source: opened.source,
-        title: opened.fileRef?.name ?? "Opened document"
-      });
-      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: opened.fileRef });
+      const resolved = resolveOpenedFileForDocument(opened);
+      if (resolved.kind === "failure") {
+        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+        if (typeof alertFn === "function") {
+          alertFn(resolved.message);
+        }
+        return;
+      }
+      dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
+      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
     });
     return typeof unbind === "function" ? unbind : undefined;
   }, [dispatch]);

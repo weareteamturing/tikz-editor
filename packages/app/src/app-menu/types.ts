@@ -1,6 +1,7 @@
 export const APP_MENU_COMMAND_IDS = {
   NEW_DOCUMENT: "file.new-document",
   OPEN_DOCUMENT: "file.open-document",
+  IMPORT_SVG: "file.import-svg",
   SAVE_DOCUMENT: "file.save-document",
   SAVE_DOCUMENT_AS: "file.save-document-as",
   CLOSE_DOCUMENT: "file.close-document",

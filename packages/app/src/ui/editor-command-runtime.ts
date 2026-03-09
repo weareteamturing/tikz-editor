@@ -20,6 +20,7 @@ import {
 } from "./editor-commands";
 import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
+import { resolveOpenedFileForDocument } from "./svg-import";
 
 export type CommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
 
@@ -172,6 +173,28 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     });
   };
 
+  const runOpenDocument = (requireSvg = false) => {
+    const openText = getActiveEditorPlatform().files?.openText;
+    if (!openText) {
+      return;
+    }
+    void openText().then((opened) => {
+      if (!opened) {
+        return;
+      }
+      const resolved = resolveOpenedFileForDocument(opened, { requireSvg });
+      if (resolved.kind === "failure") {
+        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+        if (typeof alertFn === "function") {
+          alertFn(resolved.message);
+        }
+        return;
+      }
+      dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
+      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
+    });
+  };
+
   const singleSelectedId = selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null;
   const canAddAdornment =
     singleSelectedId != null &&
@@ -191,19 +214,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
       enabled: canOpen,
-      run: () => {
-        const openText = getActiveEditorPlatform().files?.openText;
-        if (!openText) {
-          return;
-        }
-        void openText().then((opened) => {
-          if (!opened) {
-            return;
-          }
-          dispatch({ type: "NEW_DOCUMENT", source: opened.source, title: opened.fileRef?.name ?? "Opened document" });
-          dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: opened.fileRef });
-        });
-      }
+      run: () => runOpenDocument(false)
+    },
+    [APP_MENU_COMMAND_IDS.IMPORT_SVG]: {
+      enabled: canOpen,
+      run: () => runOpenDocument(true)
     },
     [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT]: {
       enabled: canSave,

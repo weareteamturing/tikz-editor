@@ -17,6 +17,11 @@ export const APP_MENU_DEFINITION = [
         label: "Open..."
       },
       {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.IMPORT_SVG,
+        label: "Import SVG..."
+      },
+      {
         kind: "recent-files",
         label: "Open Recent",
         platforms: ["desktop"]

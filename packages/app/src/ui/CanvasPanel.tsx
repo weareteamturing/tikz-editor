@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
@@ -45,6 +46,7 @@ import type {
   ScenePath,
   SceneText
 } from "tikz-editor/semantic/types";
+import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind } from "../store/types";
@@ -158,8 +160,15 @@ import { useEditorCommandRuntime } from "./editor-command-runtime";
 import {
   copySelectionToClipboardData,
   cutSelectionToClipboardData,
-  pasteSelectionFromClipboardData
+  pasteSelectionFromClipboardData,
+  pasteSnippetsWithOffset
 } from "./editor-commands";
+import {
+  buildScopeWrappedSnippet,
+  convertSvgToScopeSnippet,
+  dataTransferHasFilePayload,
+  findSvgFileInDataTransfer
+} from "./svg-import";
 import {
   addGuide,
   buildAnchoredGridPreviewLines,
@@ -370,6 +379,82 @@ const PREFIX_MEASURE_TEXT_MAX_LENGTH = 240;
 const PREFIX_MEASURE_CACHE_LIMIT = 64;
 const RESIZE_NOOP_REASON = "Resize would not change node constraints.";
 const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
+const IMPORTED_SVG_TARGET_RATIO = 0.3;
+const IMPORTED_SVG_MIN_SCALE = 0.2;
+const IMPORTED_SVG_MAX_SCALE = 3;
+
+function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
+  if (boundsList.length === 0) {
+    return null;
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const bounds of boundsList) {
+    minX = Math.min(minX, bounds.minX);
+    minY = Math.min(minY, bounds.minY);
+    maxX = Math.max(maxX, bounds.maxX);
+    maxY = Math.max(maxY, bounds.maxY);
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function boundsMaxDimension(bounds: Bounds): number {
+  return Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+}
+
+function formatScopeScale(scale: number): number {
+  return Number(scale.toFixed(3));
+}
+
+function computeAutoScaleForImportedTikz(
+  importedTikzSource: string,
+  currentScene: { elements: SceneElement[] } | null,
+  currentViewBox: SvgViewBox | null
+): number | null {
+  if (!currentScene || !currentViewBox || currentScene.elements.length === 0) {
+    return null;
+  }
+
+  const currentBounds = mergeBoundsList([...collectSourceBounds(currentScene.elements, currentViewBox).values()]);
+  if (!currentBounds) {
+    return null;
+  }
+  const currentDimension = boundsMaxDimension(currentBounds);
+  if (!Number.isFinite(currentDimension) || currentDimension <= 1e-6) {
+    return null;
+  }
+
+  let importedRendered: ReturnType<typeof renderTikzToSvg>;
+  try {
+    importedRendered = renderTikzToSvg(importedTikzSource);
+  } catch {
+    return null;
+  }
+
+  const importedBounds = mergeBoundsList(
+    [...collectSourceBounds(importedRendered.semantic.scene.elements, importedRendered.svg.viewBox).values()]
+  );
+  if (!importedBounds) {
+    return null;
+  }
+  const importedDimension = boundsMaxDimension(importedBounds);
+  if (!Number.isFinite(importedDimension) || importedDimension <= 1e-6) {
+    return null;
+  }
+
+  const targetDimension = currentDimension * IMPORTED_SVG_TARGET_RATIO;
+  const rawScale = targetDimension / importedDimension;
+  const clampedScale = clamp(rawScale, IMPORTED_SVG_MIN_SCALE, IMPORTED_SVG_MAX_SCALE);
+  if (!Number.isFinite(clampedScale) || Math.abs(clampedScale - 1) < 0.05) {
+    return null;
+  }
+  return formatScopeScale(clampedScale);
+}
 
 export function CanvasPanel() {
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
@@ -3482,6 +3567,34 @@ export function CanvasPanel() {
       if (event.defaultPrevented) {
         return;
       }
+      const svgFile = findSvgFileInDataTransfer(event.clipboardData);
+      if (svgFile) {
+        event.preventDefault();
+        void svgFile.text().then((svgSource) => {
+          const converted = convertSvgToScopeSnippet(svgSource);
+          if (converted.kind === "failure") {
+            setWarning(converted.message);
+            return;
+          }
+          const scale = computeAutoScaleForImportedTikz(converted.tikzSource, snapshot.scene, snapshot.svg?.viewBox ?? null);
+          const snippet = scale == null ? converted.snippet : buildScopeWrappedSnippet(converted.body, { scale });
+          const pasted = pasteSnippetsWithOffset(
+            {
+              source,
+              snapshotSource: snapshot.source,
+              scene: snapshot.scene,
+              editHandles: snapshot.editHandles,
+              selectedElementIds,
+              dispatch
+            },
+            [snippet]
+          );
+          if (!pasted) {
+            setWarning("SVG import paste failed.");
+          }
+        });
+        return;
+      }
       event.preventDefault();
       void pasteSelectionFromClipboardData(
         {
@@ -3505,6 +3618,58 @@ export function CanvasPanel() {
           return;
         }
         setWarning("Paste failed. Try copying again, then press Cmd/Ctrl+V while the canvas is focused.");
+      });
+    },
+    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+  );
+
+  const onViewportDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      const hasFile = dataTransferHasFilePayload(event.dataTransfer);
+      if (!hasFile) {
+        return;
+      }
+      event.preventDefault();
+      if (findSvgFileInDataTransfer(event.dataTransfer)) {
+        event.dataTransfer.dropEffect = "copy";
+      }
+    },
+    []
+  );
+
+  const onViewportDrop = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      const hasFile = dataTransferHasFilePayload(event.dataTransfer);
+      if (!hasFile) {
+        return;
+      }
+      event.preventDefault();
+      const svgFile = findSvgFileInDataTransfer(event.dataTransfer);
+      if (!svgFile) {
+        return;
+      }
+      void svgFile.text().then((svgSource) => {
+        const converted = convertSvgToScopeSnippet(svgSource);
+        if (converted.kind === "failure") {
+          setWarning(converted.message);
+          return;
+        }
+        const scale = computeAutoScaleForImportedTikz(converted.tikzSource, snapshot.scene, snapshot.svg?.viewBox ?? null);
+        const snippet = scale == null ? converted.snippet : buildScopeWrappedSnippet(converted.body, { scale });
+        const pasted = pasteSnippetsWithOffset(
+          {
+            source,
+            snapshotSource: snapshot.source,
+            scene: snapshot.scene,
+            editHandles: snapshot.editHandles,
+            selectedElementIds,
+            dispatch
+          },
+          [snippet]
+        );
+        if (!pasted) {
+          setWarning("SVG import drop failed.");
+        }
       });
     },
     [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
@@ -4531,6 +4696,8 @@ export function CanvasPanel() {
           onCopy={onViewportCopy}
           onCut={onViewportCut}
           onPaste={onViewportPaste}
+          onDragOver={onViewportDragOver}
+          onDrop={onViewportDrop}
           onPointerDown={onViewportPointerDown}
           onContextMenu={(event) => {
             if (event.defaultPrevented) {

@@ -23,6 +23,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "svg2pdf.js": "^2.7.0",
+    "svg2tikz": "^0.1.1",
     "svgo": "^4.0.1",
     "zustand": "^5.0.11"
   },

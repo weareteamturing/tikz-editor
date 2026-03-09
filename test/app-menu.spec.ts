@@ -5,6 +5,7 @@ describe("app menu definition", () => {
   it("defines file lifecycle command ids", () => {
     expect(APP_MENU_COMMAND_IDS.NEW_DOCUMENT).toBe("file.new-document");
     expect(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT).toBe("file.open-document");
+    expect(APP_MENU_COMMAND_IDS.IMPORT_SVG).toBe("file.import-svg");
     expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT).toBe("file.save-document");
     expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS).toBe("file.save-document-as");
     expect(APP_MENU_COMMAND_IDS.CLOSE_DOCUMENT).toBe("file.close-document");
@@ -71,6 +72,20 @@ describe("app menu definition", () => {
       throw new Error("Expected file.open-example command item in File menu.");
     }
     expect(commandItem.label).toBe("Open Example...");
+  });
+
+  it("exposes Import SVG in the File menu", () => {
+    const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
+    expect(fileSection).toBeDefined();
+    const items = fileSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_SVG
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected file.import-svg command item in File menu.");
+    }
+    expect(commandItem.label).toBe("Import SVG...");
   });
 
   it("exposes Export SVG, Standalone LaTeX, PDF, and PNG in the File > Export submenu", () => {

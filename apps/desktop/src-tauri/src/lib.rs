@@ -115,7 +115,7 @@ fn desktop_open_text(
         Some(PathBuf::from(raw_path))
     } else {
         FileDialog::new()
-            .add_filter("TikZ", &["tex", "tikz", "txt"])
+            .add_filter("TikZ/SVG", &["tex", "tikz", "txt", "svg"])
             .pick_file()
     };
     let Some(path_buf) = resolved_path else {

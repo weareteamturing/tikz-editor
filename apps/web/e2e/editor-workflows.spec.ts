@@ -127,6 +127,64 @@ test("fallback open path uses file input and loads content", async ({ page }) =>
   await expect.poll(async () => readSource(page)).toContain("% fallback-open");
 });
 
+test("fallback open path imports svg as a new tikz document", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as Record<string, unknown>;
+    delete globalLike.showOpenFilePicker;
+    delete globalLike.showSaveFilePicker;
+
+    const originalClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
+      if (this.type === "file") {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="red"/></svg>`;
+        const file = new File([svg], "fallback-open.svg", { type: "image/svg+xml" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        Object.defineProperty(this, "files", {
+          configurable: true,
+          get: () => dataTransfer.files
+        });
+        this.dispatchEvent(new Event("change"));
+        return;
+      }
+      originalClick.call(this);
+    };
+  });
+
+  await page.goto("/");
+  await openMenuCommand(page, "file", "file.open-document");
+  await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
+});
+
+test("file import svg command imports svg as a new tikz document", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as Record<string, unknown>;
+    delete globalLike.showOpenFilePicker;
+    delete globalLike.showSaveFilePicker;
+
+    const originalClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
+      if (this.type === "file") {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" fill="blue"/></svg>`;
+        const file = new File([svg], "menu-import.svg", { type: "image/svg+xml" });
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        Object.defineProperty(this, "files", {
+          configurable: true,
+          get: () => dataTransfer.files
+        });
+        this.dispatchEvent(new Event("change"));
+        return;
+      }
+      originalClick.call(this);
+    };
+  });
+
+  await page.goto("/");
+  await openMenuCommand(page, "file", "file.import-svg");
+  await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
+});
+
 test("fs-api save/open flows with rebinding and permission fallback", async ({ page }) => {
   await page.addInitScript(() => {
     type PermissionMode = "read" | "readwrite";
@@ -217,4 +275,44 @@ test("export commands smoke", async ({ page }) => {
   const latexDownload = page.waitForEvent("download");
   await openMenuCommand(page, "file", "file.export-standalone-latex-download");
   await latexDownload;
+});
+
+test("canvas drop svg inserts a scope-wrapped import", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><path d="M1 1 L11 11" stroke="black"/></svg>`;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([svg], "drop.svg", { type: "image/svg+xml" }));
+    viewport.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+    viewport.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
+});
+
+test("canvas paste svg file inserts a scope-wrapped import", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="none" stroke="black"/></svg>`;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([svg], "paste.svg", { type: "image/svg+xml" }));
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
 });

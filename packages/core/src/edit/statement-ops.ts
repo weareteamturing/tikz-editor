@@ -180,7 +180,7 @@ export function formatSnippetsForInsertion(
     cursor += 1;
 
     const start = cursor;
-    const formatted = `${indent}${snippet}`;
+    const formatted = reindentSnippet(snippet, indent);
     text += formatted;
     cursor += formatted.length;
 
@@ -196,6 +196,22 @@ export function formatSnippetsForInsertion(
     text,
     snippetSpans
   };
+}
+
+function reindentSnippet(snippet: string, indent: string): string {
+  const lines = snippet.split("\n");
+  const nonEmpty = lines.filter((line) => line.trim().length > 0);
+  const minIndent = nonEmpty.reduce((minimum, line) => {
+    const current = line.match(/^[ \t]*/)?.[0].length ?? 0;
+    return Math.min(minimum, current);
+  }, Number.POSITIVE_INFINITY);
+  const trimIndent = Number.isFinite(minIndent) ? minIndent : 0;
+  return lines
+    .map((line) => {
+      const stripped = trimIndent > 0 ? line.slice(Math.min(trimIndent, line.length)) : line;
+      return `${indent}${stripped}`;
+    })
+    .join("\n");
 }
 
 export function applyTextReplacements(
