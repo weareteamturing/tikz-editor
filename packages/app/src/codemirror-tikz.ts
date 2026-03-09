@@ -15,8 +15,9 @@ const tikzHighlighting = styleTags({
   // \node and \coordinate commands
   "NodeCmd CoordinateCmd": t.keyword,
 
-  // Inline keywords: node, coordinate, edge, to
-  "NodeKw CoordinateKw EdgeKw ToKw": t.keyword,
+  // Inline keywords in path context only (avoid styling style names like `every node`)
+  "NodeItem/NodeKw CoordinateOperation/CoordinateKw ToOperation/ToKw EdgeOperation/EdgeKw EdgeFromParentOperation/EdgeKw":
+    t.keyword,
 
   // Shape/operation keywords: circle, rectangle, arc, etc.
   "CircleKw RectangleKw EllipseKw ArcKw GridKw ParabolaKw SinKw CosKw PlotKw SvgKw": t.typeName,
@@ -39,6 +40,7 @@ const tikzHighlighting = styleTags({
 
   // Identifiers in option lists — labelName (#219, blue)
   "OptionPart/*/Identifier": t.labelName,
+  "OptionPart/NodeKw StylePayloadPart/NodeKw": t.labelName,
 
   // Node text content — string color (#a11)
   // NodeItem/Group covers inline `node {text}`, PathItem/Group covers `\node ... {text}`
