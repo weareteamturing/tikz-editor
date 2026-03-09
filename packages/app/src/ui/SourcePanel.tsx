@@ -399,7 +399,7 @@ export function SourcePanel() {
         ...completionExtensions,
         tikzLanguage(),
         wordWrapCompartment.of(editorWordWrap ? EditorView.lineWrapping : []),
-        fontSizeCompartment.of(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })),
+        fontSizeCompartment.of(EditorView.theme({ "& .cm-scroller": { fontSize: `${editorFontSize}px` } })),
         tabSizeCompartment.of(CMState.tabSize.of(editorIndentSize)),
         editableCompartment.of(EditorView.editable.of(!assistantLockReason)),
         numberScrubber({
@@ -462,7 +462,7 @@ export function SourcePanel() {
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ "&": { fontSize: `${editorFontSize}px` } })) });
+    view.dispatch({ effects: fontSizeCompartment.reconfigure(EditorView.theme({ "& .cm-scroller": { fontSize: `${editorFontSize}px` } })) });
   }, [editorFontSize]);
 
   useEffect(() => {
