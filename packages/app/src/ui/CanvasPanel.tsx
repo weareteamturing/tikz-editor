@@ -379,6 +379,7 @@ export function CanvasPanel() {
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
@@ -427,6 +428,7 @@ export function CanvasPanel() {
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
+  const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
 
   const commandRuntime = useEditorCommandRuntime({
     onAddNodeAdornment: (kind) => {
@@ -459,10 +461,10 @@ export function CanvasPanel() {
   const pathDraftRef = useRef<PathToolDraft | null>(null);
   const freehandDraftRef = useRef<FreehandToolDraft | null>(null);
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
-  const autoFitDoneRef = useRef(false);
   const canvasTransformRef = useRef(canvasTransform);
   const selectedElementIdsRef = useRef(selectedElementIds);
   const svgResultRef = useRef(svgResult);
+  const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const guideDragRef = useRef<GuideDragState | null>(null);
@@ -1580,6 +1582,7 @@ export function CanvasPanel() {
       return;
     }
     handledFitRequestRef.current = fitToContentRequestToken;
+    setFitToContentModeActive(true);
     fitToContent();
   }, [fitToContent, fitToContentRequestToken]);
 
@@ -3663,6 +3666,10 @@ export function CanvasPanel() {
   }, [svgResult]);
 
   useEffect(() => {
+    fitToContentModeActiveRef.current = fitToContentModeActive;
+  }, [fitToContentModeActive]);
+
+  useEffect(() => {
     sourceBoundsRef.current = sourceBounds;
   }, [sourceBounds]);
 
@@ -3727,6 +3734,9 @@ export function CanvasPanel() {
       const localY = event.clientY - rect.top;
 
       if (event.ctrlKey || event.metaKey) {
+        if (fitToContentModeActiveRef.current) {
+          setFitToContentModeActive(false);
+        }
         const deltaModeFactor =
           event.deltaMode === 1
             ? 16
@@ -3778,6 +3788,9 @@ export function CanvasPanel() {
       const svgPoint = viewportToSvgPoint(localX, localY, currentTransform, currentSvg.viewBox);
       const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
       const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
+      if (fitToContentModeActiveRef.current) {
+        setFitToContentModeActive(false);
+      }
       dispatch({
         type: "SET_CANVAS_TRANSFORM",
         transform: { translateX, translateY, scale: nextScale }
@@ -4244,12 +4257,34 @@ export function CanvasPanel() {
   }, [dispatch, snapshot.scene, snapshot.source, source]);
 
   useEffect(() => {
-    if (!svgResult || autoFitDoneRef.current) return;
-    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
-
+    if (!fitToContentModeActive) {
+      return;
+    }
+    if (!svgResult) {
+      return;
+    }
+    if (activeCanvasDragKind || activeSourceScrubSourceId) {
+      return;
+    }
+    if (snapshot.source !== source) {
+      return;
+    }
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) {
+      return;
+    }
     fitToContent();
-    autoFitDoneRef.current = true;
-  }, [fitToContent, svgResult, viewportSize]);
+  }, [
+    activeCanvasDragKind,
+    activeSourceScrubSourceId,
+    fitToContent,
+    fitToContentModeActive,
+    lastEditChangeToken,
+    snapshot.source,
+    source,
+    svgResult,
+    viewportSize.height,
+    viewportSize.width
+  ]);
 
   useCanvasDragController({
     applyActionWithFeedback,
@@ -4391,7 +4426,11 @@ export function CanvasPanel() {
           <button className={css.headerBtn} onClick={() => dispatch({ type: "TOGGLE_SNAP_TO_GRID" })}>
             {snapToGrid ? "Snap On" : "Snap Off"}
           </button>
-          <button className={css.headerBtn} onClick={fitToContent} disabled={!svgResult}>
+          <button
+            className={css.headerBtn}
+            onClick={() => dispatch({ type: "REQUEST_FIT_TO_CONTENT" })}
+            disabled={!svgResult}
+          >
             Fit
           </button>
         </div>
