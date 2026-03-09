@@ -1,4 +1,5 @@
 import { InspectorPanel } from "./InspectorPanel";
+import { StylesPanel } from "./StylesPanel";
 import { AssistantPanel } from "./AssistantPanel";
 import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
@@ -24,6 +25,14 @@ export function RightSidebar({ onSubmitPrompt, onInterruptTurn }: RightSidebarPr
         >
           Inspector
         </button>
+        <button
+          type="button"
+          className={[css.tab, tab === "styles" ? css.tabActive : ""].filter(Boolean).join(" ")}
+          onClick={() => dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "styles" })}
+          data-testid="styles-tab"
+        >
+          Styles
+        </button>
         {assistantAvailable ? (
           <button
             type="button"
@@ -39,6 +48,8 @@ export function RightSidebar({ onSubmitPrompt, onInterruptTurn }: RightSidebarPr
       <div className={css.body}>
         {tab === "assistant" && assistantAvailable ? (
           <AssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />
+        ) : tab === "styles" ? (
+          <StylesPanel />
         ) : (
           <InspectorPanel />
         )}

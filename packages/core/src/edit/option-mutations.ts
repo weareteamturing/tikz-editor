@@ -2,7 +2,7 @@ import type { Span } from "../ast/types.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import { NAMED_COLORS } from "../semantic/style/constants.js";
 import { replaceSpan } from "./patch.js";
-import type { PropertyTarget } from "./property-target.js";
+import type { PropertyTarget, PropertyTargetOptionsFormat } from "./property-target.js";
 import type { SourcePatch } from "./types.js";
 import { normalizeOptionKey as normalizeSharedOptionKey } from "./option-key.js";
 
@@ -34,8 +34,12 @@ export function applyOptionMutationsToTarget(
   const serializationContext = resolveOptionSerializationContext(target);
 
   if (target.options && target.optionsSpan) {
-    const replacement = rewriteOptionListMutations(target.options, mutations, serializationContext);
+    const format = target.optionsFormat ?? "bracketed";
+    const replacement = rewriteOptionListMutations(target.options, mutations, serializationContext, format);
     if (replacement.length === 0) {
+      if (format !== "bracketed") {
+        return null;
+      }
       const oldSpan = target.optionsSpan;
       const updated = replaceSpan(source, oldSpan, "");
       if (updated.source === source) {
@@ -78,7 +82,7 @@ export function applyOptionMutationsToTarget(
     return null;
   }
 
-  const replacement = `[${entriesToInsert.join(", ")}]`;
+  const replacement = wrapSerializedOptions(entriesToInsert.join(", "), target.optionsFormat ?? "bracketed");
   const oldSpan: Span = {
     from: target.insertOffset,
     to: target.insertOffset
@@ -100,7 +104,8 @@ export function applyOptionMutationsToTarget(
 export function rewriteOptionListMutations(
   options: OptionListAst,
   mutations: ReadonlyMap<string, OptionMutation>,
-  serializationContext: OptionSerializationContext = DEFAULT_OPTION_SERIALIZATION_CONTEXT
+  serializationContext: OptionSerializationContext = DEFAULT_OPTION_SERIALIZATION_CONTEXT,
+  format: PropertyTargetOptionsFormat = "bracketed"
 ): string {
   const parts: string[] = [];
   const emitted = new Set<string>();
@@ -137,10 +142,10 @@ export function rewriteOptionListMutations(
   }
 
   if (parts.length === 0) {
-    return "";
+    return format === "bracketed" ? "" : wrapSerializedOptions("", format);
   }
 
-  return `[${parts.join(", ")}]`;
+  return wrapSerializedOptions(parts.join(", "), format);
 }
 
 export const normalizeOptionKey = normalizeSharedOptionKey;
@@ -194,6 +199,21 @@ function resolveOptionSerializationContext(target: PropertyTarget): OptionSerial
   }
 
   return DEFAULT_OPTION_SERIALIZATION_CONTEXT;
+}
+
+function wrapSerializedOptions(
+  content: string,
+  format: PropertyTargetOptionsFormat
+): string {
+  switch (format) {
+    case "bare":
+      return content;
+    case "braced":
+      return `{${content}}`;
+    case "bracketed":
+    default:
+      return `[${content}]`;
+  }
 }
 
 function shouldSerializeAsBareColorOption(

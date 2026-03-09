@@ -573,7 +573,7 @@ const ARROW_TIP_OPTIONS: ArrowTipPresetOption[] = [
   { value: "bar", label: "Bar" },
   { value: "hooks", label: "Hooks" }
 ];
-const DASH_STYLE_OPTIONS: DashStylePresetOption[] = [
+export const DASH_STYLE_OPTIONS: DashStylePresetOption[] = [
   { value: "solid", label: "Solid" },
   { value: "dashed", label: "Dashed" },
   { value: "densely dashed", label: "Densely dashed" },
@@ -582,12 +582,12 @@ const DASH_STYLE_OPTIONS: DashStylePresetOption[] = [
   { value: "densely dotted", label: "Densely dotted" },
   { value: "loosely dotted", label: "Loosely dotted" }
 ];
-const LINE_CAP_OPTIONS: LineCapPresetOption[] = [
+export const LINE_CAP_OPTIONS: LineCapPresetOption[] = [
   { value: "butt", label: "Butt" },
   { value: "round", label: "Round" },
   { value: "square", label: "Square" }
 ];
-const LINE_JOIN_OPTIONS: LineJoinPresetOption[] = [
+export const LINE_JOIN_OPTIONS: LineJoinPresetOption[] = [
   { value: "miter", label: "Miter" },
   { value: "round", label: "Round" },
   { value: "bevel", label: "Bevel" }
@@ -661,17 +661,17 @@ const PATH_MORPHING_DECORATION_SUBOPTIONS_BY_PRESET: Partial<
   coil: ["segment length", "amplitude"],
   snake: ["segment length", "amplitude"]
 };
-const FILL_MODE_OPTIONS: FillModePresetOption[] = [
+export const FILL_MODE_OPTIONS: FillModePresetOption[] = [
   { value: "solid", label: "Solid" },
   { value: "gradient", label: "Gradient" },
   { value: "pattern", label: "Pattern" }
 ];
-const FILL_SHADING_OPTIONS: FillShadingPresetOption[] = [
+export const FILL_SHADING_OPTIONS: FillShadingPresetOption[] = [
   { value: "axis", label: "Axis" },
   { value: "radial", label: "Radial" },
   { value: "ball", label: "Ball" }
 ];
-const FILL_PATTERN_OPTIONS: FillPatternPresetOption[] = [
+export const FILL_PATTERN_OPTIONS: FillPatternPresetOption[] = [
   { value: "horizontal lines", label: "horizontal lines" },
   { value: "vertical lines", label: "vertical lines" },
   { value: "north east lines", label: "north east lines" },
@@ -697,7 +697,7 @@ const FILL_PATTERN_OPTIONS: FillPatternPresetOption[] = [
   { value: "Dots", label: "Dots" },
   { value: "Stars", label: "Stars" }
 ];
-const NODE_SHAPE_OPTIONS: NodeShapePresetOption[] = [
+export const NODE_SHAPE_OPTIONS: NodeShapePresetOption[] = [
   { value: "rectangle", label: "Rectangle" },
   { value: "circle", label: "Circle" },
   { value: "ellipse", label: "Ellipse" },
@@ -737,7 +737,7 @@ const CURATED_NODE_SHAPE_SET = new Set<Exclude<NodeShapePresetId, "custom">>(
 const NODE_SHAPE_KNOWN_SET = new Set<string>(NODE_SHAPE_KNOWN_KEYS);
 const NODE_SHAPE_CUSTOM_NOTE =
   "Custom node shape detected. Picking a curated shape will replace non-curated shape keys.";
-const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
+export const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
 const NODE_INNER_SEP_CLEAR_KEYS = ["inner xsep", "inner ysep"] as const;
 const NODE_INNER_SEP_CONFLICT_NOTE =
   "inner xsep/inner ysep detected. Editing Inner sep will replace axis-specific padding.";
@@ -2389,7 +2389,7 @@ function resolveFillPaintState(
   return { mode: "solid", shading, pattern };
 }
 
-function fillShadingPresetFromStyleName(raw: string): FillShadingPresetId {
+export function fillShadingPresetFromStyleName(raw: string): FillShadingPresetId {
   const normalized = stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
   if (normalized === "axis") {
     return "axis";
@@ -2403,7 +2403,7 @@ function fillShadingPresetFromStyleName(raw: string): FillShadingPresetId {
   return "custom";
 }
 
-function fillPatternPresetFromResolvedPattern(pattern: ResolvedPattern | null): FillPatternPresetId {
+export function fillPatternPresetFromResolvedPattern(pattern: ResolvedPattern | null): FillPatternPresetId {
   if (!pattern) {
     return "dots";
   }
@@ -2414,7 +2414,7 @@ function fillPatternPresetFromResolvedPattern(pattern: ResolvedPattern | null): 
   return META_FILL_PATTERN_PRESET_BY_KIND[pattern.kind] ?? "custom";
 }
 
-function fillPatternPresetFromRaw(raw: string): FillPatternPresetId {
+export function fillPatternPresetFromRaw(raw: string): FillPatternPresetId {
   const name = extractPatternName(raw);
   if (!name) {
     return "dots";
@@ -3657,7 +3657,7 @@ function polygonSignedArea(points: ReadonlyArray<{ x: number; y: number }>): num
   return area / 2;
 }
 
-function lineWidthPresetLabel(value: number): string | null {
+export function lineWidthPresetLabel(value: number): string | null {
   for (const preset of LINE_WIDTH_PRESETS) {
     if (Math.abs(preset.value - value) <= 0.02) {
       return preset.label;
@@ -3666,7 +3666,7 @@ function lineWidthPresetLabel(value: number): string | null {
   return null;
 }
 
-function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: number): DashStylePresetId {
+export function dashStylePresetFromStyle(dashArray: number[] | null, lineWidth: number): DashStylePresetId {
   if (!dashArray || dashArray.length === 0) {
     return "solid";
   }
@@ -3702,14 +3702,14 @@ function closeEnough(a: number, b: number): boolean {
   return Math.abs(a - b) <= DASH_PATTERN_EPSILON;
 }
 
-function lineCapPresetFromStyle(value: "butt" | "round" | "square"): LineCapPresetId {
+export function lineCapPresetFromStyle(value: "butt" | "round" | "square"): LineCapPresetId {
   if (value === "butt" || value === "round" || value === "square") {
     return value;
   }
   return "custom";
 }
 
-function lineJoinPresetFromStyle(value: "miter" | "round" | "bevel"): LineJoinPresetId {
+export function lineJoinPresetFromStyle(value: "miter" | "round" | "bevel"): LineJoinPresetId {
   if (value === "miter" || value === "round" || value === "bevel") {
     return value;
   }

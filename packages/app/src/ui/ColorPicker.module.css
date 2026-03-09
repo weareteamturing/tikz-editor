@@ -109,6 +109,11 @@
   box-shadow: 0 10px 24px color-mix(in srgb, black 28%, transparent);
 }
 
+.popoverEnd {
+  left: auto;
+  right: 0;
+}
+
 .popoverUp {
   top: auto;
   bottom: calc(100% + 2px);

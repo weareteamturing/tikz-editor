@@ -40,6 +40,7 @@ const MENU_MAX_HEIGHT_PX = 220;
 const MENU_MIN_HEIGHT_PX = 80;
 
 type MenuPlacement = "down" | "up";
+type MenuHorizontalPlacement = "start" | "end";
 
 export function CustomDropdown<TValue extends string>({
   ariaLabel,
@@ -61,6 +62,7 @@ export function CustomDropdown<TValue extends string>({
 }: CustomDropdownProps<TValue>) {
   const [open, setOpen] = useState(false);
   const [menuPlacement, setMenuPlacement] = useState<MenuPlacement>("down");
+  const [menuHorizontalPlacement, setMenuHorizontalPlacement] = useState<MenuHorizontalPlacement>("start");
   const [menuMaxHeight, setMenuMaxHeight] = useState<number>(MENU_MAX_HEIGHT_PX);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const menuListRef = useRef<HTMLDivElement | null>(null);
@@ -136,9 +138,14 @@ export function CustomDropdown<TValue extends string>({
       const spaceBelow = window.innerHeight - rootRect.bottom - MENU_VIEWPORT_PADDING_PX - MENU_GAP_PX;
       const spaceAbove = rootRect.top - MENU_VIEWPORT_PADDING_PX - MENU_GAP_PX;
       const naturalHeight = menuListElement.scrollHeight;
+      const menuWidth = Math.ceil(menuListElement.getBoundingClientRect().width);
 
       const shouldOpenUpward = naturalHeight > spaceBelow && spaceAbove > 0;
       const nextPlacement: MenuPlacement = shouldOpenUpward ? "up" : "down";
+      const wouldOverflowRight = rootRect.left + menuWidth > window.innerWidth - MENU_VIEWPORT_PADDING_PX;
+      const hasRoomOnLeft = rootRect.right - menuWidth >= MENU_VIEWPORT_PADDING_PX;
+      const nextHorizontalPlacement: MenuHorizontalPlacement =
+        wouldOverflowRight && hasRoomOnLeft ? "end" : "start";
       const availableSpace = nextPlacement === "up" ? spaceAbove : spaceBelow;
       const boundedMaxHeight = Math.min(
         MENU_MAX_HEIGHT_PX,
@@ -146,6 +153,9 @@ export function CustomDropdown<TValue extends string>({
       );
 
       setMenuPlacement((current) => (current === nextPlacement ? current : nextPlacement));
+      setMenuHorizontalPlacement((current) =>
+        current === nextHorizontalPlacement ? current : nextHorizontalPlacement
+      );
       setMenuMaxHeight((current) => (current === boundedMaxHeight ? current : boundedMaxHeight));
     }
 
@@ -191,7 +201,12 @@ export function CustomDropdown<TValue extends string>({
 
       {open ? (
         <div
-          className={[css.menu, menuPlacement === "up" ? css.menuUp : "", menuClassName].filter(Boolean).join(" ")}
+          className={[
+            css.menu,
+            menuPlacement === "up" ? css.menuUp : "",
+            menuHorizontalPlacement === "end" ? css.menuEnd : "",
+            menuClassName
+          ].filter(Boolean).join(" ")}
         >
           <div
             className={css.menuScroll}

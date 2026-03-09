@@ -74,6 +74,11 @@
   box-shadow: 0 4px 10px color-mix(in srgb, black 20%, transparent);
 }
 
+.menuEnd {
+  left: auto;
+  right: 0;
+}
+
 .menuScroll {
   display: flex;
   flex-direction: column;

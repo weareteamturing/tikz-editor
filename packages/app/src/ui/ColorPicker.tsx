@@ -13,6 +13,7 @@ import css from "./ColorPicker.module.css";
 type ColorPickerTabId = "standard" | "custom";
 type ToneState = { baseColor: string; position: number };
 type PopoverPlacement = "down" | "up";
+type PopoverHorizontalPlacement = "start" | "end";
 type ToneHitBucket = { value: number; start: number; end: number; center: number };
 
 const BUILTIN_COLOR_SET = BASIC_PICKER_COLOR_SET;
@@ -57,6 +58,7 @@ export function ColorPickerField({
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
   const [popoverPlacement, setPopoverPlacement] = useState<PopoverPlacement>("down");
+  const [popoverHorizontalPlacement, setPopoverHorizontalPlacement] = useState<PopoverHorizontalPlacement>("start");
   const [popoverMaxHeight, setPopoverMaxHeight] = useState<number>(POPOVER_MAX_HEIGHT_PX);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -132,8 +134,14 @@ export function ColorPickerField({
       const spaceBelow = window.innerHeight - rootRect.bottom - POPOVER_VIEWPORT_PADDING_PX - POPOVER_GAP_PX;
       const spaceAbove = rootRect.top - POPOVER_VIEWPORT_PADDING_PX - POPOVER_GAP_PX;
       const naturalHeight = popover.scrollHeight;
+      const popoverWidth = Math.ceil(popover.getBoundingClientRect().width);
       const shouldOpenUpward = naturalHeight > spaceBelow && spaceAbove > 0;
       const nextPlacement: PopoverPlacement = shouldOpenUpward ? "up" : "down";
+      const wouldOverflowRight =
+        rootRect.left + popoverWidth > window.innerWidth - POPOVER_VIEWPORT_PADDING_PX;
+      const hasRoomOnLeft = rootRect.right - popoverWidth >= POPOVER_VIEWPORT_PADDING_PX;
+      const nextHorizontalPlacement: PopoverHorizontalPlacement =
+        wouldOverflowRight && hasRoomOnLeft ? "end" : "start";
       const availableSpace = nextPlacement === "up" ? spaceAbove : spaceBelow;
       const boundedMaxHeight = Math.min(
         POPOVER_MAX_HEIGHT_PX,
@@ -141,6 +149,9 @@ export function ColorPickerField({
       );
 
       setPopoverPlacement((current) => (current === nextPlacement ? current : nextPlacement));
+      setPopoverHorizontalPlacement((current) =>
+        current === nextHorizontalPlacement ? current : nextHorizontalPlacement
+      );
       setPopoverMaxHeight((current) => (current === boundedMaxHeight ? current : boundedMaxHeight));
     }
 
@@ -190,7 +201,11 @@ export function ColorPickerField({
       </button>
       {open ? (
         <div
-          className={[css.popover, popoverPlacement === "up" ? css.popoverUp : ""].filter(Boolean).join(" ")}
+          className={[
+            css.popover,
+            popoverPlacement === "up" ? css.popoverUp : "",
+            popoverHorizontalPlacement === "end" ? css.popoverEnd : ""
+          ].filter(Boolean).join(" ")}
           ref={popoverRef}
           style={{ maxHeight: `${popoverMaxHeight}px` }}
         >

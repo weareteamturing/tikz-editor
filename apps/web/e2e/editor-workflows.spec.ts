@@ -44,6 +44,7 @@ test("boots with one tab and supports new/switch/close-all workflows", async ({ 
   await page.goto("/");
   await expect(page.getByTestId("tab-strip")).toBeVisible();
   await expect(tabSwitchButtons(page)).toHaveCount(1);
+  await expect(page.getByTestId("styles-tab")).toBeVisible();
 
   await openMenuCommand(page, "file", "file.new-document");
   await expect(tabSwitchButtons(page)).toHaveCount(2);

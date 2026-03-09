@@ -1,0 +1,138 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--text);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 0 16px;
+}
+
+.selectionMeta {
+  padding: 10px 12px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.hint {
+  padding: 14px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.section {
+  border-top: 1px solid var(--border);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px 8px;
+}
+
+.sectionTitleWrap {
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+}
+
+.sectionMeta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.sectionLocation {
+  margin-left: auto;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.ruleBody {
+  padding: 0 12px 10px;
+}
+
+.declaration {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 144px);
+  gap: 10px;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.declarationOverridden {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.declarationInactive,
+.declarationUnsupported {
+  color: var(--text-muted);
+}
+
+.propertyName {
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.valueWrap {
+  min-width: 0;
+}
+
+.valueText {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.numberInput {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+  color: var(--text);
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.addRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 144px);
+  gap: 10px;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.addLabel {
+  color: var(--text-muted);
+  font-size: 11px;
+}

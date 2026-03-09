@@ -1,15 +1,19 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
 import { parseTikz } from "../parser/index.js";
 import type { OptionListAst } from "../options/types.js";
+import { parseOptionListRaw } from "../options/parse.js";
 import {
   extractNodeAdornmentPlan,
   makeNodeAdornmentTargetId,
   stripAdornmentInternalStyleOptions
 } from "../semantic/path/label-quotes.js";
+import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
+import { readBalancedBlock } from "../semantic/style/option-utils.js";
 
 export type PropertyTargetKind =
   | "figure"
   | "path-statement"
+  | "style-source"
   | "path-keyword"
   | "node-item"
   | "node-adornment"
@@ -19,6 +23,9 @@ export type PropertyTargetKind =
   | "svg-operation";
 
 export const TIKZPICTURE_GLOBAL_TARGET_ID = "__tikzpicture__";
+export const STYLE_SOURCE_TARGET_PREFIX = "__style_source__:";
+
+export type PropertyTargetOptionsFormat = "bracketed" | "bare" | "braced";
 
 export type PropertyTarget = {
   id: string;
@@ -27,6 +34,7 @@ export type PropertyTarget = {
   span: Span;
   options?: OptionListAst;
   optionsSpan?: Span;
+  optionsFormat?: PropertyTargetOptionsFormat;
   insertOffset: number;
   optionSpan?: Span;
   valueSpan?: Span;
@@ -57,6 +65,10 @@ export function resolvePropertyTarget(source: string, elementId: string): Proper
     return resolveFigurePropertyTarget(source);
   }
 
+  if (normalizedId.startsWith(STYLE_SOURCE_TARGET_PREFIX)) {
+    return resolveStyleSourceTarget(source, normalizedId);
+  }
+
   const parseResult = parseTikz(source, { recover: true });
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (!target) {
@@ -78,16 +90,261 @@ function resolveFigurePropertyTarget(source: string): PropertyTargetResolution {
   }
 
   return {
-    kind: "found",
-    target: {
-      id: TIKZPICTURE_GLOBAL_TARGET_ID,
-      kind: "figure",
-      span: figure.span,
-      options: figure.options,
-      optionsSpan: figure.options?.span,
-      insertOffset
-    }
+      kind: "found",
+      target: {
+        id: TIKZPICTURE_GLOBAL_TARGET_ID,
+        kind: "figure",
+        span: figure.span,
+        options: figure.options,
+        optionsSpan: figure.options?.span,
+        optionsFormat: "bracketed",
+        insertOffset
+      }
+    };
+}
+
+function resolveStyleSourceTarget(source: string, targetId: string): PropertyTargetResolution {
+  const parsed = parseStyleSourceTargetId(targetId);
+  if (!parsed) {
+    return { kind: "not-found", reason: `Invalid style source target id: ${targetId}` };
+  }
+  const span: Span = { from: parsed.from, to: parsed.to };
+  if (span.from < 0 || span.to > source.length || span.from >= span.to) {
+    return { kind: "not-found", reason: `Style source span out of bounds: ${targetId}` };
+  }
+
+  const raw = source.slice(span.from, span.to);
+  const standalone = resolveStandaloneCommandTarget(targetId, raw, span);
+  if (standalone) {
+    return { kind: "found", target: standalone };
+  }
+
+  const styleDefinition = resolveStyleDefinitionEntryTarget(targetId, raw, span);
+  if (styleDefinition) {
+    return { kind: "found", target: styleDefinition };
+  }
+
+  return { kind: "not-found", reason: `No editable style source target found for ${targetId}` };
+}
+
+function resolveStandaloneCommandTarget(targetId: string, raw: string, span: Span): PropertyTarget | null {
+  const tikzset = parseBracedCommandOptionTarget(raw, span.from, "\\tikzset");
+  if (tikzset) {
+    return {
+      id: targetId,
+      kind: "style-source",
+      span,
+      options: tikzset.options,
+      optionsSpan: tikzset.optionsSpan,
+      optionsFormat: "bare",
+      insertOffset: tikzset.optionsSpan.to
+    };
+  }
+
+  const pgfkeys = parseBracedCommandOptionTarget(raw, span.from, "\\pgfkeys");
+  if (pgfkeys) {
+    return {
+      id: targetId,
+      kind: "style-source",
+      span,
+      options: pgfkeys.options,
+      optionsSpan: pgfkeys.optionsSpan,
+      optionsFormat: "bare",
+      insertOffset: pgfkeys.optionsSpan.to
+    };
+  }
+
+  const legacy = parseLegacyTikzStyleTarget(raw, span.from);
+  if (legacy) {
+    return {
+      id: targetId,
+      kind: "style-source",
+      span,
+      options: legacy.options,
+      optionsSpan: legacy.optionsSpan,
+      optionsFormat: legacy.optionsFormat,
+      insertOffset: legacy.optionsSpan.to
+    };
+  }
+
+  return null;
+}
+
+function resolveStyleDefinitionEntryTarget(targetId: string, raw: string, span: Span): PropertyTarget | null {
+  const parsedEntry = parseOptionListRaw(`[${raw}]`, span.from);
+  const entry = parsedEntry.entries[0];
+  if (!entry || entry.kind !== "kv") {
+    return null;
+  }
+  const definition = parseCustomStyleDefinition(entry.key) ?? parseReservedStyleDefinition(entry.key);
+  if (!definition) {
+    return null;
+  }
+
+  const valueOffset = entry.raw.lastIndexOf(entry.valueRaw);
+  const absoluteValueFrom = valueOffset >= 0 ? entry.span.from + valueOffset - 1 : entry.span.to - entry.valueRaw.length;
+  const trimmedValue = entry.valueRaw.trim();
+  if (trimmedValue.length === 0) {
+    return {
+      id: targetId,
+      kind: "style-source",
+      span,
+      options: parseOptionListRaw("", absoluteValueFrom),
+      optionsSpan: { from: absoluteValueFrom, to: absoluteValueFrom },
+      optionsFormat: "bare",
+      insertOffset: absoluteValueFrom
+    };
+  }
+
+  const wrapper = detectWrappedOptionValue(trimmedValue, absoluteValueFrom);
+  if (!wrapper) {
+    return {
+      id: targetId,
+      kind: "style-source",
+      span,
+      options: parseOptionListRaw(trimmedValue, absoluteValueFrom),
+      optionsSpan: { from: absoluteValueFrom, to: absoluteValueFrom + entry.valueRaw.length },
+      optionsFormat: "bare",
+      insertOffset: absoluteValueFrom + entry.valueRaw.length
+    };
+  }
+
+  return {
+    id: targetId,
+    kind: "style-source",
+    span,
+    options: wrapper.options,
+    optionsSpan: wrapper.span,
+    optionsFormat: wrapper.format,
+    insertOffset: wrapper.span.to
   };
+}
+
+function parseBracedCommandOptionTarget(
+  raw: string,
+  absoluteFrom: number,
+  command: "\\tikzset" | "\\pgfkeys"
+): { options: OptionListAst; optionsSpan: Span } | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith(command)) {
+    return null;
+  }
+
+  const commandOffset = raw.indexOf(command);
+  const openBraceOffset = raw.indexOf("{", commandOffset + command.length);
+  if (openBraceOffset < 0) {
+    return null;
+  }
+  const block = readBalancedBlock(raw, openBraceOffset, "{", "}");
+  if (!block) {
+    return null;
+  }
+
+  const contentFrom = absoluteFrom + openBraceOffset + 1;
+  const contentTo = absoluteFrom + block.nextIndex - 1;
+  return {
+    options: parseOptionListRaw(block.content, contentFrom),
+    optionsSpan: { from: contentFrom, to: contentTo }
+  };
+}
+
+function parseLegacyTikzStyleTarget(
+  raw: string,
+  absoluteFrom: number
+): { options: OptionListAst; optionsSpan: Span; optionsFormat: PropertyTargetOptionsFormat } | null {
+  const stripped = raw.trim();
+  if (!stripped.startsWith("\\tikzstyle")) {
+    return null;
+  }
+
+  const eqIndex = raw.indexOf("=");
+  if (eqIndex < 0) {
+    return null;
+  }
+  let valueStart = eqIndex + 1;
+  while (valueStart < raw.length && /\s/.test(raw[valueStart] ?? "")) {
+    valueStart += 1;
+  }
+  let valueEnd = raw.length;
+  while (valueEnd > valueStart && /\s|;/.test(raw[valueEnd - 1] ?? "")) {
+    valueEnd -= 1;
+  }
+  if (valueStart >= valueEnd) {
+    return null;
+  }
+  const valueRaw = raw.slice(valueStart, valueEnd);
+  const wrapped = detectWrappedOptionValue(valueRaw, absoluteFrom + valueStart);
+  if (wrapped) {
+    return {
+      options: wrapped.options,
+      optionsSpan: wrapped.span,
+      optionsFormat: wrapped.format
+    };
+  }
+  return {
+    options: parseOptionListRaw(valueRaw, absoluteFrom + valueStart),
+    optionsSpan: { from: absoluteFrom + valueStart, to: absoluteFrom + valueEnd },
+    optionsFormat: "bare"
+  };
+}
+
+function detectWrappedOptionValue(
+  rawValue: string,
+  absoluteFrom: number
+): { options: OptionListAst; span: Span; format: PropertyTargetOptionsFormat } | null {
+  const trimmed = rawValue.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const leading = rawValue.indexOf("{");
+    const block = readBalancedBlock(rawValue, leading, "{", "}");
+    if (block && block.nextIndex === rawValue.trimEnd().length) {
+      const span = { from: absoluteFrom + leading + 1, to: absoluteFrom + block.nextIndex - 1 };
+      return {
+        options: parseOptionListRaw(block.content, absoluteFrom + leading + 1),
+        span,
+        format: "bare"
+      };
+    }
+  }
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    const leading = rawValue.indexOf("[");
+    const block = readBalancedBlock(rawValue, leading, "[", "]");
+    if (block && block.nextIndex === rawValue.trimEnd().length) {
+      const span = { from: absoluteFrom + leading, to: absoluteFrom + block.nextIndex };
+      return {
+        options: parseOptionListRaw(rawValue.slice(leading, block.nextIndex), absoluteFrom + leading),
+        span,
+        format: "bracketed"
+      };
+    }
+  }
+  return null;
+}
+
+function parseReservedStyleDefinition(key: string): { name: string } | null {
+  const normalized = key.trim().toLowerCase();
+  if (
+    normalized.endsWith("/.style")
+    || normalized.endsWith("/.append style")
+    || normalized.endsWith("/.prefix style")
+  ) {
+    return { name: normalized };
+  }
+  return null;
+}
+
+function parseStyleSourceTargetId(targetId: string): { from: number; to: number } | null {
+  const payload = targetId.slice(STYLE_SOURCE_TARGET_PREFIX.length);
+  const [fromRaw, toRaw] = payload.split(":");
+  const from = Number(fromRaw);
+  const to = Number(toRaw);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    return null;
+  }
+  return { from, to };
+}
+
+export function makeStyleSourceTargetId(span: Span): string {
+  return `${STYLE_SOURCE_TARGET_PREFIX}${span.from}:${span.to}`;
 }
 
 function findTargetInStatements(statements: Statement[], source: string, elementId: string): PropertyTarget | null {
@@ -105,6 +362,9 @@ function findTargetInStatements(statements: Statement[], source: string, element
     }
 
     if (statement.kind === "Scope") {
+      if (statement.id === elementId) {
+        return makeScopeTarget(statement, source);
+      }
       const nested = findTargetInStatements(statement.body, source, elementId);
       if (nested) {
         return nested;
@@ -228,6 +488,18 @@ function makePathStatementTarget(statement: PathStatement, source: string): Prop
     options: statement.options,
     optionsSpan: statement.options?.span,
     insertOffset
+  };
+}
+
+function makeScopeTarget(statement: Extract<Statement, { kind: "Scope" }>, source: string): PropertyTarget {
+  return {
+    id: statement.id,
+    kind: "style-source",
+    span: statement.span,
+    options: statement.options,
+    optionsSpan: statement.options?.span,
+    optionsFormat: "bracketed",
+    insertOffset: resolveInsertOffset(source, statement.span, /\bscope\b/)
   };
 }
 

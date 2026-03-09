@@ -1981,13 +1981,6 @@ function applySetProperty(
   source: string,
   action: Extract<EditAction, { kind: "setProperty" }>
 ): EditActionResult {
-  if (action.level !== "command") {
-    return {
-      kind: "unsupported",
-      reason: `setProperty currently supports only command level edits (received ${action.level})`
-    };
-  }
-
   const resolved = resolvePropertyTarget(source, action.elementId);
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };
