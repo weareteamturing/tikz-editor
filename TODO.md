@@ -35,6 +35,4 @@ TODOS
 
 * App settings: geometry precision digits, code formatter options
 
-* Show info tooltips during drag (e.g. current angle when rotating, current length when resizing)
-
-* Actions for flipping elements (negate scale)
+* Any wizards?

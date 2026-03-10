@@ -44,7 +44,29 @@ export function collectStructuralDiagnostics(envNode: SyntaxNode, source: string
         code: "missing-group-close"
       });
     }
+
+    if (node.type.name === "ForeachList") {
+      collectForeachRangeEllipsisDiagnostics(node, source, diagnostics);
+    }
   });
 
   collectCoordinateDiagnostics(envNode, source, diagnostics);
+}
+
+function collectForeachRangeEllipsisDiagnostics(node: SyntaxNode, source: string, diagnostics: Diagnostic[]): void {
+  const listRaw = source.slice(node.from, node.to);
+  const invalidEllipsisPattern = /(^|[\s,{])\.\.(?=[\s,}])/g;
+
+  let match = invalidEllipsisPattern.exec(listRaw);
+  while (match) {
+    const prefix = match[1] ?? "";
+    const dotDotStart = node.from + match.index + prefix.length;
+    diagnostics.push({
+      severity: "error",
+      message: "Invalid foreach range token `..`; use `...` (three dots), for example `{0,...,10}`.",
+      span: { from: dotDotStart, to: dotDotStart + 2 },
+      code: "invalid-foreach-range-ellipsis"
+    });
+    match = invalidEllipsisPattern.exec(listRaw);
+  }
 }

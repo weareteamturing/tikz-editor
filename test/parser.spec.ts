@@ -1158,6 +1158,24 @@ describe("parseTikz", () => {
     }
   });
 
+  it("emits a specific parse diagnostic when foreach ranges use `..` instead of `...`", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,..,10} \node at (\x,0) {\x};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    const invalidRange = result.diagnostics.find((diagnostic) => diagnostic.code === "invalid-foreach-range-ellipsis");
+    expect(invalidRange).toBeDefined();
+    expect(invalidRange?.severity).toBe("error");
+    expect(invalidRange?.message).toContain("use `...`");
+    expect(invalidRange?.span).toBeDefined();
+    if (!invalidRange?.span) {
+      return;
+    }
+
+    expect(source.slice(invalidRange.span.from, invalidRange.span.to)).toBe("..");
+  });
+
   it("parses path foreach operations as typed path items", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
