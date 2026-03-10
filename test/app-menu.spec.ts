@@ -48,6 +48,16 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.FORMAT_TIKZ).toBe("edit.format-tikz");
   });
 
+  it("defines path editing command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.PATH_SPLIT).toBe("path.split");
+    expect(APP_MENU_COMMAND_IDS.PATH_JOIN).toBe("path.join");
+    expect(APP_MENU_COMMAND_IDS.PATH_CLOSE).toBe("path.close");
+    expect(APP_MENU_COMMAND_IDS.PATH_OPEN).toBe("path.open");
+    expect(APP_MENU_COMMAND_IDS.PATH_DELETE_POINT).toBe("path.delete-point");
+    expect(APP_MENU_COMMAND_IDS.PATH_POINT_CORNER).toBe("path.point-corner");
+    expect(APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH).toBe("path.point-smooth");
+  });
+
   it("defines a help manual command id", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
   });
@@ -283,6 +293,23 @@ describe("app menu definition", () => {
     expect(submenuLabels).toEqual(["Align", "Transform", "Distribute", "Reorder"]);
     expect(items[items.length - 5]).toEqual({ kind: "separator" });
     expect(items.slice(-4).every((item) => item.kind === "submenu")).toBe(true);
+  });
+
+  it("exposes path editing actions in a dedicated Path menu", () => {
+    const pathSection = APP_MENU_DEFINITION.find((section) => section.id === "path");
+    expect(pathSection).toBeDefined();
+    const commandIds = (pathSection?.items ?? [])
+      .filter((item) => item.kind === "command")
+      .map((item) => item.commandId);
+    expect(commandIds).toEqual([
+      APP_MENU_COMMAND_IDS.PATH_SPLIT,
+      APP_MENU_COMMAND_IDS.PATH_JOIN,
+      APP_MENU_COMMAND_IDS.PATH_CLOSE,
+      APP_MENU_COMMAND_IDS.PATH_OPEN,
+      APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
+      APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
+      APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH
+    ]);
   });
 
   it("exposes Open PGF/TikZ Manual in the Help menu", () => {

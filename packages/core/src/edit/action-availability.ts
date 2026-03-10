@@ -2,6 +2,7 @@ import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { isAdornmentTargetId } from "./editable-targets.js";
+import { resolveEligibleExplicitPath, resolveActivePathPointHandle } from "./path-editing.js";
 
 export const EDIT_ACTION_IDS = [
   "cut",
@@ -24,7 +25,14 @@ export const EDIT_ACTION_IDS = [
   "align-middle",
   "align-bottom",
   "distribute-horizontal",
-  "distribute-vertical"
+  "distribute-vertical",
+  "path-split",
+  "path-join",
+  "path-close",
+  "path-open",
+  "path-delete-point",
+  "path-point-corner",
+  "path-point-smooth"
 ] as const;
 
 export type EditActionId = (typeof EDIT_ACTION_IDS)[number];
@@ -42,6 +50,7 @@ export type GetEditActionAvailabilityInput = {
   selectedSourceIds: readonly string[];
   scene: SceneFigure | null;
   editHandles: readonly EditHandle[];
+  activeHandleId?: string | null;
   hasClipboardContent?: boolean;
 };
 
@@ -52,12 +61,14 @@ type AvailabilityFacts = {
   selectedSet: Set<string>;
   hasClipboardContent: boolean;
   scene: SceneFigure | null;
+  editHandles: readonly EditHandle[];
   boundsBySource: Map<string, { minX: number; minY: number; maxX: number; maxY: number }>;
   selectedHandlesBySource: Map<string, EditHandle[]>;
   selectedMissingBounds: string[];
   selectedMissingHandles: string[];
   selectedUnsupportedSources: string[];
   hasAdornmentSelection: boolean;
+  activeHandleId: string | null;
 };
 
 type AvailabilityRule = (facts: AvailabilityFacts) => string | null;
@@ -111,6 +122,13 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
       : facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to reorder.",
+  "path-split": makePathRule("split"),
+  "path-join": makePathRule("join"),
+  "path-close": makePathRule("close"),
+  "path-open": makePathRule("open"),
+  "path-delete-point": makePathRule("delete-point"),
+  "path-point-corner": makePathRule("point-corner"),
+  "path-point-smooth": makePathRule("point-smooth"),
   "align-left": makeAlignRule("left"),
   "align-center": makeAlignRule("center"),
   "align-right": makeAlignRule("right"),
@@ -208,12 +226,14 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
     selectedSet,
     hasClipboardContent: Boolean(input.hasClipboardContent),
     scene: input.scene,
+    editHandles: input.editHandles,
     boundsBySource,
     selectedHandlesBySource,
     selectedMissingBounds,
     selectedMissingHandles,
     selectedUnsupportedSources,
-    hasAdornmentSelection: selectedSourceIds.some((sourceId) => isAdornmentTargetId(sourceId))
+    hasAdornmentSelection: selectedSourceIds.some((sourceId) => isAdornmentTargetId(sourceId)),
+    activeHandleId: input.activeHandleId ?? null
   };
 }
 
@@ -264,6 +284,96 @@ function makeTransformRule(): AvailabilityRule {
       return "Wait for recompute to finish before transforming.";
     }
     return null;
+  };
+}
+
+function makePathRule(
+  mode: "split" | "join" | "close" | "open" | "delete-point" | "point-corner" | "point-smooth"
+): AvailabilityRule {
+  return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections do not support path editing.";
+    }
+    if (!facts.snapshotMatchesSource) {
+      return "Wait for recompute to finish before editing the path.";
+    }
+    if (mode === "join") {
+      if (facts.selectedSourceIds.length !== 2) {
+        return "Select exactly two open paths to join.";
+      }
+      const first = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[0]!);
+      const second = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[1]!);
+      if (first.kind !== "eligible") return first.reason;
+      if (second.kind !== "eligible") return second.reason;
+      if (first.analysis.closed || second.analysis.closed) {
+        return "Only open explicit paths can be joined.";
+      }
+      return null;
+    }
+
+    if (facts.selectedSourceIds.length !== 1) {
+      return "Select a single editable path.";
+    }
+    const selectedId = facts.selectedSourceIds[0]!;
+    const eligible = resolveEligibleExplicitPath(facts.source, selectedId);
+    if (eligible.kind !== "eligible") {
+      return eligible.reason;
+    }
+
+    if (mode === "close") {
+      return eligible.analysis.closed ? "Path is already closed." : null;
+    }
+    if (mode === "open") {
+      return eligible.analysis.closed ? null : "Path is already open.";
+    }
+
+    const handleResolution = resolveActivePathPointHandle(
+      facts.editHandles,
+      eligible.analysis,
+      facts.activeHandleId,
+      facts.source
+    );
+    if (handleResolution.kind !== "found") {
+      return handleResolution.reason;
+    }
+
+    if (mode === "split") {
+      const anchorIndex = handleResolution.anchorIndex;
+      return anchorIndex <= 0 || (!eligible.analysis.closed && anchorIndex >= eligible.analysis.anchors.length - 1)
+        ? "Choose an interior path point to split."
+        : null;
+    }
+    if (mode === "delete-point") {
+      const anchorIndex = handleResolution.anchorIndex;
+      return eligible.analysis.closed || anchorIndex <= 0 || anchorIndex >= eligible.analysis.anchors.length - 1
+        ? "Delete point only supports interior anchors on open paths in v1."
+        : null;
+    }
+
+    const anchorIndex = handleResolution.anchorIndex;
+    if (anchorIndex <= 0 || anchorIndex >= eligible.analysis.anchors.length - 1) {
+      return "Choose an interior path anchor point.";
+    }
+    const hasPreviousLine = eligible.analysis.segments.some(
+      (segment) => segment.kind === "line" && segment.endAnchorIndex === anchorIndex
+    );
+    const hasNextLine = eligible.analysis.segments.some(
+      (segment) => segment.kind === "line" && segment.startAnchorIndex === anchorIndex
+    );
+    const hasPreviousCubic = eligible.analysis.segments.some(
+      (segment) => segment.kind === "cubic" && segment.endAnchorIndex === anchorIndex
+    );
+    const hasNextCubic = eligible.analysis.segments.some(
+      (segment) => segment.kind === "cubic" && segment.startAnchorIndex === anchorIndex
+    );
+    if (mode === "point-smooth") {
+      return (hasPreviousCubic && hasNextCubic) || (hasPreviousLine && hasNextLine)
+        ? null
+        : "Point to Smooth currently supports line-line and cubic-cubic anchors.";
+    }
+    return hasPreviousCubic && hasNextCubic
+      ? null
+      : "Point to Corner currently supports anchors between two cubic segments.";
   };
 }
 

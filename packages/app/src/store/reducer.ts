@@ -62,6 +62,7 @@ function createDocumentSession(params: {
     history: [],
     historyIndex: -1,
     selectedElementIds: new Set(),
+    activeHandleId: null,
     fileRef: params.fileRef ?? null,
     savedSource: params.source,
     dirty: false,
@@ -195,6 +196,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     history: active.history,
     historyIndex: active.historyIndex,
     selectedElementIds: active.selectedElementIds,
+    activeHandleId: active.activeHandleId,
     activeDocumentId: workspace.activeDocumentId,
     tabOrder: workspace.tabOrder,
     documents: workspace.documents,
@@ -222,6 +224,7 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
   switch (kind) {
     case "move": return "Moved element";
     case "move-handle": return "Edited handle";
+    case "path-edit": return "Edited path";
     case "set-property": return "Changed property";
     case "add-element": return "Added element";
     case "delete": return "Deleted element";
@@ -324,7 +327,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       projectedActive.lastEditChangeToken !== state.lastEditChangeToken ||
       projectedActive.history !== state.history ||
       projectedActive.historyIndex !== state.historyIndex ||
-      projectedActive.selectedElementIds !== state.selectedElementIds
+      projectedActive.selectedElementIds !== state.selectedElementIds ||
+      projectedActive.activeHandleId !== state.activeHandleId
     )
   ) {
     workspace = updateDocument(workspace, activeId, (doc) => ({
@@ -336,7 +340,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       lastEditChangeToken: state.lastEditChangeToken,
       history: state.history,
       historyIndex: state.historyIndex,
-      selectedElementIds: state.selectedElementIds
+      selectedElementIds: state.selectedElementIds,
+      activeHandleId: state.activeHandleId
     }));
   }
 
@@ -455,6 +460,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           history: [],
           historyIndex: -1,
+          activeHandleId: null,
           dirty: action.source !== doc.savedSource
         };
       });
@@ -476,7 +482,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...doc,
           snapshot: action.snapshot,
-          pendingRequestId: null
+          pendingRequestId: null,
+          activeHandleId:
+            doc.activeHandleId && action.snapshot.editHandles.some((handle) => handle.id === doc.activeHandleId)
+              ? doc.activeHandleId
+              : null
         };
       });
       break;
@@ -619,6 +629,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           history: nextHistory,
           historyIndex: nextHistory.length - 1,
+          activeHandleId: null,
           dirty: action.source !== doc.savedSource,
           assistantLastSourceRevision: action.revisionToken,
           assistantError: null
@@ -673,6 +684,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           selectedElementIds: nextSelection,
+          activeHandleId: null,
           dirty: result.newSource !== doc.savedSource
         }));
         break;
@@ -681,6 +693,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const historyKind: HistoryEntry["kind"] =
         action.action.kind === "moveElement" || action.action.kind === "moveElements" ? "move" :
         action.action.kind === "moveHandle" || action.action.kind === "connectHandle" || action.action.kind === "moveAdornment" ? "move-handle" :
+        action.action.kind === "splitPath" || action.action.kind === "joinPaths" || action.action.kind === "toggleClosedPath" ||
+        action.action.kind === "deletePathPoint" || action.action.kind === "setPathPointKind" ? "path-edit" :
         action.action.kind === "setProperty" ? "set-property" :
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :
@@ -714,6 +728,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           selectedElementIds: nextSelection,
+          activeHandleId: null,
           history: nextHistory,
           historyIndex: lastIndex,
           dirty: result.newSource !== doc.savedSource
@@ -737,6 +752,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: result.changedSourceIds ?? null,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         selectedElementIds: nextSelection,
+        activeHandleId: null,
         history: [...truncated, entry],
         historyIndex: truncated.length,
         dirty: result.newSource !== doc.savedSource
@@ -757,6 +773,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           source: action.source,
           lastEditChangedSourceIds: action.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          activeHandleId: null,
           dirty: action.source !== doc.savedSource
         };
       });
@@ -812,12 +829,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           } else {
             next.add(action.id);
           }
-          return { ...doc, selectedElementIds: next };
+          return { ...doc, selectedElementIds: next, activeHandleId: null };
         }
         if (doc.selectedElementIds.size === 1 && doc.selectedElementIds.has(action.id)) {
           return doc;
         }
-        return { ...doc, selectedElementIds: new Set([action.id]) };
+        return { ...doc, selectedElementIds: new Set([action.id]), activeHandleId: null };
       });
       break;
     }
@@ -825,18 +842,26 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "SELECT_RANGE": {
       workspace = updateDocument(workspace, activeId, (doc) => ({
         ...doc,
-        selectedElementIds: new Set(action.ids)
+        selectedElementIds: new Set(action.ids),
+        activeHandleId: null
       }));
       break;
     }
 
     case "CLEAR_SELECTION": {
       workspace = updateDocument(workspace, activeId, (doc) => {
-        if (doc.selectedElementIds.size === 0) {
+        if (doc.selectedElementIds.size === 0 && doc.activeHandleId == null) {
           return doc;
         }
-        return { ...doc, selectedElementIds: new Set() };
+        return { ...doc, selectedElementIds: new Set(), activeHandleId: null };
       });
+      break;
+    }
+
+    case "SET_ACTIVE_HANDLE": {
+      workspace = updateDocument(workspace, activeId, (doc) =>
+        doc.activeHandleId === action.handleId ? doc : { ...doc, activeHandleId: action.handleId }
+      );
       break;
     }
 

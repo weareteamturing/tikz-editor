@@ -36,6 +36,7 @@ type SelectionCommandContext = {
   scene: SceneFigure | null;
   editHandles: readonly EditHandle[];
   selectedElementIds: ReadonlySet<string>;
+  activeHandleId?: string | null;
   dispatch: Dispatch;
 };
 
@@ -387,6 +388,88 @@ export function canFlipSelection(context: SelectionCommandContext, axis: "horizo
   return availabilityFor(context)[actionId].enabled;
 }
 
+export function splitSelectedPath(context: SelectionCommandContext): boolean {
+  const ids = [...context.selectedElementIds];
+  if (ids.length !== 1 || !availabilityFor(context)["path-split"].enabled || !context.activeHandleId) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "splitPath",
+      elementId: ids[0]!,
+      handleId: context.activeHandleId
+    }
+  });
+  return true;
+}
+
+export function joinSelectedPaths(context: SelectionCommandContext): boolean {
+  const ids = [...context.selectedElementIds];
+  if (ids.length !== 2 || !availabilityFor(context)["path-join"].enabled) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "joinPaths",
+      elementIds: [ids[0]!, ids[1]!]
+    }
+  });
+  return true;
+}
+
+export function setSelectedPathClosed(context: SelectionCommandContext, closed: boolean): boolean {
+  const ids = [...context.selectedElementIds];
+  const actionId = closed ? "path-close" : "path-open";
+  if (ids.length !== 1 || !availabilityFor(context)[actionId].enabled) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "toggleClosedPath",
+      elementId: ids[0]!,
+      closed
+    }
+  });
+  return true;
+}
+
+export function deleteSelectedPathPoint(context: SelectionCommandContext): boolean {
+  const ids = [...context.selectedElementIds];
+  if (ids.length !== 1 || !availabilityFor(context)["path-delete-point"].enabled || !context.activeHandleId) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "deletePathPoint",
+      elementId: ids[0]!,
+      handleId: context.activeHandleId
+    }
+  });
+  return true;
+}
+
+export function setSelectedPathPointKind(context: SelectionCommandContext, pointKind: "corner" | "smooth"): boolean {
+  const ids = [...context.selectedElementIds];
+  const actionId = pointKind === "corner" ? "path-point-corner" : "path-point-smooth";
+  if (ids.length !== 1 || !availabilityFor(context)[actionId].enabled || !context.activeHandleId) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "setPathPointKind",
+      elementId: ids[0]!,
+      handleId: context.activeHandleId,
+      pointKind
+    }
+  });
+  return true;
+}
+
 export function actionAvailability(
   context: SelectionCommandContext
 ) {
@@ -454,6 +537,7 @@ function availabilityFor(context: SelectionCommandContext) {
     selectedSourceIds: [...context.selectedElementIds],
     scene: context.scene,
     editHandles: context.editHandles,
+    activeHandleId: context.activeHandleId ?? null,
     hasClipboardContent: true
   });
 }

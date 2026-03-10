@@ -127,6 +127,41 @@ describe("editor-command-runtime", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("enables point-targeted path commands when a matching active handle is set", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const activeHandleId = rendered.semantic.editHandles.find(
+      (handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === "(1,0)"
+    )?.id ?? null;
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(["path:0"]),
+        activeHandleId
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_SPLIT].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_DELETE_POINT].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_POINT_CORNER].enabled).toBe(false);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.PATH_SPLIT, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "splitPath",
+        elementId: "path:0",
+        handleId: activeHandleId
+      }
+    });
+  });
+
   it("routes the insert path command to addPath tool mode", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -372,6 +407,7 @@ function makeInput({
   source = SOURCE,
   snapshot,
   selectedElementIds,
+  activeHandleId = null,
   historyIndex,
   historyLength,
   showGrid = false,
@@ -388,6 +424,7 @@ function makeInput({
   dispatch: (action: EditorAction) => void;
   snapshot: ReturnType<typeof makeSnapshot>;
   selectedElementIds: ReadonlySet<string>;
+  activeHandleId?: string | null;
   historyIndex: number;
   historyLength: number;
   showGrid?: boolean;
@@ -406,6 +443,7 @@ function makeInput({
     snapshot,
     toolMode: "select" as const,
     selectedElementIds,
+    activeHandleId,
     historyIndex,
     historyLength,
     activeDocumentId: "doc-1",

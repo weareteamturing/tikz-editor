@@ -42,8 +42,10 @@ describe("canvas context menu definition", () => {
   it("defines selection-single with reorder submenu", () => {
     const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single"];
     const reorder = items.find((item) => item.kind === "submenu" && item.label === "Reorder");
+    const path = items.find((item) => item.kind === "submenu" && item.label === "Path");
 
     expect(reorder).toBeDefined();
+    expect(path).toBeDefined();
     expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Align")).toBe(false);
     expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Distribute")).toBe(false);
   });

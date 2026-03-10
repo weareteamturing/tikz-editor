@@ -36,6 +36,13 @@ export const APP_MENU_COMMAND_IDS = {
   ALIGN_BOTTOM: "edit.align-bottom",
   DISTRIBUTE_HORIZONTAL: "edit.distribute-horizontal",
   DISTRIBUTE_VERTICAL: "edit.distribute-vertical",
+  PATH_SPLIT: "path.split",
+  PATH_JOIN: "path.join",
+  PATH_CLOSE: "path.close",
+  PATH_OPEN: "path.open",
+  PATH_DELETE_POINT: "path.delete-point",
+  PATH_POINT_CORNER: "path.point-corner",
+  PATH_POINT_SMOOTH: "path.point-smooth",
   INSERT_NODE: "insert.node",
   INSERT_PATH: "insert.path",
   INSERT_FREEHAND: "insert.freehand",
@@ -95,7 +102,7 @@ export type AppMenuRecentFilesItem = {
 
 export type AppMenuItem = AppMenuSeparatorItem | AppMenuCommandItem | AppMenuSubmenuItem | AppMenuRecentFilesItem;
 
-export type AppMenuSectionId = "file" | "edit" | "insert" | "view" | "help";
+export type AppMenuSectionId = "file" | "edit" | "path" | "insert" | "view" | "help";
 
 export type AppMenuSection = {
   id: AppMenuSectionId;

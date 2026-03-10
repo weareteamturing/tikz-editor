@@ -29,7 +29,7 @@ export type CanvasTransform = {
 };
 
 export type HistoryEntry = {
-  kind: "move" | "move-handle" | "set-property" | "add-element" | "delete" | "resize" | "reorder" | "align" | "distribute";
+  kind: "move" | "move-handle" | "path-edit" | "set-property" | "add-element" | "delete" | "resize" | "reorder" | "align" | "distribute";
   label: string;
   /** Optional key used to coalesce drag updates into one undo step. */
   mergeKey?: string;
@@ -62,6 +62,7 @@ export type DocumentSession = {
   history: HistoryEntry[];
   historyIndex: number;
   selectedElementIds: ReadonlySet<string>;
+  activeHandleId: string | null;
   fileRef: DocumentFileRef | null;
   savedSource: string;
   dirty: boolean;
@@ -134,6 +135,7 @@ export type EditorState = {
 
   // ── selection slice ──────────────────────────────────────────────────────────
   selectedElementIds: ReadonlySet<string>;
+  activeHandleId: string | null;
   activeDocumentId: string;
   tabOrder: string[];
   documents: Record<string, DocumentSession>;
@@ -220,6 +222,7 @@ export type EditorAction =
   | { type: "SELECT"; id: string; additive: boolean }
   | { type: "SELECT_RANGE"; ids: string[] }
   | { type: "CLEAR_SELECTION" }
+  | { type: "SET_ACTIVE_HANDLE"; handleId: string | null }
   // Canvas
   | { type: "SET_TOOL_MODE"; mode: ToolMode }
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }

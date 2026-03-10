@@ -264,6 +264,49 @@ export const APP_MENU_DEFINITION = [
     ]
   },
   {
+    id: "path",
+    label: "Path",
+    items: [
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_SPLIT,
+        label: "Split Path"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_JOIN,
+        label: "Join Paths"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_CLOSE,
+        label: "Close Path"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_OPEN,
+        label: "Open Path"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
+        label: "Delete Point"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
+        label: "Point to Corner"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,
+        label: "Point to Smooth"
+      }
+    ]
+  },
+  {
     id: "insert",
     label: "Insert",
     items: [

@@ -871,7 +871,12 @@ export function HandleOverlay({
   handleStrokeWidth: number;
   onHandlePointerDown: (event: ReactPointerEvent<SVGElement>, handle: EditHandle) => void;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
-  onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onElementContextMenu: (
+    event: ReactMouseEvent<SVGElement>,
+    sourceId: string,
+    region?: HitRegion,
+    handleId?: string | null
+  ) => void;
   onResizeHandlePointerDown: (
     event: ReactPointerEvent<SVGElement>,
     sourceId: string,
@@ -906,7 +911,9 @@ export function HandleOverlay({
         const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
           onElementContextMenu(
             event,
-            display.kind === "move-handle" ? display.handle.sourceRef.sourceId : display.elementId
+            display.kind === "move-handle" ? display.handle.sourceRef.sourceId : display.elementId,
+            undefined,
+            display.kind === "move-handle" ? display.handle.id : null
           );
 
         if (display.kind === "rotate-element") {

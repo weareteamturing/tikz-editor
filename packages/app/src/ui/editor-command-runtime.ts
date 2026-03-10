@@ -10,15 +10,20 @@ import { getToolCapabilityStatus } from "./capabilities";
 import {
   actionAvailability,
   alignSelection,
+  deleteSelectedPathPoint,
   flipSelection,
   copySelection,
   cutSelection,
   deleteSelection,
   distributeSelection,
   duplicateSelection,
+  joinSelectedPaths,
   pasteSelectionFromSystemClipboard,
   reorderSelection,
-  rotateSelection
+  rotateSelection,
+  setSelectedPathClosed,
+  setSelectedPathPointKind,
+  splitSelectedPath
 } from "./editor-commands";
 import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
@@ -41,6 +46,7 @@ type RuntimeInput = {
   snapshot: SessionSnapshot;
   toolMode: ToolMode;
   selectedElementIds: ReadonlySet<string>;
+  activeHandleId: string | null;
   historyIndex: number;
   historyLength: number;
   activeDocumentId: string;
@@ -81,6 +87,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     snapshot,
     toolMode,
     selectedElementIds,
+    activeHandleId,
     historyIndex,
     historyLength,
     activeDocumentId,
@@ -116,6 +123,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     scene: snapshot.scene,
     editHandles: snapshot.editHandles,
     selectedElementIds,
+    activeHandleId,
     dispatch
   };
 
@@ -462,6 +470,48 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         distributeSelection(commandContext, "vertical");
       }
     },
+    [APP_MENU_COMMAND_IDS.PATH_SPLIT]: {
+      enabled: availability["path-split"].enabled,
+      run: () => {
+        splitSelectedPath(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_JOIN]: {
+      enabled: availability["path-join"].enabled,
+      run: () => {
+        joinSelectedPaths(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_CLOSE]: {
+      enabled: availability["path-close"].enabled,
+      run: () => {
+        setSelectedPathClosed(commandContext, true);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_OPEN]: {
+      enabled: availability["path-open"].enabled,
+      run: () => {
+        setSelectedPathClosed(commandContext, false);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_DELETE_POINT]: {
+      enabled: availability["path-delete-point"].enabled,
+      run: () => {
+        deleteSelectedPathPoint(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_POINT_CORNER]: {
+      enabled: availability["path-point-corner"].enabled,
+      run: () => {
+        setSelectedPathPointKind(commandContext, "corner");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH]: {
+      enabled: availability["path-point-smooth"].enabled,
+      run: () => {
+        setSelectedPathPointKind(commandContext, "smooth");
+      }
+    },
     [APP_MENU_COMMAND_IDS.INSERT_NODE]: insertBinding("addNode"),
     [APP_MENU_COMMAND_IDS.INSERT_PATH]: insertBinding("addPath"),
     [APP_MENU_COMMAND_IDS.INSERT_FREEHAND]: insertBinding("addFreehand"),
@@ -575,6 +625,7 @@ export function useEditorCommandRuntime(
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const activeHandleId = useEditorStore((s) => s.activeHandleId);
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -603,6 +654,7 @@ export function useEditorCommandRuntime(
         snapshot,
         toolMode,
         selectedElementIds,
+        activeHandleId,
         historyIndex,
         historyLength,
         activeDocumentId,
@@ -636,6 +688,7 @@ export function useEditorCommandRuntime(
       snapshot,
       toolMode,
       selectedElementIds,
+      activeHandleId,
       historyIndex,
       historyLength,
       activeDocumentId,

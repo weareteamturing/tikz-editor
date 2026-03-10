@@ -331,6 +331,7 @@ type PendingNativeContextMenuRequest = {
   clientX: number;
   clientY: number;
   clickedSourceId: string;
+  clickedHandleId: string | null;
 };
 
 const NATIVE_CONTEXT_MENU_SELECT_DELAY_MS = 75;
@@ -602,6 +603,7 @@ export function CanvasPanel() {
     if (pendingNativeContextMenuTimeoutRef.current) {
       clearTimeout(pendingNativeContextMenuTimeoutRef.current);
     }
+    dispatch({ type: "SET_ACTIVE_HANDLE", handleId: pendingNativeContextMenuRequest.clickedHandleId });
 
     pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
       pendingNativeContextMenuTimeoutRef.current = null;
@@ -2523,6 +2525,7 @@ export function CanvasPanel() {
       event.stopPropagation();
       setTextEditingSession(null);
       setNodeAnchorOverlay(null);
+      dispatch({ type: "SET_ACTIVE_HANDLE", handleId: handle.id });
 
       if (additiveSelection) {
         dispatch({ type: "SELECT", id: handle.sourceRef.sourceId, additive: true });
@@ -2879,7 +2882,7 @@ export function CanvasPanel() {
   );
 
   const openCanvasContextMenuAt = useCallback(
-    (clientX: number, clientY: number, clickedSourceId: string | null) => {
+    (clientX: number, clientY: number, clickedSourceId: string | null, clickedHandleId: string | null = null) => {
       const viewport = viewportRef.current;
       if (!viewport) {
         return;
@@ -2897,18 +2900,26 @@ export function CanvasPanel() {
         if (selectedElementIds.size > 0) {
           dispatch({ type: "CLEAR_SELECTION" });
         }
+        if (clickedHandleId != null) {
+          dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
+        }
       } else if (resolution.selectionAction.kind === "select-only") {
         if (platform.menu?.usesNativeContextMenus) {
           setPendingNativeContextMenuRequest({
             clientX,
             clientY,
-            clickedSourceId: resolution.selectionAction.sourceId
+            clickedSourceId: resolution.selectionAction.sourceId,
+            clickedHandleId
           });
+          dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
           dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
           viewport.focus({ preventScroll: true });
           return;
         }
+        dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
         dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
+      } else {
+        dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
       }
 
       contextMenuContextRef.current = {
@@ -2938,10 +2949,10 @@ export function CanvasPanel() {
   );
 
   const onElementContextMenu = useCallback(
-    (event: ReactMouseEvent<SVGElement>, sourceId: string) => {
+    (event: ReactMouseEvent<SVGElement>, sourceId: string, _region?: HitRegion, handleId?: string | null) => {
       event.preventDefault();
       event.stopPropagation();
-      openCanvasContextMenuAt(event.clientX, event.clientY, sourceId);
+      openCanvasContextMenuAt(event.clientX, event.clientY, sourceId, handleId ?? null);
     },
     [openCanvasContextMenuAt]
   );
