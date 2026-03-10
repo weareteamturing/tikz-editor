@@ -63,11 +63,14 @@ describe("platform adapter contracts", () => {
         exportFile: async () => false,
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
+        readCustomClipboardText: async () => null,
+        writeClipboardBundle: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined
+        onWindowCloseRequest: async () => () => undefined,
+        onContextMenuCommand: async () => () => undefined
       }
       });
     })()
@@ -91,6 +94,8 @@ describe("platform adapter contracts", () => {
 
   it("desktop adapter clipboard round-trips text", async () => {
     let clipboardText = "";
+    let customReadFormats: readonly string[] | null = null;
+    let bundleWrite: { plainText: string; tikzJson?: string | null; svgText?: string | null } | null = null;
     const platform = createDesktopPlatformAdapter({
       storage: {
         getItem: () => null,
@@ -104,16 +109,37 @@ describe("platform adapter contracts", () => {
         writeClipboard: async (text) => {
           clipboardText = text;
         },
+        readCustomClipboardText: async (formats) => {
+          customReadFormats = formats;
+          return { format: "com.microsoft.image-svg-xml", text: "<svg></svg>" };
+        },
+        writeClipboardBundle: async (payload) => {
+          bundleWrite = payload;
+        },
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined
+        onWindowCloseRequest: async () => () => undefined,
+        onContextMenuCommand: async () => () => undefined
       }
     });
     await platform.clipboard?.writeText?.("desktop-hello");
     const read = await platform.clipboard?.readText?.();
+    const custom = await platform.clipboard?.readCustomText?.(["com.microsoft.image-svg-xml"]);
+    await platform.clipboard?.writeBundle?.({
+      plainText: "hello",
+      tikzJson: "{\"ok\":true}",
+      svgText: "<svg />"
+    });
     expect(read).toBe("desktop-hello");
+    expect(custom).toEqual({ format: "com.microsoft.image-svg-xml", text: "<svg></svg>" });
+    expect(customReadFormats).toEqual(["com.microsoft.image-svg-xml"]);
+    expect(bundleWrite).toEqual({
+      plainText: "hello",
+      tikzJson: "{\"ok\":true}",
+      svgText: "<svg />"
+    });
   });
 
   it("desktop saveText returns desktop fileRef when save succeeds", async () => {
@@ -128,11 +154,14 @@ describe("platform adapter contracts", () => {
         exportFile: async () => false,
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
+        readCustomClipboardText: async () => null,
+        writeClipboardBundle: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined
+        onWindowCloseRequest: async () => () => undefined,
+        onContextMenuCommand: async () => () => undefined
       }
     });
     const result = await platform.files?.saveText?.("abc", {
@@ -166,11 +195,14 @@ describe("platform adapter contracts", () => {
         exportFile: async () => false,
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
+        readCustomClipboardText: async () => null,
+        writeClipboardBundle: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => undefined,
         openExternalUrl: async () => true,
         listRecentFiles: async () => ["/tmp/recent.tex"],
-        onWindowCloseRequest: async () => () => undefined
+        onWindowCloseRequest: async () => () => undefined,
+        onContextMenuCommand: async () => () => undefined
       }
     });
     let seenSource = "";
@@ -210,6 +242,8 @@ describe("platform adapter contracts", () => {
         exportFile: async () => false,
         readClipboard: async () => "",
         writeClipboard: async () => undefined,
+        readCustomClipboardText: async () => null,
+        writeClipboardBundle: async () => undefined,
         setWindowTitle: async () => undefined,
         closeWindow: async () => {
           closeCalled = true;
@@ -223,7 +257,8 @@ describe("platform adapter contracts", () => {
               closeRequestHandler = null;
             }
           };
-        }
+        },
+        onContextMenuCommand: async () => () => undefined
       }
     });
 

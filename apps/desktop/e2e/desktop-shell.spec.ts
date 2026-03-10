@@ -32,6 +32,8 @@ function makeMockBridge() {
       exportFile: async () => true,
       readClipboard: async () => "mock-clipboard",
       writeClipboard: async () => undefined,
+      readCustomClipboardText: async () => null,
+      writeClipboardBundle: async () => undefined,
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,
       openExternalUrl: async () => true,

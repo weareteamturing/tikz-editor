@@ -27,6 +27,7 @@ import {
   writePayloadToDataTransfer,
   writeClipboardPayload
 } from "./editor-clipboard";
+import { getActiveEditorPlatform } from "../platform/current";
 
 type Dispatch = (action: EditorAction) => void;
 
@@ -72,7 +73,9 @@ export async function copySelection(
     return false;
   }
   const svgText = await buildSelectionSvg(payload.snippets);
-  return writeClipboardPayload(payload, { svgText });
+  const browserWrite = await writeClipboardPayload(payload, { svgText });
+  const desktopWrite = await writeDesktopClipboardBundle(payload, svgText);
+  return browserWrite || desktopWrite;
 }
 
 export function copySelectionToClipboardData(
@@ -89,7 +92,12 @@ export function copySelectionToClipboardData(
     return false;
   }
   const svgText = buildSelectionSvgSync(payload.snippets);
-  return writePayloadToDataTransfer(payload, dataTransfer, { svgText });
+  const copied = writePayloadToDataTransfer(payload, dataTransfer, { svgText });
+  if (!copied) {
+    return false;
+  }
+  void writeDesktopClipboardBundle(payload, svgText);
+  return true;
 }
 
 export function deleteSelection(context: SelectionCommandContext): boolean {
@@ -217,10 +225,37 @@ function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboar
       ...payload,
       pasteCount: pasteCount + 1
     };
-    void buildSelectionSvg(nextPayload.snippets).then((svgText) => writeClipboardPayload(nextPayload, { svgText }));
+    void buildSelectionSvg(nextPayload.snippets).then(async (svgText) => {
+      const browserWrite = await writeClipboardPayload(nextPayload, { svgText });
+      if (!browserWrite) {
+        await writeDesktopClipboardBundle(nextPayload, svgText);
+        return;
+      }
+      void writeDesktopClipboardBundle(nextPayload, svgText);
+    });
   }
 
   return true;
+}
+
+async function writeDesktopClipboardBundle(
+  payload: TikzClipboardPayload,
+  svgText: string | null
+): Promise<boolean> {
+  const writeBundle = getActiveEditorPlatform().clipboard?.writeBundle;
+  if (typeof writeBundle !== "function") {
+    return false;
+  }
+  try {
+    await writeBundle({
+      plainText: payload.plainText,
+      tikzJson: JSON.stringify(payload),
+      svgText
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function duplicateSelection(context: SelectionCommandContext): boolean {

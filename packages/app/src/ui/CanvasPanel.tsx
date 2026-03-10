@@ -160,7 +160,9 @@ import {
 import { CanvasContextMenu } from "./CanvasContextMenu";
 import { useEditorCommandRuntime } from "./editor-command-runtime";
 import {
+  copySelection,
   copySelectionToClipboardData,
+  cutSelection,
   cutSelectionToClipboardData,
   pasteSelectionFromClipboardData,
   pasteSnippetsWithOffset
@@ -391,6 +393,11 @@ const CANVAS_DRAG_CURSOR_LOCK_CLASS = "is-dragging-canvas-cursor-lock";
 const IMPORTED_SVG_TARGET_RATIO = 0.3;
 const IMPORTED_SVG_MIN_SCALE = 0.2;
 const IMPORTED_SVG_MAX_SCALE = 3;
+const DESKTOP_SVG_CLIPBOARD_FORMATS = [
+  "image/svg+xml",
+  "public.svg-image",
+  "com.microsoft.image-svg-xml"
+] as const;
 
 function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
   if (boundsList.length === 0) {
@@ -3755,21 +3762,54 @@ export function CanvasPanel() {
           dispatch
         },
         event.clipboardData
-      ).then((result) => {
+      ).then(async (result) => {
         if (result.kind === "success") {
           return;
         }
-        if (result.reason === "empty") {
-          return;
+
+        const readCustomText = platform.clipboard?.readCustomText;
+        if (typeof readCustomText === "function") {
+          try {
+            const custom = await readCustomText(DESKTOP_SVG_CLIPBOARD_FORMATS);
+            if (custom?.text?.trim()) {
+              const converted = convertSvgToScopeSnippet(custom.text);
+              if (converted.kind === "failure") {
+                setWarning(converted.message);
+                return;
+              }
+              const scale = computeAutoScaleForImportedTikz(converted.tikzSource, snapshot.scene, snapshot.svg?.viewBox ?? null);
+              const snippet = scale == null ? converted.snippet : buildScopeWrappedSnippet(converted.body, { scale });
+              const pasted = pasteSnippetsWithOffset(
+                {
+                  source,
+                  snapshotSource: snapshot.source,
+                  scene: snapshot.scene,
+                  editHandles: snapshot.editHandles,
+                  selectedElementIds,
+                  dispatch
+                },
+                [snippet]
+              );
+              if (!pasted) {
+                setWarning("SVG import paste failed.");
+              }
+              return;
+            }
+          } catch {
+            // Fall through to existing warning behavior.
+          }
         }
         if (result.reason === "invalid") {
           setWarning("Clipboard did not contain a valid TikZ payload.");
           return;
         }
+        if (result.reason === "empty") {
+          return;
+        }
         setWarning("Paste failed. Try copying again, then press Cmd/Ctrl+V while the canvas is focused.");
       });
     },
-    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+    [dispatch, platform, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, snapshot.svg?.viewBox, source]
   );
 
   const onViewportDragOver = useCallback(
@@ -3829,6 +3869,22 @@ export function CanvasPanel() {
       if (event.defaultPrevented) {
         return;
       }
+      const supportsNativeClipboardBundle = typeof platform.clipboard?.writeBundle === "function";
+      if (supportsNativeClipboardBundle) {
+        event.preventDefault();
+        void copySelection(
+          {
+            source,
+            snapshotSource: snapshot.source,
+            scene: snapshot.scene,
+            editHandles: snapshot.editHandles,
+            selectedElementIds,
+            dispatch
+          },
+          { pasteBehavior: "offset" }
+        );
+        return;
+      }
       const copied = copySelectionToClipboardData(
         {
           source,
@@ -3854,6 +3910,21 @@ export function CanvasPanel() {
       if (event.defaultPrevented) {
         return;
       }
+      const supportsNativeClipboardBundle = typeof platform.clipboard?.writeBundle === "function";
+      if (supportsNativeClipboardBundle) {
+        event.preventDefault();
+        void cutSelection(
+          {
+            source,
+            snapshotSource: snapshot.source,
+            scene: snapshot.scene,
+            editHandles: snapshot.editHandles,
+            selectedElementIds,
+            dispatch
+          }
+        );
+        return;
+      }
       const cut = cutSelectionToClipboardData(
         {
           source,
@@ -3870,7 +3941,7 @@ export function CanvasPanel() {
       }
       event.preventDefault();
     },
-    [dispatch, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+    [dispatch, platform, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
   );
 
   useEffect(() => {

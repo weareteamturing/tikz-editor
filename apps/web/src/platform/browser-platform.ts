@@ -8,6 +8,14 @@ type StorageLike = {
 type ClipboardLike = {
   readText?: () => Promise<string>;
   writeText?: (text: string) => Promise<void>;
+  readCustomText?: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; text: string } | null>;
+  writeBundle?: (payload: {
+    plainText: string;
+    tikzJson?: string | null;
+    svgText?: string | null;
+  }) => Promise<void>;
 };
 
 type FsApiLike = {
@@ -377,7 +385,9 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
     },
     clipboard: {
       readText: clipboard?.readText ? async () => clipboard.readText!() : undefined,
-      writeText: clipboard?.writeText ? async (text) => clipboard.writeText!(text) : undefined
+      writeText: clipboard?.writeText ? async (text) => clipboard.writeText!(text) : undefined,
+      readCustomText: clipboard?.readCustomText ? async (formats) => clipboard.readCustomText!(formats) : undefined,
+      writeBundle: clipboard?.writeBundle ? async (payload) => clipboard.writeBundle!(payload) : undefined
     },
     menu: {
       usesNativeMenuBar: false,

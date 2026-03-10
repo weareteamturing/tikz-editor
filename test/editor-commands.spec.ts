@@ -22,6 +22,7 @@ import {
 } from "../packages/app/src/ui/editor-clipboard.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import type { EditorAction } from "../packages/app/src/store/types.js";
+import { setActiveEditorPlatform } from "../packages/app/src/platform/current.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -32,6 +33,13 @@ describe("editor-commands", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    setActiveEditorPlatform({
+      id: "test-default",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      }
+    });
   });
 
   it("copySelection writes custom + plain payloads to the system clipboard", async () => {
@@ -114,6 +122,45 @@ describe("editor-commands", () => {
     expect(secondItems[0]?.data[PLAIN_TEXT_CLIPBOARD_MIME]).toBeInstanceOf(Blob);
   });
 
+  it("copySelection writes desktop clipboard bundle with custom svg format payload", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    const writeBundle = vi.fn().mockResolvedValue(undefined);
+    class ClipboardItemMock {
+      constructor(public data: Record<string, Blob>) {}
+    }
+    setActiveEditorPlatform({
+      id: "desktop-test",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      clipboard: {
+        writeBundle
+      }
+    });
+    vi.stubGlobal("ClipboardItem", ClipboardItemMock);
+    vi.stubGlobal("navigator", { clipboard: { write } });
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+
+    const didCopy = await copySelection({
+      source: SOURCE,
+      snapshotSource: SOURCE,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:1", "path:0"]),
+      dispatch
+    });
+
+    expect(didCopy).toBe(true);
+    expect(writeBundle).toHaveBeenCalledTimes(1);
+    expect(writeBundle).toHaveBeenCalledWith(expect.objectContaining({
+      plainText: "\\draw (0,0) -- (1,0);\n\\draw (0,1) -- (1,1);",
+      tikzJson: expect.any(String),
+      svgText: expect.stringContaining("<svg")
+    }));
+  });
+
   it("copySelectionToClipboardData writes custom and text payloads without navigator permission flow", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -136,6 +183,46 @@ describe("editor-commands", () => {
     expect(didCopy).toBe(true);
     expect(data.get(TIKZ_CLIPBOARD_MIME)).toBeTypeOf("string");
     expect(data.get(PLAIN_TEXT_CLIPBOARD_MIME)).toBe("\\draw (0,0) -- (1,0);\n\\draw (0,1) -- (1,1);");
+  });
+
+  it("copySelectionToClipboardData also mirrors payloads to desktop clipboard bundle writer", async () => {
+    const writeBundle = vi.fn().mockResolvedValue(undefined);
+    setActiveEditorPlatform({
+      id: "desktop-test",
+      persistence: {
+        load: () => null,
+        save: () => undefined
+      },
+      clipboard: {
+        writeBundle
+      }
+    });
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      setData: (mime: string, value: string) => {
+        data.set(mime, value);
+      }
+    } as unknown as DataTransfer;
+
+    const didCopy = copySelectionToClipboardData({
+      source: SOURCE,
+      snapshotSource: SOURCE,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:1", "path:0"]),
+      dispatch
+    }, dataTransfer);
+
+    expect(didCopy).toBe(true);
+    await Promise.resolve();
+    expect(writeBundle).toHaveBeenCalledTimes(1);
+    expect(writeBundle).toHaveBeenCalledWith(expect.objectContaining({
+      plainText: "\\draw (0,0) -- (1,0);\n\\draw (0,1) -- (1,1);",
+      tikzJson: expect.any(String),
+      svgText: expect.stringContaining("<svg")
+    }));
   });
 
   it("cutSelectionToClipboardData copies and deletes selection", () => {

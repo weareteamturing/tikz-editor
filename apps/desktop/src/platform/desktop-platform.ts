@@ -48,6 +48,14 @@ type DesktopBridge = {
   }) => Promise<boolean>;
   readClipboard: () => Promise<string>;
   writeClipboard: (text: string) => Promise<void>;
+  readCustomClipboardText: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; text: string } | null>;
+  writeClipboardBundle: (payload: {
+    plainText: string;
+    tikzJson?: string | null;
+    svgText?: string | null;
+  }) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
   openExternalUrl: (url: string) => Promise<boolean>;
@@ -501,12 +509,24 @@ function createDefaultBridge(): DesktopBridge {
       return await invoke<boolean>("desktop_export_file", { fileName, mimeType, bytesBase64 });
     },
     readClipboard: async () => {
-      const { readText } = await import("@tauri-apps/plugin-clipboard-manager");
+      const { readText } = await import("tauri-plugin-clipboard-x-api");
       return await readText();
     },
     writeClipboard: async (text) => {
-      const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+      const { writeText } = await import("tauri-plugin-clipboard-x-api");
       await writeText(text);
+    },
+    readCustomClipboardText: async (formats) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<{ format: string; text: string } | null>("desktop_read_custom_clipboard_text", {
+        formats
+      });
+    },
+    writeClipboardBundle: async (payload) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_write_clipboard_bundle", {
+        payload
+      });
     },
     setWindowTitle: async (title) => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -682,6 +702,12 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       readText: async () => await getBridge().readClipboard(),
       writeText: async (text) => {
         await getBridge().writeClipboard(text);
+      },
+      readCustomText: async (formats) => {
+        return await getBridge().readCustomClipboardText(formats);
+      },
+      writeBundle: async (payload) => {
+        await getBridge().writeClipboardBundle(payload);
       }
     },
     menu: {

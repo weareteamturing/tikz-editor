@@ -13,6 +13,14 @@ export type PlatformPersistence = {
 export type PlatformClipboard = {
   readText?: () => Promise<string>;
   writeText?: (text: string) => Promise<void>;
+  readCustomText?: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; text: string } | null>;
+  writeBundle?: (payload: {
+    plainText: string;
+    tikzJson?: string | null;
+    svgText?: string | null;
+  }) => Promise<void>;
 };
 
 export type PlatformFileApi = {

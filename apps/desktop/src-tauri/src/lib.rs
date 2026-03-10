@@ -5,10 +5,12 @@ use assistant::{
     AssistantThreadSummary,
 };
 use base64::Engine;
+use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
@@ -20,6 +22,21 @@ use tauri::{
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
+#[cfg(target_os = "macos")]
+const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] = ["public.svg-image", "com.microsoft.image-svg-xml"];
+#[cfg(not(target_os = "macos"))]
+const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 3] = [
+    "image/svg+xml",
+    "public.svg-image",
+    "com.microsoft.image-svg-xml",
+];
+#[cfg(target_os = "macos")]
+const TIKZ_CUSTOM_CLIPBOARD_FORMATS: [&str; 1] = ["com.tikzeditor.tikz-json"];
+#[cfg(not(target_os = "macos"))]
+const TIKZ_CUSTOM_CLIPBOARD_FORMATS: [&str; 2] = [
+    "web application/x-tikz-editor+json",
+    "application/x-tikz-editor+json",
+];
 
 #[derive(Default)]
 struct RecentFilesState {
@@ -43,6 +60,20 @@ struct SaveTextPayload {
     ok: bool,
     path: Option<String>,
     name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DesktopCustomClipboardTextPayload {
+    format: String,
+    text: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopClipboardWriteBundlePayload {
+    plain_text: String,
+    tikz_json: Option<String>,
+    svg_text: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +112,16 @@ struct DesktopContextMenuCommandEvent {
     request_id: String,
     #[serde(rename = "commandId")]
     command_id: String,
+}
+
+fn panic_to_string(panic_payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = panic_payload.downcast_ref::<&str>() {
+        return (*message).to_string();
+    }
+    if let Some(message) = panic_payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+    "unknown panic".to_string()
 }
 
 fn recents_file_path(app: &AppHandle) -> Option<PathBuf> {
@@ -390,6 +431,69 @@ fn desktop_open_external(url: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn desktop_read_custom_clipboard_text(
+    formats: Vec<String>,
+) -> Result<Option<DesktopCustomClipboardTextPayload>, String> {
+    catch_unwind(AssertUnwindSafe(|| {
+        if formats.is_empty() {
+            return Ok(None);
+        }
+        let ctx = ClipboardContext::new().map_err(|error| error.to_string())?;
+        for format in formats {
+            let trimmed = format.trim().to_string();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(buffer) = ctx.get_buffer(&trimmed) else {
+                continue;
+            };
+            let Ok(text) = String::from_utf8(buffer) else {
+                continue;
+            };
+            if text.trim().is_empty() {
+                continue;
+            }
+            return Ok(Some(DesktopCustomClipboardTextPayload {
+                format: trimmed,
+                text,
+            }));
+        }
+        Ok(None)
+    }))
+    .map_err(|panic_payload| format!("Clipboard native panic: {}", panic_to_string(panic_payload)))?
+}
+
+#[tauri::command]
+fn desktop_write_clipboard_bundle(
+    payload: DesktopClipboardWriteBundlePayload,
+) -> Result<(), String> {
+    catch_unwind(AssertUnwindSafe(|| {
+        let mut contents: Vec<ClipboardContent> = vec![ClipboardContent::Text(payload.plain_text)];
+        if let Some(tikz_json) = payload.tikz_json {
+            if !tikz_json.trim().is_empty() {
+                for format in TIKZ_CUSTOM_CLIPBOARD_FORMATS {
+                    contents.push(ClipboardContent::Other(
+                        format.to_string(),
+                        tikz_json.clone().into_bytes(),
+                    ));
+                }
+            }
+        }
+        if let Some(svg_text) = payload.svg_text {
+            if !svg_text.trim().is_empty() {
+                let bytes = svg_text.into_bytes();
+                for format in DESKTOP_SVG_CLIPBOARD_FORMATS {
+                    contents.push(ClipboardContent::Other(format.to_string(), bytes.clone()));
+                }
+            }
+        }
+        let ctx = ClipboardContext::new().map_err(|error| error.to_string())?;
+        ctx.set(contents).map_err(|error| error.to_string())
+    }))
+    .map_err(|panic_payload| format!("Clipboard native panic: {}", panic_to_string(panic_payload)))?
+}
+
+#[tauri::command]
 fn desktop_show_context_menu(
     payload: DesktopContextMenuPayload,
     app: AppHandle,
@@ -522,7 +626,7 @@ fn desktop_assistant_read_account_snapshot(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_clipboard_x::init())
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
         .on_window_event(|window, event| {
@@ -556,6 +660,8 @@ pub fn run() {
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_open_external,
+            desktop_read_custom_clipboard_text,
+            desktop_write_clipboard_bundle,
             desktop_show_context_menu,
             desktop_assistant_ensure_document_thread,
             desktop_assistant_start_turn,

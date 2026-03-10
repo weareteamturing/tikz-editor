@@ -352,6 +352,89 @@ test("canvas paste svg file inserts a scope-wrapped import", async ({ page }) =>
   await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
 });
 
+test("canvas paste falls back to custom desktop svg clipboard format", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomText?: (formats: readonly string[]) => Promise<{ format: string; text: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomText: async (formats) => {
+          if (!formats.includes("public.svg-image")) {
+            return null;
+          }
+          return {
+            format: "public.svg-image",
+            text: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" fill="none" stroke="black"/></svg>`
+          };
+        }
+      }
+    };
+  });
+
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
+});
+
+test("canvas paste custom svg fallback shows warning for invalid svg data", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomText?: (formats: readonly string[]) => Promise<{ format: string; text: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomText: async (formats) => {
+          if (!formats.includes("public.svg-image")) {
+            return null;
+          }
+          return {
+            format: "public.svg-image",
+            text: "this is not svg"
+          };
+        }
+      }
+    };
+  });
+
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
+  await expect(page.locator("[aria-label='Warning message. Click to copy.']")).toContainText("SVG import failed:");
+});
+
 test("resize drag shows and hides metric tooltip", async ({ page }) => {
   await page.goto("/");
   await setSource(page, String.raw`\begin{tikzpicture}

@@ -156,6 +156,8 @@ async function installDeterministicBridge(browserInstance) {
       },
       readClipboard: async () => "",
       writeClipboard: async () => undefined,
+      readCustomClipboardText: async () => null,
+      writeClipboardBundle: async () => undefined,
       setWindowTitle: async (title) => {
         window.__DESKTOP_E2E_TITLE__ = title;
       },
@@ -164,7 +166,8 @@ async function installDeterministicBridge(browserInstance) {
       },
       onMenuCommand: async () => () => undefined,
       onOpenRecent: async () => () => undefined,
-      onWindowCloseRequest: async () => () => undefined
+      onWindowCloseRequest: async () => () => undefined,
+      onContextMenuCommand: async () => () => undefined
     };
     window.__DESKTOP_E2E_WRITES__ = writes;
     window.__DESKTOP_E2E_EXPORTS__ = exports;
