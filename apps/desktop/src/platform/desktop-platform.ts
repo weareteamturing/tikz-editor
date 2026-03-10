@@ -55,15 +55,6 @@ type DesktopBridge = {
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
   showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
   onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
-  onContextMenuDebug: (handler: (payload: {
-    requestId: string;
-    phase: string;
-    target?: string;
-    x?: number;
-    y?: number;
-    reason?: string;
-    error?: string;
-  }) => void) => Promise<() => void>;
   assistantEnsureDocumentThread?: (params: {
     documentId: string;
     source: string;
@@ -549,20 +540,6 @@ function createDefaultBridge(): DesktopBridge {
         handler(event.payload);
       });
     },
-    onContextMenuDebug: async (handler) => {
-      const { listen } = await import("@tauri-apps/api/event");
-      return await listen<{
-        requestId: string;
-        phase: string;
-        target?: string;
-        x?: number;
-        y?: number;
-        reason?: string;
-        error?: string;
-      }>("desktop-context-menu-debug", (event) => {
-        handler(event.payload);
-      });
-    },
     assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantThreadSummary>("desktop_assistant_ensure_document_thread", {
@@ -636,7 +613,6 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   let closeRequestHandler: (() => void) | null = null;
   let windowCloseUnlistenPromise: Promise<(() => void) | null> | null = null;
   let contextMenuCommandUnlistenPromise: Promise<(() => void) | null> | null = null;
-  let contextMenuDebugUnlistenPromise: Promise<(() => void) | null> | null = null;
   let nextContextMenuRequestId = 0;
 
   const nativeMenuManager = createNativeDesktopMenuManager({
@@ -670,11 +646,6 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     if (!contextMenuCommandUnlistenPromise) {
       contextMenuCommandUnlistenPromise = getBridge().onContextMenuCommand((payload) => {
         menuHandler?.(payload.commandId, "context-menu");
-      }).catch(() => null);
-    }
-    if (!contextMenuDebugUnlistenPromise) {
-      contextMenuDebugUnlistenPromise = getBridge().onContextMenuDebug((payload) => {
-        console.debug("desktop-context-menu", payload);
       }).catch(() => null);
     }
   }
@@ -735,9 +706,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         const requestId = `ctx-${Date.now()}-${nextContextMenuRequestId}`;
         await getBridge().showContextMenu({
           requestId,
-          target: payload.target,
-          items: serializeDesktopContextMenuItems(payload.items, payload.commandStates),
-          position: payload.position
+          items: serializeDesktopContextMenuItems(payload.items, payload.commandStates)
         });
       }
     },

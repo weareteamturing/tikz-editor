@@ -11,15 +11,6 @@ function makeMockBridge() {
   const saved: string[] = [];
   const contextMenuPayloads: unknown[] = [];
   let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
-  let contextMenuDebugHandler: ((payload: {
-    requestId: string;
-    phase: string;
-    target?: string;
-    x?: number;
-    y?: number;
-    reason?: string;
-    error?: string;
-  }) => void) | null = null;
   return {
     saved,
     contextMenuPayloads,
@@ -57,14 +48,6 @@ function makeMockBridge() {
           }
         };
       },
-      onContextMenuDebug: async (handler) => {
-        contextMenuDebugHandler = handler;
-        return () => {
-          if (contextMenuDebugHandler === handler) {
-            contextMenuDebugHandler = null;
-          }
-        };
-      },
       assistantEnsureDocumentThread: async ({ documentId }) => ({
         threadId: `thr-${documentId}`,
         workspacePath: `/tmp/${documentId}`,
@@ -90,17 +73,6 @@ function makeMockBridge() {
     },
     emitContextMenuCommand: (payload: { requestId: string; commandId: string }) => {
       contextMenuCommandHandler?.(payload);
-    },
-    emitContextMenuDebug: (payload: {
-      requestId: string;
-      phase: string;
-      target?: string;
-      x?: number;
-      y?: number;
-      reason?: string;
-      error?: string;
-    }) => {
-      contextMenuDebugHandler?.(payload);
     }
   };
 }
@@ -150,7 +122,6 @@ describe("desktop shell flows", () => {
     });
 
     await platform.menu?.showNativeContextMenu?.({
-      target: "canvas-empty",
       items: [
         { kind: "command", commandId: APP_MENU_COMMAND_IDS.UNDO, label: "Undo", accelerator: "CmdOrCtrl+Z" },
         { kind: "separator" },
@@ -159,14 +130,11 @@ describe("desktop shell flows", () => {
       commandStates: {
         [APP_MENU_COMMAND_IDS.UNDO]: { enabled: true },
         [APP_MENU_COMMAND_IDS.TOGGLE_GRID]: { enabled: true, checked: true }
-      } as Record<string, { enabled: boolean; checked?: boolean }>,
-      position: { x: 12, y: 34 }
+      } as Record<string, { enabled: boolean; checked?: boolean }>
     });
 
     expect(mock.contextMenuPayloads).toHaveLength(1);
     expect(mock.contextMenuPayloads[0]).toEqual(expect.objectContaining({
-      target: "canvas-empty",
-      position: { x: 12, y: 34 },
       items: [
         expect.objectContaining({ kind: "command", commandId: APP_MENU_COMMAND_IDS.UNDO, enabled: true }),
         { kind: "separator" },

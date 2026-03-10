@@ -12,7 +12,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
 use tauri::{
     menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder},
     AppHandle, Emitter, Manager,
@@ -21,7 +20,6 @@ use tauri::{
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
-const CONTEXT_MENU_OVERLAP_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
 struct RecentFilesState {
@@ -31,16 +29,6 @@ struct RecentFilesState {
 #[derive(Default)]
 struct WindowCloseState {
     allow_next_close: Mutex<bool>,
-}
-
-struct ContextMenuInFlight {
-    request_id: String,
-    started_at: Instant,
-}
-
-#[derive(Default)]
-struct ContextMenuState {
-    in_flight: Mutex<Option<ContextMenuInFlight>>,
 }
 
 #[derive(Serialize)]
@@ -84,15 +72,7 @@ enum DesktopContextMenuItemPayload {
 struct DesktopContextMenuPayload {
     #[serde(rename = "requestId")]
     request_id: String,
-    target: String,
     items: Vec<DesktopContextMenuItemPayload>,
-    position: DesktopContextMenuPosition,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct DesktopContextMenuPosition {
-    x: f64,
-    y: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -101,18 +81,6 @@ struct DesktopContextMenuCommandEvent {
     request_id: String,
     #[serde(rename = "commandId")]
     command_id: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct DesktopContextMenuDebugEvent {
-    #[serde(rename = "requestId")]
-    request_id: String,
-    phase: String,
-    target: Option<String>,
-    x: Option<f64>,
-    y: Option<f64>,
-    reason: Option<String>,
-    error: Option<String>,
 }
 
 fn recents_file_path(app: &AppHandle) -> Option<PathBuf> {
@@ -178,29 +146,6 @@ fn add_recent_file(app: &AppHandle, path: String) {
         compact
     };
     save_recent_files_to_disk(app, &normalized);
-}
-
-fn emit_context_menu_debug(
-    app: &AppHandle,
-    request_id: &str,
-    phase: &str,
-    target: Option<&str>,
-    position: Option<&DesktopContextMenuPosition>,
-    reason: Option<String>,
-    error: Option<String>,
-) {
-    let payload = DesktopContextMenuDebugEvent {
-        request_id: request_id.to_string(),
-        phase: phase.to_string(),
-        target: target.map(ToOwned::to_owned),
-        x: position.map(|p| p.x),
-        y: position.map(|p| p.y),
-        reason,
-        error,
-    };
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.emit("desktop-context-menu-debug", payload);
-    }
 }
 
 fn context_menu_item_id(request_id: &str, command_id: &str) -> String {
@@ -449,142 +394,16 @@ fn desktop_show_context_menu(
     payload: DesktopContextMenuPayload,
     app: AppHandle,
 ) -> Result<(), String> {
-    emit_context_menu_debug(
-        &app,
-        &payload.request_id,
-        "requested",
-        Some(&payload.target),
-        Some(&payload.position),
-        None,
-        None,
-    );
-
-    {
-        let state = app.state::<ContextMenuState>();
-        let mut in_flight = state
-            .in_flight
-            .lock()
-            .map_err(|_| "context menu state unavailable".to_string())?;
-        if let Some(existing) = in_flight.as_ref() {
-            if existing.started_at.elapsed() < CONTEXT_MENU_OVERLAP_TIMEOUT {
-                emit_context_menu_debug(
-                    &app,
-                    &payload.request_id,
-                    "rejected-overlap",
-                    Some(&payload.target),
-                    Some(&payload.position),
-                    Some(format!("in-flight request {}", existing.request_id)),
-                    None,
-                );
-                return Ok(());
-            }
-
-            emit_context_menu_debug(
-                &app,
-                &payload.request_id,
-                "expired-stale",
-                Some(&payload.target),
-                Some(&payload.position),
-                Some(format!("replacing stale request {}", existing.request_id)),
-                None,
-            );
-        }
-
-        *in_flight = Some(ContextMenuInFlight {
-            request_id: payload.request_id.clone(),
-            started_at: Instant::now(),
-        });
-    }
-
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window not found".to_string())?;
 
-    emit_context_menu_debug(
-        &app,
-        &payload.request_id,
-        "building",
-        Some(&payload.target),
-        Some(&payload.position),
-        None,
-        None,
-    );
-
     let menu = match build_context_menu(&window, &payload) {
         Ok(menu) => menu,
-        Err(error) => {
-            if let Ok(mut in_flight) = app.state::<ContextMenuState>().in_flight.lock() {
-                if in_flight
-                    .as_ref()
-                    .map(|current| current.request_id == payload.request_id)
-                    .unwrap_or(false)
-                {
-                    *in_flight = None;
-                }
-            }
-            emit_context_menu_debug(
-                &app,
-                &payload.request_id,
-                "failed",
-                Some(&payload.target),
-                Some(&payload.position),
-                Some("build".to_string()),
-                Some(error.clone()),
-            );
-            return Err(error);
-        }
+        Err(error) => return Err(error),
     };
 
-    emit_context_menu_debug(
-        &app,
-        &payload.request_id,
-        "popup-start",
-        Some(&payload.target),
-        Some(&payload.position),
-        None,
-        None,
-    );
-
-    let result = window
-        .popup_menu(&menu)
-        .map_err(|error| error.to_string());
-
-    if let Ok(mut in_flight) = app.state::<ContextMenuState>().in_flight.lock() {
-        if in_flight
-            .as_ref()
-            .map(|current| current.request_id == payload.request_id)
-            .unwrap_or(false)
-        {
-            *in_flight = None;
-        }
-    }
-
-    match result {
-        Ok(()) => {
-            emit_context_menu_debug(
-                &app,
-                &payload.request_id,
-                "popup-returned",
-                Some(&payload.target),
-                Some(&payload.position),
-                None,
-                None,
-            );
-            Ok(())
-        }
-        Err(error) => {
-            emit_context_menu_debug(
-                &app,
-                &payload.request_id,
-                "failed",
-                Some(&payload.target),
-                Some(&payload.position),
-                Some("popup".to_string()),
-                Some(error.clone()),
-            );
-            Err(error)
-        }
-    }
+    window.popup_menu(&menu).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -706,7 +525,6 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
-        .manage(ContextMenuState::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -756,26 +574,6 @@ pub fn run() {
                 let Some((request_id, command_id)) = parse_context_menu_item_id(raw_id) else {
                     return;
                 };
-
-                if let Ok(mut in_flight) = handle.state::<ContextMenuState>().in_flight.lock() {
-                    if in_flight
-                        .as_ref()
-                        .map(|current| current.request_id == request_id)
-                        .unwrap_or(false)
-                    {
-                        *in_flight = None;
-                    }
-                }
-
-                emit_context_menu_debug(
-                    &handle,
-                    &request_id,
-                    "menu-command",
-                    None,
-                    None,
-                    Some(command_id.clone()),
-                    None,
-                );
 
                 if let Some(window) = handle.get_webview_window("main") {
                     let _ = window.emit(

@@ -322,12 +322,9 @@ type GuideDragState = {
 };
 
 type CanvasContextMenuState = {
-  requestId: number;
   target: CanvasContextMenuTarget;
   anchorX: number;
   anchorY: number;
-  nativeX: number;
-  nativeY: number;
 };
 
 type PendingNativeContextMenuRequest = {
@@ -559,17 +556,10 @@ export function CanvasPanel() {
   });
 
   const showNativeContextMenu = useCallback(
-    (clientX: number, clientY: number, target: CanvasContextMenuTarget) => {
+    (target: CanvasContextMenuTarget) => {
       void platform.menu?.showNativeContextMenu?.({
-        target,
         items: CANVAS_CONTEXT_MENU_DEFINITION[target],
-        commandStates: commandRuntime.bindings,
-        position: {
-          x: clientX,
-          y: clientY
-        }
-      }).catch((error) => {
-        console.error("Failed to show native canvas context menu.", error);
+        commandStates: commandRuntime.bindings
       });
     },
     [commandRuntime.bindings, platform.menu]
@@ -615,11 +605,7 @@ export function CanvasPanel() {
 
     pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
       pendingNativeContextMenuTimeoutRef.current = null;
-      showNativeContextMenu(
-        pendingNativeContextMenuRequest.clientX,
-        pendingNativeContextMenuRequest.clientY,
-        resolution.target
-      );
+      showNativeContextMenu(resolution.target);
       setPendingNativeContextMenuRequest(null);
       viewport.focus({ preventScroll: true });
     }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
@@ -2934,16 +2920,13 @@ export function CanvasPanel() {
       };
 
       const nextContextMenuState: CanvasContextMenuState = {
-        requestId: Date.now() + Math.random(),
         target: resolution.target,
         anchorX: clientX - rect.left,
-        anchorY: clientY - rect.top,
-        nativeX: clientX,
-        nativeY: clientY
+        anchorY: clientY - rect.top
       };
 
       if (platform.menu?.usesNativeContextMenus) {
-        showNativeContextMenu(clientX, clientY, resolution.target);
+        showNativeContextMenu(resolution.target);
         viewport.focus({ preventScroll: true });
         return;
       }

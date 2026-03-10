@@ -41,10 +41,8 @@ export type PlatformMenu = {
     commandStates: Record<AppMenuCommandId, { enabled: boolean; checked?: boolean }>;
   }) => Promise<void> | void;
   showNativeContextMenu?: (payload: {
-    target: string;
     items: readonly AppMenuItem[];
     commandStates: Record<AppMenuCommandId, { enabled: boolean; checked?: boolean }>;
-    position: { x: number; y: number };
   }) => Promise<void> | void;
 };
 
@@ -66,9 +64,7 @@ export type DesktopContextMenuItem =
 
 export type DesktopContextMenuPayload = {
   requestId: string;
-  target: string;
   items: DesktopContextMenuItem[];
-  position: { x: number; y: number };
 };
 
 export type PlatformWindowApi = {
