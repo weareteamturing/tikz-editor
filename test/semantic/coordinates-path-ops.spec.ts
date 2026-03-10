@@ -979,6 +979,83 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("applies cm shear matrices to path coordinates", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[cm={1,1,0,1,(0,0)}] (0,0) -- (1,1) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-cm:"))).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const commands = path.commands.filter((command) => command.kind === "M" || command.kind === "L");
+        expect(commands).toHaveLength(3);
+        const [, second, third] = commands;
+        if (second?.kind === "L" && third?.kind === "L") {
+          expect(second.to.x).toBeCloseTo(28.4528, 3);
+          expect(second.to.y).toBeCloseTo(56.9055, 3);
+          expect(third.to.x).toBeCloseTo(28.4528, 3);
+          expect(third.to.y).toBeCloseTo(28.4528, 3);
+        }
+      }
+    });
+
+    it("applies cm axis swaps with translation", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[cm={0,1,1,0,(1cm,1cm)}] (0,0) -- (1,1) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code?.startsWith("invalid-cm:"))).toBe(false);
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const commands = path.commands.filter((command) => command.kind === "M" || command.kind === "L");
+        expect(commands).toHaveLength(3);
+        const [first, second, third] = commands;
+        if (first?.kind === "M" && second?.kind === "L" && third?.kind === "L") {
+          expect(first.to.x).toBeCloseTo(28.4528, 3);
+          expect(first.to.y).toBeCloseTo(28.4528, 3);
+          expect(second.to.x).toBeCloseTo(56.9055, 3);
+          expect(second.to.y).toBeCloseTo(56.9055, 3);
+          expect(third.to.x).toBeCloseTo(28.4528, 3);
+          expect(third.to.y).toBeCloseTo(56.9055, 3);
+        }
+      }
+    });
+
+    it("composes cm in option order with other transforms", () => {
+      const source = String.raw`\begin{tikzpicture}[rotate=90,cm={1,0,0,1,(1cm,0)}]
+    \draw (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        const move = path.commands.find((command) => command.kind === "M");
+        expect(move?.kind).toBe("M");
+        if (move?.kind === "M") {
+          expect(move.to.x).toBeCloseTo(0, 3);
+          expect(move.to.y).toBeCloseTo(28.4528, 3);
+        }
+      }
+    });
+
+    it("reports invalid cm payloads as invalid-cm diagnostics", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \draw[cm={1,1,0}] (0,0) -- (1,0);
+    \draw[cm={foo,1,0,1,(0,0)}] (0,0) -- (1,0);
+    \draw[cm={1,1,0,1,not-a-coordinate}] (0,0) -- (1,0);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const invalidCm = result.diagnostics.filter((diagnostic) => diagnostic.code?.startsWith("invalid-cm:"));
+      expect(invalidCm.length).toBeGreaterThanOrEqual(3);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-option-key:cm")).toBe(false);
+    });
+
     it("interprets unitless grid steps in axis units under transformed x vectors", () => {
       const source = String.raw`\begin{tikzpicture}[x=.5cm]
     \draw (0,0) grid [step=1] (3,2);

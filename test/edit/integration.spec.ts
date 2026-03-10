@@ -317,6 +317,25 @@ describe("edit integration (round-trip)", () => {
     expect(result.newHandle!.world.y).toBeCloseTo(0, 0);
   });
 
+  it("moves a node inside a cm-transformed scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+\begin{scope}[cm={0,1,1,0,(1cm,1cm)}]
+\node at (1,2) {A};
+\end{scope}
+\end{tikzpicture}`;
+    // cm={0,1,1,0,(1,1)} maps local (x,y) -> world (y+1, x+1)
+    // local (1,2) -> world (3,2); moving to world (5,4) yields local (3,4)
+    const result = roundTripMove(source, "(1,2)", { x: cm(5), y: cm(4) });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("(3,4)");
+    expect(result.newHandle).toBeDefined();
+    expect(result.newHandle!.world.x).toBeCloseTo(cm(5), 0);
+    expect(result.newHandle!.world.y).toBeCloseTo(cm(4), 0);
+  });
+
   it("moves a polar coordinate preserving polar form", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) -- (45:2);

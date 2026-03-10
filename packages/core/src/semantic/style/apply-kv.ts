@@ -17,7 +17,7 @@ import type { ApplyEntryFn, ApplyOutcome } from "./apply-types.js";
 import { DEFAULT_TEXT_FONT_SIZE, NON_STYLE_OPTION_KEYS, PT_PER_CM } from "./constants.js";
 import { clamp01, mixNormalizedColors, normalizeColor, normalizeShadingName, type ColorAliasResolver } from "./colors.js";
 import { parseDashPattern, parseDashValue } from "./dash.js";
-import { normalizeOptionValue, parseAxisVector, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
+import { normalizeOptionValue, parseAxisVector, parseCmTransformValue, parseFontStyle, parseStyleValueAsOptionList } from "./option-utils.js";
 import { parsePatternValue } from "./patterns.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 function normalizeOptionColor(valueRaw: string, style: ResolvedStyle, resolveColorAlias?: ColorAliasResolver): string {
@@ -732,6 +732,17 @@ export function applyKvEntry(
       return { style, transform, diagnostics: [`invalid-rotate:${valueRaw}`] };
     }
     return { style, transform: multiplyMatrix(transform, rotationMatrix(degrees)), diagnostics: [] };
+  }
+  if (key === "cm" || key === "/tikz/cm") {
+    const parsed = parseCmTransformValue(valueRaw, resolveCoordinate);
+    if (!parsed) {
+      return { style, transform, diagnostics: [`invalid-cm:${valueRaw}`] };
+    }
+    return {
+      style,
+      transform: multiplyMatrix(transform, parsed),
+      diagnostics: []
+    };
   }
   if (key === "x") {
     const parsed = parseAxisVector(valueRaw, "x");

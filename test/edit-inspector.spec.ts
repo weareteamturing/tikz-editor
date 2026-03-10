@@ -666,6 +666,57 @@ describe("getInspectorDescriptor", () => {
     expect(updated).not.toMatch(/\bscale\s*=/);
   });
 
+  it("keeps cm transforms while applying additive canonical transform edits", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[cm={0,1,1,0,(1cm,1cm)}] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const xscale = transformSection.properties.find((property) => property.id === "xscale");
+    expect(xscale).toBeDefined();
+    if (!xscale || xscale.kind !== "number" || !xscale.write?.transformContext) {
+      throw new Error("Expected xscale number property with transform context");
+    }
+
+    const mutations = buildTransformSetPropertyMutations(xscale.write.transformContext.values, "xscale", 2);
+    expect(mutations.length).toBeGreaterThanOrEqual(1);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: xscale.write.elementId,
+        level: xscale.write.level,
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful setProperty transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("cm={0,1,1,0,(1cm,1cm)}");
+    expect(updated).toContain("xscale=2");
+  });
+
   it("does not materialize default companion scale when editing only yscale", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (2,0);

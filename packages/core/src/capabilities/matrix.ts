@@ -51,6 +51,13 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "partial",
     fixtures: ["option_styles"]
   },
+  transform_cm: {
+    parser: "stable",
+    semantic: "stable",
+    svg: "stable",
+    edit: "partial",
+    fixtures: ["transform_cm"]
+  },
   path_shading: {
     parser: "stable",
     semantic: "stable",

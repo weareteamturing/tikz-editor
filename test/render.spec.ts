@@ -42,6 +42,16 @@ describe("render pipeline", () => {
     }
   });
 
+  it("renders cm-transformed paths with translated swapped axes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[cm={0,1,1,0,(1cm,1cm)}] (0,0) -- (1,1) -- (1,0);
+\end{tikzpicture}`;
+    const result = renderTikzToSvg(source);
+
+    expect(result.semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cm:"))).toBe(false);
+    expect(result.svg.svg).toMatch(/d="M 28\.45\d* 56\.90\d* L 56\.90\d* 28\.45\d* L 28\.45\d* 28\.45\d*"/);
+  });
+
   it("keeps recoverable flow on partial input", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,

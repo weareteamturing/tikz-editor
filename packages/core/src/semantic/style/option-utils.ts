@@ -1,6 +1,7 @@
 import { parseOptionListRaw } from "../../options/parse.js";
 import type { OptionListAst } from "../../options/types.js";
-import { parseCoordinateLike, parseLength } from "../coords/parse-length.js";
+import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
+import { parseCoordinateLike, parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { ResolvedStyle } from "../types.js";
 import { DEFAULT_TEXT_FONT_SIZE, FONT_SIZE_COMMAND_FACTORS } from "./constants.js";
 
@@ -146,6 +147,57 @@ export function parseAxisVector(raw: string, axis: "x" | "y"): { x: number; y: n
     return null;
   }
   return axis === "x" ? { x: length, y: 0 } : { x: 0, y: length };
+}
+
+export function parseCmTransformValue(
+  raw: string,
+  resolveCoordinate?: (raw: string) => { x: number; y: number } | null
+): { a: number; b: number; c: number; d: number; e: number; f: number } | null {
+  const normalized = normalizeOptionValue(raw);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const parts = splitAllAtTopLevel(normalized, ",").map((part) => part.trim());
+  if (parts.length !== 5) {
+    return null;
+  }
+
+  const [aRaw, bRaw, cRaw, dRaw, translationRaw] = parts;
+  const a = parseScalarQuantity(aRaw);
+  const b = parseScalarQuantity(bRaw);
+  const c = parseScalarQuantity(cRaw);
+  const d = parseScalarQuantity(dRaw);
+  if (a == null || b == null || c == null || d == null) {
+    return null;
+  }
+
+  const parsedCoordinate = parseCoordinateLike(translationRaw);
+  if (parsedCoordinate) {
+    const x = parseLength(parsedCoordinate.x, "cm");
+    const y = parseLength(parsedCoordinate.y, "cm");
+    if (x == null || y == null) {
+      return null;
+    }
+    return { a, b, c, d, e: x, f: y };
+  }
+
+  if (resolveCoordinate) {
+    const resolved = resolveCoordinate(translationRaw);
+    if (resolved) {
+      return { a, b, c, d, e: resolved.x, f: resolved.y };
+    }
+  }
+
+  return null;
+}
+
+function parseScalarQuantity(raw: string): number | null {
+  const parsed = parseQuantityExpression(raw);
+  if (!parsed || parsed.kind !== "scalar") {
+    return null;
+  }
+  return Number.isFinite(parsed.value) ? parsed.value : null;
 }
 
 export function normalizeOptionValue(raw: string): string {

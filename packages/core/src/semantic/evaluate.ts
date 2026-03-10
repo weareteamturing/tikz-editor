@@ -24,7 +24,7 @@ import type {
   ForeachStatementAttribution
 } from "../foreach/types.js";
 import { parseOptionListRaw } from "../options/parse.js";
-import type { OptionListAst } from "../options/types.js";
+import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   createSemanticContext,
   currentFrame,
@@ -138,6 +138,9 @@ export function createSemanticEvaluationRun(
       parent.macroBindings,
       context.macroTraceCollector ?? undefined
     );
+    if (containsCmOption(rootOptionLists)) {
+      markFeature(featureUsage, "transform_cm", "supported");
+    }
     const figureSourceRef: StyleSourceRef = {
       sourceId: `figure:${figure.span.from}:${figure.span.to}`,
       sourceSpan: figure.options.span,
@@ -491,6 +494,9 @@ function evaluateStatement(
     );
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
+      if (containsCmOption(expandedOptionLists)) {
+        markFeature(featureUsage, "transform_cm", "supported");
+      }
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
     const resolved = resolveContextDelta(
@@ -672,6 +678,9 @@ function evaluateStatement(
     );
     if (optionLists.length > 0) {
       markFeature(featureUsage, "options_structured", "supported");
+      if (containsCmOption(expandedOptionLists)) {
+        markFeature(featureUsage, "transform_cm", "supported");
+      }
     }
     const scopedCustomStyles = cloneCustomStyleRegistry(parent.customStyles);
     const resolved = resolveContextDelta(
@@ -1746,6 +1755,22 @@ function angleOnArc(angle: number, start: number, end: number, sweep: boolean): 
   }
   const aa = a > s ? a - 2 * Math.PI : a;
   return aa <= s + epsilon && aa >= e - epsilon;
+}
+
+function containsCmOption(optionLists: OptionListAst[]): boolean {
+  for (const list of optionLists) {
+    for (const entry of list.entries) {
+      if (!isCmOptionEntry(entry)) {
+        continue;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+function isCmOptionEntry(entry: OptionEntry): boolean {
+  return entry.kind === "kv" && (entry.key === "cm" || entry.key === "/tikz/cm");
 }
 
 function initializeFeatureUsage(): FeatureUsage {
