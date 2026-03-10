@@ -9,8 +9,20 @@ function makeMockBridge() {
     name: "diagram.tex"
   };
   const saved: string[] = [];
+  const contextMenuPayloads: unknown[] = [];
+  let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
+  let contextMenuDebugHandler: ((payload: {
+    requestId: string;
+    phase: string;
+    target?: string;
+    x?: number;
+    y?: number;
+    reason?: string;
+    error?: string;
+  }) => void) | null = null;
   return {
     saved,
+    contextMenuPayloads,
     bridge: {
       openText: async (path?: string | null) => {
         if (path && path !== opened.path) {
@@ -34,6 +46,25 @@ function makeMockBridge() {
       openExternalUrl: async () => true,
       listRecentFiles: async () => [opened.path],
       onWindowCloseRequest: async () => () => undefined,
+      showContextMenu: async (payload) => {
+        contextMenuPayloads.push(payload);
+      },
+      onContextMenuCommand: async (handler) => {
+        contextMenuCommandHandler = handler;
+        return () => {
+          if (contextMenuCommandHandler === handler) {
+            contextMenuCommandHandler = null;
+          }
+        };
+      },
+      onContextMenuDebug: async (handler) => {
+        contextMenuDebugHandler = handler;
+        return () => {
+          if (contextMenuDebugHandler === handler) {
+            contextMenuDebugHandler = null;
+          }
+        };
+      },
       assistantEnsureDocumentThread: async ({ documentId }) => ({
         threadId: `thr-${documentId}`,
         workspacePath: `/tmp/${documentId}`,
@@ -56,6 +87,20 @@ function makeMockBridge() {
         handler({ type: "error", documentId: "doc-1", message: "mock-event" });
         return () => undefined;
       }
+    },
+    emitContextMenuCommand: (payload: { requestId: string; commandId: string }) => {
+      contextMenuCommandHandler?.(payload);
+    },
+    emitContextMenuDebug: (payload: {
+      requestId: string;
+      phase: string;
+      target?: string;
+      x?: number;
+      y?: number;
+      reason?: string;
+      error?: string;
+    }) => {
+      contextMenuDebugHandler?.(payload);
     }
   };
 }
@@ -95,6 +140,67 @@ describe("desktop shell flows", () => {
     });
 
     expect(typeof platform.menu?.showNativeContextMenu).toBe("function");
+  });
+
+  it("serializes context menu payloads through the bridge", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await platform.menu?.showNativeContextMenu?.({
+      target: "canvas-empty",
+      items: [
+        { kind: "command", commandId: APP_MENU_COMMAND_IDS.UNDO, label: "Undo", accelerator: "CmdOrCtrl+Z" },
+        { kind: "separator" },
+        { kind: "submenu", label: "View", items: [{ kind: "command", commandId: APP_MENU_COMMAND_IDS.TOGGLE_GRID, label: "Grid" }] }
+      ],
+      commandStates: {
+        [APP_MENU_COMMAND_IDS.UNDO]: { enabled: true },
+        [APP_MENU_COMMAND_IDS.TOGGLE_GRID]: { enabled: true, checked: true }
+      } as Record<string, { enabled: boolean; checked?: boolean }>,
+      position: { x: 12, y: 34 }
+    });
+
+    expect(mock.contextMenuPayloads).toHaveLength(1);
+    expect(mock.contextMenuPayloads[0]).toEqual(expect.objectContaining({
+      target: "canvas-empty",
+      position: { x: 12, y: 34 },
+      items: [
+        expect.objectContaining({ kind: "command", commandId: APP_MENU_COMMAND_IDS.UNDO, enabled: true }),
+        { kind: "separator" },
+        expect.objectContaining({
+          kind: "submenu",
+          label: "View",
+          items: [expect.objectContaining({ commandId: APP_MENU_COMMAND_IDS.TOGGLE_GRID, checked: true })]
+        })
+      ]
+    }));
+  });
+
+  it("routes rust-owned context menu command events to app commands", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    let received: { commandId: string; origin: string } | null = null;
+    platform.menu?.bindCommandHandler?.((commandId, origin) => {
+      received = { commandId, origin };
+    });
+
+    mock.emitContextMenuCommand({
+      requestId: "ctx-123",
+      commandId: APP_MENU_COMMAND_IDS.UNDO
+    });
+
+    await Promise.resolve();
+    expect(received).toEqual({
+      commandId: APP_MENU_COMMAND_IDS.UNDO,
+      origin: "context-menu"
+    });
   });
 
   it("opens and saves with desktop-backed file refs", async () => {

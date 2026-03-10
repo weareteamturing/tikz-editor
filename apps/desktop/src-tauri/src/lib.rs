@@ -6,16 +6,22 @@ use assistant::{
 };
 use base64::Engine;
 use rfd::FileDialog;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager};
+use std::time::{Duration, Instant};
+use tauri::{
+    menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder},
+    AppHandle, Emitter, Manager,
+};
 
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
+const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
+const CONTEXT_MENU_OVERLAP_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Default)]
 struct RecentFilesState {
@@ -25,6 +31,16 @@ struct RecentFilesState {
 #[derive(Default)]
 struct WindowCloseState {
     allow_next_close: Mutex<bool>,
+}
+
+struct ContextMenuInFlight {
+    request_id: String,
+    started_at: Instant,
+}
+
+#[derive(Default)]
+struct ContextMenuState {
+    in_flight: Mutex<Option<ContextMenuInFlight>>,
 }
 
 #[derive(Serialize)]
@@ -39,6 +55,64 @@ struct SaveTextPayload {
     ok: bool,
     path: Option<String>,
     name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+enum DesktopContextMenuItemPayload {
+    #[serde(rename = "separator")]
+    Separator,
+    #[serde(rename = "command")]
+    Command {
+        #[serde(rename = "commandId")]
+        command_id: String,
+        label: String,
+        enabled: bool,
+        #[serde(default)]
+        checked: Option<bool>,
+        #[serde(default)]
+        accelerator: Option<String>,
+    },
+    #[serde(rename = "submenu")]
+    Submenu {
+        label: String,
+        items: Vec<DesktopContextMenuItemPayload>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopContextMenuPayload {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    target: String,
+    items: Vec<DesktopContextMenuItemPayload>,
+    position: DesktopContextMenuPosition,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DesktopContextMenuPosition {
+    x: f64,
+    y: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DesktopContextMenuCommandEvent {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    #[serde(rename = "commandId")]
+    command_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct DesktopContextMenuDebugEvent {
+    #[serde(rename = "requestId")]
+    request_id: String,
+    phase: String,
+    target: Option<String>,
+    x: Option<f64>,
+    y: Option<f64>,
+    reason: Option<String>,
+    error: Option<String>,
 }
 
 fn recents_file_path(app: &AppHandle) -> Option<PathBuf> {
@@ -104,6 +178,129 @@ fn add_recent_file(app: &AppHandle, path: String) {
         compact
     };
     save_recent_files_to_disk(app, &normalized);
+}
+
+fn emit_context_menu_debug(
+    app: &AppHandle,
+    request_id: &str,
+    phase: &str,
+    target: Option<&str>,
+    position: Option<&DesktopContextMenuPosition>,
+    reason: Option<String>,
+    error: Option<String>,
+) {
+    let payload = DesktopContextMenuDebugEvent {
+        request_id: request_id.to_string(),
+        phase: phase.to_string(),
+        target: target.map(ToOwned::to_owned),
+        x: position.map(|p| p.x),
+        y: position.map(|p| p.y),
+        reason,
+        error,
+    };
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.emit("desktop-context-menu-debug", payload);
+    }
+}
+
+fn context_menu_item_id(request_id: &str, command_id: &str) -> String {
+    format!("{CONTEXT_MENU_EVENT_PREFIX}{request_id}::{command_id}")
+}
+
+fn parse_context_menu_item_id(raw_id: &str) -> Option<(String, String)> {
+    let remainder = raw_id.strip_prefix(CONTEXT_MENU_EVENT_PREFIX)?;
+    let (request_id, command_id) = remainder.split_once("::")?;
+    Some((request_id.to_string(), command_id.to_string()))
+}
+
+fn native_clipboard_role(command_id: &str) -> Option<&'static str> {
+    match command_id {
+        "edit.cut" => Some("cut"),
+        "edit.copy" => Some("copy"),
+        "edit.paste" => Some("paste"),
+        _ => None,
+    }
+}
+
+fn build_context_menu_item<R: tauri::Runtime>(
+    manager: &impl Manager<R>,
+    request_id: &str,
+    item: &DesktopContextMenuItemPayload,
+) -> Result<MenuItemKind<R>, String> {
+    match item {
+        DesktopContextMenuItemPayload::Separator => {
+            PredefinedMenuItem::separator(manager)
+                .map(MenuItemKind::Predefined)
+                .map_err(|error| error.to_string())
+        }
+        DesktopContextMenuItemPayload::Submenu { label, items } => {
+            let submenu = SubmenuBuilder::new(manager, label)
+                .build()
+                .map_err(|error| error.to_string())?;
+            for child in items {
+                let built = build_context_menu_item(manager, request_id, child)?;
+                submenu.append(&built).map_err(|error| error.to_string())?;
+            }
+            Ok(MenuItemKind::Submenu(submenu))
+        }
+        DesktopContextMenuItemPayload::Command {
+            command_id,
+            label,
+            enabled,
+            checked,
+            accelerator,
+        } => {
+            if *enabled {
+                if let Some(role) = native_clipboard_role(command_id) {
+                    let predefined = match role {
+                        "cut" => PredefinedMenuItem::cut(manager, Some(label)),
+                        "copy" => PredefinedMenuItem::copy(manager, Some(label)),
+                        "paste" => PredefinedMenuItem::paste(manager, Some(label)),
+                        _ => unreachable!(),
+                    }
+                    .map_err(|error| error.to_string())?;
+                    return Ok(MenuItemKind::Predefined(predefined));
+                }
+            }
+
+            if let Some(checked) = checked {
+                let mut builder =
+                    CheckMenuItemBuilder::with_id(context_menu_item_id(request_id, command_id), label)
+                        .enabled(*enabled)
+                        .checked(*checked);
+                if let Some(accelerator) = accelerator {
+                    builder = builder.accelerator(accelerator);
+                }
+                return builder
+                    .build(manager)
+                    .map(MenuItemKind::Check)
+                    .map_err(|error| error.to_string());
+            }
+
+            let mut builder =
+                MenuItemBuilder::with_id(context_menu_item_id(request_id, command_id), label)
+                    .enabled(*enabled);
+            if let Some(accelerator) = accelerator {
+                builder = builder.accelerator(accelerator);
+            }
+            builder
+                .build(manager)
+                .map(MenuItemKind::MenuItem)
+                .map_err(|error| error.to_string())
+        }
+    }
+}
+
+fn build_context_menu<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+    payload: &DesktopContextMenuPayload,
+) -> Result<Menu<R>, String> {
+    let menu = Menu::new(window).map_err(|error| error.to_string())?;
+    for item in &payload.items {
+        let built = build_context_menu_item(window, &payload.request_id, item)?;
+        menu.append(&built).map_err(|error| error.to_string())?;
+    }
+    Ok(menu)
 }
 
 #[tauri::command]
@@ -248,6 +445,149 @@ fn desktop_open_external(url: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn desktop_show_context_menu(
+    payload: DesktopContextMenuPayload,
+    app: AppHandle,
+) -> Result<(), String> {
+    emit_context_menu_debug(
+        &app,
+        &payload.request_id,
+        "requested",
+        Some(&payload.target),
+        Some(&payload.position),
+        None,
+        None,
+    );
+
+    {
+        let state = app.state::<ContextMenuState>();
+        let mut in_flight = state
+            .in_flight
+            .lock()
+            .map_err(|_| "context menu state unavailable".to_string())?;
+        if let Some(existing) = in_flight.as_ref() {
+            if existing.started_at.elapsed() < CONTEXT_MENU_OVERLAP_TIMEOUT {
+                emit_context_menu_debug(
+                    &app,
+                    &payload.request_id,
+                    "rejected-overlap",
+                    Some(&payload.target),
+                    Some(&payload.position),
+                    Some(format!("in-flight request {}", existing.request_id)),
+                    None,
+                );
+                return Ok(());
+            }
+
+            emit_context_menu_debug(
+                &app,
+                &payload.request_id,
+                "expired-stale",
+                Some(&payload.target),
+                Some(&payload.position),
+                Some(format!("replacing stale request {}", existing.request_id)),
+                None,
+            );
+        }
+
+        *in_flight = Some(ContextMenuInFlight {
+            request_id: payload.request_id.clone(),
+            started_at: Instant::now(),
+        });
+    }
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    emit_context_menu_debug(
+        &app,
+        &payload.request_id,
+        "building",
+        Some(&payload.target),
+        Some(&payload.position),
+        None,
+        None,
+    );
+
+    let menu = match build_context_menu(&window, &payload) {
+        Ok(menu) => menu,
+        Err(error) => {
+            if let Ok(mut in_flight) = app.state::<ContextMenuState>().in_flight.lock() {
+                if in_flight
+                    .as_ref()
+                    .map(|current| current.request_id == payload.request_id)
+                    .unwrap_or(false)
+                {
+                    *in_flight = None;
+                }
+            }
+            emit_context_menu_debug(
+                &app,
+                &payload.request_id,
+                "failed",
+                Some(&payload.target),
+                Some(&payload.position),
+                Some("build".to_string()),
+                Some(error.clone()),
+            );
+            return Err(error);
+        }
+    };
+
+    emit_context_menu_debug(
+        &app,
+        &payload.request_id,
+        "popup-start",
+        Some(&payload.target),
+        Some(&payload.position),
+        None,
+        None,
+    );
+
+    let result = window
+        .popup_menu(&menu)
+        .map_err(|error| error.to_string());
+
+    if let Ok(mut in_flight) = app.state::<ContextMenuState>().in_flight.lock() {
+        if in_flight
+            .as_ref()
+            .map(|current| current.request_id == payload.request_id)
+            .unwrap_or(false)
+        {
+            *in_flight = None;
+        }
+    }
+
+    match result {
+        Ok(()) => {
+            emit_context_menu_debug(
+                &app,
+                &payload.request_id,
+                "popup-returned",
+                Some(&payload.target),
+                Some(&payload.position),
+                None,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            emit_context_menu_debug(
+                &app,
+                &payload.request_id,
+                "failed",
+                Some(&payload.target),
+                Some(&payload.position),
+                Some("popup".to_string()),
+                Some(error.clone()),
+            );
+            Err(error)
+        }
+    }
+}
+
+#[tauri::command]
 #[allow(non_snake_case)]
 fn desktop_assistant_ensure_document_thread(
     documentId: String,
@@ -366,6 +706,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
+        .manage(ContextMenuState::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -397,6 +738,7 @@ pub fn run() {
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_open_external,
+            desktop_show_context_menu,
             desktop_assistant_ensure_document_thread,
             desktop_assistant_start_turn,
             desktop_assistant_interrupt_turn,
@@ -408,6 +750,44 @@ pub fn run() {
             desktop_assistant_read_account_snapshot
         ])
         .setup(|app| {
+            let handle = app.handle().clone();
+            app.on_menu_event(move |_app, event| {
+                let raw_id = event.id().0.as_ref();
+                let Some((request_id, command_id)) = parse_context_menu_item_id(raw_id) else {
+                    return;
+                };
+
+                if let Ok(mut in_flight) = handle.state::<ContextMenuState>().in_flight.lock() {
+                    if in_flight
+                        .as_ref()
+                        .map(|current| current.request_id == request_id)
+                        .unwrap_or(false)
+                    {
+                        *in_flight = None;
+                    }
+                }
+
+                emit_context_menu_debug(
+                    &handle,
+                    &request_id,
+                    "menu-command",
+                    None,
+                    None,
+                    Some(command_id.clone()),
+                    None,
+                );
+
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.emit(
+                        "desktop-context-menu-command",
+                        DesktopContextMenuCommandEvent {
+                            request_id,
+                            command_id,
+                        },
+                    );
+                }
+            });
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

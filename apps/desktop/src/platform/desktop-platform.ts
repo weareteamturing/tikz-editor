@@ -1,6 +1,8 @@
 import {
   APP_MENU_COMMAND_IDS,
   type AssistantAccountSnapshot,
+  type DesktopContextMenuItem,
+  type DesktopContextMenuPayload,
   type AssistantDynamicToolResult,
   type AssistantEvent,
   type AssistantModelOption,
@@ -51,6 +53,17 @@ type DesktopBridge = {
   openExternalUrl: (url: string) => Promise<boolean>;
   listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
+  showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
+  onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
+  onContextMenuDebug: (handler: (payload: {
+    requestId: string;
+    phase: string;
+    target?: string;
+    x?: number;
+    y?: number;
+    reason?: string;
+    error?: string;
+  }) => void) => Promise<() => void>;
   assistantEnsureDocumentThread?: (params: {
     documentId: string;
     source: string;
@@ -111,12 +124,6 @@ type NativeCommandState = {
 type NativeMenuSyncPayload = {
   definition: AppMenuDefinition;
   commandStates: Record<AppMenuCommandId, NativeCommandState>;
-};
-
-type NativeContextMenuPayload = {
-  items: readonly AppMenuItem[];
-  commandStates: Record<AppMenuCommandId, NativeCommandState>;
-  position: { x: number; y: number };
 };
 
 type NativeCommandRef = {
@@ -185,6 +192,47 @@ function basename(path: string): string {
   const segments = path.split(/[\\/]/g);
   const last = segments[segments.length - 1];
   return last && last.trim() ? last : path;
+}
+
+function serializeDesktopContextMenuItems(
+  items: readonly AppMenuItem[],
+  commandStates: Record<AppMenuCommandId, NativeCommandState>
+): DesktopContextMenuItem[] {
+  const serialized: DesktopContextMenuItem[] = [];
+
+  for (const item of items) {
+    if (item.kind === "separator") {
+      serialized.push({ kind: "separator" });
+      continue;
+    }
+    if (item.kind === "recent-files") {
+      continue;
+    }
+    if (item.kind === "submenu") {
+      const children = serializeDesktopContextMenuItems(item.items, commandStates);
+      if (children.length === 0) {
+        continue;
+      }
+      serialized.push({
+        kind: "submenu",
+        label: item.label,
+        items: children
+      });
+      continue;
+    }
+
+    const state = commandStates[item.commandId] ?? { enabled: false };
+    serialized.push({
+      kind: "command",
+      commandId: item.commandId,
+      label: item.label,
+      enabled: state.enabled,
+      checked: state.checked,
+      accelerator: hasModifierAccelerator(item.accelerator) ? item.accelerator : undefined
+    });
+  }
+
+  return serialized;
 }
 
 function createNativeDesktopMenuManager(options: {
@@ -438,17 +486,6 @@ function createNativeDesktopMenuManager(options: {
         return;
       }
       enqueueSync();
-    },
-    async popup(payload: NativeContextMenuPayload): Promise<void> {
-      const menuApi = await import("@tauri-apps/api/menu");
-      const dpiApi = await import("@tauri-apps/api/dpi");
-      const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const popupItems = await buildMenuItems(payload.items, payload.commandStates, [], "context-menu");
-      if (popupItems.length === 0) {
-        return;
-      }
-      const menu = await menuApi.Menu.new({ items: popupItems });
-      await menu.popup(new dpiApi.LogicalPosition(payload.position.x, payload.position.y), getCurrentWindow());
     }
   };
 }
@@ -500,6 +537,30 @@ function createDefaultBridge(): DesktopBridge {
       const { listen } = await import("@tauri-apps/api/event");
       return await listen("desktop-window-close-request", () => {
         handler();
+      });
+    },
+    showContextMenu: async (payload) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_show_context_menu", { payload });
+    },
+    onContextMenuCommand: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen<{ requestId: string; commandId: AppMenuCommandId }>("desktop-context-menu-command", (event) => {
+        handler(event.payload);
+      });
+    },
+    onContextMenuDebug: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen<{
+        requestId: string;
+        phase: string;
+        target?: string;
+        x?: number;
+        y?: number;
+        reason?: string;
+        error?: string;
+      }>("desktop-context-menu-debug", (event) => {
+        handler(event.payload);
       });
     },
     assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
@@ -574,6 +635,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   let openRequestHandler: ((opened: { source: string; fileRef: DocumentFileRef | null }) => void) | null = null;
   let closeRequestHandler: (() => void) | null = null;
   let windowCloseUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let contextMenuCommandUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let contextMenuDebugUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let nextContextMenuRequestId = 0;
 
   const nativeMenuManager = createNativeDesktopMenuManager({
     getBridge,
@@ -601,6 +665,16 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     if (!windowCloseUnlistenPromise) {
       windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
         closeRequestHandler?.();
+      }).catch(() => null);
+    }
+    if (!contextMenuCommandUnlistenPromise) {
+      contextMenuCommandUnlistenPromise = getBridge().onContextMenuCommand((payload) => {
+        menuHandler?.(payload.commandId, "context-menu");
+      }).catch(() => null);
+    }
+    if (!contextMenuDebugUnlistenPromise) {
+      contextMenuDebugUnlistenPromise = getBridge().onContextMenuDebug((payload) => {
+        console.debug("desktop-context-menu", payload);
       }).catch(() => null);
     }
   }
@@ -657,7 +731,14 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         await nativeMenuManager.sync(payload);
       },
       showNativeContextMenu: async (payload) => {
-        await nativeMenuManager.popup(payload);
+        nextContextMenuRequestId += 1;
+        const requestId = `ctx-${Date.now()}-${nextContextMenuRequestId}`;
+        await getBridge().showContextMenu({
+          requestId,
+          target: payload.target,
+          items: serializeDesktopContextMenuItems(payload.items, payload.commandStates),
+          position: payload.position
+        });
       }
     },
     window: {

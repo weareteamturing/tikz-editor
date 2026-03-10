@@ -22,6 +22,8 @@ export type {
   AssistantApi,
   AssistantAccountSnapshot,
   AssistantChatContent,
+  DesktopContextMenuItem,
+  DesktopContextMenuPayload,
   AssistantDynamicToolResult,
   AssistantEvent,
   AssistantItem,
