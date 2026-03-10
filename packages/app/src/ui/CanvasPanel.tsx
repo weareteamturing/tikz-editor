@@ -164,9 +164,11 @@ import {
   copySelectionToClipboardData,
   cutSelection,
   cutSelectionToClipboardData,
+  pasteSelectionFromPayload,
   pasteSelectionFromClipboardData,
   pasteSnippetsWithOffset
 } from "./editor-commands";
+import { parseClipboardPayloadJson } from "./editor-clipboard";
 import {
   buildScopeWrappedSnippet,
   convertSvgToScopeSnippet,
@@ -397,6 +399,11 @@ const DESKTOP_SVG_CLIPBOARD_FORMATS = [
   "image/svg+xml",
   "public.svg-image",
   "com.microsoft.image-svg-xml"
+] as const;
+const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
+  "web application/x-tikz-editor+json",
+  "application/x-tikz-editor+json",
+  "com.tikzeditor.tikz-json"
 ] as const;
 
 function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
@@ -3752,22 +3759,41 @@ export function CanvasPanel() {
         return;
       }
       event.preventDefault();
-      void pasteSelectionFromClipboardData(
-        {
-          source,
-          snapshotSource: snapshot.source,
-          scene: snapshot.scene,
-          editHandles: snapshot.editHandles,
-          selectedElementIds,
-          dispatch
-        },
-        event.clipboardData
-      ).then(async (result) => {
+      const pasteContext = {
+        source,
+        snapshotSource: snapshot.source,
+        scene: snapshot.scene,
+        editHandles: snapshot.editHandles,
+        selectedElementIds,
+        dispatch
+      };
+      void (async () => {
+        const readCustomText = platform.clipboard?.readCustomText;
+        if (typeof readCustomText === "function") {
+          try {
+            const customTikz = await readCustomText(DESKTOP_TIKZ_CLIPBOARD_FORMATS);
+            if (customTikz?.text?.trim()) {
+              const payload = parseClipboardPayloadJson(customTikz.text);
+              if (payload) {
+                const result = pasteSelectionFromPayload(pasteContext, payload);
+                if (result.kind === "success") {
+                  return;
+                }
+              }
+            }
+          } catch {
+            // Fall through to existing dataTransfer/system fallback.
+          }
+        }
+
+        const result = await pasteSelectionFromClipboardData(
+          pasteContext,
+          event.clipboardData
+        );
         if (result.kind === "success") {
           return;
         }
 
-        const readCustomText = platform.clipboard?.readCustomText;
         if (typeof readCustomText === "function") {
           try {
             const custom = await readCustomText(DESKTOP_SVG_CLIPBOARD_FORMATS);
@@ -3807,7 +3833,7 @@ export function CanvasPanel() {
           return;
         }
         setWarning("Paste failed. Try copying again, then press Cmd/Ctrl+V while the canvas is focused.");
-      });
+      })();
     },
     [dispatch, platform, selectedElementIds, snapshot.editHandles, snapshot.scene, snapshot.source, snapshot.svg?.viewBox, source]
   );

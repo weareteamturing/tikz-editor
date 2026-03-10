@@ -435,6 +435,55 @@ test("canvas paste custom svg fallback shows warning for invalid svg data", asyn
   await expect(page.locator("[aria-label='Warning message. Click to copy.']")).toContainText("SVG import failed:");
 });
 
+test("canvas paste prefers custom desktop tikz payload over plain text fallback", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomText?: (formats: readonly string[]) => Promise<{ format: string; text: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomText: async (formats) => {
+          if (!formats.includes("com.tikzeditor.tikz-json")) {
+            return null;
+          }
+          return {
+            format: "com.tikzeditor.tikz-json",
+            text: JSON.stringify({
+              version: 1,
+              snippets: ["\\\\draw (4,4) -- (5,5);"],
+              plainText: "\\\\draw (4,4) -- (5,5);",
+              pasteBehavior: "offset",
+              pasteCount: 2
+            })
+          };
+        }
+      }
+    };
+  });
+
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData("text/plain", "\\draw (0,0) -- (1,1);");
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\draw (4,4) -- (5,5);");
+  await expect(page.locator(".cm-content").first()).not.toContainText("\\draw (0,0) -- (1,1);");
+});
+
 test("resize drag shows and hides metric tooltip", async ({ page }) => {
   await page.goto("/");
   await setSource(page, String.raw`\begin{tikzpicture}
