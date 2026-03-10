@@ -5,6 +5,7 @@ import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js
 import { parseLength } from "../../packages/core/src/semantic/coords/parse-length.js";
 import { buildHitRegions } from "../../packages/app/src/ui/canvas-panel/hit-regions.js";
 import {
+  collectSelectionBounds,
   collectSourceBounds,
   isPointInsideRectHitRegionContentBox,
   rectHitRegionsForTargetId,
@@ -12,6 +13,7 @@ import {
   resolveRectHitRegionContentBox
 } from "../../packages/app/src/ui/canvas-panel/panel-helpers.js";
 import type { HitRegion } from "../../packages/app/src/ui/canvas-panel/hit-regions.js";
+import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 
 describe("rectHitRegionsForTargetId", () => {
   it("matches rect regions by target id rather than statement source id", () => {
@@ -229,5 +231,34 @@ describe("resolveGridResizeSnapForHandleDrag", () => {
 
     const result = resolveGridResizeSnapForHandleDrag(handle, semantic.editHandles, parsed.figure.body);
     expect(result).toBeNull();
+  });
+});
+
+describe("hit region and selection integrity", () => {
+  it("builds non-empty source/target IDs for statements before/inside/after foreach", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[red] (1.68,0.2) rectangle (1,-0.32);
+  \foreach \x in {0,1} { \draw (0,0) -- (1,1); }
+  \draw[blue] (-0.6,1.4) rectangle (0.2,0.8);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const regions = buildHitRegions(rendered.semantic.scene.elements, rendered.svg.viewBox, 1);
+    expect(regions.length).toBeGreaterThan(0);
+    expect(regions.every((region) => region.sourceId.trim().length > 0)).toBe(true);
+    expect(regions.every((region) => region.targetId.trim().length > 0)).toBe(true);
+    expect(regions.some((region) => region.targetId === "path:2")).toBe(true);
+  });
+
+  it("collects selection bounds for post-foreach statements deterministically", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[red] (0,0) rectangle (1,1);
+  \foreach \x in {0,1} { \draw (\x,0) -- (\x,1); }
+  \draw[blue] (4,0) rectangle (5,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const selected = new Set<string>(["path:2"]);
+    const selections = collectSelectionBounds(rendered.semantic.scene.elements, selected, rendered.svg.viewBox);
+    expect(selections).toHaveLength(1);
+    expect(selections[0]?.sourceId).toBe("path:2");
   });
 });

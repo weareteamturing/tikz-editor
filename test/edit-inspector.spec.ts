@@ -512,6 +512,55 @@ describe("getInspectorDescriptor", () => {
     expect(strokeColor.write.writable).toBe(true);
   });
 
+  it("keeps non-first statements editable in inspector", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[red] (0,0) rectangle (1,1);
+  \draw[green] (2,0) rectangle (3,1);
+  \draw[blue] (4,0) rectangle (5,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const secondRectangle = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Path" && entry.shapeHint === "rectangle" && entry.sourceRef.sourceId === "path:1"
+    );
+    const thirdRectangle = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Path" && entry.shapeHint === "rectangle" && entry.sourceRef.sourceId === "path:2"
+    );
+    expect(secondRectangle).toBeDefined();
+    expect(thirdRectangle).toBeDefined();
+    if (!secondRectangle || !thirdRectangle) {
+      throw new Error("Expected second and third rectangle paths");
+    }
+
+    const secondDescriptor = getInspectorDescriptor(secondRectangle, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const thirdDescriptor = getInspectorDescriptor(thirdRectangle, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    const secondStrokeColor = secondDescriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "color" && property.id === "stroke-color");
+    const thirdStrokeColor = thirdDescriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "color" && property.id === "stroke-color");
+    expect(secondStrokeColor).toBeDefined();
+    expect(thirdStrokeColor).toBeDefined();
+    if (!secondStrokeColor || secondStrokeColor.kind !== "color") {
+      throw new Error("Expected writable stroke color control for second statement");
+    }
+    if (!thirdStrokeColor || thirdStrokeColor.kind !== "color") {
+      throw new Error("Expected writable stroke color control for third statement");
+    }
+
+    expect(secondStrokeColor.write.writable).toBe(true);
+    expect(thirdStrokeColor.write.writable).toBe(true);
+    expect(secondDescriptor.writeTargetId).toBe("path:1");
+    expect(thirdDescriptor.writeTargetId).toBe("path:2");
+  });
+
   it("marks non-curated tip kinds as custom", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[arrows={Rays-}] (0,0) -- (2,0);

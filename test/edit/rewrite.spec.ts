@@ -4,29 +4,33 @@ import type { EditHandle, Point } from "../../packages/core/src/semantic/types.j
 import { identityMatrix, scaleMatrix, rotationMatrix, multiplyMatrix, translationMatrix } from "../../packages/core/src/semantic/transform.js";
 import { rewriteCoordinate } from "../../packages/core/src/edit/rewrite.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
+import type { SourceRef } from "../../packages/core/src/semantic/types.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
 function makeHandle(
-  overrides: Partial<EditHandle> & {
+  overrides: Omit<Partial<EditHandle>, "sourceRef" | "runtimeId"> & {
+    runtimeId?: string;
     world: Point;
-    sourceRef: { sourceSpan: { from: number; to: number } };
+    sourceRef?: Partial<SourceRef> & { sourceSpan: { from: number; to: number } };
   }
 ): EditHandle {
-  const mergedSourceRef = {
-    sourceId: "test-source-id",
-    sourceSpan: { from: 0, to: 0 },
-    sourceFingerprint: "test",
-    ...(overrides.sourceRef ?? {})
+  const sourceRefOverrides: Partial<SourceRef> = overrides.sourceRef ?? {};
+  const mergedSourceRef: SourceRef = {
+    sourceId: sourceRefOverrides.sourceId ?? "test-source-id",
+    sourceSpan: sourceRefOverrides.sourceSpan ?? { from: 0, to: 0 },
+    sourceFingerprint: sourceRefOverrides.sourceFingerprint ?? "test"
   };
+  const { sourceRef: _unusedSourceRef, runtimeId, ...rest } = overrides;
   return {
     id: "test-handle",
+    runtimeId: runtimeId ?? "runtime:test-handle",
     kind: "path-point",
     sourceText: "",
     coordinateForm: "cartesian",
     transform: identityMatrix(),
     rewriteMode: "direct",
-    ...overrides,
+    ...rest,
     sourceRef: mergedSourceRef
   };
 }

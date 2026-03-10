@@ -7,6 +7,7 @@ function makeHandle(
   overrides: Partial<EditHandle> & {
     id: string;
     sourceId: string;
+    sourceFingerprint?: string;
     world?: Point;
     sourceSpan?: { from: number; to: number };
   }
