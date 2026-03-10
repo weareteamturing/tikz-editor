@@ -171,7 +171,6 @@ export type EditorAction =
   | { type: "SWITCH_DOCUMENT"; documentId: string }
   | { type: "CLOSE_DOCUMENT"; documentId?: string }
   | { type: "CLOSE_ALL_DOCUMENTS" }
-  | { type: "OPEN_EXAMPLE_IN_NEW_TAB"; source: string; title: string }
   | { type: "MARK_DOCUMENT_SAVED"; documentId?: string; fileRef?: DocumentFileRef | null }
   | {
       type: "APPLY_EDIT_ACTION";

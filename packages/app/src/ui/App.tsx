@@ -119,9 +119,6 @@ export function App() {
     onOpenExample: () => {
       setShowOpenExampleModal(true);
     },
-    onOpenExampleInNewTab: () => {
-      setShowOpenExampleModal(true);
-    },
     onOpenSvgExport: (svgResult) => {
       setSvgExportSvgResult(svgResult);
     },
@@ -696,7 +693,7 @@ export function App() {
   } as CSSProperties;
 
   const loadExampleIntoEditor = (example: TikzOpenExample) => {
-    dispatch({ type: "OPEN_EXAMPLE_IN_NEW_TAB", source: example.source, title: example.title });
+    dispatch({ type: "NEW_DOCUMENT", source: example.source, title: example.title });
     setShowOpenExampleModal(false);
     setPendingAutoFit(true);
   };

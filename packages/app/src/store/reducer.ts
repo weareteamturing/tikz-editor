@@ -357,21 +357,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       break;
     }
 
-    case "OPEN_EXAMPLE_IN_NEW_TAB": {
-      const next = createDocumentSession({
-        source: action.source,
-        title: action.title
-      });
-      workspace = {
-        ...workspace,
-        documents: { ...workspace.documents, [next.id]: next },
-        tabOrder: [...workspace.tabOrder, next.id],
-        activeDocumentId: next.id
-      };
-      workspace = rememberRecentDocument(workspace, next.id);
-      break;
-    }
-
     case "SWITCH_DOCUMENT": {
       if (!workspace.documents[action.documentId]) {
         return state;

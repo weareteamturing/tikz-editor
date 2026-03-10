@@ -71,6 +71,30 @@ const DISTRIBUTE_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
+const TRANSFORM_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.ROTATE_LEFT_90,
+    label: "Rotate Left 90°"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.ROTATE_RIGHT_90,
+    label: "Rotate Right 90°"
+  },
+  { kind: "separator" },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL,
+    label: "Flip Horizontally"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.FLIP_VERTICAL,
+    label: "Flip Vertically"
+  }
+];
+
 export const CANVAS_CONTEXT_MENU_DEFINITION = {
   "canvas-empty": [
     {
@@ -167,6 +191,12 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
     { kind: "separator" },
     {
       kind: "submenu",
+      label: "Transform",
+      items: TRANSFORM_ITEMS
+    },
+    { kind: "separator" },
+    {
+      kind: "submenu",
       label: "Reorder",
       items: REORDER_ITEMS
     }
@@ -214,6 +244,12 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
       label: "Duplicate",
       accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "submenu",
+      label: "Transform",
+      items: TRANSFORM_ITEMS
     },
     { kind: "separator" },
     {
@@ -282,6 +318,11 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       kind: "submenu",
       label: "Align",
       items: ALIGN_ITEMS
+    },
+    {
+      kind: "submenu",
+      label: "Transform",
+      items: TRANSFORM_ITEMS
     },
     {
       kind: "submenu",

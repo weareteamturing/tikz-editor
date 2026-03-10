@@ -45,7 +45,43 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.UNDO].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.REDO].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.ROTATE_LEFT_90].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_GRID].checked).toBe(true);
+  });
+
+  it("routes rotate-left through grouped transform edits", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=90] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(["path:0"]),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.ROTATE_LEFT_90, "menu");
+
+    expect(ran).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "rotate",
+        value: "180",
+        clearKeys: ["/tikz/rotate"]
+      }
+    }));
   });
 
   it("runs commands through one shared entrypoint for menu and shortcut origins", () => {
@@ -317,9 +353,9 @@ describe("editor-command-runtime", () => {
   });
 });
 
-function makeSnapshot(rendered: ReturnType<typeof renderTikzToSvg>) {
+function makeSnapshot(rendered: ReturnType<typeof renderTikzToSvg>, source = SOURCE) {
   return {
-    source: SOURCE,
+    source,
     revision: 1,
     editHandles: rendered.semantic.editHandles,
     scene: rendered.semantic.scene,
@@ -333,6 +369,7 @@ function makeSnapshot(rendered: ReturnType<typeof renderTikzToSvg>) {
 
 function makeInput({
   dispatch,
+  source = SOURCE,
   snapshot,
   selectedElementIds,
   historyIndex,
@@ -365,7 +402,7 @@ function makeInput({
   onOpenPngExport?: () => void;
 }) {
   return {
-    source: SOURCE,
+    source,
     snapshot,
     toolMode: "select" as const,
     selectedElementIds,

@@ -2,13 +2,18 @@ import { applyEditAction, type ReorderDirection } from "tikz-editor/edit/actions
 import { getEditActionAvailability } from "tikz-editor/edit/action-availability";
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import {
+  buildTransformSetPropertyMutations,
+  resolveTransformInspectorValues,
+  type TransformInspectorKey
+} from "tikz-editor/edit/inspector";
+import {
   parseStatementSnapshot,
   resolveStatementRefs,
   statementSnippet
 } from "tikz-editor/edit/statement-ops";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
-import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
+import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic/types";
 import type { EditorAction } from "../store/types";
 import {
   buildSelectionSvgSync,
@@ -311,6 +316,18 @@ export function distributeSelection(context: SelectionCommandContext, axis: Dist
   return true;
 }
 
+export function rotateSelection(context: SelectionCommandContext, direction: "left" | "right"): boolean {
+  const actionId = direction === "left" ? "transform-rotateLeft90" : "transform-rotateRight90";
+  return transformSelection(context, actionId, "rotate", (values) =>
+    normalizeSignedDeg(values.rotate + (direction === "left" ? 90 : -90))
+  );
+}
+
+export function flipSelection(context: SelectionCommandContext, axis: "horizontal" | "vertical"): boolean {
+  const actionId = axis === "horizontal" ? "transform-flipHorizontal" : "transform-flipVertical";
+  return transformSelection(context, actionId, axis === "horizontal" ? "xscale" : "yscale", (values, key) => -values[key]);
+}
+
 export function canCopySelection(context: SelectionCommandContext): boolean {
   return availabilityFor(context).copy.enabled;
 }
@@ -357,6 +374,16 @@ export function canAlignSelection(context: SelectionCommandContext, mode: AlignM
 
 export function canDistributeSelection(context: SelectionCommandContext, axis: DistributeAxis): boolean {
   const actionId = axis === "horizontal" ? "distribute-horizontal" : "distribute-vertical";
+  return availabilityFor(context)[actionId].enabled;
+}
+
+export function canRotateSelection(context: SelectionCommandContext, direction: "left" | "right"): boolean {
+  const actionId = direction === "left" ? "transform-rotateLeft90" : "transform-rotateRight90";
+  return availabilityFor(context)[actionId].enabled;
+}
+
+export function canFlipSelection(context: SelectionCommandContext, axis: "horizontal" | "vertical"): boolean {
+  const actionId = axis === "horizontal" ? "transform-flipHorizontal" : "transform-flipVertical";
   return availabilityFor(context)[actionId].enabled;
 }
 
@@ -442,4 +469,106 @@ function reorderActionId(direction: ReorderDirection) {
     case "bringToFront":
       return "reorder-bringToFront" as const;
   }
+}
+
+function transformSelection(
+  context: SelectionCommandContext,
+  actionId:
+    | "transform-rotateLeft90"
+    | "transform-rotateRight90"
+    | "transform-flipHorizontal"
+    | "transform-flipVertical",
+  key: TransformInspectorKey,
+  resolveNextValue: (
+    values: ReturnType<typeof resolveTransformInspectorValues>,
+    key: TransformInspectorKey
+  ) => number
+): boolean {
+  if (!availabilityFor(context)[actionId].enabled) {
+    return false;
+  }
+
+  const elementIds = [...context.selectedElementIds];
+  const mergeKey = `transform:${Date.now().toString(36)}`;
+  let dispatched = false;
+
+  for (const elementId of elementIds) {
+    const targetId = resolveTransformTargetId(context, elementId);
+    if (!targetId) {
+      continue;
+    }
+    const values = resolveTransformInspectorValues(context.source, targetId);
+    const mutations = buildTransformSetPropertyMutations(values, key, resolveNextValue(values, key));
+    for (const mutation of mutations) {
+      context.dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: targetId,
+          level: "command",
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+      dispatched = true;
+    }
+  }
+
+  return dispatched;
+}
+
+function normalizeSignedDeg(degrees: number): number {
+  if (!Number.isFinite(degrees)) {
+    return 0;
+  }
+  let normalized = ((degrees % 360) + 360) % 360;
+  if (normalized > 180) {
+    normalized -= 360;
+  }
+  if (normalized <= -180) {
+    normalized += 360;
+  }
+  return normalized;
+}
+
+function resolveTransformTargetId(context: SelectionCommandContext, selectedId: string): string | null {
+  const element = findSelectedSceneElement(context.scene, selectedId);
+  if (!element) {
+    const resolved = resolvePropertyTarget(context.source, selectedId);
+    return resolved.kind === "found" ? selectedId : null;
+  }
+
+  const styleChainCommandSourceId =
+    [...element.styleChain].reverse().find((entry) => entry.kind === "command")?.sourceRef?.sourceId ?? null;
+  const candidateTargetIds = [
+    element.adornment?.targetId ?? null,
+    styleChainCommandSourceId,
+    element.sourceRef.sourceId,
+    selectedId
+  ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
+
+  for (const targetId of candidateTargetIds) {
+    const resolved = resolvePropertyTarget(context.source, targetId);
+    if (resolved.kind === "found") {
+      return targetId;
+    }
+  }
+
+  return null;
+}
+
+function findSelectedSceneElement(scene: SceneFigure | null, selectedId: string): SceneElement | null {
+  if (!scene) {
+    return null;
+  }
+
+  for (const element of scene.elements) {
+    if (element.adornment?.targetId === selectedId || element.sourceRef.sourceId === selectedId) {
+      return element;
+    }
+  }
+
+  return null;
 }

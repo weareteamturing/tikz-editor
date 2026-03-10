@@ -16,10 +16,6 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_EXAMPLE).toBe("file.open-example");
   });
 
-  it("defines open-example-in-new-tab command id", () => {
-    expect(APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB).toBe("file.open-example-in-new-tab");
-  });
-
   it("defines svg export command ids", () => {
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD).toBe("file.export-svg-download");
     expect(APP_MENU_COMMAND_IDS.EXPORT_STANDALONE_LATEX_DOWNLOAD).toBe("file.export-standalone-latex-download");
@@ -70,6 +66,21 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Open Example...");
   });
 
+  it("places Open Example directly below Open in the File menu", () => {
+    const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
+    expect(fileSection).toBeDefined();
+    const items = fileSection?.items ?? [];
+    const openIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_DOCUMENT
+    );
+    const openExampleIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_EXAMPLE
+    );
+
+    expect(openIndex).toBeGreaterThanOrEqual(0);
+    expect(openExampleIndex).toBe(openIndex + 1);
+  });
+
   it("exposes Import SVG in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
@@ -82,6 +93,19 @@ describe("app menu definition", () => {
       throw new Error("Expected file.import-svg command item in File menu.");
     }
     expect(commandItem.label).toBe("Import SVG...");
+  });
+
+  it("groups Import SVG directly above Export in the File menu", () => {
+    const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
+    expect(fileSection).toBeDefined();
+    const items = fileSection?.items ?? [];
+    const importIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_SVG
+    );
+    const exportIndex = items.findIndex((item) => item.kind === "submenu" && item.label === "Export");
+
+    expect(importIndex).toBeGreaterThanOrEqual(0);
+    expect(exportIndex).toBe(importIndex + 1);
   });
 
   it("exposes Export SVG, Standalone LaTeX, PDF, and PNG in the File > Export submenu", () => {
@@ -248,6 +272,17 @@ describe("app menu definition", () => {
     expect(formatIndex).toBe(duplicateIndex + 2);
     expect(items[duplicateIndex + 1]?.kind).toBe("separator");
     expect(items[formatIndex + 1]?.kind).toBe("separator");
+  });
+
+  it("groups Transform with Align, Distribute, and Reorder in the Edit menu", () => {
+    const editSection = APP_MENU_DEFINITION.find((section) => section.id === "edit");
+    expect(editSection).toBeDefined();
+    const items = editSection?.items ?? [];
+    const submenuLabels = items.filter((item) => item.kind === "submenu").map((item) => item.label);
+
+    expect(submenuLabels).toEqual(["Align", "Transform", "Distribute", "Reorder"]);
+    expect(items[items.length - 5]).toEqual({ kind: "separator" });
+    expect(items.slice(-4).every((item) => item.kind === "submenu")).toBe(true);
   });
 
   it("exposes Open PGF/TikZ Manual in the Help menu", () => {

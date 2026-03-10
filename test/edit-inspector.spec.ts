@@ -765,6 +765,81 @@ describe("getInspectorDescriptor", () => {
     });
   });
 
+  it("rewrites scale shorthand into explicit scales when flipping xscale", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[scale=2] (0,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const transformSection = descriptor.sections.find((section) => section.id === "transform");
+    expect(transformSection).toBeDefined();
+    if (!transformSection) {
+      throw new Error("Expected transform section");
+    }
+
+    const xscale = transformSection.properties.find((property) => property.id === "xscale");
+    expect(xscale).toBeDefined();
+    if (!xscale || xscale.kind !== "number" || !xscale.write?.transformContext) {
+      throw new Error("Expected xscale number property with transform context");
+    }
+
+    const mutations = buildTransformSetPropertyMutations(xscale.write.transformContext.values, "xscale", -2);
+    expect(mutations).toHaveLength(2);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: xscale.write.elementId,
+        level: xscale.write.level,
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful setProperty transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("xscale=-2");
+    expect(updated).toContain("yscale=2");
+    expect(updated).not.toMatch(/\bscale\s*=/);
+  });
+
+  it("supports flipping yscale twice back to the original value", () => {
+    const values = resolveTransformInspectorValues(String.raw`\begin{tikzpicture}
+  \draw[yscale=2] (0,0) -- (1,0);
+\end{tikzpicture}`, "path:0");
+    const flipped = buildTransformSetPropertyMutations(values, "yscale", -values.yscale);
+    expect(flipped).toHaveLength(1);
+    expect(flipped[0]).toMatchObject({
+      key: "yscale",
+      value: "-2"
+    });
+
+    const reflipped = buildTransformSetPropertyMutations(
+      { ...values, yscale: -2 },
+      "yscale",
+      2
+    );
+    expect(reflipped).toHaveLength(1);
+    expect(reflipped[0]).toMatchObject({
+      key: "yscale",
+      value: "2"
+    });
+  });
+
   it("builds path morphing decoration mutations", () => {
     const enabledMutations = buildPathMorphingDecorationSetPropertyMutations("zigzag");
     expect(enabledMutations).toHaveLength(2);

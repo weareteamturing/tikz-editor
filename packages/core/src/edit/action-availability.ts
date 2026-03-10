@@ -9,6 +9,10 @@ export const EDIT_ACTION_IDS = [
   "paste",
   "duplicate",
   "delete",
+  "transform-rotateLeft90",
+  "transform-rotateRight90",
+  "transform-flipHorizontal",
+  "transform-flipVertical",
   "reorder-sendToBack",
   "reorder-sendBackward",
   "reorder-bringForward",
@@ -79,6 +83,10 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
     facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to delete.",
+  "transform-rotateLeft90": makeTransformRule(),
+  "transform-rotateRight90": makeTransformRule(),
+  "transform-flipHorizontal": makeTransformRule(),
+  "transform-flipVertical": makeTransformRule(),
   "reorder-sendToBack": (facts) =>
     facts.hasAdornmentSelection
       ? "Adornment selections cannot be reordered."
@@ -240,6 +248,21 @@ function makeAlignRule(mode: AlignMode): AvailabilityRule {
       return plan.reason;
     }
 
+    return null;
+  };
+}
+
+function makeTransformRule(): AvailabilityRule {
+  return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be transformed.";
+    }
+    if (facts.selectedSourceIds.length === 0) {
+      return "Select at least one element to transform.";
+    }
+    if (!facts.snapshotMatchesSource) {
+      return "Wait for recompute to finish before transforming.";
+    }
     return null;
   };
 }

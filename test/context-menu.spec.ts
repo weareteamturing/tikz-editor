@@ -59,8 +59,18 @@ describe("canvas context menu definition", () => {
     const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"];
 
     expect(items.some((item) => item.kind === "submenu" && item.label === "Align")).toBe(true);
+    expect(items.some((item) => item.kind === "submenu" && item.label === "Transform")).toBe(true);
     expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(true);
     expect(items.some((item) => item.kind === "submenu" && item.label === "Reorder")).toBe(true);
+  });
+
+  it("groups selection-multi transform with align, distribute, and reorder without separators", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"];
+    const submenuLabels = items.filter((item) => item.kind === "submenu").map((item) => item.label);
+
+    expect(submenuLabels.slice(-4)).toEqual(["Align", "Transform", "Distribute", "Reorder"]);
+    expect(items[items.length - 5]).toEqual({ kind: "separator" });
+    expect(items.slice(-4).every((item) => item.kind === "submenu")).toBe(true);
   });
 });
 

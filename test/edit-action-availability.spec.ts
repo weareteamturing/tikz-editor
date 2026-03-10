@@ -24,6 +24,8 @@ describe("getEditActionAvailability", () => {
     expect(availability["align-left"].reason).toContain("at least 2");
     expect(availability["distribute-horizontal"].enabled).toBe(false);
     expect(availability["distribute-horizontal"].reason).toContain("at least 3");
+    expect(availability["transform-rotateLeft90"].enabled).toBe(true);
+    expect(availability["transform-flipHorizontal"].enabled).toBe(true);
   });
 
   it("gates arrange actions when snapshot/source are out of sync", () => {
@@ -43,6 +45,8 @@ describe("getEditActionAvailability", () => {
 
     expect(availability["align-left"].enabled).toBe(false);
     expect(availability["align-left"].reason).toContain("recompute");
+    expect(availability["transform-rotateRight90"].enabled).toBe(false);
+    expect(availability["transform-rotateRight90"].reason).toContain("recompute");
   });
 
   it("gates arrange actions when any selected element is non-rewritable", () => {
@@ -64,6 +68,33 @@ describe("getEditActionAvailability", () => {
 
     expect(availability["align-left"].enabled).toBe(false);
     expect(availability["align-left"].reason).toContain("unsupported coordinate forms");
+  });
+
+  it("gates transform actions for empty and adornment selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=above:A] {B};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const empty = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: [],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(empty["transform-flipVertical"].enabled).toBe(false);
+    expect(empty["transform-flipVertical"].reason).toContain("at least one");
+
+    const adornment = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["node-adornment:node:0:2:label:0"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(adornment["transform-flipHorizontal"].enabled).toBe(false);
+    expect(adornment["transform-flipHorizontal"].reason).toContain("Adornment");
   });
 
   it("gates arrange actions when bounds are missing", () => {

@@ -63,7 +63,7 @@ describe("workspace model", () => {
   it("opens examples in a new tab session", () => {
     const initial = makeInitialState();
     const next = editorReducer(initial, {
-      type: "OPEN_EXAMPLE_IN_NEW_TAB",
+      type: "NEW_DOCUMENT",
       source: "\\begin{tikzpicture}\\draw (0,0) circle (1);\\end{tikzpicture}",
       title: "Circle Example"
     });

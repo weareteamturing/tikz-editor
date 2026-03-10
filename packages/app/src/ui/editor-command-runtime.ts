@@ -10,13 +10,15 @@ import { getToolCapabilityStatus } from "./capabilities";
 import {
   actionAvailability,
   alignSelection,
+  flipSelection,
   copySelection,
   cutSelection,
   deleteSelection,
   distributeSelection,
   duplicateSelection,
   pasteSelectionFromSystemClipboard,
-  reorderSelection
+  reorderSelection,
+  rotateSelection
 } from "./editor-commands";
 import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
 import { requestSourceFormat } from "./source-sync";
@@ -57,7 +59,6 @@ type RuntimeInput = {
   showDevPanel: boolean;
   dispatch: Dispatch;
   onOpenExample?: () => void;
-  onOpenExampleInNewTab?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
   onOpenPngExport?: (svgResult: EmitSvgResult) => void;
   onRequestCloseDocument?: (documentId: string) => void;
@@ -98,7 +99,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     showDevPanel,
     dispatch,
     onOpenExample,
-    onOpenExampleInNewTab,
     onOpenSvgExport,
     onOpenPngExport,
     onRequestCloseDocument,
@@ -290,10 +290,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: onOpenExample != null,
       run: () => onOpenExample?.()
     },
-    [APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB]: {
-      enabled: onOpenExampleInNewTab != null,
-      run: () => onOpenExampleInNewTab?.()
-    },
     [APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE]: {
       enabled: onShowCompiledPicture != null,
       run: () => onShowCompiledPicture?.()
@@ -368,6 +364,30 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: availability.duplicate.enabled,
       run: () => {
         duplicateSelection(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.ROTATE_LEFT_90]: {
+      enabled: availability["transform-rotateLeft90"].enabled,
+      run: () => {
+        rotateSelection(commandContext, "left");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.ROTATE_RIGHT_90]: {
+      enabled: availability["transform-rotateRight90"].enabled,
+      run: () => {
+        rotateSelection(commandContext, "right");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL]: {
+      enabled: availability["transform-flipHorizontal"].enabled,
+      run: () => {
+        flipSelection(commandContext, "horizontal");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.FLIP_VERTICAL]: {
+      enabled: availability["transform-flipVertical"].enabled,
+      run: () => {
+        flipSelection(commandContext, "vertical");
       }
     },
     [APP_MENU_COMMAND_IDS.SEND_TO_BACK]: {
@@ -540,7 +560,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 export function useEditorCommandRuntime(
   options: {
     onOpenExample?: () => void;
-    onOpenExampleInNewTab?: () => void;
     onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
     onOpenPngExport?: (svgResult: EmitSvgResult) => void;
     onRequestCloseDocument?: (documentId: string) => void;
@@ -602,7 +621,6 @@ export function useEditorCommandRuntime(
         showDevPanel,
         dispatch,
         onOpenExample: options.onOpenExample,
-        onOpenExampleInNewTab: options.onOpenExampleInNewTab,
         onOpenSvgExport: options.onOpenSvgExport,
         onOpenPngExport: options.onOpenPngExport,
         onRequestCloseDocument: options.onRequestCloseDocument,
@@ -636,7 +654,6 @@ export function useEditorCommandRuntime(
       showDevPanel,
       dispatch,
       options.onOpenExample,
-      options.onOpenExampleInNewTab,
       options.onOpenSvgExport,
       options.onOpenPngExport,
       options.onRequestCloseDocument,

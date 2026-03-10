@@ -7,11 +7,14 @@ import {
   cutSelectionToClipboardData,
   deleteSelection,
   distributeSelection,
+  flipSelection,
   isCodeMirrorEventTarget,
   pasteSelectionFromClipboardData,
-  pasteSelectionFromSystemClipboard
+  pasteSelectionFromSystemClipboard,
+  rotateSelection
 } from "../packages/app/src/ui/editor-commands.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
+import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import {
   SVG_CLIPBOARD_MIME,
   PLAIN_TEXT_CLIPBOARD_MIME,
@@ -450,6 +453,201 @@ describe("editor-commands", () => {
 
     expect(didDistribute).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("rotateSelection dispatches grouped rotate mutations for multi-selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[rotate=90] (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didRotate = rotateSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0", "path:1"]),
+      dispatch
+    }, "left");
+
+    expect(didRotate).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    const first = dispatch.mock.calls[0]?.[0];
+    const second = dispatch.mock.calls[1]?.[0];
+    expect(first).toMatchObject({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "rotate",
+        value: "180",
+        clearKeys: ["/tikz/rotate"]
+      }
+    });
+    expect(second).toMatchObject({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "setProperty",
+        elementId: "path:1",
+        level: "command",
+        key: "rotate",
+        value: "90",
+        clearKeys: ["/tikz/rotate"]
+      }
+    });
+    expect(first?.type).toBe("APPLY_EDIT_ACTION");
+    expect(second?.type).toBe("APPLY_EDIT_ACTION");
+    if (first?.type === "APPLY_EDIT_ACTION" && second?.type === "APPLY_EDIT_ACTION") {
+      expect(first.historyMergeKey).toBe(second.historyMergeKey);
+    }
+  });
+
+  it("flipSelection negates xscale while preserving existing yscale", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[xscale=2,yscale=3] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didFlip = flipSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0"]),
+      dispatch
+    }, "horizontal");
+
+    expect(didFlip).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(dispatch).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: expect.objectContaining({
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "xscale",
+        value: "-2",
+        clearKeys: expect.arrayContaining(["scale", "/tikz/scale", "/tikz/xscale"])
+      })
+    }));
+    expect(dispatch).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: expect.objectContaining({
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "yscale",
+        value: "3"
+      })
+    }));
+  });
+
+  it("flipSelection negates yscale from the default scale", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didFlip = flipSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0"]),
+      dispatch
+    }, "vertical");
+
+    expect(didFlip).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: expect.objectContaining({
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key: "yscale",
+        value: "-1"
+      })
+    }));
+  });
+
+  it("transform commands do not dispatch when selection is not transformable", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=above:A] {B};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didRotate = rotateSelection({
+      source,
+      snapshotSource: `${source} `,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["node:0"]),
+      dispatch
+    }, "right");
+    const didFlip = flipSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["node-adornment:node:0:2:label:0"]),
+      dispatch
+    }, "horizontal");
+
+    expect(didRotate).toBe(false);
+    expect(didFlip).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("rotateSelection writes into an existing node option list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didRotate = rotateSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set(["path:0"]),
+      dispatch
+    }, "right");
+
+    expect(didRotate).toBe(true);
+    const actions = dispatch.mock.calls
+      .map((call) => call[0])
+      .filter((action): action is Extract<EditorAction, { type: "APPLY_EDIT_ACTION" }> => action?.type === "APPLY_EDIT_ACTION");
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.action).toMatchObject({
+      kind: "setProperty",
+      key: "rotate",
+      value: "-90"
+    });
+    expect(actions[0]?.action.kind).toBe("setProperty");
+    if (actions[0]?.action.kind === "setProperty") {
+      expect(actions[0].action.elementId).toMatch(/^node:/);
+    }
+
+    let updated = source;
+    for (const action of actions) {
+      const result = applyEditAction(updated, rendered.semantic.editHandles, action.action);
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful node transform rewrite");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain(String.raw`\node[draw, rotate=-90] (C) at (0, 1.5) {C};`);
+    expect(updated).not.toContain(String.raw`\node[rotate=-90][draw]`);
   });
 
   it("detects CodeMirror targets so keyboard commands can bail out", () => {

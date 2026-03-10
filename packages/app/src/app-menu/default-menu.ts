@@ -18,8 +18,8 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.IMPORT_SVG,
-        label: "Import SVG..."
+        commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE,
+        label: "Open Example..."
       },
       {
         kind: "recent-files",
@@ -52,15 +52,9 @@ export const APP_MENU_DEFINITION = [
       { kind: "separator" },
       {
         kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE,
-        label: "Open Example..."
+        commandId: APP_MENU_COMMAND_IDS.IMPORT_SVG,
+        label: "Import SVG..."
       },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.OPEN_EXAMPLE_IN_NEW_TAB,
-        label: "Open Example in New Tab..."
-      },
-      { kind: "separator" },
       {
         kind: "submenu",
         label: "Export",
@@ -195,6 +189,33 @@ export const APP_MENU_DEFINITION = [
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.ALIGN_BOTTOM,
             label: "Bottom"
+          }
+        ]
+      },
+      {
+        kind: "submenu",
+        label: "Transform",
+        items: [
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.ROTATE_LEFT_90,
+            label: "Rotate Left 90°"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.ROTATE_RIGHT_90,
+            label: "Rotate Right 90°"
+          },
+          { kind: "separator" },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL,
+            label: "Flip Horizontally"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.FLIP_VERTICAL,
+            label: "Flip Vertically"
           }
         ]
       },
