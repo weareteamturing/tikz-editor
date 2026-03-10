@@ -11,7 +11,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import type { AppMenuCommandId } from "../app-menu";
-import type { CanvasContextMenuTarget } from "../context-menu";
+import { CANVAS_CONTEXT_MENU_DEFINITION, type CanvasContextMenuTarget } from "../context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import {
   ADORNMENT_EDIT_NOOP_REASON,
@@ -50,6 +50,7 @@ import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind } from "../store/types";
+import { getActiveEditorPlatform } from "../platform/current";
 import {
   requestSourceSelection,
   SOURCE_SELECTION_CHANGED_EVENT,
@@ -321,12 +322,23 @@ type GuideDragState = {
 };
 
 type CanvasContextMenuState = {
+  requestId: number;
   target: CanvasContextMenuTarget;
   anchorX: number;
   anchorY: number;
-  clickedTargetId: string | null;
-  clickedWorld: Point | null;
+  nativeX: number;
+  nativeY: number;
 };
+
+type PendingNativeContextMenuRequest = {
+  clientX: number;
+  clientY: number;
+  clickedSourceId: string;
+};
+
+const NATIVE_CONTEXT_MENU_SELECT_DELAY_MS = 75;
+const NATIVE_CONTEXT_MENU_OPEN_DELAY_MS = 75;
+const NATIVE_CONTEXT_MENU_WATCHDOG_MS = 600;
 
 type SnapDebugOverlayState = {
   atIso: string;
@@ -458,6 +470,7 @@ function computeAutoScaleForImportedTikz(
 }
 
 export function CanvasPanel() {
+  const platform = getActiveEditorPlatform();
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
@@ -515,15 +528,31 @@ export function CanvasPanel() {
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
+  const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
+    useState<PendingNativeContextMenuRequest | null>(null);
   const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
+  const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: Point | null }>({
+    clickedTargetId: null,
+    clickedWorld: null
+  });
+  const nativeContextMenuRequestRef = useRef<number | null>(null);
+  const nativeContextMenuOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeContextMenuWatchdogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nativeContextMenuCooldownUntilRef = useRef(0);
+
+  const nativeContextMenuBlocked = useCallback(
+    () => platform.menu?.usesNativeContextMenus === true && Date.now() < nativeContextMenuCooldownUntilRef.current,
+    [platform.menu?.usesNativeContextMenus]
+  );
 
   const commandRuntime = useEditorCommandRuntime({
     onAddNodeAdornment: (kind) => {
       const result = resolveNodeAdornmentContextAction({
         source,
-        clickedTargetId: contextMenuState?.clickedTargetId ?? null,
+        clickedTargetId: contextMenuContextRef.current.clickedTargetId,
         selectedTargetId: selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null,
-        clickedWorld: contextMenuState?.clickedWorld ?? null,
+        clickedWorld: contextMenuContextRef.current.clickedWorld,
         sceneElements: snapshot.scene?.elements ?? [],
         viewBox: svgResult?.viewBox ?? null,
         adornmentKind: kind,
@@ -539,6 +568,140 @@ export function CanvasPanel() {
       setPendingAdornmentTextEditTargetId(result.pendingTextTargetId);
     }
   });
+
+  useEffect(() => {
+    if (!platform.menu?.usesNativeContextMenus || !contextMenuState) {
+      return;
+    }
+    if (Date.now() < nativeContextMenuCooldownUntilRef.current) {
+      setContextMenuState(null);
+      return;
+    }
+    if (nativeContextMenuRequestRef.current === contextMenuState.requestId) {
+      return;
+    }
+    nativeContextMenuRequestRef.current = contextMenuState.requestId;
+    nativeContextMenuCooldownUntilRef.current = Date.now() + NATIVE_CONTEXT_MENU_WATCHDOG_MS;
+
+    let cancelled = false;
+    if (nativeContextMenuOpenTimeoutRef.current) {
+      clearTimeout(nativeContextMenuOpenTimeoutRef.current);
+    }
+    if (nativeContextMenuWatchdogTimeoutRef.current) {
+      clearTimeout(nativeContextMenuWatchdogTimeoutRef.current);
+    }
+    nativeContextMenuOpenTimeoutRef.current = setTimeout(() => {
+      nativeContextMenuOpenTimeoutRef.current = null;
+      nativeContextMenuWatchdogTimeoutRef.current = setTimeout(() => {
+        nativeContextMenuWatchdogTimeoutRef.current = null;
+        nativeContextMenuRequestRef.current = null;
+        setContextMenuState(null);
+      }, NATIVE_CONTEXT_MENU_WATCHDOG_MS);
+      void platform.menu.showNativeContextMenu?.({
+        items: CANVAS_CONTEXT_MENU_DEFINITION[contextMenuState.target],
+        commandStates: commandRuntime.bindings,
+        position: {
+          x: contextMenuState.nativeX,
+          y: contextMenuState.nativeY
+        }
+      }).catch((error) => {
+        console.error("Failed to show native canvas context menu.", error);
+      }).finally(() => {
+        if (!cancelled) {
+          if (nativeContextMenuWatchdogTimeoutRef.current) {
+            clearTimeout(nativeContextMenuWatchdogTimeoutRef.current);
+            nativeContextMenuWatchdogTimeoutRef.current = null;
+          }
+          nativeContextMenuRequestRef.current = null;
+          setContextMenuState(null);
+        }
+      });
+    }, NATIVE_CONTEXT_MENU_OPEN_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      if (nativeContextMenuOpenTimeoutRef.current) {
+        clearTimeout(nativeContextMenuOpenTimeoutRef.current);
+        nativeContextMenuOpenTimeoutRef.current = null;
+      }
+      if (nativeContextMenuWatchdogTimeoutRef.current) {
+        clearTimeout(nativeContextMenuWatchdogTimeoutRef.current);
+        nativeContextMenuWatchdogTimeoutRef.current = null;
+      }
+    };
+  }, [commandRuntime.bindings, contextMenuState, platform.menu]);
+
+  useEffect(() => {
+    if (!platform.menu?.usesNativeContextMenus || !pendingNativeContextMenuRequest) {
+      return;
+    }
+    if (Date.now() < nativeContextMenuCooldownUntilRef.current) {
+      setPendingNativeContextMenuRequest(null);
+      return;
+    }
+    if (!selectedElementIds.has(pendingNativeContextMenuRequest.clickedSourceId)) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const rect = viewport.getBoundingClientRect();
+    const resolution = resolveCanvasContextMenuTarget({
+      source,
+      toolMode,
+      clickedSourceId: pendingNativeContextMenuRequest.clickedSourceId,
+      selectedElementIds
+    });
+
+    contextMenuContextRef.current = {
+      clickedTargetId: pendingNativeContextMenuRequest.clickedSourceId,
+      clickedWorld:
+        svgResult
+          ? viewportToWorldPoint(
+              pendingNativeContextMenuRequest.clientX - rect.left,
+              pendingNativeContextMenuRequest.clientY - rect.top,
+              canvasTransform,
+              svgResult.viewBox
+            )
+          : null
+    };
+
+    if (pendingNativeContextMenuTimeoutRef.current) {
+      clearTimeout(pendingNativeContextMenuTimeoutRef.current);
+    }
+
+    pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
+      pendingNativeContextMenuTimeoutRef.current = null;
+      setContextMenuState({
+        requestId: Date.now() + Math.random(),
+        target: resolution.target,
+        anchorX: pendingNativeContextMenuRequest.clientX - rect.left,
+        anchorY: pendingNativeContextMenuRequest.clientY - rect.top,
+        nativeX: pendingNativeContextMenuRequest.clientX,
+        nativeY: pendingNativeContextMenuRequest.clientY
+      });
+      setPendingNativeContextMenuRequest(null);
+      viewport.focus({ preventScroll: true });
+    }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
+
+    return () => {
+      if (pendingNativeContextMenuTimeoutRef.current) {
+        clearTimeout(pendingNativeContextMenuTimeoutRef.current);
+        pendingNativeContextMenuTimeoutRef.current = null;
+      }
+    };
+  }, [
+    canvasTransform,
+    pendingNativeContextMenuRequest,
+    platform.menu?.usesNativeContextMenus,
+    selectedElementIds,
+    source,
+    svgResult,
+    toolMode
+  ]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topRulerRef = useRef<SVGSVGElement | null>(null);
@@ -2251,10 +2414,16 @@ export function CanvasPanel() {
 
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, targetId: string, region?: HitRegion) => {
-      if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      if (!svgResult || toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       viewportRef.current?.focus({ preventScroll: true });
+      const alreadySelected = selectedElementIds.has(targetId);
+
+      if (event.button !== 0) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -2262,7 +2431,6 @@ export function CanvasPanel() {
         return;
       }
 
-      const alreadySelected = selectedElementIds.has(targetId);
       const isAdornmentTarget = targetId.startsWith("node-adornment:");
       setTextEditingSession(null);
 
@@ -2608,6 +2776,7 @@ export function CanvasPanel() {
       snapshot.source,
       source,
       svgResult,
+      platform.menu?.usesNativeContextMenus,
       toolMode
     ]
   );
@@ -2788,6 +2957,9 @@ export function CanvasPanel() {
 
   const openCanvasContextMenuAt = useCallback(
     (clientX: number, clientY: number, clickedSourceId: string | null) => {
+      if (nativeContextMenuBlocked()) {
+        return;
+      }
       const viewport = viewportRef.current;
       if (!viewport) {
         return;
@@ -2806,22 +2978,40 @@ export function CanvasPanel() {
           dispatch({ type: "CLEAR_SELECTION" });
         }
       } else if (resolution.selectionAction.kind === "select-only") {
+        if (platform.menu?.usesNativeContextMenus) {
+          setPendingNativeContextMenuRequest({
+            clientX,
+            clientY,
+            clickedSourceId: resolution.selectionAction.sourceId
+          });
+          dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
+          viewport.focus({ preventScroll: true });
+          return;
+        }
         dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
       }
 
-      setContextMenuState({
-        target: resolution.target,
-        anchorX: clientX - rect.left,
-        anchorY: clientY - rect.top,
+      contextMenuContextRef.current = {
         clickedTargetId: clickedSourceId,
         clickedWorld:
           svgResult
             ? viewportToWorldPoint(clientX - rect.left, clientY - rect.top, canvasTransform, svgResult.viewBox)
             : null
-      });
+      };
+
+      const nextContextMenuState: CanvasContextMenuState = {
+        requestId: Date.now() + Math.random(),
+        target: resolution.target,
+        anchorX: clientX - rect.left,
+        anchorY: clientY - rect.top,
+        nativeX: clientX,
+        nativeY: clientY
+      };
+
+      setContextMenuState(nextContextMenuState);
       viewport.focus({ preventScroll: true });
     },
-    [canvasTransform, dispatch, selectedElementIds, source, svgResult, toolMode]
+    [canvasTransform, dispatch, nativeContextMenuBlocked, platform.menu?.usesNativeContextMenus, selectedElementIds, source, svgResult, toolMode]
   );
 
   const onElementContextMenu = useCallback(
@@ -4887,21 +5077,23 @@ export function CanvasPanel() {
             </div>
           )}
 
-          <CanvasContextMenu
-            open={contextMenuState != null}
-            anchor={{
-              x: contextMenuState?.anchorX ?? 0,
-              y: contextMenuState?.anchorY ?? 0
-            }}
-            target={contextMenuState?.target ?? "canvas-empty"}
-            bindings={commandRuntime.bindings}
-            containerRef={viewportRef}
-            onClose={() => setContextMenuState(null)}
-            onCommandRun={(commandId: AppMenuCommandId, origin) => {
-              commandRuntime.runCommand(commandId, origin);
-              setContextMenuState(null);
-            }}
-          />
+          {platform.menu?.usesNativeContextMenus ? null : (
+            <CanvasContextMenu
+              open={contextMenuState != null}
+              anchor={{
+                x: contextMenuState?.anchorX ?? 0,
+                y: contextMenuState?.anchorY ?? 0
+              }}
+              target={contextMenuState?.target ?? "canvas-empty"}
+              bindings={commandRuntime.bindings}
+              containerRef={viewportRef}
+              onClose={() => setContextMenuState(null)}
+              onCommandRun={(commandId: AppMenuCommandId, origin) => {
+                commandRuntime.runCommand(commandId, origin);
+                setContextMenuState(null);
+              }}
+            />
+          )}
 
           {dragTooltip ? (
             <RenderedTooltip

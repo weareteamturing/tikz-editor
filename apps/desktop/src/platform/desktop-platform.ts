@@ -113,6 +113,12 @@ type NativeMenuSyncPayload = {
   commandStates: Record<AppMenuCommandId, NativeCommandState>;
 };
 
+type NativeContextMenuPayload = {
+  items: readonly AppMenuItem[];
+  commandStates: Record<AppMenuCommandId, NativeCommandState>;
+  position: { x: number; y: number };
+};
+
 type NativeCommandRef = {
   kind: "command" | "check";
   item: {
@@ -183,7 +189,7 @@ function basename(path: string): string {
 
 function createNativeDesktopMenuManager(options: {
   getBridge: () => DesktopBridge;
-  dispatchCommand: (commandId: AppMenuCommandId) => void;
+  dispatchCommand: (commandId: AppMenuCommandId, origin: "platform" | "context-menu") => void;
   dispatchOpenRecent: (path: string) => void;
 }) {
   const APP_DISPLAY_NAME = "TikZ Editor";
@@ -226,10 +232,22 @@ function createNativeDesktopMenuManager(options: {
     }
   }
 
+  async function buildMenuItems(
+    items: readonly AppMenuItem[],
+    commandStates: Record<AppMenuCommandId, NativeCommandState>,
+    recentFiles: readonly string[],
+    origin: "platform" | "context-menu"
+  ): Promise<any[]> {
+    return (
+      await Promise.all(items.map(async (item) => await buildMenuItem(item, commandStates, recentFiles, origin)))
+    ).filter((item): item is NonNullable<typeof item> => item != null);
+  }
+
   async function buildMenuItem(
     item: AppMenuItem,
     commandStates: Record<AppMenuCommandId, NativeCommandState>,
-    recentFiles: readonly string[]
+    recentFiles: readonly string[],
+    origin: "platform" | "context-menu"
   ): Promise<any | null> {
     const menuApi = await import("@tauri-apps/api/menu");
 
@@ -265,9 +283,7 @@ function createNativeDesktopMenuManager(options: {
     }
 
     if (item.kind === "submenu") {
-      const builtItems: any[] = (
-        await Promise.all(item.items.map(async (child) => await buildMenuItem(child, commandStates, recentFiles)))
-      ).filter((child): child is NonNullable<typeof child> => child != null);
+      const builtItems = await buildMenuItems(item.items, commandStates, recentFiles, origin);
 
       if (builtItems.length === 0) {
         return null;
@@ -297,7 +313,7 @@ function createNativeDesktopMenuManager(options: {
         enabled: state.enabled,
         accelerator,
         action: (id) => {
-          dispatchCommand(id as AppMenuCommandId);
+          dispatchCommand(id as AppMenuCommandId, origin);
         }
       });
       addCommandRef(item.commandId, { kind: "check", item: checkItem });
@@ -310,7 +326,7 @@ function createNativeDesktopMenuManager(options: {
       enabled: state.enabled,
       accelerator,
       action: (id) => {
-        dispatchCommand(id as AppMenuCommandId);
+        dispatchCommand(id as AppMenuCommandId, origin);
       }
     });
     addCommandRef(item.commandId, { kind: "command", item: commandItem });
@@ -342,7 +358,7 @@ function createNativeDesktopMenuManager(options: {
       text: "Settings...",
       enabled: settingsState.enabled,
       action: () => {
-        dispatchCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS);
+        dispatchCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, "platform");
       }
     });
     addCommandRef(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, { kind: "command", item: settingsItem });
@@ -366,11 +382,7 @@ function createNativeDesktopMenuManager(options: {
     }
 
     for (const section of payload.definition) {
-      const sectionItems: any[] = (
-        await Promise.all(
-          section.items.map(async (item) => await buildMenuItem(item, payload.commandStates, recentFiles))
-        )
-      ).filter((item): item is NonNullable<typeof item> => item != null);
+      const sectionItems = await buildMenuItems(section.items, payload.commandStates, recentFiles, "platform");
 
       if (sectionItems.length === 0) {
         continue;
@@ -426,6 +438,17 @@ function createNativeDesktopMenuManager(options: {
         return;
       }
       enqueueSync();
+    },
+    async popup(payload: NativeContextMenuPayload): Promise<void> {
+      const menuApi = await import("@tauri-apps/api/menu");
+      const dpiApi = await import("@tauri-apps/api/dpi");
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const popupItems = await buildMenuItems(payload.items, payload.commandStates, [], "context-menu");
+      if (popupItems.length === 0) {
+        return;
+      }
+      const menu = await menuApi.Menu.new({ items: popupItems });
+      await menu.popup(new dpiApi.LogicalPosition(payload.position.x, payload.position.y), getCurrentWindow());
     }
   };
 }
@@ -554,8 +577,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
 
   const nativeMenuManager = createNativeDesktopMenuManager({
     getBridge,
-    dispatchCommand: (commandId) => {
-      menuHandler?.(commandId, "platform");
+    dispatchCommand: (commandId, origin) => {
+      menuHandler?.(commandId, origin);
     },
     dispatchOpenRecent: (path) => {
       if (!openRequestHandler) {
@@ -618,6 +641,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     },
     menu: {
       usesNativeMenuBar: true,
+      usesNativeContextMenus: true,
       bindCommandHandler: (handler) => {
         menuHandler = handler;
         return () => {
@@ -631,6 +655,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       syncNativeMenu: async (payload) => {
         await nativeMenuManager.sync(payload);
+      },
+      showNativeContextMenu: async (payload) => {
+        await nativeMenuManager.popup(payload);
       }
     },
     window: {

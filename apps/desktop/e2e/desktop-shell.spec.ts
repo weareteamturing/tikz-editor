@@ -77,6 +77,26 @@ describe("desktop shell flows", () => {
     expect(received).toBe(APP_MENU_COMMAND_IDS.UNDO);
   });
 
+  it("reports native context menu support on desktop", () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    expect(platform.menu?.usesNativeContextMenus).toBe(true);
+  });
+
+  it("exposes a native canvas context menu hook on desktop", () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    expect(typeof platform.menu?.showNativeContextMenu).toBe("function");
+  });
+
   it("opens and saves with desktop-backed file refs", async () => {
     const mock = makeMockBridge();
     const platform = createDesktopPlatformAdapter({
