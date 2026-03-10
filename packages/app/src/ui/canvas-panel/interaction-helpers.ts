@@ -201,7 +201,7 @@ export function resolveHandleIdForDrag(
   let best: EditHandle | null = null;
   let bestDistSq = Number.POSITIVE_INFINITY;
   for (const handle of handles) {
-    if (handle.sourceId !== drag.sourceId || handle.kind !== drag.handleKind) {
+    if (handle.sourceRef.sourceId !== drag.sourceId || handle.kind !== drag.handleKind) {
       continue;
     }
     const dx = handle.world.x - drag.lastKnownWorld.x;
@@ -262,7 +262,7 @@ export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string):
   let count = 0;
 
   for (const element of elements) {
-    if (element.sourceId !== sourceId) {
+    if (element.sourceRef.sourceId !== sourceId) {
       continue;
     }
     const anchor = elementAnchorWorld(element);

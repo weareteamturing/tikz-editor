@@ -13,13 +13,16 @@ function makeHandle(
 ): EditHandle {
   return {
     id: overrides.id,
-    sourceId: overrides.sourceId,
+    runtimeId: overrides.runtimeId ?? `runtime:handle:${overrides.id}`,
+    sourceRef: {
+      sourceId: overrides.sourceId,
+      sourceSpan: overrides.sourceSpan ?? { from: 0, to: 5 },
+      sourceFingerprint: overrides.sourceFingerprint ?? "fingerprint"
+    },
     kind: overrides.kind ?? "path-point",
     world: overrides.world ?? { x: 0, y: 0 },
     transform: overrides.transform ?? identityMatrix(),
-    sourceSpan: overrides.sourceSpan ?? { from: 0, to: 5 },
     sourceText: overrides.sourceText ?? "(0,0)",
-    sourceFingerprint: overrides.sourceFingerprint ?? "fingerprint",
     coordinateForm: overrides.coordinateForm ?? "cartesian",
     rewriteMode: overrides.rewriteMode ?? "direct",
     rewriteTargetHandleId: overrides.rewriteTargetHandleId,

@@ -61,6 +61,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
   const strokeWidth = HIT_STROKE_PX / Math.max(scale, 1e-3);
 
   for (const element of elements) {
+    const sourceId = element.sourceRef.sourceId;
     if (element.kind === "Path") {
       const d = encodePathData(element.commands, viewBox);
       if (!d) continue;
@@ -68,8 +69,8 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       regions.push({
         shape: "path",
         key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        targetId: element.adornment?.targetId ?? element.sourceId,
+        sourceId,
+        targetId: element.adornment?.targetId ?? sourceId,
         d,
         pointerMode: filled ? "fill" : "stroke",
         strokeWidth
@@ -83,8 +84,8 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       regions.push({
         shape: "circle",
         key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        targetId: element.adornment?.targetId ?? element.sourceId,
+        sourceId,
+        targetId: element.adornment?.targetId ?? sourceId,
         cx: center.x,
         cy: center.y,
         r: element.radius,
@@ -100,8 +101,8 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       regions.push({
         shape: "ellipse",
         key: `hit:${element.id}`,
-        sourceId: element.sourceId,
-        targetId: element.adornment?.targetId ?? element.sourceId,
+        sourceId,
+        targetId: element.adornment?.targetId ?? sourceId,
         cx: center.x,
         cy: center.y,
         rx: element.rx,
@@ -120,7 +121,7 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       regions.push({
         shape: "rect",
         key: `${sceneTextKey}:halo`,
-        sourceId: element.sourceId,
+        sourceId,
         targetId: element.adornment.targetId,
         x: textGeometry.cx - textGeometry.width / 2 - hitPadding,
         y: textGeometry.cy - textGeometry.height / 2 - hitPadding,
@@ -138,8 +139,8 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
     regions.push({
       shape: "rect",
       key: sceneTextKey,
-      sourceId: element.sourceId,
-      targetId: element.adornment?.targetId ?? element.sourceId,
+      sourceId,
+      targetId: element.adornment?.targetId ?? sourceId,
       x: textGeometry.cx - textGeometry.width / 2,
       y: textGeometry.cy - textGeometry.height / 2,
       width: textGeometry.width,

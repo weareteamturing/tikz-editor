@@ -74,9 +74,9 @@ type CachedSemanticRun = {
   checkpointsBeforeStatement: Map<number, SemanticContextSnapshot>;
   featureUsageBeforeStatement: Map<number, FeatureUsage>;
   dependencies: EvaluateTikzResult["dependencies"];
+  sourceStatementFirstIndexBySourceId: Map<string, number>;
 };
 
-const STATEMENT_INDEX_PATTERN = /^[^:]+:(\d+)(?::|$)/;
 const DEFAULT_CHECKPOINT_INTERVAL = 8;
 
 export function createIncrementalSemanticSession(
@@ -121,7 +121,7 @@ export function createIncrementalSemanticSession(
     }
 
     const affectedStatementIndices = invalidation.affectedSourceIds
-      .map(parseStatementIndexFromSourceId)
+      .map((sourceId) => previous.sourceStatementFirstIndexBySourceId.get(sourceId) ?? null)
       .filter((index): index is number => index != null && index >= 0 && index < statementCount);
     if (affectedStatementIndices.length === 0) {
       const full = evaluateFullyAndCache(run, statementIds, "unmapped-affected-source");
@@ -218,7 +218,8 @@ export function createIncrementalSemanticSession(
         checkpointInterval,
         checkpointsBeforeStatement,
         featureUsageBeforeStatement,
-        dependencies: semantic.dependencies
+        dependencies: semantic.dependencies,
+        sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId)
       };
 
       return {
@@ -299,7 +300,8 @@ function evaluateFullyAndCache(
     checkpointInterval,
     checkpointsBeforeStatement,
     featureUsageBeforeStatement,
-    dependencies: semantic.dependencies
+    dependencies: semantic.dependencies,
+    sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId)
   };
   return {
     output: {
@@ -350,18 +352,6 @@ function sameStatementIds(
     }
   }
   return true;
-}
-
-function parseStatementIndexFromSourceId(sourceId: string): number | null {
-  const match = STATEMENT_INDEX_PATTERN.exec(sourceId);
-  if (!match) {
-    return null;
-  }
-  const parsed = Number(match[1]);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return null;
-  }
-  return parsed;
 }
 
 function shouldCaptureCheckpoint(
@@ -416,6 +406,19 @@ function assignFeatureUsage(target: FeatureUsage, source: FeatureUsage): void {
   for (const key of Object.keys(target)) {
     target[key] = source[key] ?? target[key];
   }
+}
+
+function mapSourceStatementFirstIndices(
+  source: Record<string, number>
+): Map<string, number> {
+  const mapped = new Map<string, number>();
+  for (const [sourceId, index] of Object.entries(source)) {
+    if (!Number.isInteger(index) || index < 0) {
+      continue;
+    }
+    mapped.set(sourceId, index);
+  }
+  return mapped;
 }
 
 function normalizeChangedSourceIds(

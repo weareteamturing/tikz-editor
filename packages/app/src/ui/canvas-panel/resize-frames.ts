@@ -57,7 +57,7 @@ export function resolveResizeFrameForSource(
   viewBox: SvgViewBox,
   pathShapeHintOverride?: ScenePathShapeHint | null
 ): ResizeFrame | null {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   const textElements = sourceElements.filter(
     (element): element is SceneText => element.kind === "Text"
@@ -165,7 +165,7 @@ function resolvePathRectangleResizeFrame(
   viewBox: SvgViewBox
 ): ResizeFrame | null {
   const pathPointHandles = editHandles.filter(
-    (handle) => handle.sourceId === sourceId && handle.kind === "path-point"
+    (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "path-point"
   );
   if (pathPointHandles.length !== 2) {
     return null;
@@ -529,7 +529,7 @@ function pickCenterPathPointHandle(
   targetCenter?: Point
 ): EditHandle | null {
   const candidateHandles = editHandles.filter(
-    (handle) => handle.sourceId === sourceId && handle.kind === "path-point"
+    (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "path-point"
   );
   if (candidateHandles.length === 0) {
     return null;

@@ -744,13 +744,16 @@ function pushSyntheticCurveHandle(args: {
   const syntheticSpan = makeSyntheticHandleSpan(args.context);
   args.context.editHandles.push({
     id: `handle:${args.statementId}:${args.kind}:${args.context.editHandles.length}`,
-    sourceId: args.statementId,
+    runtimeId: `handle:${args.statementId}:${args.kind}:${args.context.editHandles.length}`,
+    sourceRef: {
+      sourceId: args.statementId,
+      sourceSpan: syntheticSpan,
+      sourceFingerprint: args.context.sourceFingerprint
+    },
     kind: args.kind,
     world: { ...args.world },
     transform: currentFrame(args.context).transform,
-    sourceSpan: syntheticSpan,
     sourceText: "",
-    sourceFingerprint: args.context.sourceFingerprint,
     coordinateForm: "cartesian",
     rewriteMode: "direct",
     curveEdit: args.curveEdit

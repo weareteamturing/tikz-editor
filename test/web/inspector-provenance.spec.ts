@@ -13,7 +13,7 @@ function textElements(source: string): SceneElement[] {
   const rendered = renderTikzToSvg(source);
   return rendered.semantic.scene.elements
     .filter((entry): entry is SceneElement => entry.kind === "Text")
-    .sort((left, right) => left.sourceSpan.from - right.sourceSpan.from);
+    .sort((left, right) => left.sourceRef.sourceSpan.from - right.sourceRef.sourceSpan.from);
 }
 
 describe("inspector property provenance", () => {

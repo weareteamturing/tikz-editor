@@ -7,8 +7,12 @@ function makePath(sourceId: string, commands: ScenePath["commands"]): SceneEleme
   return {
     kind: "Path",
     id: `path:${sourceId}`,
-    sourceId,
-    sourceSpan: { from: 0, to: 0 },
+    runtimeId: `runtime:path:${sourceId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "test-fingerprint"
+    },
     style: {} as ScenePath["style"],
     styleChain: [],
     commands
@@ -18,13 +22,16 @@ function makePath(sourceId: string, commands: ScenePath["commands"]): SceneEleme
 function makeControlHandle(id: string, sourceId: string): EditHandle {
   return {
     id,
-    sourceId,
+    runtimeId: `runtime:handle:${id}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 5 },
+      sourceFingerprint: "fingerprint"
+    },
     kind: "path-control",
     world: { x: 0, y: 0 },
     transform: identityMatrix(),
-    sourceSpan: { from: 0, to: 5 },
     sourceText: "(0,0)",
-    sourceFingerprint: "fingerprint",
     coordinateForm: "cartesian",
     rewriteMode: "direct"
   };

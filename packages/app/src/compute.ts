@@ -285,7 +285,7 @@ function collectMathJaxTextSourceIdsByCacheKeys(
     if (!changed.has(element.textRenderInfo.cacheKey)) {
       continue;
     }
-    sourceIds.add(element.sourceId);
+    sourceIds.add(element.sourceRef.sourceId);
   }
   return [...sourceIds].sort();
 }

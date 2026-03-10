@@ -1519,8 +1519,8 @@ function applyNodeDecorations(
         outcome.reason === "deferred"
           ? `Decoration \`${outcome.name}\` is parsed but deferred because it requires dynamic TeX code execution.`
           : `Decoration \`${outcome.name}\` is not implemented; keeping the undecorated path.`,
-        path.sourceSpan.from,
-        path.sourceSpan.to
+        path.sourceRef.sourceSpan.from,
+        path.sourceRef.sourceSpan.to
       );
       output.push(element);
       continue;
@@ -1543,8 +1543,12 @@ function toDecoratableNodePath(element: SceneElement): ScenePath | null {
     return {
       kind: "Path",
       id: `${element.id}:as-path`,
-      sourceId: element.sourceId,
-      sourceSpan: element.sourceSpan,
+      runtimeId: `${element.runtimeId}:as-path`,
+      sourceRef: {
+        sourceId: element.sourceRef.sourceId,
+        sourceSpan: element.sourceRef.sourceSpan,
+        sourceFingerprint: element.sourceRef.sourceFingerprint
+      },
       origin: element.origin,
       style: cloneStyleForDecoration(element.style),
       styleChain: element.styleChain.map((entry) => ({ ...entry })),
@@ -1558,8 +1562,12 @@ function toDecoratableNodePath(element: SceneElement): ScenePath | null {
     return {
       kind: "Path",
       id: `${element.id}:as-path`,
-      sourceId: element.sourceId,
-      sourceSpan: element.sourceSpan,
+      runtimeId: `${element.runtimeId}:as-path`,
+      sourceRef: {
+        sourceId: element.sourceRef.sourceId,
+        sourceSpan: element.sourceRef.sourceSpan,
+        sourceFingerprint: element.sourceRef.sourceFingerprint
+      },
       origin: element.origin,
       style: cloneStyleForDecoration(element.style),
       styleChain: element.styleChain.map((entry) => ({ ...entry })),

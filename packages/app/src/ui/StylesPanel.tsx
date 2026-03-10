@@ -43,7 +43,7 @@ export function StylesPanel() {
   const selectedElements = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
     for (const element of snapshot.scene?.elements ?? []) {
-      const targetId = element.adornment?.targetId ?? element.sourceId;
+      const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
       if (!selectedIds.has(targetId) || bySource.has(targetId)) {
         continue;
       }

@@ -41,8 +41,8 @@ export function renderPathMorphingDecorationPreviewSvg(
   const path: ScenePath = {
     kind: "Path",
     id: "preview:path-morphing",
-    sourceId: "preview:path-morphing",
-    sourceSpan: PREVIEW_SOURCE_SPAN,
+    runtimeId: "preview:path-morphing",
+    sourceRef: { sourceId: "preview:path-morphing", sourceSpan: PREVIEW_SOURCE_SPAN, sourceFingerprint: "" },
     style,
     styleChain: [],
     commands: [

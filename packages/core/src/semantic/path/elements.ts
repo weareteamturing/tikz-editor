@@ -25,8 +25,12 @@ export function makePath(
   return {
     kind: "Path",
     id: `scene-path:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-path:${sourceId}:${itemId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: span,
+      sourceFingerprint: ""
+    },
     shapeHint: shapeHint ?? null,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
@@ -184,8 +188,12 @@ export function makeRectangleElement(
   return {
     kind: "Path",
     id: `scene-rectangle:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-rectangle:${sourceId}:${itemId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: span,
+      sourceFingerprint: ""
+    },
     shapeHint: "rectangle",
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
@@ -233,8 +241,12 @@ export function makeCircleElement(
   return {
     kind: "Circle",
     id: `scene-circle:${sourceId}:${span.from}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-circle:${sourceId}:${span.from}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: span,
+      sourceFingerprint: ""
+    },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     center,
@@ -255,8 +267,12 @@ export function makeEllipseElement(
   return {
     kind: "Ellipse",
     id: `scene-ellipse:${sourceId}:${span.from}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-ellipse:${sourceId}:${span.from}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: span,
+      sourceFingerprint: ""
+    },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     center,

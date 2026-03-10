@@ -756,7 +756,7 @@ export function CanvasPanel() {
   }, [showDevPanel, viewportSize.height, viewportSize.width]);
 
   const selectedHandles = useMemo(
-    () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceId)),
+    () => snapshot.editHandles.filter((handle) => selectedElementIds.has(handle.sourceRef.sourceId)),
     [snapshot.editHandles, selectedElementIds]
   );
   const nodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
@@ -847,8 +847,8 @@ export function CanvasPanel() {
   const nodeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
     for (const handle of selectedHandles) {
-      if (handle.kind === "node-position" && !matrixSourceIds.has(handle.sourceId)) {
-        sourceIds.add(handle.sourceId);
+      if (handle.kind === "node-position" && !matrixSourceIds.has(handle.sourceRef.sourceId)) {
+        sourceIds.add(handle.sourceRef.sourceId);
       }
     }
     return sourceIds;
@@ -888,7 +888,7 @@ export function CanvasPanel() {
     const statements = snapshot.parseResult?.figure.body;
     for (const sourceId of resizeFrameSourceIds) {
       const path = snapshot.scene.elements.find(
-        (element): element is ScenePath => element.sourceId === sourceId && element.kind === "Path"
+        (element): element is ScenePath => element.sourceRef.sourceId === sourceId && element.kind === "Path"
       );
       const pathShapeHint = path ? resolveScenePathShapeHint(path, statements, sourceId) : undefined;
       const frame = resolveResizeFrameForSource(
@@ -943,7 +943,7 @@ export function CanvasPanel() {
       if (!adornment?.ownerPoint) {
         continue;
       }
-      if (selectedElementIds.has(adornment.targetId) || selectedElementIds.has(element.sourceId)) {
+      if (selectedElementIds.has(adornment.targetId) || selectedElementIds.has(element.sourceRef.sourceId)) {
         highlightedAdornmentTargetIds.add(adornment.targetId);
       }
     }
@@ -998,7 +998,7 @@ export function CanvasPanel() {
       if (!targetId || seen.has(targetId)) {
         continue;
       }
-      if (!selectedElementIds.has(targetId) && !selectedElementIds.has(element.sourceId)) {
+      if (!selectedElementIds.has(targetId) && !selectedElementIds.has(element.sourceRef.sourceId)) {
         continue;
       }
       const bounds = selectionBoundsBySource.get(targetId);
@@ -1050,7 +1050,7 @@ export function CanvasPanel() {
         continue;
       }
 
-      if (handle.kind === "path-point" && resizablePathShapeSourceIds.has(handle.sourceId)) {
+      if (handle.kind === "path-point" && resizablePathShapeSourceIds.has(handle.sourceRef.sourceId)) {
         continue;
       }
 
@@ -1106,7 +1106,7 @@ export function CanvasPanel() {
         if (resizablePathShapeSourceIds.has(sourceId)) {
           continue;
         }
-        const fallback = selectedHandles.find((handle) => handle.sourceId === sourceId && handle.kind === "node-position");
+        const fallback = selectedHandles.find((handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position");
         if (!fallback) continue;
         const point = worldToSvgPoint(fallback.world, svgResult.viewBox);
         displays.push({
@@ -1737,7 +1737,7 @@ export function CanvasPanel() {
     (preferredWorld: Point) => {
       const beforeIds = new Set<string>();
       for (const element of snapshot.scene?.elements ?? []) {
-        beforeIds.add(element.sourceId);
+        beforeIds.add(element.sourceRef.sourceId);
       }
       pendingAddedSelectionRef.current = { beforeIds, preferredWorld };
     },
@@ -2014,7 +2014,7 @@ export function CanvasPanel() {
       if (sceneText.text.includes("\n")) {
         return null;
       }
-      const sourceSpan = sceneText.textSourceSpan ?? sceneText.sourceSpan;
+      const sourceSpan = sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
       if (sourceSpan.to <= sourceSpan.from) {
         return null;
       }
@@ -2430,12 +2430,12 @@ export function CanvasPanel() {
       setNodeAnchorOverlay(null);
 
       if (additiveSelection) {
-        dispatch({ type: "SELECT", id: handle.sourceId, additive: true });
+        dispatch({ type: "SELECT", id: handle.sourceRef.sourceId, additive: true });
         return;
       }
 
-      if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceId)) {
-        dispatch({ type: "SELECT", id: handle.sourceId, additive: false });
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(handle.sourceRef.sourceId)) {
+        dispatch({ type: "SELECT", id: handle.sourceRef.sourceId, additive: false });
       }
 
       if (!dragCapability.draggableHandleIds.has(handle.id)) {
@@ -2460,7 +2460,7 @@ export function CanvasPanel() {
       const snapContext = snapshot.scene
         ? buildSnapContext({
             sceneElements: snapshot.scene.elements,
-            selectedSourceIds: [handle.sourceId],
+            selectedSourceIds: [handle.sourceRef.sourceId],
             guides: snapGuideInput,
             settings: snapSettingsPatch,
             zoom: canvasTransform.scale,
@@ -2479,7 +2479,7 @@ export function CanvasPanel() {
         kind: "handle",
         pointerId: event.pointerId,
         handleId: handle.id,
-        sourceId: handle.sourceId,
+        sourceId: handle.sourceRef.sourceId,
         handleKind: handle.kind,
         cursor: handleCursor,
         lastKnownWorld: { ...handle.world },
@@ -2600,7 +2600,7 @@ export function CanvasPanel() {
         }
       }
 
-      const sourceElements = snapshot.scene?.elements.filter((element) => element.sourceId === sourceId) ?? [];
+      const sourceElements = snapshot.scene?.elements.filter((element) => element.sourceRef.sourceId === sourceId) ?? [];
       const preferredElements = sourceElements.filter((element) => element.kind !== "Text");
       const candidates = preferredElements.length > 0 ? preferredElements : sourceElements;
       let fallbackTargetId: string | null = null;
@@ -3509,7 +3509,7 @@ export function CanvasPanel() {
       }
 
       const selectedSet = new Set(selectedIds);
-      const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceId));
+      const elementHandles = snapshot.editHandles.filter((handle) => selectedSet.has(handle.sourceRef.sourceId));
       const anchorHandle = selectNudgeAnchorHandle(elementHandles);
       const snapped = snapKeyboardNudge({
         anchor: anchorHandle?.world ?? null,

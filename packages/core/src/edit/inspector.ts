@@ -1563,7 +1563,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
 
       return {
         elementKind: normalizeElementKind(element.kind),
-        elementId: element.sourceId,
+        elementId: element.sourceRef.sourceId,
         writeTargetId: inlineTarget.targetId,
         readOnlyReason: inlineTarget.reason,
         sections
@@ -2011,7 +2011,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     const roundedCornersRadius = roundedCornersEnabled
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
       : roundedCornersDefaultRadius;
-    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceId);
+    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceRef.sourceId);
     const pathMorphingPreset = resolvePathMorphingDecorationPreset(
       snapshot.source,
       inlineTarget.targetId,
@@ -2151,7 +2151,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
 
   return {
     elementKind: normalizeElementKind(element.kind),
-    elementId: element.sourceId,
+    elementId: element.sourceRef.sourceId,
     writeTargetId: inlineTarget.targetId,
     readOnlyReason: inlineTarget.reason,
     sections
@@ -3420,22 +3420,37 @@ function resolveInlineWriteTarget(
     };
   }
 
-  const targetId =
-    element.adornment?.targetId ??
-    [...element.styleChain].reverse().find((entry) => entry.kind === "command")?.sourceRef?.sourceId ??
-    element.sourceId;
-  const resolved = resolvePropertyTarget(source, targetId);
+  const styleChainCommandSourceId =
+    [...element.styleChain].reverse().find((entry) => entry.kind === "command")?.sourceRef?.sourceId ?? null;
+  const candidateTargetIds = [
+    element.adornment?.targetId ?? null,
+    styleChainCommandSourceId,
+    element.sourceRef.sourceId
+  ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
-  if (resolved.kind === "not-found") {
+  for (const targetId of candidateTargetIds) {
+    const resolved = resolvePropertyTarget(source, targetId);
+    if (resolved.kind === "found") {
+      return { targetId, targetKind: resolved.target.kind, writable: true };
+    }
+  }
+
+  const fallbackTargetId = candidateTargetIds[0] ?? null;
+  if (!fallbackTargetId) {
     return {
-      targetId,
+      targetId: null,
       targetKind: null,
       writable: false,
       reason: "Inline command options could not be resolved for this element."
     };
   }
 
-  return { targetId, targetKind: resolved.target.kind, writable: true };
+  return {
+    targetId: fallbackTargetId,
+    targetKind: null,
+    writable: false,
+    reason: "Inline command options could not be resolved for this element."
+  };
 }
 
 function resolveAdornmentInspectorState(

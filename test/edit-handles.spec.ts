@@ -42,7 +42,7 @@ describe("edit handles", () => {
     const pathHandles = result.editHandles.filter((h) => h.kind === "path-point");
     expect(pathHandles).toHaveLength(2);
 
-    const target = pathHandles.find((h) => source.slice(h.sourceSpan.from, h.sourceSpan.to) === "(1,1)");
+    const target = pathHandles.find((h) => source.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to) === "(1,1)");
     expect(target).toBeDefined();
     expect(target?.rewriteMode).toBe("direct");
     expect(target?.world.x).toBeCloseTo(cm(1));
@@ -98,12 +98,12 @@ describe("edit handles", () => {
 
     const controlHandles = result.editHandles.filter((h) => h.kind === "path-control");
     expect(controlHandles).toHaveLength(2);
-    expect(controlHandles.map((handle) => source.slice(handle.sourceSpan.from, handle.sourceSpan.to))).toEqual(
+    expect(controlHandles.map((handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to))).toEqual(
       expect.arrayContaining(["(1,1)", "(2,1)"])
     );
 
     const pathPointHandles = result.editHandles.filter((h) => h.kind === "path-point");
-    expect(pathPointHandles.map((handle) => source.slice(handle.sourceSpan.from, handle.sourceSpan.to))).toEqual(
+    expect(pathPointHandles.map((handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to))).toEqual(
       expect.arrayContaining(["(0,0)", "(3,0)"])
     );
   });
@@ -116,7 +116,7 @@ describe("edit handles", () => {
 
     const controlHandles = result.editHandles.filter((h) => h.kind === "path-control");
     expect(controlHandles).toHaveLength(1);
-    expect(source.slice(controlHandles[0]!.sourceSpan.from, controlHandles[0]!.sourceSpan.to)).toBe("(1,1)");
+    expect(source.slice(controlHandles[0]!.sourceRef.sourceSpan.from, controlHandles[0]!.sourceRef.sourceSpan.to)).toBe("(1,1)");
   });
 
   it("named control-point handles resolve rewrite targets", () => {
@@ -129,7 +129,7 @@ describe("edit handles", () => {
     const namedControl = result.editHandles.find(
       (handle) =>
         handle.kind === "path-control" &&
-        source.slice(handle.sourceSpan.from, handle.sourceSpan.to) === "(ctrl)"
+        source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === "(ctrl)"
     );
     expect(namedControl).toBeDefined();
     expect(namedControl?.coordinateForm).toBe("named");
@@ -235,7 +235,7 @@ describe("edit handles", () => {
     const result = evaluate(source);
     const nodeHandles = result.editHandles.filter((handle) => handle.kind === "node-position");
     expect(nodeHandles).toHaveLength(1);
-    expect(source.slice(nodeHandles[0]!.sourceSpan.from, nodeHandles[0]!.sourceSpan.to)).toBe("(0,0)");
+    expect(source.slice(nodeHandles[0]!.sourceRef.sourceSpan.from, nodeHandles[0]!.sourceRef.sourceSpan.to)).toBe("(0,0)");
   });
 
   it("polar: handle with polar coordinateForm and direct rewrite", () => {
@@ -261,12 +261,12 @@ describe("edit handles", () => {
 
     for (const handle of result.editHandles) {
       // Span from/to should be within the source string
-      expect(handle.sourceSpan.from).toBeGreaterThanOrEqual(0);
-      expect(handle.sourceSpan.to).toBeGreaterThan(handle.sourceSpan.from);
-      expect(handle.sourceSpan.to).toBeLessThanOrEqual(source.length);
+      expect(handle.sourceRef.sourceSpan.from).toBeGreaterThanOrEqual(0);
+      expect(handle.sourceRef.sourceSpan.to).toBeGreaterThan(handle.sourceRef.sourceSpan.from);
+      expect(handle.sourceRef.sourceSpan.to).toBeLessThanOrEqual(source.length);
 
       // The text within the span should be a coordinate like "(1,2)"
-      const spanText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+      const spanText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
       expect(spanText).toMatch(/\(\s*[\d.,]+\s*,\s*[\d.,]+\s*\)/);
     }
   });
@@ -308,12 +308,12 @@ describe("edit handles", () => {
 \draw (A) edge (B);
 \end{tikzpicture}`;
     const result = evaluate(source);
-    const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceId));
+    const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceRef.sourceId));
 
     expect(elementSourceIds.size).toBeGreaterThan(0);
     expect(result.editHandles.length).toBeGreaterThan(0);
     for (const handle of result.editHandles) {
-      expect(elementSourceIds.has(handle.sourceId)).toBe(true);
+      expect(elementSourceIds.has(handle.sourceRef.sourceId)).toBe(true);
     }
   });
 });

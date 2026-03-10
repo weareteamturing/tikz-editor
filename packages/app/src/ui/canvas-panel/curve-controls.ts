@@ -15,24 +15,24 @@ export function deriveCurveControlLines(
   const selectedSourcesWithPathControlHandles = new Set<string>();
   const bendLines: CurveControlLine[] = [];
   for (const handle of editHandles) {
-    if (!selectedSourceIds.has(handle.sourceId)) {
+    if (!selectedSourceIds.has(handle.sourceRef.sourceId)) {
       continue;
     }
     if (handle.kind === "path-control") {
-      selectedSourcesWithPathControlHandles.add(handle.sourceId);
+      selectedSourcesWithPathControlHandles.add(handle.sourceRef.sourceId);
       continue;
     }
     if (handle.kind === "path-bend" && handle.curveEdit?.kind === "to-bend") {
       bendLines.push(
         {
           key: `curve-bend:${handle.id}:start`,
-          sourceId: handle.sourceId,
+          sourceId: handle.sourceRef.sourceId,
           from: handle.curveEdit.startWorld,
           to: handle.world
         },
         {
           key: `curve-bend:${handle.id}:end`,
-          sourceId: handle.sourceId,
+          sourceId: handle.sourceRef.sourceId,
           from: handle.curveEdit.endWorld,
           to: handle.world
         }
@@ -45,7 +45,7 @@ export function deriveCurveControlLines(
 
   const lines: CurveControlLine[] = [];
   for (const element of elements) {
-    if (element.kind !== "Path" || !selectedSourcesWithPathControlHandles.has(element.sourceId)) {
+    if (element.kind !== "Path" || !selectedSourcesWithPathControlHandles.has(element.sourceRef.sourceId)) {
       continue;
     }
     lines.push(...collectControlLinesFromPath(element));
@@ -82,13 +82,13 @@ function collectControlLinesFromPath(path: ScenePath): CurveControlLine[] {
       lines.push(
         {
           key: `curve-control:${path.id}:${commandIndex}:start`,
-          sourceId: path.sourceId,
+          sourceId: path.sourceRef.sourceId,
           from: current,
           to: command.c1
         },
         {
           key: `curve-control:${path.id}:${commandIndex}:end`,
-          sourceId: path.sourceId,
+          sourceId: path.sourceRef.sourceId,
           from: command.to,
           to: command.c2
         }

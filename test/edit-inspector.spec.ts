@@ -211,7 +211,7 @@ describe("getInspectorDescriptor", () => {
     const rendered = renderTikzToSvg(source);
     const pathElements = rendered.semantic.scene.elements
       .filter((entry) => entry.kind === "Path")
-      .sort((left, right) => left.sourceSpan.from - right.sourceSpan.from);
+      .sort((left, right) => left.sourceRef.sourceSpan.from - right.sourceRef.sourceSpan.from);
     expect(pathElements.length).toBeGreaterThanOrEqual(2);
 
     const first = pathElements[0];
@@ -473,6 +473,43 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected a setProperty-driven control");
     }
     expect((firstSetPropertyControl as any).write.writable).toBe(false);
+  });
+
+  it("keeps statements after foreach editable in inspector", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[red] (1.68,0.2) rectangle (1,-0.32);
+
+  \foreach \x in {0,1} { \draw (0,0) -- (1,1); }
+
+  \draw[blue] (-0.6,1.4) rectangle (0.2,0.8);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const blueRectangle = rendered.semantic.scene.elements.find(
+      (entry) =>
+        entry.kind === "Path" &&
+        entry.shapeHint === "rectangle" &&
+        entry.sourceRef.sourceId === "path:2"
+    );
+    expect(blueRectangle).toBeDefined();
+    if (!blueRectangle) {
+      throw new Error("Expected rectangle path after foreach");
+    }
+
+    const descriptor = getInspectorDescriptor(blueRectangle, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.readOnlyReason).toBeUndefined();
+
+    const strokeColor = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "color" && property.id === "stroke-color");
+    expect(strokeColor).toBeDefined();
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+    expect(strokeColor.write.writable).toBe(true);
   });
 
   it("marks non-curated tip kinds as custom", () => {

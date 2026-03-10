@@ -106,7 +106,7 @@ export function collectSourceBounds(elements: SceneElement[], viewBox: SvgViewBo
     const bounds = elementBoundsInSvg(element, viewBox);
     if (!bounds) continue;
 
-    const targetId = element.adornment?.targetId ?? element.sourceId;
+    const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
     const existing = boundsBySource.get(targetId);
     if (!existing) {
       boundsBySource.set(targetId, bounds);
@@ -425,8 +425,8 @@ export function previewArrowPoints(
 export function collectNewSourceIds(elements: SceneElement[], beforeIds: ReadonlySet<string>): string[] {
   const newIds = new Set<string>();
   for (const element of elements) {
-    if (!beforeIds.has(element.sourceId)) {
-      newIds.add(element.sourceId);
+    if (!beforeIds.has(element.sourceRef.sourceId)) {
+      newIds.add(element.sourceRef.sourceId);
     }
   }
   return [...newIds];
@@ -481,7 +481,7 @@ export function resolveFallbackTextSourceSpanForSourceId(
 
   let bestSpan: Span | null = null;
   for (const candidate of candidates) {
-    const span = candidate.textSourceSpan ?? candidate.sourceSpan;
+    const span = candidate.textSourceSpan ?? candidate.sourceRef.sourceSpan;
     if (span.to <= span.from) {
       continue;
     }
@@ -531,7 +531,7 @@ export function sourceHasSingleResizablePathShape(
   sourceId: string,
   statements?: readonly Statement[]
 ): boolean {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId);
   const nonText = sourceElements.filter((element) => element.kind !== "Text");
   if (nonText.length !== 1) {
     return false;
@@ -553,7 +553,7 @@ export function sourceHasSingleResizablePathShape(
   }
 
   const pathHandles = editHandles.filter(
-    (handle) => handle.sourceId === sourceId && handle.kind === "path-point"
+    (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "path-point"
   );
 
   const pathShapeHint = resolveScenePathShapeHint(shapeElement, statements, sourceId);
@@ -573,8 +573,8 @@ export function sourceHasSingleResizablePathShape(
       return false;
     }
     if (
-      firstHandle.sourceSpan.from === secondHandle.sourceSpan.from &&
-      firstHandle.sourceSpan.to === secondHandle.sourceSpan.to
+      firstHandle.sourceRef.sourceSpan.from === secondHandle.sourceRef.sourceSpan.from &&
+      firstHandle.sourceRef.sourceSpan.to === secondHandle.sourceRef.sourceSpan.to
     ) {
       return false;
     }
@@ -614,7 +614,7 @@ export function resolveGridResizeSnapForHandleDrag(
     return null;
   }
   const siblingPathPointHandles = editHandles.filter(
-    (candidate) => candidate.sourceId === handle.sourceId && candidate.kind === "path-point"
+    (candidate) => candidate.sourceRef.sourceId === handle.sourceRef.sourceId && candidate.kind === "path-point"
   );
   if (siblingPathPointHandles.length !== 2) {
     return null;
@@ -624,7 +624,7 @@ export function resolveGridResizeSnapForHandleDrag(
     return null;
   }
 
-  const pathStatement = findPathStatementById(statements, handle.sourceId);
+  const pathStatement = findPathStatementById(statements, handle.sourceRef.sourceId);
   if (!pathStatement) {
     return null;
   }
@@ -633,10 +633,10 @@ export function resolveGridResizeSnapForHandleDrag(
     return null;
   }
 
-  const handleIsStart = spansEqual(handle.sourceSpan, gridCandidate.startSpan);
-  const handleIsEnd = spansEqual(handle.sourceSpan, gridCandidate.endSpan);
-  const anchorIsStart = spansEqual(anchorHandle.sourceSpan, gridCandidate.startSpan);
-  const anchorIsEnd = spansEqual(anchorHandle.sourceSpan, gridCandidate.endSpan);
+  const handleIsStart = spansEqual(handle.sourceRef.sourceSpan, gridCandidate.startSpan);
+  const handleIsEnd = spansEqual(handle.sourceRef.sourceSpan, gridCandidate.endSpan);
+  const anchorIsStart = spansEqual(anchorHandle.sourceRef.sourceSpan, gridCandidate.startSpan);
+  const anchorIsEnd = spansEqual(anchorHandle.sourceRef.sourceSpan, gridCandidate.endSpan);
   if ((!handleIsStart && !handleIsEnd) || (!anchorIsStart && !anchorIsEnd)) {
     return null;
   }
@@ -851,7 +851,7 @@ export function ellipseAspectRatioForSource(
 ): number | null {
   const ellipses = elements.filter(
     (element): element is Extract<SceneElement, { kind: "Ellipse" }> =>
-      element.sourceId === sourceId && element.kind === "Ellipse"
+      element.sourceRef.sourceId === sourceId && element.kind === "Ellipse"
   );
   if (ellipses.length !== 1) {
     return null;
@@ -907,7 +907,7 @@ export function preferredNodeBoundsForSource(
   viewBox: SvgViewBox,
   fallback: Bounds | null
 ): Bounds | null {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
   if (sourceElements.length === 0) {
     return fallback;
   }
@@ -935,7 +935,7 @@ export function getHandleCursor(
   }
 
   const siblingPathHandles = allHandles.filter(
-    (candidate) => candidate.kind === "path-point" && candidate.sourceId === handle.sourceId
+    (candidate) => candidate.kind === "path-point" && candidate.sourceRef.sourceId === handle.sourceRef.sourceId
   );
   if (siblingPathHandles.length === 2) {
     const other = siblingPathHandles.find((candidate) => candidate.id !== handle.id);
@@ -951,7 +951,7 @@ export function getHandleCursor(
   }
 
   const sourcePaths = scene.elements.filter(
-    (element): element is ScenePath => element.kind === "Path" && element.sourceId === handle.sourceId
+    (element): element is ScenePath => element.kind === "Path" && element.sourceRef.sourceId === handle.sourceRef.sourceId
   );
   if (sourcePaths.length === 0) {
     return "move";

@@ -88,7 +88,7 @@ function applyMoveIntent(
   }
 
   const sourceFingerprint = computeSourceFingerprint(source);
-  if (handle.sourceFingerprint !== sourceFingerprint) {
+  if (handle.sourceRef.sourceFingerprint !== sourceFingerprint) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }
 
@@ -123,19 +123,19 @@ function applyMoveIntent(
     };
   }
 
-  if (rewriteHandle.sourceFingerprint !== sourceFingerprint) {
+  if (rewriteHandle.sourceRef.sourceFingerprint !== sourceFingerprint) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }
 
   if (
-    rewriteHandle.sourceSpan.from < 0 ||
-    rewriteHandle.sourceSpan.to > source.length ||
-    rewriteHandle.sourceSpan.from >= rewriteHandle.sourceSpan.to
+    rewriteHandle.sourceRef.sourceSpan.from < 0 ||
+    rewriteHandle.sourceRef.sourceSpan.to > source.length ||
+    rewriteHandle.sourceRef.sourceSpan.from >= rewriteHandle.sourceRef.sourceSpan.to
   ) {
     return { kind: "error", message: "Handle source span exceeds source length (stale handle?)" };
   }
 
-  const currentSourceText = source.slice(rewriteHandle.sourceSpan.from, rewriteHandle.sourceSpan.to);
+  const currentSourceText = source.slice(rewriteHandle.sourceRef.sourceSpan.from, rewriteHandle.sourceRef.sourceSpan.to);
   if (currentSourceText !== rewriteHandle.sourceText) {
     return { kind: "error", message: "Handle span content mismatch (stale handle)." };
   }
@@ -149,14 +149,14 @@ function applyMoveIntent(
     };
   }
 
-  const updated = replaceSpan(source, rewriteHandle.sourceSpan, replacement);
+  const updated = replaceSpan(source, rewriteHandle.sourceRef.sourceSpan, replacement);
   return {
     kind: "success",
     newSource: updated.source,
-    changedSourceIds: [handle.sourceId],
+    changedSourceIds: [handle.sourceRef.sourceId],
     patches: [
       {
-        oldSpan: rewriteHandle.sourceSpan,
+        oldSpan: rewriteHandle.sourceRef.sourceSpan,
         newSpan: updated.changedSpan,
         replacement
       }
@@ -193,7 +193,7 @@ function applyCurveEditMoveIntent(source: string, handle: EditHandle, newWorld: 
     return {
       kind: "success",
       newSource: source,
-      changedSourceIds: [handle.sourceId],
+      changedSourceIds: [handle.sourceRef.sourceId],
       patches: []
     };
   }
@@ -201,7 +201,7 @@ function applyCurveEditMoveIntent(source: string, handle: EditHandle, newWorld: 
   return {
     kind: "success",
     newSource: rewritten.source,
-    changedSourceIds: [handle.sourceId],
+    changedSourceIds: [handle.sourceRef.sourceId],
     patches: [rewritten.patch]
   };
 }
@@ -319,8 +319,8 @@ function isConflictingRewriteTarget(
     return false;
   }
   return (
-    candidateRewriteHandle.sourceSpan.from === rewriteHandle.sourceSpan.from &&
-    candidateRewriteHandle.sourceSpan.to === rewriteHandle.sourceSpan.to
+    candidateRewriteHandle.sourceRef.sourceSpan.from === rewriteHandle.sourceRef.sourceSpan.from &&
+    candidateRewriteHandle.sourceRef.sourceSpan.to === rewriteHandle.sourceRef.sourceSpan.to
   );
 }
 

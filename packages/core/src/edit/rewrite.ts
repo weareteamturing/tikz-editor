@@ -61,7 +61,7 @@ function rewriteCartesian(
     return null;
   }
   const cm = localToSourceUnits(local);
-  const oldRaw = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+  const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
   return formatCoordinate(oldRaw, formatNumber(cm.x), formatNumber(cm.y));
 }
 
@@ -76,7 +76,7 @@ function rewritePolar(
   }
   const cm = localToSourceUnits(local);
   const { angleDeg, radius } = toPolar(cm);
-  const oldRaw = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+  const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
   return formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));
 }
 
@@ -98,7 +98,7 @@ function rewriteDelta(
     return null;
   }
   const cm = localToSourceUnits(localDelta);
-  const oldRaw = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+  const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
   if (handle.coordinateForm === "polar") {
     const { angleDeg, radius } = toPolar(cm);
     return formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));

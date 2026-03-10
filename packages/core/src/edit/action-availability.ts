@@ -149,14 +149,14 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
 
   const selectedHandlesBySource = new Map<string, EditHandle[]>();
   for (const handle of input.editHandles) {
-    if (!selectedSet.has(handle.sourceId)) {
+    if (!selectedSet.has(handle.sourceRef.sourceId)) {
       continue;
     }
-    const handles = selectedHandlesBySource.get(handle.sourceId);
+    const handles = selectedHandlesBySource.get(handle.sourceRef.sourceId);
     if (handles) {
       handles.push(handle);
     } else {
-      selectedHandlesBySource.set(handle.sourceId, [handle]);
+      selectedHandlesBySource.set(handle.sourceRef.sourceId, [handle]);
     }
   }
 

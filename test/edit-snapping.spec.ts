@@ -16,8 +16,12 @@ function makeCircle(sourceId: string, centerX: number, centerY: number, radius: 
   const circle: SceneCircle = {
     kind: "Circle",
     id: `circle:${sourceId}`,
-    sourceId,
-    sourceSpan: { from: 0, to: 0 },
+    runtimeId: `runtime:circle:${sourceId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "test-fingerprint"
+    },
     style: {} as SceneCircle["style"],
     styleChain: [],
     center: { x: centerX, y: centerY },
@@ -31,8 +35,12 @@ function makePath(sourceId: string, commands: ScenePathCommand[]): SceneElement 
   const path: ScenePath = {
     kind: "Path",
     id: `path:${sourceId}`,
-    sourceId,
-    sourceSpan: { from: 0, to: 0 },
+    runtimeId: `runtime:path:${sourceId}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "test-fingerprint"
+    },
     style: {} as ScenePath["style"],
     styleChain: [],
     commands

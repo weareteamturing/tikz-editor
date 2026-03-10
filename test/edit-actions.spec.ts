@@ -23,13 +23,16 @@ function makeHandle(
   const span = sourceSpan;
   return {
     id: `handle-${span.from}-${span.to}`,
-    sourceId: sourceId ?? "elem-1",
+    runtimeId: `runtime:handle-${span.from}-${span.to}`,
+    sourceRef: {
+      sourceId: sourceId ?? "elem-1",
+      sourceSpan: span,
+      sourceFingerprint: computeSourceFingerprint(source)
+    },
     kind: "path-point",
     world: world,
     transform: identityMatrix(),
-    sourceSpan: span,
     sourceText: source.slice(span.from, span.to),
-    sourceFingerprint: computeSourceFingerprint(source),
     coordinateForm: overrides.coordinateForm ?? "cartesian",
     rewriteMode: overrides.rewriteMode ?? "direct",
     ...rest
@@ -1273,7 +1276,7 @@ describe("applyEditAction – resizeElement", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const nodeBoxPath = semantic.scene.elements.find(
       (element): element is Extract<typeof semantic.scene.elements[number], { kind: "Path" }> =>
-        element.sourceId === "path:0" && element.kind === "Path"
+        element.sourceRef.sourceId === "path:0" && element.kind === "Path"
     );
     expect(nodeBoxPath).toBeDefined();
     if (!nodeBoxPath) {

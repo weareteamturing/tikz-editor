@@ -81,8 +81,12 @@ describe("rectHitRegionsForTargetId", () => {
     const text: SceneText = {
       kind: "Text",
       id: "scene-text:adornment",
-      sourceId: "path:0",
-      sourceSpan: { from: 0, to: 0 },
+      runtimeId: "runtime:scene-text:adornment",
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
       style: {
         fontSize: 10
       } as SceneText["style"],
@@ -128,8 +132,12 @@ describe("rectHitRegionsForTargetId", () => {
     const pinText: SceneText = {
       kind: "Text",
       id: "scene-text:pin",
-      sourceId: "path:0",
-      sourceSpan: { from: 0, to: 0 },
+      runtimeId: "runtime:scene-text:pin",
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
       style: {
         fontSize: 10
       } as SceneText["style"],
@@ -156,8 +164,12 @@ describe("rectHitRegionsForTargetId", () => {
     const pinEdge: ScenePath = {
       kind: "Path",
       id: "scene-path:pin-edge",
-      sourceId: "path:0",
-      sourceSpan: { from: 0, to: 0 },
+      runtimeId: "runtime:scene-path:pin-edge",
+      sourceRef: {
+        sourceId: "path:0",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
       style: {} as ScenePath["style"],
       styleChain: [],
       commands: [

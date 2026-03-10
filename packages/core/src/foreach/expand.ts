@@ -544,10 +544,6 @@ function maybeRecordStatementAttribution(
   context: ExpandContext,
   templateSource: TemplateSource | undefined
 ): void {
-  if (stack.length === 0 && !templateSource) {
-    return;
-  }
-
   context.statementAttribution.set(statement, {
     sourceId: templateSource?.sourceId ?? statement.id,
     sourceSpan: templateSource?.sourceSpan ?? statement.span,

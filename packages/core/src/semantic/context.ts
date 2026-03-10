@@ -351,12 +351,15 @@ export function retargetEditHandlesSourceFingerprint(
 ): void {
   for (let index = 0; index < handles.length; index += 1) {
     const handle = handles[index];
-    if (!handle || handle.sourceFingerprint === sourceFingerprint) {
+    if (!handle || handle.sourceRef.sourceFingerprint === sourceFingerprint) {
       continue;
     }
     handles[index] = {
       ...handle,
-      sourceFingerprint
+      sourceRef: {
+        ...handle.sourceRef,
+        sourceFingerprint
+      }
     };
   }
 }

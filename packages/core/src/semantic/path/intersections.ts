@@ -140,7 +140,7 @@ export function registerNamedPath(pathName: string, elements: SceneElement[], co
 
   const scopedName = applyNameScope(normalizedName, context);
   const geometryElements = elements.filter(isGeometricElement);
-  const producerSourceIds = new Set(geometryElements.map((element) => element.sourceId));
+  const producerSourceIds = new Set(geometryElements.map((element) => element.sourceRef.sourceId));
   appendNamedPathElements(context, scopedName, geometryElements, producerSourceIds);
   return true;
 }

@@ -38,7 +38,7 @@ describe("EditorSession", () => {
 \draw (0,0) -- (1,1);
 \end{tikzpicture}`;
     const session = new EditorSession(source);
-    const target = session.editHandles.find((handle) => source.slice(handle.sourceSpan.from, handle.sourceSpan.to) === "(1,1)");
+    const target = session.editHandles.find((handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === "(1,1)");
     expect(target).toBeDefined();
 
     const result = session.applyIntent({

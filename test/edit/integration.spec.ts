@@ -15,7 +15,7 @@ function evaluateAndGetHandles(source: string) {
 }
 
 function findHandleBySpanText(source: string, handles: EditHandle[], text: string): EditHandle | undefined {
-  return handles.find((h) => source.slice(h.sourceSpan.from, h.sourceSpan.to) === text);
+  return handles.find((h) => source.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to) === text);
 }
 
 /**
@@ -34,7 +34,7 @@ function roundTripMove(
   const { handles } = evaluateAndGetHandles(source);
   const handle = findHandleBySpanText(source, handles, spanText);
   if (!handle) {
-    throw new Error(`No handle found for span text "${spanText}". Available: ${handles.map((h) => `"${source.slice(h.sourceSpan.from, h.sourceSpan.to)}"`).join(", ")}`);
+    throw new Error(`No handle found for span text "${spanText}". Available: ${handles.map((h) => `"${source.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to)}"`).join(", ")}`);
   }
 
   const editResult = applyEditIntent(source, handles, {
@@ -54,7 +54,7 @@ function roundTripMove(
   const newHandle = newHandles.find((h) => {
     // The handle should be at the same span.from as the patch's newSpan.from
     const patch = editResult.patches[0];
-    return h.sourceSpan.from === patch.newSpan.from;
+    return h.sourceRef.sourceSpan.from === patch.newSpan.from;
   });
 
   return {
@@ -344,7 +344,7 @@ describe("edit integration (round-trip)", () => {
     const { handles } = evaluateAndGetHandles(source);
     const namedHandle = handles.find(
       (h) =>
-        source.slice(h.sourceSpan.from, h.sourceSpan.to) === "(A)" &&
+        source.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to) === "(A)" &&
         h.coordinateForm === "named"
     );
     expect(namedHandle).toBeDefined();
@@ -365,7 +365,7 @@ describe("edit integration (round-trip)", () => {
     const reevaluated = evaluateAndGetHandles(result.newSource);
     const movedNamedHandle = reevaluated.handles.find(
       (h) =>
-        result.newSource.slice(h.sourceSpan.from, h.sourceSpan.to) === "(A)" &&
+        result.newSource.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to) === "(A)" &&
         h.coordinateForm === "named"
     );
     expect(movedNamedHandle).toBeDefined();
@@ -406,8 +406,8 @@ describe("edit integration (round-trip)", () => {
       handles.some(
         (other, otherIndex) =>
           otherIndex !== index &&
-          other.sourceSpan.from === handle.sourceSpan.from &&
-          other.sourceSpan.to === handle.sourceSpan.to
+          other.sourceRef.sourceSpan.from === handle.sourceRef.sourceSpan.from &&
+          other.sourceRef.sourceSpan.to === handle.sourceRef.sourceSpan.to
       )
     );
     expect(duplicatedSpanHandle).toBeDefined();
@@ -468,7 +468,7 @@ describe("edit integration (round-trip)", () => {
 \draw (0,0) -- ([xshift=3pt]45:2);
 \end{tikzpicture}`;
     const { handles } = evaluateAndGetHandles(source);
-    const polarHandle = handles.find((h) => source.slice(h.sourceSpan.from, h.sourceSpan.to).includes("[xshift=3pt]"));
+    const polarHandle = handles.find((h) => source.slice(h.sourceRef.sourceSpan.from, h.sourceRef.sourceSpan.to).includes("[xshift=3pt]"));
     expect(polarHandle).toBeDefined();
 
     const result = applyEditIntent(source, handles, {
@@ -563,7 +563,7 @@ describe("edit integration (round-trip)", () => {
 
     expect(result.patches).toHaveLength(1);
     const patch = result.patches[0];
-    expect(patch.oldSpan).toEqual(handle!.sourceSpan);
+    expect(patch.oldSpan).toEqual(handle!.sourceRef.sourceSpan);
     expect(patch.replacement).toContain("10");
     expect(patch.replacement).toContain("20");
     expect(patch.newSpan.from).toBe(patch.oldSpan.from);

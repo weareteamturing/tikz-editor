@@ -266,9 +266,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (layer.fade === "circle-fuzzy-edge-15") {
         ensureCircularShadowMaskDefinition();
       }
-      resolveFillPaint(layerStyle, element.sourceId, elementBounds);
+      resolveFillPaint(layerStyle, element.sourceRef.sourceId, elementBounds);
     }
-    resolveFillPaint(element.style, element.sourceId, elementBounds);
+    resolveFillPaint(element.style, element.sourceRef.sourceId, elementBounds);
   };
 
   for (const element of scene.elements) {
@@ -296,7 +296,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           const pathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
           emitShadowPathPart({
             appendPart,
-            sourceId: element.sourceId,
+            sourceId: element.sourceRef.sourceId,
             elementId: element.id,
             d,
             bounds: pathBounds,
@@ -307,16 +307,16 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           });
 
           if (shouldEmitDoubleStroke(element.style)) {
-            const outerFill = resolveFillPaint(element.style, element.sourceId, pathBounds);
+            const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, pathBounds);
             const outerAttrs = styleAttributes(element.style, false, {
               lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
               fill: outerFill ?? undefined
             });
             appendPart(
               `${element.id}:shaft:outer`,
-              element.sourceId,
+              element.sourceRef.sourceId,
               element.id,
-              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`
+              `<path data-source-id="${escapeAttr(element.sourceRef.sourceId)}" d="${escapeAttr(d)}" ${outerAttrs.join(" ")} />`
             );
             const innerAttrs = styleAttributes(element.style, false, {
               stroke: "#ffffff",
@@ -325,20 +325,20 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
             });
             appendPart(
               `${element.id}:shaft:inner`,
-              element.sourceId,
+              element.sourceRef.sourceId,
               element.id,
-              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`
+              `<path data-source-id="${escapeAttr(element.sourceRef.sourceId)}" d="${escapeAttr(d)}" ${innerAttrs.join(" ")} />`
             );
           } else {
-            const resolvedFill = resolveFillPaint(element.style, element.sourceId, pathBounds);
+            const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, pathBounds);
             const attrs = styleAttributes(element.style, false, {
               fill: resolvedFill ?? undefined
             });
             appendPart(
               `${element.id}:shaft`,
-              element.sourceId,
+              element.sourceRef.sourceId,
               element.id,
-              `<path data-source-id="${escapeAttr(element.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`
+              `<path data-source-id="${escapeAttr(element.sourceRef.sourceId)}" d="${escapeAttr(d)}" ${attrs.join(" ")} />`
             );
           }
         }
@@ -352,9 +352,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         const attrs = arrowTipAttributes(element.style, tipPath);
         appendPart(
           `${element.id}:tip:${tipPath.side}:${tipPath.index}:${tipPath.tipKind}:${tipPath.bend ? "bend" : "flat"}`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<path data-source-id="${escapeAttr(element.sourceId)}" data-arrow-tip-kind="${escapeAttr(tipPath.tipKind)}" ` +
+          `<path data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-arrow-tip-kind="${escapeAttr(tipPath.tipKind)}" ` +
             `data-arrow-side="${tipPath.side}" data-arrow-index="${tipPath.index}" data-arrow-bend="${tipPath.bend ? "true" : "false"}" ` +
             `d="${escapeAttr(d)}" ${attrs.join(" ")} />`
         );
@@ -372,7 +372,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       };
       emitShadowCircle({
         appendPart,
-        sourceId: element.sourceId,
+        sourceId: element.sourceRef.sourceId,
         elementId: element.id,
         cx: center.x,
         cy: center.y,
@@ -384,16 +384,16 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceId, circleBounds);
+        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, circleBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
         });
         appendPart(
           `${element.id}:circle:outer`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${outerAttrs.join(" ")} />`
+          `<circle data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
           stroke: "#ffffff",
@@ -402,20 +402,20 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         });
         appendPart(
           `${element.id}:circle:inner`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
+          `<circle data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceId, circleBounds);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, circleBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
         appendPart(
           `${element.id}:circle`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<circle data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${attrs.join(" ")} />`
+          `<circle data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${attrs.join(" ")} />`
         );
       }
       continue;
@@ -426,7 +426,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       const ellipseBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
       emitShadowEllipse({
         appendPart,
-        sourceId: element.sourceId,
+        sourceId: element.sourceRef.sourceId,
         elementId: element.id,
         cx: center.x,
         cy: center.y,
@@ -440,7 +440,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceId, ellipseBounds);
+        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, ellipseBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
@@ -450,9 +450,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         }
         appendPart(
           `${element.id}:ellipse:outer`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${outerAttrs.join(" ")} />`
+          `<ellipse data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${outerAttrs.join(" ")} />`
         );
         const innerAttrs = styleAttributes(element.style, false, {
           stroke: "#ffffff",
@@ -464,12 +464,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         }
         appendPart(
           `${element.id}:ellipse:inner`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
+          `<ellipse data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceId, ellipseBounds);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, ellipseBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
@@ -478,9 +478,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         }
         appendPart(
           `${element.id}:ellipse`,
-          element.sourceId,
+          element.sourceRef.sourceId,
           element.id,
-          `<ellipse data-source-id="${escapeAttr(element.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${attrs.join(" ")} />`
+          `<ellipse data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${attrs.join(" ")} />`
         );
       }
       continue;
@@ -504,16 +504,16 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         const x = position.x - textBlockWidth / 2;
         const y = position.y - textBlockHeight / 2;
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
-        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
+        const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
         if (hasRotation) {
           appendPart(
             `${element.id}:text:mathjax:rotated`,
-            element.sourceId,
+            element.sourceRef.sourceId,
             element.id,
             `<g transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})">${renderedSvg}</g>`
           );
         } else {
-          appendPart(`${element.id}:text:mathjax`, element.sourceId, element.id, renderedSvg);
+          appendPart(`${element.id}:text:mathjax`, element.sourceRef.sourceId, element.id, renderedSvg);
         }
         continue;
       }
@@ -526,9 +526,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     const textBody = encodeTextBody(element.text, textX, position.y);
     appendPart(
       `${element.id}:text`,
-      element.sourceId,
+      element.sourceRef.sourceId,
       element.id,
-      `<text data-source-id="${escapeAttr(element.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`
+      `<text data-source-id="${escapeAttr(element.sourceRef.sourceId)}" x="${fmt(textX)}" y="${fmt(position.y)}" ${attrs.join(" ")}>${textBody}</text>`
     );
   }
 
@@ -1677,7 +1677,7 @@ function tryReuseElementParts(
   context: SvgModelReuseContext,
   element: SceneElement
 ): boolean {
-  if (context.affectedSourceIds.has(element.sourceId)) {
+  if (context.affectedSourceIds.has(element.sourceRef.sourceId)) {
     return false;
   }
   const reusableParts = context.previousPartsByElementId.get(element.id);
@@ -1685,7 +1685,7 @@ function tryReuseElementParts(
     return false;
   }
   for (const part of reusableParts) {
-    if (part.sourceId !== element.sourceId || part.elementId !== element.id) {
+    if (part.sourceId !== element.sourceRef.sourceId || part.elementId !== element.id) {
       return false;
     }
   }

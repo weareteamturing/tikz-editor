@@ -29,8 +29,8 @@ export function renderFillPatternPreviewSvg(pattern: PreviewPatternPreset): stri
   const path: ScenePath = {
     kind: "Path",
     id: `preview:pattern:${pattern}`,
-    sourceId: `preview:pattern:${pattern}`,
-    sourceSpan: PREVIEW_SOURCE_SPAN,
+    runtimeId: `preview:pattern:${pattern}`,
+    sourceRef: { sourceId: `preview:pattern:${pattern}`, sourceSpan: PREVIEW_SOURCE_SPAN, sourceFingerprint: "" },
     style,
     styleChain: [],
     commands: [

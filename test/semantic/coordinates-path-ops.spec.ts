@@ -1468,15 +1468,15 @@ describe("semantic evaluator / coordinates and path ops", () => {
 
       const rectangle = result.scene.elements.find(
         (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
-          element.kind === "Path" && element.sourceId === "path:0"
+          element.kind === "Path" && element.shapeHint === "rectangle"
       );
       const circle = result.scene.elements.find(
         (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
-          element.kind === "Path" && element.sourceId === "path:1"
+          element.kind === "Path" && element.shapeHint === "circle"
       );
       const ellipse = result.scene.elements.find(
         (element): element is Extract<(typeof result.scene.elements)[number], { kind: "Path" }> =>
-          element.kind === "Path" && element.sourceId === "path:2"
+          element.kind === "Path" && element.shapeHint === "ellipse"
       );
 
       expect(rectangle?.shapeHint).toBe("rectangle");

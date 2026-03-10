@@ -914,19 +914,28 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
 
   const sourceIds = new Set<string>();
   for (const element of elements) {
-    sourceIds.add(element.sourceId);
+    const sourceId = element.sourceRef.sourceId.trim();
+    if (!sourceId) {
+      continue;
+    }
+    sourceIds.add(sourceId);
   }
 
   const sceneSpansBySourceId = new Map<string, SourceSpan>();
   for (const element of elements) {
-    const existing = sceneSpansBySourceId.get(element.sourceId);
-    if (!existing) {
-      sceneSpansBySourceId.set(element.sourceId, { from: element.sourceSpan.from, to: element.sourceSpan.to });
+    const sourceId = element.sourceRef.sourceId.trim();
+    const sourceSpan = element.sourceRef.sourceSpan;
+    if (!sourceId || !sourceSpan || sourceSpan.to <= sourceSpan.from) {
       continue;
     }
-    sceneSpansBySourceId.set(element.sourceId, {
-      from: Math.min(existing.from, element.sourceSpan.from),
-      to: Math.max(existing.to, element.sourceSpan.to)
+    const existing = sceneSpansBySourceId.get(sourceId);
+    if (!existing) {
+      sceneSpansBySourceId.set(sourceId, { from: sourceSpan.from, to: sourceSpan.to });
+      continue;
+    }
+    sceneSpansBySourceId.set(sourceId, {
+      from: Math.min(existing.from, sourceSpan.from),
+      to: Math.max(existing.to, sourceSpan.to)
     });
   }
 

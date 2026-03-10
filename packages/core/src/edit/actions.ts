@@ -211,7 +211,7 @@ function applyConnectHandle(
   }
 
   const sourceFingerprint = computeSourceFingerprint(source);
-  if (handle.sourceFingerprint !== sourceFingerprint) {
+  if (handle.sourceRef.sourceFingerprint !== sourceFingerprint) {
     return { kind: "error", message: "Handle does not match current source (stale handle)." };
   }
 
@@ -229,9 +229,9 @@ function applyConnectHandle(
   }
 
   if (
-    handle.sourceSpan.from < 0 ||
-    handle.sourceSpan.to > source.length ||
-    handle.sourceSpan.from >= handle.sourceSpan.to
+    handle.sourceRef.sourceSpan.from < 0 ||
+    handle.sourceRef.sourceSpan.to > source.length ||
+    handle.sourceRef.sourceSpan.from >= handle.sourceRef.sourceSpan.to
   ) {
     return {
       kind: "unsupported",
@@ -246,7 +246,7 @@ function applyConnectHandle(
     };
   }
 
-  const currentSourceText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+  const currentSourceText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
   if (currentSourceText !== handle.sourceText) {
     return { kind: "error", message: "Handle span content mismatch (stale handle)." };
   }
@@ -265,10 +265,10 @@ function applyConnectHandle(
     trimmedAnchor === "center"
       ? `(${trimmedNodeName})`
       : `(${trimmedNodeName}.${trimmedAnchor})`;
-  const updated = replaceSpan(source, handle.sourceSpan, replacement);
+  const updated = replaceSpan(source, handle.sourceRef.sourceSpan, replacement);
   const reordered = moveStatementAfterNamedDefinition(
     updated.source,
-    handle.sourceId,
+    handle.sourceRef.sourceId,
     trimmedNodeName
   );
   const reorderedPatches = reordered ? reordered.patches : [];
@@ -278,13 +278,13 @@ function applyConnectHandle(
     newSource,
     patches: [
       {
-        oldSpan: handle.sourceSpan,
+        oldSpan: handle.sourceRef.sourceSpan,
         newSpan: updated.changedSpan,
         replacement
       },
       ...reorderedPatches
     ],
-    changedSourceIds: [handle.sourceId]
+    changedSourceIds: [handle.sourceRef.sourceId]
   };
 }
 
@@ -309,11 +309,11 @@ function applyMoveElements(
 
   const matrixPlacementHandlesBySource = new Map<string, EditHandle>();
   for (const handle of editHandles) {
-    if (handle.kind !== "node-position" || !matrixElementIdSet.has(handle.sourceId)) {
+    if (handle.kind !== "node-position" || !matrixElementIdSet.has(handle.sourceRef.sourceId)) {
       continue;
     }
-    if (!matrixPlacementHandlesBySource.has(handle.sourceId)) {
-      matrixPlacementHandlesBySource.set(handle.sourceId, handle);
+    if (!matrixPlacementHandlesBySource.has(handle.sourceRef.sourceId)) {
+      matrixPlacementHandlesBySource.set(handle.sourceRef.sourceId, handle);
     }
   }
 
@@ -394,7 +394,7 @@ function applyMoveElementsUsingHandleRewrites(
   delta: Point
 ): EditActionResult {
   const sourceIdSet = new Set(elementIds);
-  const elementHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceId));
+  const elementHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceRef.sourceId));
 
   if (elementHandles.length === 0) {
     return { kind: "unsupported", reason: "No handles found for the selected element(s)" };
@@ -416,7 +416,7 @@ function applyMoveElementsUsingHandleRewrites(
   const pending: PendingReplacement[] = [];
 
   for (const handle of rewritable) {
-    const actualText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+    const actualText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
     if (actualText !== handle.sourceText) {
       skippedHandles.push(handle.id);
       continue;
@@ -425,7 +425,7 @@ function applyMoveElementsUsingHandleRewrites(
     const newWorld: Point = { x: handle.world.x + delta.x, y: handle.world.y + delta.y };
     const text = rewriteCoordinate(newWorld, handle, source);
     if (text != null) {
-      pending.push({ span: handle.sourceSpan, text });
+      pending.push({ span: handle.sourceRef.sourceSpan, text });
     } else {
       skippedHandles.push(handle.id);
     }
@@ -755,18 +755,18 @@ function applyElementDeltaMapStrict(
   }
 
   const sourceIdSet = new Set(normalizedIds);
-  const selectedHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceId));
+  const selectedHandles = editHandles.filter((handle) => sourceIdSet.has(handle.sourceRef.sourceId));
   if (selectedHandles.length === 0) {
     return { kind: "unsupported", reason: "No handles found for the selected element(s)." };
   }
 
   const handlesBySource = new Map<string, EditHandle[]>();
   for (const handle of selectedHandles) {
-    const existing = handlesBySource.get(handle.sourceId);
+    const existing = handlesBySource.get(handle.sourceRef.sourceId);
     if (existing) {
       existing.push(handle);
     } else {
-      handlesBySource.set(handle.sourceId, [handle]);
+      handlesBySource.set(handle.sourceRef.sourceId, [handle]);
     }
   }
 
@@ -791,12 +791,12 @@ function applyElementDeltaMapStrict(
   const replacementBySpan = new Map<string, string>();
 
   for (const handle of selectedHandles) {
-    const delta = deltasBySource.get(handle.sourceId) ?? { x: 0, y: 0 };
+    const delta = deltasBySource.get(handle.sourceRef.sourceId) ?? { x: 0, y: 0 };
     if (Math.abs(delta.x) <= ARRANGE_EPSILON && Math.abs(delta.y) <= ARRANGE_EPSILON) {
       continue;
     }
 
-    const actualText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+    const actualText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
     if (actualText !== handle.sourceText) {
       return {
         kind: "unsupported",
@@ -819,7 +819,7 @@ function applyElementDeltaMapStrict(
       };
     }
 
-    const spanKey = `${handle.sourceSpan.from}:${handle.sourceSpan.to}`;
+    const spanKey = `${handle.sourceRef.sourceSpan.from}:${handle.sourceRef.sourceSpan.to}`;
     const existing = replacementBySpan.get(spanKey);
     if (existing != null) {
       if (existing !== text) {
@@ -832,7 +832,7 @@ function applyElementDeltaMapStrict(
     }
 
     replacementBySpan.set(spanKey, text);
-    pending.push({ span: handle.sourceSpan, text });
+    pending.push({ span: handle.sourceRef.sourceSpan, text });
   }
 
   if (pending.length === 0) {
@@ -1741,6 +1741,9 @@ function normalizeElementIds(elementIds: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const elementId of elementIds) {
+    if (typeof elementId !== "string") {
+      continue;
+    }
     const id = elementId.trim();
     if (id.length === 0 || seen.has(id)) {
       continue;
@@ -1791,11 +1794,11 @@ function inferChangedSourceIds(
       return normalizeElementIds(action.elementIds);
     case "moveHandle": {
       const handle = editHandles.find((candidate) => candidate.id === action.handleId);
-      return handle ? normalizeElementIds([handle.sourceId]) : [];
+      return handle ? normalizeElementIds([handle.sourceRef.sourceId]) : [];
     }
     case "connectHandle": {
       const handle = editHandles.find((candidate) => candidate.id === action.handleId);
-      return handle ? normalizeElementIds([handle.sourceId]) : [];
+      return handle ? normalizeElementIds([handle.sourceRef.sourceId]) : [];
     }
     case "addElement":
     case "pasteStatements":
@@ -1830,8 +1833,8 @@ function isSharedExpandedHandleSpan(
   return editHandles.some(
     (candidate) =>
       candidate.id !== handle.id &&
-      candidate.sourceSpan.from === handle.sourceSpan.from &&
-      candidate.sourceSpan.to === handle.sourceSpan.to
+      candidate.sourceRef.sourceSpan.from === handle.sourceRef.sourceSpan.from &&
+      candidate.sourceRef.sourceSpan.to === handle.sourceRef.sourceSpan.to
   );
 }
 
@@ -2249,7 +2252,7 @@ function applyResizeElement(
   const parsed = parseTikz(source, { recover: true });
   const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
   const hasNodePositionHandle = semantic.editHandles.some(
-    (handle) => handle.sourceId === elementId && handle.kind === "node-position"
+    (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "node-position"
   );
   if (!hasNodePositionHandle) {
     const rectangleContext = resolvePathRectangleResizeContext(
@@ -2458,7 +2461,7 @@ function applyResizePathRectangle(
   const replacementBySpan = new Map<string, { span: Span; text: string }>();
   for (const target of rewriteTargets) {
     const handle = target.handle;
-    const actualText = source.slice(handle.sourceSpan.from, handle.sourceSpan.to);
+    const actualText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
     if (actualText !== handle.sourceText) {
       return { kind: "unsupported", reason: "Some selected handles are stale. Wait for recompute and try again." };
     }
@@ -2471,7 +2474,7 @@ function applyResizePathRectangle(
       continue;
     }
 
-    const spanKey = `${handle.sourceSpan.from}:${handle.sourceSpan.to}`;
+    const spanKey = `${handle.sourceRef.sourceSpan.from}:${handle.sourceRef.sourceSpan.to}`;
     const existing = replacementBySpan.get(spanKey);
     if (existing) {
       if (existing.text !== text) {
@@ -2481,7 +2484,7 @@ function applyResizePathRectangle(
     }
 
     replacementBySpan.set(spanKey, {
-      span: handle.sourceSpan,
+      span: handle.sourceRef.sourceSpan,
       text
     });
   }
@@ -2514,7 +2517,7 @@ function resolvePathRectangleResizeContext(
     return { kind: "not-rectangle" };
   }
 
-  const sourceElements = elements.filter((element) => element.sourceId === elementId && !element.adornment);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === elementId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   if (nonTextElements.length !== 1) {
     return { kind: "not-rectangle" };
@@ -2529,7 +2532,7 @@ function resolvePathRectangleResizeContext(
   }
 
   const pathPointHandles = editHandles.filter(
-    (handle) => handle.sourceId === elementId && handle.kind === "path-point"
+    (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "path-point"
   );
   if (pathPointHandles.length !== 2) {
     return {
@@ -2554,8 +2557,8 @@ function resolvePathRectangleResizeContext(
   }
 
   if (
-    startHandle.sourceSpan.from === oppositeHandle.sourceSpan.from &&
-    startHandle.sourceSpan.to === oppositeHandle.sourceSpan.to
+    startHandle.sourceRef.sourceSpan.from === oppositeHandle.sourceRef.sourceSpan.from &&
+    startHandle.sourceRef.sourceSpan.to === oppositeHandle.sourceRef.sourceSpan.to
   ) {
     return {
       kind: "unsupported",
@@ -2747,7 +2750,7 @@ function resolvePathShapeResizeContext(
     return { kind: "unsupported", reason: "resizeElement currently supports only node-like or shape-path elements." };
   }
 
-  const sourceElements = elements.filter((element) => element.sourceId === elementId && !element.adornment);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === elementId && !element.adornment);
   const nonTextElements = sourceElements.filter((element) => element.kind !== "Text");
   const explicitShapeElements = nonTextElements.filter(
     (element): element is SceneCircle | SceneEllipse => element.kind === "Circle" || element.kind === "Ellipse"
@@ -2780,7 +2783,7 @@ function resolvePathShapeResizeContext(
   }
 
   const candidateHandles = editHandles.filter(
-    (handle) => handle.sourceId === elementId && handle.kind === "path-point"
+    (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "path-point"
   );
   if (candidateHandles.length === 0) {
     return { kind: "unsupported", reason: "No editable center handle was found for this circle/ellipse." };
@@ -3110,7 +3113,7 @@ function pointDistanceSquared(left: Point, right: Point): number {
 }
 
 function resolveNodeResizeRotationDegrees(elements: readonly SceneElement[], sourceId: string): number {
-  const sourceElements = elements.filter((element) => element.sourceId === sourceId && !element.adornment);
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
   const textElements = sourceElements.filter(
     (element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text"
   );

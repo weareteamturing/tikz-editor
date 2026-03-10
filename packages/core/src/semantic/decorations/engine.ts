@@ -306,8 +306,12 @@ function decorateTextAlongPath(path: ScenePath, decoration: DecorationStyle, see
       elements.push({
         kind: "Text",
         id: `${path.id}:decorated:${sanitizeDecorationName(seedRaw)}:text-along-path:${subpathIndex}:${characterIndex}`,
-        sourceId: path.sourceId,
-        sourceSpan: path.sourceSpan,
+        runtimeId: `${path.runtimeId}:decorated:${sanitizeDecorationName(seedRaw)}:text-along-path:${subpathIndex}:${characterIndex}`,
+        sourceRef: {
+          sourceId: path.sourceRef.sourceId,
+          sourceSpan: path.sourceRef.sourceSpan,
+          sourceFingerprint: path.sourceRef.sourceFingerprint
+        },
         origin: path.origin,
         style,
         styleChain: path.styleChain.map((entry) => ({ ...entry })),

@@ -107,6 +107,12 @@ export type SceneAdornment = {
 
 export type SceneElement = ScenePath | SceneCircle | SceneEllipse | SceneText;
 
+export type SourceRef = {
+  sourceId: string;
+  sourceSpan: Span;
+  sourceFingerprint: string;
+};
+
 export type ScenePathCommand =
   | { kind: "M"; to: Point }
   | { kind: "L"; to: Point }
@@ -119,8 +125,8 @@ export type ScenePathShapeHint = "rectangle" | "circle" | "ellipse";
 export type ScenePath = {
   kind: "Path";
   id: string;
-  sourceId: string;
-  sourceSpan: Span;
+  runtimeId: string;
+  sourceRef: SourceRef;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
@@ -133,8 +139,8 @@ export type ScenePath = {
 export type SceneCircle = {
   kind: "Circle";
   id: string;
-  sourceId: string;
-  sourceSpan: Span;
+  runtimeId: string;
+  sourceRef: SourceRef;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -146,8 +152,8 @@ export type SceneCircle = {
 export type SceneEllipse = {
   kind: "Ellipse";
   id: string;
-  sourceId: string;
-  sourceSpan: Span;
+  runtimeId: string;
+  sourceRef: SourceRef;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -161,8 +167,8 @@ export type SceneEllipse = {
 export type SceneText = {
   kind: "Text";
   id: string;
-  sourceId: string;
-  sourceSpan: Span;
+  runtimeId: string;
+  sourceRef: SourceRef;
   adornment?: SceneAdornment;
   textSourceSpan?: Span;
   textHasFixedWidth?: boolean;
@@ -393,14 +399,13 @@ export type CurveEditHandleData =
 
 export type EditHandle = {
   id: string;
-  sourceId: string;
+  runtimeId: string;
+  sourceRef: SourceRef;
   kind: "node-position" | "path-point" | "path-control" | "path-bend";
   world: Point;
   local?: Point;
   transform: Matrix2D;
-  sourceSpan: Span;
   sourceText: string;
-  sourceFingerprint: string;
   coordinateForm: CoordinateForm;
   relativePrefix?: "+" | "++";
   relativeBaseWorld?: Point;

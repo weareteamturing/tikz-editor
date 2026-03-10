@@ -100,11 +100,11 @@ export function collectSourceWorldBounds(elements: SceneElement[]): Map<string, 
     const bounds = elementBoundsInWorld(element);
     if (!bounds) continue;
 
-    const existing = boundsBySource.get(element.sourceId);
+    const existing = boundsBySource.get(element.sourceRef.sourceId);
     const merged = existing ? mergeBounds(existing, bounds) : bounds;
-    boundsBySource.set(element.sourceId, {
+    boundsBySource.set(element.sourceRef.sourceId, {
       ...merged,
-      sourceId: element.sourceId
+      sourceId: element.sourceRef.sourceId
     });
   }
 
@@ -125,11 +125,11 @@ export function collectSourceReferenceBounds(elements: SceneElement[]): Map<stri
     const bounds = elementBoundsInWorld(element);
     if (!bounds) continue;
 
-    const existing = boundsBySource.get(element.sourceId);
+    const existing = boundsBySource.get(element.sourceRef.sourceId);
     const merged = existing ? mergeBounds(existing, bounds) : bounds;
-    boundsBySource.set(element.sourceId, {
+    boundsBySource.set(element.sourceRef.sourceId, {
       ...merged,
-      sourceId: element.sourceId
+      sourceId: element.sourceRef.sourceId
     });
   }
 

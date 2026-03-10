@@ -166,8 +166,8 @@ export function makeGridElements(
       paths.push({
         kind: "Path",
         id: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
-        sourceId,
-        sourceSpan: span,
+        runtimeId: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
+        sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [
@@ -182,8 +182,8 @@ export function makeGridElements(
       paths.push({
         kind: "Path",
         id: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
-        sourceId,
-        sourceSpan: span,
+        runtimeId: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
+        sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [
@@ -236,8 +236,8 @@ function makeAffineGridElements(
       paths.push({
         kind: "Path",
         id: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
-        sourceId,
-        sourceSpan: span,
+        runtimeId: `scene-grid-x:${sourceId}:${itemId}:${x.toFixed(3)}`,
+        sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [
@@ -255,8 +255,8 @@ function makeAffineGridElements(
       paths.push({
         kind: "Path",
         id: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
-        sourceId,
-        sourceSpan: span,
+        runtimeId: `scene-grid-y:${sourceId}:${itemId}:${y.toFixed(3)}`,
+        sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
         style: { ...style },
         styleChain: cloneStyleChain(styleChain),
         commands: [

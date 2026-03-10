@@ -902,7 +902,7 @@ export function HandleOverlay({
         const onContextMenu = (event: ReactMouseEvent<SVGElement>) =>
           onElementContextMenu(
             event,
-            display.kind === "move-handle" ? display.handle.sourceId : display.elementId
+            display.kind === "move-handle" ? display.handle.sourceRef.sourceId : display.elementId
           );
 
         if (display.kind === "rotate-element") {

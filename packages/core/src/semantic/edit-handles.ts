@@ -22,14 +22,17 @@ export function createEditHandle(
     // Keep IDs stable across coordinate text rewrites by avoiding source-span offsets.
     // This allows ongoing drags to continue after recompute snapshots.
     id: `handle:${sourceId}:${kind}:${context.editHandles.length}`,
-    sourceId,
+    runtimeId: `handle:${sourceId}:${kind}:${context.editHandles.length}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan,
+      sourceFingerprint: context.sourceFingerprint
+    },
     kind,
     world: evaluated.world,
     local: evaluated.local ?? undefined,
     transform: evaluated.transform,
-    sourceSpan,
     sourceText,
-    sourceFingerprint: context.sourceFingerprint,
     coordinateForm: evaluated.coordinateForm,
     relativePrefix: evaluated.relativePrefix,
     relativeBaseWorld: evaluated.relativePrefix ? context.currentPoint ?? undefined : undefined,

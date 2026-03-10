@@ -35,11 +35,12 @@ export function computeDragCapability(editHandles: readonly EditHandle[]): DragC
 
   const handlesBySourceId = new Map<string, EditHandle[]>();
   for (const handle of editHandles) {
-    const existing = handlesBySourceId.get(handle.sourceId);
+    const sourceId = handle.sourceRef.sourceId;
+    const existing = handlesBySourceId.get(sourceId);
     if (existing) {
       existing.push(handle);
     } else {
-      handlesBySourceId.set(handle.sourceId, [handle]);
+      handlesBySourceId.set(sourceId, [handle]);
     }
   }
 
@@ -80,6 +81,7 @@ function hasConflictingRewriteTarget(
   rewriteTarget: EditHandle,
   rewriteTargetsByHandleId: ReadonlyMap<string, EditHandle | null>
 ): boolean {
+  const rewriteTargetSpan = rewriteTarget.sourceRef.sourceSpan;
   for (const candidate of allHandles) {
     if (candidate.id === handle.id) {
       continue;
@@ -91,9 +93,10 @@ function hasConflictingRewriteTarget(
     if (candidateRewriteTarget.id === rewriteTarget.id) {
       continue;
     }
+    const candidateSpan = candidateRewriteTarget.sourceRef.sourceSpan;
     if (
-      candidateRewriteTarget.sourceSpan.from === rewriteTarget.sourceSpan.from &&
-      candidateRewriteTarget.sourceSpan.to === rewriteTarget.sourceSpan.to
+      candidateSpan.from === rewriteTargetSpan.from &&
+      candidateSpan.to === rewriteTargetSpan.to
     ) {
       return true;
     }

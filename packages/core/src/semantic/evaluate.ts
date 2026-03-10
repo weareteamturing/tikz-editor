@@ -73,6 +73,7 @@ export type EvaluateTikzResult = {
   editHandles: EditHandle[];
   nodeAnchorTargets: NodeAnchorTarget[];
   dependencies: SemanticDependencyGraph;
+  sourceStatementFirstIndexBySourceId: Record<string, number>;
 };
 
 export type SemanticStatementEvaluationRecord = {
@@ -288,6 +289,29 @@ export function finalizeSemanticEvaluationRun(
     popFrame(run.context);
   }
 
+  for (let index = 0; index < elements.length; index += 1) {
+    const element = elements[index];
+    elements[index] = {
+      ...element,
+      runtimeId: element.runtimeId ?? element.id,
+      sourceRef: {
+        ...element.sourceRef,
+        sourceFingerprint: run.context.sourceFingerprint
+      }
+    };
+  }
+
+  for (let index = 0; index < run.context.editHandles.length; index += 1) {
+    const handle = run.context.editHandles[index];
+    if (!handle) {
+      continue;
+    }
+    run.context.editHandles[index] = {
+      ...handle,
+      runtimeId: handle.runtimeId ?? handle.id
+    };
+  }
+
   markOpaqueDependencySources(elements, run.context);
 
   return {
@@ -305,8 +329,26 @@ export function finalizeSemanticEvaluationRun(
     featureUsage: run.featureUsage,
     editHandles: run.context.editHandles,
     nodeAnchorTargets: collectNodeAnchorTargets(run.context),
-    dependencies: run.context.dependencyBuilder.build()
+    dependencies: run.context.dependencyBuilder.build(),
+    sourceStatementFirstIndexBySourceId: buildSourceStatementFirstIndexBySourceId(run)
   };
+}
+
+function buildSourceStatementFirstIndexBySourceId(run: SemanticEvaluationRun): Record<string, number> {
+  const bySourceId = new Map<string, number>();
+  for (let index = 0; index < run.expandedFigureBody.length; index += 1) {
+    const statement = run.expandedFigureBody[index];
+    if (!statement) {
+      continue;
+    }
+    const attributed = run.statementAttribution.get(statement);
+    const sourceId = attributed?.sourceId ?? statement.id;
+    const previous = bySourceId.get(sourceId);
+    if (previous == null || index < previous) {
+      bySourceId.set(sourceId, index);
+    }
+  }
+  return Object.fromEntries([...bySourceId.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 }
 
 function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTarget[] {
@@ -388,10 +430,10 @@ function markOpaqueDependencySources(
       continue;
     }
 
-    let reasons = reasonsBySource.get(element.sourceId);
+    let reasons = reasonsBySource.get(element.sourceRef.sourceId);
     if (!reasons) {
       reasons = new Set();
-      reasonsBySource.set(element.sourceId, reasons);
+      reasonsBySource.set(element.sourceRef.sourceId, reasons);
     }
 
     if (origin.foreachStack.length > 0) {
@@ -1819,12 +1861,15 @@ function applyForeachAttributionToElements(
           }
         : undefined;
 
-    const nextSourceId = attribution?.sourceId ?? element.sourceId;
-    const nextSourceSpan = attribution?.sourceSpan ?? element.sourceSpan;
+    const nextSourceId = attribution?.sourceId ?? element.sourceRef.sourceId;
+    const nextSourceSpan = attribution?.sourceSpan ?? element.sourceRef.sourceSpan;
     return {
       ...element,
-      sourceId: nextSourceId,
-      sourceSpan: nextSourceSpan,
+      sourceRef: {
+        ...element.sourceRef,
+        sourceId: nextSourceId,
+        sourceSpan: nextSourceSpan
+      },
       origin: nextOrigin
     };
   });
@@ -1848,7 +1893,10 @@ function applyForeachAttributionToHandles(
     }
     handles[index] = {
       ...handle,
-      sourceId: attribution.sourceId
+      sourceRef: {
+        ...handle.sourceRef,
+        sourceId: attribution.sourceId
+      }
     };
   }
 }

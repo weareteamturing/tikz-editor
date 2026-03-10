@@ -7,17 +7,27 @@ import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 
 const cm = (value: number): number => value * PT_PER_CM;
 
-function makeHandle(overrides: Partial<EditHandle> & { world: Point; sourceSpan: { from: number; to: number } }): EditHandle {
+function makeHandle(
+  overrides: Partial<EditHandle> & {
+    world: Point;
+    sourceRef: { sourceSpan: { from: number; to: number } };
+  }
+): EditHandle {
+  const mergedSourceRef = {
+    sourceId: "test-source-id",
+    sourceSpan: { from: 0, to: 0 },
+    sourceFingerprint: "test",
+    ...(overrides.sourceRef ?? {})
+  };
   return {
     id: "test-handle",
-    sourceId: "test-source-id",
     kind: "path-point",
     sourceText: "",
-    sourceFingerprint: "test",
     coordinateForm: "cartesian",
     transform: identityMatrix(),
     rewriteMode: "direct",
-    ...overrides
+    ...overrides,
+    sourceRef: mergedSourceRef
   };
 }
 
@@ -27,7 +37,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1,2) -- (3,4);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(2) },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian"
       });
       const result = rewriteCoordinate({ x: cm(5), y: cm(6) }, handle, source);
@@ -38,7 +48,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1, 2) -- (3,4);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(2) },
-        sourceSpan: { from: 6, to: 12 },
+        sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "cartesian"
       });
       const result = rewriteCoordinate({ x: cm(5), y: cm(6) }, handle, source);
@@ -50,7 +60,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1,2);";
       const handle = makeHandle({
         world: { x: cm(2), y: cm(2) },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
       });
@@ -64,7 +74,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (0,1);";
       const handle = makeHandle({
         world: { x: cm(-1), y: cm(0) },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
       });
@@ -87,7 +97,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1,2);";
       const handle = makeHandle({
         world: { x: cm(12), y: cm(2) },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian",
         transform
       });
@@ -102,7 +112,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1,2);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(2) },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "cartesian"
       });
       const result = rewriteCoordinate({ x: cm(1.5), y: cm(2.25) }, handle, source);
@@ -115,7 +125,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (45:2);";
       const handle = makeHandle({
         world: { x: cm(Math.SQRT2), y: cm(Math.SQRT2) },
-        sourceSpan: { from: 6, to: 12 },
+        sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "polar"
       });
       // Move to (0, 3cm) → angle=90, radius=3
@@ -131,7 +141,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (0:1);";
       const handle = makeHandle({
         world: { x: cm(1), y: 0 },
-        sourceSpan: { from: 6, to: 11 },
+        sourceRef: { sourceSpan: { from: 6, to: 11 } },
         coordinateForm: "polar"
       });
       // Move to (0, -1cm) → angle=270, radius=1
@@ -149,7 +159,7 @@ describe("rewriteCoordinate", () => {
       const to = from + rawCoordinate.length;
       const handle = makeHandle({
         world: { x: cm(Math.SQRT2), y: cm(Math.SQRT2) },
-        sourceSpan: { from, to },
+        sourceRef: { sourceSpan: { from, to } },
         coordinateForm: "polar"
       });
       const result = rewriteCoordinate({ x: 0, y: cm(3) }, handle, source);
@@ -162,7 +172,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (0,0) -- ++(1,1);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
-        sourceSpan: { from: 18, to: 23 },
+        sourceRef: { sourceSpan: { from: 18, to: 23 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
@@ -178,7 +188,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (0,0) -- +(1,0);";
       const handle = makeHandle({
         world: { x: cm(1), y: 0 },
-        sourceSpan: { from: 17, to: 22 },
+        sourceRef: { sourceSpan: { from: 17, to: 22 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "+",
@@ -196,7 +206,7 @@ describe("rewriteCoordinate", () => {
       const to = from + rawCoordinate.length;
       const handle = makeHandle({
         world: { x: cm(2), y: cm(1) },
-        sourceSpan: { from, to },
+        sourceRef: { sourceSpan: { from, to } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++",
@@ -210,7 +220,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw ++(1,1);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
-        sourceSpan: { from: 6, to: 12 },
+        sourceRef: { sourceSpan: { from: 6, to: 12 } },
         coordinateForm: "cartesian",
         rewriteMode: "delta",
         relativePrefix: "++"
@@ -226,7 +236,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (1,2,3);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(2) },
-        sourceSpan: { from: 6, to: 13 },
+        sourceRef: { sourceSpan: { from: 6, to: 13 } },
         coordinateForm: "xyz",
         rewriteMode: "direct"
       });
@@ -238,7 +248,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (A);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
-        sourceSpan: { from: 6, to: 9 },
+        sourceRef: { sourceSpan: { from: 6, to: 9 } },
         kind: "path-point",
         coordinateForm: "named",
         rewriteMode: "unsupported"
@@ -251,7 +261,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw (A) .. controls (B) .. (C);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
-        sourceSpan: { from: 21, to: 24 },
+        sourceRef: { sourceSpan: { from: 21, to: 24 } },
         kind: "path-control",
         coordinateForm: "named",
         rewriteMode: "unsupported"
@@ -264,7 +274,7 @@ describe("rewriteCoordinate", () => {
       const source = "\\draw ($0.5*(A)+0.5*(B)$);";
       const handle = makeHandle({
         world: { x: cm(1), y: cm(1) },
-        sourceSpan: { from: 6, to: 25 },
+        sourceRef: { sourceSpan: { from: 6, to: 25 } },
         coordinateForm: "calc",
         rewriteMode: "unsupported"
       });

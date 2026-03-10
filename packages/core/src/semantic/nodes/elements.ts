@@ -41,8 +41,8 @@ export function makeCircleElement(
   return {
     kind: "Circle",
     id: `scene-circle:${sourceId}:${span.from}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-circle:${sourceId}:${span.from}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
@@ -70,8 +70,8 @@ export function makeTextElement(
   return {
     kind: "Text",
     id: `scene-text:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-text:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     adornment,
     textSourceSpan,
     textHasFixedWidth,
@@ -210,8 +210,8 @@ export function makeNodeBoxElement(
   return {
     kind: "Path",
     id: `scene-node-box:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-node-box:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
@@ -233,8 +233,8 @@ export function makeNodeEllipseElement(
   return {
     kind: "Ellipse",
     id: `scene-node-ellipse:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-node-ellipse:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     adornment,
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
@@ -906,8 +906,8 @@ function makeNodePolygonElement(
   return {
     kind: "Path",
     id: `scene-node-box:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-node-box:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     commands
@@ -942,8 +942,8 @@ function makeNodeMultiPolygonElement(
   return {
     kind: "Path",
     id: `scene-node-box:${sourceId}:${itemId}`,
-    sourceId,
-    sourceSpan: span,
+    runtimeId: `scene-node-box:${sourceId}:${itemId}`,
+    sourceRef: { sourceId, sourceSpan: span, sourceFingerprint: "" },
     style: { ...style },
     styleChain: cloneStyleChain(styleChain),
     commands

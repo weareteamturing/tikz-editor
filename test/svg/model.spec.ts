@@ -74,7 +74,7 @@ describe("svg render model", () => {
 
     const previousModel = emitSvgModel(previousSemantic.scene, { padding: 8 });
     const fullNextModel = emitSvgModel(nextSemantic.scene, { padding: 8 });
-    const movedSourceId = previousSemantic.scene.elements[1]?.sourceId;
+    const movedSourceId = previousSemantic.scene.elements[1]?.sourceRef.sourceId;
     expect(movedSourceId).toBeDefined();
 
     const incrementalNextModel = emitSvgModel(nextSemantic.scene, {
@@ -105,7 +105,7 @@ describe("svg render model", () => {
 
     const previousModel = emitSvgModel(previousSemantic.scene, { padding: 8 });
     const fullNextModel = emitSvgModel(nextSemantic.scene, { padding: 8 });
-    const movedSourceId = previousSemantic.scene.elements[0]?.sourceId;
+    const movedSourceId = previousSemantic.scene.elements[0]?.sourceRef.sourceId;
     expect(movedSourceId).toBeDefined();
     expect(fullNextModel.viewBox).not.toEqual(previousModel.viewBox);
 

@@ -22,7 +22,7 @@ describe("semantic evaluator / macros and foreach", () => {
         if (label.kind !== "Text") {
           continue;
         }
-        expect(label.sourceId.startsWith("foreach:")).toBe(true);
+        expect(label.sourceRef.sourceId.startsWith("foreach:")).toBe(true);
         expect(label.origin?.foreachStack.length).toBeGreaterThan(0);
         expect(label.origin?.foreachStack[0]?.bindings["\\x"]).toBeDefined();
       }
@@ -399,13 +399,13 @@ describe("semantic evaluator / macros and foreach", () => {
   \end{tikzpicture}`;
       const result = evaluateSemantic(source);
   
-      const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceId));
+      const elementSourceIds = new Set(result.scene.elements.map((element) => element.sourceRef.sourceId));
       expect(elementSourceIds.size).toBe(1);
       const [elementSourceId] = [...elementSourceIds];
       expect(elementSourceId.startsWith("foreach:")).toBe(true);
       expect(result.editHandles.length).toBeGreaterThan(0);
       for (const handle of result.editHandles) {
-        expect(handle.sourceId).toBe(elementSourceId);
+        expect(handle.sourceRef.sourceId).toBe(elementSourceId);
       }
     });
 });

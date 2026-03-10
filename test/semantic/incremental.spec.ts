@@ -84,7 +84,7 @@ describe("semantic incremental evaluation", () => {
         source,
         hints: {
           trigger: "drag-handle",
-          changedSourceIds: actionResult.changedSourceIds ?? [handle.sourceId]
+          changedSourceIds: actionResult.changedSourceIds ?? [handle.sourceRef.sourceId]
         }
       });
       const full = evaluateTikzFigure(parsed.figure, source);
@@ -246,7 +246,7 @@ function pickMoveSourceId(handles: readonly EditHandle[]): string {
   if (!candidate) {
     throw new Error("Expected at least one rewritable handle");
   }
-  return candidate.sourceId;
+  return candidate.sourceRef.sourceId;
 }
 
 function pickHandleForDrag(handles: readonly EditHandle[]): EditHandle {
