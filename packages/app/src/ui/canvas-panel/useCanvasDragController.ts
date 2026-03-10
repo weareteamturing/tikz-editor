@@ -23,7 +23,15 @@ import {
   createTemplateForToolDrag,
   DEFAULT_GRID_TOOL_STEP_PT,
   deriveSelectionTranslationDeltaFromAnchor,
+  formatTooltipAngleRow,
+  formatTooltipGridCountRow,
+  formatTooltipLengthRows,
+  projectResizeDimensionsFromCenter,
+  projectResizeDimensionsFromOppositeCorner,
+  resolveFrameBasis,
   resolveHandleIdForDrag,
+  resolveGridTooltipCounts,
+  resolveToolCreateSize,
   snapPointDeltaToAxisStepMultiples,
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
@@ -32,11 +40,13 @@ import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
 import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
+import type { ResizeFrame } from "./resize-frames";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
   ApplyActionFeedback,
   Bounds,
   DragState,
+  DragTooltipState,
   NodeAnchorOverlayState,
   PendingAddedSelection,
   PendingBezier,
@@ -71,6 +81,7 @@ export function useCanvasDragController(params: {
   dragRef: { current: DragState | null };
   svgResultRef: { current: { viewBox: SvgViewBox } | null };
   interactionSvgRef: { current: SVGSVGElement | null };
+  liveResizeFramesRef: { current: ReadonlyMap<string, ResizeFrame | null> };
   selectedElementIdsRef: { current: ReadonlySet<string> };
   sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
   pendingAddedSelectionRef: { current: PendingAddedSelection | null };
@@ -86,6 +97,7 @@ export function useCanvasDragController(params: {
   setToolCursorWorld: (point: Point | null) => void;
   setMarqueeDraft: (draft: Extract<DragState, { kind: "marquee" }> | null) => void;
   setNodeAnchorOverlay: (overlay: NodeAnchorOverlayState | null) => void;
+  setDragTooltip: (tooltip: DragTooltipState | null) => void;
   setWarning: (warning: string | null) => void;
   setTextEditingSession: (session: TextEditingSession | null) => void;
   textIndexFromClient: (
@@ -109,6 +121,7 @@ export function useCanvasDragController(params: {
     dragRef,
     svgResultRef,
     interactionSvgRef,
+    liveResizeFramesRef,
     selectedElementIdsRef,
     sourceBoundsRef,
     pendingAddedSelectionRef,
@@ -124,6 +137,7 @@ export function useCanvasDragController(params: {
     setToolCursorWorld,
     setMarqueeDraft,
     setNodeAnchorOverlay,
+    setDragTooltip,
     setWarning,
     setTextEditingSession,
     textIndexFromClient
@@ -169,6 +183,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "pan") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const deltaX = event.clientX - drag.startClientX;
         const deltaY = event.clientY - drag.startClientY;
         setSnapLines([]);
@@ -193,6 +208,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "text-select") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         if (snapshotSource !== source) {
           return;
         }
@@ -252,12 +268,14 @@ export function useCanvasDragController(params: {
       const currentSvg = svgResultRef.current;
       if (!currentSvg) {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         return;
       }
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, currentSvg.viewBox);
       if (!world) {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         return;
       }
 
@@ -308,6 +326,17 @@ export function useCanvasDragController(params: {
             : null
         );
         setToolDraft({ ...drag });
+        const size = resolveToolCreateSize(drag.toolMode, drag.startWorld, drag.currentWorld);
+        const rows = formatTooltipLengthRows(size.width, size.height);
+        if (drag.toolMode === "addGrid") {
+          const counts = resolveGridTooltipCounts(drag.startWorld, drag.currentWorld);
+          rows.push(formatTooltipGridCountRow(counts.columns, counts.rows));
+        }
+        setDragTooltip({
+          kind: "tool-create",
+          anchor: { x: event.clientX, y: event.clientY },
+          rows
+        });
         setToolCursorWorld(drag.currentWorld);
         setSnapLines(snapped.lines);
         logSnapDebug({
@@ -325,6 +354,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-bezier-bend") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
@@ -353,6 +383,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-path-segment") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const snapped = drag.snapContext
           ? snapToolPointer({
               context: drag.snapContext,
@@ -385,6 +416,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-freehand") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const nextPoints = appendFreehandSamplePoint(world);
         if (nextPoints) {
           drag.points = nextPoints;
@@ -403,6 +435,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "marquee") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         drag.currentWorld = world;
         setMarqueeDraft({ ...drag });
         if (distanceSquared(world, drag.startWorld) > 0.25) {
@@ -436,6 +469,23 @@ export function useCanvasDragController(params: {
       if (drag.kind === "resize") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
+        const liveFrame = liveResizeFramesRef.current.get(drag.elementId) ?? null;
+        const liveDimensions = liveFrame ? resolveFrameBasis(liveFrame) : null;
+        const dimensions = liveDimensions
+          ? { width: liveDimensions.width, height: liveDimensions.height }
+          : drag.measurementMode === "opposite-corner"
+            ? projectResizeDimensionsFromOppositeCorner(world, drag.initialFrame, drag.role)
+            : projectResizeDimensionsFromCenter(
+              world,
+              drag.initialFrame,
+              drag.preserveAspectRatio,
+              drag.preserveAspectDuringResize || event.shiftKey
+            );
+        setDragTooltip({
+          kind: "resize",
+          anchor: { x: event.clientX, y: event.clientY },
+          rows: formatTooltipLengthRows(dimensions.width, dimensions.height)
+        });
         logSnapDebug({
           phase: "drag-resize-move",
           snapshotMatchesSource: true,
@@ -480,6 +530,11 @@ export function useCanvasDragController(params: {
           rawPoint: world,
           lines: []
         });
+        setDragTooltip({
+          kind: "rotate",
+          anchor: { x: event.clientX, y: event.clientY },
+          rows: [formatTooltipAngleRow(nextRotate)]
+        });
 
         if (Math.abs(normalizeSignedDeg(nextRotate - drag.lastAppliedRotateDeg)) <= 1e-6) {
           return;
@@ -504,6 +559,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "element") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         if (drag.elementIds.length === 1) {
           const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
           if (parsedTarget.kind === "node-adornment") {
@@ -605,6 +661,7 @@ export function useCanvasDragController(params: {
       if (!resolvedHandleId) {
         drag.activeEndpointAnchor = null;
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         setWarning("Handle is no longer available after recompute. Release and drag again.");
         return;
       }
@@ -636,6 +693,7 @@ export function useCanvasDragController(params: {
         nextWorld = snapGridResizePoint(nextWorld, drag.gridResizeSnap);
       }
       setNodeAnchorOverlay(endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0 ? endpointAnchorOverlay : null);
+      setDragTooltip(null);
       setSnapLines(snapped.lines);
       logSnapDebug({
         phase: "drag-handle-move",
@@ -674,6 +732,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "marquee") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const finalWorld = world ?? drag.currentWorld;
         const deltaSq = distanceSquared(finalWorld, drag.startWorld);
         const isClickOnly = deltaSq <= 0.25;
@@ -694,6 +753,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-create") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const rawFinalWorld = world ?? drag.rawCurrentWorld;
         const finalEndpointAnchor =
           drag.toolMode === "addLine" || drag.toolMode === "addArrow"
@@ -800,6 +860,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-bezier-bend") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const rawFinalWorld = world ?? drag.rawCurrentWorld;
         const snapped = drag.snapContext
           ? snapToolPointer({
@@ -841,6 +902,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-path-segment") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         const rawFinalBend = world ?? drag.rawBendWorld;
         const snapped = drag.snapContext
           ? snapToolPointer({
@@ -869,6 +931,7 @@ export function useCanvasDragController(params: {
 
       if (drag.kind === "tool-freehand") {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
         let nextPoints: Point[] | null = null;
         if (world) {
           nextPoints = appendFreehandSamplePoint(world);
@@ -885,6 +948,7 @@ export function useCanvasDragController(params: {
       if (drag.kind === "text-select") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
+        setDragTooltip(null);
         setDragState(null);
         return;
       }
@@ -913,6 +977,7 @@ export function useCanvasDragController(params: {
 
       setNodeAnchorOverlay(null);
       setSnapLines([]);
+      setDragTooltip(null);
       setDragState(null);
     }
 
@@ -930,11 +995,13 @@ export function useCanvasDragController(params: {
     dispatch,
     dragRef,
     interactionSvgRef,
+    liveResizeFramesRef,
     logSnapDebug,
     pendingAddedSelectionRef,
     queueSelectionForAddedElement,
     selectedElementIdsRef,
     setMarqueeDraft,
+    setDragTooltip,
     setNodeAnchorOverlay,
     setDragState,
     setSnapLines,

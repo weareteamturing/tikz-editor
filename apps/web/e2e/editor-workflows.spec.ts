@@ -40,6 +40,41 @@ async function readPersistedWorkspaceDocumentCount(page: Page): Promise<number> 
   });
 }
 
+async function canvasViewport(page: Page) {
+  return page.locator("[data-canvas-viewport='true']");
+}
+
+async function interactionLayer(page: Page) {
+  return page.locator("[data-canvas-viewport='true'] svg").last();
+}
+
+async function dragBetweenPoints(
+  page: Page,
+  target: ReturnType<Page["locator"]>,
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+) {
+  const box = await target.boundingBox();
+  if (!box) {
+    throw new Error("Missing drag target bounds.");
+  }
+  await page.mouse.move(box.x + start.x, box.y + start.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + end.x, box.y + end.y, { steps: 8 });
+}
+
+async function dragLocatorBy(page: Page, locator: ReturnType<Page["locator"]>, dx: number, dy: number) {
+  const box = await locator.boundingBox();
+  if (!box) {
+    throw new Error("Missing locator bounds.");
+  }
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 8 });
+}
+
 test("boots with one tab and supports new/switch/close-all workflows", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("tab-strip")).toBeVisible();
@@ -315,4 +350,116 @@ test("canvas paste svg file inserts a scope-wrapped import", async ({ page }) =>
   });
 
   await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
+});
+
+test("resize drag shows and hides metric tooltip", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\filldraw[fill=blue!20] (0,0) rectangle (4,2);
+\end{tikzpicture}`);
+
+  const viewport = await canvasViewport(page);
+  const viewportBox = await viewport.boundingBox();
+  if (!viewportBox) {
+    throw new Error("Canvas viewport not found.");
+  }
+
+  await page.locator("[data-hit-region-target-id]").first().click();
+  const resizeHandle = page.locator('[data-handle-kind="resize-element"]').first();
+  await expect(resizeHandle).toBeVisible();
+
+  await dragLocatorBy(page, resizeHandle, 40, 30);
+  const tooltip = page.getByTestId("canvas-drag-tooltip-shell");
+  await expect(tooltip).toBeVisible();
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Width:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("pt");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("cm");
+
+  await page.mouse.up();
+  await expect(tooltip).toHaveCount(0);
+});
+
+test("rotate drag shows degree tooltip", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\filldraw[fill=blue!20] (0,0) rectangle (4,2);
+\end{tikzpicture}`);
+
+  const viewport = await canvasViewport(page);
+  const viewportBox = await viewport.boundingBox();
+  if (!viewportBox) {
+    throw new Error("Canvas viewport not found.");
+  }
+
+  await page.locator("[data-hit-region-target-id]").first().click();
+  const rotateHandle = page.getByTestId("canvas-rotate-handle");
+  await expect(rotateHandle).toBeVisible();
+
+  await dragLocatorBy(page, rotateHandle, 30, 35);
+  await expect(page.getByTestId("canvas-drag-tooltip-shell")).toBeVisible();
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Angle:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("°");
+
+  await page.mouse.up();
+  await expect(page.getByTestId("canvas-drag-tooltip-shell")).toHaveCount(0);
+});
+
+test("rectangle creation shows width and height tooltip", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Rect" }).click();
+
+  const layer = await interactionLayer(page);
+  await expect(layer).toBeVisible();
+  await dragBetweenPoints(page, layer, { x: 120, y: 120 }, { x: 280, y: 240 });
+
+  await expect(page.getByTestId("canvas-drag-tooltip-shell")).toBeVisible();
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Width:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
+
+  await page.mouse.up();
+  await expect(page.getByTestId("canvas-drag-tooltip-shell")).toHaveCount(0);
+});
+
+test("grid creation shows counts and stays within viewport bounds", async ({ page }) => {
+  await page.goto("/");
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Grid" }).click();
+
+  const viewport = await canvasViewport(page);
+  const layer = await interactionLayer(page);
+  await expect(layer).toBeVisible();
+  const viewportBox = await viewport.boundingBox();
+  const layerBox = await layer.boundingBox();
+  if (!viewportBox) {
+    throw new Error("Canvas viewport not found.");
+  }
+  if (!layerBox) {
+    throw new Error("Canvas interaction layer not found.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: layerBox.width - 90, y: layerBox.height - 90 }, { x: layerBox.width - 10, y: layerBox.height - 10 });
+
+  const tooltip = page.getByTestId("canvas-drag-tooltip-shell");
+  await expect(tooltip).toBeVisible();
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Width:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Cells:");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("col");
+  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("row");
+
+  const tooltipBox = await tooltip.boundingBox();
+  if (!tooltipBox) {
+    throw new Error("Tooltip bounds missing.");
+  }
+  expect(tooltipBox.x).toBeGreaterThanOrEqual(viewportBox.x);
+  expect(tooltipBox.y).toBeGreaterThanOrEqual(viewportBox.y);
+  expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(viewportBox.x + viewportBox.width);
+  expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(viewportBox.y + viewportBox.height);
+
+  await page.mouse.up();
+  await expect(tooltip).toHaveCount(0);
 });

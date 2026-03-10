@@ -586,6 +586,7 @@ export function HitRegionLayer({
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
+              data-hit-region-target-id={region.targetId}
             />
           );
         }
@@ -608,6 +609,7 @@ export function HitRegionLayer({
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
+              data-hit-region-target-id={region.targetId}
             />
           );
         }
@@ -636,6 +638,7 @@ export function HitRegionLayer({
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
               onPointerEnter={onEnter}
               onPointerLeave={onLeave}
+              data-hit-region-target-id={region.targetId}
             />
           );
         }
@@ -661,6 +664,7 @@ export function HitRegionLayer({
             onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
             onPointerEnter={onEnter}
             onPointerLeave={onLeave}
+            data-hit-region-target-id={region.targetId}
           />
         );
       })}
@@ -922,6 +926,8 @@ export function HandleOverlay({
                 strokeWidth={handleStrokeWidth}
                 onPointerDown={onPointerDown}
                 onContextMenu={onContextMenu}
+                data-handle-kind="rotate-element-stem"
+                data-source-id={display.elementId}
               />
               <circle
                 className={`${css.handle} ${css.rotateHandleCircle} ${rotateCursorClass}`}
@@ -931,6 +937,9 @@ export function HandleOverlay({
                 strokeWidth={handleStrokeWidth*0.75}
                 onPointerDown={onPointerDown}
                 onContextMenu={onContextMenu}
+                data-testid="canvas-rotate-handle"
+                data-handle-kind="rotate-element"
+                data-source-id={display.elementId}
               />
               <g
                 className={css.rotateHandleGlyph}
@@ -958,6 +967,8 @@ export function HandleOverlay({
               style={{ cursor: display.cursor }}
               onPointerDown={onPointerDown}
               onContextMenu={onContextMenu}
+              data-handle-kind={display.kind}
+              data-source-id={display.handle.sourceRef.sourceId}
             />
           );
         }
@@ -979,6 +990,9 @@ export function HandleOverlay({
             style={{ cursor: display.cursor }}
             onPointerDown={onPointerDown}
             onContextMenu={onContextMenu}
+            data-handle-kind={display.kind}
+            data-source-id={display.kind === "move-handle" ? display.handle.sourceRef.sourceId : display.elementId}
+            data-resize-role={display.kind === "resize-element" ? display.role : undefined}
           />
         );
       })}

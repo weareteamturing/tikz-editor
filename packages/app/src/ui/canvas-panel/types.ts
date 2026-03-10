@@ -8,6 +8,7 @@ import type { SvgViewBox } from "tikz-editor/svg/index";
 import type { CanvasTransform } from "../../store/types";
 import type { ToolCreateMode } from "../tool-config";
 import type { HitRegion } from "./hit-regions";
+import type { ResizeFrame } from "./resize-frames";
 
 export type Bounds = {
   minX: number;
@@ -21,6 +22,20 @@ export type GridResizeSnapConfig = {
   stepX: number;
   stepY: number;
   transform: EditHandle["transform"];
+};
+
+export type DragTooltipRow = {
+  label: string;
+  value: string;
+};
+
+export type DragTooltipState = {
+  kind: "resize" | "rotate" | "tool-create";
+  anchor: {
+    x: number;
+    y: number;
+  };
+  rows: DragTooltipRow[];
 };
 
 export type DragState =
@@ -47,6 +62,9 @@ export type DragState =
       role: ResizeRole;
       cursor: string;
       preserveAspectRatio: number | null;
+      initialFrame: ResizeFrame;
+      measurementMode: "center" | "opposite-corner";
+      preserveAspectDuringResize: boolean;
       historyMergeKey: string;
     }
   | {

@@ -428,6 +428,33 @@
   user-select: text;
 }
 
+.dragTooltip {
+  max-width: none;
+  pointer-events: none;
+}
+
+.dragTooltipContent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 132px;
+}
+
+.dragTooltipRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.dragTooltipLabel {
+  color: var(--text-dim);
+}
+
+.dragTooltipValue {
+  font-family: inherit;
+}
+
 .snapDebugOverlay {
   position: absolute;
   z-index: 6;

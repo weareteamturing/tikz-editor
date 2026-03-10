@@ -72,6 +72,7 @@ import type {
   ApplyActionFeedback,
   Bounds,
   DragState,
+  DragTooltipState,
   EditableTextTarget,
   FreehandToolDraft,
   NodeAnchorOverlayState,
@@ -485,6 +486,7 @@ export function CanvasPanel() {
   const semanticDiags = snapshot.semanticResult?.diagnostics;
 
   const [warning, setWarning] = useState<string | null>(null);
+  const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
   const [dragCursorLock, setDragCursorLock] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
   const [snapDebug, setSnapDebug] = useState<SnapDebugOverlayState | null>(null);
@@ -551,6 +553,7 @@ export function CanvasPanel() {
   const svgResultRef = useRef(svgResult);
   const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
+  const liveResizeFramesRef = useRef(new Map<string, ReturnType<typeof resolveResizeFrameForSource>>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const guideDragRef = useRef<GuideDragState | null>(null);
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
@@ -569,6 +572,7 @@ export function CanvasPanel() {
       dragRef.current = next;
       if (!next) {
         setNodeAnchorOverlay(null);
+        setDragTooltip(null);
       }
       setDragCursorLock(dragCursorForState(next));
       setActiveCanvasDragKind(canvasDragKindFromDragState(next));
@@ -2556,6 +2560,24 @@ export function CanvasPanel() {
         dispatch({ type: "SELECT", id: sourceId, additive: false });
       }
 
+      const statements = snapshot.parseResult?.figure.body;
+      const sourceElements = snapshot.scene?.elements.filter((element) => element.sourceRef.sourceId === sourceId) ?? [];
+      const pathElement = sourceElements.find((element): element is ScenePath => element.kind === "Path");
+      const pathShapeHint = pathElement ? resolveScenePathShapeHint(pathElement, statements, sourceId) : undefined;
+      const isCircleResizeSource =
+        pathShapeHint === "circle" || sourceElements.some((element) => element.kind === "Circle");
+      const initialFrame = resolveResizeFrameForSource(
+        snapshot.scene?.elements ?? [],
+        snapshot.editHandles,
+        sourceId,
+        svgResult.viewBox,
+        pathShapeHint
+      );
+      if (!initialFrame) {
+        setWarning("Resize tooltip needs a resolvable resize frame.");
+        return;
+      }
+
       setSnapLines([]);
       setDragState({
         kind: "resize",
@@ -2563,7 +2585,10 @@ export function CanvasPanel() {
         elementId: sourceId,
         role,
         cursor: cursor || resizeCursorForRole(role),
-        preserveAspectRatio: ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
+        preserveAspectRatio: isCircleResizeSource ? 1 : ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
+        initialFrame,
+        measurementMode: pathShapeHint === "rectangle" ? "opposite-corner" : "center",
+        preserveAspectDuringResize: isCircleResizeSource,
         historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
       });
       logSnapDebug({
@@ -3839,6 +3864,10 @@ export function CanvasPanel() {
   }, [sourceBounds]);
 
   useEffect(() => {
+    liveResizeFramesRef.current = resizeFramesBySource;
+  }, [resizeFramesBySource]);
+
+  useEffect(() => {
     if (!svgResult) {
       previousViewBoxRef.current = null;
       return;
@@ -4465,6 +4494,7 @@ export function CanvasPanel() {
     dragRef,
     svgResultRef,
     interactionSvgRef,
+    liveResizeFramesRef,
     selectedElementIdsRef,
     sourceBoundsRef,
     pendingAddedSelectionRef,
@@ -4480,6 +4510,7 @@ export function CanvasPanel() {
     setToolCursorWorld,
     setMarqueeDraft,
     setNodeAnchorOverlay,
+    setDragTooltip,
     setWarning,
     setTextEditingSession,
     textIndexFromClient
@@ -4871,6 +4902,43 @@ export function CanvasPanel() {
               setContextMenuState(null);
             }}
           />
+
+          {dragTooltip ? (
+            <RenderedTooltip
+              open
+              anchor={dragTooltip.anchor}
+              boundary={
+                viewportRef.current
+                  ? {
+                      left: viewportRef.current.getBoundingClientRect().left,
+                      top: viewportRef.current.getBoundingClientRect().top,
+                      right: viewportRef.current.getBoundingClientRect().right,
+                      bottom: viewportRef.current.getBoundingClientRect().bottom
+                    }
+                  : null
+              }
+              content={
+                <div
+                  className={css.dragTooltipContent}
+                  data-testid="canvas-drag-tooltip"
+                  data-drag-tooltip-kind={dragTooltip.kind}
+                >
+                  {dragTooltip.rows.map((row) => (
+                    <div
+                      key={`${row.label}:${row.value}`}
+                      className={css.dragTooltipRow}
+                      data-testid="canvas-drag-tooltip-row"
+                    >
+                      <span className={css.dragTooltipLabel}>{row.label}:</span>
+                      <span className={css.dragTooltipValue}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              }
+              className={css.dragTooltip}
+              data-testid="canvas-drag-tooltip-shell"
+            />
+          ) : null}
 
           {warning && (
             <RenderedTooltip content="Click to copy message" block>

@@ -1,4 +1,12 @@
-import { useCallback, useLayoutEffect, useRef, useState, type FocusEvent, type PointerEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type PointerEvent,
+  type ReactNode
+} from "react";
 import { createPortal } from "react-dom";
 import css from "./RenderedTooltip.module.css";
 
@@ -7,56 +15,98 @@ type TooltipPosition = {
   top: number;
 };
 
+type TooltipAnchor = {
+  x: number;
+  y: number;
+};
+
+type TooltipBoundary = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
 type RenderedTooltipProps = {
   content?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
   block?: boolean;
+  open?: boolean;
+  anchor?: TooltipAnchor | null;
+  boundary?: TooltipBoundary | null;
+  className?: string;
+  "data-testid"?: string;
 };
 
 const VIEWPORT_PADDING_PX = 8;
 const CURSOR_OFFSET_X_PX = 12;
 const CURSOR_OFFSET_Y_PX = 16;
 
-export function RenderedTooltip({ content, children, block = false }: RenderedTooltipProps) {
+function clampTooltipPosition(tooltipRect: DOMRect, anchor: TooltipAnchor, boundary: TooltipBoundary | null): TooltipPosition {
+  const limitLeft = boundary ? boundary.left + VIEWPORT_PADDING_PX : VIEWPORT_PADDING_PX;
+  const limitTop = boundary ? boundary.top + VIEWPORT_PADDING_PX : VIEWPORT_PADDING_PX;
+  const limitRight = boundary ? boundary.right - VIEWPORT_PADDING_PX : window.innerWidth - VIEWPORT_PADDING_PX;
+  const limitBottom = boundary ? boundary.bottom - VIEWPORT_PADDING_PX : window.innerHeight - VIEWPORT_PADDING_PX;
+  const preferredLeft = anchor.x + CURSOR_OFFSET_X_PX;
+  const clampedLeft = Math.min(
+    Math.max(preferredLeft, limitLeft),
+    limitRight - tooltipRect.width
+  );
+  const preferredTop = anchor.y + CURSOR_OFFSET_Y_PX;
+  const clampedTop = Math.min(
+    Math.max(preferredTop, limitTop),
+    limitBottom - tooltipRect.height
+  );
+
+  return { left: clampedLeft, top: clampedTop };
+}
+
+export function RenderedTooltip({
+  content,
+  children,
+  block = false,
+  open,
+  anchor = null,
+  boundary = null,
+  className,
+  "data-testid": dataTestId
+}: RenderedTooltipProps) {
   const hasContent = content != null && !(typeof content === "string" && content.trim().length === 0);
-  const [open, setOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 });
   const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPointerRef = useRef<TooltipAnchor | null>(null);
+  const isOpen = isControlled ? open : uncontrolledOpen;
 
-  const closeTooltip = useCallback(() => setOpen(false), []);
+  const closeTooltip = useCallback(() => {
+    if (!isControlled) {
+      setUncontrolledOpen(false);
+    }
+  }, [isControlled]);
 
   const updatePosition = useCallback(() => {
     const tooltipElement = tooltipRef.current;
-    const pointer = lastPointerRef.current;
-    if (!tooltipElement || !pointer) {
+    const activeAnchor = anchor ?? lastPointerRef.current;
+    if (!tooltipElement || !activeAnchor) {
       return;
     }
 
-    const tooltipRect = tooltipElement.getBoundingClientRect();
-    const preferredLeft = pointer.x + CURSOR_OFFSET_X_PX;
-    const clampedLeft = Math.min(
-      Math.max(preferredLeft, VIEWPORT_PADDING_PX),
-      window.innerWidth - tooltipRect.width - VIEWPORT_PADDING_PX
-    );
-    const preferredTop = pointer.y + CURSOR_OFFSET_Y_PX;
-    const clampedTop = Math.min(
-      Math.max(preferredTop, VIEWPORT_PADDING_PX),
-      window.innerHeight - tooltipRect.height - VIEWPORT_PADDING_PX
-    );
-
-    setPosition({ left: clampedLeft, top: clampedTop });
-  }, []);
+    setPosition(clampTooltipPosition(tooltipElement.getBoundingClientRect(), activeAnchor, boundary));
+  }, [anchor, boundary]);
 
   const updatePointerPosition = useCallback((event: PointerEvent<HTMLElement>) => {
+    if (isControlled) {
+      return;
+    }
     lastPointerRef.current = { x: event.clientX, y: event.clientY };
-    if (open) {
+    if (isOpen) {
       updatePosition();
     }
-  }, [open, updatePosition]);
+  }, [isControlled, isOpen, updatePosition]);
 
   useLayoutEffect(() => {
-    if (!open || !hasContent) {
+    if (!isOpen || !hasContent) {
       return;
     }
 
@@ -65,7 +115,7 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
     return () => {
       window.removeEventListener("resize", updatePosition);
     };
-  }, [hasContent, open, updatePosition]);
+  }, [hasContent, isOpen, updatePosition]);
 
   if (!hasContent) {
     return <>{children}</>;
@@ -76,7 +126,9 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
       return;
     }
     updatePointerPosition(event);
-    setOpen(true);
+    if (!isControlled) {
+      setUncontrolledOpen(true);
+    }
   }
 
   function handlePointerMove(event: PointerEvent<HTMLElement>): void {
@@ -104,6 +156,24 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
   }
 
   const AnchorTag = block ? "div" : "span";
+  const tooltip = isOpen
+    ? createPortal(
+      <div
+        ref={tooltipRef}
+        className={[css.tooltip, className ?? ""].filter(Boolean).join(" ")}
+        style={{ left: `${position.left}px`, top: `${position.top}px` }}
+        role="tooltip"
+        data-testid={dataTestId}
+      >
+        {content}
+      </div>,
+      document.body
+    )
+    : null;
+
+  if (isControlled && !children) {
+    return tooltip;
+  }
 
   return (
     <AnchorTag
@@ -117,19 +187,7 @@ export function RenderedTooltip({ content, children, block = false }: RenderedTo
       onKeyDown={closeTooltip}
     >
       {children}
-      {open
-        ? createPortal(
-          <div
-            ref={tooltipRef}
-            className={css.tooltip}
-            style={{ left: `${position.left}px`, top: `${position.top}px` }}
-            role="tooltip"
-          >
-            {content}
-          </div>,
-          document.body
-        )
-        : null}
+      {tooltip}
     </AnchorTag>
   );
 }

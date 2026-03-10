@@ -1,15 +1,17 @@
 import type { ElementTemplate } from "tikz-editor/edit/actions";
 import type { SelectionGeometry } from "tikz-editor/edit/snapping";
 import type { EditHandle, Point, SceneElement, ScenePathCommand } from "tikz-editor/semantic/types";
-import { PT_PER_CM } from "tikz-editor/edit/format";
+import { CM_PER_PT, PT_PER_CM, formatNumber } from "tikz-editor/edit/format";
 
 import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
-import type { Bounds, DragState } from "./types";
+import type { Bounds, DragState, DragTooltipRow } from "./types";
+import type { ResizeFrame } from "./resize-frames";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
 export const DEFAULT_GRID_TOOL_STEP_PT = PT_PER_CM;
+const TOOLTIP_ZERO_EPSILON = 1e-6;
 
 export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
   return {
@@ -279,6 +281,151 @@ export function sourceIdAnchorWorld(elements: SceneElement[], sourceId: string):
     x: sumX / count,
     y: sumY / count
   };
+}
+
+export function formatTooltipLengthRows(widthPt: number, heightPt: number): DragTooltipRow[] {
+  return [
+    { label: "Width", value: formatTooltipLength(widthPt) },
+    { label: "Height", value: formatTooltipLength(heightPt) }
+  ];
+}
+
+export function formatTooltipAngleRow(degrees: number): DragTooltipRow {
+  const normalized = Math.abs(degrees) <= TOOLTIP_ZERO_EPSILON ? 0 : degrees;
+  return {
+    label: "Angle",
+    value: `${Math.round(normalized)}°`
+  };
+}
+
+export function formatTooltipGridCountRow(columns: number, rows: number): DragTooltipRow {
+  return {
+    label: "Cells",
+    value: `${columns} col, ${rows} row`
+  };
+}
+
+export function resolveFrameBasis(frame: ResizeFrame): {
+  widthUnit: Point;
+  heightUnit: Point;
+  width: number;
+  height: number;
+} {
+  const topLeft = frame.cornersByRole["top-left"].world;
+  const topRight = frame.cornersByRole["top-right"].world;
+  const bottomLeft = frame.cornersByRole["bottom-left"].world;
+  const widthVector = {
+    x: topRight.x - topLeft.x,
+    y: topRight.y - topLeft.y
+  };
+  const heightVector = {
+    x: topLeft.x - bottomLeft.x,
+    y: topLeft.y - bottomLeft.y
+  };
+  const width = Math.hypot(widthVector.x, widthVector.y);
+  const height = Math.hypot(heightVector.x, heightVector.y);
+  return {
+    widthUnit: width > TOOLTIP_ZERO_EPSILON ? { x: widthVector.x / width, y: widthVector.y / width } : { x: 1, y: 0 },
+    heightUnit: height > TOOLTIP_ZERO_EPSILON ? { x: heightVector.x / height, y: heightVector.y / height } : { x: 0, y: 1 },
+    width,
+    height
+  };
+}
+
+export function oppositeCornerWorld(frame: ResizeFrame, role: Extract<DragState, { kind: "resize" }>["role"]): Point {
+  const oppositeRole =
+    role === "top-left" ? "bottom-right" :
+    role === "top-right" ? "bottom-left" :
+    role === "bottom-left" ? "top-right" :
+    "top-left";
+  return frame.cornersByRole[oppositeRole].world;
+}
+
+export function projectResizeDimensionsFromCenter(
+  pointerWorld: Point,
+  frame: ResizeFrame,
+  preserveAspectRatio: number | null,
+  preserveAspectDuringResize: boolean
+): { width: number; height: number } {
+  const basis = resolveFrameBasis(frame);
+  const relative = {
+    x: pointerWorld.x - frame.centerWorld.x,
+    y: pointerWorld.y - frame.centerWorld.y
+  };
+  let width = 2 * Math.abs(dotPoint(relative, basis.widthUnit));
+  let height = 2 * Math.abs(dotPoint(relative, basis.heightUnit));
+  const aspectRatio =
+    preserveAspectRatio && preserveAspectRatio > TOOLTIP_ZERO_EPSILON
+      ? preserveAspectRatio
+      : null;
+
+  if (preserveAspectDuringResize && aspectRatio) {
+    if (width > TOOLTIP_ZERO_EPSILON || height > TOOLTIP_ZERO_EPSILON) {
+      width = Math.max(width, height / aspectRatio);
+      height = width * aspectRatio;
+    }
+  }
+
+  return {
+    width: clampTooltipScalar(width),
+    height: clampTooltipScalar(height)
+  };
+}
+
+export function projectResizeDimensionsFromOppositeCorner(
+  pointerWorld: Point,
+  frame: ResizeFrame,
+  role: Extract<DragState, { kind: "resize" }>["role"]
+): { width: number; height: number } {
+  const basis = resolveFrameBasis(frame);
+  const fixed = oppositeCornerWorld(frame, role);
+  const delta = {
+    x: pointerWorld.x - fixed.x,
+    y: pointerWorld.y - fixed.y
+  };
+  return {
+    width: clampTooltipScalar(Math.abs(dotPoint(delta, basis.widthUnit))),
+    height: clampTooltipScalar(Math.abs(dotPoint(delta, basis.heightUnit)))
+  };
+}
+
+export function resolveToolCreateSize(
+  mode: ToolCreateMode,
+  startWorld: Point,
+  currentWorld: Point
+): { width: number; height: number } {
+  if (mode === "addCircle") {
+    const radius = Math.hypot(currentWorld.x - startWorld.x, currentWorld.y - startWorld.y);
+    const diameter = clampTooltipScalar(radius * 2);
+    return { width: diameter, height: diameter };
+  }
+
+  return {
+    width: clampTooltipScalar(Math.abs(currentWorld.x - startWorld.x)),
+    height: clampTooltipScalar(Math.abs(currentWorld.y - startWorld.y))
+  };
+}
+
+export function resolveGridTooltipCounts(startWorld: Point, currentWorld: Point): { columns: number; rows: number } {
+  const width = Math.abs(currentWorld.x - startWorld.x);
+  const height = Math.abs(currentWorld.y - startWorld.y);
+  return {
+    columns: Math.max(1, Math.round(width / DEFAULT_GRID_TOOL_STEP_PT)),
+    rows: Math.max(1, Math.round(height / DEFAULT_GRID_TOOL_STEP_PT))
+  };
+}
+
+function formatTooltipLength(valuePt: number): string {
+  const clamped = clampTooltipScalar(valuePt);
+  return `${formatNumber(clamped)}pt (${formatNumber(clamped * CM_PER_PT)}cm)`;
+}
+
+function clampTooltipScalar(value: number): number {
+  return Math.abs(value) <= TOOLTIP_ZERO_EPSILON ? 0 : value;
+}
+
+function dotPoint(a: Point, b: Point): number {
+  return a.x * b.x + a.y * b.y;
 }
 
 function elementAnchorWorld(element: SceneElement): Point {
