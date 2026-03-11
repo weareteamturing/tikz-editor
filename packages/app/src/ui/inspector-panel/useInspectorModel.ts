@@ -28,6 +28,7 @@ export function useInspectorModel(args: {
   getInspectorDescriptor: (element: SceneElement, context: { source: string; editHandles: any[] }) => InspectorDescriptor;
 }) {
   const { selectedIds, dispatch, getInspectorDescriptor } = args;
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
 
   const [{ source, snapshot }, setSourceSnapshot] = useState(() => {
     const s = useEditorStore.getState();
@@ -50,8 +51,8 @@ export function useInspectorModel(args: {
     [source]
   );
   const globalTransformValues = useMemo(
-    () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID),
-    [source]
+    () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID, { activeFigureId }),
+    [activeFigureId, source]
   );
 
   const selectedElements = useMemo(() => {
@@ -73,10 +74,11 @@ export function useInspectorModel(args: {
     return selectedElements.map((element) =>
       getInspectorDescriptor(element, {
         source: snapshot.source,
-        editHandles: snapshot.editHandles
+        editHandles: snapshot.editHandles,
+        parseOptions: { activeFigureId }
       })
     );
-  }, [getInspectorDescriptor, selectedElements, snapshot.source, snapshot.editHandles]);
+  }, [activeFigureId, getInspectorDescriptor, selectedElements, snapshot.source, snapshot.editHandles]);
 
   const descriptor = selectedSourceIds.length === 1 ? descriptors[0] ?? null : null;
 
@@ -97,13 +99,14 @@ export function useInspectorModel(args: {
         element,
         {
           source: snapshot.source,
-          editHandles: snapshot.editHandles
+          editHandles: snapshot.editHandles,
+          parseOptions: { activeFigureId }
         },
         elementDescriptor
       );
       return buildInspectorPropertyProvenanceMap(cascadeModel);
     });
-  }, [descriptors, selectedElements, snapshot.editHandles, snapshot.source]);
+  }, [activeFigureId, descriptors, selectedElements, snapshot.editHandles, snapshot.source]);
 
   const singlePropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
     if (selectedSourceIds.length !== 1) {

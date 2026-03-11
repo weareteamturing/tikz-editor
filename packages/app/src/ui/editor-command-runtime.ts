@@ -43,6 +43,7 @@ type Dispatch = (action: EditorAction) => void;
 
 type RuntimeInput = {
   source: string;
+  activeFigureId: string | null;
   snapshot: SessionSnapshot;
   toolMode: ToolMode;
   selectedElementIds: ReadonlySet<string>;
@@ -84,6 +85,7 @@ export type EditorCommandRuntime = {
 export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRuntime {
   const {
     source,
+    activeFigureId,
     snapshot,
     toolMode,
     selectedElementIds,
@@ -119,6 +121,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
 
   const commandContext = {
     source,
+    activeFigureId,
+    figureCount: snapshot.figures.length,
     snapshotSource: snapshot.source,
     scene: snapshot.scene,
     editHandles: snapshot.editHandles,
@@ -207,7 +211,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canAddAdornment =
     singleSelectedId != null &&
     (() => {
-      const resolved = resolvePropertyTarget(source, singleSelectedId);
+      const resolved = resolvePropertyTarget(source, singleSelectedId, { activeFigureId });
       return (
         resolved.kind === "found" &&
         (resolved.target.kind === "node-item" ||
@@ -622,6 +626,7 @@ export function useEditorCommandRuntime(
   } = {}
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
@@ -651,6 +656,7 @@ export function useEditorCommandRuntime(
     () =>
       createEditorCommandRuntime({
         source,
+        activeFigureId,
         snapshot,
         toolMode,
         selectedElementIds,
@@ -685,6 +691,7 @@ export function useEditorCommandRuntime(
       }),
     [
       source,
+      activeFigureId,
       snapshot,
       toolMode,
       selectedElementIds,

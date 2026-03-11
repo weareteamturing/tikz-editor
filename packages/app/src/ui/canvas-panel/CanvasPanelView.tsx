@@ -39,6 +39,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onViewportDrop,
     onViewportPointerDown,
     svgResult,
+    noActiveFigure,
     assistantLockReason,
     snapshot,
     canvasTransform,
@@ -202,7 +203,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
         >
           {assistantLockReason ? <div className={css.lockOverlay} data-testid="canvas-lock-overlay">{assistantLockReason}</div> : null}
           {!svgResult ? (
-            <div className={css.noSvg} data-testid="canvas-no-svg">{snapshot.source ? "Computing…" : "No source"}</div>
+            <div className={css.noSvg} data-testid="canvas-no-svg">
+              {noActiveFigure ? "Select a figure to edit." : (snapshot.source ? "Computing…" : "No source")}
+            </div>
           ) : (
             <div
               className={css.worldStage}

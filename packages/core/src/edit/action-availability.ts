@@ -46,6 +46,7 @@ export type EditActionAvailability = Record<EditActionId, ActionAvailability>;
 
 export type GetEditActionAvailabilityInput = {
   source: string;
+  activeFigureId?: string | null;
   snapshotSource: string | null;
   selectedSourceIds: readonly string[];
   scene: SceneFigure | null;
@@ -56,6 +57,7 @@ export type GetEditActionAvailabilityInput = {
 
 type AvailabilityFacts = {
   source: string;
+  activeFigureId: string | null;
   snapshotMatchesSource: boolean;
   selectedSourceIds: string[];
   selectedSet: Set<string>;
@@ -221,6 +223,7 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
 
   return {
     source: input.source,
+    activeFigureId: input.activeFigureId ?? null,
     snapshotMatchesSource: input.snapshotSource != null && input.snapshotSource === input.source,
     selectedSourceIds,
     selectedSet,
@@ -301,8 +304,12 @@ function makePathRule(
       if (facts.selectedSourceIds.length !== 2) {
         return "Select exactly two open paths to join.";
       }
-      const first = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[0]!);
-      const second = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[1]!);
+      const first = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[0]!, {
+        activeFigureId: facts.activeFigureId
+      });
+      const second = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[1]!, {
+        activeFigureId: facts.activeFigureId
+      });
       if (first.kind !== "eligible") return first.reason;
       if (second.kind !== "eligible") return second.reason;
       if (first.analysis.closed || second.analysis.closed) {
@@ -315,7 +322,9 @@ function makePathRule(
       return "Select a single editable path.";
     }
     const selectedId = facts.selectedSourceIds[0]!;
-    const eligible = resolveEligibleExplicitPath(facts.source, selectedId);
+    const eligible = resolveEligibleExplicitPath(facts.source, selectedId, {
+      activeFigureId: facts.activeFigureId
+    });
     if (eligible.kind !== "eligible") {
       return eligible.reason;
     }

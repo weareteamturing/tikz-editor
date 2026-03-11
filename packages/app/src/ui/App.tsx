@@ -26,6 +26,7 @@ import { SvgExportModal } from "./SvgExportModal";
 import { PngExportModal } from "./PngExportModal";
 import { TikzJaxModal } from "./TikzJaxModal";
 import { RightSidebar } from "./RightSidebar";
+import { FigureNavigator } from "./FigureNavigator";
 import { renderPngExport } from "./export-commands";
 import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument } from "./svg-import";
@@ -63,6 +64,7 @@ function isCanvasViewportFocused(): boolean {
 export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const documents = useEditorStore((s) => s.documents);
@@ -88,6 +90,7 @@ export function App() {
   const [pendingClose, setPendingClose] = useState<{ intent: CloseIntent; dirtyDocumentIds: string[] } | null>(null);
   const requestCloseIntentRef = useRef<(intent: CloseIntent) => void>(() => undefined);
   const computeSchedulerRef = useRef<ReturnType<typeof createSingleFlightScheduler<ComputeRequest, ComputeResponse>> | null>(null);
+  const computeDebounceTimerRef = useRef<number | null>(null);
   const sourceRef = useRef(source);
   const snapshotRef = useRef(snapshot);
   const activeDocumentIdRef = useRef(activeDocumentId);
@@ -203,6 +206,10 @@ export function App() {
     });
     computeSchedulerRef.current = scheduler;
     return () => {
+      if (computeDebounceTimerRef.current != null) {
+        window.clearTimeout(computeDebounceTimerRef.current);
+        computeDebounceTimerRef.current = null;
+      }
       scheduler.dispose();
       computeSchedulerRef.current = null;
     };
@@ -215,18 +222,45 @@ export function App() {
     if (!scheduler) {
       return;
     }
-    const requestId = crypto.randomUUID();
-    dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
     const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
-    scheduler.schedule({
-      id: requestId,
-      documentId: activeDocumentId,
-      kind: "render",
-      source,
-      changedSourceIds,
-      trigger: computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId)
-    });
-  }, [activeCanvasDragKind, activeDocumentId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
+    const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
+
+    const scheduleCompute = () => {
+      const requestId = crypto.randomUUID();
+      dispatch({ type: "COMPUTE_REQUESTED", requestId, documentId: activeDocumentId });
+      scheduler.schedule({
+        id: requestId,
+        documentId: activeDocumentId,
+        kind: "render",
+        source,
+        activeFigureId,
+        changedSourceIds,
+        trigger
+      });
+    };
+
+    if (computeDebounceTimerRef.current != null) {
+      window.clearTimeout(computeDebounceTimerRef.current);
+      computeDebounceTimerRef.current = null;
+    }
+
+    const shouldDebounceTyping = trigger === "other" && changedSourceIds == null;
+    if (shouldDebounceTyping) {
+      const delay = source.length > 80_000 ? 220 : 120;
+      computeDebounceTimerRef.current = window.setTimeout(() => {
+        computeDebounceTimerRef.current = null;
+        scheduleCompute();
+      }, delay);
+      return () => {
+        if (computeDebounceTimerRef.current != null) {
+          window.clearTimeout(computeDebounceTimerRef.current);
+          computeDebounceTimerRef.current = null;
+        }
+      };
+    }
+
+    scheduleCompute();
+  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
 
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;
@@ -255,6 +289,7 @@ export function App() {
         documentId: activeDocumentId,
         kind: "prewarm",
         source,
+        activeFigureId,
         changedSourceIds: [hoveredElementId],
         trigger: "drag-element"
       });
@@ -263,7 +298,7 @@ export function App() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [activeCanvasDragKind, activeDocumentId, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
+  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, hoveredElementId, pendingRequestId, snapshot.source, source]);
 
   useEffect(() => {
     if (!platform.assistant?.bindEvents) {
@@ -505,6 +540,8 @@ export function App() {
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
         clearSelection: () => void;
+        getActiveFigureId: () => string | null;
+        getFigureCount: () => number;
       };
     };
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
@@ -524,6 +561,12 @@ export function App() {
       },
       clearSelection: () => {
         dispatch({ type: "CLEAR_SELECTION" });
+      },
+      getActiveFigureId: () => {
+        return useEditorStore.getState().activeFigureId;
+      },
+      getFigureCount: () => {
+        return useEditorStore.getState().snapshot.figures.length;
       }
     };
     return () => {
@@ -809,9 +852,12 @@ export function App() {
             </Suspense>
           )}
           center={(
-            <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
-              <CanvasPanel />
-            </Suspense>
+            <div className={css.centerColumn}>
+              <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
+                <CanvasPanel />
+              </Suspense>
+              <FigureNavigator />
+            </div>
           )}
           right={<RightSidebar onSubmitPrompt={handleAssistantPrompt} onInterruptTurn={handleInterruptAssistantTurn} />}
         />

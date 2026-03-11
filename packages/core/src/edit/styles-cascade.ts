@@ -141,13 +141,13 @@ export function buildStylesCascadeModel(
   descriptor = getInspectorDescriptor(element, snapshot)
 ): StylesCascadeModel {
   const propertyMap = new Map(descriptor.sections.flatMap((section) => section.properties.map((property) => [property.id, property] as const)));
-  const addTemplates = buildAddPropertyTemplates(descriptor, element, snapshot.source);
+  const addTemplates = buildAddPropertyTemplates(descriptor, element, snapshot.source, snapshot);
   const sections: StylesCascadeSection[] = [];
   const orderedEntries = [...element.styleChain].reverse();
 
   for (let index = 0; index < orderedEntries.length; index += 1) {
     const entry = orderedEntries[index]!;
-    const sectionTarget = resolveSectionWriteTarget(snapshot.source, entry);
+    const sectionTarget = resolveSectionWriteTarget(snapshot.source, entry, snapshot.parseOptions);
     const declarationDrafts = buildSectionDeclarations(entry, propertyMap, sectionTarget.writeTarget);
     if (declarationDrafts.length === 0) {
       continue;
@@ -395,10 +395,11 @@ function applyDeclarationStatuses(sections: StylesCascadeSection[]): void {
 function buildAddPropertyTemplates(
   descriptor: InspectorDescriptor,
   element: SceneElement,
-  source: string
+  source: string,
+  snapshot: InspectorSnapshot
 ): Record<string, InspectorProperty> {
   const propertyMap = new Map(descriptor.sections.flatMap((section) => section.properties.map((property) => [property.id, property] as const)));
-  const transformValues = resolveTransformInspectorValues(source, descriptor.writeTargetId);
+  const transformValues = resolveTransformInspectorValues(source, descriptor.writeTargetId, snapshot.parseOptions);
   const noopWrite: SetPropertyWriteTarget = { mode: "setProperty", elementId: descriptor.writeTargetId ?? "", level: "command", key: "", writable: true };
   const templates: InspectorProperty[] = [
     ...(descriptor.sections.flatMap((section) => section.properties)).filter((property) => SUPPORTED_ADD_PROPERTY_IDS.has(property.id) && SUPPORTED_PROPERTY_KINDS.has(property.kind)),
@@ -557,7 +558,11 @@ function buildAddPropertyTemplates(
   return Object.fromEntries(unique.entries());
 }
 
-function resolveSectionWriteTarget(source: string, entry: StyleChainEntry): StylesSectionWriteTarget {
+function resolveSectionWriteTarget(
+  source: string,
+  entry: StyleChainEntry,
+  parseOptions: InspectorSnapshot["parseOptions"] = {}
+): StylesSectionWriteTarget {
   const sourceRef = entry.sourceRef;
   if (!sourceRef) {
     return {
@@ -579,7 +584,7 @@ function resolveSectionWriteTarget(source: string, entry: StyleChainEntry): Styl
   }
 
   const targetId = sourceTargetIdForEntry(entry, sourceRef);
-  const resolution: PropertyTargetResolution = resolvePropertyTarget(source, targetId);
+  const resolution: PropertyTargetResolution = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolution.kind === "not-found") {
     return {
       writeTarget: { mode: "setProperty", elementId: targetId, level: mapStyleLevel(entry), key: "", writable: false, reason: resolution.reason },

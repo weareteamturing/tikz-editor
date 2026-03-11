@@ -1,8 +1,8 @@
 import type { PathItem, Span, Statement } from "../../ast/types.js";
-import { parseTikz } from "../../parser/index.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
+import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; changedSourceIds?: string[] }
@@ -13,13 +13,17 @@ type DeleteTarget = {
   scope: "statement" | "path-item";
 };
 
-export function applyDeleteElementsAction(source: string, elementIds: readonly string[]): EditActionResultLike {
+export function applyDeleteElementsAction(
+  source: string,
+  elementIds: readonly string[],
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
   if (normalizedIds.length === 0) {
     return { kind: "unsupported", reason: "No element ids were provided for deleteElements" };
   }
 
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const targets: DeleteTarget[] = [];
   for (const elementId of normalizedIds) {
     const target = resolveDeleteTarget(parsed.figure.body, elementId);
@@ -61,8 +65,12 @@ export function applyDeleteElementsAction(source: string, elementIds: readonly s
   };
 }
 
-export function applyDeleteAdornmentAction(source: string, targetId: string): EditActionResultLike {
-  const resolved = resolvePropertyTarget(source, targetId);
+export function applyDeleteAdornmentAction(
+  source: string,
+  targetId: string,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.optionSpan) {
     return { kind: "unsupported", reason: "Selected adornment could not be resolved for deletion." };
   }

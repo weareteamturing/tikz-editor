@@ -241,6 +241,24 @@ export async function selectAllSceneElements(page: Page): Promise<void> {
   });
 }
 
+export async function readActiveFigureId(page: Page): Promise<string | null> {
+  return await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: { getActiveFigureId?: () => string | null };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getActiveFigureId?.() ?? null;
+  });
+}
+
+export async function readFigureCount(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: { getFigureCount?: () => number };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getFigureCount?.() ?? 0;
+  });
+}
+
 export async function clearSceneSelection(page: Page): Promise<void> {
   await page.evaluate(() => {
     const api = (globalThis as unknown as {

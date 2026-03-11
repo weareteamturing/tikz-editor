@@ -79,6 +79,7 @@ function buildHighlightExtension(dark: boolean) {
 
 const setHighlight = StateEffect.define<[number, number] | null>();
 const setDiagnostics = StateEffect.define<DiagnosticInput[]>();
+const setFigureOverlay = StateEffect.define<DecorationSet>();
 
 type DiagnosticSeverity = "error" | "warning";
 
@@ -236,6 +237,22 @@ const diagnosticsField = StateField.define<{ list: Diagnostic[]; decorations: De
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations)
 });
 
+const figureOverlayField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setFigureOverlay)) {
+        return effect.value;
+      }
+    }
+    if (tr.docChanged) {
+      return value.map(tr.changes);
+    }
+    return value;
+  },
+  provide: (f) => EditorView.decorations.from(f)
+});
+
 const diagnosticTooltip = hoverTooltip((view, pos) => {
   const field = view.state.field(diagnosticsField, false);
   if (!field) return null;
@@ -281,7 +298,9 @@ const editorKeymap = Prec.highest(
 
 export function SourcePanel() {
   const source = useEditorStore((s) => s.source);
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
+  const figures = snapshot.figures;
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
@@ -305,6 +324,8 @@ export function SourcePanel() {
   const spanIndexRef = useRef<SourceSpanIndex>(EMPTY_SPAN_INDEX);
   const symbolsRef = useRef<DocumentSymbols>(EMPTY_SYMBOLS);
   const selectedElementIdsRef = useRef(selectedElementIds);
+  const figuresRef = useRef(figures);
+  const activeFigureIdRef = useRef(activeFigureId);
   const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
   const projectNamedColorSwatches = useMemo(
     () => collectProjectNamedColorSwatches(source),
@@ -314,6 +335,11 @@ export function SourcePanel() {
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;
   }, [selectedElementIds]);
+
+  useEffect(() => {
+    figuresRef.current = figures;
+    activeFigureIdRef.current = activeFigureId;
+  }, [activeFigureId, figures]);
 
   useEffect(() => {
     spanIndexRef.current = buildSourceSpanIndex(snapshot.scene?.elements ?? [], snapshot.parseResult?.figure.body);
@@ -372,6 +398,16 @@ export function SourcePanel() {
       if (ignoreNextSelectionSyncRef.current) {
         ignoreNextSelectionSyncRef.current = false;
         return;
+      }
+
+      // Drive active-figure switching from CodeMirror selection updates so
+      // keyboard navigation and all cursor moves behave consistently.
+      if (update.view.hasFocus) {
+        const head = clamp(update.state.selection.main.head, 0, update.state.doc.length);
+        const targetFigure = figuresRef.current.find((figure) => head >= figure.span.from && head <= figure.span.to) ?? null;
+        if (targetFigure && targetFigure.id !== activeFigureIdRef.current) {
+          dispatch({ type: "SET_ACTIVE_FIGURE", figureId: targetFigure.id });
+        }
       }
 
       syncSelectionFromSourceCursor(
@@ -458,6 +494,7 @@ export function SourcePanel() {
         }),
         highlightField,
         diagnosticsField,
+        figureOverlayField,
         diagnosticTooltip,
         sourceHoverBridge,
         updateListener
@@ -586,6 +623,46 @@ export function SourcePanel() {
       annotations: [isolateHistory.of("after")]
     });
   }, [source]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const decorations = buildFigureOverlayDecorations({
+      docLength: view.state.doc.length,
+      figures,
+      activeFigureId
+    });
+    view.dispatch({ effects: setFigureOverlay.of(decorations) });
+  }, [activeFigureId, figures, source]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) {
+      return;
+    }
+    const activeFigure = figures.find((figure) => figure.id === activeFigureId);
+    if (!activeFigure) {
+      return;
+    }
+    const anchor = clamp(activeFigure.span.from, 0, view.state.doc.length);
+    if (!view.hasFocus) {
+      const selection = view.state.selection.main;
+      if (selection.anchor !== anchor || selection.head !== anchor) {
+        ignoreNextSelectionSyncRef.current = true;
+        dispatchSelectionWithStableHorizontalScroll(view, {
+          selection: { anchor, head: anchor },
+          annotations: [Transaction.addToHistory.of(false)],
+          scrollIntoView: true
+        });
+        return;
+      }
+    }
+    view.dispatch({
+      effects: EditorView.scrollIntoView(anchor, { y: "center", yMargin: 48 })
+    });
+  }, [activeFigureId, figures]);
 
   useEffect(() => {
     if (!activeColorPicker) {
@@ -826,6 +903,62 @@ export function SourcePanel() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+type FigureOverlayFigure = {
+  id: string;
+  span: { from: number; to: number };
+};
+
+function buildFigureOverlayDecorations(params: {
+  docLength: number;
+  figures: readonly FigureOverlayFigure[];
+  activeFigureId: string | null;
+}): DecorationSet {
+  const { docLength, figures, activeFigureId } = params;
+  if (figures.length < 2) {
+    return Decoration.none;
+  }
+  const normalizedFigures = figures
+    .map((figure) => {
+      const spanFrom = clamp(figure.span.from, 0, docLength);
+      const spanTo = clamp(figure.span.to, spanFrom, docLength);
+      if (spanTo <= spanFrom) {
+        return null;
+      }
+      return {
+        ...figure,
+        span: { from: spanFrom, to: spanTo }
+      };
+    })
+    .filter((figure): figure is FigureOverlayFigure => figure != null);
+  if (normalizedFigures.length < 2) {
+    return Decoration.none;
+  }
+  const decorations: any[] = [];
+  const activeFigure = activeFigureId ? normalizedFigures.find((figure) => figure.id === activeFigureId) : null;
+  if (activeFigure) {
+    if (activeFigure.span.from > 0) {
+      decorations.push(Decoration.mark({ class: "cm-figure-dimmed" }).range(0, activeFigure.span.from));
+    }
+    if (activeFigure.span.to < docLength) {
+      decorations.push(Decoration.mark({ class: "cm-figure-dimmed" }).range(activeFigure.span.to, docLength));
+    }
+  } else {
+    const sorted = [...normalizedFigures].sort((left, right) => left.span.from - right.span.from);
+    let cursor = 0;
+    for (const figure of sorted) {
+      if (figure.span.from > cursor) {
+        decorations.push(Decoration.mark({ class: "cm-figure-dimmed" }).range(cursor, figure.span.from));
+      }
+      cursor = Math.max(cursor, figure.span.to);
+    }
+    if (cursor < docLength) {
+      decorations.push(Decoration.mark({ class: "cm-figure-dimmed" }).range(cursor, docLength));
+    }
+  }
+
+  return Decoration.set(decorations, false);
+}
 
 function insertSoftIndent(view: EditorView): boolean {
   const indentSize = Math.max(1, view.state.facet(CMState.tabSize));

@@ -1,6 +1,5 @@
 import type { EditHandle, Point } from "../../semantic/types.js";
 import type { Span } from "../../ast/types.js";
-import { parseTikz } from "../../parser/index.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import {
   applyTextReplacements,
@@ -16,6 +15,7 @@ import {
 } from "../statement-ops.js";
 import { renameSnippetDeclaredNames } from "../name-conflicts.js";
 import type { SourcePatch } from "../types.js";
+import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 
 export type PasteStatementsAction = {
   snippets: string[];
@@ -52,7 +52,8 @@ type PasteDuplicateDeps = {
     source: string,
     editHandles: EditHandle[],
     elementIds: readonly string[],
-    delta: Point
+    delta: Point,
+    parseOptions?: EditParseOptions
   ) => MoveElementsResultLike;
   normalizeElementIds: (elementIds: readonly string[]) => string[];
   uniqueStrings: (values: readonly string[]) => string[];
@@ -68,7 +69,8 @@ type OffsetSnippetsResult = {
 export function applyPasteStatementsAction(
   source: string,
   action: PasteStatementsAction,
-  deps: PasteDuplicateDeps
+  deps: PasteDuplicateDeps,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const snippets = action.snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
@@ -78,10 +80,10 @@ export function applyPasteStatementsAction(
   }
 
   const delta = normalizeDuplicateDelta(action.delta, deps.defaultDuplicateOffsetPt);
-  const shifted = offsetSnippetsByDelta(snippets, delta, deps);
-  const renamedSnippets = renameSnippetDeclaredNames(source, shifted.snippets);
+  const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions);
+  const renamedSnippets = renameSnippetDeclaredNames(source, shifted.snippets, parseOptions);
 
-  const snapshot = parseStatementSnapshot(source);
+  const snapshot = parseStatementSnapshot(source, parseOptions);
   const anchorId = action.anchorElementId?.trim();
   const anchorRef = anchorId ? snapshot.byId.get(anchorId) : undefined;
 
@@ -139,14 +141,15 @@ export function applyPasteStatementsAction(
 export function applyDuplicateElementsAction(
   source: string,
   action: DuplicateElementsAction,
-  deps: PasteDuplicateDeps
+  deps: PasteDuplicateDeps,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = deps.normalizeElementIds(action.elementIds);
   if (normalizedIds.length === 0) {
     return { kind: "unsupported", reason: "No element ids were provided for duplicateElements." };
   }
 
-  const initialSnapshot = parseStatementSnapshot(source);
+  const initialSnapshot = parseStatementSnapshot(source, parseOptions);
   const initialRefs = resolveStatementRefs(initialSnapshot, normalizedIds);
   if (initialRefs.length === 0) {
     return { kind: "unsupported", reason: "No duplicable statements were found for the selected element ids." };
@@ -161,7 +164,7 @@ export function applyDuplicateElementsAction(
   const delta = normalizeDuplicateDelta(action.delta, deps.defaultDuplicateOffsetPt);
 
   for (const group of groups) {
-    const snapshot = parseStatementSnapshot(currentSource);
+    const snapshot = parseStatementSnapshot(currentSource, parseOptions);
     const currentRefs = resolveStatementRefs(
       snapshot,
       group.refs.map((ref) => ref.id)
@@ -174,8 +177,8 @@ export function applyDuplicateElementsAction(
     for (const resolvedGroup of resolvedGroups) {
       const orderedRefs = [...resolvedGroup.refs].sort((left, right) => left.index - right.index);
       const snippets = orderedRefs.map((ref) => statementSnippet(currentSource, ref));
-      const shifted = offsetSnippetsByDelta(snippets, delta, deps);
-      const renamedSnippets = renameSnippetDeclaredNames(currentSource, shifted.snippets);
+      const shifted = offsetSnippetsByDelta(snippets, delta, deps, parseOptions);
+      const renamedSnippets = renameSnippetDeclaredNames(currentSource, shifted.snippets, parseOptions);
       if (shifted.partialReason) {
         partialReasons.push(shifted.partialReason);
         partialSkippedHandles.push(...shifted.skippedHandles);
@@ -244,7 +247,8 @@ export function applyDuplicateElementsAction(
 function offsetSnippetsByDelta(
   snippets: readonly string[],
   delta: Point,
-  deps: PasteDuplicateDeps
+  deps: PasteDuplicateDeps,
+  parseOptions: EditParseOptions
 ): OffsetSnippetsResult {
   const normalized = snippets
     .map((snippet) => snippet.replace(/\r\n?/g, "\n").trimEnd())
@@ -257,16 +261,16 @@ function offsetSnippetsByDelta(
   }
 
   const wrappedSource = wrapSnippetsInFigure(normalized);
-  const wrappedSnapshot = parseStatementSnapshot(wrappedSource);
+  const wrappedSnapshot = parseStatementSnapshot(wrappedSource, parseOptions);
   const rootRefs = wrappedSnapshot.byParentKey.get("root") ?? [];
   const rootIds = rootRefs.map((ref) => ref.id);
   if (rootIds.length === 0) {
     return { snippets: normalized, skippedHandles: [] };
   }
 
-  const parsed = parseTikz(wrappedSource, { recover: true });
+  const parsed = parseTikzForEdit(wrappedSource, parseOptions);
   const semantic = evaluateTikzFigure(parsed.figure, wrappedSource);
-  const moved = deps.applyMoveElements(wrappedSource, semantic.editHandles, rootIds, delta);
+  const moved = deps.applyMoveElements(wrappedSource, semantic.editHandles, rootIds, delta, parseOptions);
 
   if (moved.kind !== "success" && moved.kind !== "partial") {
     return {
@@ -279,7 +283,7 @@ function offsetSnippetsByDelta(
     };
   }
 
-  const movedSnapshot = parseStatementSnapshot(moved.newSource);
+  const movedSnapshot = parseStatementSnapshot(moved.newSource, parseOptions);
   const movedRootRefs = movedSnapshot.byParentKey.get("root") ?? [];
   const movedSnippets = movedRootRefs.map((ref) => statementSnippet(moved.newSource, ref));
   if (movedSnippets.length !== normalized.length) {

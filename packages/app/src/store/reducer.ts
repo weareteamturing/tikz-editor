@@ -44,6 +44,7 @@ function createDocumentId(): string {
 function createDocumentSession(params: {
   source: string;
   title?: string;
+  activeFigureId?: string | null;
   fileRef?: DocumentFileRef | null;
   assistantThreadId?: string | null;
   assistantWorkspacePath?: string | null;
@@ -55,6 +56,8 @@ function createDocumentSession(params: {
     id: createDocumentId(),
     title,
     source: params.source,
+    activeFigureId: params.activeFigureId ?? null,
+    hasInitializedFigureSelection: false,
     snapshot: makeEmptySnapshot(params.source),
     pendingRequestId: null,
     lastEditChangedSourceIds: null,
@@ -116,6 +119,7 @@ export type WorkspaceSeedDocument = {
   id: string;
   title: string;
   source: string;
+  activeFigureId?: string | null;
   savedSource?: string;
   fileRef?: DocumentFileRef | null;
   assistantThreadId?: string | null;
@@ -138,6 +142,7 @@ function initialWorkspaceStateFromSeed(seed: WorkspaceSeed): WorkspacePersistedS
     const doc = createDocumentSession({
       source: raw.source,
       title: raw.title,
+      activeFigureId: raw.activeFigureId ?? null,
       fileRef: raw.fileRef ?? null,
       assistantThreadId: raw.assistantThreadId ?? null,
       assistantWorkspacePath: raw.assistantWorkspacePath ?? null,
@@ -189,6 +194,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     workspace,
     ui,
     source: active.source,
+    activeFigureId: active.activeFigureId,
     snapshot: active.snapshot,
     pendingRequestId: active.pendingRequestId,
     lastEditChangedSourceIds: active.lastEditChangedSourceIds,
@@ -321,6 +327,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     projectedActive &&
     (
       projectedActive.source !== state.source ||
+      projectedActive.activeFigureId !== state.activeFigureId ||
       projectedActive.snapshot !== state.snapshot ||
       projectedActive.pendingRequestId !== state.pendingRequestId ||
       projectedActive.lastEditChangedSourceIds !== state.lastEditChangedSourceIds ||
@@ -334,6 +341,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     workspace = updateDocument(workspace, activeId, (doc) => ({
       ...doc,
       source: state.source,
+      activeFigureId: state.activeFigureId,
       snapshot: state.snapshot,
       pendingRequestId: state.pendingRequestId,
       lastEditChangedSourceIds: state.lastEditChangedSourceIds,
@@ -371,6 +379,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         activeDocumentId: action.documentId
       };
       workspace = rememberRecentDocument(workspace, action.documentId);
+      break;
+    }
+
+    case "SET_ACTIVE_FIGURE": {
+      const documentId = activeDocumentIdFromAction(state, action.documentId);
+      workspace = updateDocument(workspace, documentId, (doc) =>
+        doc.activeFigureId === action.figureId
+          ? doc
+          : {
+              ...doc,
+              activeFigureId: action.figureId,
+              hasInitializedFigureSelection: true
+            }
+      );
       break;
     }
 
@@ -456,6 +478,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...doc,
           source: action.source,
+          activeFigureId: doc.activeFigureId,
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           history: [],
@@ -479,9 +502,28 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         if (action.requestId !== doc.pendingRequestId) {
           return doc;
         }
+        const previousFigureCount = doc.snapshot.figures.length;
+        const validFigureIds = new Set(action.snapshot.figures.map((figure) => figure.id));
+        let nextActiveFigureId = doc.activeFigureId;
+        let hasInitializedFigureSelection = doc.hasInitializedFigureSelection;
+        if (nextActiveFigureId && !validFigureIds.has(nextActiveFigureId)) {
+          nextActiveFigureId = null;
+          hasInitializedFigureSelection = true;
+        }
+        const shouldAutoSelectFirst =
+          (!hasInitializedFigureSelection && !nextActiveFigureId && action.snapshot.figures.length > 0) ||
+          (!nextActiveFigureId &&
+            action.snapshot.figures.length >= 2 &&
+            action.snapshot.figures.length > previousFigureCount);
+        if (shouldAutoSelectFirst) {
+          nextActiveFigureId = action.snapshot.figures[0]!.id;
+          hasInitializedFigureSelection = true;
+        }
         return {
           ...doc,
           snapshot: action.snapshot,
+          activeFigureId: nextActiveFigureId,
+          hasInitializedFigureSelection,
           pendingRequestId: null,
           activeHandleId:
             doc.activeHandleId && action.snapshot.editHandles.some((handle) => handle.id === doc.activeHandleId)
@@ -661,7 +703,15 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         applyEditAction(
           activeDoc.source,
           activeDoc.snapshot.editHandles,
-          action.action
+          action.action,
+          {
+            parseOptions: {
+              activeFigureId:
+                activeDoc.activeFigureId == null
+                  ? (activeDoc.snapshot.figures.length > 1 ? null : undefined)
+                  : activeDoc.activeFigureId
+            }
+          }
         );
 
       if (result.kind !== "success" && result.kind !== "partial") {

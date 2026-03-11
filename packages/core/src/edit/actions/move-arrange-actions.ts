@@ -1,6 +1,5 @@
 import type { CoordinateItem, NodeItem, PathStatement, Span, Statement } from "../../ast/types.js";
 import type { OptionEntry } from "../../options/types.js";
-import { parseTikz } from "../../parser/index.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import type { EditHandle, Point } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
@@ -12,6 +11,7 @@ import { rewriteCoordinate } from "../rewrite.js";
 import type { SourcePatch } from "../types.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "../arrange.js";
 import { applyOptionMutationsToTarget, type OptionMutation } from "../option-mutations.js";
+import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 
 const ARRANGE_EPSILON = 1e-6;
 
@@ -36,14 +36,15 @@ export function applyMoveElementsAction(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: Point
+  delta: Point,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
   if (normalizedIds.length === 0) {
     return { kind: "unsupported", reason: "No element ids were provided for moveElements" };
   }
 
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const matrixElementIds = normalizedIds.filter((elementId) => {
     const statement = findPathStatementById(parsed.figure.body, elementId);
     return statement != null && isMatrixPathStatement(statement);
@@ -90,7 +91,8 @@ export function applyMoveElementsAction(
       currentSource,
       matrixElementIds,
       delta,
-      matrixPlacementHandlesBySource
+      matrixPlacementHandlesBySource,
+      parseOptions
     );
     if (byMatrixPlacement.kind === "error") {
       return byMatrixPlacement;
@@ -133,14 +135,15 @@ export function applyMoveElementsAction(
 
 export function applyAlignElementsAction(
   source: string,
-  action: AlignElementsAction
+  action: AlignElementsAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(action.elementIds);
   if (normalizedIds.length < 2) {
     return { kind: "unsupported", reason: "Align requires at least 2 selected elements." };
   }
 
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const plan = planAlignDeltas(boundsBySource, normalizedIds, action.mode);
@@ -153,14 +156,15 @@ export function applyAlignElementsAction(
 
 export function applyDistributeElementsAction(
   source: string,
-  action: DistributeElementsAction
+  action: DistributeElementsAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(action.elementIds);
   if (normalizedIds.length < 3) {
     return { kind: "unsupported", reason: "Distribute requires at least 3 selected elements." };
   }
 
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const plan = planDistributeDeltas(boundsBySource, normalizedIds, action.axis);
@@ -255,7 +259,8 @@ function applyMoveMatrixElementsWithPlacementRewrite(
   source: string,
   elementIds: readonly string[],
   delta: Point,
-  placementHandlesBySource: ReadonlyMap<string, EditHandle>
+  placementHandlesBySource: ReadonlyMap<string, EditHandle>,
+  parseOptions: EditParseOptions
 ): EditActionResultLike {
   let currentSource = source;
   const patches: SourcePatch[] = [];
@@ -264,7 +269,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
 
   for (const elementId of elementIds) {
     const placementHandle = placementHandlesBySource.get(elementId);
-    const rewrite = rewriteSingleMatrixPlacement(currentSource, elementId, delta, placementHandle);
+    const rewrite = rewriteSingleMatrixPlacement(currentSource, elementId, delta, placementHandle, parseOptions);
     if (rewrite.kind === "unsupported") {
       failedElementIds.push(elementId);
       failureReasons.push(rewrite.reason);
@@ -309,9 +314,10 @@ function rewriteSingleMatrixPlacement(
   source: string,
   elementId: string,
   delta: Point,
-  placementHandle: EditHandle | undefined
+  placementHandle: EditHandle | undefined,
+  parseOptions: EditParseOptions
 ): MatrixPlacementRewriteResult {
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const statement = findPathStatementById(parsed.figure.body, elementId);
   if (!statement) {
     return { kind: "unsupported", reason: `Matrix statement ${elementId} was not found` };
@@ -376,7 +382,7 @@ function rewriteSingleMatrixPlacement(
     }
   }
 
-  const matrixTarget = resolvePropertyTarget(source, matrixNode.id);
+  const matrixTarget = resolvePropertyTarget(source, matrixNode.id, parseOptions);
   if (matrixTarget.kind === "found") {
     const rewritten = applyOptionMutationsToTarget(source, matrixTarget.target, insertionMutations);
     if (rewritten) {

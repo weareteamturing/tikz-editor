@@ -10,6 +10,7 @@ import {
   shiftSpansAfterReplacement,
   type StatementRef
 } from "../statement-ops.js";
+import type { EditParseOptions } from "../parse-options.js";
 
 export type ReorderDirection = "sendToBack" | "sendBackward" | "bringForward" | "bringToFront";
 
@@ -26,14 +27,15 @@ export type ReorderReplacement = {
 export function applyReorderElementsAction(
   source: string,
   elementIds: readonly string[],
-  direction: ReorderDirection
+  direction: ReorderDirection,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const normalizedIds = normalizeElementIds(elementIds);
   if (normalizedIds.length === 0) {
     return { kind: "unsupported", reason: "No element ids were provided for reorderElements." };
   }
 
-  const initialSnapshot = parseStatementSnapshot(source);
+  const initialSnapshot = parseStatementSnapshot(source, parseOptions);
   const initialRefs = resolveStatementRefs(initialSnapshot, normalizedIds);
   if (initialRefs.length === 0) {
     return { kind: "unsupported", reason: "No reorderable statements were found for the selected element ids." };
@@ -49,7 +51,7 @@ export function applyReorderElementsAction(
   const patches: SourcePatch[] = [];
 
   for (const group of groups) {
-    const snapshot = parseStatementSnapshot(currentSource);
+    const snapshot = parseStatementSnapshot(currentSource, parseOptions);
     const currentRefs = resolveStatementRefs(
       snapshot,
       group.refs.map((ref) => ref.id)

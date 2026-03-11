@@ -4,6 +4,8 @@ import {
   injectNoFsApiFallback,
   openMenuCommand,
   readPersistedWorkspaceDocumentCount,
+  readActiveFigureId,
+  readFigureCount,
   readSource,
   resetStorageBeforeNavigation,
   setSource,
@@ -96,6 +98,38 @@ test("open example defaults to opening a new tab", async ({ page }) => {
   await page.locator("[data-testid^='open-example-card-']").first().click();
 
   await expect(tabSwitchButtons(page)).toHaveCount(before + 1);
+});
+
+test("multi-figure mode supports figure strip activation and clears active figure after deletion", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\documentclass{article}
+\begin{document}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}
+\end{document}`);
+
+  await expect.poll(async () => readFigureCount(page)).toBe(2);
+  await expect(page.getByTestId("figure-navigator")).toBeVisible();
+
+  const firstActive = await readActiveFigureId(page);
+  expect(firstActive).not.toBeNull();
+
+  await page.getByRole("button", { name: "Figure 2" }).click();
+  await expect.poll(async () => readActiveFigureId(page)).not.toBe(firstActive);
+
+  await setSource(page, String.raw`\documentclass{article}
+\begin{document}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\end{document}`);
+
+  await expect.poll(async () => readFigureCount(page)).toBe(1);
+  await expect.poll(async () => readActiveFigureId(page)).toBeNull();
 });
 
 test("fallback save path triggers browser download", async ({ page }) => {

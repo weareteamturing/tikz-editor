@@ -33,6 +33,8 @@ type Dispatch = (action: EditorAction) => void;
 
 type SelectionCommandContext = {
   source: string;
+  activeFigureId?: string | null;
+  figureCount?: number;
   snapshotSource: string | null;
   scene: SceneFigure | null;
   editHandles: readonly EditHandle[];
@@ -64,7 +66,7 @@ export async function copySelection(
     return false;
   }
 
-  const snippets = selectedSnippets(context.source, context.selectedElementIds);
+  const snippets = selectedSnippets(context);
   if (snippets.length === 0) {
     return false;
   }
@@ -86,7 +88,7 @@ export function copySelectionToClipboardData(
   if (!canCopySelection(context)) {
     return false;
   }
-  const snippets = selectedSnippets(context.source, context.selectedElementIds);
+  const snippets = selectedSnippets(context);
   const payload = createClipboardPayload(snippets, options?.pasteBehavior ?? "offset", 0);
   if (!payload) {
     return false;
@@ -204,7 +206,7 @@ function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboar
     return false;
   }
 
-  const refs = selectedStatementRefs(context.source, context.selectedElementIds);
+  const refs = selectedStatementRefs(context);
   const anchor = refs.length > 0 ? refs[refs.length - 1] : null;
   const pasteCount = Math.max(0, Math.floor(payload.pasteCount));
   const offset = DEFAULT_PASTE_OFFSET_PT * (pasteCount + 1);
@@ -217,7 +219,10 @@ function runPasteFromPayload(context: PasteCommandContext, payload: TikzClipboar
     anchorElementId: anchor?.id,
     delta
   };
-  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action);
+  const parseActiveFigureId = resolvedContextActiveFigureId(context);
+  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
+    parseOptions: { activeFigureId: parseActiveFigureId }
+  });
   if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
     return false;
   }
@@ -519,7 +524,9 @@ export function actionAvailability(
   return availabilityFor(context);
 }
 
-function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string>): string[] {
+function selectedSnippets(context: SelectionCommandContext): string[] {
+  const { source, selectedElementIds, activeFigureId } = context;
+  const parseActiveFigureId = resolvedContextActiveFigureId(context);
   if (selectedElementIds.size === 0) {
     return [];
   }
@@ -529,7 +536,7 @@ function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string
   for (const id of selectedElementIds) {
     const parsed = parseEditableTargetId(id);
     if (parsed.kind === "node-adornment") {
-      const resolved = resolvePropertyTarget(source, id);
+      const resolved = resolvePropertyTarget(source, id, { activeFigureId: parseActiveFigureId });
       if (resolved.kind === "found" && resolved.target.optionSpan) {
         const snippet = source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to).trim();
         if (snippet.length > 0) {
@@ -542,7 +549,7 @@ function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string
   }
 
   if (statementIds.length > 0) {
-    const snapshot = parseStatementSnapshot(source);
+    const snapshot = parseStatementSnapshot(source, { activeFigureId: parseActiveFigureId });
     const refs = resolveStatementRefs(snapshot, statementIds);
     refs.sort((left, right) => {
       if (left.span.from !== right.span.from) {
@@ -556,13 +563,15 @@ function selectedSnippets(source: string, selectedElementIds: ReadonlySet<string
   return snippets;
 }
 
-function selectedStatementRefs(source: string, selectedElementIds: ReadonlySet<string>) {
+function selectedStatementRefs(context: SelectionCommandContext) {
+  const { source, selectedElementIds } = context;
+  const parseActiveFigureId = resolvedContextActiveFigureId(context);
   if (selectedElementIds.size === 0) {
     return [];
   }
 
   const statementIds = [...selectedElementIds].filter((id) => parseEditableTargetId(id).kind === "statement");
-  const snapshot = parseStatementSnapshot(source);
+  const snapshot = parseStatementSnapshot(source, { activeFigureId: parseActiveFigureId });
   const refs = resolveStatementRefs(snapshot, statementIds);
   refs.sort((left, right) => {
     if (left.span.from !== right.span.from) {
@@ -576,6 +585,7 @@ function selectedStatementRefs(source: string, selectedElementIds: ReadonlySet<s
 function availabilityFor(context: SelectionCommandContext) {
   return getEditActionAvailability({
     source: context.source,
+    activeFigureId: resolvedContextActiveFigureId(context),
     snapshotSource: context.snapshotSource,
     selectedSourceIds: [...context.selectedElementIds],
     scene: context.scene,
@@ -624,7 +634,7 @@ function transformSelection(
     if (!targetId) {
       continue;
     }
-    const values = resolveTransformInspectorValues(context.source, targetId);
+    const values = resolveTransformInspectorValues(context.source, targetId, { activeFigureId: parseActiveFigureId });
     const mutations = buildTransformSetPropertyMutations(values, key, resolveNextValue(values, key));
     for (const mutation of mutations) {
       context.dispatch({
@@ -661,9 +671,10 @@ function normalizeSignedDeg(degrees: number): number {
 }
 
 function resolveTransformTargetId(context: SelectionCommandContext, selectedId: string): string | null {
+  const parseActiveFigureId = resolvedContextActiveFigureId(context);
   const element = findSelectedSceneElement(context.scene, selectedId);
   if (!element) {
-    const resolved = resolvePropertyTarget(context.source, selectedId);
+    const resolved = resolvePropertyTarget(context.source, selectedId, { activeFigureId: parseActiveFigureId });
     return resolved.kind === "found" ? selectedId : null;
   }
 
@@ -677,13 +688,23 @@ function resolveTransformTargetId(context: SelectionCommandContext, selectedId: 
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   for (const targetId of candidateTargetIds) {
-    const resolved = resolvePropertyTarget(context.source, targetId);
+    const resolved = resolvePropertyTarget(context.source, targetId, { activeFigureId: parseActiveFigureId });
     if (resolved.kind === "found") {
       return targetId;
     }
   }
 
   return null;
+}
+
+function resolvedContextActiveFigureId(context: SelectionCommandContext): string | null | undefined {
+  if (context.activeFigureId != null) {
+    return context.activeFigureId;
+  }
+  if ((context.figureCount ?? 0) > 1) {
+    return null;
+  }
+  return undefined;
 }
 
 function findSelectedSceneElement(scene: SceneFigure | null, selectedId: string): SceneElement | null {

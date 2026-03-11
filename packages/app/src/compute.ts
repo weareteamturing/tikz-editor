@@ -17,6 +17,8 @@ import type {
 export type SessionSnapshot = {
   source: string;
   revision: number;
+  figures: ParseTikzResult["figures"];
+  activeFigureId: string | null;
   editHandles: EditHandle[];
   scene: SceneFigure | null;
   svg: EmitSvgResult | null;
@@ -41,6 +43,7 @@ export type ComputeRequest = {
   id: string;
   documentId?: string;
   source: string;
+  activeFigureId?: string | null;
   changedSourceIds?: string[] | null;
   trigger?: IncrementalSemanticTrigger;
   kind?: "render" | "prewarm";
@@ -64,6 +67,8 @@ export function makeEmptySnapshot(source: string = ""): SessionSnapshot {
   return {
     source,
     revision: 0,
+    figures: [],
+    activeFigureId: null,
     editHandles: [],
     scene: null,
     svg: null,
@@ -96,10 +101,17 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       };
     }
     if (isDragTrigger && changedSourceIds.length > 0) {
-      const result = await computeSnapshotIncremental(request.source, changedSourceIds, trigger);
+      const result = await computeSnapshotIncremental(
+        request.source,
+        request.activeFigureId ?? null,
+        changedSourceIds,
+        trigger
+      );
       const snapshot: SessionSnapshot = {
         source: request.source,
         revision,
+        figures: result.parse.figures,
+        activeFigureId: result.parse.activeFigureId,
         editHandles: result.semantic.editHandles,
         scene: result.semantic.scene,
         svg: result.svg,
@@ -126,7 +138,11 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
     const { renderTikzToSvgAsync } = await import("tikz-editor/render/index");
     const result = await renderTikzToSvgAsync(request.source, {
-      parse: { recover: true },
+      parse: {
+        recover: true,
+        activeFigureId: request.activeFigureId ?? null,
+        includeContextDefinitions: true
+      },
       svg: { padding: 18 }
     });
     // Non-drag requests currently bypass the incremental session.
@@ -138,6 +154,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     const snapshot: SessionSnapshot = {
       source: request.source,
       revision,
+      figures: result.parse.figures,
+      activeFigureId: result.parse.activeFigureId,
       editHandles: result.semantic.editHandles,
       scene: result.semantic.scene,
       svg: result.svg,
@@ -160,6 +178,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     const snapshot: SessionSnapshot = {
       source: request.source,
       revision,
+      figures: [],
+      activeFigureId: null,
       editHandles: [],
       scene: null,
       svg: null,
@@ -186,6 +206,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
 async function computeSnapshotIncremental(
   source: string,
+  activeFigureId: string | null,
   changedSourceIds: string[],
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">
 ): Promise<{
@@ -201,7 +222,11 @@ async function computeSnapshotIncremental(
     import("tikz-editor/semantic/index")
   ]);
   const textEngine = await getOptionalTextEngine();
-  const parseResult = parseTikz(source, { recover: true });
+  const parseResult = parseTikz(source, {
+    recover: true,
+    activeFigureId,
+    includeContextDefinitions: true
+  });
   const session = await getIncrementalSemanticSession();
   let reusePreviousModel = previousSvgModel;
 

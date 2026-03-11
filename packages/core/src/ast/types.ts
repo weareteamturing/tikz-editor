@@ -41,6 +41,16 @@ export type TikzFigure = {
   body: Statement[];
 };
 
+export type TikzFigureInventoryItem = {
+  id: string;
+  span: Span;
+  beginSpan: Span;
+  endSpan: Span;
+  optionsSpan?: Span;
+  startLine: number;
+  endLine: number;
+};
+
 export type Statement =
   | PathStatement
   | ScopeStatement

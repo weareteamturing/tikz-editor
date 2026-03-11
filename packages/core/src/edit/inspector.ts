@@ -1,5 +1,6 @@
 import type { StyleLevel } from "./actions.js";
 import { resolvePropertyTarget } from "./property-target.js";
+import type { EditParseOptions } from "./parse-options.js";
 import {
   collectInspectorColorAliases,
   colorOptionsForValue,
@@ -288,6 +289,7 @@ export type TransformSetPropertyMutation = {
 export type InspectorSnapshot = {
   source: string;
   editHandles?: EditHandle[];
+  parseOptions?: EditParseOptions;
 };
 
 export type SetPropertyWriteTarget = {
@@ -778,13 +780,17 @@ export function buildNodeFontSetPropertyMutation(
   };
 }
 
-export function resolveTransformInspectorValues(source: string, targetId: string | null): TransformInspectorValues {
+export function resolveTransformInspectorValues(
+  source: string,
+  targetId: string | null,
+  parseOptions: EditParseOptions = {}
+): TransformInspectorValues {
   const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
   if (!targetId) {
     return values;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return values;
   }
@@ -924,9 +930,9 @@ export function buildTransformSetPropertyMutations(
 }
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
-  const inlineTarget = resolveInlineWriteTarget(element, snapshot.source);
+  const inlineTarget = resolveInlineWriteTarget(element, snapshot.source, snapshot.parseOptions);
   const colorAliases = collectInspectorColorAliases(snapshot.source);
-  const transformValues = resolveTransformInspectorValues(snapshot.source, inlineTarget.targetId);
+  const transformValues = resolveTransformInspectorValues(snapshot.source, inlineTarget.targetId, snapshot.parseOptions);
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
   const strokeColorSyntax = resolveColorSyntaxValue(
     snapshot.source,
@@ -934,7 +940,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     ["draw", "color"],
     strokeColor,
     colorAliases,
-    element.styleChain
+    element.styleChain,
+    snapshot.parseOptions
   );
   const fillColor = normalizeInspectorColorValue(element.style.fill);
   const fillColorSyntax = resolveColorSyntaxValue(
@@ -943,7 +950,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     ["fill", "color"],
     fillColor,
     colorAliases,
-    element.styleChain
+    element.styleChain,
+    snapshot.parseOptions
   );
   const patternColor = normalizeInspectorColorValue(element.style.patternColor);
   const patternColorSyntax = resolveColorSyntaxValue(
@@ -952,9 +960,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     ["pattern color"],
     patternColor,
     colorAliases,
-    element.styleChain
+    element.styleChain,
+    snapshot.parseOptions
   );
-  const fillPaintState = resolveFillPaintState(snapshot.source, inlineTarget.targetId, element.style);
+  const fillPaintState = resolveFillPaintState(snapshot.source, inlineTarget.targetId, element.style, snapshot.parseOptions);
   const textColor = normalizeInspectorColorValue(element.style.textColor);
   const textColorSyntax = resolveColorSyntaxValue(
     snapshot.source,
@@ -962,7 +971,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     ["text", "color"],
     textColor,
     colorAliases,
-    element.styleChain
+    element.styleChain,
+    snapshot.parseOptions
   );
   const pathStrokeVisibility =
     element.kind === "Path"
@@ -971,11 +981,11 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
   const nodeInspectorState =
     inlineTarget.targetKind === "node-item"
-      ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind)
+      ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions)
       : null;
 
   if (inlineTarget.targetKind === "node-adornment" && inlineTarget.targetId) {
-    const adornmentState = resolveAdornmentInspectorState(snapshot.source, inlineTarget.targetId, element.style);
+    const adornmentState = resolveAdornmentInspectorState(snapshot.source, inlineTarget.targetId, element.style, snapshot.parseOptions);
     if (adornmentState) {
       const sections: InspectorSection[] = [
         {
@@ -1517,11 +1527,12 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     const roundedCornersRadius = roundedCornersEnabled
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
       : roundedCornersDefaultRadius;
-    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceRef.sourceId);
+    const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceRef.sourceId, snapshot.parseOptions);
     const pathMorphingPreset = resolvePathMorphingDecorationPreset(
       snapshot.source,
       inlineTarget.targetId,
-      element.style.decoration
+      element.style.decoration,
+      snapshot.parseOptions
     );
     const pathMorphingSuboptions = resolvePathMorphingDecorationSuboptionProperties(
       pathMorphingPreset,
@@ -1562,7 +1573,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     }
 
     if (pathSupportsArrowTipEditing(element.commands)) {
-      const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source);
+      const arrowWrite = makeArrowTipWriteTarget(inlineTarget, element, snapshot.source, snapshot.parseOptions);
       pathSection.properties.push({
         kind: "arrowTip",
         id: "arrow-tip-start",
@@ -1703,18 +1714,20 @@ function makeTransformSetPropertyWriteTarget(
 function makeArrowTipWriteTarget(
   inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
   element: Extract<SceneElement, { kind: "Path" }>,
-  source: string
+  source: string,
+  parseOptions: EditParseOptions = {}
 ): ArrowTipWriteTarget {
   return {
     ...makeSetPropertyWriteTarget(inlineTarget, ARROW_OPTION_KEY),
-    arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element)
+    arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element, parseOptions)
   };
 }
 
 function resolveArrowWriteContext(
   source: string,
   targetId: string | null,
-  element: Extract<SceneElement, { kind: "Path" }>
+  element: Extract<SceneElement, { kind: "Path" }>,
+  parseOptions: EditParseOptions = {}
 ): ArrowTipWriteContext {
   const clearKeySet = new Set<string>(ARROW_DEFAULT_CLEAR_KEYS);
   let startRaw = arrowMarkerFallbackRaw(element.style.markerStart, "start");
@@ -1728,7 +1741,7 @@ function resolveArrowWriteContext(
     };
   }
 
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return {
       startRaw,
@@ -1796,7 +1809,8 @@ function resolveFillPaintState(
     shadeEnabled: boolean;
     shading: string;
     fillPattern: ResolvedPattern | null;
-  }
+  },
+  parseOptions: EditParseOptions = {}
 ): { mode: FillModePresetId; shading: FillShadingPresetId; pattern: FillPatternPresetId } {
   const fallbackShading = style.shadeEnabled ? fillShadingPresetFromStyleName(style.shading) : "axis";
   const fallbackPattern = fillPatternPresetFromResolvedPattern(style.fillPattern);
@@ -1809,7 +1823,7 @@ function resolveFillPaintState(
   let sawShadingOption = false;
 
   if (targetId) {
-    const resolved = resolvePropertyTarget(source, targetId);
+    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
     if (resolved.kind !== "not-found" && resolved.target.options) {
       for (const entry of resolved.target.options.entries) {
         if (entry.kind === "flag") {
@@ -2250,14 +2264,15 @@ function resolvePathMorphingDecorationSuboptionValue(
 function resolvePathMorphingDecorationPreset(
   source: string,
   targetId: string | null,
-  styleDecoration: { enabled: boolean; name: string | null }
+  styleDecoration: { enabled: boolean; name: string | null },
+  parseOptions: EditParseOptions = {}
 ): PathMorphingDecorationPresetId {
   const fallback = pathMorphingDecorationPresetFromStyle(styleDecoration);
   if (!targetId) {
     return fallback;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return fallback;
   }
@@ -2527,9 +2542,10 @@ function arrowPresetSideRaw(preset: Exclude<ArrowTipPresetId, "custom">, side: A
 
 function resolveGridInspectorState(
   source: string,
-  pathSourceId: string
+  pathSourceId: string,
+  parseOptions: EditParseOptions = {}
 ): { keywordId: string; step: number; xstep: number; ystep: number } | null {
-  const pathStatement = findPathStatementInSource(source, pathSourceId);
+  const pathStatement = findPathStatementInSource(source, pathSourceId, parseOptions);
   if (!pathStatement) {
     return null;
   }
@@ -2552,8 +2568,8 @@ function resolveGridInspectorState(
   };
 }
 
-function findPathStatementInSource(source: string, sourceId: string): PathStatement | null {
-  const parsed = parseTikz(source, { recover: true });
+function findPathStatementInSource(source: string, sourceId: string, parseOptions: EditParseOptions = {}): PathStatement | null {
+  const parsed = parseTikz(source, { recover: true, activeFigureId: parseOptions.activeFigureId });
   return findPathStatementById(parsed.figure.body, sourceId);
 }
 
@@ -2708,7 +2724,8 @@ function resolveNodeInspectorState(
   source: string,
   targetId: string | null,
   style: Pick<ResolvedStyle, "fontFamily" | "fontWeight" | "fontStyle" | "fontSize">,
-  elementKind: SceneElement["kind"]
+  elementKind: SceneElement["kind"],
+  parseOptions: EditParseOptions = {}
 ): {
   shape: NodeShapePresetId;
   shapeNote?: string;
@@ -2763,7 +2780,7 @@ function resolveNodeInspectorState(
     return state;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return state;
   }
@@ -2906,7 +2923,8 @@ function nodeFontSizePresetFromFontSize(fontSize: number): NodeFontSizePresetId 
 
 function resolveInlineWriteTarget(
   element: SceneElement,
-  source: string
+  source: string,
+  parseOptions: EditParseOptions = {}
 ): { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string } {
   if (element.origin?.foreachStack && element.origin.foreachStack.length > 0) {
     return {
@@ -2935,7 +2953,7 @@ function resolveInlineWriteTarget(
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   for (const targetId of candidateTargetIds) {
-    const resolved = resolvePropertyTarget(source, targetId);
+    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
     if (resolved.kind === "found") {
       return { targetId, targetKind: resolved.target.kind, writable: true };
     }
@@ -2962,7 +2980,8 @@ function resolveInlineWriteTarget(
 function resolveAdornmentInspectorState(
   source: string,
   targetId: string,
-  style: ResolvedStyle
+  style: ResolvedStyle,
+  parseOptions: EditParseOptions = {}
 ): {
   kind: "label" | "pin";
   text: string;
@@ -2975,7 +2994,7 @@ function resolveAdornmentInspectorState(
     dashStyle: DashStylePresetId;
   };
 } | null {
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || resolved.target.kind !== "node-adornment") {
     return null;
   }

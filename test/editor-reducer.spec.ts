@@ -134,6 +134,103 @@ describe("editorReducer – compute lifecycle", () => {
     expect(after.pendingRequestId).toBe("req-2"); // unchanged
     expect(after.snapshot.source).toBe(DEFAULT_SOURCE); // unchanged
   });
+
+  it("auto-selects the first figure on first compute and clears active figure if it disappears", () => {
+    const figureA = {
+      id: "figure:a",
+      span: { from: 0, to: 10 },
+      beginSpan: { from: 0, to: 5 },
+      endSpan: { from: 5, to: 10 },
+      startLine: 1,
+      endLine: 2
+    };
+    const figureB = {
+      id: "figure:b",
+      span: { from: 10, to: 20 },
+      beginSpan: { from: 10, to: 15 },
+      endSpan: { from: 15, to: 20 },
+      startLine: 3,
+      endLine: 4
+    };
+    const firstSnapshot = {
+      ...makeEmptySnapshot("source"),
+      source: "source",
+      figures: [figureA, figureB],
+      activeFigureId: null
+    };
+    const afterFirst = applyActions([
+      { type: "COMPUTE_REQUESTED", requestId: "req-1" },
+      { type: "SNAPSHOT_READY", requestId: "req-1", snapshot: firstSnapshot }
+    ]);
+    expect(afterFirst.activeFigureId).toBe("figure:a");
+
+    const switched = editorReducer(afterFirst, { type: "SET_ACTIVE_FIGURE", figureId: "figure:b" });
+    expect(switched.activeFigureId).toBe("figure:b");
+
+    const secondSnapshot = {
+      ...firstSnapshot,
+      figures: [figureA],
+      activeFigureId: null
+    };
+    const afterRemoval = applyActions([
+      { type: "COMPUTE_REQUESTED", requestId: "req-2" },
+      { type: "SNAPSHOT_READY", requestId: "req-2", snapshot: secondSnapshot }
+    ], switched);
+    expect(afterRemoval.activeFigureId).toBeNull();
+  });
+
+  it("auto-selects first figure when figure count grows and the previous active figure became invalid", () => {
+    const figure0 = {
+      id: "figure:0",
+      span: { from: 0, to: 10 },
+      beginSpan: { from: 0, to: 5 },
+      endSpan: { from: 5, to: 10 },
+      startLine: 1,
+      endLine: 2
+    };
+    const figureA = {
+      id: "figure:a",
+      span: { from: 20, to: 30 },
+      beginSpan: { from: 20, to: 25 },
+      endSpan: { from: 25, to: 30 },
+      startLine: 3,
+      endLine: 4
+    };
+    const figureB = {
+      id: "figure:b",
+      span: { from: 40, to: 50 },
+      beginSpan: { from: 40, to: 45 },
+      endSpan: { from: 45, to: 50 },
+      startLine: 5,
+      endLine: 6
+    };
+
+    const firstSnapshot = {
+      ...makeEmptySnapshot("source-1"),
+      source: "source-1",
+      figures: [figure0],
+      activeFigureId: null
+    };
+    const afterFirst = applyActions([
+      { type: "COMPUTE_REQUESTED", requestId: "req-1" },
+      { type: "SNAPSHOT_READY", requestId: "req-1", snapshot: firstSnapshot }
+    ]);
+    expect(afterFirst.activeFigureId).toBe("figure:0");
+
+    const secondSnapshot = {
+      ...makeEmptySnapshot("source-2"),
+      source: "source-2",
+      figures: [figureA, figureB],
+      activeFigureId: null
+    };
+    const afterSecond = applyActions([
+      { type: "CODE_EDITED", source: "source-2" },
+      { type: "COMPUTE_REQUESTED", requestId: "req-2" },
+      { type: "SNAPSHOT_READY", requestId: "req-2", snapshot: secondSnapshot }
+    ], afterFirst);
+
+    expect(afterSecond.activeFigureId).toBe("figure:a");
+  });
 });
 
 // ── UNDO / REDO ────────────────────────────────────────────────────────────────

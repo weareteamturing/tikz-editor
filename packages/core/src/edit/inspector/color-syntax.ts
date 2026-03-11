@@ -1,4 +1,5 @@
 import { resolvePropertyTarget } from "../property-target.js";
+import type { EditParseOptions } from "../parse-options.js";
 import { normalizeOptionKey } from "../option-key.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../../semantic/style-chain.js";
@@ -67,7 +68,8 @@ export function resolveColorSyntaxValue(
   keys: readonly string[],
   currentValue: string | null,
   colorAliases: ReadonlyMap<string, string>,
-  styleChain: readonly StyleChainEntry[] = []
+  styleChain: readonly StyleChainEntry[] = [],
+  parseOptions: EditParseOptions = {}
 ): string | null {
   const normalizedKeys = new Set(keys.map((key) => normalizeOptionKey(key)));
   if (normalizedKeys.size === 0) {
@@ -77,7 +79,7 @@ export function resolveColorSyntaxValue(
   const normalizedCurrentValue = normalizeInspectorColorValue(currentValue);
 
   if (targetId) {
-    const resolved = resolvePropertyTarget(source, targetId);
+    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
     if (resolved.kind !== "not-found" && resolved.target.options) {
       const directMatch = resolveColorSyntaxFromOptionLists(
         [resolved.target.options],

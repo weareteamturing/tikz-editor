@@ -218,6 +218,74 @@ describe("parseTikz", () => {
     expect(result.figure.body[0]?.kind).toBe("Path");
   });
 
+  it("collects a stable figure inventory across multiple tikzpicture environments", () => {
+    const source = String.raw`\documentclass{article}
+\begin{document}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture*}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture*}
+\end{document}`;
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(2);
+    expect(result.activeFigureId).toBe(result.figures[0]?.id ?? null);
+    expect(result.figure.span.from).toBe(result.figures[0]?.span.from);
+  });
+
+  it("supports selecting the active figure by id", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const firstPass = parseTikz(source, { recover: true });
+    const secondFigureId = firstPass.figures[1]?.id ?? null;
+    expect(secondFigureId).not.toBeNull();
+
+    const result = parseTikz(source, { recover: true, activeFigureId: secondFigureId });
+    expect(result.activeFigureId).toBe(secondFigureId);
+    expect(result.figure.span.from).toBe(firstPass.figures[1]?.span.from);
+  });
+
+  it("keeps figure ids stable when figure spans change", () => {
+    const sourceA = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const sourceB = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (12,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+
+    const first = parseTikz(sourceA, { recover: true });
+    const second = parseTikz(sourceB, { recover: true, activeFigureId: first.figures[0]?.id });
+
+    expect(first.figures.map((figure) => figure.id)).toEqual(["figure:0", "figure:1"]);
+    expect(second.figures.map((figure) => figure.id)).toEqual(["figure:0", "figure:1"]);
+    expect(second.activeFigureId).toBe("figure:0");
+  });
+
+  it("returns no active figure when activeFigureId is explicitly null", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true, activeFigureId: null });
+    expect(result.figures).toHaveLength(2);
+    expect(result.activeFigureId).toBeNull();
+    expect(result.figure.body).toHaveLength(0);
+  });
+
   it("does not tokenize `inner` as standalone `in` within option keys", () => {
     const source = String.raw`\begin{tikzpicture}
   \node [draw, inner sep=5pt] at (0,0) {Hi};

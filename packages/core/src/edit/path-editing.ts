@@ -1,6 +1,6 @@
 import type { CoordinateItem, PathItem, PathKeywordItem, PathStatement, Statement } from "../ast/types.js";
 import type { EditHandle } from "../semantic/types.js";
-import { parseTikz } from "../parser/index.js";
+import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 
 export type PathPointKind = "corner" | "smooth";
 
@@ -42,8 +42,12 @@ export type PathHandleResolution =
   | { kind: "found"; handle: EditHandle; anchorIndex: number }
   | { kind: "missing"; reason: string };
 
-export function resolveEligibleExplicitPath(source: string, elementId: string): PathEditEligibility {
-  const parsed = parseTikz(source, { recover: true });
+export function resolveEligibleExplicitPath(
+  source: string,
+  elementId: string,
+  parseOptions: EditParseOptions = {}
+): PathEditEligibility {
+  const parsed = parseTikzForEdit(source, parseOptions);
   const statement = findPathStatementById(parsed.figure.body, elementId);
   if (!statement) {
     return { kind: "ineligible", reason: "Selected element is not a path statement." };

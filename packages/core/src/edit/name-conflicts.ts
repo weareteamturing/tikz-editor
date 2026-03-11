@@ -1,6 +1,6 @@
 import type { PathItem, Statement } from "../ast/types.js";
 import type { OptionListAst } from "../options/types.js";
-import { parseTikz } from "../parser/index.js";
+import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { isWrappedBySingleBracePair } from "../utils/braces.js";
 
 const DECLARATION_OPTION_KEY_PATTERN = /\b(?:name|alias|name\s+path(?:\s+(?:global|local))?)\s*=\s*/iu;
@@ -15,13 +15,14 @@ const DECLARATION_OPTION_KEYS = new Set([
 
 export function renameSnippetDeclaredNames(
   source: string,
-  snippets: readonly string[]
+  snippets: readonly string[],
+  parseOptions: EditParseOptions = {}
 ): string[] {
   if (snippets.length === 0) {
     return [];
   }
 
-  const existingNames = collectDeclaredNamesFromSource(source);
+  const existingNames = collectDeclaredNamesFromSource(source, parseOptions);
   const declaredNames = collectDeclaredNamesFromSnippets(snippets);
   if (declaredNames.length === 0) {
     return [...snippets];
@@ -47,8 +48,8 @@ export function renameSnippetDeclaredNames(
   return snippets.map((snippet) => applyNameMappingToSnippet(snippet, mapping));
 }
 
-function collectDeclaredNamesFromSource(source: string): Set<string> {
-  const parsed = parseTikz(source, { recover: true });
+function collectDeclaredNamesFromSource(source: string, parseOptions: EditParseOptions): Set<string> {
+  const parsed = parseTikzForEdit(source, parseOptions);
   const names = new Set<string>();
   collectDeclaredNamesFromStatements(parsed.figure.body, names);
   return names;
@@ -65,7 +66,7 @@ function collectDeclaredNamesFromSnippets(snippets: readonly string[]): string[]
     }
 
     const wrapped = wrapSnippetInFigure(normalizedSnippet);
-    const parsed = parseTikz(wrapped, { recover: true });
+    const parsed = parseTikzForEdit(wrapped);
     const names = new Set<string>();
     collectDeclaredNamesFromStatements(parsed.figure.body, names);
 

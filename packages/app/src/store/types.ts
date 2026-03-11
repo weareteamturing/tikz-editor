@@ -55,6 +55,8 @@ export type DocumentSession = {
   id: string;
   title: string;
   source: string;
+  activeFigureId: string | null;
+  hasInitializedFigureSelection: boolean;
   snapshot: SessionSnapshot;
   pendingRequestId: string | null;
   lastEditChangedSourceIds: string[] | null;
@@ -119,6 +121,7 @@ export type EditorState = {
 
   // ── document slice ──────────────────────────────────────────────────────────
   source: string;
+  activeFigureId: string | null;
   snapshot: SessionSnapshot;
   /** Request ID of the most recently triggered compute; null if up-to-date. */
   pendingRequestId: string | null;
@@ -169,6 +172,7 @@ export type EditorState = {
 export type EditorAction =
   // Document
   | { type: "CODE_EDITED"; source: string }
+  | { type: "SET_ACTIVE_FIGURE"; figureId: string | null; documentId?: string }
   | { type: "NEW_DOCUMENT"; source?: string; title?: string }
   | { type: "SWITCH_DOCUMENT"; documentId: string }
   | { type: "CLOSE_DOCUMENT"; documentId?: string }

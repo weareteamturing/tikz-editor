@@ -20,6 +20,7 @@ import {
   type PathPointKind
 } from "../path-editing.js";
 import type { SourcePatch } from "../types.js";
+import type { EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -39,9 +40,10 @@ type PathEditingDeps = {
 export function applySplitPathAction(
   source: string,
   editHandles: EditHandle[],
-  action: SplitPathAction
+  action: SplitPathAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  const resolved = resolveEligibleExplicitPath(source, action.elementId);
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
   if (resolved.kind !== "eligible") {
     return { kind: "unsupported", reason: resolved.reason };
   }
@@ -112,13 +114,14 @@ export function applySplitPathAction(
 export function applyJoinPathsAction(
   source: string,
   action: JoinPathsAction,
-  deps: PathEditingDeps
+  deps: PathEditingDeps,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const elementIds = deps.normalizeElementIds(action.elementIds);
   if (elementIds.length !== 2) {
     return { kind: "unsupported", reason: "Join requires exactly two selected open paths." };
   }
-  const snapshot = parseStatementSnapshot(source);
+  const snapshot = parseStatementSnapshot(source, parseOptions);
   const refs = resolveStatementRefs(snapshot, elementIds).sort((left, right) => left.index - right.index);
   if (refs.length !== 2 || refs[0]?.parentKey !== refs[1]?.parentKey) {
     return { kind: "unsupported", reason: "Join requires two path statements in the same scope." };
@@ -164,9 +167,10 @@ export function applyJoinPathsAction(
 
 export function applyToggleClosedPathAction(
   source: string,
-  action: ToggleClosedPathAction
+  action: ToggleClosedPathAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  const resolved = resolveEligibleExplicitPath(source, action.elementId);
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
   if (resolved.kind !== "eligible") {
     return { kind: "unsupported", reason: resolved.reason };
   }
@@ -224,9 +228,10 @@ export function applyToggleClosedPathAction(
 export function applyDeletePathPointAction(
   source: string,
   editHandles: EditHandle[],
-  action: DeletePathPointAction
+  action: DeletePathPointAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  const resolved = resolveEligibleExplicitPath(source, action.elementId);
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
   if (resolved.kind !== "eligible") {
     return { kind: "unsupported", reason: resolved.reason };
   }
@@ -280,9 +285,10 @@ export function applyDeletePathPointAction(
 export function applySetPathPointKindAction(
   source: string,
   editHandles: EditHandle[],
-  action: SetPathPointKindAction
+  action: SetPathPointKindAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  const resolved = resolveEligibleExplicitPath(source, action.elementId);
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
   if (resolved.kind !== "eligible") {
     return { kind: "unsupported", reason: resolved.reason };
   }

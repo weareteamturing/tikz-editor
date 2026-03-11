@@ -10,6 +10,7 @@ type PersistedWorkspaceV1 = {
     id: string;
     title: string;
     source: string;
+    activeFigureId?: string | null;
     savedSource?: string;
     fileRef?: DocumentFileRef | null;
     assistantThreadId?: string | null;
@@ -81,6 +82,7 @@ function migrateWorkspace(parsed: Partial<PersistedWorkspaceV1 | PersistedWorksp
           id: doc.id,
           title: typeof doc.title === "string" && doc.title.trim().length > 0 ? doc.title : "Untitled",
           source: doc.source,
+          activeFigureId: typeof doc.activeFigureId === "string" ? doc.activeFigureId : null,
           savedSource: typeof doc.savedSource === "string" ? doc.savedSource : doc.source,
           fileRef: normalizeFileRef(doc.fileRef),
           assistantThreadId: typeof doc.assistantThreadId === "string" ? doc.assistantThreadId : null,
@@ -119,6 +121,7 @@ export function saveWorkspace(state: {
     id: string;
     title: string;
     source: string;
+    activeFigureId: string | null;
     savedSource: string;
     fileRef: DocumentFileRef | null;
     assistantThreadId: string | null;
@@ -139,6 +142,7 @@ export function saveWorkspace(state: {
         id: doc.id,
         title: doc.title,
         source: doc.source,
+        activeFigureId: doc.activeFigureId,
         savedSource: doc.savedSource,
         fileRef: doc.fileRef,
         assistantThreadId: doc.assistantThreadId,

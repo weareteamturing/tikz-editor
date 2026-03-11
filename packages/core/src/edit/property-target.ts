@@ -1,5 +1,5 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
-import { parseTikz } from "../parser/index.js";
+import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import type { OptionListAst } from "../options/types.js";
 import { parseOptionListRaw } from "../options/parse.js";
 import {
@@ -55,21 +55,21 @@ export type PropertyTargetResolution =
   | { kind: "found"; target: PropertyTarget }
   | { kind: "not-found"; reason: string };
 
-export function resolvePropertyTarget(source: string, elementId: string): PropertyTargetResolution {
+export function resolvePropertyTarget(source: string, elementId: string, parseOptions: EditParseOptions = {}): PropertyTargetResolution {
   const normalizedId = elementId.trim();
   if (normalizedId.length === 0) {
     return { kind: "not-found", reason: "Missing element id" };
   }
 
   if (normalizedId === TIKZPICTURE_GLOBAL_TARGET_ID) {
-    return resolveFigurePropertyTarget(source);
+    return resolveFigurePropertyTarget(source, parseOptions);
   }
 
   if (normalizedId.startsWith(STYLE_SOURCE_TARGET_PREFIX)) {
     return resolveStyleSourceTarget(source, normalizedId);
   }
 
-  const parseResult = parseTikz(source, { recover: true });
+  const parseResult = parseTikzForEdit(source, parseOptions);
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (!target) {
     return { kind: "not-found", reason: `No editable source target found for ${normalizedId}` };
@@ -78,8 +78,8 @@ export function resolvePropertyTarget(source: string, elementId: string): Proper
   return { kind: "found", target };
 }
 
-function resolveFigurePropertyTarget(source: string): PropertyTargetResolution {
-  const parseResult = parseTikz(source, { recover: true });
+function resolveFigurePropertyTarget(source: string, parseOptions: EditParseOptions): PropertyTargetResolution {
+  const parseResult = parseTikzForEdit(source, parseOptions);
   const figure = parseResult.figure;
   if (figure.span.from >= figure.span.to) {
     return { kind: "not-found", reason: "No editable tikzpicture target found." };

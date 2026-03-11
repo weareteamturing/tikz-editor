@@ -1,4 +1,4 @@
-@top TikzFile { BodyItem* (TikzEnvironment | TikzInline) | BodyItem* }
+@top TikzFile { TikzInline | (BodyItem* TikzEnvironment)+ BodyItem* | BodyItem* }
 
 @skip { space }
 
@@ -11,14 +11,14 @@ TikzEnvironment {
   BeginTikz OptionList? BodyItem* EndTikz
 }
 
-TikzInline {
-  InlineTikzCmd OptionList? BodyItem*
-}
-
 BodyItem {
   Comment |
   Statement |
   StrayToken
+}
+
+TikzInline {
+  InlineTikzCmd OptionList? BodyItem*
 }
 
 Statement {
@@ -708,9 +708,9 @@ StrayToken {
 
   Comment { "%" ![\n\r]* }
 
-  BeginTikz { "\\begin{tikzpicture}" }
+  BeginTikz { "\\begin{tikzpicture}" | "\\begin{tikzpicture*}" }
   InlineTikzCmd { "\\tikz" }
-  EndTikz { "\\end{tikzpicture}" }
+  EndTikz { "\\end{tikzpicture}" | "\\end{tikzpicture*}" }
 
   DrawCmd { "\\draw" }
   GraphCmd { "\\graph" }

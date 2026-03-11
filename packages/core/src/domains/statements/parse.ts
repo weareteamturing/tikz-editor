@@ -30,8 +30,7 @@ export function mapBodyStatements(node: SyntaxNode, source: string, state: State
   const statements: Statement[] = [];
 
   forEachChild(node, (child) => {
-    const actualBodyItem = child.type.name === "BodyItem" ? (firstNamedChild(child) ?? child) : child;
-    const maybeStatement = actualBodyItem.type.name === "Statement" ? (firstNamedChild(actualBodyItem) ?? actualBodyItem) : actualBodyItem;
+    const maybeStatement = unwrapStatementLikeNode(child);
 
     const mapped = mapStatementNode(maybeStatement, source, state);
     if (mapped) {
@@ -42,7 +41,12 @@ export function mapBodyStatements(node: SyntaxNode, source: string, state: State
   return statements;
 }
 
-function mapStatementNode(node: SyntaxNode, source: string, state: StatementMappingState): Statement | null {
+export function unwrapStatementLikeNode(node: SyntaxNode): SyntaxNode {
+  const actualBodyItem = node.type.name === "BodyItem" ? (firstNamedChild(node) ?? node) : node;
+  return actualBodyItem.type.name === "Statement" ? (firstNamedChild(actualBodyItem) ?? actualBodyItem) : actualBodyItem;
+}
+
+export function mapStatementNode(node: SyntaxNode, source: string, state: StatementMappingState): Statement | null {
   if (node.type.name === "PathStatement") {
     return mapPathStatement(node, source, allocateStatementIndex(state));
   }

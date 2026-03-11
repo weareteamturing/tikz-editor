@@ -36,3 +36,11 @@ TODOS
 * App settings: geometry precision digits, code formatter options
 
 * Any wizards?
+
+* File extension registration for .tikz (primary editor), .tex (secondary editor)
+
+* Updating extension, with .json to live at https://tikz.dev/edit/update.json
+
+* Github Action running on trigger that builds Windows binary
+
+* Dialog "sure you want to close" should be native

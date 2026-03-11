@@ -4,6 +4,7 @@ import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
 import { applyAdornmentValueRewrite } from "./adornment-set-property.js";
+import type { EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -34,8 +35,12 @@ export type AddNodeAdornmentAction = {
   text: string;
 };
 
-export function applyDuplicateAdornmentAction(source: string, targetId: string): EditActionResultLike {
-  const resolved = resolvePropertyTarget(source, targetId);
+export function applyDuplicateAdornmentAction(
+  source: string,
+  targetId: string,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.optionSpan) {
     return { kind: "unsupported", reason: "Selected adornment could not be resolved for duplication." };
   }
@@ -65,8 +70,12 @@ export function applyDuplicateAdornmentAction(source: string, targetId: string):
   };
 }
 
-export function applyMoveAdornmentAction(source: string, action: MoveAdornmentAction): EditActionResultLike {
-  const resolved = resolvePropertyTarget(source, action.targetId);
+export function applyMoveAdornmentAction(
+  source: string,
+  action: MoveAdornmentAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolvePropertyTarget(source, action.targetId, parseOptions);
   if (resolved.kind !== "found" || resolved.target.kind !== "node-adornment" || !resolved.target.valueSpan) {
     return { kind: "unsupported", reason: "Selected adornment could not be resolved for drag editing." };
   }
@@ -74,8 +83,12 @@ export function applyMoveAdornmentAction(source: string, action: MoveAdornmentAc
   return applyAdornmentValueRewrite(source, resolved.target, resolveAdornmentMoveOverrides(action), action.targetId);
 }
 
-export function applyAddNodeAdornmentAction(source: string, action: AddNodeAdornmentAction): EditActionResultLike {
-  const resolved = resolvePropertyTarget(source, action.nodeId);
+export function applyAddNodeAdornmentAction(
+  source: string,
+  action: AddNodeAdornmentAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolvePropertyTarget(source, action.nodeId, parseOptions);
   if (resolved.kind !== "found") {
     return { kind: "unsupported", reason: "Selected node could not be resolved for adding an adornment." };
   }

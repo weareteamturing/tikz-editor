@@ -1,6 +1,6 @@
 import type { Statement, Span } from "../ast/types.js";
-import { parseTikz } from "../parser/index.js";
 import type { SourcePatch } from "./types.js";
+import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 
 export type StatementRef = {
   id: string;
@@ -34,8 +34,8 @@ export type AppliedTextReplacement = {
   newSpan: Span;
 };
 
-export function parseStatementSnapshot(source: string): StatementSnapshot {
-  const parsed = parseTikz(source, { recover: true });
+export function parseStatementSnapshot(source: string, parseOptions: EditParseOptions = {}): StatementSnapshot {
+  const parsed = parseTikzForEdit(source, parseOptions);
   const all: StatementRef[] = [];
   const byId = new Map<string, StatementRef>();
   const byParentKey = new Map<string, StatementRef[]>();

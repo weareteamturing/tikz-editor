@@ -27,6 +27,13 @@
   background: var(--bg-panel);
 }
 
+.centerColumn {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
 @media print {
   .app {
     height: auto !important;

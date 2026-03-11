@@ -2,6 +2,7 @@ import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation }
 import { resolvePropertyTarget } from "../property-target.js";
 import type { SourcePatch } from "../types.js";
 import { applyAdornmentSetProperty } from "./adornment-set-property.js";
+import type { EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
   | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
@@ -26,9 +27,10 @@ export type SetPropertyAction = {
 
 export function applySetPropertyAction(
   source: string,
-  action: SetPropertyAction
+  action: SetPropertyAction,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
-  const resolved = resolvePropertyTarget(source, action.elementId);
+  const resolved = resolvePropertyTarget(source, action.elementId, parseOptions);
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };
   }

@@ -11,7 +11,6 @@ import type {
 import type { CoordinateItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
 import type { PropertyTarget } from "../property-target.js";
 import { resolvePropertyTarget } from "../property-target.js";
-import { parseTikz } from "../../parser/index.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../../semantic/path/parsers.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
@@ -30,6 +29,7 @@ import {
   type OptionMutationApplyResult
 } from "../option-mutations.js";
 import type { SourcePatch } from "../types.js";
+import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 
 const RESIZE_EPSILON = 1e-3;
 
@@ -59,19 +59,20 @@ type EditActionResultLike =
 export function applyResizeElementAction(
   source: string,
   action: ResizeElementAction,
-  evaluateOptions: EvaluateOptions | undefined
+  evaluateOptions: EvaluateOptions | undefined,
+  parseOptions: EditParseOptions = {}
 ): EditActionResultLike {
   const elementId = action.elementId.trim();
   if (elementId.length === 0) {
     return { kind: "unsupported", reason: "Missing element id for resizeElement." };
   }
 
-  const resolved = resolvePropertyTarget(source, elementId);
+  const resolved = resolvePropertyTarget(source, elementId, parseOptions);
   if (resolved.kind === "not-found") {
     return { kind: "unsupported", reason: resolved.reason };
   }
 
-  const parsed = parseTikz(source, { recover: true });
+  const parsed = parseTikzForEdit(source, parseOptions);
   const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
   const hasNodePositionHandle = semantic.editHandles.some(
     (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "node-position"
@@ -118,7 +119,7 @@ export function applyResizeElementAction(
   ]);
   const floorRewrite = applyOptionMutationsToTarget(source, resizeTarget, floorMutations);
   const floorSource = floorRewrite ? floorRewrite.source : source;
-  const floorParsed = parseTikz(floorSource, { recover: true });
+  const floorParsed = parseTikzForEdit(floorSource, parseOptions);
   const floorSemantic = evaluateTikzFigure(floorParsed.figure, floorSource, evaluateOptions);
   const floorBoundsBySource = collectSourceWorldBounds(floorSemantic.scene.elements);
   const floorBounds = floorBoundsBySource.get(elementId);

@@ -21,7 +21,6 @@ import {
 } from "./element-templates.js";
 import type { OptionEntry } from "../options/types.js";
 import { resolvePropertyTarget, type PropertyTarget } from "./property-target.js";
-import { parseTikz } from "../parser/index.js";
 import { evaluateTikzFigure } from "../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../semantic/path/parsers.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
@@ -81,6 +80,7 @@ import {
 import { applyReorderElementsAction, buildParentReorderReplacement } from "./actions/reorder-elements.js";
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
+import type { EditParseOptions } from "./parse-options.js";
 
 export type ResizeRole =
   | "top-left"
@@ -156,6 +156,7 @@ const RESIZE_EPSILON = 1e-3;
 
 type EditActionApplyOptions = {
   evaluateOptions?: EvaluateOptions;
+  parseOptions?: EditParseOptions;
 };
 
 export function applyEditAction(
@@ -165,54 +166,55 @@ export function applyEditAction(
   options: EditActionApplyOptions = {}
 ): EditActionResult {
   const evaluateOptions = options.evaluateOptions;
+  const parseOptions = options.parseOptions ?? {};
   const result = (() : EditActionResult => {
     switch (action.kind) {
       case "moveHandle":
         return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
       case "connectHandle":
-        return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.anchor);
+        return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.anchor, parseOptions);
       case "splitPath":
-        return applySplitPath(source, editHandles, action);
+        return applySplitPath(source, editHandles, action, parseOptions);
       case "joinPaths":
-        return applyJoinPaths(source, action);
+        return applyJoinPaths(source, action, parseOptions);
       case "toggleClosedPath":
-        return applyToggleClosedPath(source, action);
+        return applyToggleClosedPath(source, action, parseOptions);
       case "deletePathPoint":
-        return applyDeletePathPoint(source, editHandles, action);
+        return applyDeletePathPoint(source, editHandles, action, parseOptions);
       case "setPathPointKind":
-        return applySetPathPointKind(source, editHandles, action);
+        return applySetPathPointKind(source, editHandles, action, parseOptions);
       case "moveElement":
-        return applyMoveElements(source, editHandles, [action.elementId], action.delta);
+        return applyMoveElements(source, editHandles, [action.elementId], action.delta, parseOptions);
       case "moveElements":
-        return applyMoveElements(source, editHandles, action.elementIds, action.delta);
+        return applyMoveElements(source, editHandles, action.elementIds, action.delta, parseOptions);
       case "alignElements":
-        return applyAlignElements(source, action);
+        return applyAlignElements(source, action, parseOptions);
       case "distributeElements":
-        return applyDistributeElements(source, action);
+        return applyDistributeElements(source, action, parseOptions);
       case "setProperty":
-        return applySetProperty(source, action);
+        return applySetProperty(source, action, parseOptions);
       case "addElement":
         return applyAddElement(source, action.template, action.at);
       case "deleteElement":
-        return applyDeleteElementsAction(source, [action.elementId]);
+        return applyDeleteElementsAction(source, [action.elementId], parseOptions);
       case "deleteElements":
-        return applyDeleteElementsAction(source, action.elementIds);
+        return applyDeleteElementsAction(source, action.elementIds, parseOptions);
       case "deleteAdornment":
-        return applyDeleteAdornmentAction(source, action.targetId);
+        return applyDeleteAdornmentAction(source, action.targetId, parseOptions);
       case "pasteStatements":
-        return applyPasteStatements(source, action);
+        return applyPasteStatements(source, action, parseOptions);
       case "duplicateElements":
-        return applyDuplicateElements(source, action);
+        return applyDuplicateElements(source, action, parseOptions);
       case "duplicateAdornment":
-        return applyDuplicateAdornment(source, action.targetId);
+        return applyDuplicateAdornment(source, action.targetId, parseOptions);
       case "moveAdornment":
-        return applyMoveAdornmentAction(source, action);
+        return applyMoveAdornmentAction(source, action, parseOptions);
       case "addNodeAdornment":
-        return applyAddNodeAdornmentAction(source, action);
+        return applyAddNodeAdornmentAction(source, action, parseOptions);
       case "reorderElements":
-        return applyReorderElementsAction(source, action.elementIds, action.direction);
+        return applyReorderElementsAction(source, action.elementIds, action.direction, parseOptions);
       case "resizeElement":
-        return applyResizeElement(source, action, evaluateOptions);
+        return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
   })();
   return withChangedSourceIds(result, action, editHandles);
@@ -244,7 +246,8 @@ function applyConnectHandle(
   editHandles: EditHandle[],
   handleId: string,
   nodeName: string,
-  anchor: string
+  anchor: string,
+  parseOptions: EditParseOptions
 ): EditActionResult {
   const handle = editHandles.find((candidate) => candidate.id === handleId);
   if (!handle) {
@@ -310,7 +313,8 @@ function applyConnectHandle(
   const reordered = moveStatementAfterNamedDefinition(
     updated.source,
     handle.sourceRef.sourceId,
-    trimmedNodeName
+    trimmedNodeName,
+    parseOptions
   );
   const reorderedPatches = reordered ? reordered.patches : [];
   const newSource = reordered?.source ?? updated.source;
@@ -332,90 +336,100 @@ function applyConnectHandle(
 function applySplitPath(
   source: string,
   editHandles: EditHandle[],
-  action: Extract<EditAction, { kind: "splitPath" }>
+  action: Extract<EditAction, { kind: "splitPath" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applySplitPathAction(source, editHandles, action);
+  return applySplitPathAction(source, editHandles, action, parseOptions);
 }
 
 function applyJoinPaths(
   source: string,
-  action: Extract<EditAction, { kind: "joinPaths" }>
+  action: Extract<EditAction, { kind: "joinPaths" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyJoinPathsAction(source, action, { normalizeElementIds });
+  return applyJoinPathsAction(source, action, { normalizeElementIds }, parseOptions);
 }
 
 function applyToggleClosedPath(
   source: string,
-  action: Extract<EditAction, { kind: "toggleClosedPath" }>
+  action: Extract<EditAction, { kind: "toggleClosedPath" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyToggleClosedPathAction(source, action);
+  return applyToggleClosedPathAction(source, action, parseOptions);
 }
 
 function applyDeletePathPoint(
   source: string,
   editHandles: EditHandle[],
-  action: Extract<EditAction, { kind: "deletePathPoint" }>
+  action: Extract<EditAction, { kind: "deletePathPoint" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyDeletePathPointAction(source, editHandles, action);
+  return applyDeletePathPointAction(source, editHandles, action, parseOptions);
 }
 
 function applySetPathPointKind(
   source: string,
   editHandles: EditHandle[],
-  action: Extract<EditAction, { kind: "setPathPointKind" }>
+  action: Extract<EditAction, { kind: "setPathPointKind" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applySetPathPointKindAction(source, editHandles, action);
+  return applySetPathPointKindAction(source, editHandles, action, parseOptions);
 }
 
 function applyMoveElements(
   source: string,
   editHandles: EditHandle[],
   elementIds: readonly string[],
-  delta: Point
+  delta: Point,
+  parseOptions: EditParseOptions = {}
 ): EditActionResult {
-  return applyMoveElementsAction(source, editHandles, elementIds, delta);
+  return applyMoveElementsAction(source, editHandles, elementIds, delta, parseOptions);
 }
 
 function applyAlignElements(
   source: string,
-  action: Extract<EditAction, { kind: "alignElements" }>
+  action: Extract<EditAction, { kind: "alignElements" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyAlignElementsAction(source, action);
+  return applyAlignElementsAction(source, action, parseOptions);
 }
 
 function applyDistributeElements(
   source: string,
-  action: Extract<EditAction, { kind: "distributeElements" }>
+  action: Extract<EditAction, { kind: "distributeElements" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyDistributeElementsAction(source, action);
+  return applyDistributeElementsAction(source, action, parseOptions);
 }
 
 function applyPasteStatements(
   source: string,
-  action: Extract<EditAction, { kind: "pasteStatements" }>
+  action: Extract<EditAction, { kind: "pasteStatements" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
   return applyPasteStatementsAction(source, action, {
     applyMoveElements,
     normalizeElementIds,
     uniqueStrings,
     defaultDuplicateOffsetPt: DEFAULT_DUPLICATE_OFFSET_PT
-  });
+  }, parseOptions);
 }
 
 function applyDuplicateElements(
   source: string,
-  action: Extract<EditAction, { kind: "duplicateElements" }>
+  action: Extract<EditAction, { kind: "duplicateElements" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
   return applyDuplicateElementsAction(source, action, {
     applyMoveElements,
     normalizeElementIds,
     uniqueStrings,
     defaultDuplicateOffsetPt: DEFAULT_DUPLICATE_OFFSET_PT
-  });
+  }, parseOptions);
 }
 
-function applyDuplicateAdornment(source: string, targetId: string): EditActionResult {
-  return applyDuplicateAdornmentAction(source, targetId);
+function applyDuplicateAdornment(source: string, targetId: string, parseOptions: EditParseOptions): EditActionResult {
+  return applyDuplicateAdornmentAction(source, targetId, parseOptions);
 }
 
 
@@ -574,9 +588,10 @@ function isSharedExpandedHandleSpan(
 function moveStatementAfterNamedDefinition(
   source: string,
   movingStatementId: string,
-  name: string
+  name: string,
+  parseOptions: EditParseOptions = {}
 ): { source: string; patches: SourcePatch[] } | null {
-  const snapshot = parseStatementSnapshot(source);
+  const snapshot = parseStatementSnapshot(source, parseOptions);
   const movingRef = snapshot.byId.get(movingStatementId);
   if (!movingRef) {
     return null;
@@ -715,17 +730,19 @@ function uniqueStrings(values: readonly string[]): string[] {
 
 function applySetProperty(
   source: string,
-  action: Extract<EditAction, { kind: "setProperty" }>
+  action: Extract<EditAction, { kind: "setProperty" }>,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applySetPropertyAction(source, action);
+  return applySetPropertyAction(source, action, parseOptions);
 }
 
 function applyResizeElement(
   source: string,
   action: Extract<EditAction, { kind: "resizeElement" }>,
-  evaluateOptions: EvaluateOptions | undefined
+  evaluateOptions: EvaluateOptions | undefined,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  return applyResizeElementAction(source, action, evaluateOptions);
+  return applyResizeElementAction(source, action, evaluateOptions, parseOptions);
 }
 
 function applyAddElement(

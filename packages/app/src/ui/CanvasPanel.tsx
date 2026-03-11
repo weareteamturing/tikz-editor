@@ -487,6 +487,7 @@ export function CanvasPanel() {
   const platform = getActiveEditorPlatform();
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
@@ -1006,7 +1007,13 @@ export function CanvasPanel() {
   const applyActionWithFeedback = useCallback(
     (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
       const result = applyEditAction(source, snapshot.editHandles, action, {
-        evaluateOptions: { textEngine: textEngineRef.current }
+        evaluateOptions: { textEngine: textEngineRef.current },
+        parseOptions: {
+          activeFigureId:
+            activeFigureId == null
+              ? (snapshot.figures.length > 1 ? null : undefined)
+              : activeFigureId
+        }
       });
 
       if (result.kind === "success" || result.kind === "partial") {
@@ -1041,7 +1048,7 @@ export function CanvasPanel() {
 
       return { sourceChanged: false };
     },
-    [dispatch, source, snapshot.editHandles]
+    [activeFigureId, dispatch, source, snapshot.editHandles]
   );
 
   const queueSelectionForAddedElement = useCallback(
@@ -2073,6 +2080,7 @@ export function CanvasPanel() {
       onViewportDrop={onViewportDrop}
       onViewportPointerDown={onViewportPointerDown}
       svgResult={svgResult}
+      noActiveFigure={snapshot.figures.length > 0 && snapshot.activeFigureId == null}
       assistantLockReason={assistantLockReason}
       snapshot={snapshot}
       canvasTransform={canvasTransform}
