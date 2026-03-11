@@ -83,24 +83,43 @@ async function waitForDriverReady(driverProcess) {
 async function createSession(application) {
   const deadline = Date.now() + 20_000;
   let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      return await remote({
-        hostname: "127.0.0.1",
-        port: 4444,
-        path: "/",
-        capabilities: {
-          browserName: "wry",
-          "tauri:options": {
-            application
-          }
-        },
-        logLevel: "error"
-      });
-    } catch (error) {
-      lastError = error;
-      await delay(500);
+  let warnedCapabilityFallback = false;
+  const capabilityCandidates = [
+    {
+      "tauri:options": {
+        application
+      },
+      "wdio:enforceWebDriverClassic": true
+    },
+    {
+      browserName: "wry",
+      "tauri:options": {
+        application
+      },
+      "wdio:enforceWebDriverClassic": true
     }
+  ];
+
+  while (Date.now() < deadline) {
+    for (let index = 0; index < capabilityCandidates.length; index += 1) {
+      const capabilities = capabilityCandidates[index];
+      try {
+        return await remote({
+          hostname: "127.0.0.1",
+          port: 4444,
+          path: "/",
+          capabilities,
+          logLevel: "error"
+        });
+      } catch (error) {
+        lastError = error;
+        if (!warnedCapabilityFallback && index === 0) {
+          warnedCapabilityFallback = true;
+          console.warn("Desktop e2e: falling back to legacy WebDriver capabilities after initial session rejection.");
+        }
+      }
+    }
+    await delay(500);
   }
   throw new Error(`Unable to create desktop WebDriver session: ${String(lastError)}`);
 }
