@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { remote } from "webdriverio";
@@ -67,35 +68,14 @@ function resolveAppBinary() {
 
 async function waitForDriverReady(driverProcess) {
   const deadline = Date.now() + 30_000;
-  let stdout = "";
   while (Date.now() < deadline) {
-    const chunk = await new Promise((resolve) => {
-      let resolved = false;
-      const onData = (data) => {
-        if (resolved) {
-          return;
-        }
-        resolved = true;
-        driverProcess.stdout.off("data", onData);
-        resolve(data.toString("utf8"));
-      };
-      driverProcess.stdout.on("data", onData);
-      setTimeout(() => {
-        if (resolved) {
-          return;
-        }
-        resolved = true;
-        driverProcess.stdout.off("data", onData);
-        resolve("");
-      }, 400);
-    });
-    stdout += chunk;
-    if (/listening|webdriver|ready/i.test(stdout)) {
+    if (await isPortOpen(4444)) {
       return;
     }
     if (driverProcess.exitCode != null) {
       throw new Error(`tauri-driver exited early with code ${driverProcess.exitCode}`);
     }
+    await delay(250);
   }
   throw new Error("Timed out waiting for tauri-driver to become ready.");
 }
@@ -289,6 +269,27 @@ async function expectTextContains(browserInstance, selector, snippet) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function isPortOpen(port) {
+  return await new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(250);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+    socket.connect(port, "127.0.0.1");
+  });
 }
 
 function resolveNativeWebkitDriver() {
