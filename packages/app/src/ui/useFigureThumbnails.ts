@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParseTikzResult } from "tikz-editor/parser/index";
-import { renderTikzToSvg } from "tikz-editor/render/index";
+import { cancelGroup, requestThumbnail } from "./workers/thumbnail-worker-client";
+import type { ThumbnailRenderRequest } from "./workers/thumbnail-worker-types";
 
 type FigureEntry = ParseTikzResult["figures"][number];
 
@@ -12,6 +13,8 @@ type UseFigureThumbnailsOptions = {
 
 const thumbnailCache = new Map<string, string>();
 const thumbnailInFlight = new Map<string, Promise<string | null>>();
+let thumbnailGroupCounter = 0;
+let thumbnailRequestCounter = 0;
 
 function makeFigureSignature(source: string, figure: FigureEntry): string {
   const from = Math.max(0, Math.min(source.length, figure.span.from));
@@ -37,6 +40,7 @@ export function useFigureThumbnails(
     figures
   });
   const lastThumbnailByFigureIdRef = useRef(new Map<string, string>());
+  const requestTokenByFigureRef = useRef(new Map<string, number>());
   const stableSource = stableInput.source;
   const stableFigures = stableInput.figures;
 
@@ -100,6 +104,7 @@ export function useFigureThumbnails(
       .slice(0, maxToRender);
 
     let cancelled = false;
+    const groupId = `figure-thumb-group-${(thumbnailGroupCounter += 1).toString(36)}`;
     const timers: Array<{ kind: "idle" | "timeout"; id: number }> = [];
 
     const queue = async (): Promise<void> => {
@@ -121,21 +126,41 @@ export function useFigureThumbnails(
           if (!figure) {
             continue;
           }
-          inFlight = Promise.resolve().then(() => {
-            const rendered = renderTikzToSvg(stableSource, {
-              parse: {
-                recover: true,
-                activeFigureId: figure.id,
-                includeContextDefinitions: true
-              },
-              svg: { padding: 8 }
+          const requestId = `figure-thumb-${(thumbnailRequestCounter += 1).toString(36)}`;
+          const nextToken = (requestTokenByFigureRef.current.get(figureId) ?? 0) + 1;
+          requestTokenByFigureRef.current.set(figureId, nextToken);
+          const request: ThumbnailRenderRequest = {
+            type: "render",
+            requestId,
+            groupId,
+            source: stableSource,
+            figureId: figure.id,
+            figureSignature,
+            parseOptions: {
+              recover: true,
+              activeFigureId: figure.id,
+              includeContextDefinitions: true
+            },
+            svgOptions: { padding: 8 }
+          };
+          inFlight = requestThumbnail(request)
+            .then((result) => {
+              if (!result.ok || cancelled) {
+                return null;
+              }
+              const activeToken = requestTokenByFigureRef.current.get(figureId);
+              if (activeToken !== nextToken) {
+                return null;
+              }
+              return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(result.svg)}`;
+            })
+            .catch(() => null)
+            .finally(() => {
+              thumbnailInFlight.delete(key);
             });
-            return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rendered.svg.svg)}`;
-          }).catch(() => null);
           thumbnailInFlight.set(key, inFlight);
         }
         const url = await inFlight;
-        thumbnailInFlight.delete(key);
         if (cancelled) {
           return;
         }
@@ -161,6 +186,7 @@ export function useFigureThumbnails(
 
     return () => {
       cancelled = true;
+      cancelGroup(groupId);
       for (const timer of timers) {
         if (timer.kind === "idle" && typeof window.cancelIdleCallback === "function") {
           window.cancelIdleCallback(timer.id);
