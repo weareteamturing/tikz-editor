@@ -1,5 +1,4 @@
 import type {
-  ChildOperationItem,
   CoordinateForm,
   CoordinateItem,
   EdgeFromParentOperationItem,
@@ -13,8 +12,6 @@ import type {
   ToOperationItem
 } from "../../ast/types.js";
 import { parseTikz } from "../../parser/index.js";
-import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
-import type { MacroBinding } from "../../macros/index.js";
 import { expandForeachList } from "../../foreach/list.js";
 import {
   readNamedCoordinate,
@@ -25,7 +22,6 @@ import {
 import {
   applyNameScope,
   evaluateNodeItem,
-  measureNodeAnchorExtents,
   maybeResolveNamedCoordinateBorderPoint,
   maybeResolveTrailingCoordinateFromNodeName,
   shouldCaptureStandaloneNodeNameCoordinate
@@ -33,21 +29,17 @@ import {
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js";
 import type { EvaluatedCoordinate } from "../coords/evaluate.js";
-import { parseLength, parseQuantityExpression } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import { appendArcCommand, extractArcParameters, parseArcShorthand } from "./arc.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import { appendSinCosSegment, parseBezierFromItems } from "./curves.js";
 import {
-  appendCircleSubpath,
   appendEllipseSubpath,
   appendRectangleSubpath,
   ensurePathForSubpath,
   flushDrawableActivePath,
   hasDrawablePathSegments,
   markPathShapeHint,
-  makeCircleElement,
-  makeEllipseElement,
   makePath,
   makeRectangleElement
 } from "./elements.js";
@@ -66,7 +58,7 @@ import {
   materializeNodeAdornment
 } from "./label-quotes.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
-import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
+import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
@@ -76,413 +68,25 @@ import {
   applyPlotOptionLists,
   applyPlotSettingsFromStyleChain,
   createDefaultPlotSettings,
-  formatPlotSampleValue,
-  resolvePlotSampleValues,
   type PlotSettings
 } from "./plot.js";
 import { decoratePathElements } from "./decorate.js";
+import { makeTreeAutoName } from "./tree.js";
 import {
-  collectDeferredTreeHookDiagnostics,
-  collectTreeChildCluster,
-  computeTreeChildOrigin,
-  makeTreeAutoName,
-  prepareChildBodyWithRoot,
-  resolveNamedTreeAnchorPoint,
-  resolveTreeLevelStyleLayers
-} from "./tree.js";
-import {
-  formatPointCoordinateRaw,
   hasFollowingChildOperation,
-  hasNamedTreeRootNode,
-  sanitizeGeneratedNodeName,
-  splitChildBodyAndTrailingEdgeFromParent
+  sanitizeGeneratedNodeName
 } from "./tree-child.js";
-import { buildGraphPlan, type GraphPlacementHint } from "./graph.js";
-
-type EllipseGeometry = {
-  rx: number;
-  ry: number;
-  rotation: number;
-};
-
-type CircleOrEllipseGeometry =
-  | {
-      kind: "circle";
-      radius: number;
-    }
-  | ({
-      kind: "ellipse";
-    } & EllipseGeometry);
-
-type RuntimeGraphNode = {
-  syntheticNode: NodeItem;
-  defaultPoint: Point;
-  placementHint?: GraphPlacementHint;
-  nodeIndex: number;
-};
-
-function resolveSizeAwareGraphNodePoints(
-  runtimeNodes: RuntimeGraphNode[],
-  statement: PathStatement,
-  context: SemanticContext,
-  style: ResolvedStyle
-): Map<number, Point> {
-  const resolved = new Map<number, Point>();
-  if (runtimeNodes.length === 0) {
-    return resolved;
-  }
-
-  const hintedNodes = runtimeNodes.filter((node): node is RuntimeGraphNode & { placementHint: GraphPlacementHint } => Boolean(node.placementHint));
-  if (hintedNodes.length !== runtimeNodes.length) {
-    return resolved;
-  }
-
-  const baseHint = hintedNodes[0]!.placementHint;
-  if (baseHint.mode !== "cartesian" && baseHint.mode !== "grid") {
-    return resolved;
-  }
-  if (baseHint.chainSepDistance == null && baseHint.groupSepDistance == null) {
-    return resolved;
-  }
-  if (!hintedNodes.every((node) => placementHintsCompatible(baseHint, node.placementHint))) {
-    return resolved;
-  }
-
-  const chainUnit = normalizeVector(baseHint.chainShift);
-  const groupUnit = normalizeVector(baseHint.groupShift);
-  if (!chainUnit || !groupUnit) {
-    return resolved;
-  }
-
-  const chainStep = Math.max(1e-3, Math.hypot(baseHint.chainShift.x, baseHint.chainShift.y));
-  const groupStep = Math.max(1e-3, Math.hypot(baseHint.groupShift.x, baseHint.groupShift.y));
-  const chainSep = baseHint.chainSepDistance;
-  const groupSep = baseHint.groupSepDistance;
-
-  const measured = hintedNodes.map((node) => ({
-    node,
-    extents: measureNodeAnchorExtents(node.syntheticNode, statement, context, style)
-  }));
-
-  const columnKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalWidth));
-  const rowKeys = sortedUnique(measured.map((entry) => entry.node.placementHint.logicalDepth));
-
-  const columnExtent = new Map<number, AxisSupport>();
-  const rowExtent = new Map<number, AxisSupport>();
-  for (const entry of measured) {
-    const widthKey = entry.node.placementHint.logicalWidth;
-    const depthKey = entry.node.placementHint.logicalDepth;
-    const projectedChain = projectedAxisSupport(chainUnit, entry.extents);
-    const projectedGroup = projectedAxisSupport(groupUnit, entry.extents);
-    const existingColumn = columnExtent.get(widthKey);
-    const existingRow = rowExtent.get(depthKey);
-    columnExtent.set(widthKey, mergeAxisSupport(existingColumn, projectedChain));
-    rowExtent.set(depthKey, mergeAxisSupport(existingRow, projectedGroup));
-  }
-
-  const columnOffset = buildAxisOffsets(columnKeys, columnExtent, chainSep, chainStep);
-  const rowOffset = buildAxisOffsets(rowKeys, rowExtent, groupSep, groupStep);
-
-  const anchorNode = measured[0]!.node;
-  const anchorColOffset = columnOffset.get(anchorNode.placementHint.logicalWidth) ?? 0;
-  const anchorRowOffset = rowOffset.get(anchorNode.placementHint.logicalDepth) ?? 0;
-  const anchorComputed = {
-    x: chainUnit.x * anchorColOffset + groupUnit.x * anchorRowOffset,
-    y: chainUnit.y * anchorColOffset + groupUnit.y * anchorRowOffset
-  };
-  const translation = {
-    x: anchorNode.defaultPoint.x - anchorComputed.x,
-    y: anchorNode.defaultPoint.y - anchorComputed.y
-  };
-
-  for (const entry of measured) {
-    const col = columnOffset.get(entry.node.placementHint.logicalWidth) ?? 0;
-    const row = rowOffset.get(entry.node.placementHint.logicalDepth) ?? 0;
-    resolved.set(entry.node.nodeIndex, {
-      x: chainUnit.x * col + groupUnit.x * row + translation.x,
-      y: chainUnit.y * col + groupUnit.y * row + translation.y
-    });
-  }
-
-  return resolved;
-}
-
-function placementHintsCompatible(left: GraphPlacementHint, right: GraphPlacementHint): boolean {
-  return (
-    left.mode === right.mode &&
-    left.chainSepDistance === right.chainSepDistance &&
-    left.groupSepDistance === right.groupSepDistance &&
-    Math.abs(left.chainShift.x - right.chainShift.x) <= 1e-6 &&
-    Math.abs(left.chainShift.y - right.chainShift.y) <= 1e-6 &&
-    Math.abs(left.groupShift.x - right.groupShift.x) <= 1e-6 &&
-    Math.abs(left.groupShift.y - right.groupShift.y) <= 1e-6
-  );
-}
-
-function normalizeVector(vector: Point): Point | null {
-  const length = Math.hypot(vector.x, vector.y);
-  if (length <= 1e-6) {
-    return null;
-  }
-  return {
-    x: vector.x / length,
-    y: vector.y / length
-  };
-}
-
-type AxisSupport = {
-  forward: number;
-  backward: number;
-};
-
-function projectedAxisSupport(
-  axis: Point,
-  extents: { left: number; right: number; up: number; down: number }
-): AxisSupport {
-  const absX = Math.abs(axis.x);
-  const absY = Math.abs(axis.y);
-
-  const horizontalForward = axis.x >= 0 ? extents.right : extents.left;
-  const horizontalBackward = axis.x >= 0 ? extents.left : extents.right;
-  const verticalForward = axis.y >= 0 ? extents.up : extents.down;
-  const verticalBackward = axis.y >= 0 ? extents.down : extents.up;
-
-  return {
-    forward: horizontalForward * absX + verticalForward * absY,
-    backward: horizontalBackward * absX + verticalBackward * absY
-  };
-}
-
-function mergeAxisSupport(existing: AxisSupport | undefined, next: AxisSupport): AxisSupport {
-  if (!existing) {
-    return { ...next };
-  }
-  return {
-    forward: Math.max(existing.forward, next.forward),
-    backward: Math.max(existing.backward, next.backward)
-  };
-}
-
-function sortedUnique(values: number[]): number[] {
-  return [...new Set(values)].sort((left, right) => left - right);
-}
-
-function buildAxisOffsets(
-  keys: number[],
-  extentByKey: Map<number, AxisSupport>,
-  sepDistance: number | null,
-  fallbackStep: number
-): Map<number, number> {
-  const offsets = new Map<number, number>();
-  if (keys.length === 0) {
-    return offsets;
-  }
-
-  offsets.set(keys[0]!, 0);
-  for (let index = 1; index < keys.length; index += 1) {
-    const previousKey = keys[index - 1]!;
-    const currentKey = keys[index]!;
-    const previousOffset = offsets.get(previousKey) ?? 0;
-    const keyGap = Math.max(1, currentKey - previousKey);
-
-    let delta = fallbackStep * keyGap;
-    if (sepDistance != null) {
-      const previousExtent = extentByKey.get(previousKey);
-      const currentExtent = extentByKey.get(currentKey);
-      const previousForward = previousExtent?.forward ?? 0;
-      const currentBackward = currentExtent?.backward ?? 0;
-      delta = previousForward + currentBackward + sepDistance;
-    }
-
-    offsets.set(currentKey, previousOffset + delta);
-  }
-
-  return offsets;
-}
-
-function transformCircleGeometry(
-  radius: number,
-  transform: { a: number; b: number; c: number; d: number }
-): CircleOrEllipseGeometry {
-  const transformed = transformEllipseGeometry(radius, radius, 0, transform);
-  const tolerance = Math.max(transformed.rx, transformed.ry) * 1e-6;
-  if (Math.abs(transformed.rx - transformed.ry) <= tolerance) {
-    return { kind: "circle", radius: (transformed.rx + transformed.ry) / 2 };
-  }
-  return { kind: "ellipse", ...transformed };
-}
-
-function transformEllipseGeometry(
-  rx: number,
-  ry: number,
-  rotation: number,
-  transform: { a: number; b: number; c: number; d: number }
-): EllipseGeometry {
-  const theta = (rotation * Math.PI) / 180;
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
-
-  const axisX = { x: rx * cos, y: rx * sin };
-  const axisY = { x: -ry * sin, y: ry * cos };
-  const transformedAxisX = applyMatrixToVector(transform, axisX);
-  const transformedAxisY = applyMatrixToVector(transform, axisY);
-
-  const s11 = transformedAxisX.x * transformedAxisX.x + transformedAxisY.x * transformedAxisY.x;
-  const s12 = transformedAxisX.x * transformedAxisX.y + transformedAxisY.x * transformedAxisY.y;
-  const s22 = transformedAxisX.y * transformedAxisX.y + transformedAxisY.y * transformedAxisY.y;
-
-  const traceHalf = (s11 + s22) / 2;
-  const discriminant = Math.sqrt(Math.max(0, traceHalf * traceHalf - (s11 * s22 - s12 * s12)));
-  const lambda1 = Math.max(0, traceHalf + discriminant);
-  const lambda2 = Math.max(0, traceHalf - discriminant);
-  const major = Math.sqrt(lambda1);
-  const minor = Math.sqrt(lambda2);
-
-  if (!Number.isFinite(major) || !Number.isFinite(minor) || major <= 1e-9 || minor <= 1e-9) {
-    return { rx, ry, rotation };
-  }
-
-  const rotationRadians = Math.abs(lambda1 - lambda2) <= 1e-9 ? 0 : 0.5 * Math.atan2(2 * s12, s11 - s22);
-  return {
-    rx: major,
-    ry: minor,
-    rotation: normalizeDegrees((rotationRadians * 180) / Math.PI)
-  };
-}
-
-function normalizeDegrees(degrees: number): number {
-  let normalized = degrees % 360;
-  if (normalized <= -180) {
-    normalized += 360;
-  } else if (normalized > 180) {
-    normalized -= 360;
-  }
-  return Math.abs(normalized) <= 1e-9 ? 0 : normalized;
-}
-
-function inferSegmentEndHeadingDegrees(segment: PlacementSegment | null): number {
-  if (!segment) {
-    return 0;
-  }
-
-  let direction: Point | null = null;
-  if (segment.kind === "line") {
-    direction = {
-      x: segment.to.x - segment.from.x,
-      y: segment.to.y - segment.from.y
-    };
-  } else if (segment.kind === "hv") {
-    direction = {
-      x: segment.to.x - segment.bend.x,
-      y: segment.to.y - segment.bend.y
-    };
-  } else if (segment.kind === "cubic") {
-    direction = {
-      x: segment.to.x - segment.c2.x,
-      y: segment.to.y - segment.c2.y
-    };
-    if (Math.hypot(direction.x, direction.y) <= 1e-9) {
-      direction = {
-        x: segment.to.x - segment.from.x,
-        y: segment.to.y - segment.from.y
-      };
-    }
-  } else if (segment.kind === "arc") {
-    direction = {
-      x: segment.to.x - segment.from.x,
-      y: segment.to.y - segment.from.y
-    };
-  }
-
-  if (!direction || Math.hypot(direction.x, direction.y) <= 1e-9) {
-    return 0;
-  }
-  return (Math.atan2(direction.y, direction.x) * 180) / Math.PI;
-}
-
-function evaluateTurnCoordinate(
-  item: CoordinateItem,
-  currentPoint: Point | null,
-  transform: { a: number; b: number; c: number; d: number; e: number; f: number },
-  lastPlacementSegment: PlacementSegment | null
-): EvaluatedCoordinate | null {
-  const hasTurnOption = item.options?.entries.some(
-    (entry) =>
-      (entry.kind === "flag" && entry.key === "turn") ||
-      (entry.kind === "kv" && entry.key === "turn")
-  );
-  if (!hasTurnOption) {
-    return null;
-  }
-
-  const polarForm: CoordinateForm = "polar";
-  if (item.form !== "polar") {
-    return {
-      world: null,
-      local: undefined,
-      transform: identityMatrix(),
-      coordinateForm: polarForm,
-      diagnostics: [`invalid-turn-coordinate:${item.raw}`],
-      advancesCurrentPoint: true
-    };
-  }
-
-  if (!currentPoint) {
-    return {
-      world: null,
-      local: undefined,
-      transform: identityMatrix(),
-      coordinateForm: polarForm,
-      diagnostics: ["turn-coordinate-without-current-point"],
-      advancesCurrentPoint: true
-    };
-  }
-
-  const angleQuantity = parseQuantityExpression(item.x.trim());
-  const radius = parseLength(item.y, "cm");
-  if (!angleQuantity || angleQuantity.kind !== "scalar" || radius == null) {
-    return {
-      world: null,
-      local: undefined,
-      transform: identityMatrix(),
-      coordinateForm: polarForm,
-      diagnostics: [`invalid-polar-coordinate:${item.raw}`],
-      advancesCurrentPoint: true
-    };
-  }
-
-  const heading = inferSegmentEndHeadingDegrees(lastPlacementSegment);
-  const absoluteAngle = heading + angleQuantity.value;
-  const radians = (absoluteAngle * Math.PI) / 180;
-  const localVector = {
-    x: radius * Math.cos(radians),
-    y: radius * Math.sin(radians)
-  };
-  const delta = applyMatrixToVector(transform, localVector);
-
-  return {
-    world: {
-      x: currentPoint.x + delta.x,
-      y: currentPoint.y + delta.y
-    },
-    local: localVector,
-    transform,
-    coordinateForm: polarForm,
-    relativePrefix: item.relativePrefix,
-    diagnostics: [],
-    advancesCurrentPoint: true
-  };
-}
-
-function resolveDefaultGridStep(transform: { a: number; b: number; c: number; d: number }, axis: "x" | "y"): number {
-  const oneCoordinateUnit = parseLength("1", "cm") ?? DEFAULT_GRID_STEP;
-  const vector =
-    axis === "x"
-      ? applyMatrixToVector(transform, { x: oneCoordinateUnit, y: 0 })
-      : applyMatrixToVector(transform, { x: 0, y: oneCoordinateUnit });
-  const magnitude = Math.hypot(vector.x, vector.y);
-  return Number.isFinite(magnitude) && magnitude > 1e-9 ? magnitude : DEFAULT_GRID_STEP;
-}
+import { buildGraphPlan } from "./graph.js";
+import { resolveSizeAwareGraphNodePoints, type RuntimeGraphNode } from "./graph-size-aware-placement.js";
+import { evaluateTurnCoordinate, resolveDefaultGridStep } from "./evaluate-coordinate-helpers.js";
+import {
+  buildPlotExpressionEntries,
+  emitPlotPath,
+  evaluatePlotCoordinatePoints,
+  extractPlotCoordinateEntries
+} from "./evaluate-plot.js";
+import { emitCircleOrEllipse, transformCircleGeometry, transformEllipseGeometry } from "./evaluate-shapes.js";
+import { handleChildOperationCluster } from "./evaluate-tree.js";
 
 export function evaluatePathStatement(
   statement: PathStatement,
@@ -565,18 +169,37 @@ export function evaluatePathStatement(
     }
     const fallbackRadius = pendingCircleRadius ?? style.radius;
     if (fallbackRadius != null) {
-      emitCircleOrEllipse(transformCircleGeometry(fallbackRadius, frameTransform), pendingCircleCenter, sourceId, span);
+      activePath = emitCircleOrEllipse({
+        geometry: transformCircleGeometry(fallbackRadius, frameTransform),
+        center: pendingCircleCenter,
+        statementId: statement.id,
+        itemId: sourceId,
+        span,
+        style,
+        styleChain: statementStyleChain,
+        shouldCompoundFilledSubpaths,
+        activePath,
+        geometryElements,
+        markFeature
+      });
     } else {
       const fallbackRadii = pendingCircleRadii ?? {
         rx: style.xRadius ?? DEFAULT_GRID_STEP,
         ry: style.yRadius ?? DEFAULT_GRID_STEP
       };
-      emitCircleOrEllipse(
-        { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
-        pendingCircleCenter,
-        sourceId,
-        span
-      );
+      activePath = emitCircleOrEllipse({
+        geometry: { kind: "ellipse", ...transformEllipseGeometry(fallbackRadii.rx, fallbackRadii.ry, pendingCircleRotation, frameTransform) },
+        center: pendingCircleCenter,
+        statementId: statement.id,
+        itemId: sourceId,
+        span,
+        style,
+        styleChain: statementStyleChain,
+        shouldCompoundFilledSubpaths,
+        activePath,
+        geometryElements,
+        markFeature
+      });
     }
     pendingCircleCenter = null;
     pendingCircleRadius = null;
@@ -594,533 +217,6 @@ export function evaluatePathStatement(
   const drawEdgeOptions = parseStyleValueAsOptionList("draw");
   const everyEdgeOptions = parseStyleValueAsOptionList("every edge");
   const edgeFromParentStyleOptions = parseStyleValueAsOptionList("edge from parent");
-  const extractPlotCoordinateEntries = (rawGroup: string): Array<{ raw: string; relativePrefix?: "+" | "++" }> => {
-    const trimmed = rawGroup.trim();
-    const content =
-      trimmed.startsWith("{") && trimmed.endsWith("}") && trimmed.length >= 2 ? trimmed.slice(1, -1).trim() : trimmed;
-    const entries: Array<{ raw: string; relativePrefix?: "+" | "++" }> = [];
-    let index = 0;
-
-    while (index < content.length) {
-      while (index < content.length && (/\s/.test(content[index]) || content[index] === ",")) {
-        index += 1;
-      }
-      if (index >= content.length) {
-        break;
-      }
-
-      let relativePrefix: "+" | "++" | undefined;
-      if (content.startsWith("++", index)) {
-        relativePrefix = "++";
-        index += 2;
-      } else if (content[index] === "+") {
-        relativePrefix = "+";
-        index += 1;
-      }
-      while (index < content.length && /\s/.test(content[index])) {
-        index += 1;
-      }
-
-      if (content[index] !== "(") {
-        index += 1;
-        continue;
-      }
-
-      const coordinateStart = index;
-      let depth = 0;
-      while (index < content.length) {
-        const char = content[index];
-        if (char === "\\") {
-          index += 2;
-          continue;
-        }
-        if (char === "(") {
-          depth += 1;
-          index += 1;
-          continue;
-        }
-        if (char === ")") {
-          depth -= 1;
-          index += 1;
-          if (depth === 0) {
-            const raw = content.slice(coordinateStart, index).trim();
-            if (raw.length > 0) {
-              entries.push({ raw, relativePrefix });
-            }
-            break;
-          }
-          continue;
-        }
-        index += 1;
-      }
-    }
-
-    return entries;
-  };
-  const appendPlotXMarks = (commands: ScenePath["commands"], points: Point[]): void => {
-    const halfSize = parseLength("1.5pt", "pt") ?? 1.5;
-    for (const point of points) {
-      commands.push({
-        kind: "M",
-        to: { x: point.x - halfSize, y: point.y - halfSize }
-      });
-      commands.push({
-        kind: "L",
-        to: { x: point.x + halfSize, y: point.y + halfSize }
-      });
-      commands.push({
-        kind: "M",
-        to: { x: point.x - halfSize, y: point.y + halfSize }
-      });
-      commands.push({
-        kind: "L",
-        to: { x: point.x + halfSize, y: point.y - halfSize }
-      });
-    }
-  };
-  const appendPlotPlusMarks = (commands: ScenePath["commands"], points: Point[]): void => {
-    const halfSize = parseLength("2pt", "pt") ?? 2;
-    for (const point of points) {
-      commands.push({
-        kind: "M",
-        to: { x: point.x - halfSize, y: point.y }
-      });
-      commands.push({
-        kind: "L",
-        to: { x: point.x + halfSize, y: point.y }
-      });
-      commands.push({
-        kind: "M",
-        to: { x: point.x, y: point.y - halfSize }
-      });
-      commands.push({
-        kind: "L",
-        to: { x: point.x, y: point.y + halfSize }
-      });
-    }
-  };
-  const appendPlotAsteriskMarks = (commands: ScenePath["commands"], points: Point[]): void => {
-    const radius = parseLength("2pt", "pt") ?? 2;
-    for (const point of points) {
-      appendCircleSubpath(commands, point, radius);
-    }
-  };
-  const evaluatePlotCoordinatePoints = (
-    entries: Array<{ raw: string; relativePrefix?: "+" | "++" }>,
-    span: { from: number; to: number },
-    issuePrefix: string
-  ): Point[] => {
-    const savedCurrentPoint = context.currentPoint;
-    let iterationCurrentPoint = context.currentPoint;
-    const points: Point[] = [];
-    for (const entry of entries) {
-      context.currentPoint = iterationCurrentPoint;
-      const evaluated = evaluateRawCoordinate(entry.raw, context, entry.relativePrefix);
-      for (const code of evaluated.diagnostics) {
-        pushDiagnostic(code, `${issuePrefix}: ${code}`, span.from, span.to);
-      }
-      if (!evaluated.world) {
-        continue;
-      }
-      points.push(evaluated.world);
-      if (evaluated.advancesCurrentPoint || iterationCurrentPoint == null) {
-        iterationCurrentPoint = evaluated.world;
-      }
-    }
-    context.currentPoint = savedCurrentPoint;
-    return points;
-  };
-  const emitPlotPath = (
-    item: PlotOperationItem,
-    points: Point[],
-    settings: PlotSettings,
-    connectFrom: Point | null
-  ): void => {
-    if (points.length === 0) {
-      lastPlacementSegment = null;
-      previousSegmentRoundedCorners = null;
-      return;
-    }
-
-    activePath = flushDrawableActivePath(geometryElements, activePath);
-
-    const commands: ScenePath["commands"] = [];
-    let lastSegment: { from: Point; to: Point } | null = null;
-    const markPoints: Point[] = [];
-    const tensionFactor = 0.2775 * settings.tension;
-
-    const addConnectionToFirstPoint = (target: Point): void => {
-      if (!connectFrom) {
-        return;
-      }
-      commands.push({ kind: "M", to: connectFrom });
-      if (!pointsClose(connectFrom, target)) {
-        commands.push({ kind: "L", to: target });
-        lastSegment = { from: connectFrom, to: target };
-      }
-    };
-
-    const addLine = (from: Point, to: Point): void => {
-      commands.push({ kind: "L", to });
-      if (!pointsClose(from, to)) {
-        lastSegment = { from, to };
-      }
-    };
-
-    const addCurve = (from: Point, c1: Point, c2: Point, to: Point): void => {
-      commands.push({ kind: "C", c1, c2, to });
-      if (!pointsClose(from, to)) {
-        lastSegment = { from, to };
-      }
-    };
-
-    if (settings.handler === "sharp") {
-      const first = points[0]!;
-      if (connectFrom) {
-        addConnectionToFirstPoint(first);
-      } else {
-        commands.push({ kind: "M", to: first });
-      }
-      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-        addLine(points[pointIndex - 1]!, points[pointIndex]!);
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "sharp-cycle") {
-      const first = points[0]!;
-      if (connectFrom) {
-        addConnectionToFirstPoint(first);
-      }
-      commands.push({ kind: "M", to: first });
-      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-        addLine(points[pointIndex - 1]!, points[pointIndex]!);
-      }
-      if (points.length > 1) {
-        lastSegment = { from: points[points.length - 1]!, to: first };
-      }
-      commands.push({ kind: "Z" });
-      markPoints.push(...points);
-    } else if (settings.handler === "smooth") {
-      const first = points[0]!;
-      if (connectFrom) {
-        addConnectionToFirstPoint(first);
-      } else {
-        commands.push({ kind: "M", to: first });
-      }
-      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
-        const prev = pointIndex > 0 ? points[pointIndex - 1]! : points[pointIndex]!;
-        const current = points[pointIndex]!;
-        const next = points[pointIndex + 1]!;
-        const nextNext = pointIndex + 2 < points.length ? points[pointIndex + 2]! : points[pointIndex + 1]!;
-        const c1 =
-          pointIndex === 0
-            ? current
-            : {
-                x: current.x + tensionFactor * (next.x - prev.x),
-                y: current.y + tensionFactor * (next.y - prev.y)
-              };
-        const c2 =
-          pointIndex === points.length - 2
-            ? next
-            : {
-                x: next.x - tensionFactor * (nextNext.x - current.x),
-                y: next.y - tensionFactor * (nextNext.y - current.y)
-              };
-        addCurve(current, c1, c2, next);
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "smooth-cycle") {
-      const first = points[0]!;
-      if (connectFrom) {
-        addConnectionToFirstPoint(first);
-      }
-      commands.push({ kind: "M", to: first });
-      if (points.length > 1) {
-        const count = points.length;
-        for (let pointIndex = 0; pointIndex < count; pointIndex += 1) {
-          const previous = points[(pointIndex - 1 + count) % count]!;
-          const current = points[pointIndex]!;
-          const next = points[(pointIndex + 1) % count]!;
-          const nextNext = points[(pointIndex + 2) % count]!;
-          const c1 = {
-            x: current.x + tensionFactor * (next.x - previous.x),
-            y: current.y + tensionFactor * (next.y - previous.y)
-          };
-          const c2 = {
-            x: next.x - tensionFactor * (nextNext.x - current.x),
-            y: next.y - tensionFactor * (nextNext.y - current.y)
-          };
-          addCurve(current, c1, c2, next);
-        }
-        lastSegment = { from: points[count - 1]!, to: first };
-        commands.push({ kind: "Z" });
-      }
-      markPoints.push(...points);
-    } else if (
-      settings.handler === "const-left" ||
-      settings.handler === "const-right" ||
-      settings.handler === "const-mid" ||
-      settings.handler === "jump-left" ||
-      settings.handler === "jump-right" ||
-      settings.handler === "jump-mid"
-    ) {
-      const first = points[0]!;
-      if (connectFrom) {
-        addConnectionToFirstPoint(first);
-      } else {
-        commands.push({ kind: "M", to: first });
-      }
-
-      for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-        const previous = points[pointIndex - 1]!;
-        const current = points[pointIndex]!;
-        if (settings.handler === "const-left") {
-          const step = { x: current.x, y: previous.y };
-          addLine(previous, step);
-          addLine(step, current);
-          continue;
-        }
-        if (settings.handler === "const-right") {
-          const step = { x: previous.x, y: current.y };
-          addLine(previous, step);
-          addLine(step, current);
-          continue;
-        }
-        if (settings.handler === "const-mid") {
-          const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
-          const midTop = { x: mid.x, y: current.y };
-          addLine(previous, mid);
-          addLine(mid, midTop);
-          addLine(midTop, current);
-          continue;
-        }
-        if (settings.handler === "jump-left") {
-          const end = { x: current.x, y: previous.y };
-          addLine(previous, end);
-          commands.push({ kind: "M", to: current });
-          continue;
-        }
-        if (settings.handler === "jump-right") {
-          const start = { x: previous.x, y: current.y };
-          commands.push({ kind: "M", to: start });
-          addLine(start, current);
-          continue;
-        }
-        const mid = { x: 0.5 * (previous.x + current.x), y: previous.y };
-        const midTop = { x: mid.x, y: current.y };
-        addLine(previous, mid);
-        commands.push({ kind: "M", to: midTop });
-        addLine(midTop, current);
-      }
-
-      if (settings.handler === "const-left" || settings.handler === "jump-left") {
-        if (points.length > 1) {
-          markPoints.push(...points.slice(0, -1));
-        } else {
-          markPoints.push(...points);
-        }
-      } else if (settings.handler === "const-right" || settings.handler === "jump-right") {
-        if (points.length > 1) {
-          markPoints.push(...points.slice(1));
-        } else {
-          markPoints.push(...points);
-        }
-      } else if (settings.handler === "const-mid" || settings.handler === "jump-mid") {
-        if (points.length > 1) {
-          for (let pointIndex = 1; pointIndex < points.length; pointIndex += 1) {
-            const previous = points[pointIndex - 1]!;
-            const current = points[pointIndex]!;
-            markPoints.push({
-              x: 0.5 * (previous.x + current.x),
-              y: previous.y
-            });
-          }
-        } else {
-          markPoints.push(...points);
-        }
-      }
-    } else if (settings.handler === "ycomb") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (const point of points) {
-        const base = { x: point.x, y: 0 };
-        commands.push({ kind: "M", to: base });
-        addLine(base, point);
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "xcomb") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (const point of points) {
-        const base = { x: 0, y: point.y };
-        commands.push({ kind: "M", to: base });
-        addLine(base, point);
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "polar-comb") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      const origin = { x: 0, y: 0 };
-      for (const point of points) {
-        commands.push({ kind: "M", to: origin });
-        addLine(origin, point);
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "ybar") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (const point of points) {
-        const left = point.x - 0.5 * settings.barWidth + settings.barShift;
-        const from = { x: left, y: 0 };
-        const to = { x: left + settings.barWidth, y: point.y };
-        appendRectangleSubpath(commands, from, to);
-        if (!pointsClose(from, { x: left, y: point.y })) {
-          lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: point.y } };
-        }
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "xbar") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (const point of points) {
-        const bottom = point.y - 0.5 * settings.barWidth + settings.barShift;
-        const from = { x: 0, y: bottom };
-        const to = { x: point.x, y: bottom + settings.barWidth };
-        appendRectangleSubpath(commands, from, to);
-        if (!pointsClose(from, { x: point.x, y: bottom })) {
-          lastSegment = { from: { x: 0, y: bottom }, to: { x: point.x, y: bottom } };
-        }
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "ybar-interval") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
-        const current = points[pointIndex]!;
-        const next = points[pointIndex + 1]!;
-        const interval = next.x - current.x;
-        const center = current.x + settings.barIntervalShift * interval;
-        const width = settings.barIntervalWidth * interval;
-        const left = center - 0.5 * width;
-        const from = { x: left, y: 0 };
-        const to = { x: left + width, y: current.y };
-        appendRectangleSubpath(commands, from, to);
-        if (!pointsClose(from, { x: left, y: current.y })) {
-          lastSegment = { from: { x: left, y: 0 }, to: { x: left, y: current.y } };
-        }
-      }
-      markPoints.push(...points);
-    } else if (settings.handler === "xbar-interval") {
-      if (connectFrom) {
-        addConnectionToFirstPoint(points[0]!);
-      }
-      for (let pointIndex = 0; pointIndex < points.length - 1; pointIndex += 1) {
-        const current = points[pointIndex]!;
-        const next = points[pointIndex + 1]!;
-        const interval = next.y - current.y;
-        const center = current.y + settings.barIntervalShift * interval;
-        const width = settings.barIntervalWidth * interval;
-        const bottom = center - 0.5 * width;
-        const from = { x: 0, y: bottom };
-        const to = { x: current.x, y: bottom + width };
-        appendRectangleSubpath(commands, from, to);
-        if (!pointsClose(from, { x: current.x, y: bottom })) {
-          lastSegment = { from: { x: 0, y: bottom }, to: { x: current.x, y: bottom } };
-        }
-      }
-      markPoints.push(...points);
-    } else {
-      markPoints.push(...points);
-    }
-
-    const plotPath = makePath(statement.id, item.id, style, statementStyleChain, item.span);
-    plotPath.commands.push(...commands);
-
-    if (hasDrawablePathSegments(plotPath)) {
-      geometryElements.push(plotPath);
-      markFeature("svg_path", "supported");
-    }
-
-    if (lastSegment) {
-      lastPlacementSegment = {
-        kind: "line",
-        from: lastSegment.from,
-        to: lastSegment.to
-      };
-      previousSegmentRoundedCorners = activeRoundedCorners;
-    } else {
-      lastPlacementSegment = null;
-      previousSegmentRoundedCorners = null;
-    }
-
-    const markName = (settings.mark ?? "").trim().toLowerCase();
-    if (markPoints.length > 0 && (markName === "x" || markName === "+" || markName === "*")) {
-      const markerPathStyle: ResolvedStyle =
-        markName === "*"
-          ? {
-              ...style,
-              stroke: style.stroke ?? style.fill ?? style.textColor ?? "black",
-              fill: style.fill ?? style.stroke ?? style.textColor ?? "black"
-            }
-          : {
-              ...style,
-              fill: "none"
-            };
-      const markerPath = makePath(statement.id, `${item.id}:mark`, markerPathStyle, statementStyleChain, item.span);
-      if (markName === "x") {
-        appendPlotXMarks(markerPath.commands, markPoints);
-      } else if (markName === "+") {
-        appendPlotPlusMarks(markerPath.commands, markPoints);
-      } else {
-        appendPlotAsteriskMarks(markerPath.commands, markPoints);
-      }
-      if (hasDrawablePathSegments(markerPath)) {
-        geometryElements.push(markerPath);
-        markFeature("svg_path", "supported");
-      }
-    }
-
-    const finalPoint = points[points.length - 1]!;
-    setCurrentPoint(finalPoint);
-    context.pathStartPoint = connectFrom ?? points[0];
-  };
-
-  const emitCircleOrEllipse = (
-    geometry: CircleOrEllipseGeometry,
-    center: Point,
-    itemId: string,
-    span: { from: number; to: number }
-  ): void => {
-    if (geometry.kind === "circle") {
-      markFeature("shape_circle", "supported");
-      if (shouldCompoundFilledSubpaths) {
-        activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
-        markPathShapeHint(activePath, "circle");
-        appendCircleSubpath(activePath.commands, center, geometry.radius);
-        markFeature("svg_path", "supported");
-      } else {
-        markFeature("svg_circle", "supported");
-        geometryElements.push(makeCircleElement(statement.id, center, geometry.radius, style, statementStyleChain, span));
-      }
-      return;
-    }
-
-    markFeature("shape_ellipse", "supported");
-    if (shouldCompoundFilledSubpaths) {
-      activePath = ensurePathForSubpath(activePath, statement.id, itemId, style, statementStyleChain, span);
-      markPathShapeHint(activePath, "ellipse");
-      appendEllipseSubpath(activePath.commands, center, geometry.rx, geometry.ry, geometry.rotation);
-      markFeature("svg_path", "supported");
-      return;
-    }
-    geometryElements.push(makeEllipseElement(statement.id, center, geometry.rx, geometry.ry, style, statementStyleChain, span, geometry.rotation));
-  };
-
   let currentItemIndex = -1;
   const itemHandlers = new Map<PathItem["kind"], (item: PathItem) => void>([
     [
@@ -1146,8 +242,36 @@ export function evaluatePathStatement(
             currentOperator = null;
             return;
           }
-          const points = evaluatePlotCoordinatePoints(coordinateEntries, item.span, "Plot coordinate issue");
-          emitPlotPath(item, points, localPlotSettings, connectFrom);
+          const points = evaluatePlotCoordinatePoints({
+            entries: coordinateEntries,
+            span: item.span,
+            issuePrefix: "Plot coordinate issue",
+            currentPoint: context.currentPoint,
+            setCurrentPoint: (point) => {
+              context.currentPoint = point;
+            },
+            pushDiagnostic,
+            evaluateCoordinateRaw: (raw, relativePrefix) => evaluateRawCoordinate(raw, context, relativePrefix)
+          });
+          activePath = flushDrawableActivePath(geometryElements, activePath);
+          const emitted = emitPlotPath({
+            statementId: statement.id,
+            item,
+            points,
+            settings: localPlotSettings,
+            connectFrom,
+            style,
+            styleChain: statementStyleChain,
+            geometryElements,
+            markFeature,
+            activeRoundedCorners,
+            setCurrentPoint: (point) => setCurrentPoint(point),
+            setPathStartPoint: (point) => {
+              context.pathStartPoint = point;
+            }
+          });
+          lastPlacementSegment = emitted.lastPlacementSegment;
+          previousSegmentRoundedCorners = emitted.previousSegmentRoundedCorners;
           markFeature("plot_operation", "supported");
           currentOperator = null;
           return;
@@ -1161,35 +285,47 @@ export function evaluatePathStatement(
             return;
           }
 
-          const variableName = localPlotSettings.variable;
-          const plotMacroBindings = treeFrameState.macroBindings;
-          const sampleValues = resolvePlotSampleValues(localPlotSettings);
-          const entries = sampleValues.map((sampleValue) => {
-            const sampleBinding: MacroBinding = {
-              kind: "text",
-              value: formatPlotSampleValue(sampleValue),
-              provenance: []
-            };
-            const previousBinding = plotMacroBindings.get(variableName);
-            plotMacroBindings.set(variableName, sampleBinding);
-            const expandedExpression = expandMacroBindings(expressionRaw, plotMacroBindings, {
-              maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
-            });
-            if (previousBinding) {
-              plotMacroBindings.set(variableName, previousBinding);
-            } else {
-              plotMacroBindings.delete(variableName);
-            }
-            return { raw: expandedExpression };
+          const entries = buildPlotExpressionEntries({
+            expressionRaw,
+            settings: localPlotSettings,
+            macroBindings: treeFrameState.macroBindings
           });
 
-          const points = evaluatePlotCoordinatePoints(entries, item.span, "Plot expression issue");
+          const points = evaluatePlotCoordinatePoints({
+            entries,
+            span: item.span,
+            issuePrefix: "Plot expression issue",
+            currentPoint: context.currentPoint,
+            setCurrentPoint: (point) => {
+              context.currentPoint = point;
+            },
+            pushDiagnostic,
+            evaluateCoordinateRaw: (raw, relativePrefix) => evaluateRawCoordinate(raw, context, relativePrefix)
+          });
           if (points.length === 0) {
             pushDiagnostic("invalid-plot-expression", "Plot expression did not produce any valid coordinate points.", item.span.from, item.span.to);
             currentOperator = null;
             return;
           }
-          emitPlotPath(item, points, localPlotSettings, connectFrom);
+          activePath = flushDrawableActivePath(geometryElements, activePath);
+          const emitted = emitPlotPath({
+            statementId: statement.id,
+            item,
+            points,
+            settings: localPlotSettings,
+            connectFrom,
+            style,
+            styleChain: statementStyleChain,
+            geometryElements,
+            markFeature,
+            activeRoundedCorners,
+            setCurrentPoint: (point) => setCurrentPoint(point),
+            setPathStartPoint: (point) => {
+              context.pathStartPoint = point;
+            }
+          });
+          lastPlacementSegment = emitted.lastPlacementSegment;
+          previousSegmentRoundedCorners = emitted.previousSegmentRoundedCorners;
           markFeature("plot_operation", "supported");
           currentOperator = null;
           return;
@@ -2211,7 +1347,19 @@ export function evaluatePathStatement(
         if (pendingCircleCenter) {
           const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
           if (radius != null) {
-            emitCircleOrEllipse(transformCircleGeometry(radius, frameTransform), pendingCircleCenter, item.id, item.span);
+            activePath = emitCircleOrEllipse({
+              geometry: transformCircleGeometry(radius, frameTransform),
+              center: pendingCircleCenter,
+              statementId: statement.id,
+              itemId: item.id,
+              span: item.span,
+              style,
+              styleChain: statementStyleChain,
+              shouldCompoundFilledSubpaths,
+              activePath,
+              geometryElements,
+              markFeature
+            });
             pendingCircleCenter = null;
             pendingCircleRadius = null;
             pendingCircleRadii = null;
@@ -2226,17 +1374,19 @@ export function evaluatePathStatement(
         if (parsedRadii) {
           const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
           markFeature("keyword_ellipse", "supported");
-          markFeature("shape_ellipse", "supported");
-          if (shouldCompoundFilledSubpaths) {
-            activePath = ensurePathForSubpath(activePath, statement.id, item.id, style, statementStyleChain, item.span);
-            markPathShapeHint(activePath, "ellipse");
-            appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
-            markFeature("svg_path", "supported");
-          } else {
-            geometryElements.push(
-              makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statementStyleChain, item.span, geometry.rotation)
-            );
-          }
+          activePath = emitCircleOrEllipse({
+            geometry: { kind: "ellipse", ...geometry },
+            center: pendingEllipseCenter,
+            statementId: statement.id,
+            itemId: item.id,
+            span: item.span,
+            style,
+            styleChain: statementStyleChain,
+            shouldCompoundFilledSubpaths,
+            activePath,
+            geometryElements,
+            markFeature
+          });
           pendingEllipseCenter = null;
           pendingEllipseRadii = null;
           lastPlacementSegment = null;
@@ -2930,408 +2080,27 @@ export function evaluatePathStatement(
     }
 
     if (item.kind === "ChildOperation") {
-      const cluster = collectTreeChildCluster(statement.items, index);
-      if (cluster.children.length === 0 || cluster.consumed <= 0) {
+      const handled = handleChildOperationCluster({
+        statement,
+        index,
+        treeParentCandidate,
+        treeFrameState,
+        context,
+        defaultPathOrigin,
+        drawEdgeOptions,
+        edgeFromParentStyleOptions,
+        markFeature,
+        pushDiagnostic,
+        emittedTreeHookDiagnostics,
+        evaluatePathStatement,
+        frontNodeElements,
+        evaluateRawCoordinateWorld: (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world
+      });
+      if (handled.consumed <= 0) {
         continue;
       }
-
-      if (!treeParentCandidate && statement.command === "coordinate") {
-        const coordinateRootPoint = context.currentPoint ?? defaultPathOrigin;
-        treeParentCandidate = {
-          nameRaw: null,
-          point: coordinateRootPoint,
-          span: statement.span
-        };
-      }
-
-      if (!treeParentCandidate) {
-        pushDiagnostic(
-          "tree-child-without-parent",
-          "`child` operations require a preceding parent node or coordinate in the same path.",
-          item.span.from,
-          item.span.to
-        );
-        index += cluster.consumed - 1;
-        continue;
-      }
-
-      const parentFrame = treeFrameState;
-      markFeature("child_operation", "supported");
-      markFeature("tree_layout_keys", "supported");
-      if (parentFrame.treeEveryChildStyles.length > 0 || parentFrame.treeEveryChildNodeStyles.length > 0) {
-        markFeature("tree_every_child_styles", "supported");
-      }
-      if (parentFrame.treeLevelStyleTemplateLayers.length > 0 || parentFrame.treeLevelStyleLayers.length > 0) {
-        markFeature("tree_level_styles", "supported");
-      }
-      if (parentFrame.treeGrowthParentAnchor !== "center") {
-        markFeature("tree_anchor_keys", "supported");
-      }
-      if (
-        parentFrame.treeDeferredGrowthFunction ||
-        parentFrame.treeDeferredEdgeFromParentPath ||
-        parentFrame.treeDeferredEdgeFromParentMacro
-      ) {
-        markFeature("tree_deferred_hooks", "unsupported");
-      }
-      const clusterChildCount = cluster.children.length;
-
-      for (let childIndex = 0; childIndex < cluster.children.length; childIndex += 1) {
-        const child = cluster.children[childIndex]!;
-        const childIndexOneBased = childIndex + 1;
-        const defaultChildLevel = parentFrame.treeLevel + 1;
-        const childSourceRef = {
-          sourceId: child.id,
-          sourceSpan: child.optionsSpan ?? child.span,
-          sourceKind: "tree-child-operation",
-          label: "child"
-        } as const;
-
-        const childCustomStyles = cloneCustomStyleRegistry(parentFrame.customStyles);
-        const styleLayers: StyleTraceLayerInput[] = [];
-        for (const layer of parentFrame.treeEveryChildStyles) {
-          styleLayers.push({
-            kind: "scope",
-            sourceRef: layer.sourceRef,
-            rawOptions: [layer.options]
-          });
-        }
-        for (const layer of resolveTreeLevelStyleLayers(parentFrame, defaultChildLevel)) {
-          styleLayers.push({
-            kind: "scope",
-            sourceRef: layer.sourceRef,
-            rawOptions: [layer.options]
-          });
-        }
-        if (child.options) {
-          styleLayers.push({
-            kind: "scope",
-            sourceRef: childSourceRef,
-            rawOptions: [child.options]
-          });
-        }
-
-        const resolvedChildStyle = resolveContextDelta(
-          parentFrame.style,
-          parentFrame.transform,
-          styleLayers,
-          childCustomStyles,
-          (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-          parentFrame.styleChain,
-          parentFrame.colorAliases
-        );
-        for (const code of resolvedChildStyle.diagnostics) {
-          pushDiagnostic(code, `Tree child option issue: ${code}`, child.span.from, child.span.to);
-        }
-
-        const childMetaBase = {
-          ...parentFrame,
-          treeLevel: defaultChildLevel,
-          treeCurrentLevelSiblingDistancePt: null,
-          treeMissing: false
-        };
-        const childFrameMeta = resolveFrameMeta(childMetaBase, resolvedChildStyle.expandedOptionLists, childSourceRef);
-        if (childFrameMeta.treeLevel !== defaultChildLevel) {
-          markFeature("tree_level_styles", "supported");
-        }
-        if (
-          childFrameMeta.treeParentAnchor !== "border" ||
-          childFrameMeta.treeChildAnchor !== "border" ||
-          childFrameMeta.treeGrowthParentAnchor !== "center"
-        ) {
-          markFeature("tree_anchor_keys", "supported");
-        }
-        if (
-          childFrameMeta.treeDeferredGrowthFunction ||
-          childFrameMeta.treeDeferredEdgeFromParentPath ||
-          childFrameMeta.treeDeferredEdgeFromParentMacro
-        ) {
-          markFeature("tree_deferred_hooks", "unsupported");
-        }
-        for (const deferredDiagnostic of collectDeferredTreeHookDiagnostics(childFrameMeta, child.span)) {
-          if (emittedTreeHookDiagnostics.has(deferredDiagnostic.code)) {
-            continue;
-          }
-          emittedTreeHookDiagnostics.add(deferredDiagnostic.code);
-          pushDiagnostic(
-            deferredDiagnostic.code,
-            deferredDiagnostic.message,
-            deferredDiagnostic.span.from,
-            deferredDiagnostic.span.to
-          );
-        }
-
-        const effectiveSiblingDistancePt =
-          childFrameMeta.treeCurrentLevelSiblingDistancePt ?? childFrameMeta.treeSiblingDistancePt;
-        const tentativeOrigin = computeTreeChildOrigin(
-          treeParentCandidate.point,
-          childFrameMeta.treeLevelDistancePt,
-          effectiveSiblingDistancePt,
-          childIndexOneBased,
-          clusterChildCount,
-          childFrameMeta.treeGrowDirectionDegrees,
-          childFrameMeta.treeGrowReverse
-        );
-        const parentGrowthAnchorPoint =
-          treeParentCandidate.nameRaw && treeParentCandidate.nameRaw.trim().length > 0
-            ? resolveNamedTreeAnchorPoint(
-                context,
-                treeParentCandidate.nameRaw,
-                childFrameMeta.treeGrowthParentAnchor,
-                treeParentCandidate.point,
-                tentativeOrigin
-              )
-            : treeParentCandidate.point;
-        const childOrigin = computeTreeChildOrigin(
-          parentGrowthAnchorPoint,
-          childFrameMeta.treeLevelDistancePt,
-          effectiveSiblingDistancePt,
-          childIndexOneBased,
-          clusterChildCount,
-          childFrameMeta.treeGrowDirectionDegrees,
-          childFrameMeta.treeGrowReverse
-        );
-
-        if (childFrameMeta.treeMissing) {
-          markFeature("tree_missing_child", "supported");
-          continue;
-        }
-
-        const generatedRootName = makeTreeAutoName(
-          treeParentCandidate.nameRaw,
-          statement.id,
-          child.id,
-          childIndexOneBased,
-          childFrameMeta.treeLevel
-        );
-        const rootWasNamedBefore = hasNamedTreeRootNode(child.body);
-        const preparedRoot = prepareChildBodyWithRoot(child, generatedRootName);
-        if (preparedRoot.rootNameRaw === generatedRootName && !rootWasNamedBefore) {
-          markFeature("tree_auto_naming", "supported");
-        }
-        const splitBody = splitChildBodyAndTrailingEdgeFromParent(preparedRoot.body);
-
-        const childFrame = {
-          ...parentFrame,
-          style: resolvedChildStyle.style,
-          styleChain: resolvedChildStyle.chain,
-          transform: resolvedChildStyle.transform,
-          customStyles: childCustomStyles,
-          colorAliases: new Map(parentFrame.colorAliases),
-          macroBindings: new Map(parentFrame.macroBindings),
-          namePrefix: childFrameMeta.namePrefix,
-          nameSuffix: childFrameMeta.nameSuffix,
-          nodeLayerMode: childFrameMeta.nodeLayerMode,
-          onGrid: childFrameMeta.onGrid,
-          nodeDistance: childFrameMeta.nodeDistance,
-          nodeQuotesMode: childFrameMeta.nodeQuotesMode,
-          labelPosition: childFrameMeta.labelPosition,
-          pinPosition: childFrameMeta.pinPosition,
-          labelDistancePt: childFrameMeta.labelDistancePt,
-          pinDistancePt: childFrameMeta.pinDistancePt,
-          pinEdgeRaw: childFrameMeta.pinEdgeRaw,
-          transformShape: childFrameMeta.transformShape,
-          everyNodeStyles: childFrameMeta.everyNodeStyles,
-          everyRectangleNodeStyles: childFrameMeta.everyRectangleNodeStyles,
-          everyCircleNodeStyles: childFrameMeta.everyCircleNodeStyles,
-          everyDiamondNodeStyles: childFrameMeta.everyDiamondNodeStyles,
-          everyTrapeziumNodeStyles: childFrameMeta.everyTrapeziumNodeStyles,
-          everyIsoscelesTriangleNodeStyles: childFrameMeta.everyIsoscelesTriangleNodeStyles,
-          everyKiteNodeStyles: childFrameMeta.everyKiteNodeStyles,
-          everyDartNodeStyles: childFrameMeta.everyDartNodeStyles,
-          everyCircularSectorNodeStyles: childFrameMeta.everyCircularSectorNodeStyles,
-          everyCylinderNodeStyles: childFrameMeta.everyCylinderNodeStyles,
-          everyCloudNodeStyles: childFrameMeta.everyCloudNodeStyles,
-          everyStarburstNodeStyles: childFrameMeta.everyStarburstNodeStyles,
-          everySignalNodeStyles: childFrameMeta.everySignalNodeStyles,
-          everyTapeNodeStyles: childFrameMeta.everyTapeNodeStyles,
-          everyRectangleCalloutNodeStyles: childFrameMeta.everyRectangleCalloutNodeStyles,
-          everyEllipseCalloutNodeStyles: childFrameMeta.everyEllipseCalloutNodeStyles,
-          everyCloudCalloutNodeStyles: childFrameMeta.everyCloudCalloutNodeStyles,
-          everySingleArrowNodeStyles: childFrameMeta.everySingleArrowNodeStyles,
-          everyDoubleArrowNodeStyles: childFrameMeta.everyDoubleArrowNodeStyles,
-          treeLevel: childFrameMeta.treeLevel,
-          treeLevelDistancePt: childFrameMeta.treeLevelDistancePt,
-          treeSiblingDistancePt: childFrameMeta.treeSiblingDistancePt,
-          treeCurrentLevelSiblingDistancePt: childFrameMeta.treeCurrentLevelSiblingDistancePt,
-          treeGrowDirectionDegrees: childFrameMeta.treeGrowDirectionDegrees,
-          treeGrowReverse: childFrameMeta.treeGrowReverse,
-          treeGrowthParentAnchor: childFrameMeta.treeGrowthParentAnchor,
-          treeParentAnchor: childFrameMeta.treeParentAnchor,
-          treeChildAnchor: childFrameMeta.treeChildAnchor,
-          treeMissing: childFrameMeta.treeMissing,
-          treeEveryChildStyles: childFrameMeta.treeEveryChildStyles,
-          treeEveryChildNodeStyles: childFrameMeta.treeEveryChildNodeStyles,
-          treeLevelStyleTemplateLayers: childFrameMeta.treeLevelStyleTemplateLayers,
-          treeLevelStyleLayers: childFrameMeta.treeLevelStyleLayers.map(
-            (entry: { level: number; layers: typeof childFrameMeta.treeEveryChildStyles }) => ({
-              level: entry.level,
-              layers: [...entry.layers]
-            })
-          ),
-          treeDeferredGrowthFunction: childFrameMeta.treeDeferredGrowthFunction,
-          treeDeferredEdgeFromParentPath: childFrameMeta.treeDeferredEdgeFromParentPath,
-          treeDeferredEdgeFromParentMacro: childFrameMeta.treeDeferredEdgeFromParentMacro
-        };
-
-        const savedCurrentPoint = context.currentPoint;
-        const savedPathStartPoint = context.pathStartPoint;
-        context.stack.push(childFrame);
-        try {
-          context.currentPoint = childOrigin;
-          context.pathStartPoint = childOrigin;
-          const scopedChildRootName = applyNameScope(preparedRoot.rootNameRaw, context);
-          const childStatement: PathStatement = {
-            kind: "Path",
-            id: `${statement.id}:tree-child:${childIndexOneBased}:${child.id}`,
-            span: child.span,
-            command: "path",
-            options: undefined,
-            items: splitBody.body
-          };
-          const childElements = withDependencySource(context, childStatement.id, () =>
-            evaluatePathStatement(childStatement, context, resolvedChildStyle.style, markFeature, pushDiagnostic, {
-              honorInitialCurrentPoint: true
-            })
-          );
-          frontNodeElements.push(...childElements);
-
-          const childRootPoint = readNamedCoordinate(context, scopedChildRootName) ?? childOrigin;
-          const parentAnchorPoint =
-            treeParentCandidate.nameRaw && treeParentCandidate.nameRaw.trim().length > 0
-              ? resolveNamedTreeAnchorPoint(
-                  context,
-                  treeParentCandidate.nameRaw,
-                  childFrameMeta.treeParentAnchor,
-                  treeParentCandidate.point,
-                  childRootPoint
-                )
-              : treeParentCandidate.point;
-          const childAnchorPoint = resolveNamedTreeAnchorPoint(
-            context,
-            scopedChildRootName,
-            childFrameMeta.treeChildAnchor,
-            childRootPoint,
-            parentAnchorPoint
-          );
-
-          const edgeSpec = splitBody.trailingEdge;
-          if (edgeSpec) {
-            markFeature("edge_from_parent_operation", "supported");
-          }
-          const materializedEdge: EdgeOperationItem = {
-            kind: "EdgeOperation",
-            id: `${child.id}:edge-from-parent:${childIndexOneBased}`,
-            span: edgeSpec?.span ?? child.span,
-            optionsSpan: edgeSpec?.optionsSpan,
-            options: edgeSpec?.options,
-            nodes: edgeSpec?.nodes,
-            target: {
-              kind: "coordinate",
-              raw: formatPointCoordinateRaw(childAnchorPoint)
-            },
-            raw: edgeSpec?.raw ?? "edge from parent"
-          };
-
-          const edgeOptionLayers: StyleTraceLayerInput[] = [];
-          if (drawEdgeOptions) {
-            edgeOptionLayers.push({
-              kind: "command",
-              sourceRef: {
-                sourceId: materializedEdge.id,
-                sourceSpan: materializedEdge.span,
-                sourceKind: "tree-edge-default",
-                label: "draw"
-              },
-              rawOptions: [drawEdgeOptions]
-            });
-          }
-          if (edgeFromParentStyleOptions) {
-            edgeOptionLayers.push({
-              kind: "command",
-              sourceRef: {
-                sourceId: materializedEdge.id,
-                sourceSpan: materializedEdge.span,
-                sourceKind: "tree-edge-default",
-                label: "edge from parent"
-              },
-              rawOptions: [edgeFromParentStyleOptions]
-            });
-          }
-          if (materializedEdge.options) {
-            edgeOptionLayers.push({
-              kind: "command",
-              sourceRef: {
-                sourceId: materializedEdge.id,
-                sourceSpan: materializedEdge.optionsSpan ?? materializedEdge.span,
-                sourceKind: "tree-edge-options",
-                label: "edge from parent"
-              },
-              rawOptions: [materializedEdge.options]
-            });
-          }
-
-          const activeTreeFrame = context.stack[context.stack.length - 1];
-          const resolvedTreeEdgeStyle = resolveContextDelta(
-            activeTreeFrame.style,
-            activeTreeFrame.transform,
-            edgeOptionLayers,
-            activeTreeFrame.customStyles,
-            (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
-            activeTreeFrame.styleChain,
-            activeTreeFrame.colorAliases
-          );
-          for (const code of resolvedTreeEdgeStyle.diagnostics) {
-            if (code === "unsupported-option-flag:edge from parent") {
-              continue;
-            }
-            pushDiagnostic(code, `Tree edge option issue: ${code}`, materializedEdge.span.from, materializedEdge.span.to);
-          }
-
-          const handledEdge = applyEdgeOperation(
-            materializedEdge,
-            context,
-            statement,
-            resolvedTreeEdgeStyle.style,
-            resolvedTreeEdgeStyle.chain,
-            markFeature,
-            pushDiagnostic,
-            parentAnchorPoint
-          );
-          if (handledEdge.activePath && hasDrawablePathSegments(handledEdge.activePath)) {
-            frontNodeElements.push(...handledEdge.behindNodeElements);
-            frontNodeElements.push(handledEdge.activePath);
-            frontNodeElements.push(...handledEdge.frontNodeElements);
-          } else {
-            frontNodeElements.push(...handledEdge.behindNodeElements, ...handledEdge.frontNodeElements);
-          }
-          for (const coordinateOperation of splitBody.trailingCoordinateOperations) {
-            const parsedName = coordinateOperation.name?.trim() || parseCoordinateOperation(coordinateOperation.raw)?.name;
-            if (!parsedName) {
-              pushDiagnostic(
-                "invalid-coordinate-operation",
-                "Could not parse coordinate operation.",
-                coordinateOperation.span.from,
-                coordinateOperation.span.to
-              );
-              continue;
-            }
-
-            const placementFraction = resolveNodePositionFraction(coordinateOperation.options) ?? 0.5;
-            const capturePoint = handledEdge.segment
-              ? pointAtPlacementSegment(handledEdge.segment, placementFraction)
-              : childAnchorPoint;
-            writeNamedCoordinate(context, applyNameScope(parsedName, context), capturePoint);
-            markFeature("named_coordinates", "supported");
-          }
-        } finally {
-          context.currentPoint = savedCurrentPoint;
-          context.pathStartPoint = savedPathStartPoint;
-          context.stack.pop();
-        }
-      }
-
-      index += cluster.consumed - 1;
+      treeParentCandidate = handled.treeParentCandidate;
+      index += handled.consumed - 1;
       continue;
     }
 
@@ -3364,16 +2133,19 @@ export function evaluatePathStatement(
       ry: DEFAULT_GRID_STEP
     };
     const geometry = transformEllipseGeometry(radii.rx, radii.ry, 0, frameTransform);
-    if (shouldCompoundFilledSubpaths) {
-      activePath = ensurePathForSubpath(activePath, statement.id, statement.id, style, statementStyleChain, statement.span);
-      markPathShapeHint(activePath, "ellipse");
-      appendEllipseSubpath(activePath.commands, pendingEllipseCenter, geometry.rx, geometry.ry, geometry.rotation);
-      markFeature("svg_path", "supported");
-    } else {
-      geometryElements.push(
-        makeEllipseElement(statement.id, pendingEllipseCenter, geometry.rx, geometry.ry, style, statementStyleChain, statement.span, geometry.rotation)
-      );
-    }
+    activePath = emitCircleOrEllipse({
+      geometry: { kind: "ellipse", ...geometry },
+      center: pendingEllipseCenter,
+      statementId: statement.id,
+      itemId: statement.id,
+      span: statement.span,
+      style,
+      styleChain: statementStyleChain,
+      shouldCompoundFilledSubpaths,
+      activePath,
+      geometryElements,
+      markFeature
+    });
     lastPlacementSegment = null;
   }
 
