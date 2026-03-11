@@ -27,6 +27,9 @@ Foreach constructs (`\foreach`, path `foreach`, and `node foreach`) are expanded
 5. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest. Use `--reference-mode pdf-png` (default), `--reference-mode dvisvgm-svg`, or `--reference-mode dvisvgm-svg-png`.
 6. `npm run compare:arrows` regenerates renderer-vs-TeX comparisons for all files under `docs/comparison-inputs/` and writes `artifacts/renderer-compare/arrow-comparison-manifest.json`. Add `-- --with-timestamp` to keep historical run directories.
 7. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It also supports `--reference-mode pdf-png|dvisvgm-svg|dvisvgm-svg-png`.
+8. `npm run codespaces:startup` runs the Codespaces desktop setup (Tauri Linux dependencies, `npm ci`, `tauri-driver`, and desktop no-bundle build).
+
+Codespaces/devcontainer note: `.devcontainer/devcontainer.json` runs `npm run codespaces:startup` via `postCreateCommand`.
 
 Comparison outputs are written under `artifacts/renderer-compare/<run>-<timestamp>/`:
 1. `ours.svg` and `ours.png`

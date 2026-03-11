@@ -9,6 +9,7 @@
     "apps/*"
   ],
   "scripts": {
+    "codespaces:startup": "bash scripts/codespaces/startup.sh",
     "generate:grammar": "npm run -w @tikz-editor/core generate:grammar",
     "build": "npm run -w @tikz-editor/core build",
     "test": "npm run generate:grammar && vitest run",
