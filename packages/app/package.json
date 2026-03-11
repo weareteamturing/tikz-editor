@@ -25,6 +25,7 @@
     "svg2pdf.js": "^2.7.0",
     "svg2tikz": "^0.1.1",
     "svgo": "^4.0.1",
+    "xcolor-rgb-convert": "^1.0.0",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

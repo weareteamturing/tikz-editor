@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { rgbToXcolorExpressionFast, type RgbColor, type RgbToXcolorMode } from "tikz-editor/edit/rgb-to-xcolor";
+import { rgbToXcolorExpression, type RgbColor, type RgbToXcolorMode } from "xcolor-rgb-convert";
 import { normalizeColor } from "tikz-editor/semantic/style/colors";
 import { BASIC_PICKER_COLORS, BASIC_PICKER_COLOR_SET } from "../color-palette";
 import type { NamedColorSwatch } from "../project-named-colors";
@@ -290,7 +290,7 @@ export function ColorPicker({
   const [customRgb, setCustomRgb] = useState<RgbColor>(() => resolveCustomRgbFromDriver(driverValue, namedColorLookup));
   const [customInputValue, setCustomInputValue] = useState<string>(() => rgbToHex(resolveCustomRgbFromDriver(driverValue, namedColorLookup)));
   const [customExpression, setCustomExpression] = useState<string>(() =>
-    rgbToXcolorExpressionFast(
+    rgbToXcolorExpression(
       resolveCustomRgbFromDriver(driverValue, namedColorLookup),
       resolveRgbToXcolorOptions("drag", colorPickerAccuracy)
     ).expression
@@ -338,7 +338,7 @@ export function ColorPicker({
 
   useEffect(() => {
     setCustomExpression(
-      rgbToXcolorExpressionFast(customRgb, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
+      rgbToXcolorExpression(customRgb, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
     );
   }, [customRgb, colorPickerAccuracy]);
 
@@ -620,7 +620,7 @@ export function ColorPicker({
     setCustomRgb(resolved);
     setCustomInputValue(rgbToHex(resolved));
     setCustomExpression(
-      rgbToXcolorExpressionFast(resolved, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
+      rgbToXcolorExpression(resolved, resolveRgbToXcolorOptions("drag", colorPickerAccuracy)).expression
     );
     setCustomInputError(null);
     setCustomInputWarning(null);
@@ -628,7 +628,7 @@ export function ColorPicker({
 
   function applyCustomRgb(nextRgb: RgbColor, mode: RgbToXcolorMode, warning: string | null = null): void {
     const normalizedRgb = clampRgbColor(nextRgb);
-    const result = rgbToXcolorExpressionFast(normalizedRgb, resolveRgbToXcolorOptions(mode, colorPickerAccuracy));
+    const result = rgbToXcolorExpression(normalizedRgb, resolveRgbToXcolorOptions(mode, colorPickerAccuracy));
     setCustomRgb(normalizedRgb);
     setCustomExpression(result.expression);
     setCustomInputError(null);
