@@ -41,8 +41,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     canvasTransform,
     viewportWorldBounds,
     setDragState,
-    interactionSvgRef,
-    resolveRotateWriteTargetId
+    interactionSvgRef
   } = args;
 
   const onHandlePointerDown = useCallback(
@@ -247,85 +246,6 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     ]
   );
 
-  const onRotateHandlePointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: Point, cursor: string) => {
-      if (!svgResult || toolMode !== "select" || event.button !== 0) return;
-
-      viewportRef.current?.focus({ preventScroll: true });
-      event.preventDefault();
-      event.stopPropagation();
-      setTextEditingSession(null);
-      setNodeAnchorOverlay(null);
-
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
-      if (!world) {
-        return;
-      }
-
-      if (snapshot.source !== source) {
-        setWarning("Wait for recompute to finish before dragging.");
-        setSnapLines([]);
-        logSnapDebug({
-          phase: "drag-start-rotate",
-          note: "blocked: snapshot/source mismatch",
-          snapshotMatchesSource: false,
-          dragKind: "rotate",
-          rawPoint: world,
-          lines: []
-        });
-        return;
-      }
-
-      if (selectedElementIds.size !== 1 || !selectedElementIds.has(sourceId)) {
-        dispatch({ type: "SELECT", id: sourceId, additive: false });
-      }
-
-      const rotateTargetId = resolveRotateWriteTargetId(sourceId);
-      const resolvedRotateTarget = resolvePropertyTarget(source, rotateTargetId);
-      const baseRotateDeg =
-        resolvedRotateTarget.kind === "found"
-          ? resolveRotateDegreesFromOptions(resolvedRotateTarget.target.options)
-          : 0;
-
-      setSnapLines([]);
-      setDragState({
-        kind: "rotate",
-        pointerId: event.pointerId,
-        elementId: rotateTargetId,
-        cursor: cursor === "not-allowed" ? "not-allowed" : "grabbing",
-        centerWorld,
-        startPointerAngleDeg: angleDeg(centerWorld, world),
-        baseRotateDeg,
-        lastAppliedRotateDeg: baseRotateDeg,
-        historyMergeKey: makeMergeKey("drag-rotate", sourceId, event.pointerId)
-      });
-      logSnapDebug({
-        phase: "drag-start-rotate",
-        snapshotMatchesSource: true,
-        dragKind: "rotate",
-        rawPoint: world,
-        lines: []
-      });
-    },
-    [
-      dispatch,
-      interactionSvgRef,
-      logSnapDebug,
-      resolveRotateWriteTargetId,
-      selectedElementIds,
-      setDragState,
-      setNodeAnchorOverlay,
-      setSnapLines,
-      setTextEditingSession,
-      setWarning,
-      snapshot.source,
-      source,
-      svgResult,
-      toolMode,
-      viewportRef
-    ]
-  );
-
   const resolveRotateWriteTargetIdInternal = useCallback(
     (sourceId: string): string => {
       const statements = snapshot.parseResult?.figure.body;
@@ -364,6 +284,85 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       return fallbackTargetId ?? sourceId;
     },
     [snapshot.parseResult, snapshot.scene, source]
+  );
+
+  const onRotateHandlePointerDown = useCallback(
+    (event: ReactPointerEvent<SVGElement>, sourceId: string, centerWorld: Point, cursor: string) => {
+      if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+
+      viewportRef.current?.focus({ preventScroll: true });
+      event.preventDefault();
+      event.stopPropagation();
+      setTextEditingSession(null);
+      setNodeAnchorOverlay(null);
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+
+      if (snapshot.source !== source) {
+        setWarning("Wait for recompute to finish before dragging.");
+        setSnapLines([]);
+        logSnapDebug({
+          phase: "drag-start-rotate",
+          note: "blocked: snapshot/source mismatch",
+          snapshotMatchesSource: false,
+          dragKind: "rotate",
+          rawPoint: world,
+          lines: []
+        });
+        return;
+      }
+
+      if (selectedElementIds.size !== 1 || !selectedElementIds.has(sourceId)) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+      }
+
+      const rotateTargetId = resolveRotateWriteTargetIdInternal(sourceId);
+      const resolvedRotateTarget = resolvePropertyTarget(source, rotateTargetId);
+      const baseRotateDeg =
+        resolvedRotateTarget.kind === "found"
+          ? resolveRotateDegreesFromOptions(resolvedRotateTarget.target.options)
+          : 0;
+
+      setSnapLines([]);
+      setDragState({
+        kind: "rotate",
+        pointerId: event.pointerId,
+        elementId: rotateTargetId,
+        cursor: cursor === "not-allowed" ? "not-allowed" : "grabbing",
+        centerWorld,
+        startPointerAngleDeg: angleDeg(centerWorld, world),
+        baseRotateDeg,
+        lastAppliedRotateDeg: baseRotateDeg,
+        historyMergeKey: makeMergeKey("drag-rotate", sourceId, event.pointerId)
+      });
+      logSnapDebug({
+        phase: "drag-start-rotate",
+        snapshotMatchesSource: true,
+        dragKind: "rotate",
+        rawPoint: world,
+        lines: []
+      });
+    },
+    [
+      dispatch,
+      interactionSvgRef,
+      logSnapDebug,
+      resolveRotateWriteTargetIdInternal,
+      selectedElementIds,
+      setDragState,
+      setNodeAnchorOverlay,
+      setSnapLines,
+      setTextEditingSession,
+      setWarning,
+      snapshot.source,
+      source,
+      svgResult,
+      toolMode,
+      viewportRef
+    ]
   );
 
   return {
