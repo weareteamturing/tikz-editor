@@ -5,6 +5,10 @@ import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
 import { CustomDropdown, type CustomDropdownOption } from "./CustomDropdown";
 import { SidePanel } from "./SidePanel";
+import {
+  normalizePastedImageForAssistant,
+  type AssistantComposerImageAttachment
+} from "./assistant-image-attachments";
 import type {
   AssistantAccountSnapshot,
   AssistantItem,
@@ -14,7 +18,11 @@ import type {
 import css from "./AssistantPanel.module.css";
 
 type AssistantPanelProps = {
-  onSubmitPrompt: (prompt: string, model: string | null) => Promise<void>;
+  onSubmitPrompt: (
+    prompt: string,
+    model: string | null,
+    attachments: AssistantComposerImageAttachment[]
+  ) => Promise<void>;
   onInterruptTurn: () => Promise<void>;
 };
 
@@ -33,6 +41,10 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   const [metaError, setMetaError] = useState<string | null>(null);
   const [metaRequested, setMetaRequested] = useState(false);
   const [metaLoading, setMetaLoading] = useState(false);
+  const [pendingImageAttachments, setPendingImageAttachments] = useState<AssistantComposerImageAttachment[]>([]);
+  const [expandedAttachmentId, setExpandedAttachmentId] = useState<string | null>(null);
+  const nextAttachmentIdRef = useRef(0);
+  const pendingImageAttachmentsRef = useRef<AssistantComposerImageAttachment[]>([]);
   const timelineRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
 
@@ -90,6 +102,18 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   }, [assistantApi, metaRequested]);
 
   useEffect(() => {
+    pendingImageAttachmentsRef.current = pendingImageAttachments;
+  }, [pendingImageAttachments]);
+
+  useEffect(() => {
+    return () => {
+      for (const attachment of pendingImageAttachmentsRef.current) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!shouldStickToBottomRef.current) {
       return;
     }
@@ -115,10 +139,16 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     if (!nextPrompt || submitting) {
       return;
     }
+    const attachmentsForTurn = [...pendingImageAttachments];
     setSubmitting(true);
     try {
-      await onSubmitPrompt(nextPrompt, selectedModel === AUTO_MODEL_VALUE ? null : selectedModel);
+      await onSubmitPrompt(nextPrompt, selectedModel === AUTO_MODEL_VALUE ? null : selectedModel, attachmentsForTurn);
+      for (const attachment of attachmentsForTurn) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
       setPrompt("");
+      setPendingImageAttachments([]);
+      setExpandedAttachmentId(null);
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +224,40 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
 
       <SidePanel.Footer>
         <form className={css.composer} onSubmit={handleSubmit}>
+          {pendingImageAttachments.length > 0 ? (
+            <div className={css.attachments} data-testid="assistant-attachments">
+              {pendingImageAttachments.map((attachment) => (
+                <div key={attachment.id} className={css.attachmentChip}>
+                  <button
+                    type="button"
+                    className={css.attachmentPreviewButton}
+                    onClick={() =>
+                      setExpandedAttachmentId((current) => (current === attachment.id ? null : attachment.id))
+                    }
+                    aria-label={`Preview ${attachment.fileName}`}
+                  >
+                    <img
+                      alt={attachment.fileName}
+                      src={attachment.previewUrl}
+                      className={`${css.attachmentThumb} ${expandedAttachmentId === attachment.id ? css.attachmentThumbExpanded : ""}`}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    className={css.attachmentRemove}
+                    onClick={() => {
+                      URL.revokeObjectURL(attachment.previewUrl);
+                      setPendingImageAttachments((current) => current.filter((item) => item.id !== attachment.id));
+                      setExpandedAttachmentId((current) => (current === attachment.id ? null : current));
+                    }}
+                    aria-label={`Remove ${attachment.fileName}`}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -202,6 +266,30 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
                 event.preventDefault();
                 void submitPrompt();
               }
+            }}
+            onPaste={(event) => {
+              const images = extractImageFilesFromClipboard(event.clipboardData);
+              if (images.length === 0) {
+                return;
+              }
+              event.preventDefault();
+              void (async () => {
+                try {
+                  const normalized = await Promise.all(
+                    images.map((file, index) => normalizePastedImageForAssistant(file, index))
+                  );
+                  const prepared: AssistantComposerImageAttachment[] = normalized.map((item) => ({
+                    id: `attachment-${Date.now()}-${nextAttachmentIdRef.current++}`,
+                    blob: item.blob,
+                    mimeType: item.mimeType,
+                    fileName: item.fileName,
+                    previewUrl: URL.createObjectURL(item.blob)
+                  }));
+                  setPendingImageAttachments((current) => [...current, ...prepared]);
+                } catch {
+                  // Ignore failed clipboard images and keep composer editable.
+                }
+              })();
             }}
             placeholder="Ask Codex to edit the current figure..."
             disabled={submitting || running}
@@ -254,16 +342,42 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   );
 }
 
+function extractImageFilesFromClipboard(clipboardData: DataTransfer | null): File[] {
+  if (!clipboardData || !clipboardData.items) {
+    return [];
+  }
+  const files: File[] = [];
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind !== "file") {
+      continue;
+    }
+    if (!item.type.startsWith("image/")) {
+      continue;
+    }
+    const file = item.getAsFile();
+    if (file) {
+      files.push(file);
+    }
+  }
+  return files;
+}
+
 function AssistantTimelineItem({ item }: { item: AssistantItem }) {
   const [imageExpanded, setImageExpanded] = useState(false);
   if (item.type === "userMessage") {
     const contentList = Array.isArray(item.content) ? item.content : [];
     const normalized = normalizeUserMessage(contentList);
     return (
-      <div className={`${css.card} ${css.userCard}`}>
-        <div className={css.cardTitle}>You</div>
+      <div className={`${css.card} ${css.userCard} ${css.userMessageBubble}`}>
         <div className={css.messageBody}>
           <div>{renderTextWithBreaks(normalized.visibleText)}</div>
+          {normalized.attachmentUrls.length > 0 ? (
+            <div className={css.historyAttachments}>
+              {normalized.attachmentUrls.map((url, index) => (
+                <img key={`${index}:${url}`} src={url} alt={`Attachment ${index + 1}`} className={css.historyAttachmentThumb} />
+              ))}
+            </div>
+          ) : null}
           {normalized.hasAttachment ? <div className={css.attachmentHint}>PNG snapshot attached</div> : null}
           {normalized.rawPrompt && normalized.rawPrompt !== normalized.visibleText ? (
             <details className={css.rawPrompt}>
@@ -278,11 +392,8 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
 
   if (item.type === "agentMessage") {
     return (
-      <div className={`${css.card} ${css.agentCard}`}>
-        <div className={css.cardTitle}>Codex</div>
-        <div className={css.messageBody}>
-          <Markdown remarkPlugins={[remarkGfm]}>{asString(item.text)}</Markdown>
-        </div>
+      <div className={css.agentMessageBare}>
+        <Markdown remarkPlugins={[remarkGfm]}>{asString(item.text)}</Markdown>
       </div>
     );
   }
@@ -314,7 +425,7 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
     const status = asString(item.status) || "completed";
     return (
       <details className={css.details}>
-        <summary>{command ? <>Ran <code>{command}</code></> : "Ran command"}</summary>
+        <summary>{summarizeCommandExecution(command)}</summary>
         <div className={css.messageBody}>
           <div className={css.attachmentHint}>
             Status: {status}
@@ -322,6 +433,60 @@ function AssistantTimelineItem({ item }: { item: AssistantItem }) {
             {typeof item.durationMs === "number" ? ` · ${item.durationMs}ms` : ""}
           </div>
           {item.aggregatedOutput ? <pre className={css.detail}>{asString(item.aggregatedOutput)}</pre> : null}
+        </div>
+      </details>
+    );
+  }
+
+  if (item.type === "fileChange") {
+    const changes = Array.isArray(item.changes) ? item.changes : [];
+    const summaries = changes
+      .map((change) => {
+        const record = asRecord(change);
+        const path = typeof record?.path === "string" ? record.path : null;
+        const diff = typeof record?.diff === "string" ? record.diff : "";
+        return { path, diff, stats: countDiffStats(diff) };
+      })
+      .filter((change) => change.diff.trim().length > 0);
+    const totals = summaries.reduce(
+      (acc, change) => ({ added: acc.added + change.stats.added, removed: acc.removed + change.stats.removed }),
+      { added: 0, removed: 0 }
+    );
+    return (
+      <details className={css.details}>
+        <summary>
+          Edited code
+          {totals.added > 0 || totals.removed > 0 ? ` +${totals.added} -${totals.removed}` : ""}
+        </summary>
+        <div className={css.messageBody}>
+          {summaries.length === 0 ? (
+            <div className={css.attachmentHint}>No diff available.</div>
+          ) : (
+            summaries.map((change, index) => (
+              <div key={`${index}:${change.path ?? "unknown"}`} className={css.diffBlock}>
+                {change.path ? <div className={css.attachmentHint}>{change.path}</div> : null}
+                <div className={css.diffScroll}>
+                  <pre className={css.diffPre}>
+                    {change.diff.split("\n").map((line, lineIndex) => (
+                      <span
+                        key={`${lineIndex}:${line}`}
+                        className={
+                          line.startsWith("+") && !line.startsWith("+++")
+                            ? css.diffLineAdded
+                            : line.startsWith("-") && !line.startsWith("---")
+                            ? css.diffLineRemoved
+                            : css.diffLineContext
+                        }
+                      >
+                        {line}
+                        {"\n"}
+                      </span>
+                    ))}
+                  </pre>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </details>
     );
@@ -362,26 +527,38 @@ function normalizeUserMessage(contentList: unknown[]): {
   visibleText: string;
   rawPrompt: string | null;
   hasAttachment: boolean;
+  attachmentUrls: string[];
 } {
   let rawPrompt = "";
   let hasAttachment = false;
+  const attachmentUrls: string[] = [];
   for (const content of contentList) {
     if (!content || typeof content !== "object") {
       continue;
     }
-    const candidate = content as { type?: unknown; text?: unknown };
+    const candidate = content as { type?: unknown; text?: unknown; url?: unknown; path?: unknown };
     if (candidate.type === "text") {
       const next = asString(candidate.text);
       rawPrompt = rawPrompt ? `${rawPrompt}\n\n${next}` : next;
     } else {
       hasAttachment = true;
+      if (candidate.type === "image" && typeof candidate.url === "string" && candidate.url.trim()) {
+        attachmentUrls.push(candidate.url);
+      }
+      if (candidate.type === "localImage" && typeof candidate.path === "string" && candidate.path.trim()) {
+        const value = candidate.path.trim();
+        if (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("http://") || value.startsWith("https://")) {
+          attachmentUrls.push(value);
+        }
+      }
     }
   }
   const extracted = extractUserRequest(rawPrompt);
   return {
     visibleText: extracted ?? rawPrompt,
     rawPrompt: rawPrompt || null,
-    hasAttachment
+    hasAttachment,
+    attachmentUrls
   };
 }
 
@@ -592,6 +769,44 @@ function extractContentImageUrl(contentItems: unknown[]): string | null {
     }
   }
   return null;
+}
+
+function summarizeCommandExecution(command: string | null): ReactNode {
+  if (!command) {
+    return "Ran command";
+  }
+  if (isFigureTexReadCommand(command)) {
+    return "Read the code";
+  }
+  return <>Ran <code>{command}</code></>;
+}
+
+function isFigureTexReadCommand(command: string): boolean {
+  const normalized = command.trim();
+  if (!/\bfigure\.tex\b/.test(normalized)) {
+    return false;
+  }
+  const readPrefix = /^(cat|sed|head|tail|less|more|nl|awk|grep|rg|wc)\b/;
+  return readPrefix.test(normalized);
+}
+
+function countDiffStats(diff: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@")) {
+      continue;
+    }
+    if (line.startsWith("+")) {
+      added += 1;
+      continue;
+    }
+    if (line.startsWith("-")) {
+      removed += 1;
+      continue;
+    }
+  }
+  return { added, removed };
 }
 
 function approvalActions(approval: AssistantPendingApproval): Array<{ value: string; label: string }> {

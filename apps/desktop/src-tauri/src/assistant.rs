@@ -1,5 +1,5 @@
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 const ASSISTANT_EVENT_NAME: &str = "desktop-assistant-event";
@@ -103,6 +103,15 @@ pub struct AssistantAccountSnapshot {
     pub account: Value,
     #[serde(rename = "rateLimits")]
     pub rate_limits: Value,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct AssistantPastedImageInput {
+    pub base64: String,
+    #[serde(rename = "mimeType")]
+    pub mime_type: String,
+    #[serde(rename = "fileName")]
+    pub file_name: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -474,6 +483,7 @@ impl AssistantState {
         prompt: String,
         source: String,
         png_base64: Option<String>,
+        pasted_images: Option<Vec<AssistantPastedImageInput>>,
         thread_id: Option<String>,
         workspace_path: Option<String>,
         figure_path: Option<String>,
@@ -492,6 +502,10 @@ impl AssistantState {
         if let Some(base64_png) = png_base64 {
             write_base64_file(Path::new(&summary.preview_path), &base64_png)?;
         }
+        let pasted_image_paths = persist_pasted_images(
+            Path::new(&summary.workspace_path),
+            pasted_images.unwrap_or_default(),
+        )?;
 
         let is_first_turn = {
             let docs = self
@@ -507,6 +521,7 @@ impl AssistantState {
         let input = build_turn_input(
             &summary.figure_path,
             &summary.preview_path,
+            &pasted_image_paths,
             &prompt,
             &source,
             is_first_turn,
@@ -1269,6 +1284,7 @@ fn write_base64_file(path: &Path, base64_contents: &str) -> Result<(), String> {
 fn build_turn_input(
     figure_path: &str,
     preview_path: &str,
+    pasted_image_paths: &[String],
     prompt: &str,
     source: &str,
     is_first_turn: bool,
@@ -1291,6 +1307,14 @@ fn build_turn_input(
           "text": prompt
         })]
     };
+    for pasted_image_path in pasted_image_paths {
+        if Path::new(pasted_image_path).exists() {
+            input.push(json!({
+              "type": "localImage",
+              "path": pasted_image_path
+            }));
+        }
+    }
     if Path::new(preview_path).exists() {
         input.push(json!({
           "type": "localImage",
@@ -1298,6 +1322,74 @@ fn build_turn_input(
         }));
     }
     input
+}
+
+fn persist_pasted_images(
+    workspace_path: &Path,
+    pasted_images: Vec<AssistantPastedImageInput>,
+) -> Result<Vec<String>, String> {
+    if pasted_images.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let image_dir = workspace_path.join("pasted-images");
+    fs::create_dir_all(&image_dir).map_err(|error| error.to_string())?;
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| error.to_string())?
+        .as_millis();
+
+    let mut saved_paths: Vec<String> = Vec::new();
+    for (index, image) in pasted_images.iter().enumerate() {
+        if image.base64.trim().is_empty() {
+            continue;
+        }
+        let ext = extension_for_mime_type(&image.mime_type);
+        let stem = sanitized_file_stem(&image.file_name);
+        let file_name = format!("{timestamp}-{index:03}-{stem}.{ext}");
+        let file_path = image_dir.join(file_name);
+        write_base64_file(&file_path, &image.base64)?;
+        saved_paths.push(file_path.to_string_lossy().to_string());
+    }
+    Ok(saved_paths)
+}
+
+fn extension_for_mime_type(mime_type: &str) -> &'static str {
+    match mime_type.trim().to_ascii_lowercase().as_str() {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        _ => "img",
+    }
+}
+
+fn sanitized_file_stem(file_name: &str) -> String {
+    let stem = Path::new(file_name)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("pasted-image");
+    let normalized = stem
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    let compact = normalized
+        .trim_matches('-')
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    if compact.is_empty() {
+        "pasted-image".to_string()
+    } else {
+        compact
+    }
 }
 
 fn short_workspace_name(document_id: &str) -> String {
@@ -1333,5 +1425,97 @@ fn merge_json(existing: Value, incoming: Value) -> Value {
             Value::Object(left)
         }
         (_, right) => right,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_turn_input;
+    use serde_json::Value;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn item_path(item: &Value) -> Option<String> {
+        item.get("path").and_then(Value::as_str).map(str::to_string)
+    }
+
+    fn make_temp_dir() -> PathBuf {
+        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+        let millis = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock drift")
+            .as_millis();
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("tikz-editor-assistant-test-{millis}-{id}"));
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
+
+    #[test]
+    fn build_turn_input_first_turn_includes_pasted_images_then_preview() {
+        let dir = make_temp_dir();
+        let pasted_a = dir.join("pasted-a.png");
+        let pasted_b = dir.join("pasted-b.png");
+        let preview = dir.join("preview.png");
+        fs::write(&pasted_a, b"a").expect("write pasted a");
+        fs::write(&pasted_b, b"b").expect("write pasted b");
+        fs::write(&preview, b"p").expect("write preview");
+
+        let input = build_turn_input(
+            "figure.tex",
+            preview.to_string_lossy().as_ref(),
+            &[
+                pasted_a.to_string_lossy().to_string(),
+                pasted_b.to_string_lossy().to_string(),
+            ],
+            "make line thicker",
+            "\\draw (0,0)--(1,1);",
+            true,
+        );
+
+        let first_text = input
+            .first()
+            .and_then(|item| item.get("text"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        assert!(first_text.contains("User request: make line thicker"));
+        assert_eq!(item_path(&input[1]), Some(pasted_a.to_string_lossy().to_string()));
+        assert_eq!(item_path(&input[2]), Some(pasted_b.to_string_lossy().to_string()));
+        assert_eq!(item_path(&input[3]), Some(preview.to_string_lossy().to_string()));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn build_turn_input_follow_up_uses_plain_prompt_text() {
+        let dir = make_temp_dir();
+        let pasted = dir.join("pasted.png");
+        let preview = dir.join("preview.png");
+        fs::write(&pasted, b"a").expect("write pasted");
+        fs::write(&preview, b"p").expect("write preview");
+
+        let input = build_turn_input(
+            "figure.tex",
+            preview.to_string_lossy().as_ref(),
+            &[pasted.to_string_lossy().to_string()],
+            "nudge the label",
+            "\\draw (0,0)--(1,1);",
+            false,
+        );
+
+        let first_text = input
+            .first()
+            .and_then(|item| item.get("text"))
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        assert_eq!(first_text, "nudge the label");
+        assert_eq!(item_path(&input[1]), Some(pasted.to_string_lossy().to_string()));
+        assert_eq!(item_path(&input[2]), Some(preview.to_string_lossy().to_string()));
+
+        let _ = fs::remove_dir_all(dir);
     }
 }

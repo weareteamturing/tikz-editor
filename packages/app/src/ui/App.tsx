@@ -29,6 +29,7 @@ import { RightSidebar } from "./RightSidebar";
 import { renderPngExport } from "./export-commands";
 import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument } from "./svg-import";
+import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -285,7 +286,7 @@ export function App() {
 
       if (snapshotForDoc.svg && snapshotForDoc.source === sourceForDoc) {
         try {
-          const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144 });
+          const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144, transparentBackground: false });
           const pngBase64 = await blobToBase64(rendered.blob);
           const dataUrl = `data:${rendered.artifact.mimeType};base64,${pngBase64}`;
           result = {
@@ -383,15 +384,30 @@ export function App() {
     if (!snapshotForDoc.svg || snapshotForDoc.source !== sourceForDoc) {
       return null;
     }
-    const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144 });
+    const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144, transparentBackground: false });
     return await blobToBase64(rendered.blob);
   }
 
-  async function handleAssistantPrompt(prompt: string, model: string | null): Promise<void> {
+  async function handleAssistantPrompt(
+    prompt: string,
+    model: string | null,
+    attachments: AssistantComposerImageAttachment[]
+  ): Promise<void> {
     const documentId = activeDocumentId;
     const currentDocument = documents[documentId];
     const currentSource = currentDocument?.source ?? source;
     const currentSnapshot = currentDocument?.snapshot ?? snapshot;
+    const pastedImages = await Promise.all(
+      attachments.map(async (attachment) => ({
+        base64: await blobToBase64(attachment.blob),
+        mimeType: attachment.mimeType,
+        fileName: attachment.fileName
+      }))
+    );
+    const optimisticImageContent = pastedImages.map((image) => ({
+      type: "image" as const,
+      url: `data:${image.mimeType};base64,${image.base64}`
+    }));
     dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
     dispatch({ type: "ASSISTANT_TURN_STATUS", documentId, status: "starting", turnId: null });
     dispatch({
@@ -400,7 +416,10 @@ export function App() {
       item: {
         type: "userMessage",
         id: `optimistic-user-message:${documentId}:${Date.now()}`,
-        content: [{ type: "text", text: prompt }]
+        content: [
+          { type: "text", text: prompt },
+          ...optimisticImageContent
+        ]
       }
     });
     try {
@@ -429,6 +448,7 @@ export function App() {
         prompt,
         source: currentSource,
         pngBase64,
+        pastedImages: pastedImages.length > 0 ? pastedImages : undefined,
         threadId: thread?.threadId ?? currentDocument?.assistantThreadId ?? null,
         workspacePath: thread?.workspacePath ?? currentDocument?.assistantWorkspacePath ?? null,
         figurePath: thread?.figurePath ?? currentDocument?.assistantFigurePath ?? null,

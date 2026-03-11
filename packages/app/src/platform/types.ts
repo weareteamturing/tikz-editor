@@ -87,6 +87,12 @@ export type AssistantChatContent =
   | { type: "image"; url: string }
   | { type: "localImage"; path: string };
 
+export type AssistantPastedImage = {
+  base64: string;
+  mimeType: string;
+  fileName: string;
+};
+
 export type AssistantItem =
   | { type: "userMessage"; id: string; content: AssistantChatContent[] }
   | { type: "agentMessage"; id: string; text: string; phase?: "commentary" | "final_answer" | string }
@@ -197,6 +203,7 @@ export type AssistantApi = {
     prompt: string;
     source: string;
     pngBase64?: string | null;
+    pastedImages?: AssistantPastedImage[];
     threadId?: string | null;
     workspacePath?: string | null;
     figurePath?: string | null;

@@ -3,10 +3,15 @@ import { StylesPanel } from "./StylesPanel";
 import { AssistantPanel } from "./AssistantPanel";
 import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
+import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import css from "./RightSidebar.module.css";
 
 type RightSidebarProps = {
-  onSubmitPrompt: (prompt: string, model: string | null) => Promise<void>;
+  onSubmitPrompt: (
+    prompt: string,
+    model: string | null,
+    attachments: AssistantComposerImageAttachment[]
+  ) => Promise<void>;
   onInterruptTurn: () => Promise<void>;
 };
 

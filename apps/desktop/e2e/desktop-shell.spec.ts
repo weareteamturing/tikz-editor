@@ -10,10 +10,12 @@ function makeMockBridge() {
   };
   const saved: string[] = [];
   const contextMenuPayloads: unknown[] = [];
+  const assistantStartTurnPayloads: unknown[] = [];
   let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
   return {
     saved,
     contextMenuPayloads,
+    assistantStartTurnPayloads,
     bridge: {
       openText: async (path?: string | null) => {
         if (path && path !== opened.path) {
@@ -56,7 +58,16 @@ function makeMockBridge() {
         figurePath: `/tmp/${documentId}/figure.tex`,
         previewPath: `/tmp/${documentId}/current.png`
       }),
-      assistantStartTurn: async () => ({ turnId: "turn-123" }),
+      assistantStartTurn: async (params: {
+        documentId: string;
+        prompt: string;
+        source: string;
+        pngBase64?: string | null;
+        pastedImages?: Array<{ base64: string; mimeType: string; fileName: string }>;
+      }) => {
+        assistantStartTurnPayloads.push(params);
+        return { turnId: "turn-123" };
+      },
       assistantInterruptTurn: async () => undefined,
       assistantSyncSource: async () => undefined,
       assistantRespondToApproval: async () => undefined,
@@ -244,9 +255,14 @@ describe("desktop shell flows", () => {
       documentId: "doc-1",
       prompt: "help",
       source: "\\draw (0,0)--(1,1);",
-      pngBase64: null
+      pngBase64: null,
+      pastedImages: [{ base64: "Zm9v", mimeType: "image/png", fileName: "one.png" }]
     });
     expect(turn?.turnId).toBe("turn-123");
+    expect(mock.assistantStartTurnPayloads).toHaveLength(1);
+    expect(mock.assistantStartTurnPayloads[0]).toEqual(expect.objectContaining({
+      pastedImages: [{ base64: "Zm9v", mimeType: "image/png", fileName: "one.png" }]
+    }));
 
     const state = await platform.assistant?.loadThreadState?.({ documentId: "doc-1" });
     expect(state?.items).toHaveLength(1);

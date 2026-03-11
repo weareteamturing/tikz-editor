@@ -76,6 +76,7 @@ type DesktopBridge = {
     prompt: string;
     source: string;
     pngBase64?: string | null;
+    pastedImages?: Array<{ base64: string; mimeType: string; fileName: string }>;
     threadId?: string | null;
     workspacePath?: string | null;
     figurePath?: string | null;
@@ -571,13 +572,14 @@ function createDefaultBridge(): DesktopBridge {
         previewPath
       });
     },
-    assistantStartTurn: async ({ documentId, prompt, source, pngBase64, threadId, workspacePath, figurePath, previewPath, model }) => {
+    assistantStartTurn: async ({ documentId, prompt, source, pngBase64, pastedImages, threadId, workspacePath, figurePath, previewPath, model }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<{ turnId: string | null }>("desktop_assistant_start_turn", {
         documentId,
         prompt,
         source,
         pngBase64,
+        pastedImages,
         threadId,
         workspacePath,
         figurePath,
