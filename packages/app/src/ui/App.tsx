@@ -502,11 +502,28 @@ export function App() {
     const globalLike = globalThis as typeof globalThis & {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;
+        selectAllElements: () => void;
+        selectSourceIds: (sourceIds: string[]) => void;
+        clearSelection: () => void;
       };
     };
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
       setSource: (nextSource) => {
         dispatch({ type: "CODE_EDITED", source: nextSource });
+      },
+      selectAllElements: () => {
+        const ids = Array.from(
+          new Set(
+            (snapshotRef.current.scene?.elements ?? []).map((element) => element.sourceRef.sourceId)
+          )
+        );
+        dispatch({ type: "SELECT_RANGE", ids });
+      },
+      selectSourceIds: (sourceIds) => {
+        dispatch({ type: "SELECT_RANGE", ids: sourceIds });
+      },
+      clearSelection: () => {
+        dispatch({ type: "CLEAR_SELECTION" });
       }
     };
     return () => {

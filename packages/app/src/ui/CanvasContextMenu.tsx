@@ -95,6 +95,7 @@ function ContextMenuPopup({
             aria-checked={binding.checked}
             disabled={!binding.enabled}
             className={[css.item, hasCheckItems ? "" : css.itemNoCheck].filter(Boolean).join(" ")}
+            data-testid={`canvas-context-cmd-${item.commandId}`}
             onClick={() => {
               if (!binding.enabled) {
                 return;
@@ -221,6 +222,7 @@ export function CanvasContextMenu({
       className={css.root}
       style={{ left: `${position.x}px`, top: `${position.y}px` }}
       role="menu"
+      data-testid="canvas-context-menu"
     >
       <ContextMenuPopup
         items={items}

@@ -181,6 +181,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
           className={[css.viewport, toolMode === "select" ? "" : css.viewportTool].filter(Boolean).join(" ")}
           ref={viewportRef}
           data-canvas-viewport="true"
+          data-testid="canvas-viewport"
           tabIndex={0}
           onKeyDown={onViewportKeyDown}
           onCopy={onViewportCopy}
@@ -199,9 +200,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             onCanvasContextMenu(event);
           }}
         >
-          {assistantLockReason ? <div className={css.lockOverlay}>{assistantLockReason}</div> : null}
+          {assistantLockReason ? <div className={css.lockOverlay} data-testid="canvas-lock-overlay">{assistantLockReason}</div> : null}
           {!svgResult ? (
-            <div className={css.noSvg}>{snapshot.source ? "Computing…" : "No source"}</div>
+            <div className={css.noSvg} data-testid="canvas-no-svg">{snapshot.source ? "Computing…" : "No source"}</div>
           ) : (
             <div
               className={css.worldStage}
@@ -461,6 +462,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 role="button"
                 tabIndex={0}
                 aria-label="Warning message. Click to copy."
+                data-testid="canvas-warning-message"
               >
                 {warning}
               </div>
@@ -469,6 +471,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
           {showDevPanel && (
             <div
               className={css.snapDebugOverlay}
+              data-testid="snap-debug-overlay"
               style={{
                 left: snapDebugRect.left,
                 top: snapDebugRect.top,

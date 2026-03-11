@@ -46,7 +46,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="settings-title">
+    <Modal onClose={onClose} className={css.dialog} labelledBy="settings-title" dataTestId="settings-modal">
         <div className={css.titleBar}>
           <span id="settings-title" className={css.title}>Settings</span>
           <button type="button" className={css.closeBtn} onClick={onClose}>
@@ -62,6 +62,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 type="button"
                 className={[css.navItem, activeCategory === cat.id ? css.navItemActive : ""].filter(Boolean).join(" ")}
                 onClick={() => selectCategory(cat.id)}
+                data-testid={`settings-category-${cat.id}`}
               >
                 {cat.label}
               </button>

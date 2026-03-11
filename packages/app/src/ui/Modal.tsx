@@ -5,6 +5,7 @@ type ModalProps = {
   onClose: () => void;
   labelledBy?: string;
   className?: string;
+  dataTestId?: string;
   closeOnEscape?: boolean;
   closeOnBackdrop?: boolean;
   children: ReactNode;
@@ -14,6 +15,7 @@ export function Modal({
   onClose,
   labelledBy,
   className,
+  dataTestId,
   closeOnEscape = true,
   closeOnBackdrop = true,
   children
@@ -49,6 +51,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
+        data-testid={dataTestId}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {children}

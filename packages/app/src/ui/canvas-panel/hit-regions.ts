@@ -1,7 +1,7 @@
 import type { SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
-const HIT_STROKE_PX = 10;
+const HIT_STROKE_PX = 18;
 const ADORNMENT_TEXT_HIT_PADDING_PX = 8;
 
 export type HitRegion =
