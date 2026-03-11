@@ -1,0 +1,364 @@
+import { useMemo } from "react";
+import { PT_PER_CM } from "tikz-editor/edit/format";
+import type { Point } from "tikz-editor/semantic/types";
+import { distanceSquared, worldToSvgPoint, worldToSvgY } from "./geometry";
+import { resolveBezierControlsFromBend } from "./interaction-helpers";
+import {
+  pathToolCanClose,
+  pathToolCloseRadiusWorld,
+  pathToolShouldClose
+} from "./path-tool";
+import { resolveFreehandPreviewSegments } from "./freehand-tool";
+import { buildAnchoredGridPreviewLines } from "./panel-helpers";
+
+const TOOL_PREVIEW_CIRCLE_RADIUS_PT = 0.8 * PT_PER_CM;
+const TOOL_PREVIEW_GRID_STEP_PT = PT_PER_CM;
+const TOOL_PREVIEW_GRID_MAX_LINES = 120;
+
+type ToolPreview =
+  | { kind: "cursor"; x: number; y: number }
+  | { kind: "node"; x: number; y: number }
+  | { kind: "line"; x1: number; y1: number; x2: number; y2: number; arrow: boolean }
+  | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+  | {
+      kind: "complex-path";
+      startX: number;
+      startY: number;
+      closeCandidate: boolean;
+      canClose: boolean;
+      segments: Array<
+        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
+        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+      >;
+    }
+  | {
+      kind: "freehand";
+      segments: Array<
+        | { kind: "line"; x1: number; y1: number; x2: number; y2: number }
+        | { kind: "bezier"; x1: number; y1: number; c1x: number; c1y: number; c2x: number; c2y: number; x2: number; y2: number }
+      >;
+    }
+  | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
+  | { kind: "rect"; x: number; y: number; width: number; height: number }
+  | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
+  | { kind: "circle"; cx: number; cy: number; r: number };
+
+export type UseCanvasDerivedStateArgs = {
+  [key: string]: any;
+};
+
+export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
+  const {
+    svgResult,
+    toolMode,
+    toolDraft,
+    toolCursorWorld,
+    freehandDraft,
+    pathDraft,
+    pathSegmentDraft,
+    pendingBezier,
+    bezierBendDraft,
+    canvasTransform
+  } = args;
+
+  const toolPreview = useMemo((): ToolPreview | null => {
+    if (!svgResult || toolMode === "select") {
+      return null;
+    }
+
+    if (toolMode === "addNode") {
+      const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
+      if (!liveWorld) {
+        return null;
+      }
+      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
+      return { kind: "node", x: point.x, y: point.y };
+    }
+
+    if (toolMode === "addFreehand") {
+      if (!freehandDraft || freehandDraft.points.length < 2) {
+        if (!toolCursorWorld) {
+          return null;
+        }
+        const point = worldToSvgPoint(toolCursorWorld, svgResult.viewBox);
+        return { kind: "cursor", x: point.x, y: point.y };
+      }
+
+      const segments: Extract<ToolPreview, { kind: "freehand" }>["segments"] = [];
+      for (const segment of resolveFreehandPreviewSegments(freehandDraft)) {
+        if (segment.kind === "line") {
+          const from = worldToSvgPoint(segment.from, svgResult.viewBox);
+          const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+          continue;
+        }
+
+        const from = worldToSvgPoint(segment.from, svgResult.viewBox);
+        const c1 = worldToSvgPoint(segment.control1, svgResult.viewBox);
+        const c2 = worldToSvgPoint(segment.control2, svgResult.viewBox);
+        const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+        segments.push({
+          kind: "bezier",
+          x1: from.x,
+          y1: from.y,
+          c1x: c1.x,
+          c1y: c1.y,
+          c2x: c2.x,
+          c2y: c2.y,
+          x2: to.x,
+          y2: to.y
+        });
+      }
+
+      return { kind: "freehand", segments };
+    }
+
+    const makeBezierPreview = (startWorld: Point, endWorld: Point, bendWorld: Point): ToolPreview => {
+      const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
+      const start = worldToSvgPoint(startWorld, svgResult.viewBox);
+      const end = worldToSvgPoint(controls.endWorld, svgResult.viewBox);
+      const c1 = worldToSvgPoint(controls.control1, svgResult.viewBox);
+      const c2 = worldToSvgPoint(controls.control2, svgResult.viewBox);
+      return {
+        kind: "bezier",
+        x1: start.x,
+        y1: start.y,
+        c1x: c1.x,
+        c1y: c1.y,
+        c2x: c2.x,
+        c2y: c2.y,
+        x2: end.x,
+        y2: end.y
+      };
+    };
+
+    if (toolMode === "addPath") {
+      if (!pathDraft) {
+        if (!toolCursorWorld) {
+          return null;
+        }
+        const point = worldToSvgPoint(toolCursorWorld, svgResult.viewBox);
+        return { kind: "cursor", x: point.x, y: point.y };
+      }
+
+      const segments: Extract<ToolPreview, { kind: "complex-path" }>["segments"] = [];
+      let currentPoint = pathDraft.startWorld;
+      for (const segment of pathDraft.segments) {
+        const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+        if (segment.kind === "line") {
+          const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+          currentPoint = segment.to;
+          continue;
+        }
+
+        const c1 = worldToSvgPoint(segment.control1, svgResult.viewBox);
+        const c2 = worldToSvgPoint(segment.control2, svgResult.viewBox);
+        const to = worldToSvgPoint(segment.to, svgResult.viewBox);
+        segments.push({
+          kind: "bezier",
+          x1: from.x,
+          y1: from.y,
+          c1x: c1.x,
+          c1y: c1.y,
+          c2x: c2.x,
+          c2y: c2.y,
+          x2: to.x,
+          y2: to.y
+        });
+        currentPoint = segment.to;
+      }
+      if (pathSegmentDraft) {
+        if (pathSegmentDraft.isBending) {
+          const controls = resolveBezierControlsFromBend(
+            pathSegmentDraft.startWorld,
+            pathSegmentDraft.endWorld,
+            pathSegmentDraft.bendWorld
+          );
+          const from = worldToSvgPoint(pathSegmentDraft.startWorld, svgResult.viewBox);
+          const c1 = worldToSvgPoint(controls.control1, svgResult.viewBox);
+          const c2 = worldToSvgPoint(controls.control2, svgResult.viewBox);
+          const to = worldToSvgPoint(pathSegmentDraft.endWorld, svgResult.viewBox);
+          segments.push({
+            kind: "bezier",
+            x1: from.x,
+            y1: from.y,
+            c1x: c1.x,
+            c1y: c1.y,
+            c2x: c2.x,
+            c2y: c2.y,
+            x2: to.x,
+            y2: to.y
+          });
+        } else {
+          const from = worldToSvgPoint(pathSegmentDraft.startWorld, svgResult.viewBox);
+          const to = worldToSvgPoint(pathSegmentDraft.endWorld, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+        }
+      } else if (toolCursorWorld) {
+        const closeCandidate = pathToolShouldClose(
+          pathDraft,
+          toolCursorWorld,
+          pathToolCloseRadiusWorld(canvasTransform.scale)
+        );
+        const candidateTarget = closeCandidate ? pathDraft.startWorld : toolCursorWorld;
+        if (distanceSquared(currentPoint, candidateTarget) > 1e-6) {
+          const from = worldToSvgPoint(currentPoint, svgResult.viewBox);
+          const to = worldToSvgPoint(candidateTarget, svgResult.viewBox);
+          segments.push({
+            kind: "line",
+            x1: from.x,
+            y1: from.y,
+            x2: to.x,
+            y2: to.y
+          });
+        }
+      }
+
+      const start = worldToSvgPoint(pathDraft.startWorld, svgResult.viewBox);
+      const closeCandidate =
+        toolCursorWorld != null
+          ? pathToolShouldClose(pathDraft, toolCursorWorld, pathToolCloseRadiusWorld(canvasTransform.scale))
+          : false;
+      return {
+        kind: "complex-path",
+        startX: start.x,
+        startY: start.y,
+        closeCandidate,
+        canClose: pathToolCanClose(pathDraft),
+        segments
+      };
+    }
+
+    if (toolMode === "addBezier" && pendingBezier) {
+      const midpoint = {
+        x: (pendingBezier.startWorld.x + pendingBezier.endWorld.x) / 2,
+        y: (pendingBezier.startWorld.y + pendingBezier.endWorld.y) / 2
+      };
+      const bendWorld = bezierBendDraft?.currentWorld ?? toolCursorWorld ?? midpoint;
+      return makeBezierPreview(pendingBezier.startWorld, pendingBezier.endWorld, bendWorld);
+    }
+
+    const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
+    if (!liveWorld) {
+      return null;
+    }
+
+    if (!toolDraft) {
+      const point = worldToSvgPoint(liveWorld, svgResult.viewBox);
+      return { kind: "cursor", x: point.x, y: point.y };
+    }
+
+    if (toolDraft.toolMode === "addBezier") {
+      const midpoint = {
+        x: (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
+        y: (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
+      };
+      return makeBezierPreview(toolDraft.startWorld, toolDraft.currentWorld, midpoint);
+    }
+
+    const start = worldToSvgPoint(toolDraft.startWorld, svgResult.viewBox);
+    const end = worldToSvgPoint(toolDraft.currentWorld, svgResult.viewBox);
+
+    if (toolDraft.toolMode === "addLine" || toolDraft.toolMode === "addArrow") {
+      return {
+        kind: "line",
+        x1: start.x,
+        y1: start.y,
+        x2: end.x,
+        y2: end.y,
+        arrow: toolDraft.toolMode === "addArrow"
+      };
+    }
+
+    if (toolDraft.toolMode === "addGrid") {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      const minWorldX = Math.min(toolDraft.startWorld.x, toolDraft.currentWorld.x);
+      const maxWorldX = Math.max(toolDraft.startWorld.x, toolDraft.currentWorld.x);
+      const minWorldY = Math.min(toolDraft.startWorld.y, toolDraft.currentWorld.y);
+      const maxWorldY = Math.max(toolDraft.startWorld.y, toolDraft.currentWorld.y);
+      const verticalLines = buildAnchoredGridPreviewLines(
+        minWorldX,
+        minWorldX,
+        maxWorldX,
+        TOOL_PREVIEW_GRID_STEP_PT,
+        TOOL_PREVIEW_GRID_MAX_LINES
+      );
+      const horizontalLines = buildAnchoredGridPreviewLines(
+        minWorldY,
+        minWorldY,
+        maxWorldY,
+        TOOL_PREVIEW_GRID_STEP_PT,
+        TOOL_PREVIEW_GRID_MAX_LINES
+      ).map((worldY) => worldToSvgY(worldY, svgResult.viewBox));
+      return {
+        kind: "grid",
+        x,
+        y,
+        width,
+        height,
+        verticalLines,
+        horizontalLines
+      };
+    }
+
+    if (toolDraft.toolMode === "addRect" || toolDraft.toolMode === "addEllipse") {
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      if (toolDraft.toolMode === "addRect") {
+        return {
+          kind: "rect",
+          x,
+          y,
+          width,
+          height
+        };
+      }
+      return {
+        kind: "ellipse",
+        cx: x + width / 2,
+        cy: y + height / 2,
+        rx: width / 2,
+        ry: height / 2
+      };
+    }
+
+    const dx = toolDraft.currentWorld.x - toolDraft.startWorld.x;
+    const dy = toolDraft.currentWorld.y - toolDraft.startWorld.y;
+    const radius = Math.hypot(dx, dy);
+
+    return {
+      kind: "circle",
+      cx: start.x,
+      cy: start.y,
+      r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
+    };
+  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
+
+  return {
+    toolPreview
+  };
+}
