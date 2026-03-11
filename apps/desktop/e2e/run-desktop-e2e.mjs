@@ -254,9 +254,14 @@ async function scenarioUnsavedGuard(browserInstance) {
 }
 
 async function dispatchCommand(browserInstance, commandId) {
-  await browserInstance.execute((id) => {
-    window.__TIKZ_EDITOR_DESKTOP_TEST_API__.dispatchCommand(id);
-  }, commandId);
+  await browserInstance.waitUntil(async () => {
+    return await browserInstance.execute((id) => {
+      return window.__TIKZ_EDITOR_DESKTOP_TEST_API__.dispatchCommand(id);
+    }, commandId);
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Command handler did not become ready for ${commandId}`
+  });
 }
 
 async function setSource(browserInstance, value) {

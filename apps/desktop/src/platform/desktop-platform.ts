@@ -109,7 +109,7 @@ type BrowserLikeGlobal = typeof globalThis & {
   __TIKZ_EDITOR_DESKTOP_PLATFORM_ENV__?: DesktopPlatformEnvironment;
   __TIKZ_EDITOR_DESKTOP_TEST_API__?: {
     setBridgeOverride: (bridge: DesktopBridge | null) => void;
-    dispatchCommand: (commandId: AppMenuCommandId) => void;
+    dispatchCommand: (commandId: AppMenuCommandId) => boolean;
     triggerOpenRequest: (opened: { source: string; path: string; name: string }) => void;
     triggerWindowCloseRequest: () => void;
   };
@@ -677,7 +677,11 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       bridgeOverride = bridge;
     },
     dispatchCommand: (commandId) => {
-      menuHandler?.(commandId, "platform");
+      if (!menuHandler) {
+        return false;
+      }
+      menuHandler(commandId, "platform");
+      return true;
     },
     triggerOpenRequest: (opened) => {
       openRequestHandler?.({
