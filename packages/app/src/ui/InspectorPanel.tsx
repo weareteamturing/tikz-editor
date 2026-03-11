@@ -1,20 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX, type PointerEvent as ReactPointerEvent } from "react";
 import {
-  RiAlignItemBottomLine,
-  RiAlignItemHorizontalCenterLine,
-  RiAlignItemLeftLine,
-  RiAlignItemRightLine,
-  RiAlignItemTopLine,
-  RiAlignItemVerticalCenterLine,
   RiBold,
   RiFontMono,
   RiFontSansSerif,
   RiFontSerif,
-  RiItalic,
-  RiSplitCellsHorizontal,
-  RiSplitCellsVertical
+  RiItalic
 } from "@remixicon/react";
-import type { RemixiconComponentType } from "@remixicon/react";
 import { formatNumber } from "tikz-editor/edit/format";
 import {
   buildArrowTipSetPropertyMutation,
@@ -62,8 +53,9 @@ import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown } from "./CustomDropdown";
-import { actionAvailability, alignSelection, distributeSelection } from "./editor-commands";
+import { actionAvailability } from "./editor-commands";
 import { RenderedTooltip } from "./RenderedTooltip";
+import { MULTI_ARRANGE_ACTIONS, type MultiArrangeAction } from "./inspector-panel/arrange-actions";
 import {
   ARROW_TIP_MIXED_OPTION_VALUE,
   DASH_STYLE_MIXED_OPTION_VALUE,
@@ -206,99 +198,6 @@ type NumberLabelScrubSession = {
   onPreview: (value: number) => void;
   onCommit: (value: number) => void;
 };
-
-type ArrangeCommandContext = Parameters<typeof alignSelection>[0];
-
-type MultiArrangeAction = {
-  id:
-    | "align-left"
-    | "align-center"
-    | "align-right"
-    | "align-top"
-    | "align-middle"
-    | "align-bottom"
-    | "distribute-horizontal"
-    | "distribute-vertical";
-  group: "align" | "distribute";
-  label: string;
-  icon: RemixiconComponentType;
-  run: (context: ArrangeCommandContext) => void;
-};
-
-const MULTI_ARRANGE_ACTIONS: readonly MultiArrangeAction[] = [
-  {
-    id: "align-left",
-    group: "align",
-    label: "Align left",
-    icon: RiAlignItemLeftLine,
-    run: (context) => {
-      alignSelection(context, "left");
-    }
-  },
-  {
-    id: "align-center",
-    group: "align",
-    label: "Align center",
-    icon: RiAlignItemHorizontalCenterLine,
-    run: (context) => {
-      alignSelection(context, "center");
-    }
-  },
-  {
-    id: "align-right",
-    group: "align",
-    label: "Align right",
-    icon: RiAlignItemRightLine,
-    run: (context) => {
-      alignSelection(context, "right");
-    }
-  },
-  {
-    id: "align-top",
-    group: "align",
-    label: "Align top",
-    icon: RiAlignItemTopLine,
-    run: (context) => {
-      alignSelection(context, "top");
-    }
-  },
-  {
-    id: "align-middle",
-    group: "align",
-    label: "Align middle",
-    icon: RiAlignItemVerticalCenterLine,
-    run: (context) => {
-      alignSelection(context, "middle");
-    }
-  },
-  {
-    id: "align-bottom",
-    group: "align",
-    label: "Align bottom",
-    icon: RiAlignItemBottomLine,
-    run: (context) => {
-      alignSelection(context, "bottom");
-    }
-  },
-  {
-    id: "distribute-horizontal",
-    group: "distribute",
-    label: "Distribute horizontally",
-    icon: RiSplitCellsHorizontal,
-    run: (context) => {
-      distributeSelection(context, "horizontal");
-    }
-  },
-  {
-    id: "distribute-vertical",
-    group: "distribute",
-    label: "Distribute vertically",
-    icon: RiSplitCellsVertical,
-    run: (context) => {
-      distributeSelection(context, "vertical");
-    }
-  }
-];
 
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
