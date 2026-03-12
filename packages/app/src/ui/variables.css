@@ -59,6 +59,19 @@
   --tooltip-warning-text: #a06010;
 }
 
+/* Windows desktop polish */
+[data-desktop-os="windows"] {
+  --bg-app: rgb(246, 246, 246);
+  --bg-header: rgb(246, 246, 246);
+
+  --accent: #7a7a7a;
+  --accent-dark: #3f3f3f;
+  --accent-btn-bg: #e7e7e7;
+  --accent-btn-border: #b8b8b8;
+  --accent-btn-hover-bg: #dddddd;
+  --accent-btn-hover-border: #a7a7a7;
+}
+
 /* ── Dark mode overrides ────────────────────────────────────────────────────── */
 
 [data-color-scheme="dark"] {

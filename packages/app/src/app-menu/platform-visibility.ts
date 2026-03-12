@@ -8,7 +8,23 @@ function isVisibleOnTarget(target: AppMenuPlatformTarget, scoped: PlatformScoped
   if (!scoped.platforms || scoped.platforms.length === 0) {
     return true;
   }
-  return scoped.platforms.includes(target);
+  return scoped.platforms.some((candidate) => platformTargetsMatch(target, candidate));
+}
+
+function platformTargetsMatch(target: AppMenuPlatformTarget, candidate: AppMenuPlatformTarget): boolean {
+  if (target === candidate) {
+    return true;
+  }
+  if (target === "desktop-windows") {
+    return candidate === "desktop";
+  }
+  if (target === "desktop-macos") {
+    return candidate === "desktop";
+  }
+  if (target === "desktop") {
+    return candidate === "desktop-windows" || candidate === "desktop-macos";
+  }
+  return false;
 }
 
 function trimSeparators(items: readonly AppMenuItem[]): AppMenuItem[] {

@@ -72,7 +72,7 @@ export const APP_MENU_COMMAND_IDS = {
 
 export type AppMenuCommandId = (typeof APP_MENU_COMMAND_IDS)[keyof typeof APP_MENU_COMMAND_IDS];
 
-export type AppMenuPlatformTarget = "web" | "desktop";
+export type AppMenuPlatformTarget = "web" | "desktop" | "desktop-macos" | "desktop-windows";
 
 type AppMenuPlatformScoped = {
   platforms?: readonly AppMenuPlatformTarget[];

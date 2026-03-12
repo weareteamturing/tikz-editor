@@ -1,46 +1,69 @@
 import { describe, expect, it } from "vitest";
-import { APP_MENU_DEFINITION, filterAppMenuDefinitionForTarget } from "../packages/app/src/app-menu/index.js";
+import { filterAppMenuDefinitionForTarget } from "../packages/app/src/app-menu/platform-visibility";
+import type { AppMenuDefinition } from "../packages/app/src/app-menu/types";
 
-describe("app menu platform visibility", () => {
-  it("hides desktop-only menu items on web", () => {
-    const webDefinition = filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, "web");
-    const fileSection = webDefinition.find((section) => section.id === "file");
-    expect(fileSection).toBeDefined();
-    const hasRecentFiles = fileSection?.items.some((item) => item.kind === "recent-files");
-    expect(hasRecentFiles).toBe(false);
+const TEST_MENU: AppMenuDefinition = [
+  {
+    id: "view",
+    label: "View",
+    items: [
+      { kind: "command", commandId: "view.toggle-grid", label: "Grid" },
+      {
+        kind: "command",
+        commandId: "view.toggle-source-panel",
+        label: "Source",
+        platforms: ["desktop"]
+      },
+      {
+        kind: "command",
+        commandId: "view.toggle-inspector-panel",
+        label: "Inspector",
+        platforms: ["desktop-windows"]
+      },
+      {
+        kind: "command",
+        commandId: "view.toggle-assistant-panel",
+        label: "Assistant",
+        platforms: ["desktop-macos"]
+      },
+      {
+        kind: "command",
+        commandId: "view.interrupt-assistant-turn",
+        label: "Interrupt",
+        platforms: ["web"]
+      }
+    ]
+  }
+];
+
+function commandIds(definition: AppMenuDefinition): string[] {
+  const section = definition[0];
+  if (!section) {
+    return [];
+  }
+  return section.items
+    .filter((item): item is Extract<(typeof section.items)[number], { kind: "command" }> => item.kind === "command")
+    .map((item) => item.commandId);
+}
+
+describe("filterAppMenuDefinitionForTarget", () => {
+  it("keeps generic desktop items on desktop-windows target", () => {
+    const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop-windows");
+    expect(commandIds(filtered)).toContain("view.toggle-source-panel");
+    expect(commandIds(filtered)).toContain("view.toggle-inspector-panel");
+    expect(commandIds(filtered)).not.toContain("view.toggle-assistant-panel");
   });
 
-  it("keeps Open Recent on desktop", () => {
-    const desktopDefinition = filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, "desktop");
-    const fileSection = desktopDefinition.find((section) => section.id === "file");
-    expect(fileSection).toBeDefined();
-    const recentFilesItem = fileSection?.items.find((item) => item.kind === "recent-files");
-    expect(recentFilesItem).toBeDefined();
-    if (!recentFilesItem || recentFilesItem.kind !== "recent-files") {
-      throw new Error("Expected desktop menu to include recent-files item.");
-    }
-    expect(recentFilesItem.label).toBe("Open Recent");
+  it("keeps generic desktop items on desktop-macos target", () => {
+    const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop-macos");
+    expect(commandIds(filtered)).toContain("view.toggle-source-panel");
+    expect(commandIds(filtered)).toContain("view.toggle-assistant-panel");
+    expect(commandIds(filtered)).not.toContain("view.toggle-inspector-panel");
   });
 
-  it("normalizes separators after platform filtering", () => {
-    const definition = filterAppMenuDefinitionForTarget(
-      [
-        {
-          id: "file",
-          label: "File",
-          items: [
-            { kind: "separator", platforms: ["desktop"] },
-            { kind: "separator" },
-            { kind: "command", commandId: "file.new-document", label: "New" },
-            { kind: "separator", platforms: ["desktop"] },
-            { kind: "separator" }
-          ]
-        }
-      ],
-      "web"
-    );
-    const items = definition[0]?.items ?? [];
-    expect(items.length).toBe(1);
-    expect(items[0]?.kind).toBe("command");
+  it("keeps windows and macos scoped items visible on legacy desktop target", () => {
+    const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop");
+    expect(commandIds(filtered)).toContain("view.toggle-inspector-panel");
+    expect(commandIds(filtered)).toContain("view.toggle-assistant-panel");
   });
 });

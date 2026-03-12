@@ -9,10 +9,14 @@ export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const dispatch = useEditorStore((s) => s.dispatch);
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
+  const isMacDesktop =
+    isDesktop &&
+    typeof navigator !== "undefined" &&
+    /(mac|iphone|ipad)/i.test(navigator.platform);
   const showAppTitle = !isDesktop;
 
   return (
-    <div className={`${css.toolbar}${isDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region>
+    <div className={`${css.toolbar}${isMacDesktop ? ` ${css.toolbarDesktop}` : ""}`} data-tauri-drag-region>
       {showAppTitle ? (
         <>
           <span className={css.title}>TikZ Editor</span>

@@ -28,3 +28,4 @@ clipboard-rs = "0.3.3"
 base64 = "0.22"
 rfd = "0.15"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
+url = "2.5"

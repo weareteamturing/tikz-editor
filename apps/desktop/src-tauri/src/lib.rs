@@ -18,6 +18,7 @@ use tauri::{
     menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder},
     AppHandle, Emitter, Manager,
 };
+use url::Url;
 
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
@@ -206,6 +207,25 @@ fn native_clipboard_role(command_id: &str) -> Option<&'static str> {
         "edit.paste" => Some("paste"),
         _ => None,
     }
+}
+
+fn validate_external_url(url: &str) -> Result<String, String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("URL must not be empty".to_string());
+    }
+    let parsed = Url::parse(trimmed).map_err(|error| format!("Malformed URL: {error}"))?;
+    let scheme = parsed.scheme().to_ascii_lowercase();
+    let is_supported_scheme = matches!(scheme.as_str(), "http" | "https" | "mailto");
+    if !is_supported_scheme {
+        return Err(format!(
+            "Unsupported URL scheme '{scheme}'. Allowed: http, https, mailto."
+        ));
+    }
+    if matches!(scheme.as_str(), "http" | "https") && parsed.host_str().is_none() {
+        return Err("HTTP(S) URLs must include a host".to_string());
+    }
+    Ok(trimmed.to_string())
 }
 
 fn build_context_menu_item<R: tauri::Runtime>(
@@ -404,24 +424,26 @@ fn desktop_list_recent_files(app: AppHandle) -> Result<Vec<String>, String> {
 
 #[tauri::command]
 fn desktop_open_external(url: String) -> Result<bool, String> {
+    let sanitized = validate_external_url(&url)?;
+
     #[cfg(target_os = "macos")]
     let mut cmd = {
         let mut command = Command::new("open");
-        command.arg(&url);
+        command.arg(&sanitized);
         command
     };
 
     #[cfg(target_os = "windows")]
     let mut cmd = {
-        let mut command = Command::new("cmd");
-        command.args(["/C", "start", "", &url]);
+        let mut command = Command::new("rundll32");
+        command.args(["url.dll,FileProtocolHandler", &sanitized]);
         command
     };
 
     #[cfg(all(unix, not(target_os = "macos")))]
     let mut cmd = {
         let mut command = Command::new("xdg-open");
-        command.arg(&url);
+        command.arg(&sanitized);
         command
     };
 
@@ -712,4 +734,33 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_external_url;
+
+    #[test]
+    fn validates_supported_external_urls() {
+        let https = validate_external_url("https://tauri.app");
+        assert!(https.is_ok());
+
+        let mailto = validate_external_url("mailto:hello@example.com");
+        assert!(mailto.is_ok());
+    }
+
+    #[test]
+    fn rejects_invalid_external_urls() {
+        let malformed = validate_external_url("not a url");
+        assert!(malformed.is_err());
+
+        let empty = validate_external_url("   ");
+        assert!(empty.is_err());
+
+        let unsupported = validate_external_url("file:///tmp/test.txt");
+        assert!(unsupported.is_err());
+
+        let hostless_http = validate_external_url("https://");
+        assert!(hostless_http.is_err());
+    }
 }

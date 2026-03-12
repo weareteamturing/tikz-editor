@@ -90,6 +90,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-clipboard-x",
  "tauri-plugin-log",
+ "url",
 ]
 
 [[package]]

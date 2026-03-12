@@ -1,5 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { APP_MENU_COMMAND_IDS, APP_MENU_DEFINITION, filterAppMenuDefinitionForTarget } from "../app-menu";
+import {
+  APP_MENU_COMMAND_IDS,
+  APP_MENU_DEFINITION,
+  filterAppMenuDefinitionForTarget,
+  type AppMenuPlatformTarget
+} from "../app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
 import { AppMenuBar } from "./AppMenuBar";
@@ -47,11 +52,35 @@ const DevPanel = lazy(async () => {
   return { default: mod.DevPanel };
 });
 
-function menuTargetFromPlatformId(platformId: string): "desktop" | "web" {
+function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
   if (platformId.startsWith("desktop")) {
+    if (typeof navigator !== "undefined") {
+      if (/(mac|iphone|ipad)/i.test(navigator.platform)) {
+        return "desktop-macos";
+      }
+      if (/win/i.test(navigator.platform)) {
+        return "desktop-windows";
+      }
+    }
     return "desktop";
   }
   return "web";
+}
+
+function desktopOsFromPlatformId(platformId: string): "windows" | "macos" | "other" | null {
+  if (!platformId.startsWith("desktop")) {
+    return null;
+  }
+  if (typeof navigator === "undefined") {
+    return "other";
+  }
+  if (/(mac|iphone|ipad)/i.test(navigator.platform)) {
+    return "macos";
+  }
+  if (/win/i.test(navigator.platform)) {
+    return "windows";
+  }
+  return "other";
 }
 
 function isCanvasViewportFocused(): boolean {
@@ -168,6 +197,15 @@ export function App() {
       apply(colorScheme === "dark");
     }
   }, [colorScheme, canvasInvert]);
+
+  useEffect(() => {
+    const desktopOs = desktopOsFromPlatformId(platform.id);
+    if (desktopOs) {
+      document.documentElement.dataset.desktopOs = desktopOs;
+      return;
+    }
+    delete document.documentElement.dataset.desktopOs;
+  }, [platform.id]);
 
   useEffect(() => {
     sourceRef.current = source;

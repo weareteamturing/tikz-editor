@@ -114,7 +114,15 @@ export const APP_MENU_DEFINITION = [
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.REDO,
         label: "Redo",
-        accelerator: "CmdOrCtrl+Shift+Z"
+        accelerator: "CmdOrCtrl+Shift+Z",
+        platforms: ["web", "desktop", "desktop-macos"]
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REDO,
+        label: "Redo",
+        accelerator: "CmdOrCtrl+Y",
+        platforms: ["desktop-windows"]
       },
       { kind: "separator" },
       {
