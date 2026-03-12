@@ -40,14 +40,27 @@ export function StatusBar() {
   const showIncrementalFallback =
     showPerf &&
     incrementalInfo != null &&
-    incrementalInfo.strategy === "full" &&
-    incrementalInfo.fallbackReason !== "no-previous-cache";
+    (
+      (incrementalInfo.parseStrategy === "full" &&
+        incrementalInfo.parseFallbackReason !== undefined &&
+        incrementalInfo.parseFallbackReason !== "no-previous-cache") ||
+      (incrementalInfo.strategy === "full" &&
+        incrementalInfo.fallbackReason !== "no-previous-cache")
+    );
   const incrementalFallbackClass =
+    incrementalInfo?.parseFallbackReason === "runtime-error" ||
     incrementalInfo?.fallbackReason === "runtime-error" ||
     incrementalInfo?.fallbackReason === "restore-failed"
       ? css.error
       : css.warning;
-  const incrementalFallbackReason = incrementalInfo?.fallbackReason ?? "unknown";
+  const incrementalFallbackReason = [
+    incrementalInfo?.parseStrategy === "full" && incrementalInfo.parseFallbackReason
+      ? `parser ${incrementalInfo.parseFallbackReason}`
+      : null,
+    incrementalInfo?.strategy === "full" && incrementalInfo.fallbackReason
+      ? `semantic ${incrementalInfo.fallbackReason}`
+      : null
+  ].filter(Boolean).join(" + ") || "unknown";
 
   return (
     <div className={css.bar}>

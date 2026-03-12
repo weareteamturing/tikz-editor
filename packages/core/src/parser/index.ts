@@ -7,6 +7,11 @@ import { walkStatements } from "../ast/walk.js";
 import { collectContextDefinitions, fromCst } from "../transform/cst-to-ast.js";
 import type { TikzFigure, TikzFigureInventoryItem } from "../ast/types.js";
 import { parseSyntax } from "../syntax/parse.js";
+import {
+  getCachedContextDefinitions,
+  resolveActiveFigureSpan,
+  resolveParseWindowSource
+} from "./shared.js";
 
 export type NodeTextValidationContext = {
   node: NodeItem;
@@ -35,13 +40,6 @@ export type ParseTikzResult = {
   features: typeof FeatureFlags;
 };
 
-type ContextDefinitionCacheEntry = {
-  prefix: string;
-  definitions: Statement[];
-};
-
-let contextDefinitionCache: ContextDefinitionCacheEntry | null = null;
-
 export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikzResult {
   const recover = opts.recover ?? true;
   const figureSpans = scanFigureSpans(input);
@@ -49,7 +47,7 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
   const parseSource = resolveParseWindowSource(input, activeFigureSpan);
   const contextDefinitions =
     opts.includeContextDefinitions && activeFigureSpan
-      ? getCachedContextDefinitions(input.slice(0, activeFigureSpan.from))
+      ? getCachedContextDefinitions(input.slice(0, activeFigureSpan.from), collectContextDefinitions)
       : undefined;
   const tree = parseSyntax(parseSource);
 
@@ -95,45 +93,6 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
   };
 }
 
-function resolveParseWindowSource(source: string, activeFigureSpan: { from: number; to: number } | null): string {
-  if (!activeFigureSpan) {
-    return source;
-  }
-  const safeFrom = Math.max(0, Math.min(source.length, activeFigureSpan.from));
-  const safeTo = Math.max(safeFrom, Math.min(source.length, activeFigureSpan.to));
-  const prefix = source.slice(0, safeFrom).replace(/[^\n]/g, " ");
-  const figure = source.slice(safeFrom, safeTo);
-  return `${prefix}${figure}`;
-}
-
-function resolveActiveFigureSpan(
-  spans: readonly { from: number; to: number }[],
-  activeFigureId: string | null | undefined
-): { from: number; to: number } | null {
-  if (activeFigureId === null) {
-    return null;
-  }
-  if (spans.length === 0) {
-    return null;
-  }
-  const requestedIndex = activeFigureId ? parseFigureIndexFromId(activeFigureId) : 0;
-  const index =
-    requestedIndex != null && requestedIndex >= 0 && requestedIndex < spans.length
-      ? requestedIndex
-      : 0;
-  return spans[index] ?? null;
-}
-
-function getCachedContextDefinitions(prefix: string): Statement[] {
-  const cache = contextDefinitionCache;
-  if (cache && cache.prefix === prefix) {
-    return cache.definitions;
-  }
-  const definitions = collectContextDefinitions(prefix);
-  contextDefinitionCache = { prefix, definitions };
-  return definitions;
-}
-
 function scanFigureSpans(source: string): Array<{ from: number; to: number }> {
   const beginPattern = /\\begin\{tikzpicture\*?\}/g;
   const spans: Array<{ from: number; to: number }> = [];
@@ -175,3 +134,5 @@ function collectNodeItems(statements: Statement[]): NodeItem[] {
 
 export type { Diagnostic } from "../diagnostics/types.js";
 export type * from "../ast/types.js";
+export { createIncrementalParseSession } from "./incremental.js";
+export type * from "./incremental.js";

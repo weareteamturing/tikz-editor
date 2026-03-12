@@ -100,6 +100,7 @@ export function App() {
   const tabOrder = useEditorStore((s) => s.tabOrder);
   const toolMode = useEditorStore((s) => s.toolMode);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
+  const lastEditPatches = useEditorStore((s) => s.lastEditPatches);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
@@ -273,6 +274,7 @@ export function App() {
         source,
         activeFigureId,
         changedSourceIds,
+        patches: lastEditPatches,
         trigger
       });
     };
@@ -298,7 +300,7 @@ export function App() {
     }
 
     scheduleCompute();
-  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, source]);
+  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, lastEditPatches, source]);
 
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;

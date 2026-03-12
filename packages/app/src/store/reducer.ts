@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { makeEmptySnapshot } from "../compute";
 import type { AssistantItem } from "../platform/types";
+import { deriveSingleSourcePatch } from "./source-patch-diff";
 
 export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
   \draw (-3,-3) rectangle (3,3);
@@ -479,13 +480,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           return doc;
         }
         const scrubChangedSourceIds = ui.activeSourceScrubSourceId ? [ui.activeSourceScrubSourceId] : null;
+        const scrubPatches = ui.activeSourceScrubSourceId
+          ? deriveSingleSourcePatch(doc.source, action.source)
+          : null;
         return {
           ...doc,
           source: action.source,
           activeFigureId: doc.activeFigureId,
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
-          lastEditPatches: null,
+          lastEditPatches: scrubPatches,
           history: [],
           historyIndex: -1,
           activeHandleId: null,

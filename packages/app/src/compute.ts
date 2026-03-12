@@ -1,9 +1,14 @@
 import type { ParseTikzResult } from "tikz-editor/parser/index";
+import type {
+  IncrementalParseSession,
+  IncrementalParseStats
+} from "tikz-editor/parser/index";
 import type { EvaluateTikzResult } from "tikz-editor/semantic/index";
 import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "tikz-editor/svg/index";
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 import type { NodeTextEngine } from "tikz-editor/text/types";
+import type { SourcePatch } from "tikz-editor/edit/types";
 import type {
   IncrementalSemanticStats,
   IncrementalSemanticSession,
@@ -31,6 +36,10 @@ export type SessionSnapshot = {
 export type SessionSnapshotIncrementalInfo = {
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">;
   changedSourceIds: string[];
+  parseStrategy: IncrementalParseStats["strategy"];
+  parseFallbackReason: IncrementalParseStats["fallbackReason"];
+  reparsedStatementCount: number;
+  parserReusedStatementCount: number;
   strategy: IncrementalSemanticStats["strategy"];
   fallbackReason: IncrementalSemanticStats["fallbackReason"];
   recomputeFromStatementIndex: number | null;
@@ -45,6 +54,7 @@ export type ComputeRequest = {
   source: string;
   activeFigureId?: string | null;
   changedSourceIds?: string[] | null;
+  patches?: SourcePatch[] | null;
   trigger?: IncrementalSemanticTrigger;
   kind?: "render" | "prewarm";
 };
@@ -58,7 +68,8 @@ export type ComputeResponse = {
 };
 
 let revisionCounter = 0;
-let incrementalSession: IncrementalSemanticSession | null = null;
+let incrementalSemanticSession: IncrementalSemanticSession | null = null;
+let incrementalParseSession: IncrementalParseSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
 let previousSvgModel: SvgRenderModel | null = null;
 let incrementalWarmSource: string | null = null;
@@ -91,6 +102,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
   try {
     const trigger = request.trigger ?? "other";
     const changedSourceIds = normalizeChangedSourceIds(request.changedSourceIds ?? []);
+    const patches = normalizePatches(request.patches ?? []);
     const isDragTrigger = trigger === "drag-element" || trigger === "drag-handle";
     if (requestKind === "prewarm" && incrementalWarmSource === request.source) {
       return {
@@ -105,6 +117,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         request.source,
         request.activeFigureId ?? null,
         changedSourceIds,
+        patches,
         trigger
       );
       const snapshot: SessionSnapshot = {
@@ -121,11 +134,15 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
         incremental: {
           trigger,
           changedSourceIds,
-          strategy: result.stats.strategy,
-          fallbackReason: result.stats.fallbackReason,
-          recomputeFromStatementIndex: result.stats.recomputeFromStatementIndex,
-          recomputedStatementCount: result.stats.recomputedStatementCount,
-          reusedStatementCount: result.stats.reusedStatementCount
+          parseStrategy: result.parseStats.strategy,
+          parseFallbackReason: result.parseStats.fallbackReason,
+          reparsedStatementCount: result.parseStats.reparsedStatementCount,
+          parserReusedStatementCount: result.parseStats.reusedStatementCount,
+          strategy: result.semanticStats.strategy,
+          fallbackReason: result.semanticStats.fallbackReason,
+          recomputeFromStatementIndex: result.semanticStats.recomputeFromStatementIndex,
+          recomputedStatementCount: result.semanticStats.recomputedStatementCount,
+          reusedStatementCount: result.semanticStats.reusedStatementCount
         }
       };
       return {
@@ -147,8 +164,13 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     });
     // Non-drag requests currently bypass the incremental session.
     // Reset to avoid reusing stale cached prefixes on the next drag.
-    incrementalSession?.reset();
-    incrementalWarmSource = null;
+    incrementalSemanticSession?.reset();
+    incrementalWarmSource = request.source;
+    const parseSession = await getIncrementalParseSession();
+    parseSession.prime(result.parse, {
+      activeFigureId: request.activeFigureId ?? result.parse.activeFigureId,
+      includeContextDefinitions: true
+    });
     previousSvgModel = result.svg.model;
 
     const snapshot: SessionSnapshot = {
@@ -172,7 +194,8 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
       diagnostics: result.renderDiagnostics
     };
   } catch (error) {
-    incrementalSession?.reset();
+    incrementalSemanticSession?.reset();
+    incrementalParseSession?.reset();
     incrementalWarmSource = null;
     previousSvgModel = null;
     const snapshot: SessionSnapshot = {
@@ -208,25 +231,31 @@ async function computeSnapshotIncremental(
   source: string,
   activeFigureId: string | null,
   changedSourceIds: string[],
+  patches: SourcePatch[],
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">
 ): Promise<{
   parse: ParseTikzResult;
   semantic: EvaluateTikzResult;
   svg: EmitSvgResult;
-  stats: IncrementalSemanticStats;
+  parseStats: IncrementalParseStats;
+  semanticStats: IncrementalSemanticStats;
   renderDiagnostics: RenderDiagnostic[];
 }> {
-  const [{ parseTikz }, { emitSvg }, { collectGeometryInvalidation }] = await Promise.all([
-    import("tikz-editor/parser/index"),
+  const [{ emitSvg }, { collectGeometryInvalidation }] = await Promise.all([
     import("tikz-editor/svg/index"),
     import("tikz-editor/semantic/index")
   ]);
   const textEngine = await getOptionalTextEngine();
-  const parseResult = parseTikz(source, {
-    recover: true,
+  const parseSession = await getIncrementalParseSession();
+  const parseIncremental = parseSession.evaluate({
+    source,
     activeFigureId,
-    includeContextDefinitions: true
+    includeContextDefinitions: true,
+    patches,
+    changedSourceIds,
+    trigger
   });
+  const parseResult = parseIncremental.parse;
   const session = await getIncrementalSemanticSession();
   let reusePreviousModel = previousSvgModel;
 
@@ -289,7 +318,8 @@ async function computeSnapshotIncremental(
     parse: parseResult,
     semantic: semanticResult,
     svg: svgResult,
-    stats: incrementalStats,
+    parseStats: parseIncremental.stats,
+    semanticStats: incrementalStats,
     renderDiagnostics: []
   };
 }
@@ -363,12 +393,21 @@ function buildSvgReuseHints(
 }
 
 async function getIncrementalSemanticSession(): Promise<IncrementalSemanticSession> {
-  if (incrementalSession) {
-    return incrementalSession;
+  if (incrementalSemanticSession) {
+    return incrementalSemanticSession;
   }
   const { createIncrementalSemanticSession } = await import("tikz-editor/semantic/index");
-  incrementalSession = createIncrementalSemanticSession();
-  return incrementalSession;
+  incrementalSemanticSession = createIncrementalSemanticSession();
+  return incrementalSemanticSession;
+}
+
+async function getIncrementalParseSession(): Promise<IncrementalParseSession> {
+  if (incrementalParseSession) {
+    return incrementalParseSession;
+  }
+  const { createIncrementalParseSession } = await import("tikz-editor/parser/index");
+  incrementalParseSession = createIncrementalParseSession();
+  return incrementalParseSession;
 }
 
 async function getOptionalTextEngine(): Promise<NodeTextEngine | null> {
@@ -395,4 +434,12 @@ function normalizeChangedSourceIds(sourceIds: readonly string[]): string[] {
     unique.add(normalized);
   }
   return [...unique];
+}
+
+function normalizePatches(patches: readonly SourcePatch[]): SourcePatch[] {
+  return patches.map((patch) => ({
+    oldSpan: { ...patch.oldSpan },
+    newSpan: { ...patch.newSpan },
+    replacement: patch.replacement
+  }));
 }

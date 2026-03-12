@@ -64,6 +64,21 @@ function makeStateWithHandle(source: string = "\\draw (1,2) -- (3,4);"): { state
   };
 }
 
+function applySourcePatches(
+  source: string,
+  patches: ReadonlyArray<{ oldSpan: { from: number; to: number }; replacement: string }>
+): string {
+  let cursor = 0;
+  let output = "";
+  for (const patch of patches) {
+    output += source.slice(cursor, patch.oldSpan.from);
+    output += patch.replacement;
+    cursor = patch.oldSpan.to;
+  }
+  output += source.slice(cursor);
+  return output;
+}
+
 // ── CODE_EDITED ────────────────────────────────────────────────────────────────
 
 describe("editorReducer – CODE_EDITED", () => {
@@ -98,6 +113,22 @@ describe("editorReducer – CODE_EDITED", () => {
     const initial = makeInitialState();
     const next = editorReducer(initial, { type: "CODE_EDITED", source: DEFAULT_SOURCE });
     expect(next).toBe(initial); // same reference = no change
+  });
+
+  it("records changed source ids and patches while source scrubbing is active", () => {
+    const initial = applyActions([{ type: "SET_ACTIVE_SOURCE_SCRUB", sourceId: "path:0" }]);
+    const nextSource = DEFAULT_SOURCE.replace("(1.5, -0.5)", "(1.75, -0.5)");
+    const next = editorReducer(initial, {
+      type: "CODE_EDITED",
+      source: nextSource
+    });
+
+    expect(next.lastEditChangedSourceIds).toEqual(["path:0"]);
+    expect(next.lastEditPatches).not.toBeNull();
+    expect(next.lastEditPatches).toHaveLength(1);
+    const patch = next.lastEditPatches?.[0];
+    expect(patch?.replacement.length).toBeGreaterThan(0);
+    expect(applySourcePatches(DEFAULT_SOURCE, next.lastEditPatches ?? [])).toBe(nextSource);
   });
 });
 
