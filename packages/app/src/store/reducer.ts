@@ -62,6 +62,7 @@ function createDocumentSession(params: {
     pendingRequestId: null,
     lastEditChangedSourceIds: null,
     lastEditChangeToken: 0,
+    lastEditPatches: null,
     history: [],
     historyIndex: -1,
     selectedElementIds: new Set(),
@@ -199,6 +200,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     pendingRequestId: active.pendingRequestId,
     lastEditChangedSourceIds: active.lastEditChangedSourceIds,
     lastEditChangeToken: active.lastEditChangeToken,
+    lastEditPatches: active.lastEditPatches,
     history: active.history,
     historyIndex: active.historyIndex,
     selectedElementIds: active.selectedElementIds,
@@ -332,6 +334,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       projectedActive.pendingRequestId !== state.pendingRequestId ||
       projectedActive.lastEditChangedSourceIds !== state.lastEditChangedSourceIds ||
       projectedActive.lastEditChangeToken !== state.lastEditChangeToken ||
+      projectedActive.lastEditPatches !== state.lastEditPatches ||
       projectedActive.history !== state.history ||
       projectedActive.historyIndex !== state.historyIndex ||
       projectedActive.selectedElementIds !== state.selectedElementIds ||
@@ -346,6 +349,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       pendingRequestId: state.pendingRequestId,
       lastEditChangedSourceIds: state.lastEditChangedSourceIds,
       lastEditChangeToken: state.lastEditChangeToken,
+      lastEditPatches: state.lastEditPatches,
       history: state.history,
       historyIndex: state.historyIndex,
       selectedElementIds: state.selectedElementIds,
@@ -481,6 +485,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           activeFigureId: doc.activeFigureId,
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          lastEditPatches: null,
           history: [],
           historyIndex: -1,
           activeHandleId: null,
@@ -669,6 +674,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           source: action.source,
           lastEditChangedSourceIds: null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          lastEditPatches: null,
           history: nextHistory,
           historyIndex: nextHistory.length - 1,
           activeHandleId: null,
@@ -733,6 +739,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           source: result.newSource,
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          lastEditPatches: result.patches,
           selectedElementIds: nextSelection,
           activeHandleId: null,
           dirty: result.newSource !== doc.savedSource
@@ -777,6 +784,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           source: result.newSource,
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          lastEditPatches: result.patches,
           selectedElementIds: nextSelection,
           activeHandleId: null,
           history: nextHistory,
@@ -801,6 +809,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         source: result.newSource,
         lastEditChangedSourceIds: result.changedSourceIds ?? null,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
+        lastEditPatches: result.patches,
         selectedElementIds: nextSelection,
         activeHandleId: null,
         history: [...truncated, entry],
@@ -823,6 +832,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           source: action.source,
           lastEditChangedSourceIds: action.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
+          lastEditPatches: null,
           activeHandleId: null,
           dirty: action.source !== doc.savedSource
         };
@@ -844,6 +854,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         source: entry.sourceBefore,
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
+        lastEditPatches: null,
         historyIndex: current.historyIndex - 1,
         dirty: entry.sourceBefore !== current.savedSource
       }));
@@ -864,6 +875,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         source: entry.sourceAfter,
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
+        lastEditPatches: null,
         historyIndex: current.historyIndex + 1,
         dirty: entry.sourceAfter !== current.savedSource
       }));

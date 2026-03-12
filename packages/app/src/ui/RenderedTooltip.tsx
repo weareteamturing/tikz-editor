@@ -42,7 +42,12 @@ const VIEWPORT_PADDING_PX = 8;
 const CURSOR_OFFSET_X_PX = 12;
 const CURSOR_OFFSET_Y_PX = 16;
 
-function clampTooltipPosition(tooltipRect: DOMRect, anchor: TooltipAnchor, boundary: TooltipBoundary | null): TooltipPosition {
+function clampTooltipPosition(
+  tooltipWidth: number,
+  tooltipHeight: number,
+  anchor: TooltipAnchor,
+  boundary: TooltipBoundary | null
+): TooltipPosition {
   const limitLeft = boundary ? boundary.left + VIEWPORT_PADDING_PX : VIEWPORT_PADDING_PX;
   const limitTop = boundary ? boundary.top + VIEWPORT_PADDING_PX : VIEWPORT_PADDING_PX;
   const limitRight = boundary ? boundary.right - VIEWPORT_PADDING_PX : window.innerWidth - VIEWPORT_PADDING_PX;
@@ -50,12 +55,12 @@ function clampTooltipPosition(tooltipRect: DOMRect, anchor: TooltipAnchor, bound
   const preferredLeft = anchor.x + CURSOR_OFFSET_X_PX;
   const clampedLeft = Math.min(
     Math.max(preferredLeft, limitLeft),
-    limitRight - tooltipRect.width
+    limitRight - tooltipWidth
   );
   const preferredTop = anchor.y + CURSOR_OFFSET_Y_PX;
   const clampedTop = Math.min(
     Math.max(preferredTop, limitTop),
-    limitBottom - tooltipRect.height
+    limitBottom - tooltipHeight
   );
 
   return { left: clampedLeft, top: clampedTop };
@@ -77,7 +82,10 @@ export function RenderedTooltip({
   const [position, setPosition] = useState<TooltipPosition>({ left: 0, top: 0 });
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const lastPointerRef = useRef<TooltipAnchor | null>(null);
+  const boundaryRef = useRef<TooltipBoundary | null>(null);
   const isOpen = isControlled ? open : uncontrolledOpen;
+
+  boundaryRef.current = boundary;
 
   const closeTooltip = useCallback(() => {
     if (!isControlled) {
@@ -92,8 +100,9 @@ export function RenderedTooltip({
       return;
     }
 
-    setPosition(clampTooltipPosition(tooltipElement.getBoundingClientRect(), activeAnchor, boundary));
-  }, [anchor, boundary]);
+    const rect = tooltipElement.getBoundingClientRect();
+    setPosition(clampTooltipPosition(rect.width, rect.height, activeAnchor, boundaryRef.current));
+  }, [anchor]);
 
   const updatePointerPosition = useCallback((event: PointerEvent<HTMLElement>) => {
     if (isControlled) {

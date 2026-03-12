@@ -518,6 +518,7 @@ export function CanvasPanel() {
 
   const [warning, setWarning] = useState<string | null>(null);
   const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
+  const dragTooltipBoundaryRef = useRef<{ left: number; top: number; right: number; bottom: number } | null>(null);
   const [dragCursorLock, setDragCursorLock] = useState<string | null>(null);
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
   const [snapDebug, setSnapDebug] = useState<SnapDebugOverlayState | null>(null);
@@ -669,6 +670,14 @@ export function CanvasPanel() {
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
+
+  // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
+  if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
+    const r = viewportRef.current.getBoundingClientRect();
+    dragTooltipBoundaryRef.current = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  } else if (!dragTooltip) {
+    dragTooltipBoundaryRef.current = null;
+  }
 
   const setActiveCanvasDragKind = useCallback(
     (kind: CanvasDragKind | null) => {
@@ -2144,6 +2153,7 @@ export function CanvasPanel() {
         setContextMenuState(null);
       }}
       dragTooltip={dragTooltip}
+      dragTooltipBoundary={dragTooltipBoundaryRef.current}
       warning={warning}
       copyWarningToClipboard={copyWarningToClipboard}
       onWarningBarKeyDown={onWarningBarKeyDown}

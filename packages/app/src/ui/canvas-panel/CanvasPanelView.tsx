@@ -96,6 +96,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onContextMenuClose,
     onContextMenuCommandRun,
     dragTooltip,
+    dragTooltipBoundary,
     warning,
     copyWarningToClipboard,
     onWarningBarKeyDown,
@@ -423,16 +424,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
             <RenderedTooltip
               open
               anchor={dragTooltip.anchor}
-              boundary={
-                viewportRef.current
-                  ? {
-                      left: viewportRef.current.getBoundingClientRect().left,
-                      top: viewportRef.current.getBoundingClientRect().top,
-                      right: viewportRef.current.getBoundingClientRect().right,
-                      bottom: viewportRef.current.getBoundingClientRect().bottom
-                    }
-                  : null
-              }
+              boundary={dragTooltipBoundary}
               content={
                 <div
                   className={css.dragTooltipContent}

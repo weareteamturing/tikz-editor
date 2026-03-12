@@ -61,6 +61,8 @@ export type DocumentSession = {
   pendingRequestId: string | null;
   lastEditChangedSourceIds: string[] | null;
   lastEditChangeToken: number;
+  /** Source patches from the most recent WYSIWYG edit action (for surgical CodeMirror updates). */
+  lastEditPatches: ReadonlyArray<{ oldSpan: { from: number; to: number }; newSpan: { from: number; to: number }; replacement: string }> | null;
   history: HistoryEntry[];
   historyIndex: number;
   selectedElementIds: ReadonlySet<string>;
@@ -129,6 +131,8 @@ export type EditorState = {
   lastEditChangedSourceIds: string[] | null;
   /** Monotonic token incremented when `lastEditChangedSourceIds` is updated. */
   lastEditChangeToken: number;
+  /** Source patches from the most recent WYSIWYG edit action (for surgical CodeMirror updates). */
+  lastEditPatches: ReadonlyArray<{ oldSpan: { from: number; to: number }; newSpan: { from: number; to: number }; replacement: string }> | null;
 
   // ── history slice ────────────────────────────────────────────────────────────
   /** WYSIWYG undo history (code edits use CodeMirror's built-in history). */

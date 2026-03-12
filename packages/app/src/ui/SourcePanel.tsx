@@ -298,6 +298,7 @@ const editorKeymap = Prec.highest(
 
 export function SourcePanel() {
   const source = useEditorStore((s) => s.source);
+  const lastEditPatches = useEditorStore((s) => s.lastEditPatches);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
   const figures = snapshot.figures;
@@ -610,9 +611,23 @@ export function SourcePanel() {
     const current = view.state.doc.toString();
     if (current === source) return;
 
+    // When patches are available (from WYSIWYG edit actions), use them for
+    // surgical CodeMirror updates instead of replacing the entire document.
+    // This is much cheaper for large documents where only coordinates change.
+    let changes: { from: number; to: number; insert: string } | Array<{ from: number; to: number; insert: string }>;
+    if (lastEditPatches && lastEditPatches.length > 0) {
+      changes = lastEditPatches.map((p) => ({
+        from: p.oldSpan.from,
+        to: p.oldSpan.to,
+        insert: p.replacement
+      }));
+    } else {
+      changes = { from: 0, to: current.length, insert: source };
+    }
+
     ignoreNextDocUpdateRef.current = true;
     dispatchSelectionWithStableHorizontalScroll(view, {
-      changes: { from: 0, to: current.length, insert: source },
+      changes,
       annotations: [
         Transaction.addToHistory.of(false),
         isolateHistory.of("before")

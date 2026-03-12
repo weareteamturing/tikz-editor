@@ -7,7 +7,13 @@
       "Bash(ls:*)",
       "Bash(git show:*)",
       "Bash(npm run:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(cd /Users/dominik/GitHub/tikz-editor/apps/web && npx playwright test e2e/profile-drag.spec.ts 2>&1)",
+      "Bash(grep -r getBoundingClientRect /Users/dominik/GitHub/tikz-editor --include=*.ts --include=*.tsx --include=*.js --include=*.jsx)",
+      "Bash(grep -n \"onHoverChange\" /Users/dominik/GitHub/tikz-editor/packages/app/src/ui/canvas-panel/*.ts*)",
+      "Bash(grep -r getBoundingClientRect /Users/dominik/GitHub/tikz-editor --include=*.ts --include=*.tsx)",
+      "Bash(npx playwright:*)",
+      "Bash(node /tmp/profile-analysis.js)"
     ]
   }
 }
