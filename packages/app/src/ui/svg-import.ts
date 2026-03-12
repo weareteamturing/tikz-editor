@@ -1,4 +1,5 @@
 import { svgToTikz } from "svg2tikz";
+import { toTikzFromClipboard } from "keynote-clipboard";
 import type { DocumentFileRef } from "../store/types.js";
 
 type OpenedTextFile = {
@@ -17,6 +18,8 @@ export type ResolveOpenedFileResult =
 export type SvgScopeSnippetResult =
   | { kind: "success"; snippet: string; body: string; tikzSource: string }
   | { kind: "failure"; message: string };
+
+export type KeynoteScopeSnippetResult = SvgScopeSnippetResult;
 
 const SVG_XML_RE = /<svg[\s>]/i;
 
@@ -137,6 +140,25 @@ export function convertSvgToScopeSnippet(svgSource: string): SvgScopeSnippetResu
     return {
       kind: "failure",
       message: `SVG import failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+export function convertKeynoteClipboardToScopeSnippet(rawClipboardText: string): KeynoteScopeSnippetResult {
+  try {
+    const converted = toTikzFromClipboard(rawClipboardText);
+    const tikzSource = converted.tikz;
+    const body = extractTikzPictureBody(tikzSource);
+    return {
+      kind: "success",
+      snippet: buildScopeWrappedSnippet(body),
+      body,
+      tikzSource
+    };
+  } catch (error) {
+    return {
+      kind: "failure",
+      message: `Keynote import failed: ${error instanceof Error ? error.message : String(error)}`
     };
   }
 }

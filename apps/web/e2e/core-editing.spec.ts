@@ -231,6 +231,56 @@ test("canvas paste custom svg fallback shows warning for invalid svg data", asyn
   await expect(page.getByTestId("canvas-warning-message")).toContainText("SVG import failed:");
 });
 
+test("canvas paste custom keynote fallback inserts a scope-wrapped import", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomText?: (formats: readonly string[]) => Promise<{ format: string; text: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomText: async (formats) => {
+          if (!formats.includes("com.apple.apps.content-language.canvas-object-1.0")) {
+            return null;
+          }
+          return {
+            format: "com.apple.apps.content-language.canvas-object-1.0",
+            text: JSON.stringify([{
+              type_identifier: "com.apple.apps.content-language.shape",
+              identifier: "shape-1",
+              stroke: { kind: "empty" },
+              geometry: {
+                position: { x: 0, y: 0 },
+                size: { width: 100, height: 100 }
+              }
+            }])
+          };
+        }
+      }
+    };
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+});
+
 test("canvas paste prefers custom desktop tikz payload over plain text fallback", async ({ page }) => {
   await page.addInitScript(() => {
     const globalLike = globalThis as unknown as {

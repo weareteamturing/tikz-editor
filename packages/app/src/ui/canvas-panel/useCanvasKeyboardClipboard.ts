@@ -18,6 +18,7 @@ import {
 import { parseClipboardPayloadJson } from "../editor-clipboard";
 import {
   buildScopeWrappedSnippet,
+  convertKeynoteClipboardToScopeSnippet,
   convertSvgToScopeSnippet,
   dataTransferHasFilePayload,
   findSvgFileInDataTransfer
@@ -57,6 +58,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
     platform,
     DESKTOP_TIKZ_CLIPBOARD_FORMATS,
     DESKTOP_SVG_CLIPBOARD_FORMATS,
+    DESKTOP_KEYNOTE_CLIPBOARD_FORMATS,
     computeAutoScaleForImportedTikz
   } = args;
 
@@ -341,6 +343,38 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
             // Fall through to existing warning behavior.
           }
         }
+
+        if (typeof readCustomText === "function") {
+          try {
+            const custom = await readCustomText(DESKTOP_KEYNOTE_CLIPBOARD_FORMATS);
+            if (custom?.text?.trim()) {
+              const converted = convertKeynoteClipboardToScopeSnippet(custom.text);
+              if (converted.kind === "failure") {
+                setWarning(converted.message);
+                return;
+              }
+              const scale = computeAutoScaleForImportedTikz(converted.tikzSource, snapshot.scene, snapshot.svg?.viewBox ?? null);
+              const snippet = scale == null ? converted.snippet : buildScopeWrappedSnippet(converted.body, { scale });
+              const pasted = pasteSnippetsWithOffset(
+                {
+                  source,
+                  snapshotSource: snapshot.source,
+                  scene: snapshot.scene,
+                  editHandles: snapshot.editHandles,
+                  selectedElementIds,
+                  dispatch
+                },
+                [snippet]
+              );
+              if (!pasted) {
+                setWarning("Keynote import paste failed.");
+              }
+              return;
+            }
+          } catch {
+            // Fall through to existing warning behavior.
+          }
+        }
         if (result.reason === "invalid") {
           setWarning("Clipboard did not contain a valid TikZ payload.");
           return;
@@ -353,6 +387,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
     },
     [
       DESKTOP_SVG_CLIPBOARD_FORMATS,
+      DESKTOP_KEYNOTE_CLIPBOARD_FORMATS,
       DESKTOP_TIKZ_CLIPBOARD_FORMATS,
       computeAutoScaleForImportedTikz,
       dispatch,
