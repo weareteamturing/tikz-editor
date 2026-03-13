@@ -22,6 +22,9 @@ export function parseTikzForEdit(source: string, options: EditParseOptions = {})
   }
   return parseTikz(source, {
     recover: true,
-    activeFigureId: options.activeFigureId
+    activeFigureId: options.activeFigureId,
+    // Edit queries resolve scene/source ids produced by the main compute path,
+    // so they must preserve the same statement numbering.
+    includeContextDefinitions: true
   });
 }

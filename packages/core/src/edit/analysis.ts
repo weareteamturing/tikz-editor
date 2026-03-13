@@ -55,7 +55,8 @@ export function createEditAnalysisSession(): EditAnalysisSession {
     }
     const parseResult = parseTikz(source, {
       recover: true,
-      activeFigureId
+      activeFigureId,
+      includeContextDefinitions: true
     });
     cached = createCache(source, parseResult, activeFigureId);
     return cached.view;

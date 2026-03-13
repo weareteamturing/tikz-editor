@@ -10,6 +10,7 @@
     "test:e2e": "playwright test",
     "profile:paper-selection": "playwright test e2e/profile-paper-selection.spec.ts --reporter=line",
     "profile:paper-drag": "playwright test e2e/profile-paper-drag.spec.ts --reporter=line",
+    "profile:paper-color": "playwright test e2e/profile-paper-color.spec.ts --reporter=line",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ci": "playwright test --reporter=line"
   },

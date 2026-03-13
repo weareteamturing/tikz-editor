@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeEmptySnapshot } from "../packages/app/src/compute.js";
@@ -9,6 +11,8 @@ import { createEditAnalysisSession } from "../packages/core/src/edit/analysis.js
 import { getInspectorDescriptor } from "../packages/core/src/edit/inspector.js";
 import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
 import { parseStatementSnapshot } from "../packages/core/src/edit/statement-ops.js";
+import { parseTikz } from "../packages/core/src/parser/index.js";
+import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 import { buildStylesCascadeModel } from "../packages/core/src/edit/styles-cascade.js";
 import * as parserModule from "../packages/core/src/parser/index.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
@@ -179,5 +183,37 @@ describe("shared edit analysis manager", () => {
 
     expect(second).not.toBe(first);
     expect(third).not.toBe(second);
+  });
+});
+
+describe("property target resolution", () => {
+  it("uses the same statement ids as the main compute path for active figures in large papers", () => {
+    const paperSource = readFileSync("test/papers/equal_shares_arxiv_v2.tex", "utf8");
+    const parseResult = parseTikz(paperSource, {
+      recover: true,
+      activeFigureId: "figure:11",
+      includeContextDefinitions: true
+    });
+    const semantic = evaluateTikzFigure(parseResult.figure, parseResult.source, {});
+    const magentaAxis = semantic.scene.elements.find((element) => element.sourceRef.sourceId === "path:3");
+
+    expect(magentaAxis).toBeDefined();
+    if (!magentaAxis) {
+      throw new Error("Expected the magenta axis line to resolve to source id path:3");
+    }
+
+    const resolved = resolvePropertyTarget(paperSource, magentaAxis.sourceRef.sourceId, {
+      activeFigureId: "figure:11"
+    });
+
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error(`Expected a property target for ${magentaAxis.sourceRef.sourceId}`);
+    }
+
+    expect(resolved.target.pathCommand).toBe("draw");
+    expect(paperSource.slice(resolved.target.span.from, resolved.target.span.to)).toBe(
+      "\\draw[thick,->,magenta] (0.0, 0.0) -- (0.0, 4.5);"
+    );
   });
 });
