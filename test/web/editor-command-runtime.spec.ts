@@ -392,6 +392,8 @@ function makeSnapshot(rendered: ReturnType<typeof renderTikzToSvg>, source = SOU
   return {
     source,
     revision: 1,
+    figures: rendered.parse.figures,
+    activeFigureId: rendered.parse.activeFigureId,
     editHandles: rendered.semantic.editHandles,
     scene: rendered.semantic.scene,
     svg: rendered.svg,
@@ -422,11 +424,12 @@ function makeInput({
   onOpenPngExport
 }: {
   dispatch: (action: EditorAction) => void;
+  source?: string;
   snapshot: ReturnType<typeof makeSnapshot>;
   selectedElementIds: ReadonlySet<string>;
   activeHandleId?: string | null;
-  historyIndex: number;
-  historyLength: number;
+  historyIndex?: number;
+  historyLength?: number;
   showGrid?: boolean;
   snapToGrid?: boolean;
   showRulers?: boolean;
@@ -436,16 +439,20 @@ function makeInput({
   showDevPanel?: boolean;
   onOpenExample?: () => void;
   onOpenSvgExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
-  onOpenPngExport?: () => void;
+  onOpenPngExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
 }) {
+  const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
+
   return {
     source,
+    activeFigureId,
+    editAnalysisView: null,
     snapshot,
     toolMode: "select" as const,
     selectedElementIds,
     activeHandleId,
-    historyIndex,
-    historyLength,
+    historyIndex: historyIndex ?? -1,
+    historyLength: historyLength ?? 0,
     activeDocumentId: "doc-1",
     tabCount: 1,
     dirty: false,

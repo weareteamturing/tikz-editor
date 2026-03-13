@@ -16,6 +16,7 @@ const DRAG_DX_PX = 80;
 const DRAG_DY_PX = -60;
 const DRAG_STEPS = 12;
 const DRAG_STEP_DELAY_MS = 16;
+const VERBOSE_PROFILE_LOGS = process.env.TIKZ_PROFILE_VERBOSE === "1";
 
 type ProbeRecord = {
   t: number;
@@ -410,6 +411,9 @@ async function readDebugState(
 }
 
 function printDebug(label: string, state: DebugState): void {
+  if (!VERBOSE_PROFILE_LOGS) {
+    return;
+  }
   console.log(`[paper-drag] ${label}: ${JSON.stringify(state)}`);
 }
 
@@ -631,17 +635,19 @@ function summarizeSnapshot(
 
 test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
   const target = resolvePaperTarget();
-  console.log(
-    `[paper-drag] target=${JSON.stringify({
-      paperPath: PAPER_PATH,
-      targetLine: target.targetLine,
-      activeFigureId: target.activeFigureId,
-      activeFigureNumber: target.activeFigureNumber,
-      targetSourceId: target.targetSourceId,
-      dragDxPx: DRAG_DX_PX,
-      dragDyPx: DRAG_DY_PX
-    })}`
-  );
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(
+      `[paper-drag] target=${JSON.stringify({
+        paperPath: PAPER_PATH,
+        targetLine: target.targetLine,
+        activeFigureId: target.activeFigureId,
+        activeFigureNumber: target.activeFigureNumber,
+        targetSourceId: target.targetSourceId,
+        dragDxPx: DRAG_DX_PX,
+        dragDyPx: DRAG_DY_PX
+      })}`
+    );
+  }
   await seedWorkspace(page, target);
   await gotoApp(page, "/edit/");
   await installProbe(page, target.targetSourceId);
@@ -652,13 +658,17 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
   const targetPathSelector =
     `path[data-source-id="${target.targetSourceId}"][stroke="#ff00ff"]:not([data-arrow-tip-kind])`;
   const pathPoint = await resolveVisibleSamplePointForSelector(page, targetPathSelector);
-  console.log(`[paper-drag] target-point=${JSON.stringify(pathPoint)}`);
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(`[paper-drag] target-point=${JSON.stringify(pathPoint)}`);
+  }
 
   const summaries: ProfileSummary[] = [];
 
   async function prepareSelectedPath() {
     const currentPathPoint = await resolveVisibleSamplePointForSelector(page, targetPathSelector);
-    console.log(`[paper-drag] current-target-point=${JSON.stringify(currentPathPoint)}`);
+    if (VERBOSE_PROFILE_LOGS) {
+      console.log(`[paper-drag] current-target-point=${JSON.stringify(currentPathPoint)}`);
+    }
     await clearSelection(page);
     await page.waitForTimeout(100);
     await page.mouse.click(currentPathPoint.x, currentPathPoint.y);
@@ -668,7 +678,9 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
   async function runScenario(label: string, filename: string) {
     await prepareSelectedPath();
     const handlePoint = await resolveEndpointHandlePoint(page, target.targetSourceId);
-    console.log(`[paper-drag] ${label}-handle-point=${JSON.stringify(handlePoint)}`);
+    if (VERBOSE_PROFILE_LOGS) {
+      console.log(`[paper-drag] ${label}-handle-point=${JSON.stringify(handlePoint)}`);
+    }
     await resetProbe(page, label);
     const client = await startCDPProfile(page);
     await performDrag(page, handlePoint, DRAG_DX_PX, DRAG_DY_PX);
@@ -703,5 +715,5 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
     summaries
   };
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
-  console.log(JSON.stringify(report, null, 2));
+  console.log(`[paper-drag] wrote ${reportPath}`);
 });

@@ -70,6 +70,7 @@ describe("platform adapter contracts", () => {
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined,
+        showContextMenu: async () => undefined,
         onContextMenuCommand: async () => () => undefined
       }
       });
@@ -121,6 +122,7 @@ describe("platform adapter contracts", () => {
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined,
+        showContextMenu: async () => undefined,
         onContextMenuCommand: async () => () => undefined
       }
     });
@@ -161,6 +163,7 @@ describe("platform adapter contracts", () => {
         openExternalUrl: async () => true,
         listRecentFiles: async () => [],
         onWindowCloseRequest: async () => () => undefined,
+        showContextMenu: async () => undefined,
         onContextMenuCommand: async () => () => undefined
       }
     });
@@ -202,6 +205,7 @@ describe("platform adapter contracts", () => {
         openExternalUrl: async () => true,
         listRecentFiles: async () => ["/tmp/recent.tex"],
         onWindowCloseRequest: async () => () => undefined,
+        showContextMenu: async () => undefined,
         onContextMenuCommand: async () => () => undefined
       }
     });
@@ -258,6 +262,7 @@ describe("platform adapter contracts", () => {
             }
           };
         },
+        showContextMenu: async () => undefined,
         onContextMenuCommand: async () => () => undefined
       }
     });

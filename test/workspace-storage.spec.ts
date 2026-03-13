@@ -62,6 +62,7 @@ describe("workspace storage migration", () => {
           id: "doc-1",
           title: "Doc",
           source: "\\draw (0,0)--(1,1);",
+          activeFigureId: null,
           savedSource: "\\draw (0,0)--(1,1);",
           fileRef: {
             kind: "browser-file",

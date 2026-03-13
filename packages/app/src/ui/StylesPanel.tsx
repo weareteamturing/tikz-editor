@@ -298,7 +298,7 @@ export function StylesPanel() {
 
 function renderDeclaration(
   declaration: StylesCascadeDeclaration,
-  namedColorSwatches: ReturnType<typeof collectProjectNamedColorSwatches>,
+  namedColorSwatches: ReturnType<typeof useProjectNamedColorSwatches>,
   applyPropertyChange: (declaration: StylesCascadeDeclaration, property: InspectorProperty, nextValue: string | number | boolean) => void
 ): JSX.Element {
   const property = declaration.property;
@@ -346,7 +346,7 @@ function renderPropertyEditor(
   property: InspectorProperty,
   declaration: StylesCascadeDeclaration,
   writable: boolean,
-  namedColorSwatches: ReturnType<typeof collectProjectNamedColorSwatches>,
+  namedColorSwatches: ReturnType<typeof useProjectNamedColorSwatches>,
   applyPropertyChange: (declaration: StylesCascadeDeclaration, property: InspectorProperty, nextValue: string | number | boolean) => void
 ): JSX.Element {
   switch (property.kind) {

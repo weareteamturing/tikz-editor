@@ -18,18 +18,30 @@ Capabilities are tracked explicitly in:
 Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabilities.spec.ts`.
 
 ## Scripts
-1. `npm test` runs all tests.
-2. `npm run test:capabilities` runs capability matrix guards only.
-3. `npm run build` builds the parser package.
-4. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the playground.
-5. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
-6. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It generates side-by-side.png files that can be visually inspected for render accuracy.
+1. `npm run typecheck` runs root TypeScript checks (`tsc --noEmit`).
+2. `npm test` runs all vitest suites (`generate:grammar` + `vitest run`).
+3. `npm run test:capabilities` runs capability matrix guards only.
+4. `npm run test:corpus` runs PGF corpus regression only.
+5. `npm run test:e2e` runs web Playwright suites.
+6. `npm run test:e2e:ci` runs web Playwright suites with line reporter.
+7. `npm run test:desktop:e2e` runs desktop e2e (may skip on unsupported platforms).
+8. `npm run build` builds the core parser package.
+9. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the playground.
+10. `npm run profile:paper-selection` profiles selection on the paper corpus scenario.
+11. `npm run profile:paper-drag` profiles drag interactions on the paper corpus scenario.
+12. `npm run profile:paper-color` profiles inspector color changes on the paper corpus scenario.
+13. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
+14. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It generates side-by-side.png files that can be visually inspected for render accuracy.
 
 ## Corpus Source
 The repository includes `pgf-docs/`, a copy of the PGF manual source files. It also includes `pgf-src/`, a copy of the PGF source files. Both should be used to check the intended rendering of TikZ features against the reference implementation. The `pgf-docs/` snippets are also used for testing and capability tracking.
 
 ## Testing note
 vitest doesn’t support --runInBand in this environment.
+
+## Generated Artifacts
+1. `apps/web/test-results/`, `apps/web/e2e/traces/`, and `test-results/` are generated outputs and should not be committed.
+2. `test/__snapshots__/` contains intentional, tracked test snapshots.
 
 ## Tauri
 

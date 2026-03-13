@@ -60,7 +60,7 @@ test("duplicate, undo, redo and delete shortcuts operate on selected canvas elem
   await page.keyboard.press("ControlOrMeta+Shift+z");
   await expect.poll(async () => readSource(page)).toEqual(afterDuplicate);
 
-  await selectFirstCanvasElement(page);
+  await selectAllSceneElements(page);
   await page.keyboard.press("Delete");
   await expect.poll(async () => readSource(page)).not.toEqual(afterDuplicate);
 });
@@ -159,6 +159,7 @@ test("canvas context menu opens and runs duplicate command", async ({ page }) =>
   await setSource(page, String.raw`\begin{tikzpicture}
 \draw (0,0) rectangle (2,1);
 \end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
 
   const sourceBefore = await readSource(page);
   await selectAllSceneElements(page);

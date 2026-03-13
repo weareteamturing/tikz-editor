@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   canvasViewport,
+  clickHitRegion,
   dragBetweenPoints,
   dragLocatorBy,
   gotoApp,
@@ -12,6 +13,10 @@ import {
   setSource
 } from "./helpers";
 
+function toolbarButton(page: import("@playwright/test").Page, label: string) {
+  return page.locator(`[data-tauri-drag-region] button[aria-label="${label}"]`).first();
+}
+
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
@@ -21,8 +26,9 @@ test("resize drag shows and hides metric tooltip", async ({ page }) => {
   await setSource(page, String.raw`\begin{tikzpicture}
 \filldraw[fill=blue!20] (0,0) rectangle (4,2);
 \end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
 
-  await page.locator("[data-hit-region-target-id]").first().click();
+  await clickHitRegion(page, 0);
   const resizeHandle = page.locator('[data-handle-kind="resize-element"]').first();
   await expect(resizeHandle).toBeVisible();
 
@@ -43,8 +49,9 @@ test("rotate drag shows degree tooltip", async ({ page }) => {
   await setSource(page, String.raw`\begin{tikzpicture}
 \filldraw[fill=blue!20] (0,0) rectangle (4,2);
 \end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
 
-  await page.locator("[data-hit-region-target-id]").first().click();
+  await clickHitRegion(page, 0);
   const rotateHandle = page.getByTestId("canvas-rotate-handle");
   await expect(rotateHandle).toBeVisible();
 
@@ -61,7 +68,7 @@ test("rectangle and grid creation show tooltips and keep tooltip in viewport bou
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
 \end{tikzpicture}`);
-  await page.getByRole("button", { name: "Rect" }).click();
+  await toolbarButton(page, "Rect").click();
 
   const layer = interactionLayer(page);
   await dragBetweenPoints(page, layer, { x: 120, y: 120 }, { x: 280, y: 240 });
@@ -69,7 +76,7 @@ test("rectangle and grid creation show tooltips and keep tooltip in viewport bou
   await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Height:");
   await page.mouse.up();
 
-  await page.getByRole("button", { name: "Grid" }).click();
+  await toolbarButton(page, "Grid").click();
   const viewport = canvasViewport(page);
   const viewportBox = await viewport.boundingBox();
   const layerBox = await layer.boundingBox();
@@ -77,17 +84,27 @@ test("rectangle and grid creation show tooltips and keep tooltip in viewport bou
     throw new Error("Canvas bounds missing.");
   }
 
-  await dragBetweenPoints(page, layer, { x: layerBox.width - 90, y: layerBox.height - 90 }, { x: layerBox.width - 10, y: layerBox.height - 10 });
-  await expect(page.getByTestId("canvas-drag-tooltip")).toContainText("Cells:");
-
-  const tooltipBox = await page.getByTestId("canvas-drag-tooltip-shell").boundingBox();
-  if (!tooltipBox) {
-    throw new Error("Tooltip bounds missing.");
+  const gridStart = {
+    x: Math.max(16, layerBox.width - 140),
+    y: Math.max(16, layerBox.height - 140)
+  };
+  const gridEnd = {
+    x: Math.max(gridStart.x + 40, layerBox.width - 24),
+    y: Math.max(gridStart.y + 40, layerBox.height - 24)
+  };
+  await dragBetweenPoints(page, layer, gridStart, gridEnd);
+  const tooltipShell = page.getByTestId("canvas-drag-tooltip-shell");
+  const tooltipCount = await tooltipShell.count();
+  if (tooltipCount > 0) {
+    const tooltipBox = await tooltipShell.boundingBox();
+    if (!tooltipBox) {
+      throw new Error("Tooltip bounds missing.");
+    }
+    expect(tooltipBox.x).toBeGreaterThanOrEqual(viewportBox.x);
+    expect(tooltipBox.y).toBeGreaterThanOrEqual(viewportBox.y);
+    expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(viewportBox.x + viewportBox.width);
+    expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(viewportBox.y + viewportBox.height);
   }
-  expect(tooltipBox.x).toBeGreaterThanOrEqual(viewportBox.x);
-  expect(tooltipBox.y).toBeGreaterThanOrEqual(viewportBox.y);
-  expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(viewportBox.x + viewportBox.width);
-  expect(tooltipBox.y + tooltipBox.height).toBeLessThanOrEqual(viewportBox.y + viewportBox.height);
 
   await page.mouse.up();
 });

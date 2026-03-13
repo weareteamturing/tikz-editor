@@ -77,7 +77,7 @@ describe("useFigureThumbnails", () => {
       .mockReturnValueOnce(pendingOld.promise)
       .mockReturnValueOnce(pendingNew.promise);
 
-    let latest = new Map<string, string>();
+    let latest: ReadonlyMap<string, string> = new Map<string, string>();
     const figure = { id: "figure:0", span: { from: 0, to: 1000 } };
     const figures = [figure] as const;
     const sourceA = "\\begin{tikzpicture}\\draw (0,0)--(1,1);\\end{tikzpicture}";
@@ -150,7 +150,7 @@ describe("useFigureThumbnails", () => {
       .mockReturnValueOnce(pendingFirst.promise)
       .mockReturnValueOnce(pendingSecond.promise);
 
-    let latest = new Map<string, string>();
+    let latest: ReadonlyMap<string, string> = new Map<string, string>();
     const figure = { id: "figure:0", span: { from: 0, to: 1000 } };
     const figures = [figure] as const;
     const sourceA = "\\begin{tikzpicture}\\draw (0,0)--(1,1);\\end{tikzpicture}";

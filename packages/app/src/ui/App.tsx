@@ -274,7 +274,7 @@ export function App() {
         source,
         activeFigureId,
         changedSourceIds,
-        patches: lastEditPatches,
+        patches: lastEditPatches ? [...lastEditPatches] : null,
         trigger
       });
     };
@@ -577,6 +577,7 @@ export function App() {
     const globalLike = globalThis as typeof globalThis & {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;
+        selectFirstFigure: () => void;
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
         clearSelection: () => void;
@@ -587,6 +588,10 @@ export function App() {
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
       setSource: (nextSource) => {
         dispatch({ type: "CODE_EDITED", source: nextSource });
+      },
+      selectFirstFigure: () => {
+        const firstFigureId = snapshotRef.current.figures[0]?.id ?? null;
+        dispatch({ type: "SET_ACTIVE_FIGURE", figureId: firstFigureId });
       },
       selectAllElements: () => {
         const ids = Array.from(

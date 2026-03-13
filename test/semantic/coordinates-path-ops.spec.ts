@@ -1562,9 +1562,10 @@ describe("semantic evaluator / coordinates and path ops", () => {
     });
 
     it("merges consecutive leading option lists before path geometry", () => {
-      const source = String.raw`\usetikzlibrary{decorations.pathmorphing}
-  \tikz \fill [decorate,decoration={zigzag}]
-    [fill=blue!20,draw=blue,thick] (0,0) -- (2,1) arc (90:-90:.5) -- cycle;`;
+      const source = String.raw`\begin{tikzpicture}
+  \fill [decorate,decoration={zigzag}]
+    [fill=blue!20,draw=blue,thick] (0,0) -- (2,1) arc (90:-90:.5) -- cycle;
+\end{tikzpicture}`;
       const result = evaluateSemantic(source);
       const filledPath = result.scene.elements.find((element) => element.kind === "Path" && element.style.fill != null);
   

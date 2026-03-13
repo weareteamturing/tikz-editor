@@ -8,6 +8,7 @@ import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from ".
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const TRACES_DIR = path.join(THIS_DIR, "traces");
 const PAPER_PATH = path.resolve(THIS_DIR, "../../../test/papers/equal_shares_arxiv_v2.tex");
+const VERBOSE_PROFILE_LOGS = process.env.TIKZ_PROFILE_VERBOSE === "1";
 const TARGET_DRAW_LINES = [
   String.raw`\draw[thick,->,magenta] (0.0, 0.0) -- (0.0, 4.5);`,
   String.raw`\draw[thick,->] (0.0, 0.0) -- (0.0, 4.5);`
@@ -369,6 +370,9 @@ async function readDebugState(
 }
 
 function printDebug(label: string, state: DebugState): void {
+  if (!VERBOSE_PROFILE_LOGS) {
+    return;
+  }
   console.log(`[paper-selection] ${label}: ${JSON.stringify(state)}`);
 }
 
@@ -512,15 +516,17 @@ function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: Prob
 
 test("profile paper selection hover vs click", async ({ page }) => {
   const target = resolvePaperTarget();
-  console.log(
-    `[paper-selection] target=${JSON.stringify({
-      paperPath: PAPER_PATH,
-      targetLine: target.targetLine,
-      activeFigureId: target.activeFigureId,
-      activeFigureNumber: target.activeFigureNumber,
-      targetSourceId: target.targetSourceId
-    })}`
-  );
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(
+      `[paper-selection] target=${JSON.stringify({
+        paperPath: PAPER_PATH,
+        targetLine: target.targetLine,
+        activeFigureId: target.activeFigureId,
+        activeFigureNumber: target.activeFigureNumber,
+        targetSourceId: target.targetSourceId
+      })}`
+    );
+  }
   await seedWorkspace(page, target);
   await gotoApp(page, "/edit/");
   await installProbe(page);
@@ -532,7 +538,9 @@ test("profile paper selection hover vs click", async ({ page }) => {
     page,
     `path[data-source-id="${target.targetSourceId}"][stroke="#ff00ff"]:not([data-arrow-tip-kind])`
   );
-  console.log(`[paper-selection] target-point=${JSON.stringify(point)}`);
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(`[paper-selection] target-point=${JSON.stringify(point)}`);
+  }
   const summaries: ProfileSummary[] = [];
 
   // Hover with source panel visible.
@@ -585,7 +593,9 @@ test("profile paper selection hover vs click", async ({ page }) => {
     page,
     `path[data-source-id="${target.targetSourceId}"][stroke="#ff00ff"]:not([data-arrow-tip-kind])`
   );
-  console.log(`[paper-selection] target-point-hidden-source-panel=${JSON.stringify(pointHiddenSourcePanel)}`);
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(`[paper-selection] target-point-hidden-source-panel=${JSON.stringify(pointHiddenSourcePanel)}`);
+  }
   await page.evaluate(() => {
     (window as typeof window & {
       __TIKZ_EDITOR_APP_TEST_API__?: { clearSelection: () => void };
@@ -610,7 +620,9 @@ test("profile paper selection hover vs click", async ({ page }) => {
     page,
     `path[data-source-id="${target.targetSourceId}"][stroke="#ff00ff"]:not([data-arrow-tip-kind])`
   );
-  console.log(`[paper-selection] target-point-hidden-both-panels=${JSON.stringify(pointHiddenBothPanels)}`);
+  if (VERBOSE_PROFILE_LOGS) {
+    console.log(`[paper-selection] target-point-hidden-both-panels=${JSON.stringify(pointHiddenBothPanels)}`);
+  }
   await page.evaluate(() => {
     (window as typeof window & {
       __TIKZ_EDITOR_APP_TEST_API__?: { clearSelection: () => void };
@@ -640,7 +652,7 @@ test("profile paper selection hover vs click", async ({ page }) => {
   fs.mkdirSync(TRACES_DIR, { recursive: true });
   const reportPath = path.join(TRACES_DIR, "paper-selection-report.json");
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), "utf8");
-  console.log(JSON.stringify(report, null, 2));
+  console.log(`[paper-selection] wrote ${reportPath}`);
 
   expect(summaries).toHaveLength(4);
 });

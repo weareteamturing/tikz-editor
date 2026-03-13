@@ -48,7 +48,7 @@ describe("render pipeline", () => {
 \end{tikzpicture}`;
     const result = renderTikzToSvg(source);
 
-    expect(result.semantic.diagnostics.some((diagnostic) => diagnostic.code.startsWith("invalid-cm:"))).toBe(false);
+    expect(result.semantic.diagnostics.some((diagnostic) => (diagnostic.code ?? "").startsWith("invalid-cm:"))).toBe(false);
     expect(result.svg.svg).toMatch(/d="M 28\.45\d* 56\.90\d* L 56\.90\d* 28\.45\d* L 28\.45\d* 28\.45\d*"/);
   });
 

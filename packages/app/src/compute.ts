@@ -118,7 +118,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     if (isDragTrigger && changedSourceIds.length > 0) {
       const result = await computeSnapshotIncremental(
         request.source,
-        request.activeFigureId ?? null,
+        request.activeFigureId,
         changedSourceIds,
         patches,
         trigger
@@ -163,7 +163,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     const result = await renderTikzToSvgAsync(request.source, {
       parse: {
         recover: true,
-        activeFigureId: request.activeFigureId ?? null,
+        activeFigureId: request.activeFigureId,
         includeContextDefinitions: true
       },
       svg: { padding: 18 }
@@ -242,7 +242,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
 
 async function computeSnapshotIncremental(
   source: string,
-  activeFigureId: string | null,
+  activeFigureId: string | null | undefined,
   changedSourceIds: string[],
   patches: SourcePatch[],
   trigger: Extract<IncrementalSemanticTrigger, "drag-element" | "drag-handle">

@@ -20,7 +20,8 @@ import {
   gotoApp,
   interactionLayer,
   resetStorageBeforeNavigation,
-  setSource
+  setSource,
+  waitForHitRegions
 } from "./helpers";
 
 const TRACES_DIR = path.join(
@@ -63,9 +64,11 @@ test("profile: move element drag", async ({ page }) => {
 \draw[->] (5,0) -- (7,2);
 \end{tikzpicture}`
   );
+  await page.getByRole("button", { name: "Select" }).click();
 
   // Select the rectangle
   await clickHitRegion(page, 0);
+  await waitForHitRegions(page);
 
   const client = await startCDPProfile(page);
 
@@ -100,6 +103,7 @@ test("profile: resize element drag", async ({ page }) => {
 \filldraw[fill=blue!20] (0,0) rectangle (4,2);
 \end{tikzpicture}`
   );
+  await page.getByRole("button", { name: "Select" }).click();
 
   // Select and find resize handle
   await clickHitRegion(page, 0);

@@ -104,6 +104,7 @@ export async function setSource(page: Page, source: string): Promise<void> {
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
   await page.keyboard.type(source);
+  await ensureFirstFigureActive(page);
 }
 
 export async function readSource(page: Page): Promise<string> {
@@ -140,7 +141,16 @@ export async function focusCanvas(page: Page): Promise<void> {
 }
 
 export async function selectFirstCanvasElement(page: Page): Promise<void> {
+  await waitForHitRegions(page);
   await clickHitRegion(page, 0);
+}
+
+export async function waitForHitRegions(page: Page, minimumCount = 1): Promise<void> {
+  await ensureFirstFigureActive(page);
+  await expect.poll(async () => page.locator("[data-hit-region-target-id]").count(), {
+    timeout: 30_000,
+    intervals: [250, 500, 1000]
+  }).toBeGreaterThanOrEqual(minimumCount);
 }
 
 export async function clickHitRegion(
@@ -148,6 +158,7 @@ export async function clickHitRegion(
   index: number,
   options: { button?: "left" | "right"; shift?: boolean } = {}
 ): Promise<void> {
+  await waitForHitRegions(page, index + 1);
   const region = page.locator("[data-hit-region-target-id]").nth(index);
   await expect(region).toBeVisible();
   const target = await region.evaluate((element) => {
@@ -231,6 +242,7 @@ export async function injectNoFsApiFallback(page: Page): Promise<void> {
 }
 
 export async function selectAllSceneElements(page: Page): Promise<void> {
+  await waitForHitRegions(page);
   await page.evaluate(() => {
     const api = (globalThis as unknown as {
       __TIKZ_EDITOR_APP_TEST_API__?: {
@@ -256,6 +268,24 @@ export async function readFigureCount(page: Page): Promise<number> {
       __TIKZ_EDITOR_APP_TEST_API__?: { getFigureCount?: () => number };
     }).__TIKZ_EDITOR_APP_TEST_API__;
     return api?.getFigureCount?.() ?? 0;
+  });
+}
+
+async function ensureFirstFigureActive(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getFigureCount?: () => number;
+        getActiveFigureId?: () => string | null;
+        selectFirstFigure?: () => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    if (!api) {
+      return;
+    }
+    if ((api.getFigureCount?.() ?? 0) > 0 && api.getActiveFigureId?.() == null) {
+      api.selectFirstFigure?.();
+    }
   });
 }
 

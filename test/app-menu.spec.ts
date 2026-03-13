@@ -288,7 +288,7 @@ describe("app menu definition", () => {
     const editSection = APP_MENU_DEFINITION.find((section) => section.id === "edit");
     expect(editSection).toBeDefined();
     const items = editSection?.items ?? [];
-    const submenuLabels = items.filter((item) => item.kind === "submenu").map((item) => item.label);
+    const submenuLabels = items.flatMap((item) => (item.kind === "submenu" ? [item.label] : []));
 
     expect(submenuLabels).toEqual(["Align", "Transform", "Distribute", "Reorder"]);
     expect(items[items.length - 5]).toEqual({ kind: "separator" });
@@ -298,9 +298,7 @@ describe("app menu definition", () => {
   it("exposes path editing actions in a dedicated Path menu", () => {
     const pathSection = APP_MENU_DEFINITION.find((section) => section.id === "path");
     expect(pathSection).toBeDefined();
-    const commandIds = (pathSection?.items ?? [])
-      .filter((item) => item.kind === "command")
-      .map((item) => item.commandId);
+    const commandIds = (pathSection?.items ?? []).flatMap((item) => (item.kind === "command" ? [item.commandId] : []));
     expect(commandIds).toEqual([
       APP_MENU_COMMAND_IDS.PATH_SPLIT,
       APP_MENU_COMMAND_IDS.PATH_JOIN,
