@@ -104,7 +104,6 @@ export async function setSource(page: Page, source: string): Promise<void> {
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
   await page.keyboard.type(source);
-  await ensureFirstFigureActive(page);
 }
 
 export async function readSource(page: Page): Promise<string> {
@@ -146,8 +145,10 @@ export async function selectFirstCanvasElement(page: Page): Promise<void> {
 }
 
 export async function waitForHitRegions(page: Page, minimumCount = 1): Promise<void> {
-  await ensureFirstFigureActive(page);
-  await expect.poll(async () => page.locator("[data-hit-region-target-id]").count(), {
+  await expect.poll(async () => {
+    await ensureFirstFigureActive(page);
+    return page.locator("[data-hit-region-target-id]").count();
+  }, {
     timeout: 30_000,
     intervals: [250, 500, 1000]
   }).toBeGreaterThanOrEqual(minimumCount);

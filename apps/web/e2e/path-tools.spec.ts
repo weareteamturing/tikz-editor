@@ -301,6 +301,7 @@ test("dense paths require double click before showing interior edit handles", as
 \draw (0,2) -- (1,2.2) -- (2,2.1);
 \end{tikzpicture}`);
   await page.getByRole("button", { name: "Select" }).click();
+  await waitForHitRegions(page, 2);
   const denseTargetId = await page.locator("[data-hit-region-target-id]").nth(0).getAttribute("data-hit-region-target-id");
   const shortTargetId = await page.locator("[data-hit-region-target-id]").nth(1).getAttribute("data-hit-region-target-id");
   if (!denseTargetId || !shortTargetId) {
