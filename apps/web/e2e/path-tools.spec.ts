@@ -10,7 +10,8 @@ import {
   openMenuSection,
   readSource,
   resetStorageBeforeNavigation,
-  setSource
+  setSource,
+  waitForHitRegions
 } from "./helpers";
 
 function toolbarButton(page: import("@playwright/test").Page, label: string) {
@@ -231,6 +232,66 @@ test("path menu commands stay disabled when selection has no editable path point
   await expect(page.getByTestId("menu-cmd-path.delete-point")).toBeDisabled();
   await expect(page.getByTestId("menu-cmd-path.point-corner")).toBeDisabled();
   await expect(page.getByTestId("menu-cmd-path.point-smooth")).toBeDisabled();
+});
+
+test("live endpoint-anchor drag keeps source well-formed while hovering and on drop", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw[red] (-1, 1) -- (1, 1);
+  \node[draw] (C) at (0, 0) {C};
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+
+  await waitForHitRegions(page, 1);
+  const lineRegion = page.locator("[data-hit-region-target-id]").first();
+  const lineTarget = await lineRegion.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.click(lineTarget.x, lineTarget.y);
+  const endpointHandle = page.locator('[data-handle-kind="move-handle"][data-source-id="path:0"]').nth(1);
+  await expect(endpointHandle).toBeVisible();
+  const handleBox = await endpointHandle.boundingBox();
+  if (!handleBox) {
+    throw new Error("Endpoint handle bounds missing.");
+  }
+  const nodeRegion = page.locator('[data-hit-region-target-id="path:1"]').first();
+  await expect(nodeRegion).toBeVisible();
+  const nodeBox = await nodeRegion.boundingBox();
+  if (!nodeBox) {
+    throw new Error("Node hit-region bounds missing.");
+  }
+
+  const startX = handleBox.x + handleBox.width / 2;
+  const startY = handleBox.y + handleBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+
+  await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2, { steps: 12 });
+  await expect.poll(async () => page.locator("svg circle").count()).toBeGreaterThan(0);
+  const anchorCircle = page.locator("svg circle").first();
+  const anchorBox = await anchorCircle.boundingBox();
+  if (!anchorBox) {
+    throw new Error("Node anchor overlay circle bounds missing.");
+  }
+  await page.mouse.move(anchorBox.x + anchorBox.width / 2, anchorBox.y + anchorBox.height / 2, { steps: 8 });
+
+  const sourceDuringDrag = await readSource(page);
+  expect(sourceDuringDrag).toContain("\\draw[red]");
+  expect(sourceDuringDrag).not.toContain(");(");
+  expect(sourceDuringDrag).toContain("\\end{tikzpicture}");
+  await expect.poll(async () => page.locator("[data-hit-region-target-id]").count()).toBeGreaterThanOrEqual(2);
+
+  // Drag away again before releasing: source should detach from node anchor.
+  await page.mouse.move(startX + 120, startY - 20, { steps: 12 });
+  const sourceAfterDraggingAway = await readSource(page);
+  expect(sourceAfterDraggingAway).not.toContain("(C.");
+  expect(sourceAfterDraggingAway).toContain("\\end{tikzpicture}");
+
+  await page.mouse.up();
+  const sourceAfterDrop = await readSource(page);
+  expect(sourceAfterDrop).not.toContain(");(");
+  expect(sourceAfterDrop).toContain("\\end{tikzpicture}");
 });
 
 test("dense paths require double click before showing interior edit handles", async ({ page }) => {

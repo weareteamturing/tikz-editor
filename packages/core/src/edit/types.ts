@@ -19,7 +19,11 @@ export type EditIntentResult =
   | { kind: "unsupported"; reason: string; handleId: string }
   | { kind: "error"; message: string };
 
-/** A source text patch recording what was replaced and where. */
+/**
+ * A source text patch recording what was replaced and where.
+ * For any patch list returned by edit actions, every `oldSpan` is relative to
+ * the same pre-edit source text.
+ */
 export type SourcePatch = {
   oldSpan: Span;
   newSpan: Span;

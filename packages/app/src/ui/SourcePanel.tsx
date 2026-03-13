@@ -30,6 +30,7 @@ import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tikz-editor/semantic/style/constants";
+import { patchesMatchSourceTransition } from "tikz-editor/edit/source-patches";
 import { tikzLanguage } from "../codemirror-tikz";
 import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
@@ -612,7 +613,13 @@ export function SourcePanel() {
     // surgical CodeMirror updates instead of replacing the entire document.
     // This is much cheaper for large documents where only coordinates change.
     let changes: { from: number; to: number; insert: string } | Array<{ from: number; to: number; insert: string }>;
-    if (lastEditPatches && lastEditPatches.length > 0) {
+    // Guardrail: patch updates are only safe when all old spans target the
+    // current pre-edit document and replay exactly to the desired next source.
+    if (
+      lastEditPatches &&
+      lastEditPatches.length > 0 &&
+      patchesMatchSourceTransition(current, source, lastEditPatches)
+    ) {
       changes = lastEditPatches.map((p) => ({
         from: p.oldSpan.from,
         to: p.oldSpan.to,

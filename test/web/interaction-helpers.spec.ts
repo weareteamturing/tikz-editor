@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
+import type { EditHandle } from "../../packages/core/src/semantic/types.js";
+import { identityMatrix } from "../../packages/core/src/semantic/transform.js";
 import {
   createBezierTemplateFromBend,
+  resolveHandleIdForDrag,
   resolveBezierControlsFromBend,
   snapPointDeltaToAxisStepMultiples
 } from "../../packages/app/src/ui/canvas-panel/interaction-helpers.js";
@@ -14,6 +17,28 @@ function cubicMidpoint(p0: Point, p1: Point, p2: Point, p3: Point): Point {
   return {
     x: (p0.x + 3 * p1.x + 3 * p2.x + p3.x) / 8,
     y: (p0.y + 3 * p1.y + 3 * p2.y + p3.y) / 8
+  };
+}
+
+function makePathPointHandle(
+  id: string,
+  sourceId: string,
+  world: Point
+): EditHandle {
+  return {
+    id,
+    runtimeId: `runtime:${id}`,
+    sourceRef: {
+      sourceId,
+      sourceSpan: { from: 0, to: 0 },
+      sourceFingerprint: "fp"
+    },
+    kind: "path-point",
+    world,
+    transform: identityMatrix(),
+    sourceText: "",
+    coordinateForm: "cartesian",
+    rewriteMode: "direct"
   };
 }
 
@@ -93,5 +118,27 @@ describe("interaction-helpers step snapping", () => {
       -1
     );
     expect(snapped).toEqual({ x: 13.2, y: 26.1 });
+  });
+});
+
+describe("resolveHandleIdForDrag", () => {
+  it("rebinds to nearest same-kind handle when source ids are renumbered", () => {
+    const drag: any = {
+      kind: "handle",
+      handleId: "old-handle",
+      sourceId: "path:0",
+      handleKind: "path-point",
+      lastKnownWorld: { x: 10, y: 10 }
+    };
+    const handles: EditHandle[] = [
+      makePathPointHandle("node-h", "path:0", { x: 200, y: 200 }),
+      makePathPointHandle("line-h", "path:1", { x: 10.2, y: 9.8 })
+    ];
+
+    const resolved = resolveHandleIdForDrag(drag, handles);
+
+    expect(resolved).toBe("line-h");
+    expect(drag.handleId).toBe("line-h");
+    expect(drag.sourceId).toBe("path:1");
   });
 });

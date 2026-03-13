@@ -8,6 +8,7 @@ import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
+import { applySourcePatches } from "../packages/core/src/edit/source-patches.js";
 
 const cm = (v: number) => v * PT_PER_CM;
 
@@ -39,6 +40,16 @@ function makeHandle(
   };
 }
 
+function expectPatchesReconstructSource(
+  previousSource: string,
+  result: Extract<ReturnType<typeof applyEditAction>, { kind: "success" | "partial" }>
+): void {
+  const replayed = applySourcePatches(previousSource, result.patches);
+  expect(replayed.kind).toBe("success");
+  if (replayed.kind !== "success") return;
+  expect(replayed.source).toBe(result.newSource);
+}
+
 // ── moveHandle ─────────────────────────────────────────────────────────────────
 
 describe("applyEditAction – moveHandle", () => {
@@ -59,6 +70,7 @@ describe("applyEditAction – moveHandle", () => {
     if (result.kind === "success") {
       expect(result.newSource).toBe("\\draw (5,6) -- (3,4);");
       expect(result.patches).toHaveLength(1);
+      expectPatchesReconstructSource(source, result);
     }
   });
 
@@ -210,6 +222,65 @@ describe("applyEditAction – connectHandle", () => {
     const drawIndex = result.newSource.indexOf("\\draw (A) -- (2.5, 2.5);");
     const nodeIndex = result.newSource.indexOf("\\node[draw] (A) at (-1, -1) {A};");
     expect(drawIndex).toBeGreaterThan(nodeIndex);
+    expect(result.changedSourceIds).toEqual([]);
+    expectPatchesReconstructSource(source, result);
+  });
+});
+
+describe("applyEditAction – patch replay invariants", () => {
+  it("replays moveHandle patches to the reported newSource", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const handle = makeHandle(source, {
+      world: { x: cm(1), y: cm(2) },
+      sourceSpan: { from: 6, to: 11 }
+    });
+    const result = applyEditAction(source, [handle], {
+      kind: "moveHandle",
+      handleId: handle.id,
+      newWorld: { x: cm(7), y: cm(8) }
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("replays connectHandle patches when replacement and statement reorder both occur", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[red] (-1, 1) -- (1, 1);
+  \node[draw] (C) at (0, 0) {C};
+\end{tikzpicture}`;
+    const raw = "(1, 1)";
+    const from = source.indexOf(raw);
+    const handle = makeHandle(source, {
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:0"
+    });
+    const result = applyEditAction(source, [handle], {
+      kind: "connectHandle",
+      handleId: handle.id,
+      nodeName: "C",
+      anchor: "north west"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw[red] (-1, 1) -- (C.north west);");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("replays non-handle reorder patches to the reported newSource", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "reorderElements",
+      elementIds: ["path:0"],
+      direction: "bringToFront"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expectPatchesReconstructSource(source, result);
   });
 });
 

@@ -81,6 +81,7 @@ import { applyReorderElementsAction, buildParentReorderReplacement } from "./act
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
 import type { EditParseOptions } from "./parse-options.js";
+import { patchesMatchSourceTransition } from "./source-patches.js";
 
 export type ResizeRole =
   | "top-left"
@@ -167,7 +168,7 @@ export function applyEditAction(
 ): EditActionResult {
   const evaluateOptions = options.evaluateOptions;
   const parseOptions = options.parseOptions ?? {};
-  const result = (() : EditActionResult => {
+  const rawResult = (() : EditActionResult => {
     switch (action.kind) {
       case "moveHandle":
         return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
@@ -217,7 +218,23 @@ export function applyEditAction(
         return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
   })();
-  return withChangedSourceIds(result, action, editHandles);
+  const normalizedResult = normalizeResultPatches(source, rawResult);
+  return withChangedSourceIds(normalizedResult, action, editHandles);
+}
+
+function normalizeResultPatches(source: string, result: EditActionResult): EditActionResult {
+  if (result.kind !== "success" && result.kind !== "partial") {
+    return result;
+  }
+
+  if (patchesMatchSourceTransition(source, result.newSource, result.patches)) {
+    return result;
+  }
+
+  return {
+    ...result,
+    patches: [computeReplacementPatch(source, result.newSource)]
+  };
 }
 
 function applyMoveHandle(
@@ -329,7 +346,9 @@ function applyConnectHandle(
       },
       ...reorderedPatches
     ],
-    changedSourceIds: [handle.sourceRef.sourceId]
+    // Reordering can renumber statement source ids, so avoid stale id hints.
+    // Returning [] forces the drag path to use full recompute for this frame.
+    changedSourceIds: reordered ? [] : [handle.sourceRef.sourceId]
   };
 }
 
@@ -500,7 +519,7 @@ function withChangedSourceIds(
     return result;
   }
 
-  if (result.changedSourceIds && result.changedSourceIds.length > 0) {
+  if ("changedSourceIds" in result && result.changedSourceIds !== undefined) {
     return result;
   }
 

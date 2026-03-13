@@ -200,28 +200,38 @@ export function resolveHandleIdForDrag(
     return direct.id;
   }
 
-  let best: EditHandle | null = null;
-  let bestDistSq = Number.POSITIVE_INFINITY;
-  for (const handle of handles) {
-    if (handle.sourceRef.sourceId !== drag.sourceId || handle.kind !== drag.handleKind) {
-      continue;
-    }
-    const dx = handle.world.x - drag.lastKnownWorld.x;
-    const dy = handle.world.y - drag.lastKnownWorld.y;
-    const distSq = dx * dx + dy * dy;
-    if (distSq < bestDistSq) {
-      bestDistSq = distSq;
-      best = handle;
-    }
-  }
+  const best = findClosestHandleMatch(handles, drag.lastKnownWorld, (handle) => handle.kind === drag.handleKind);
 
   if (!best) {
     return null;
   }
 
   drag.handleId = best.id;
+  drag.sourceId = best.sourceRef.sourceId;
   drag.lastKnownWorld = { ...best.world };
   return best.id;
+}
+
+function findClosestHandleMatch(
+  handles: readonly EditHandle[],
+  target: Point,
+  predicate: (handle: EditHandle) => boolean
+): EditHandle | null {
+  let best: EditHandle | null = null;
+  let bestDistSq = Number.POSITIVE_INFINITY;
+  for (const handle of handles) {
+    if (!predicate(handle)) {
+      continue;
+    }
+    const dx = handle.world.x - target.x;
+    const dy = handle.world.y - target.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = handle;
+    }
+  }
+  return best;
 }
 
 function boundsContainedWithin(inner: Bounds, outer: Bounds): boolean {
