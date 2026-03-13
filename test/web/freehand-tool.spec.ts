@@ -5,6 +5,7 @@ import {
   catmullRomToBezierSegments,
   createFreehandToolDraft,
   generateFreehandToolSource,
+  resolveFreehandPreviewSegments,
   simplifyFreehandPoints
 } from "../../packages/app/src/ui/canvas-panel/freehand-tool.js";
 
@@ -51,12 +52,52 @@ describe("freehand-tool", () => {
   it("returns null for degenerate drafts and a TikZ draw statement for valid drafts", () => {
     const degenerate = createFreehandToolDraft({ x: cm(0), y: cm(0) }, 1);
     const withTwoPoints = appendFreehandToolPoint(degenerate, { x: cm(0.8), y: cm(0) });
-    expect(generateFreehandToolSource(withTwoPoints, 1)).toBeNull();
+    expect(generateFreehandToolSource(withTwoPoints, 1, 16)).toBeNull();
 
     const withThreePoints = appendFreehandToolPoint(withTwoPoints, { x: cm(2), y: cm(1.2) });
-    const source = generateFreehandToolSource(withThreePoints, 1);
+    const source = generateFreehandToolSource(withThreePoints, 1, 16);
     expect(source).not.toBeNull();
     expect(source).toContain("\\draw");
     expect(source).toContain(".. controls");
+  });
+
+  it("uses smoothing tolerance when generating source output", () => {
+    const points = [
+      { x: cm(0), y: cm(0) },
+      { x: cm(0.45), y: cm(0.02) },
+      { x: cm(0.9), y: cm(0.04) },
+      { x: cm(1.35), y: cm(0.03) },
+      { x: cm(1.8), y: cm(0.01) }
+    ];
+    let draft = createFreehandToolDraft(points[0]!, 1);
+    for (let i = 1; i < points.length; i += 1) {
+      draft = appendFreehandToolPoint(draft, points[i]!);
+    }
+
+    const lowSmoothing = generateFreehandToolSource(draft, 1, 4);
+    const highSmoothing = generateFreehandToolSource(draft, 1, 32);
+    expect(lowSmoothing).not.toBeNull();
+    expect(highSmoothing).not.toBeNull();
+    const lowControls = (lowSmoothing?.match(/\.\. controls/g) ?? []).length;
+    const highControls = (highSmoothing?.match(/\.\. controls/g) ?? []).length;
+    expect(lowControls).toBeGreaterThan(highControls);
+  });
+
+  it("uses smoothing tolerance for preview segment simplification", () => {
+    const points = [
+      { x: cm(0), y: cm(0) },
+      { x: cm(0.45), y: cm(0.02) },
+      { x: cm(0.9), y: cm(0.04) },
+      { x: cm(1.35), y: cm(0.02) },
+      { x: cm(1.8), y: cm(0) }
+    ];
+    let draft = createFreehandToolDraft(points[0]!, 1);
+    for (let i = 1; i < points.length; i += 1) {
+      draft = appendFreehandToolPoint(draft, points[i]!);
+    }
+
+    const lowSmoothing = resolveFreehandPreviewSegments(draft, 4, 1);
+    const highSmoothing = resolveFreehandPreviewSegments(draft, 32, 1);
+    expect(lowSmoothing.length).toBeGreaterThan(highSmoothing.length);
   });
 });

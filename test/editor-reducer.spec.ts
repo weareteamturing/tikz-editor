@@ -680,6 +680,28 @@ describe("editorReducer – SET_TOOL_MODE", () => {
   });
 });
 
+describe("editorReducer – SET_FREEHAND_SMOOTHING", () => {
+  it("updates freehand smoothing value", () => {
+    const state = applyActions([{ type: "SET_FREEHAND_SMOOTHING", value: 20 }]);
+    expect(state.freehandSmoothingPx).toBe(20);
+  });
+
+  it("clamps smoothing value to supported bounds", () => {
+    const low = applyActions([{ type: "SET_FREEHAND_SMOOTHING", value: -5 }]);
+    expect(low.freehandSmoothingPx).toBe(4);
+
+    const high = applyActions([{ type: "SET_FREEHAND_SMOOTHING", value: 999 }], low);
+    expect(high.freehandSmoothingPx).toBe(32);
+  });
+
+  it("is a no-op when smoothing value is unchanged", () => {
+    const initial = makeInitialState();
+    expect(initial.freehandSmoothingPx).toBe(16);
+    const after = editorReducer(initial, { type: "SET_FREEHAND_SMOOTHING", value: 16 });
+    expect(after).toBe(initial);
+  });
+});
+
 // ── SET_CANVAS_TRANSFORM ───────────────────────────────────────────────────────
 
 describe("editorReducer – SET_CANVAS_TRANSFORM", () => {

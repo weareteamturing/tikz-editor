@@ -104,6 +104,7 @@ export type WorkspaceEphemeralState = {
   snapToGrid: boolean;
   showRulers: boolean;
   showGuides: boolean;
+  freehandSmoothingPx: number;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
 
@@ -161,6 +162,7 @@ export type EditorState = {
   snapToGrid: boolean;
   showRulers: boolean;
   showGuides: boolean;
+  freehandSmoothingPx: number;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
 
@@ -238,6 +240,7 @@ export type EditorAction =
   | { type: "SET_CANVAS_TRANSFORM"; transform: CanvasTransform }
   | { type: "SET_HOVERED_ELEMENT"; id: string | null }
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
+  | { type: "SET_FREEHAND_SMOOTHING"; value: number }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
   | { type: "TOGGLE_SNAP_TO_GRID" }

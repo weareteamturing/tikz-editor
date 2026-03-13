@@ -54,6 +54,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
     toolDraft,
     toolCursorWorld,
     freehandDraft,
+    freehandSmoothingPx,
     pathDraft,
     pathSegmentDraft,
     pendingBezier,
@@ -85,7 +86,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       }
 
       const segments: Extract<ToolPreview, { kind: "freehand" }>["segments"] = [];
-      for (const segment of resolveFreehandPreviewSegments(freehandDraft)) {
+      for (const segment of resolveFreehandPreviewSegments(freehandDraft, freehandSmoothingPx, canvasTransform.scale)) {
         if (segment.kind === "line") {
           const from = worldToSvgPoint(segment.from, svgResult.viewBox);
           const to = worldToSvgPoint(segment.to, svgResult.viewBox);
@@ -356,7 +357,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       cy: start.y,
       r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
     };
-  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, freehandSmoothingPx, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
 
   return {
     toolPreview

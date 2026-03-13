@@ -4,8 +4,10 @@ import type { Point } from "tikz-editor/semantic/types";
 const MIN_WORLD_DISTANCE_PT = 1e-3;
 
 export const FREEHAND_LIVE_POINT_SPACING_PX = 12;
-export const FREEHAND_FINALIZE_TOLERANCE_PX = 8;
 export const FREEHAND_MIN_POINTS = 3;
+export const FREEHAND_SMOOTHING_MIN_PX = 4;
+export const FREEHAND_SMOOTHING_MAX_PX = 32;
+export const FREEHAND_SMOOTHING_DEFAULT_PX = 16;
 
 export type FreehandToolDraft = {
   points: Point[];
@@ -90,25 +92,32 @@ export function catmullRomToBezierSegments(points: readonly Point[]): FreehandBe
   return segments;
 }
 
-export function resolveFreehandPreviewSegments(draft: FreehandToolDraft): Array<
+export function resolveFreehandPreviewSegments(
+  draft: FreehandToolDraft,
+  smoothingTolerancePx = FREEHAND_SMOOTHING_DEFAULT_PX,
+  zoom = 1
+): Array<
   | { kind: "line"; from: Point; to: Point }
   | { kind: "bezier"; from: Point; control1: Point; control2: Point; to: Point }
 > {
-  if (draft.points.length < FREEHAND_MIN_POINTS) {
+  const smoothingToleranceWorld = clampSmoothingTolerancePx(smoothingTolerancePx) / Math.max(zoom, 1e-3);
+  const previewPoints = simplifyFreehandPoints(draft.points, smoothingToleranceWorld);
+
+  if (previewPoints.length < FREEHAND_MIN_POINTS) {
     const previewSegments: Array<{ kind: "line"; from: Point; to: Point }> = [];
-    for (let i = 1; i < draft.points.length; i += 1) {
+    for (let i = 1; i < previewPoints.length; i += 1) {
       previewSegments.push({
         kind: "line",
-        from: { ...draft.points[i - 1]! },
-        to: { ...draft.points[i]! }
+        from: { ...previewPoints[i - 1]! },
+        to: { ...previewPoints[i]! }
       });
     }
     return previewSegments;
   }
 
-  const curves = catmullRomToBezierSegments(draft.points);
+  const curves = catmullRomToBezierSegments(previewPoints);
   const previewSegments: Array<{ kind: "bezier"; from: Point; control1: Point; control2: Point; to: Point }> = [];
-  let current = draft.points[0]!;
+  let current = previewPoints[0]!;
   for (const segment of curves) {
     previewSegments.push({
       kind: "bezier",
@@ -122,8 +131,12 @@ export function resolveFreehandPreviewSegments(draft: FreehandToolDraft): Array<
   return previewSegments;
 }
 
-export function generateFreehandToolSource(draft: FreehandToolDraft, zoom: number): string | null {
-  const toleranceWorld = FREEHAND_FINALIZE_TOLERANCE_PX / Math.max(zoom, 1e-3);
+export function generateFreehandToolSource(
+  draft: FreehandToolDraft,
+  zoom: number,
+  smoothingTolerancePx = FREEHAND_SMOOTHING_DEFAULT_PX
+): string | null {
+  const toleranceWorld = clampSmoothingTolerancePx(smoothingTolerancePx) / Math.max(zoom, 1e-3);
   const simplified = simplifyFreehandPoints(draft.points, toleranceWorld);
   if (simplified.length < FREEHAND_MIN_POINTS) {
     return null;
@@ -163,4 +176,12 @@ function distanceSquared(a: Point, b: Point): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
+}
+
+function clampSmoothingTolerancePx(value: number): number {
+  if (!Number.isFinite(value)) {
+    return FREEHAND_SMOOTHING_DEFAULT_PX;
+  }
+  const rounded = Math.round(value);
+  return Math.max(FREEHAND_SMOOTHING_MIN_PX, Math.min(FREEHAND_SMOOTHING_MAX_PX, rounded));
 }

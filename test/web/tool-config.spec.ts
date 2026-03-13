@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 import {
   isToolCreateMode,
   resolveToolbarToolMode,
-  toolModeFromShortcut
+  toolModeFromShortcut,
+  toolModeHasPopup,
+  toolModePopupKind
 } from "../../packages/app/src/ui/tool-config.js";
 
 describe("resolveToolbarToolMode", () => {
   it("deactivates non-select tool when reclicked", () => {
     expect(resolveToolbarToolMode("addRect", "addRect")).toBe("select");
     expect(resolveToolbarToolMode("addNode", "addNode")).toBe("select");
+  });
+
+  it("keeps popup-enabled tool active when reclicked", () => {
+    expect(resolveToolbarToolMode("addFreehand", "addFreehand")).toBe("addFreehand");
   });
 
   it("keeps select active when reclicking select", () => {
@@ -46,5 +52,12 @@ describe("resolveToolbarToolMode", () => {
     expect(isToolCreateMode("addGrid")).toBe(true);
     expect(toolModeFromShortcut("g")).toBeNull();
     expect(toolModeFromShortcut("G")).toBeNull();
+  });
+
+  it("exposes popup metadata for freehand and no popup for rectangle", () => {
+    expect(toolModeHasPopup("addFreehand")).toBe(true);
+    expect(toolModePopupKind("addFreehand")).toBe("freehand-smoothing");
+    expect(toolModeHasPopup("addRect")).toBe(false);
+    expect(toolModePopupKind("addRect")).toBeNull();
   });
 });

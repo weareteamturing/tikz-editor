@@ -28,6 +28,9 @@ export const DEFAULT_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={
 
 const WORKSPACE_VERSION = 3;
 export { WORKSPACE_VERSION };
+const FREEHAND_SMOOTHING_MIN_PX = 4;
+const FREEHAND_SMOOTHING_MAX_PX = 32;
+const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
   translateX: 0,
@@ -97,6 +100,7 @@ function initialUiState(): WorkspaceEphemeralState {
     snapToGrid: true,
     showRulers: true,
     showGuides: true,
+    freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     fitToContentRequestToken: 0,
     leftPanelWidth: 340,
     rightPanelWidth: 280,
@@ -221,6 +225,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     snapToGrid: ui.snapToGrid,
     showRulers: ui.showRulers,
     showGuides: ui.showGuides,
+    freehandSmoothingPx: ui.freehandSmoothingPx,
     fitToContentRequestToken: ui.fitToContentRequestToken,
     leftPanelWidth: ui.leftPanelWidth,
     rightPanelWidth: ui.rightPanelWidth,
@@ -960,6 +965,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (ui.activeCanvasDragKind === action.kind) return state;
       ui = { ...ui, activeCanvasDragKind: action.kind };
       break;
+
+    case "SET_FREEHAND_SMOOTHING": {
+      const nextValue = Math.max(
+        FREEHAND_SMOOTHING_MIN_PX,
+        Math.min(FREEHAND_SMOOTHING_MAX_PX, Math.round(action.value))
+      );
+      if (ui.freehandSmoothingPx === nextValue) return state;
+      ui = { ...ui, freehandSmoothingPx: nextValue };
+      break;
+    }
 
     case "SET_ACTIVE_SOURCE_SCRUB":
       if (ui.activeSourceScrubSourceId === action.sourceId) return state;

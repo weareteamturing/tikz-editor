@@ -503,6 +503,7 @@ export function CanvasPanel() {
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapToGrid = useEditorStore((s) => s.snapToGrid);
+  const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
@@ -942,6 +943,7 @@ export function CanvasPanel() {
     toolDraft,
     toolCursorWorld,
     freehandDraft,
+    freehandSmoothingPx,
     pathDraft,
     pathSegmentDraft,
     pendingBezier,
@@ -1120,7 +1122,7 @@ export function CanvasPanel() {
       return;
     }
 
-    const snippet = generateFreehandToolSource(draft, canvasTransform.scale);
+    const snippet = generateFreehandToolSource(draft, canvasTransform.scale, freehandSmoothingPx);
     if (snippet) {
       const firstPoint = draft.points[0]!;
       const lastPoint = draft.points[draft.points.length - 1]!;
@@ -1143,7 +1145,7 @@ export function CanvasPanel() {
     setFreehandDraft(null);
     setToolCursorWorld(null);
     dispatch({ type: "SET_TOOL_MODE", mode: "select" });
-  }, [applyActionWithFeedback, canvasTransform.scale, dispatch, queueSelectionForAddedElement, setDragState]);
+  }, [applyActionWithFeedback, canvasTransform.scale, dispatch, freehandSmoothingPx, queueSelectionForAddedElement, setDragState]);
 
   const finalizePathDraft = useCallback(
     (closed: boolean) => {

@@ -108,6 +108,24 @@
   padding: 0 4px;
 }
 
+.popupLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  color: var(--text);
+}
+
+.popupValue {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.popupSlider {
+  width: 100%;
+}
+
 @media (max-width: 768px) {
   .toolbar {
     min-height: 36px;

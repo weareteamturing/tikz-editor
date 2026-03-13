@@ -33,13 +33,23 @@ export type ToolButtonDef = {
   title: string;
   shortcut?: string;
   icon: AnyIconType;
+  popupKind?: ToolPopupKind;
 };
+
+export type ToolPopupKind = "freehand-smoothing";
 
 export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",  title: "Select and move elements (V)",                     shortcut: "v", icon: RiCursorLine },
   { mode: "addNode",    label: "Node",    title: "Place a text node (N)",                            shortcut: "n", icon: RiText },
   { mode: "addPath",    label: "Path",    title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: RiPencilLine },
-  { mode: "addFreehand",label: "Freehand",title: "Draw a freehand curve (F). Press and drag to draw one stroke.", shortcut: "f", icon: RiBrushLine },
+  {
+    mode: "addFreehand",
+    label: "Freehand",
+    title: "Draw a freehand curve (F). Press and drag to draw one stroke.",
+    shortcut: "f",
+    icon: RiBrushLine,
+    popupKind: "freehand-smoothing"
+  },
   { mode: "addLine",    label: "Line",    title: "Draw a line (L)",                                  shortcut: "l", icon: RiSubtractLine },
   { mode: "addArrow",   label: "Arrow",   title: "Draw an arrow (A)",                                shortcut: "a", icon: RiArrowRightLine },
   { mode: "addBezier",  label: "Bezier",  title: "Draw a cubic Bezier curve (B) with two drags",    shortcut: "b", icon: RiPenNibLine },
@@ -56,6 +66,9 @@ export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 const TOOL_SHORTCUT_MAP = new Map<string, ToolMode>(
   TOOL_BUTTONS.flatMap((tool) => (tool.shortcut ? [[tool.shortcut, tool.mode] as const] : []))
 );
+const TOOL_POPUP_KIND_MAP = new Map<ToolMode, ToolPopupKind>(
+  TOOL_BUTTONS.flatMap((tool) => (tool.popupKind ? [[tool.mode, tool.popupKind] as const] : []))
+);
 
 const TOOL_CREATE_MODE_SET = new Set<ToolCreateMode>(TOOL_CREATE_MODES);
 
@@ -64,10 +77,18 @@ export function toolModeFromShortcut(key: string): ToolMode | null {
 }
 
 export function resolveToolbarToolMode(currentMode: ToolMode, clickedMode: ToolMode): ToolMode {
-  if (clickedMode !== "select" && clickedMode === currentMode) {
+  if (clickedMode !== "select" && clickedMode === currentMode && !toolModeHasPopup(clickedMode)) {
     return "select";
   }
   return clickedMode;
+}
+
+export function toolModePopupKind(mode: ToolMode): ToolPopupKind | null {
+  return TOOL_POPUP_KIND_MAP.get(mode) ?? null;
+}
+
+export function toolModeHasPopup(mode: ToolMode): boolean {
+  return toolModePopupKind(mode) != null;
 }
 
 export function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {

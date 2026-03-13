@@ -17,6 +17,39 @@ function toolbarButton(page: import("@playwright/test").Page, label: string) {
   return page.locator(`[data-tauri-drag-region] button[aria-label="${label}"]`).first();
 }
 
+async function drawFreehandStroke(
+  page: import("@playwright/test").Page,
+  layer: import("@playwright/test").Locator
+): Promise<void> {
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+  const points = [
+    { x: 120, y: 120 },
+    { x: 136, y: 106 },
+    { x: 152, y: 128 },
+    { x: 168, y: 110 },
+    { x: 184, y: 132 },
+    { x: 200, y: 114 },
+    { x: 216, y: 136 },
+    { x: 232, y: 118 },
+    { x: 248, y: 140 }
+  ];
+
+  await page.mouse.move(box.x + points[0]!.x, box.y + points[0]!.y);
+  await page.mouse.down();
+  for (let i = 1; i < points.length; i += 1) {
+    const point = points[i]!;
+    await page.mouse.move(box.x + point.x, box.y + point.y, { steps: 2 });
+  }
+  await page.mouse.up();
+}
+
+function countBezierControls(source: string): number {
+  return (source.match(/\.\. controls/g) ?? []).length;
+}
+
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
@@ -133,6 +166,46 @@ test("insert menu commands switch tool modes and expose checked state", async ({
     await openMenuSection(page, "insert");
     await expect(page.getByTestId(`menu-cmd-${commandId}`)).toHaveAttribute("aria-checked", "true");
   }
+});
+
+test("freehand toolbar popup opens on activation and closes on outside click or escape", async ({ page }) => {
+  await gotoApp(page);
+
+  await toolbarButton(page, "Freehand").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
+
+  await toolbarButton(page, "Freehand").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toBeVisible();
+
+  await page.mouse.click(4, 4);
+  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
+});
+
+test("freehand smoothing popup slider changes generated curve complexity", async ({ page }) => {
+  await gotoApp(page);
+  const emptyPicture = String.raw`\begin{tikzpicture}
+\end{tikzpicture}`;
+  await setSource(page, emptyPicture);
+  const layer = interactionLayer(page);
+
+  await toolbarButton(page, "Freehand").click();
+  const slider = page.getByTestId("toolbar-freehand-smoothing-slider");
+  await expect(slider).toBeVisible();
+  await slider.fill("4");
+  await drawFreehandStroke(page, layer);
+  const lowSmoothingSource = await readSource(page);
+
+  await setSource(page, emptyPicture);
+  await toolbarButton(page, "Freehand").click();
+  await expect(slider).toBeVisible();
+  await slider.fill("32");
+  await drawFreehandStroke(page, layer);
+  const highSmoothingSource = await readSource(page);
+
+  expect(countBezierControls(lowSmoothingSource)).toBeGreaterThan(countBezierControls(highSmoothingSource));
 });
 
 test("path menu commands stay disabled when selection has no editable path point", async ({ page }) => {
