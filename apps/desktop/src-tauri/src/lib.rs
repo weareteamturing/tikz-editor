@@ -397,6 +397,35 @@ fn desktop_export_file(
 }
 
 #[tauri::command]
+async fn desktop_confirm_unsaved_changes(message: String) -> Result<String, String> {
+    use rfd::{AsyncMessageDialog, MessageButtons, MessageDialogResult, MessageLevel};
+
+    let result = AsyncMessageDialog::new()
+        .set_level(MessageLevel::Warning)
+        .set_title("Unsaved Changes")
+        .set_description(&message)
+        .set_buttons(MessageButtons::YesNoCancelCustom(
+            "Save".to_string(),
+            "Don\u{2019}t Save".to_string(),
+            "Cancel".to_string(),
+        ))
+        .show()
+        .await;
+
+    let decision = match result {
+        MessageDialogResult::Custom(s) => {
+            if s == "Save" {
+                "save"
+            } else {
+                "discard"
+            }
+        }
+        _ => "cancel",
+    };
+    Ok(decision.to_string())
+}
+
+#[tauri::command]
 fn desktop_confirm_window_close(app: AppHandle) -> Result<(), String> {
     {
         let state = app.state::<WindowCloseState>();
@@ -681,6 +710,7 @@ pub fn run() {
             desktop_open_text,
             desktop_save_text,
             desktop_export_file,
+            desktop_confirm_unsaved_changes,
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_open_external,

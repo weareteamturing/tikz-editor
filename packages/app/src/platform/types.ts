@@ -79,6 +79,7 @@ export type PlatformWindowApi = {
   setDocumentState?: (state: { title?: string; dirty?: boolean }) => void;
   bindCloseRequest?: (handler: () => void) => (() => void) | void;
   close?: () => Promise<void> | void;
+  confirmUnsavedChanges?: (message: string) => Promise<"save" | "discard" | "cancel">;
   openExternalUrl?: (url: string) => Promise<boolean> | boolean;
 };
 

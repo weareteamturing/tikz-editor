@@ -58,6 +58,7 @@ type DesktopBridge = {
   }) => Promise<void>;
   setWindowTitle: (title: string) => Promise<void>;
   closeWindow: () => Promise<void>;
+  confirmUnsavedChanges: (message: string) => Promise<"save" | "discard" | "cancel">;
   openExternalUrl: (url: string) => Promise<boolean>;
   listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
@@ -537,6 +538,10 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_confirm_window_close");
     },
+    confirmUnsavedChanges: async (message) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<"save" | "discard" | "cancel">("desktop_confirm_unsaved_changes", { message });
+    },
     openExternalUrl: async (url) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<boolean>("desktop_open_external", { url });
@@ -759,6 +764,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       close: async () => {
         await getBridge().closeWindow();
+      },
+      confirmUnsavedChanges: async (message) => {
+        return await getBridge().confirmUnsavedChanges(message);
       },
       openExternalUrl: async (url) => {
         return await getBridge().openExternalUrl(url);

@@ -144,6 +144,18 @@ export function App() {
       executeCloseIntent(intent);
       return;
     }
+    const confirmNative = getActiveEditorPlatform().window?.confirmUnsavedChanges;
+    if (confirmNative) {
+      const titles = dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled");
+      const message =
+        titles.length === 1
+          ? `The document "${titles[0]}" has unsaved changes.`
+          : `${titles.length} documents have unsaved changes.`;
+      void confirmNative(message).then((decision) => {
+        void handleUnsavedDecision(decision, { intent, dirtyDocumentIds });
+      });
+      return;
+    }
     setPendingClose({ intent, dirtyDocumentIds });
   }
 
@@ -823,8 +835,12 @@ export function App() {
     setPendingAutoFit(true);
   };
 
-  async function handleUnsavedDecision(decision: UnsavedChangesDecision): Promise<void> {
-    if (!pendingClose) {
+  async function handleUnsavedDecision(
+    decision: UnsavedChangesDecision,
+    ctx?: { intent: CloseIntent; dirtyDocumentIds: string[] }
+  ): Promise<void> {
+    const closeCtx = ctx ?? pendingClose;
+    if (!closeCtx) {
       return;
     }
     if (decision === "cancel") {
@@ -832,9 +848,8 @@ export function App() {
       return;
     }
     if (decision === "discard") {
-      const intent = pendingClose.intent;
       setPendingClose(null);
-      executeCloseIntent(intent);
+      executeCloseIntent(closeCtx.intent);
       return;
     }
 
@@ -843,7 +858,7 @@ export function App() {
       setPendingClose(null);
       return;
     }
-    for (const documentId of pendingClose.dirtyDocumentIds) {
+    for (const documentId of closeCtx.dirtyDocumentIds) {
       const doc = documents[documentId];
       if (!doc || !doc.dirty) {
         continue;
@@ -870,9 +885,8 @@ export function App() {
       setPendingClose(null);
       return;
     }
-    const intent = pendingClose.intent;
     setPendingClose(null);
-    executeCloseIntent(intent);
+    executeCloseIntent(closeCtx.intent);
   }
 
   return (
