@@ -35,6 +35,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   const {
     snapshot,
     selectedElementIds,
+    collapsedDensePathSourceIds,
     svgResult,
     canvasTransform,
     marqueeDraft,
@@ -304,9 +305,11 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   const curveControlLines = useMemo(
     () =>
       snapshot.scene
-        ? deriveCurveControlLines(snapshot.scene.elements, selectedElementIds, snapshot.editHandles)
+        ? deriveCurveControlLines(snapshot.scene.elements, selectedElementIds, snapshot.editHandles).filter(
+            (line) => !collapsedDensePathSourceIds.has(line.sourceId)
+          )
         : [],
-    [selectedElementIds, snapshot.editHandles, snapshot.scene]
+    [collapsedDensePathSourceIds, selectedElementIds, snapshot.editHandles, snapshot.scene]
   );
 
   const marqueeBounds = useMemo(() => {
@@ -316,6 +319,39 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       worldToSvgPoint(marqueeDraft.currentWorld, svgResult.viewBox)
     );
   }, [marqueeDraft, svgResult]);
+
+  const collapsedDensePathEndpointsBySource = useMemo(() => {
+    const endpointsBySource = new Map<string, { start: { x: number; y: number }; end: { x: number; y: number } }>();
+    if (!snapshot.scene || collapsedDensePathSourceIds.size === 0) {
+      return endpointsBySource;
+    }
+    for (const element of snapshot.scene.elements) {
+      if (element.kind !== "Path" || !collapsedDensePathSourceIds.has(element.sourceRef.sourceId)) {
+        continue;
+      }
+      let start: { x: number; y: number } | null = null;
+      let end: { x: number; y: number } | null = null;
+      for (const command of element.commands) {
+        if (command.kind === "M") {
+          if (!start) {
+            start = command.to;
+          }
+          end = command.to;
+          continue;
+        }
+        if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
+          if (!start) {
+            start = command.to;
+          }
+          end = command.to;
+        }
+      }
+      if (start && end) {
+        endpointsBySource.set(element.sourceRef.sourceId, { start, end });
+      }
+    }
+    return endpointsBySource;
+  }, [collapsedDensePathSourceIds, snapshot.scene]);
 
   const handleDisplays = useMemo((): any[] => {
     if (!svgResult) return [];
@@ -335,6 +371,31 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
     for (const handle of selectedHandles as any[]) {
       if (handle.kind === "node-position") {
+        continue;
+      }
+
+      if (collapsedDensePathSourceIds.has(handle.sourceRef.sourceId)) {
+        if (handle.kind !== "path-point") {
+          continue;
+        }
+        const endpoints = collapsedDensePathEndpointsBySource.get(handle.sourceRef.sourceId);
+        if (!endpoints) {
+          continue;
+        }
+        const matchesStart = distanceSquared(handle.world, endpoints.start) <= 1e-6;
+        const matchesEnd = distanceSquared(handle.world, endpoints.end) <= 1e-6;
+        if (!matchesStart && !matchesEnd) {
+          continue;
+        }
+        const point = worldToSvgPoint(handle.world, svgResult.viewBox);
+        displays.push({
+          key: `dense-endpoint:${handle.sourceRef.sourceId}:${handle.id}`,
+          x: point.x,
+          y: point.y,
+          cursor: draggableSourceIds.has(handle.sourceRef.sourceId) ? "move" : "not-allowed",
+          kind: "move-element",
+          elementId: handle.sourceRef.sourceId
+        });
         continue;
       }
 
@@ -475,7 +536,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
 
     return displays;
-  }, [canvasTransform.scale, dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.scene, snapshot.editHandles, svgResult, toolMode, ROTATE_HANDLE_OFFSET_PX]);
+  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
@@ -527,4 +588,10 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     visibleRanges,
     viewportWorldBounds
   };
+}
+
+function distanceSquared(a: { x: number; y: number }, b: { x: number; y: number }): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
 }

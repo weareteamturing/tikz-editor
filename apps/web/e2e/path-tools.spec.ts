@@ -50,6 +50,19 @@ function countBezierControls(source: string): number {
   return (source.match(/\.\. controls/g) ?? []).length;
 }
 
+async function doubleClickHitRegion(
+  page: import("@playwright/test").Page,
+  index: number
+): Promise<void> {
+  const region = page.locator("[data-hit-region-target-id]").nth(index);
+  await expect(region).toBeVisible();
+  const target = await region.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.dblclick(target.x, target.y);
+}
+
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
@@ -218,6 +231,36 @@ test("path menu commands stay disabled when selection has no editable path point
   await expect(page.getByTestId("menu-cmd-path.delete-point")).toBeDisabled();
   await expect(page.getByTestId("menu-cmd-path.point-corner")).toBeDisabled();
   await expect(page.getByTestId("menu-cmd-path.point-smooth")).toBeDisabled();
+});
+
+test("dense paths require double click before showing interior edit handles", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\draw (0,0) -- (1,0.2) -- (2,-0.1) -- (3,0.3) -- (4,0) -- (5,0.4) -- (6,0.1) -- (7,0.5) -- (8,0.2);
+\draw (0,2) -- (1,2.2) -- (2,2.1);
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+  const denseTargetId = await page.locator("[data-hit-region-target-id]").nth(0).getAttribute("data-hit-region-target-id");
+  const shortTargetId = await page.locator("[data-hit-region-target-id]").nth(1).getAttribute("data-hit-region-target-id");
+  if (!denseTargetId || !shortTargetId) {
+    throw new Error("Expected dense and short path hit-region target ids.");
+  }
+
+  await clickHitRegion(page, 0);
+  await expect(page.getByTestId("canvas-selection-hint")).toContainText("Double-click path to edit points.");
+  await expect.poll(async () =>
+    page.locator(`[data-handle-kind="move-element"][data-source-id="${denseTargetId}"]`).count()
+  ).toBeGreaterThan(0);
+  await expect(page.locator(`[data-handle-kind="move-handle"][data-source-id="${denseTargetId}"]`)).toHaveCount(0);
+
+  await doubleClickHitRegion(page, 0);
+  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
+
+  await clickHitRegion(page, 1);
+  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
+  await expect.poll(async () =>
+    page.locator(`[data-handle-kind="move-handle"][data-source-id="${shortTargetId}"]`).count()
+  ).toBeGreaterThan(0);
 });
 
 test("fit-to-content command is available when svg is rendered", async ({ page }) => {

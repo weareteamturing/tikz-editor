@@ -412,6 +412,7 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
   "application/x-tikz-editor+json",
   "com.tikzeditor.tikz-json"
 ] as const;
+const DENSE_PATH_SEGMENT_THRESHOLD = 7;
 
 function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
   if (boundsList.length === 0) {
@@ -551,6 +552,7 @@ export function CanvasPanel() {
   const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
     useState<PendingNativeContextMenuRequest | null>(null);
   const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
+  const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
   const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: Point | null }>({
     clickedTargetId: null,
     clickedWorld: null
@@ -879,6 +881,43 @@ export function CanvasPanel() {
     );
   }, [showDevPanel, viewportSize.height, viewportSize.width]);
 
+  const densePathSourceIds = useMemo(() => {
+    const dense = new Set<string>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      if (element.kind !== "Path") {
+        continue;
+      }
+      let segmentCount = 0;
+      for (const command of element.commands) {
+        if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
+          segmentCount += 1;
+        }
+      }
+      if (segmentCount >= DENSE_PATH_SEGMENT_THRESHOLD) {
+        dense.add(element.sourceRef.sourceId);
+      }
+    }
+    return dense;
+  }, [snapshot.scene]);
+
+  const collapsedDensePathSourceIds = useMemo(() => {
+    const collapsed = new Set<string>();
+    if (toolMode !== "select") {
+      return collapsed;
+    }
+    for (const sourceId of selectedElementIds) {
+      if (densePathSourceIds.has(sourceId) && sourceId !== expandedDensePathSourceId) {
+        collapsed.add(sourceId);
+      }
+    }
+    return collapsed;
+  }, [densePathSourceIds, expandedDensePathSourceId, selectedElementIds, toolMode]);
+
+  const densePathSelectionHint =
+    warning || toolMode !== "select" || collapsedDensePathSourceIds.size === 0
+      ? null
+      : "Double-click path to edit points.";
+
   const {
     nodeAnchorTargets,
     dragCapability,
@@ -899,6 +938,7 @@ export function CanvasPanel() {
   } = useCanvasSelectionDerivedState({
     snapshot,
     selectedElementIds,
+    collapsedDensePathSourceIds,
     svgResult,
     canvasTransform,
     marqueeDraft,
@@ -1465,7 +1505,9 @@ export function CanvasPanel() {
     applyCanvasTextSelection,
     hitRegions,
     sceneTextByRegionKey,
-    findWordRangeAtIndex
+    findWordRangeAtIndex,
+    densePathSourceIds,
+    setExpandedDensePathSourceId
   });
 
   const {
@@ -1838,6 +1880,25 @@ export function CanvasPanel() {
   ]);
 
   useEffect(() => {
+    if (toolMode !== "select") {
+      setExpandedDensePathSourceId(null);
+      return;
+    }
+    setExpandedDensePathSourceId((current) => {
+      if (!current) {
+        return current;
+      }
+      if (!selectedElementIds.has(current)) {
+        return null;
+      }
+      if (!densePathSourceIds.has(current)) {
+        return null;
+      }
+      return current;
+    });
+  }, [densePathSourceIds, selectedElementIds, toolMode]);
+
+  useEffect(() => {
     if (toolMode === "select") {
       setPathDraft(null);
       setFreehandDraft(null);
@@ -2159,6 +2220,7 @@ export function CanvasPanel() {
       warning={warning}
       copyWarningToClipboard={copyWarningToClipboard}
       onWarningBarKeyDown={onWarningBarKeyDown}
+      selectionHint={densePathSelectionHint}
       showDevPanel={showDevPanel}
       snapDebugRect={snapDebugRect}
       onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}

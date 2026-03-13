@@ -100,6 +100,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     warning,
     copyWarningToClipboard,
     onWarningBarKeyDown,
+    selectionHint,
     showDevPanel,
     snapDebugRect,
     onSnapDebugMovePointerDown,
@@ -374,6 +375,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                   draggableSourceIds={matrixSelectionSourceIds}
                   onElementPointerDown={onElementPointerDown}
                   onElementContextMenu={onElementContextMenu}
+                  onElementDoubleClick={onElementDoubleClick}
                 />
 
                 <CurveControlOverlay
@@ -463,6 +465,11 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               </div>
             </RenderedTooltip>
           )}
+          {selectionHint ? (
+            <div className={css.selectionHint} data-testid="canvas-selection-hint">
+              {selectionHint}
+            </div>
+          ) : null}
           {showDevPanel && (
             <div
               className={css.snapDebugOverlay}

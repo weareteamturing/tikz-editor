@@ -35,7 +35,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     applyCanvasTextSelection,
     hitRegions,
     sceneTextByRegionKey,
-    findWordRangeAtIndex
+    findWordRangeAtIndex,
+    densePathSourceIds,
+    setExpandedDensePathSourceId
   } = args;
 
   const onElementPointerDown = useCallback(
@@ -59,6 +61,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       const isAdornmentTarget = targetId.startsWith("node-adornment:");
       setTextEditingSession(null);
+
+      if (!additiveSelection) {
+        setExpandedDensePathSourceId(null);
+      }
 
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
@@ -146,6 +152,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       logSnapDebug,
       selectedElementIds,
       setDragState,
+      setExpandedDensePathSourceId,
       setSnapLines,
       setTextEditingSession,
       setWarning,
@@ -166,6 +173,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (toolMode !== "select") return;
 
       const target = resolveEditableTextTarget(targetId, region);
+      const sourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
 
       event.preventDefault();
       event.stopPropagation();
@@ -193,6 +201,13 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         }
       }
 
+      if (densePathSourceIds.has(sourceId)) {
+        dispatch({ type: "SELECT", id: sourceId, additive: false });
+        setExpandedDensePathSourceId(sourceId);
+        setTextEditingSession(null);
+        return;
+      }
+
       const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(targetId, hitRegions, sceneTextByRegionKey);
       if (!fallbackSpan) {
         return;
@@ -212,11 +227,13 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     [
       applyCanvasTextSelection,
       dispatch,
+      densePathSourceIds,
       findWordRangeAtIndex,
       hitRegions,
       resolveEditableTextTarget,
       resolvePrefixTableForTarget,
       sceneTextByRegionKey,
+      setExpandedDensePathSourceId,
       setTextEditingSession,
       textIndexFromClient,
       toolMode,

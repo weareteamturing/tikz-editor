@@ -806,7 +806,8 @@ export function SelectionDragLayer({
   dragStrokeWidth,
   draggableSourceIds,
   onElementPointerDown,
-  onElementContextMenu
+  onElementContextMenu,
+  onElementDoubleClick
 }: {
   toolMode: ToolMode;
   selectionBoxes: ReadonlyArray<SelectionBoxDisplay>;
@@ -814,6 +815,7 @@ export function SelectionDragLayer({
   draggableSourceIds: ReadonlySet<string>;
   onElementPointerDown: (event: ReactPointerEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
   onElementContextMenu: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
+  onElementDoubleClick: (event: ReactMouseEvent<SVGElement>, sourceId: string, region?: HitRegion) => void;
 }) {
   if (toolMode !== "select" || selectionBoxes.length === 0) {
     return null;
@@ -834,6 +836,7 @@ export function SelectionDragLayer({
               strokeWidth={dragStrokeWidth}
               onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
               onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
+              onDoubleClick={(event) => onElementDoubleClick(event, bounds.sourceId)}
             />
           );
         }
@@ -849,6 +852,7 @@ export function SelectionDragLayer({
             strokeWidth={dragStrokeWidth}
             onPointerDown={(event) => onElementPointerDown(event, bounds.sourceId)}
             onContextMenu={(event) => onElementContextMenu(event, bounds.sourceId)}
+            onDoubleClick={(event) => onElementDoubleClick(event, bounds.sourceId)}
           />
         );
       })}
