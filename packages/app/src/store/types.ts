@@ -21,6 +21,14 @@ export type ToolMode =
   | "addBezier";
 export type CanvasDragKind = "element" | "resize" | "rotate" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
 export type CanvasAid = "grid" | "rulers" | "guides";
+export type SnapMode = "grid" | "guides" | "points" | "gaps";
+
+export type SnapModes = {
+  grid: boolean;
+  guides: boolean;
+  points: boolean;
+  gaps: boolean;
+};
 
 export type CanvasTransform = {
   translateX: number;
@@ -101,7 +109,7 @@ export type WorkspaceEphemeralState = {
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
   showGrid: boolean;
-  snapToGrid: boolean;
+  snapModes: SnapModes;
   showRulers: boolean;
   showGuides: boolean;
   freehandSmoothingPx: number;
@@ -159,7 +167,7 @@ export type EditorState = {
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
   showGrid: boolean;
-  snapToGrid: boolean;
+  snapModes: SnapModes;
   showRulers: boolean;
   showGuides: boolean;
   freehandSmoothingPx: number;
@@ -243,7 +251,7 @@ export type EditorAction =
   | { type: "SET_FREEHAND_SMOOTHING"; value: number }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
-  | { type: "TOGGLE_SNAP_TO_GRID" }
+  | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }
   | { type: "REQUEST_FIT_TO_CONTENT" }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }

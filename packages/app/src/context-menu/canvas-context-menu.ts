@@ -135,6 +135,29 @@ const PATH_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
+const SNAP_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID,
+    label: "Snap to Grid"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES,
+    label: "Snap to Guides"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS,
+    label: "Snap to Object Points"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS,
+    label: "Snap to Object Gaps"
+  }
+];
+
 export const CANVAS_CONTEXT_MENU_DEFINITION = {
   "canvas-empty": [
     {
@@ -170,11 +193,6 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
     },
     {
       kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID,
-      label: "Snap to Grid"
-    },
-    {
-      kind: "command",
       commandId: APP_MENU_COMMAND_IDS.TOGGLE_RULERS,
       label: "Rulers"
     },
@@ -182,6 +200,11 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       kind: "command",
       commandId: APP_MENU_COMMAND_IDS.TOGGLE_GUIDES,
       label: "Guide Lines"
+    },
+    {
+      kind: "submenu",
+      label: "Snapping",
+      items: SNAP_ITEMS
     }
   ],
   "selection-single": [

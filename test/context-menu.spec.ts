@@ -34,7 +34,10 @@ describe("canvas context menu definition", () => {
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.PASTE);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.FIT_TO_CONTENT);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_GRID);
-    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_RULERS);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.TOGGLE_GUIDES);
   });

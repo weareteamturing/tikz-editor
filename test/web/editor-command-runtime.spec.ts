@@ -48,6 +48,34 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.ROTATE_LEFT_90].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_GRID].checked).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID].checked).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES].checked).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS].checked).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS].checked).toBe(true);
+  });
+
+  it("dispatches per-mode snap toggles", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        snapModes: {
+          grid: false,
+          guides: true,
+          points: false,
+          gaps: true
+        }
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID].checked).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS].checked).toBe(false);
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_SNAP_MODE", mode: "guides" });
   });
 
   it("routes rotate-left through grouped transform edits", () => {
@@ -413,7 +441,7 @@ function makeInput({
   historyIndex,
   historyLength,
   showGrid = false,
-  snapToGrid = true,
+  snapModes = { grid: true, guides: true, points: true, gaps: true },
   showRulers = true,
   showGuides = true,
   showSourcePanel = true,
@@ -431,7 +459,12 @@ function makeInput({
   historyIndex?: number;
   historyLength?: number;
   showGrid?: boolean;
-  snapToGrid?: boolean;
+  snapModes?: {
+    grid: boolean;
+    guides: boolean;
+    points: boolean;
+    gaps: boolean;
+  };
   showRulers?: boolean;
   showGuides?: boolean;
   showSourcePanel?: boolean;
@@ -461,7 +494,7 @@ function makeInput({
     assistantAvailable: true,
     assistantRunning: false,
     showGrid,
-    snapToGrid,
+    snapModes,
     showRulers,
     showGuides,
     showSourcePanel,

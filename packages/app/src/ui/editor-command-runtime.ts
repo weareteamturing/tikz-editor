@@ -7,7 +7,7 @@ import type { SessionSnapshot } from "../compute";
 import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
-import type { DocumentFileRef, EditorAction, ToolMode } from "../store/types";
+import type { DocumentFileRef, EditorAction, SnapModes, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
 import {
   actionAvailability,
@@ -58,7 +58,7 @@ type RuntimeInput = {
   dirty: boolean;
   fileRef: DocumentFileRef | null;
   showGrid: boolean;
-  snapToGrid: boolean;
+  snapModes: SnapModes;
   showRulers: boolean;
   showGuides: boolean;
   showSourcePanel: boolean;
@@ -101,7 +101,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     dirty,
     fileRef,
     showGrid,
-    snapToGrid,
+    snapModes,
     showRulers,
     showGuides,
     showSourcePanel,
@@ -552,10 +552,25 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       checked: showGrid,
       run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })
     },
-    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID]: {
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID]: {
       enabled: true,
-      checked: snapToGrid,
-      run: () => dispatch({ type: "TOGGLE_SNAP_TO_GRID" })
+      checked: snapModes.grid,
+      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "grid" })
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES]: {
+      enabled: true,
+      checked: snapModes.guides,
+      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "guides" })
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS]: {
+      enabled: true,
+      checked: snapModes.points,
+      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "points" })
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS]: {
+      enabled: true,
+      checked: snapModes.gaps,
+      run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "gaps" })
     },
     [APP_MENU_COMMAND_IDS.TOGGLE_RULERS]: {
       enabled: true,
@@ -649,7 +664,7 @@ export function useEditorCommandRuntime(
   const dirty = useEditorStore((s) => s.documents[s.activeDocumentId]?.dirty ?? false);
   const fileRef = useEditorStore((s) => s.documents[s.activeDocumentId]?.fileRef ?? null);
   const showGrid = useEditorStore((s) => s.showGrid);
-  const snapToGrid = useEditorStore((s) => s.snapToGrid);
+  const snapModes = useEditorStore((s) => s.snapModes);
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
@@ -715,7 +730,7 @@ export function useEditorCommandRuntime(
         dirty,
         fileRef,
         showGrid,
-        snapToGrid,
+        snapModes,
         showRulers,
         showGuides,
         showSourcePanel,
@@ -747,7 +762,7 @@ export function useEditorCommandRuntime(
       dirty,
       fileRef,
       showGrid,
-      snapToGrid,
+      snapModes,
       showRulers,
       showGuides,
       showSourcePanel,

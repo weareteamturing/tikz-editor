@@ -58,6 +58,9 @@ async function prepareMenuCommand(page: Page, section: MenuSection, commandId: s
   if (section === "edit" && commandId.startsWith("edit.distribute-")) {
     await page.getByRole("menuitem", { name: "Distribute" }).hover();
   }
+  if (section === "view" && commandId.startsWith("view.toggle-snap-")) {
+    await page.getByRole("menuitem", { name: "Snapping" }).hover();
+  }
   if (
     section === "edit" &&
     (commandId === "edit.send-to-back" ||

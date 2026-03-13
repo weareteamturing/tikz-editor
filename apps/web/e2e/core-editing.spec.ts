@@ -187,6 +187,24 @@ test("canvas context menu opens and runs duplicate command", async ({ page }) =>
   await expect.poll(async () => readSource(page)).not.toEqual(sourceBefore);
 });
 
+test("canvas context menu exposes snapping submenu check states", async ({ page }) => {
+  await gotoApp(page);
+
+  await page.getByTestId("canvas-viewport").click({ button: "right" });
+  await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Snapping" }).hover();
+  await expect(page.getByTestId("canvas-context-cmd-view.toggle-snap-grid")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("canvas-context-cmd-view.toggle-snap-guides")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("canvas-context-cmd-view.toggle-snap-object-points")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("canvas-context-cmd-view.toggle-snap-object-gaps")).toHaveAttribute("aria-checked", "true");
+
+  await page.getByTestId("canvas-context-cmd-view.toggle-snap-grid").click();
+  await page.getByTestId("canvas-viewport").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Snapping" }).hover();
+  await expect(page.getByTestId("canvas-context-cmd-view.toggle-snap-grid")).toHaveAttribute("aria-checked", "false");
+});
+
 test("canvas drop svg inserts a scope-wrapped import", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -348,23 +366,34 @@ test("canvas paste prefers custom desktop tikz payload over plain text fallback"
   await expect(page.locator(".cm-content").first()).not.toContainText("\\draw (0,0) -- (1,1);");
 });
 
-test("view menu check-state toggles for grid, snap, rulers and guides", async ({ page }) => {
+test("view menu check-state toggles for grid, snapping modes, rulers and guides", async ({ page }) => {
   await gotoApp(page);
 
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-grid")).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("menu-cmd-view.toggle-snap-to-grid")).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("menuitem", { name: "Snapping" }).hover();
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-grid")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-guides")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-object-points")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-object-gaps")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("menu-cmd-view.toggle-rulers")).toHaveAttribute("aria-checked", "true");
   await expect(page.getByTestId("menu-cmd-view.toggle-guides")).toHaveAttribute("aria-checked", "true");
 
   await openMenuCommand(page, "view", "view.toggle-grid");
-  await openMenuCommand(page, "view", "view.toggle-snap-to-grid");
+  await openMenuCommand(page, "view", "view.toggle-snap-grid");
+  await openMenuCommand(page, "view", "view.toggle-snap-guides");
+  await openMenuCommand(page, "view", "view.toggle-snap-object-points");
+  await openMenuCommand(page, "view", "view.toggle-snap-object-gaps");
   await openMenuCommand(page, "view", "view.toggle-rulers");
   await openMenuCommand(page, "view", "view.toggle-guides");
 
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-grid")).toHaveAttribute("aria-checked", "false");
-  await expect(page.getByTestId("menu-cmd-view.toggle-snap-to-grid")).toHaveAttribute("aria-checked", "false");
+  await page.getByRole("menuitem", { name: "Snapping" }).hover();
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-grid")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-guides")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-object-points")).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByTestId("menu-cmd-view.toggle-snap-object-gaps")).toHaveAttribute("aria-checked", "false");
   await expect(page.getByTestId("menu-cmd-view.toggle-rulers")).toHaveAttribute("aria-checked", "false");
   await expect(page.getByTestId("menu-cmd-view.toggle-guides")).toHaveAttribute("aria-checked", "false");
 });

@@ -503,7 +503,7 @@ export function CanvasPanel() {
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
   const showGrid = useEditorStore((s) => s.showGrid);
-  const snapToGrid = useEditorStore((s) => s.snapToGrid);
+  const snapModes = useEditorStore((s) => s.snapModes);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
@@ -962,7 +962,7 @@ export function CanvasPanel() {
     showGuides,
     guides,
     guidePreview,
-    snapToGrid,
+    snapModes,
     gridMinorTargetPx,
     canvasTransform,
     svgResult,

@@ -24,8 +24,11 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.EXPORT_SVG_COPY).toBe("file.export-svg-copy");
   });
 
-  it("defines a snap-to-grid command id", () => {
-    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID).toBe("view.toggle-snap-to-grid");
+  it("defines snapping command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID).toBe("view.toggle-snap-grid");
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES).toBe("view.toggle-snap-guides");
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS).toBe("view.toggle-snap-object-points");
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS).toBe("view.toggle-snap-object-gaps");
   });
 
   it("defines a bezier insert command id", () => {
@@ -179,18 +182,35 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Copy as SVG");
   });
 
-  it("exposes Snap to Grid in the View menu", () => {
+  it("exposes a Snapping submenu in the View menu", () => {
     const viewSection = APP_MENU_DEFINITION.find((section) => section.id === "view");
     expect(viewSection).toBeDefined();
     const items = viewSection?.items ?? [];
-    const commandItem = items.find(
-      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_SNAP_TO_GRID
+    const snappingMenu = items.find(
+      (item) => item.kind === "submenu" && item.label === "Snapping"
     );
-    expect(commandItem).toBeDefined();
-    if (!commandItem || commandItem.kind !== "command") {
-      throw new Error("Expected view.toggle-snap-to-grid command item in View menu.");
+    expect(snappingMenu).toBeDefined();
+    if (!snappingMenu || snappingMenu.kind !== "submenu") {
+      throw new Error("Expected Snapping submenu in View menu.");
     }
-    expect(commandItem.label).toBe("Snap to Grid");
+
+    const snapGrid = snappingMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID
+    );
+    const snapGuides = snappingMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES
+    );
+    const snapPoints = snappingMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS
+    );
+    const snapGaps = snappingMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS
+    );
+
+    expect(snapGrid).toBeDefined();
+    expect(snapGuides).toBeDefined();
+    expect(snapPoints).toBeDefined();
+    expect(snapGaps).toBeDefined();
   });
 
   it("exposes Bezier in the Insert menu", () => {

@@ -36,7 +36,7 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     showGuides,
     guides,
     guidePreview,
-    snapToGrid,
+    snapModes,
     gridMinorTargetPx,
     canvasTransform,
     svgResult,
@@ -53,20 +53,26 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
 
   const snapGuideInput = useMemo(
     () => ({
-      x: showGuides ? guides.vertical : [],
-      y: showGuides ? guides.horizontal : []
+      x: showGuides && snapModes.guides ? guides.vertical : [],
+      y: showGuides && snapModes.guides ? guides.horizontal : []
     }),
-    [guides.horizontal, guides.vertical, showGuides]
+    [guides.horizontal, guides.vertical, showGuides, snapModes.guides]
   );
 
   const snapSettingsPatch = useMemo(
     () => ({
       grid: {
-        enabled: snapToGrid,
+        enabled: snapModes.grid,
         minorTargetPx: gridMinorTargetPx
+      },
+      points: {
+        enabled: snapModes.points
+      },
+      gaps: {
+        enabled: snapModes.gaps
       }
     }),
-    [snapToGrid, gridMinorTargetPx]
+    [snapModes.gaps, snapModes.grid, snapModes.points, gridMinorTargetPx]
   );
 
   const renderedGuides = useMemo(() => {

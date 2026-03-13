@@ -97,7 +97,12 @@ function initialUiState(): WorkspaceEphemeralState {
     activeCanvasDragKind: null,
     activeSourceScrubSourceId: null,
     showGrid: true,
-    snapToGrid: true,
+    snapModes: {
+      grid: true,
+      guides: true,
+      points: true,
+      gaps: true
+    },
     showRulers: true,
     showGuides: true,
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
@@ -222,7 +227,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     activeCanvasDragKind: ui.activeCanvasDragKind,
     activeSourceScrubSourceId: ui.activeSourceScrubSourceId,
     showGrid: ui.showGrid,
-    snapToGrid: ui.snapToGrid,
+    snapModes: ui.snapModes,
     showRulers: ui.showRulers,
     showGuides: ui.showGuides,
     freehandSmoothingPx: ui.freehandSmoothingPx,
@@ -991,8 +996,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       break;
 
-    case "TOGGLE_SNAP_TO_GRID":
-      ui = { ...ui, snapToGrid: !ui.snapToGrid };
+    case "TOGGLE_SNAP_MODE":
+      ui = {
+        ...ui,
+        snapModes: {
+          ...ui.snapModes,
+          [action.mode]: !ui.snapModes[action.mode]
+        }
+      };
       break;
 
     case "REQUEST_FIT_TO_CONTENT":
