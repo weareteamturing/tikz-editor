@@ -106,7 +106,7 @@
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .panelTitle {
@@ -120,6 +120,7 @@
   background: var(--settings-card-bg, #fff);
   border-radius: 8px;
   overflow: hidden;
+  margin-bottom: 4px;
 }
 
 .settingRow {
