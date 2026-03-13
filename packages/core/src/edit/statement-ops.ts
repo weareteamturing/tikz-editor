@@ -34,20 +34,22 @@ export type AppliedTextReplacement = {
   newSpan: Span;
 };
 
-export function parseStatementSnapshot(source: string, parseOptions: EditParseOptions = {}): StatementSnapshot {
-  const parsed = parseTikzForEdit(source, parseOptions);
+export function buildStatementSnapshotFromStatements(
+  source: string,
+  statements: readonly Statement[]
+): StatementSnapshot {
   const all: StatementRef[] = [];
   const byId = new Map<string, StatementRef>();
   const byParentKey = new Map<string, StatementRef[]>();
 
   const visitStatements = (
-    statements: readonly Statement[],
+    nestedStatements: readonly Statement[],
     parentKey: string,
     depth: number
   ): void => {
     const refs: StatementRef[] = [];
-    for (let index = 0; index < statements.length; index += 1) {
-      const statement = statements[index];
+    for (let index = 0; index < nestedStatements.length; index += 1) {
+      const statement = nestedStatements[index];
       if (!statement) {
         continue;
       }
@@ -71,7 +73,7 @@ export function parseStatementSnapshot(source: string, parseOptions: EditParseOp
     byParentKey.set(parentKey, refs);
   };
 
-  visitStatements(parsed.figure.body, "root", 0);
+  visitStatements(statements, "root", 0);
 
   return {
     source,
@@ -79,6 +81,18 @@ export function parseStatementSnapshot(source: string, parseOptions: EditParseOp
     byId,
     byParentKey
   };
+}
+
+export function parseStatementSnapshot(source: string, parseOptions: EditParseOptions = {}): StatementSnapshot {
+  if (
+    parseOptions.analysisView &&
+    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
+  ) {
+    return parseOptions.analysisView.statementSnapshot;
+  }
+  const parsed = parseTikzForEdit(source, parseOptions);
+  return buildStatementSnapshotFromStatements(source, parsed.figure.body);
 }
 
 export function resolveStatementRefs(

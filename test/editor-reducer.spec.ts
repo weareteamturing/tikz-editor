@@ -130,6 +130,19 @@ describe("editorReducer – CODE_EDITED", () => {
     expect(patch?.replacement.length).toBeGreaterThan(0);
     expect(applySourcePatches(DEFAULT_SOURCE, next.lastEditPatches ?? [])).toBe(nextSource);
   });
+
+  it("increments sourceRevision only when the source text changes", () => {
+    const initial = makeInitialState();
+    const edited = editorReducer(initial, {
+      type: "CODE_EDITED",
+      source: `${initial.source}\n% changed`
+    });
+    const selected = editorReducer(edited, { type: "SELECT", id: "path:0", additive: false });
+
+    expect(initial.sourceRevision).toBe(0);
+    expect(edited.sourceRevision).toBe(1);
+    expect(selected.sourceRevision).toBe(1);
+  });
 });
 
 // ── COMPUTE_REQUESTED / SNAPSHOT_READY ────────────────────────────────────────
@@ -277,6 +290,26 @@ describe("editorReducer – UNDO / REDO", () => {
     const initial = makeInitialState();
     const after = editorReducer(initial, { type: "REDO" });
     expect(after).toBe(initial);
+  });
+
+  it("increments sourceRevision for undo and redo source changes", () => {
+    const { state: initial, handle } = makeStateWithHandle();
+    const edited = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: handle.id,
+        newWorld: { x: cm(5), y: cm(6) }
+      }
+    });
+
+    expect(edited.sourceRevision).toBe(1);
+
+    const undone = editorReducer(edited, { type: "UNDO" });
+    expect(undone.sourceRevision).toBe(2);
+
+    const redone = editorReducer(undone, { type: "REDO" });
+    expect(redone.sourceRevision).toBe(3);
   });
 });
 
@@ -539,6 +572,48 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(next.history).toHaveLength(1);
     expect(next.history[0]?.kind).toBe("resize");
     expect(next.history[0]?.label).toBe("Resized element");
+  });
+
+  it("increments sourceRevision for successful edit actions, including transient previews", () => {
+    const { state: initial, handle } = makeStateWithHandle();
+    const preview = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: handle.id,
+        newWorld: { x: cm(5), y: cm(6) }
+      },
+      recordInHistory: false
+    });
+
+    expect(preview.sourceRevision).toBe(1);
+
+    const committed = editorReducer(preview, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: makeHandle(preview.source, {
+          world: { x: cm(5), y: cm(6) },
+          sourceSpan: { from: 6, to: 11 },
+          sourceId: "elem-1"
+        }).id,
+        newWorld: { x: cm(7), y: cm(8) }
+      },
+      precomputedResult: {
+        kind: "success",
+        newSource: "\\draw (7,8) -- (3,4);",
+        patches: [
+          {
+            oldSpan: { from: 6, to: 11 },
+            newSpan: { from: 6, to: 11 },
+            replacement: "(7,8)"
+          }
+        ],
+        changedSourceIds: ["elem-1"]
+      }
+    });
+
+    expect(committed.sourceRevision).toBe(2);
   });
 });
 

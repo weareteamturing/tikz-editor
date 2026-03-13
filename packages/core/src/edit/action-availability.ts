@@ -2,7 +2,14 @@ import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
 import { isAdornmentTargetId } from "./editable-targets.js";
-import { resolveEligibleExplicitPath, resolveActivePathPointHandle } from "./path-editing.js";
+import type { EditParseOptions } from "./parse-options.js";
+import {
+  resolveEligibleExplicitPath,
+  resolveActivePathPointHandle,
+  type ExplicitPathAnalysis,
+  type PathEditEligibility,
+  type PathHandleResolution
+} from "./path-editing.js";
 
 export const EDIT_ACTION_IDS = [
   "cut",
@@ -47,6 +54,7 @@ export type EditActionAvailability = Record<EditActionId, ActionAvailability>;
 export type GetEditActionAvailabilityInput = {
   source: string;
   activeFigureId?: string | null;
+  parseOptions?: EditParseOptions;
   snapshotSource: string | null;
   selectedSourceIds: readonly string[];
   scene: SceneFigure | null;
@@ -71,6 +79,9 @@ type AvailabilityFacts = {
   selectedUnsupportedSources: string[];
   hasAdornmentSelection: boolean;
   activeHandleId: string | null;
+  parseOptions: EditParseOptions;
+  explicitPathEligibilityBySourceId: Map<string, PathEditEligibility>;
+  activePathHandleResolutionBySourceId: Map<string, PathHandleResolution>;
 };
 
 type AvailabilityRule = (facts: AvailabilityFacts) => string | null;
@@ -224,6 +235,9 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
   return {
     source: input.source,
     activeFigureId: input.activeFigureId ?? null,
+    parseOptions: input.parseOptions ?? {
+      activeFigureId: input.activeFigureId ?? null
+    },
     snapshotMatchesSource: input.snapshotSource != null && input.snapshotSource === input.source,
     selectedSourceIds,
     selectedSet,
@@ -236,8 +250,42 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
     selectedMissingHandles,
     selectedUnsupportedSources,
     hasAdornmentSelection: selectedSourceIds.some((sourceId) => isAdornmentTargetId(sourceId)),
-    activeHandleId: input.activeHandleId ?? null
+    activeHandleId: input.activeHandleId ?? null,
+    explicitPathEligibilityBySourceId: new Map(),
+    activePathHandleResolutionBySourceId: new Map()
   };
+}
+
+function resolveExplicitPathEligibility(
+  facts: AvailabilityFacts,
+  sourceId: string
+): PathEditEligibility {
+  const cached = facts.explicitPathEligibilityBySourceId.get(sourceId);
+  if (cached) {
+    return cached;
+  }
+  const resolved = resolveEligibleExplicitPath(facts.source, sourceId, facts.parseOptions);
+  facts.explicitPathEligibilityBySourceId.set(sourceId, resolved);
+  return resolved;
+}
+
+function resolveActivePathHandleResolution(
+  facts: AvailabilityFacts,
+  sourceId: string,
+  analysis: ExplicitPathAnalysis
+): PathHandleResolution {
+  const cached = facts.activePathHandleResolutionBySourceId.get(sourceId);
+  if (cached) {
+    return cached;
+  }
+  const resolved = resolveActivePathPointHandle(
+    facts.editHandles,
+    analysis,
+    facts.activeHandleId,
+    facts.source
+  );
+  facts.activePathHandleResolutionBySourceId.set(sourceId, resolved);
+  return resolved;
 }
 
 function normalizeSourceIds(sourceIds: readonly string[]): string[] {
@@ -304,12 +352,8 @@ function makePathRule(
       if (facts.selectedSourceIds.length !== 2) {
         return "Select exactly two open paths to join.";
       }
-      const first = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[0]!, {
-        activeFigureId: facts.activeFigureId
-      });
-      const second = resolveEligibleExplicitPath(facts.source, facts.selectedSourceIds[1]!, {
-        activeFigureId: facts.activeFigureId
-      });
+      const first = resolveExplicitPathEligibility(facts, facts.selectedSourceIds[0]!);
+      const second = resolveExplicitPathEligibility(facts, facts.selectedSourceIds[1]!);
       if (first.kind !== "eligible") return first.reason;
       if (second.kind !== "eligible") return second.reason;
       if (first.analysis.closed || second.analysis.closed) {
@@ -322,9 +366,7 @@ function makePathRule(
       return "Select a single editable path.";
     }
     const selectedId = facts.selectedSourceIds[0]!;
-    const eligible = resolveEligibleExplicitPath(facts.source, selectedId, {
-      activeFigureId: facts.activeFigureId
-    });
+    const eligible = resolveExplicitPathEligibility(facts, selectedId);
     if (eligible.kind !== "eligible") {
       return eligible.reason;
     }
@@ -336,12 +378,7 @@ function makePathRule(
       return eligible.analysis.closed ? null : "Path is already open.";
     }
 
-    const handleResolution = resolveActivePathPointHandle(
-      facts.editHandles,
-      eligible.analysis,
-      facts.activeHandleId,
-      facts.source
-    );
+    const handleResolution = resolveActivePathHandleResolution(facts, selectedId, eligible.analysis);
     if (handleResolution.kind !== "found") {
       return handleResolution.reason;
     }

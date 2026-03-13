@@ -1,0 +1,183 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { makeEmptySnapshot } from "../packages/app/src/compute.js";
+import {
+  getSharedEditAnalysisView,
+  resetSharedEditAnalysisManager
+} from "../packages/app/src/edit-analysis-manager.js";
+import { createEditAnalysisSession } from "../packages/core/src/edit/analysis.js";
+import { getInspectorDescriptor } from "../packages/core/src/edit/inspector.js";
+import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
+import { parseStatementSnapshot } from "../packages/core/src/edit/statement-ops.js";
+import { buildStylesCascadeModel } from "../packages/core/src/edit/styles-cascade.js";
+import * as parserModule from "../packages/core/src/parser/index.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
+
+const SOURCE = String.raw`\begin{tikzpicture}
+  \node[draw, fill=blue!20] (A) at (0,0) {A};
+  \draw[thick, red] (A) -- (2,0);
+\end{tikzpicture}`;
+
+afterEach(() => {
+  resetSharedEditAnalysisManager();
+  vi.restoreAllMocks();
+});
+
+describe("edit analysis session", () => {
+  it("reuses one parse across property-target, statement, inspector, and styles queries", () => {
+    const parseSpy = vi.spyOn(parserModule, "parseTikz");
+    const rendered = renderTikzToSvg(SOURCE, {
+      parse: { recover: true, activeFigureId: "figure:0" }
+    });
+    const nodeElement = rendered.semantic.scene.elements.find((element) => element.sourceRef.sourceId === "path:0");
+    expect(nodeElement).toBeDefined();
+    if (!nodeElement) {
+      throw new Error("Expected node element for path:0");
+    }
+
+    parseSpy.mockClear();
+
+    const session = createEditAnalysisSession();
+    const analysisView = session.ensure(SOURCE, { activeFigureId: "figure:0" });
+
+    resolvePropertyTarget(SOURCE, "path:0", {
+      activeFigureId: "figure:0",
+      analysisView
+    });
+    parseStatementSnapshot(SOURCE, {
+      activeFigureId: "figure:0",
+      analysisView
+    });
+    const descriptor = getInspectorDescriptor(nodeElement, {
+      source: SOURCE,
+      editHandles: rendered.semantic.editHandles,
+      parseOptions: {
+        activeFigureId: "figure:0",
+        analysisView
+      }
+    });
+    buildStylesCascadeModel(
+      nodeElement,
+      {
+        source: SOURCE,
+        editHandles: rendered.semantic.editHandles,
+        parseOptions: {
+          activeFigureId: "figure:0",
+          analysisView
+        }
+      },
+      descriptor
+    );
+
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses primed parse results without falling back to another edit parse", () => {
+    const parseSpy = vi.spyOn(parserModule, "parseTikz");
+    const parseResult = parserModule.parseTikz(SOURCE, {
+      recover: true,
+      activeFigureId: "figure:0"
+    });
+    parseSpy.mockClear();
+
+    const session = createEditAnalysisSession();
+    const analysisView = session.primeFromParse(parseResult, SOURCE, {
+      activeFigureId: "figure:0"
+    });
+
+    resolvePropertyTarget(SOURCE, "path:1", {
+      activeFigureId: "figure:0",
+      analysisView
+    });
+    expect(parseSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared edit analysis manager", () => {
+  it("seeds from the current snapshot parse result before any fallback parse", () => {
+    const parseSpy = vi.spyOn(parserModule, "parseTikz");
+    const parseResult = parserModule.parseTikz(SOURCE, {
+      recover: true,
+      activeFigureId: "figure:0"
+    });
+    const snapshot = {
+      ...makeEmptySnapshot(SOURCE),
+      source: SOURCE,
+      revision: 42,
+      activeFigureId: "figure:0",
+      parseResult
+    };
+
+    parseSpy.mockClear();
+
+    const analysisView = getSharedEditAnalysisView({
+      documentId: "doc-1",
+      sourceRevision: 7,
+      source: SOURCE,
+      activeFigureId: "figure:0",
+      snapshot
+    });
+    resolvePropertyTarget(SOURCE, "path:0", {
+      activeFigureId: "figure:0",
+      analysisView
+    });
+
+    expect(parseSpy).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the shared session when sourceRevision or activeFigureId changes", () => {
+    const multiFigureSource = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}
+\begin{tikzpicture}
+  \draw (0,0) -- (0,1);
+\end{tikzpicture}`;
+    const parseResult0 = parserModule.parseTikz(multiFigureSource, {
+      recover: true,
+      activeFigureId: "figure:0"
+    });
+    const parseResult1 = parserModule.parseTikz(multiFigureSource, {
+      recover: true,
+      activeFigureId: "figure:1"
+    });
+    const snapshot0 = {
+      ...makeEmptySnapshot(multiFigureSource),
+      source: multiFigureSource,
+      revision: 43,
+      activeFigureId: "figure:0",
+      parseResult: parseResult0
+    };
+    const snapshot1 = {
+      ...makeEmptySnapshot(multiFigureSource),
+      source: multiFigureSource,
+      revision: 44,
+      activeFigureId: "figure:1",
+      parseResult: parseResult1
+    };
+
+    const first = getSharedEditAnalysisView({
+      documentId: "doc-1",
+      sourceRevision: 1,
+      source: multiFigureSource,
+      activeFigureId: "figure:0",
+      snapshot: snapshot0
+    });
+    const second = getSharedEditAnalysisView({
+      documentId: "doc-1",
+      sourceRevision: 2,
+      source: multiFigureSource,
+      activeFigureId: "figure:0",
+      snapshot: snapshot0
+    });
+    const third = getSharedEditAnalysisView({
+      documentId: "doc-1",
+      sourceRevision: 2,
+      source: multiFigureSource,
+      activeFigureId: "figure:1",
+      snapshot: snapshot1
+    });
+
+    expect(second).not.toBe(first);
+    expect(third).not.toBe(second);
+  });
+});

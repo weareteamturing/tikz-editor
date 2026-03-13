@@ -55,6 +55,7 @@ export type DocumentSession = {
   id: string;
   title: string;
   source: string;
+  sourceRevision: number;
   activeFigureId: string | null;
   hasInitializedFigureSelection: boolean;
   snapshot: SessionSnapshot;
@@ -123,6 +124,7 @@ export type EditorState = {
 
   // ── document slice ──────────────────────────────────────────────────────────
   source: string;
+  sourceRevision: number;
   activeFigureId: string | null;
   snapshot: SessionSnapshot;
   /** Request ID of the most recently triggered compute; null if up-to-date. */

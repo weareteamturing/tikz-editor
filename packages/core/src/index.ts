@@ -2,6 +2,7 @@ export { FeatureFlags } from "./ast/features.js";
 export { parseTikz, createIncrementalParseSession } from "./parser/index.js";
 export { applyEdit, applyEditIntent } from "./edit/apply.js";
 export { EditorSession } from "./edit/session.js";
+export { createEditAnalysisSession } from "./edit/analysis.js";
 export { collectTikzSnippetsFromDocs, extractTikzSnippetsFromSource } from "./corpus/extract.js";
 export {
   evaluateTikzFigure,
@@ -52,6 +53,7 @@ export {
 export type { ParseTikzOptions, ParseTikzResult } from "./parser/index.js";
 export type * from "./parser/incremental.js";
 export type { TikzEdit, ApplyEditResult, EditIntent, EditIntentResult, SourcePatch } from "./edit/types.js";
+export type { EditAnalysisSession, EditAnalysisView, EditAnalysisOptions } from "./edit/analysis.js";
 export type { TikzSnippet, TikzSnippetKind } from "./corpus/extract.js";
 export type { EvaluateTikzResult } from "./semantic/index.js";
 export type {

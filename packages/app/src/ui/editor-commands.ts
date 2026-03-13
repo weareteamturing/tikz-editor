@@ -12,6 +12,7 @@ import {
   statementSnippet
 } from "tikz-editor/edit/statement-ops";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
+import type { EditParseOptions } from "tikz-editor/edit/parse-options";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic/types";
 import type { EditorAction } from "../store/types";
@@ -34,6 +35,7 @@ type Dispatch = (action: EditorAction) => void;
 type SelectionCommandContext = {
   source: string;
   activeFigureId?: string | null;
+  parseOptions?: EditParseOptions;
   figureCount?: number;
   snapshotSource: string | null;
   scene: SceneFigure | null;
@@ -527,6 +529,7 @@ export function actionAvailability(
 function selectedSnippets(context: SelectionCommandContext): string[] {
   const { source, selectedElementIds, activeFigureId } = context;
   const parseActiveFigureId = resolvedContextActiveFigureId(context);
+  const parseOptions = parseOptionsForContext(context);
   if (selectedElementIds.size === 0) {
     return [];
   }
@@ -536,7 +539,7 @@ function selectedSnippets(context: SelectionCommandContext): string[] {
   for (const id of selectedElementIds) {
     const parsed = parseEditableTargetId(id);
     if (parsed.kind === "node-adornment") {
-      const resolved = resolvePropertyTarget(source, id, { activeFigureId: parseActiveFigureId });
+      const resolved = resolvePropertyTarget(source, id, parseOptions);
       if (resolved.kind === "found" && resolved.target.optionSpan) {
         const snippet = source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to).trim();
         if (snippet.length > 0) {
@@ -549,7 +552,7 @@ function selectedSnippets(context: SelectionCommandContext): string[] {
   }
 
   if (statementIds.length > 0) {
-    const snapshot = parseStatementSnapshot(source, { activeFigureId: parseActiveFigureId });
+    const snapshot = parseStatementSnapshot(source, parseOptions);
     const refs = resolveStatementRefs(snapshot, statementIds);
     refs.sort((left, right) => {
       if (left.span.from !== right.span.from) {
@@ -565,13 +568,12 @@ function selectedSnippets(context: SelectionCommandContext): string[] {
 
 function selectedStatementRefs(context: SelectionCommandContext) {
   const { source, selectedElementIds } = context;
-  const parseActiveFigureId = resolvedContextActiveFigureId(context);
   if (selectedElementIds.size === 0) {
     return [];
   }
 
   const statementIds = [...selectedElementIds].filter((id) => parseEditableTargetId(id).kind === "statement");
-  const snapshot = parseStatementSnapshot(source, { activeFigureId: parseActiveFigureId });
+  const snapshot = parseStatementSnapshot(source, parseOptionsForContext(context));
   const refs = resolveStatementRefs(snapshot, statementIds);
   refs.sort((left, right) => {
     if (left.span.from !== right.span.from) {
@@ -586,6 +588,7 @@ function availabilityFor(context: SelectionCommandContext) {
   return getEditActionAvailability({
     source: context.source,
     activeFigureId: resolvedContextActiveFigureId(context),
+    parseOptions: parseOptionsForContext(context),
     snapshotSource: context.snapshotSource,
     selectedSourceIds: [...context.selectedElementIds],
     scene: context.scene,
@@ -628,13 +631,14 @@ function transformSelection(
   const elementIds = [...context.selectedElementIds];
   const mergeKey = `transform:${Date.now().toString(36)}`;
   let dispatched = false;
+  const parseOptions = parseOptionsForContext(context);
 
   for (const elementId of elementIds) {
     const targetId = resolveTransformTargetId(context, elementId);
     if (!targetId) {
       continue;
     }
-    const values = resolveTransformInspectorValues(context.source, targetId, { activeFigureId: parseActiveFigureId });
+    const values = resolveTransformInspectorValues(context.source, targetId, parseOptions);
     const mutations = buildTransformSetPropertyMutations(values, key, resolveNextValue(values, key));
     for (const mutation of mutations) {
       context.dispatch({
@@ -671,10 +675,10 @@ function normalizeSignedDeg(degrees: number): number {
 }
 
 function resolveTransformTargetId(context: SelectionCommandContext, selectedId: string): string | null {
-  const parseActiveFigureId = resolvedContextActiveFigureId(context);
+  const parseOptions = parseOptionsForContext(context);
   const element = findSelectedSceneElement(context.scene, selectedId);
   if (!element) {
-    const resolved = resolvePropertyTarget(context.source, selectedId, { activeFigureId: parseActiveFigureId });
+    const resolved = resolvePropertyTarget(context.source, selectedId, parseOptions);
     return resolved.kind === "found" ? selectedId : null;
   }
 
@@ -688,7 +692,7 @@ function resolveTransformTargetId(context: SelectionCommandContext, selectedId: 
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   for (const targetId of candidateTargetIds) {
-    const resolved = resolvePropertyTarget(context.source, targetId, { activeFigureId: parseActiveFigureId });
+    const resolved = resolvePropertyTarget(context.source, targetId, parseOptions);
     if (resolved.kind === "found") {
       return targetId;
     }
@@ -705,6 +709,14 @@ function resolvedContextActiveFigureId(context: SelectionCommandContext): string
     return null;
   }
   return undefined;
+}
+
+function parseOptionsForContext(context: SelectionCommandContext): EditParseOptions {
+  return {
+    activeFigureId: resolvedContextActiveFigureId(context),
+    analysisView: context.parseOptions?.analysisView,
+    analysisSession: context.parseOptions?.analysisSession
+  };
 }
 
 function findSelectedSceneElement(scene: SceneFigure | null, selectedId: string): SceneElement | null {

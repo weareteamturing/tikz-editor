@@ -24,6 +24,7 @@ import {
   type StylesEditablePropertyCatalogEntry
 } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
+import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { collectProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
@@ -34,8 +35,11 @@ import css from "./StylesPanel.module.css";
 
 export function StylesPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
+  const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
   const source = useEditorStore((s) => s.source);
+  const sourceRevision = useEditorStore((s) => s.sourceRevision);
   const dispatch = useEditorStore((s) => s.dispatch);
   const [pendingAddBySection, setPendingAddBySection] = useState<Record<string, string>>({});
 
@@ -53,10 +57,35 @@ export function StylesPanel() {
       .map((sourceId) => bySource.get(sourceId))
       .filter((element): element is SceneElement => element != null);
   }, [selectedIds, selectedSourceIds, snapshot.scene]);
+  const editAnalysisView = useMemo(
+    () =>
+      getSharedEditAnalysisView({
+        documentId: activeDocumentId,
+        sourceRevision,
+        source,
+        activeFigureId,
+        snapshot
+      }),
+    [activeDocumentId, activeFigureId, snapshot, source, sourceRevision]
+  );
+  const parseOptions = useMemo(
+    () => ({
+      activeFigureId,
+      analysisView: editAnalysisView
+    }),
+    [activeFigureId, editAnalysisView]
+  );
 
   const models = useMemo(
-    () => selectedElements.map((element) => buildStylesCascadeModel(element, { source: snapshot.source, editHandles: snapshot.editHandles })),
-    [selectedElements, snapshot.editHandles, snapshot.source]
+    () =>
+      selectedElements.map((element) =>
+        buildStylesCascadeModel(element, {
+          source: snapshot.source,
+          editHandles: snapshot.editHandles,
+          parseOptions
+        })
+      ),
+    [parseOptions, selectedElements, snapshot.editHandles, snapshot.source]
   );
   const model = useMemo<StylesCascadeModel | null>(() => {
     if (models.length === 0) {

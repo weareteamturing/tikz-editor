@@ -2569,6 +2569,13 @@ function resolveGridInspectorState(
 }
 
 function findPathStatementInSource(source: string, sourceId: string, parseOptions: EditParseOptions = {}): PathStatement | null {
+  if (
+    parseOptions.analysisView &&
+    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
+  ) {
+    return parseOptions.analysisView.findPathStatement(sourceId);
+  }
   const parsed = parseTikz(source, { recover: true, activeFigureId: parseOptions.activeFigureId });
   return findPathStatementById(parsed.figure.body, sourceId);
 }

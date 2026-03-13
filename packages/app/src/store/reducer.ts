@@ -57,6 +57,7 @@ function createDocumentSession(params: {
     id: createDocumentId(),
     title,
     source: params.source,
+    sourceRevision: 0,
     activeFigureId: params.activeFigureId ?? null,
     hasInitializedFigureSelection: false,
     snapshot: makeEmptySnapshot(params.source),
@@ -196,6 +197,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     workspace,
     ui,
     source: active.source,
+    sourceRevision: active.sourceRevision,
     activeFigureId: active.activeFigureId,
     snapshot: active.snapshot,
     pendingRequestId: active.pendingRequestId,
@@ -486,6 +488,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...doc,
           source: action.source,
+          sourceRevision: doc.sourceRevision + 1,
           activeFigureId: doc.activeFigureId,
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
@@ -676,6 +679,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...doc,
           source: action.source,
+          sourceRevision: doc.sourceRevision + 1,
           lastEditChangedSourceIds: null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
@@ -741,6 +745,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         workspace = updateDocument(workspace, documentId, (doc) => ({
           ...doc,
           source: result.newSource,
+          sourceRevision: doc.sourceRevision + 1,
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
@@ -786,6 +791,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         workspace = updateDocument(workspace, documentId, (doc) => ({
           ...doc,
           source: result.newSource,
+          sourceRevision: doc.sourceRevision + 1,
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
@@ -811,6 +817,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       workspace = updateDocument(workspace, documentId, (doc) => ({
         ...doc,
         source: result.newSource,
+        sourceRevision: doc.sourceRevision + 1,
         lastEditChangedSourceIds: result.changedSourceIds ?? null,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         lastEditPatches: result.patches,
@@ -834,6 +841,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         return {
           ...doc,
           source: action.source,
+          sourceRevision: doc.sourceRevision + 1,
           lastEditChangedSourceIds: action.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
@@ -856,6 +864,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       workspace = updateDocument(workspace, activeId, (current) => ({
         ...current,
         source: entry.sourceBefore,
+        sourceRevision: current.sourceRevision + 1,
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,
@@ -877,6 +886,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       workspace = updateDocument(workspace, activeId, (current) => ({
         ...current,
         source: entry.sourceAfter,
+        sourceRevision: current.sourceRevision + 1,
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,

@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "../app-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
+import type { EditAnalysisView } from "tikz-editor/edit/analysis";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
+import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
 import { useEditorStore } from "../store/store";
 import type { DocumentFileRef, EditorAction, ToolMode } from "../store/types";
@@ -44,6 +46,7 @@ type Dispatch = (action: EditorAction) => void;
 type RuntimeInput = {
   source: string;
   activeFigureId: string | null;
+  editAnalysisView: EditAnalysisView | null;
   snapshot: SessionSnapshot;
   toolMode: ToolMode;
   selectedElementIds: ReadonlySet<string>;
@@ -86,6 +89,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const {
     source,
     activeFigureId,
+    editAnalysisView,
     snapshot,
     toolMode,
     selectedElementIds,
@@ -118,11 +122,16 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onFocusAssistant,
     onInterruptAssistant
   } = input;
+  const parseOptions = {
+    activeFigureId,
+    analysisView: editAnalysisView
+  };
 
   const commandContext = {
     source,
     activeFigureId,
-    figureCount: snapshot.figures.length,
+    parseOptions,
+    figureCount: snapshot.figures?.length ?? 0,
     snapshotSource: snapshot.source,
     scene: snapshot.scene,
     editHandles: snapshot.editHandles,
@@ -211,7 +220,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canAddAdornment =
     singleSelectedId != null &&
     (() => {
-      const resolved = resolvePropertyTarget(source, singleSelectedId, { activeFigureId });
+      const resolved = resolvePropertyTarget(source, singleSelectedId, parseOptions);
       return (
         resolved.kind === "found" &&
         (resolved.target.kind === "node-item" ||
@@ -627,6 +636,7 @@ export function useEditorCommandRuntime(
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
+  const sourceRevision = useEditorStore((s) => s.sourceRevision);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
@@ -651,12 +661,24 @@ export function useEditorCommandRuntime(
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
   const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
+  const editAnalysisView = useMemo(
+    () =>
+      getSharedEditAnalysisView({
+        documentId: activeDocumentId,
+        sourceRevision,
+        source,
+        activeFigureId,
+        snapshot
+      }),
+    [activeDocumentId, activeFigureId, snapshot, source, sourceRevision]
+  );
 
   return useMemo(
     () =>
       createEditorCommandRuntime({
         source,
         activeFigureId,
+        editAnalysisView,
         snapshot,
         toolMode,
         selectedElementIds,
@@ -692,6 +714,7 @@ export function useEditorCommandRuntime(
     [
       source,
       activeFigureId,
+      editAnalysisView,
       snapshot,
       toolMode,
       selectedElementIds,
@@ -699,6 +722,7 @@ export function useEditorCommandRuntime(
       historyIndex,
       historyLength,
       activeDocumentId,
+      sourceRevision,
       tabCount,
       dirty,
       fileRef,

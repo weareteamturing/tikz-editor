@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { resolveTransformInspectorValues, TIKZPICTURE_GLOBAL_TARGET_ID, type InspectorDescriptor } from "tikz-editor/edit/inspector";
+import {
+  resolveTransformInspectorValues,
+  TIKZPICTURE_GLOBAL_TARGET_ID,
+  type InspectorDescriptor,
+  type InspectorSnapshot
+} from "tikz-editor/edit/inspector";
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
+import { getSharedEditAnalysisView } from "../../edit-analysis-manager";
 import { collectProjectNamedColorSwatches } from "../../project-named-colors";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
@@ -25,10 +31,12 @@ export type FrozenInspectorView = {
 export function useInspectorModel(args: {
   selectedIds: ReadonlySet<string>;
   dispatch: (action: any) => void;
-  getInspectorDescriptor: (element: SceneElement, context: { source: string; editHandles: any[] }) => InspectorDescriptor;
+  getInspectorDescriptor: (element: SceneElement, context: InspectorSnapshot) => InspectorDescriptor;
 }) {
   const { selectedIds, dispatch, getInspectorDescriptor } = args;
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
+  const sourceRevision = useEditorStore((s) => s.sourceRevision);
 
   const [{ source, snapshot }, setSourceSnapshot] = useState(() => {
     const s = useEditorStore.getState();
@@ -50,9 +58,27 @@ export function useInspectorModel(args: {
     () => collectProjectNamedColorSwatches(source),
     [source]
   );
+  const editAnalysisView = useMemo(
+    () =>
+      getSharedEditAnalysisView({
+        documentId: activeDocumentId,
+        sourceRevision,
+        source,
+        activeFigureId,
+        snapshot
+      }),
+    [activeDocumentId, activeFigureId, snapshot, source, sourceRevision]
+  );
+  const parseOptions = useMemo(
+    () => ({
+      activeFigureId,
+      analysisView: editAnalysisView
+    }),
+    [activeFigureId, editAnalysisView]
+  );
   const globalTransformValues = useMemo(
-    () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID, { activeFigureId }),
-    [activeFigureId, source]
+    () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID, parseOptions),
+    [parseOptions, source]
   );
 
   const selectedElements = useMemo(() => {
@@ -75,10 +101,10 @@ export function useInspectorModel(args: {
       getInspectorDescriptor(element, {
         source: snapshot.source,
         editHandles: snapshot.editHandles,
-        parseOptions: { activeFigureId }
+        parseOptions
       })
     );
-  }, [activeFigureId, getInspectorDescriptor, selectedElements, snapshot.source, snapshot.editHandles]);
+  }, [getInspectorDescriptor, parseOptions, selectedElements, snapshot.source, snapshot.editHandles]);
 
   const descriptor = selectedSourceIds.length === 1 ? descriptors[0] ?? null : null;
 
@@ -100,13 +126,13 @@ export function useInspectorModel(args: {
         {
           source: snapshot.source,
           editHandles: snapshot.editHandles,
-          parseOptions: { activeFigureId }
+          parseOptions
         },
         elementDescriptor
       );
       return buildInspectorPropertyProvenanceMap(cascadeModel);
     });
-  }, [activeFigureId, descriptors, selectedElements, snapshot.editHandles, snapshot.source]);
+  }, [descriptors, parseOptions, selectedElements, snapshot.editHandles, snapshot.source]);
 
   const singlePropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
     if (selectedSourceIds.length !== 1) {
@@ -144,13 +170,15 @@ export function useInspectorModel(args: {
   const commandContext = useMemo(
     () => ({
       source,
+      activeFigureId,
+      parseOptions,
       snapshotSource: snapshot.source,
       scene: snapshot.scene,
       editHandles: snapshot.editHandles,
       selectedElementIds: selectedIds,
       dispatch
     }),
-    [dispatch, selectedIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+    [activeFigureId, dispatch, parseOptions, selectedIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
   );
   const arrangeAvailability = useMemo(
     () => actionAvailability(commandContext),

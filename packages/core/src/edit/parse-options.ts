@@ -1,10 +1,25 @@
 import { parseTikz, type ParseTikzResult } from "../parser/index.js";
+import type { EditAnalysisSession, EditAnalysisView } from "./analysis.js";
 
 export type EditParseOptions = {
   activeFigureId?: string | null;
+  analysisSession?: EditAnalysisSession | null;
+  analysisView?: EditAnalysisView | null;
 };
 
 export function parseTikzForEdit(source: string, options: EditParseOptions = {}): ParseTikzResult {
+  if (
+    options.analysisView &&
+    options.analysisView.source === source &&
+    options.analysisView.activeFigureId === options.activeFigureId
+  ) {
+    return options.analysisView.parseResult;
+  }
+  if (options.analysisSession) {
+    return options.analysisSession.ensure(source, {
+      activeFigureId: options.activeFigureId
+    }).parseResult;
+  }
   return parseTikz(source, {
     recover: true,
     activeFigureId: options.activeFigureId

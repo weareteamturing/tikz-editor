@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getEditActionAvailability } from "../packages/core/src/edit/action-availability.js";
+import * as parserModule from "../packages/core/src/parser/index.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 
 describe("getEditActionAvailability", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("gates align/distribute actions by selection size", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -176,5 +181,31 @@ describe("getEditActionAvailability", () => {
     expect(availability["align-left"].reason).toContain("already aligned");
     expect(availability["distribute-vertical"].enabled).toBe(false);
     expect(availability["distribute-vertical"].reason).toContain("already evenly distributed");
+  });
+
+  it("reuses one parsed explicit-path analysis across path-related availability checks", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const activeHandleId = rendered.semantic.editHandles.find(
+      (handle) => source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to) === "(1,0)"
+    )?.id ?? null;
+    const parseSpy = vi.spyOn(parserModule, "parseTikz");
+
+    const availability = getEditActionAvailability({
+      source,
+      activeFigureId: "figure:0",
+      snapshotSource: source,
+      selectedSourceIds: ["path:0"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      activeHandleId
+    });
+
+    expect(availability["path-split"].enabled).toBe(true);
+    expect(availability["path-delete-point"].enabled).toBe(true);
+    expect(availability["path-point-smooth"].enabled).toBe(true);
+    expect(parseSpy).toHaveBeenCalledTimes(1);
   });
 });
