@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { APP_MENU_COMMAND_IDS, type AppMenuCommandId } from "../app-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditAnalysisView } from "tikz-editor/edit/analysis";
@@ -641,6 +641,7 @@ export function useEditorCommandRuntime(
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const activeHandleId = useEditorStore((s) => s.activeHandleId);
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const historyIndex = useEditorStore((s) => s.historyIndex);
   const historyLength = useEditorStore((s) => s.history.length);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
@@ -661,28 +662,52 @@ export function useEditorCommandRuntime(
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
   const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
+  const liveCommandInputs = useMemo(
+    () => ({
+      source,
+      activeFigureId,
+      sourceRevision,
+      snapshot,
+      selectedElementIds,
+      activeHandleId
+    }),
+    [activeFigureId, activeHandleId, selectedElementIds, snapshot, source, sourceRevision]
+  );
+  const frozenCommandInputsRef = useRef(liveCommandInputs);
+  if (!activeCanvasDragKind) {
+    frozenCommandInputsRef.current = liveCommandInputs;
+  }
+  const effectiveCommandInputs = activeCanvasDragKind
+    ? frozenCommandInputsRef.current
+    : liveCommandInputs;
   const editAnalysisView = useMemo(
     () =>
       getSharedEditAnalysisView({
         documentId: activeDocumentId,
-        sourceRevision,
-        source,
-        activeFigureId,
-        snapshot
+        sourceRevision: effectiveCommandInputs.sourceRevision,
+        source: effectiveCommandInputs.source,
+        activeFigureId: effectiveCommandInputs.activeFigureId,
+        snapshot: effectiveCommandInputs.snapshot
       }),
-    [activeDocumentId, activeFigureId, snapshot, source, sourceRevision]
+    [
+      activeDocumentId,
+      effectiveCommandInputs.activeFigureId,
+      effectiveCommandInputs.snapshot,
+      effectiveCommandInputs.source,
+      effectiveCommandInputs.sourceRevision
+    ]
   );
 
   return useMemo(
     () =>
       createEditorCommandRuntime({
-        source,
-        activeFigureId,
+        source: effectiveCommandInputs.source,
+        activeFigureId: effectiveCommandInputs.activeFigureId,
         editAnalysisView,
-        snapshot,
+        snapshot: effectiveCommandInputs.snapshot,
         toolMode,
-        selectedElementIds,
-        activeHandleId,
+        selectedElementIds: effectiveCommandInputs.selectedElementIds,
+        activeHandleId: effectiveCommandInputs.activeHandleId,
         historyIndex,
         historyLength,
         activeDocumentId,
@@ -712,17 +737,12 @@ export function useEditorCommandRuntime(
         onInterruptAssistant: options.onInterruptAssistant
       }),
     [
-      source,
-      activeFigureId,
       editAnalysisView,
-      snapshot,
+      effectiveCommandInputs,
       toolMode,
-      selectedElementIds,
-      activeHandleId,
       historyIndex,
       historyLength,
       activeDocumentId,
-      sourceRevision,
       tabCount,
       dirty,
       fileRef,
@@ -732,6 +752,7 @@ export function useEditorCommandRuntime(
       showGuides,
       showSourcePanel,
       showInspectorPanel,
+      activeCanvasDragKind,
       rightSidebarTab,
       assistantAvailable,
       assistantRunning,
