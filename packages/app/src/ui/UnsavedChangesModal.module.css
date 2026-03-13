@@ -1,16 +1,40 @@
+.panel {
+  width: min(400px, calc(100vw - 40px));
+}
+
 .dialog {
-  width: min(560px, calc(100vw - 40px));
-  display: grid;
-  gap: 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .title {
-  font-size: calc(var(--app-ui-scale, 1) * 18px);
+  font-size: calc(var(--app-ui-scale, 1) * 13px);
+  font-weight: 600;
+  color: var(--text);
   margin: 0;
+}
+
+.body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .message {
   margin: 0;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
 }
 
@@ -19,23 +43,35 @@
   padding-left: 20px;
   max-height: 180px;
   overflow: auto;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
   color: var(--text-muted);
 }
 
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 6px;
+  padding-top: 4px;
 }
 
 .primary,
 .secondary {
   appearance: none;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  padding: 8px 14px;
+  height: 24px;
+  padding: 0 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 5px;
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: inherit;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   cursor: pointer;
-  font-size: calc(var(--app-ui-scale, 1) * 12px);
+}
+
+.primary:hover,
+.secondary:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--border);
 }
 
 .primary {
@@ -44,7 +80,8 @@
   border-color: transparent;
 }
 
-.secondary {
-  background: var(--bg-pane);
-  color: var(--text);
+.primary:hover {
+  background: var(--accent-dark);
+  filter: brightness(1.1);
+  border-color: transparent;
 }
