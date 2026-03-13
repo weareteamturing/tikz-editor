@@ -24,6 +24,7 @@
     "compare:kolda-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book",
     "bench:incremental-drag": "node scripts/benchmark-incremental-drag.mjs",
     "profile:paper-selection": "npm run -w @tikz-editor/web profile:paper-selection",
+    "profile:paper-drag": "npm run -w @tikz-editor/web profile:paper-drag",
     "dev:web": "npm run -w @tikz-editor/web dev",
     "dev:desktop": "npm run -w @tikz-editor/desktop tauri:dev",
     "build:desktop": "npm run -w @tikz-editor/desktop tauri:build",

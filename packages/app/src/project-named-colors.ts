@@ -1,11 +1,16 @@
+import { useEffect, useMemo, useState } from "react";
 import { parser } from "tikz-editor/syntax/grammar/tikz-parser";
 import { BASIC_PICKER_COLOR_SET } from "./color-palette";
 import { collectDeclaredColors } from "./source-color-detection";
+import { useEditorStore } from "./store/store";
 
 export type NamedColorSwatch = {
   token: string;
   cssColor: string;
 };
+
+let lastSource = "__project-named-colors:uninitialized__";
+let lastSwatches: NamedColorSwatch[] = [];
 
 export function collectProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
   if (source.trim().length === 0) {
@@ -34,4 +39,36 @@ export function collectProjectNamedColorSwatches(source: string): NamedColorSwat
   }
 
   return swatches;
+}
+
+export function resolveProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
+  if (source === lastSource) {
+    return lastSwatches;
+  }
+  lastSource = source;
+  lastSwatches = collectProjectNamedColorSwatches(source);
+  return lastSwatches;
+}
+
+export function useProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
+  const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
+  const shouldFreeze =
+    activeSourceScrubSourceId != null ||
+    activeCanvasDragKind === "element" ||
+    activeCanvasDragKind === "resize" ||
+    activeCanvasDragKind === "rotate" ||
+    activeCanvasDragKind === "handle";
+  const [stableSource, setStableSource] = useState(source);
+
+  useEffect(() => {
+    if (!shouldFreeze) {
+      setStableSource(source);
+    }
+  }, [shouldFreeze, source]);
+
+  return useMemo(
+    () => resolveProjectNamedColorSwatches(stableSource),
+    [stableSource]
+  );
 }

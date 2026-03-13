@@ -8,7 +8,7 @@ import {
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView } from "../../edit-analysis-manager";
-import { collectProjectNamedColorSwatches } from "../../project-named-colors";
+import { useProjectNamedColorSwatches } from "../../project-named-colors";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
 import {
@@ -54,10 +54,7 @@ export function useInspectorModel(args: {
   }, []);
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
-  const projectNamedColorSwatches = useMemo(
-    () => collectProjectNamedColorSwatches(source),
-    [source]
-  );
+  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
   const editAnalysisView = useMemo(
     () =>
       getSharedEditAnalysisView({

@@ -33,7 +33,7 @@ import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tik
 import { tikzLanguage } from "../codemirror-tikz";
 import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
-import { collectProjectNamedColorSwatches } from "../project-named-colors";
+import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { ColorPicker } from "./ColorPicker";
 import {
@@ -328,10 +328,7 @@ export function SourcePanel() {
   const figuresRef = useRef(figures);
   const activeFigureIdRef = useRef(activeFigureId);
   const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
-  const projectNamedColorSwatches = useMemo(
-    () => collectProjectNamedColorSwatches(source),
-    [source]
-  );
+  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
 
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;

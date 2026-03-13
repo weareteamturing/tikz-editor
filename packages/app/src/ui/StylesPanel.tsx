@@ -25,7 +25,7 @@ import {
 } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView } from "../edit-analysis-manager";
-import { collectProjectNamedColorSwatches } from "../project-named-colors";
+import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
 import { ColorPickerField } from "./ColorPicker";
@@ -96,7 +96,7 @@ export function StylesPanel() {
     }
     return buildSharedStylesCascadeModel(models);
   }, [models]);
-  const projectNamedColorSwatches = useMemo(() => collectProjectNamedColorSwatches(source), [source]);
+  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
 
   function dispatchActions(actions: ReturnType<typeof planStylesSetPropertyActions>): void {
     const mergeKey = `styles:${Date.now().toString(36)}`;
