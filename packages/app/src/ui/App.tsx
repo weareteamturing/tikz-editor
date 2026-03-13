@@ -762,6 +762,20 @@ export function App() {
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         const hasTextSelection = Boolean(window.getSelection()?.toString().trim());
 
+        if (!e.shiftKey && key === "a") {
+          if (!canvasShortcutContext) {
+            return;
+          }
+          const ids = Array.from(
+            new Set(
+              (snapshotRef.current.scene?.elements ?? []).map((element) => element.sourceRef.sourceId)
+            )
+          );
+          dispatch({ type: "SELECT_RANGE", ids });
+          e.preventDefault();
+          return;
+        }
+
         if (!e.shiftKey && key === "c") {
           if (!canvasShortcutContext || hasTextSelection) {
             return;

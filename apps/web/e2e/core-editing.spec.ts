@@ -13,7 +13,8 @@ import {
   runMenuCommandIfEnabled,
   selectAllSceneElements,
   selectFirstCanvasElement,
-  setSource
+  setSource,
+  waitForHitRegions
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
@@ -63,6 +64,22 @@ test("duplicate, undo, redo and delete shortcuts operate on selected canvas elem
   await selectAllSceneElements(page);
   await page.keyboard.press("Delete");
   await expect.poll(async () => readSource(page)).not.toEqual(afterDuplicate);
+});
+
+test("cmd/ctrl+a selects all canvas elements for delete", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\draw (0,0) rectangle (2,1);
+\draw (3,0) rectangle (4,1);
+\end{tikzpicture}`);
+
+  await waitForHitRegions(page, 2);
+  await focusCanvas(page);
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+
+  await expect.poll(async () => readSource(page)).not.toContain("\\draw (0,0) rectangle (2,1);");
+  await expect.poll(async () => readSource(page)).not.toContain("\\draw (3,0) rectangle (4,1);");
 });
 
 test("selection-sensitive edit menu commands enable only after selecting element", async ({ page }) => {
