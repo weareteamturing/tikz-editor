@@ -1,4 +1,4 @@
-import { renderTikzToSvg } from "tikz-editor/render/index";
+import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import type {
   ThumbnailRenderFailure,
   ThumbnailRenderRequest,
@@ -110,40 +110,9 @@ function onWorkerMessage(event: MessageEvent<ThumbnailWorkerResponseMessage>): v
   pending.resolve(message);
 }
 
-function onWorkerError(): void {
-  if (!sharedWorker) {
-    return;
-  }
-  // Fail fast for currently waiting requests. Subsequent requests use fallback path.
-  workerInitFailed = true;
-  sharedWorker.terminate();
-  sharedWorker = null;
-  const pendingIds = [...pendingRequests.keys()];
-  for (const requestId of pendingIds) {
-    const pending = pendingRequests.get(requestId);
-    if (!pending) {
-      continue;
-    }
-    pending.reject(new Error("thumbnail-worker-error"));
-    dropPending(requestId, pending.groupId);
-  }
-}
-
-function dropPending(requestId: string, groupId: string): void {
-  pendingRequests.delete(requestId);
-  const ids = requestIdsByGroup.get(groupId);
-  if (!ids) {
-    return;
-  }
-  ids.delete(requestId);
-  if (ids.size === 0) {
-    requestIdsByGroup.delete(groupId);
-  }
-}
-
-function renderThumbnailFallback(request: ThumbnailRenderRequest): ThumbnailRenderSuccess | ThumbnailRenderFailure {
+async function renderThumbnailFallback(request: ThumbnailRenderRequest): Promise<ThumbnailRenderSuccess | ThumbnailRenderFailure> {
   try {
-    const rendered = renderTikzToSvg(request.source, {
+    const rendered = await renderTikzToSvgAsync(request.source, {
       parse: {
         recover: request.parseOptions.recover ?? true,
         activeFigureId: request.parseOptions.activeFigureId,
@@ -175,3 +144,33 @@ function renderThumbnailFallback(request: ThumbnailRenderRequest): ThumbnailRend
   }
 }
 
+function onWorkerError(): void {
+  if (!sharedWorker) {
+    return;
+  }
+  // Fail fast for currently waiting requests. Subsequent requests use fallback path.
+  workerInitFailed = true;
+  sharedWorker.terminate();
+  sharedWorker = null;
+  const pendingIds = [...pendingRequests.keys()];
+  for (const requestId of pendingIds) {
+    const pending = pendingRequests.get(requestId);
+    if (!pending) {
+      continue;
+    }
+    pending.reject(new Error("thumbnail-worker-error"));
+    dropPending(requestId, pending.groupId);
+  }
+}
+
+function dropPending(requestId: string, groupId: string): void {
+  pendingRequests.delete(requestId);
+  const ids = requestIdsByGroup.get(groupId);
+  if (!ids) {
+    return;
+  }
+  ids.delete(requestId);
+  if (ids.size === 0) {
+    requestIdsByGroup.delete(groupId);
+  }
+}

@@ -1,4 +1,4 @@
-import { renderTikzToSvg } from "tikz-editor/render/index";
+import { renderTikzToSvgAsync } from "tikz-editor/render/index";
 import type {
   ThumbnailRenderRequest,
   ThumbnailWorkerRequestMessage,
@@ -49,7 +49,7 @@ async function pumpQueue(): Promise<void> {
 
   busy = true;
   try {
-    const rendered = renderTikzToSvg(next.source, {
+    const rendered = await renderTikzToSvgAsync(next.source, {
       parse: {
         recover: next.parseOptions.recover ?? true,
         activeFigureId: next.parseOptions.activeFigureId,

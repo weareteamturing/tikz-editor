@@ -7,6 +7,7 @@ type GlobalsSnapshot = {
   window: unknown;
   document: unknown;
   mathJax: unknown;
+  self: unknown;
 };
 
 function snapshotGlobals(): GlobalsSnapshot {
@@ -14,11 +15,13 @@ function snapshotGlobals(): GlobalsSnapshot {
     window?: unknown;
     document?: unknown;
     MathJax?: unknown;
+    self?: unknown;
   };
   return {
     window: target.window,
     document: target.document,
-    mathJax: target.MathJax
+    mathJax: target.MathJax,
+    self: target.self
   };
 }
 
@@ -27,6 +30,7 @@ function restoreGlobals(snapshot: GlobalsSnapshot): void {
     window?: unknown;
     document?: unknown;
     MathJax?: unknown;
+    self?: unknown;
   };
 
   if (snapshot.window === undefined) {
@@ -45,6 +49,12 @@ function restoreGlobals(snapshot: GlobalsSnapshot): void {
     delete target.MathJax;
   } else {
     target.MathJax = snapshot.mathJax;
+  }
+
+  if (snapshot.self === undefined) {
+    delete target.self;
+  } else {
+    target.self = snapshot.self;
   }
 }
 
@@ -155,5 +165,24 @@ describe("mathjax node text engine", () => {
     for (const cacheKey of changedKeys ?? []) {
       expect(engine.renderFromCache(cacheKey)).not.toBeNull();
     }
+  });
+
+  it("initializes MathJax runtime in worker-like environments without browser globals", async () => {
+    const target = globalThis as {
+      window?: unknown;
+      document?: unknown;
+      MathJax?: unknown;
+      self?: unknown;
+    };
+
+    delete target.window;
+    delete target.document;
+    target.self = target;
+
+    const { createMathJaxNodeTextEngine } = await import("../packages/core/src/text/mathjax-engine.js");
+    const engine = await createMathJaxNodeTextEngine();
+
+    const issue = engine.validate(String.raw`$x+y$`);
+    expect(issue).toBeNull();
   });
 });

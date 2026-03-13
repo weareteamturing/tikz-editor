@@ -5,6 +5,9 @@ import path from "path";
 export default defineConfig({
   base: "https://tikz.dev/edit/",
   plugins: [react()],
+  worker: {
+    format: "es"
+  },
   resolve: {
     alias: {
       "tikz-editor": path.resolve(__dirname, "../../packages/core/src"),

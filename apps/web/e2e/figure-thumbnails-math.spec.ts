@@ -25,15 +25,13 @@ test("figure thumbnails render math text through worker pipeline", async ({ page
   });
 
   await gotoApp(page);
-  await setSource(page, String.raw`\documentclass{article}
-\begin{document}
-\begin{tikzpicture}
+  await setSource(page, String.raw`\begin{tikzpicture}
   \node at (0,0) {Plain};
 \end{tikzpicture}
 \begin{tikzpicture}
-  \node at (0,0) {$x^2 + y^2$};
+  \node at (0,0) {$x$};
 \end{tikzpicture}
-\end{document}`);
+`);
 
   await expect.poll(async () => readFigureCount(page)).toBe(2);
   await expect(page.getByTestId("figure-navigator")).toBeVisible();

@@ -100,6 +100,7 @@ const FONT_SWITCH_RULES: FontSwitchRule[] = [
 
 let sharedEnginePromise: Promise<NodeTextEngine> | null = null;
 let browserRuntimePromise: Promise<MathJaxRuntime> | null = null;
+let moduleWorkerRuntimePromise: Promise<MathJaxRuntime> | null = null;
 
 export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
   if (!sharedEnginePromise) {
@@ -114,7 +115,11 @@ export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
 }
 
 async function initializeEngine(): Promise<NodeTextEngine> {
-  const runtime = hasBrowserDomGlobals() ? await initializeBrowserRuntime() : await initializeNodeRuntime();
+  const runtime = hasBrowserDomGlobals()
+    ? await initializeBrowserRuntime()
+    : hasWorkerRuntimeGlobals()
+      ? await initializeWorkerRuntime()
+      : await initializeNodeRuntime();
   await preloadMathJaxWarmupExpressions(runtime);
 
   const cache = new Map<string, CachedRenderEntry>();
@@ -228,6 +233,91 @@ async function initializeNodeRuntime(): Promise<MathJaxRuntime> {
   return entrypoint.init(createMathJaxConfig());
 }
 
+async function initializeWorkerRuntime(): Promise<MathJaxRuntime> {
+  if (!moduleWorkerRuntimePromise) {
+    moduleWorkerRuntimePromise = initializeWorkerRuntimeOnce();
+  }
+  try {
+    return await moduleWorkerRuntimePromise;
+  } catch (error) {
+    moduleWorkerRuntimePromise = null;
+    throw error;
+  }
+}
+
+async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
+  const [
+    { mathjax },
+    { TeX },
+    { SVG },
+    { liteAdaptor },
+    { RegisterHTMLHandler }
+  ] = await Promise.all([
+    import("@mathjax/src/js/mathjax.js"),
+    import("@mathjax/src/js/input/tex.js"),
+    import("@mathjax/src/js/output/svg.js"),
+    import("@mathjax/src/js/adaptors/liteAdaptor.js"),
+    import("@mathjax/src/js/handlers/html.js"),
+    import("@mathjax/src/js/util/asyncLoad/esm.js"),
+    import("@mathjax/src/js/input/tex/base/BaseConfiguration.js"),
+    import("@mathjax/src/js/input/tex/ams/AmsConfiguration.js"),
+    import("@mathjax/src/js/input/tex/newcommand/NewcommandConfiguration.js"),
+    import("@mathjax/src/js/input/tex/color/ColorConfiguration.js"),
+    import("@mathjax/src/js/input/tex/textmacros/TextMacrosConfiguration.js")
+  ]);
+
+  const adaptor = liteAdaptor();
+  RegisterHTMLHandler(adaptor);
+
+  const tex = new TeX({
+    packages: ["base", "ams", "newcommand", "color", "textmacros"],
+    formatError: (_jax: unknown, err: Error) => {
+      throw err;
+    }
+  });
+  const svg = new SVG({
+    fontCache: "none",
+    linebreaks: {
+      inline: false
+    }
+  });
+  const document = mathjax.document("", {
+    InputJax: tex,
+    OutputJax: svg
+  });
+
+  const tex2svg = (input: string, options: { display: boolean }): unknown => {
+    return document.convert(input, {
+      display: options.display
+    });
+  };
+
+  const runtime: MathJaxRuntime = {
+    tex2svg,
+    tex2svgPromise: async (input, options) => tex2svg(input, options),
+    startup: {
+      adaptor: {
+        firstChild(node: unknown): unknown {
+          return adaptor.firstChild(node as never);
+        },
+        getAttribute(node: unknown, name: string): string | null {
+          const value = adaptor.getAttribute(node as never, name);
+          return value == null ? null : String(value);
+        },
+        innerHTML(node: unknown): string {
+          return adaptor.innerHTML(node as never);
+        }
+      }
+    }
+  };
+
+  const warmup = tex2svg("\\mbox{0}", { display: false });
+  if (!runtime.startup?.adaptor?.firstChild(warmup)) {
+    throw new Error("MathJax worker runtime did not produce SVG output.");
+  }
+  return runtime;
+}
+
 async function initializeBrowserRuntime(): Promise<MathJaxRuntime> {
   if (!browserRuntimePromise) {
     browserRuntimePromise = initializeBrowserRuntimeOnce();
@@ -260,6 +350,19 @@ async function initializeBrowserRuntimeOnce(): Promise<MathJaxRuntime> {
 function hasBrowserDomGlobals(): boolean {
   const candidate = globalThis as { window?: unknown; document?: unknown };
   return candidate.window != null && candidate.document != null;
+}
+
+function hasWorkerImportScripts(): boolean {
+  const candidate = globalThis as { importScripts?: unknown };
+  return typeof candidate.importScripts === "function";
+}
+
+function hasWorkerRuntimeGlobals(): boolean {
+  if (hasWorkerImportScripts()) {
+    return true;
+  }
+  const candidate = globalThis as { window?: unknown; document?: unknown; self?: unknown };
+  return candidate.window == null && candidate.document == null && candidate.self === globalThis;
 }
 
 function createMathJaxConfig(): Record<string, unknown> {
