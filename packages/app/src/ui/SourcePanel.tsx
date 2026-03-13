@@ -881,16 +881,36 @@ export function SourcePanel() {
 
       {diagnostics.length > 0 && (
         <div className={css.diagnostics}>
-          {diagnostics.slice(0, 5).map((d, i) => (
-            <div key={i} className={`${css.diagnostic} ${d.severity === "error" ? css.error : css.warning}`}>
-              <code>{d.code ?? d.severity}</code>
-              <span>{d.message}</span>
-            </div>
-          ))}
+          {diagnostics.slice(0, 5).map((d, i) => {
+            const line = snapshot.parseResult
+              ? snapshot.parseResult.source.slice(0, d.from).split("\n").length
+              : null;
+            return (
+              <div
+                key={i}
+                className={`${css.diagnostic} ${d.severity === "error" ? css.error : css.warning}`}
+                onClick={() => {
+                  const view = viewRef.current;
+                  if (!view) return;
+                  const pos = Math.min(d.from, view.state.doc.length);
+                  dispatchSelectionWithStableHorizontalScroll(view, {
+                    selection: { anchor: pos },
+                    scrollIntoView: true,
+                    annotations: [Transaction.addToHistory.of(false)]
+                  });
+                  view.focus();
+                }}
+              >
+                <span className={css.diagnosticIcon}>{d.severity === "error" ? "\u2715" : "\u26A0"}</span>
+                <span className={css.diagnosticMessage}>{d.message}</span>
+                {line != null && <span className={css.diagnosticLocation}>Ln {line}</span>}
+              </div>
+            );
+          })}
           {diagnostics.length > 5 && (
-            <div className={css.diagnostic}>
-              <span />
-              <span>…{diagnostics.length - 5} more</span>
+            <div className={`${css.diagnostic} ${css.diagnosticMore}`}>
+              <span className={css.diagnosticIcon} />
+              <span className={css.diagnosticMessage}>…{diagnostics.length - 5} more</span>
             </div>
           )}
         </div>

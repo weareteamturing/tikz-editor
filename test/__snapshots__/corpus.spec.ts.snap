@@ -85,6 +85,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "count": 2484,
     },
     {
+      "code": "missing-semicolon",
+      "count": 1128,
+    },
+    {
       "code": "missing-option-close",
       "count": 143,
     },

@@ -32,7 +32,7 @@ type FigureNodeEntry = {
 
 export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}): CstToAstResult {
   const diagnostics: Diagnostic[] = [];
-  collectParseErrorDiagnostics(tree.topNode, diagnostics);
+  collectParseErrorDiagnostics(tree.topNode, source, diagnostics);
 
   const figureEntries = collectFigureNodes(tree, source);
   const activeFigureEntry = resolveActiveFigureEntry(figureEntries, opts.activeFigureId);

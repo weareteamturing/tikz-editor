@@ -229,19 +229,54 @@
 .diagnostics {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 4px 8px;
+  padding: 2px 0;
   background: var(--bg-diagnostics);
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 120px;
 }
 
 .diagnostic {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px;
-  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  grid-template-columns: 18px 1fr auto;
+  align-items: baseline;
+  gap: 0 4px;
+  padding: 1px 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
   font-family: var(--font-mono);
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.diagnostic:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.diagnosticMore {
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.diagnosticMore:hover {
+  background: none;
+}
+
+.diagnosticIcon {
+  text-align: center;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.diagnosticMessage {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.diagnosticLocation {
+  color: var(--text-muted);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  white-space: nowrap;
 }
 
 .error {

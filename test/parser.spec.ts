@@ -494,6 +494,97 @@ describe("parseTikz", () => {
     expect(result.diagnostics.length).toBeGreaterThan(0);
   });
 
+  describe("context-aware parse error messages", () => {
+    it("reports error in path statement with bad syntax", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- ] ;
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const errors = result.diagnostics.filter((d) => d.code === "parse-error");
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((e) => e.message.includes("path") || e.message.includes("\\draw"))).toBe(true);
+    });
+
+    it("reports error in option list", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \draw[thick, } (0,0) -- (1,1);
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const errors = result.diagnostics.filter((d) => d.code === "parse-error");
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((e) => e.message.includes("option list"))).toBe(true);
+    });
+
+    it("reports error in coordinate", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,];
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const errors = result.diagnostics.filter((d) => d.code === "parse-error");
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((e) => e.message.includes("coordinate") || e.message.includes("path"))).toBe(true);
+    });
+
+    it("reports error in \\foreach statement", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {1,2,3
+    \draw (\x,0) -- (\x,1);
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const errors = result.diagnostics.filter((d) => d.code === "parse-error");
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((e) => e.message.includes("foreach") || e.message.includes("braces"))).toBe(true);
+    });
+
+    it("reports error in \\def statement", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \def\mycolor
+  \draw (0,0) -- (1,1);
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const errors = result.diagnostics.filter((d) => d.code === "parse-error");
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors.some((e) => e.message.includes("\\def"))).toBe(true);
+    });
+
+    it("warns about missing semicolon when statement has no trailing semicolon", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,1)
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const warnings = result.diagnostics.filter((d) => d.code === "missing-semicolon");
+      expect(warnings.length).toBe(1);
+      expect(warnings[0]!.message).toContain("semicolon");
+    });
+
+    it("warns about missing semicolon when parser merges two statements", () => {
+      const source = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1.5, -0.5) {B}
+  \node[draw] (C) at (0, 1.5) {C};
+  \draw (A) edge (B)
+        (B) edge (C)
+        (C) edge (A);
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      const semicolonWarnings = result.diagnostics.filter((d) => d.code === "missing-semicolon");
+      expect(semicolonWarnings.length).toBeGreaterThan(0);
+      expect(semicolonWarnings.some((w) => w.message.includes("\\node"))).toBe(true);
+    });
+
+    it("reports unexpected token at top level", () => {
+      const source = String.raw`\begin{tikzpicture}
+  hello world
+\end{tikzpicture}`;
+      const result = parseTikz(source);
+      // Should not produce generic "Syntax error while parsing TikZ input." for any error
+      const genericErrors = result.diagnostics.filter(
+        (d) => d.code === "parse-error" && d.message === "Syntax error while parsing TikZ input."
+      );
+      expect(genericErrors).toHaveLength(0);
+    });
+  });
+
   it("accepts named and polar coordinates without malformed warnings", () => {
     const source = String.raw`\begin{tikzpicture}
       \draw (origin) -- (30:2cm);
