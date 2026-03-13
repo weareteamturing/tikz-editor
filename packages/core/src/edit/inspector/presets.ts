@@ -375,6 +375,10 @@ export const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
 export const NODE_INNER_SEP_CLEAR_KEYS = ["inner xsep", "inner ysep"] as const;
 export const NODE_INNER_SEP_CONFLICT_NOTE =
   "inner xsep/inner ysep detected. Editing Inner sep will replace axis-specific padding.";
+export const NODE_MINIMUM_DIMENSION_DEFAULT = parseLength("1pt", "pt") ?? 1;
+export const NODE_MINIMUM_DIMENSION_CLEAR_KEYS = ["minimum size"] as const;
+export const NODE_MINIMUM_DIMENSION_CONFLICT_NOTE =
+  "minimum size detected. Editing Minimum width/height will replace shared sizing with axis-specific values.";
 export const NODE_FONT_KEYS = ["font", "node font"] as const;
 export const NODE_FONT_CUSTOM_NOTE =
   "Custom font command detected. Editing in the toolbar will replace unsupported font tokens.";

@@ -10,6 +10,7 @@ import {
   buildFillShadingSetPropertyMutations,
   buildNodeFontSetPropertyMutation,
   buildNodeInnerSepSetPropertyMutation,
+  buildNodeMinimumDimensionSetPropertyMutations,
   buildNodeShapeSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
@@ -1685,7 +1686,7 @@ describe("getInspectorDescriptor", () => {
     expect(disabled.clearKeys).not.toContain("sharp corners");
   });
 
-  it("shows a node section for node-backed text with shape, inner sep, font, and text color controls", () => {
+  it("shows a node section for node-backed text with shape, padding, minimum size, font, and text color controls", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[circle,inner sep=3pt,font=\Large\bfseries\sffamily] at (0,0) {A};
 \end{tikzpicture}`;
@@ -1711,8 +1712,18 @@ describe("getInspectorDescriptor", () => {
     expect(nodeSection.properties.map((property) => property.kind)).toEqual([
       "nodeShape",
       "length",
+      "length",
+      "length",
       "nodeFont",
       "color"
+    ]);
+    expect(nodeSection.properties.map((property) => property.id)).toEqual([
+      "node-shape",
+      "node-inner-sep",
+      "node-minimum-width",
+      "node-minimum-height",
+      "node-font",
+      "node-text-color"
     ]);
   });
 
@@ -1891,6 +1902,91 @@ describe("getInspectorDescriptor", () => {
     expect(mutation.clearKeys).toContain("inner ysep");
   });
 
+  it("resolves node minimum width/height from minimum size and replaces shared sizing on edit", () => {
+    const defaultSource = String.raw`\begin{tikzpicture}
+  \node[rectangle] at (0,0) {A};
+\end{tikzpicture}`;
+    const sharedSource = String.raw`\begin{tikzpicture}
+  \node[minimum size=12pt] at (0,0) {A};
+\end{tikzpicture}`;
+    const mixedSource = String.raw`\begin{tikzpicture}
+  \node[minimum width=4pt,minimum size=10pt] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const defaultElement = renderTikzToSvg(defaultSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const sharedElement = renderTikzToSvg(sharedSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const mixedElement = renderTikzToSvg(mixedSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(defaultElement).toBeDefined();
+    expect(sharedElement).toBeDefined();
+    expect(mixedElement).toBeDefined();
+    if (!defaultElement || !sharedElement || !mixedElement) {
+      throw new Error("Expected text elements");
+    }
+
+    const defaultMinimumWidth = getNodeLengthProperty(getInspectorDescriptor(defaultElement, { source: defaultSource }), "node-minimum-width");
+    const defaultMinimumHeight = getNodeLengthProperty(getInspectorDescriptor(defaultElement, { source: defaultSource }), "node-minimum-height");
+    expect(defaultMinimumWidth.value).toBeCloseTo(1, 6);
+    expect(defaultMinimumHeight.value).toBeCloseTo(1, 6);
+
+    const sharedMinimumWidth = getNodeLengthProperty(getInspectorDescriptor(sharedElement, { source: sharedSource }), "node-minimum-width");
+    const sharedMinimumHeight = getNodeLengthProperty(getInspectorDescriptor(sharedElement, { source: sharedSource }), "node-minimum-height");
+    expect(sharedMinimumWidth.value).toBeCloseTo(12, 6);
+    expect(sharedMinimumHeight.value).toBeCloseTo(12, 6);
+    expect(sharedMinimumWidth.note).toContain("minimum size detected");
+    expect(sharedMinimumHeight.note).toContain("minimum size detected");
+
+    const mixedMinimumWidth = getNodeLengthProperty(getInspectorDescriptor(mixedElement, { source: mixedSource }), "node-minimum-width");
+    const mixedMinimumHeight = getNodeLengthProperty(getInspectorDescriptor(mixedElement, { source: mixedSource }), "node-minimum-height");
+    expect(mixedMinimumWidth.value).toBeCloseTo(10, 6);
+    expect(mixedMinimumHeight.value).toBeCloseTo(10, 6);
+
+    const mutationSet = buildNodeMinimumDimensionSetPropertyMutations(
+      { minimumWidth: 12, minimumHeight: 12 },
+      "minimum width",
+      14
+    );
+    expect(mutationSet).toEqual([
+      {
+        key: "minimum width",
+        value: "14pt",
+        clearKeys: ["minimum size"]
+      },
+      {
+        key: "minimum height",
+        value: "12pt",
+        clearKeys: ["minimum size"]
+      }
+    ]);
+
+    const update = applyEditAction(sharedSource, [], {
+      kind: "setProperty",
+      elementId: sharedMinimumWidth.write.elementId,
+      level: sharedMinimumWidth.write.level,
+      key: mutationSet[0]!.key,
+      value: mutationSet[0]!.value,
+      clearKeys: mutationSet[0]!.clearKeys
+    });
+    expect(update.kind).toBe("success");
+    if (update.kind !== "success") {
+      throw new Error("Expected successful minimum size mutation");
+    }
+    const update2 = applyEditAction(update.newSource, [], {
+      kind: "setProperty",
+      elementId: sharedMinimumWidth.write.elementId,
+      level: sharedMinimumWidth.write.level,
+      key: mutationSet[1]!.key,
+      value: mutationSet[1]!.value,
+      clearKeys: mutationSet[1]!.clearKeys
+    });
+    expect(update2.kind).toBe("success");
+    if (update2.kind !== "success") {
+      throw new Error("Expected successful companion minimum mutation");
+    }
+    expect(update2.newSource).toContain("minimum width=14pt");
+    expect(update2.newSource).toContain("minimum height=12pt");
+    expect(update2.newSource).not.toContain("minimum size=");
+  });
+
   it("resolves node font key preference and serializes deterministic font mutations", () => {
     const fontKeySource = String.raw`\begin{tikzpicture}
   \node[circle,font=\small\bfseries] at (0,0) {A};
@@ -2049,16 +2145,23 @@ function getNodeShapeProperty(descriptor: ReturnType<typeof getInspectorDescript
   return shape;
 }
 
-function getNodeInnerSepProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+function getNodeLengthProperty(
+  descriptor: ReturnType<typeof getInspectorDescriptor>,
+  propertyId: "node-inner-sep" | "node-minimum-width" | "node-minimum-height"
+) {
   const nodeSection = descriptor.sections.find((section) => section.id === "node");
   if (!nodeSection) {
     throw new Error("Expected node section");
   }
-  const innerSep = nodeSection.properties.find((property) => property.kind === "length");
-  if (!innerSep || innerSep.kind !== "length") {
-    throw new Error("Expected node inner sep property");
+  const property = nodeSection.properties.find((entry) => entry.id === propertyId);
+  if (!property || property.kind !== "length") {
+    throw new Error(`Expected node length property for ${propertyId}`);
   }
-  return innerSep;
+  return property;
+}
+
+function getNodeInnerSepProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
+  return getNodeLengthProperty(descriptor, "node-inner-sep");
 }
 
 function getNodeFontProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {

@@ -5,7 +5,7 @@ import {
   type MultiInspectorSection,
   shouldAutoShowFillAdvancedOptions,
   shouldAutoShowStrokeMoreOptions,
-  shouldRenderCompactNumberPair,
+  shouldRenderCompactPair,
   isFillAdvancedPropertyId,
   isStrokeMoreOptionsPropertyId,
   type InspectorPropertyProvenanceMap
@@ -26,6 +26,12 @@ export function InspectorSingleSection(props: {
     leftProvenance?: any,
     rightProvenance?: any
   ) => JSX.Element;
+  renderSingleLengthPair: (
+    left: Extract<InspectorProperty, { kind: "length" }>,
+    right: Extract<InspectorProperty, { kind: "length" }>,
+    leftProvenance?: any,
+    rightProvenance?: any
+  ) => JSX.Element;
   renderProperty: (property: InspectorProperty) => JSX.Element;
   onEnableGradientFillSingle: () => void;
   onEnablePatternFillSingle: () => void;
@@ -39,6 +45,7 @@ export function InspectorSingleSection(props: {
     setFillAdvancedOptionsOpen,
     renderedSinglePropertyProvenance,
     renderSingleNumberPair,
+    renderSingleLengthPair,
     renderProperty,
     onEnableGradientFillSingle,
     onEnablePatternFillSingle,
@@ -81,19 +88,31 @@ export function InspectorSingleSection(props: {
       </SidePanel.SectionHeader>
       <SidePanel.SectionBody>
         {visibleProperties.map((property, index) => {
-          if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
+          if (index > 0 && shouldRenderCompactPair(visibleProperties[index - 1], property)) {
             return null;
           }
           const next = visibleProperties[index + 1];
-          if (shouldRenderCompactNumberPair(property, next)) {
-            const left = property as Extract<InspectorProperty, { kind: "number" }>;
-            const right = next as Extract<InspectorProperty, { kind: "number" }>;
-            return renderSingleNumberPair(
-              left,
-              right,
-              renderedSinglePropertyProvenance[left.id] ?? null,
-              renderedSinglePropertyProvenance[right.id] ?? null
-            );
+          if (shouldRenderCompactPair(property, next)) {
+            if (property.kind === "number" && next?.kind === "number") {
+              const left = property as Extract<InspectorProperty, { kind: "number" }>;
+              const right = next as Extract<InspectorProperty, { kind: "number" }>;
+              return renderSingleNumberPair(
+                left,
+                right,
+                renderedSinglePropertyProvenance[left.id] ?? null,
+                renderedSinglePropertyProvenance[right.id] ?? null
+              );
+            }
+            if (property.kind === "length" && next?.kind === "length") {
+              const left = property as Extract<InspectorProperty, { kind: "length" }>;
+              const right = next as Extract<InspectorProperty, { kind: "length" }>;
+              return renderSingleLengthPair(
+                left,
+                right,
+                renderedSinglePropertyProvenance[left.id] ?? null,
+                renderedSinglePropertyProvenance[right.id] ?? null
+              );
+            }
           }
           return renderProperty(property);
         })}
@@ -161,6 +180,12 @@ export function InspectorMultiSection(props: {
     leftProvenance?: any,
     rightProvenance?: any
   ) => JSX.Element;
+  renderMultiLengthPair: (
+    left: Extract<MultiInspectorProperty, { kind: "length" }>,
+    right: Extract<MultiInspectorProperty, { kind: "length" }>,
+    leftProvenance?: any,
+    rightProvenance?: any
+  ) => JSX.Element;
   renderMultiProperty: (property: MultiInspectorProperty) => JSX.Element;
   onEnableGradientFillMulti: () => void;
   onEnablePatternFillMulti: () => void;
@@ -174,6 +199,7 @@ export function InspectorMultiSection(props: {
     setFillAdvancedOptionsOpen,
     renderedMultiPropertyProvenance,
     renderMultiNumberPair,
+    renderMultiLengthPair,
     renderMultiProperty,
     onEnableGradientFillMulti,
     onEnablePatternFillMulti,
@@ -216,19 +242,31 @@ export function InspectorMultiSection(props: {
       </SidePanel.SectionHeader>
       <SidePanel.SectionBody>
         {visibleProperties.map((property, index) => {
-          if (index > 0 && shouldRenderCompactNumberPair(visibleProperties[index - 1], property)) {
+          if (index > 0 && shouldRenderCompactPair(visibleProperties[index - 1], property)) {
             return null;
           }
           const next = visibleProperties[index + 1];
-          if (shouldRenderCompactNumberPair(property, next)) {
-            const left = property as Extract<MultiInspectorProperty, { kind: "number" }>;
-            const right = next as Extract<MultiInspectorProperty, { kind: "number" }>;
-            return renderMultiNumberPair(
-              left,
-              right,
-              renderedMultiPropertyProvenance[left.id] ?? null,
-              renderedMultiPropertyProvenance[right.id] ?? null
-            );
+          if (shouldRenderCompactPair(property, next)) {
+            if (property.kind === "number" && next?.kind === "number") {
+              const left = property as Extract<MultiInspectorProperty, { kind: "number" }>;
+              const right = next as Extract<MultiInspectorProperty, { kind: "number" }>;
+              return renderMultiNumberPair(
+                left,
+                right,
+                renderedMultiPropertyProvenance[left.id] ?? null,
+                renderedMultiPropertyProvenance[right.id] ?? null
+              );
+            }
+            if (property.kind === "length" && next?.kind === "length") {
+              const left = property as Extract<MultiInspectorProperty, { kind: "length" }>;
+              const right = next as Extract<MultiInspectorProperty, { kind: "length" }>;
+              return renderMultiLengthPair(
+                left,
+                right,
+                renderedMultiPropertyProvenance[left.id] ?? null,
+                renderedMultiPropertyProvenance[right.id] ?? null
+              );
+            }
           }
           return renderMultiProperty(property);
         })}

@@ -63,6 +63,9 @@ import {
   NODE_INNER_SEP_CLEAR_KEYS,
   NODE_INNER_SEP_CONFLICT_NOTE,
   NODE_INNER_SEP_DEFAULT,
+  NODE_MINIMUM_DIMENSION_CLEAR_KEYS,
+  NODE_MINIMUM_DIMENSION_CONFLICT_NOTE,
+  NODE_MINIMUM_DIMENSION_DEFAULT,
   NODE_SHAPE_CUSTOM_NOTE,
   NODE_SHAPE_KEY,
   NODE_SHAPE_KNOWN_KEYS,
@@ -258,6 +261,19 @@ export type NodeInnerSepSetPropertyMutation = {
   clearKeys: string[];
 };
 
+export type NodeMinimumDimensionKey = "minimum width" | "minimum height";
+
+export type NodeMinimumDimensionsMutationContext = {
+  minimumWidth: number;
+  minimumHeight: number;
+};
+
+export type NodeMinimumDimensionSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
 export type NodeFontMutationContext = {
   key: "font" | "node font";
   clearKeys: string[];
@@ -334,6 +350,7 @@ export type InspectorProperty =
       unit: "pt";
       write: SetPropertyWriteTarget;
       note?: string;
+      minimumDimensionsContext?: NodeMinimumDimensionsMutationContext;
       readOnlyReason?: string;
     }
   | {
@@ -734,6 +751,53 @@ export function buildNodeInnerSepSetPropertyMutation(value: number): NodeInnerSe
     value: `${formatInspectorLength(safe)}pt`,
     clearKeys: uniqueStrings([...NODE_INNER_SEP_CLEAR_KEYS])
   };
+}
+
+export function buildNodeMinimumDimensionSetPropertyMutations(
+  context: NodeMinimumDimensionsMutationContext,
+  editedKey: NodeMinimumDimensionKey,
+  nextValue: number
+): NodeMinimumDimensionSetPropertyMutation[] {
+  if (!Number.isFinite(nextValue)) {
+    return [];
+  }
+
+  const safeWidth = Number.isFinite(context.minimumWidth) && context.minimumWidth >= 0
+    ? context.minimumWidth
+    : NODE_MINIMUM_DIMENSION_DEFAULT;
+  const safeHeight = Number.isFinite(context.minimumHeight) && context.minimumHeight >= 0
+    ? context.minimumHeight
+    : NODE_MINIMUM_DIMENSION_DEFAULT;
+  const safeNextValue = Math.max(0, normalizeTinyNumber(nextValue));
+  const nextDimensions = {
+    minimumWidth: safeWidth,
+    minimumHeight: safeHeight
+  };
+  if (editedKey === "minimum width") {
+    nextDimensions.minimumWidth = safeNextValue;
+  } else {
+    nextDimensions.minimumHeight = safeNextValue;
+  }
+
+  const companionKey: NodeMinimumDimensionKey = editedKey === "minimum width" ? "minimum height" : "minimum width";
+  const companionValue = companionKey === "minimum width" ? nextDimensions.minimumWidth : nextDimensions.minimumHeight;
+  const mutations: NodeMinimumDimensionSetPropertyMutation[] = [
+    {
+      key: editedKey,
+      value: `${formatInspectorLength(safeNextValue)}pt`,
+      clearKeys: uniqueStrings([...NODE_MINIMUM_DIMENSION_CLEAR_KEYS])
+    }
+  ];
+
+  if (Math.abs(companionValue - NODE_MINIMUM_DIMENSION_DEFAULT) > 1e-6) {
+    mutations.push({
+      key: companionKey,
+      value: `${formatInspectorLength(companionValue)}pt`,
+      clearKeys: uniqueStrings([...NODE_MINIMUM_DIMENSION_CLEAR_KEYS])
+    });
+  }
+
+  return mutations;
 }
 
 export function buildNodeFontSetPropertyMutation(
@@ -1199,6 +1263,34 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           unit: "pt",
           note: nodeInspectorState.innerSepNote,
           write: makeSetPropertyWriteTarget(inlineTarget, "inner sep")
+        },
+        {
+          kind: "length",
+          id: "node-minimum-width",
+          label: "Minimum width",
+          value: nodeInspectorState.minimumWidth,
+          step: 0.1,
+          unit: "pt",
+          note: nodeInspectorState.minimumWidthNote,
+          minimumDimensionsContext: {
+            minimumWidth: nodeInspectorState.minimumWidth,
+            minimumHeight: nodeInspectorState.minimumHeight
+          },
+          write: makeSetPropertyWriteTarget(inlineTarget, "minimum width")
+        },
+        {
+          kind: "length",
+          id: "node-minimum-height",
+          label: "Minimum height",
+          value: nodeInspectorState.minimumHeight,
+          step: 0.1,
+          unit: "pt",
+          note: nodeInspectorState.minimumHeightNote,
+          minimumDimensionsContext: {
+            minimumWidth: nodeInspectorState.minimumWidth,
+            minimumHeight: nodeInspectorState.minimumHeight
+          },
+          write: makeSetPropertyWriteTarget(inlineTarget, "minimum height")
         },
         {
           kind: "nodeFont",
@@ -2738,6 +2830,10 @@ function resolveNodeInspectorState(
   shapeNote?: string;
   innerSep: number;
   innerSepNote?: string;
+  minimumWidth: number;
+  minimumWidthNote?: string;
+  minimumHeight: number;
+  minimumHeightNote?: string;
   font: {
     family: NodeFontFamilyId;
     weight: "normal" | "bold";
@@ -2757,6 +2853,10 @@ function resolveNodeInspectorState(
     shapeNote?: string;
     innerSep: number;
     innerSepNote?: string;
+    minimumWidth: number;
+    minimumWidthNote?: string;
+    minimumHeight: number;
+    minimumHeightNote?: string;
     font: {
       family: NodeFontFamilyId;
       weight: "normal" | "bold";
@@ -2769,6 +2869,8 @@ function resolveNodeInspectorState(
   } = {
     shape: fallbackShape,
     innerSep: NODE_INNER_SEP_DEFAULT,
+    minimumWidth: NODE_MINIMUM_DIMENSION_DEFAULT,
+    minimumHeight: NODE_MINIMUM_DIMENSION_DEFAULT,
     font: {
       family: style.fontFamily,
       weight: style.fontWeight,
@@ -2796,6 +2898,9 @@ function resolveNodeInspectorState(
   let innerXSep = NODE_INNER_SEP_DEFAULT;
   let innerYSep = NODE_INNER_SEP_DEFAULT;
   let sawAxisSpecificInnerSep = false;
+  let minimumWidth = NODE_MINIMUM_DIMENSION_DEFAULT;
+  let minimumHeight = NODE_MINIMUM_DIMENSION_DEFAULT;
+  let minimumSize: number | null = null;
   let selectedFontKey: "font" | "node font" | null = null;
   let selectedFontRaw: string | null = null;
 
@@ -2842,6 +2947,27 @@ function resolveNodeInspectorState(
       }
       continue;
     }
+    if (key === "minimum width") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumWidth = Math.max(0, parsed);
+      }
+      continue;
+    }
+    if (key === "minimum height") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumHeight = Math.max(0, parsed);
+      }
+      continue;
+    }
+    if (key === "minimum size") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumSize = Math.max(0, parsed);
+      }
+      continue;
+    }
     if (key === "font" || key === "node font") {
       selectedFontKey = key;
       selectedFontRaw = entry.valueRaw;
@@ -2861,6 +2987,12 @@ function resolveNodeInspectorState(
   state.innerSep = (innerXSep + innerYSep) / 2;
   if (sawAxisSpecificInnerSep || Math.abs(innerXSep - innerYSep) > 1e-6) {
     state.innerSepNote = NODE_INNER_SEP_CONFLICT_NOTE;
+  }
+  state.minimumWidth = Math.max(minimumWidth, minimumSize ?? minimumWidth);
+  state.minimumHeight = Math.max(minimumHeight, minimumSize ?? minimumHeight);
+  if (minimumSize != null) {
+    state.minimumWidthNote = NODE_MINIMUM_DIMENSION_CONFLICT_NOTE;
+    state.minimumHeightNote = NODE_MINIMUM_DIMENSION_CONFLICT_NOTE;
   }
 
   let fallbackCustomSizePt = fallbackFontSize;

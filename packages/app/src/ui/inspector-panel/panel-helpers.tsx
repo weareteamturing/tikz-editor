@@ -17,6 +17,7 @@ import {
   type LineJoinPresetId,
   type NodeFontFamilyId,
   type NodeFontMutationContext,
+  type NodeMinimumDimensionsMutationContext,
   type NodeFontSizePresetId,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
@@ -54,6 +55,7 @@ export type MultiInspectorLengthProperty = {
   unit: "pt";
   writes: SetPropertyWriteTarget[];
   note?: string;
+  minimumDimensionsContexts?: NodeMinimumDimensionsMutationContext[];
   readOnlyReason?: string;
 };
 
@@ -363,10 +365,11 @@ export const FILL_ADVANCED_PROPERTY_IDS = new Set([
   "fill-pattern-radius",
   "fill-pattern-points"
 ]);
-export const COMPACT_NUMBER_PAIR_IDS = new Set([
+export const COMPACT_PAIR_IDS = new Set([
   "xshift:yshift",
   "xscale:yscale",
-  "grid-xstep:grid-ystep"
+  "grid-xstep:grid-ystep",
+  "node-minimum-width:node-minimum-height"
 ]);
 export type LineWidthDropdownValue = string;
 export type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
@@ -431,17 +434,19 @@ export function shouldAutoShowFillAdvancedOptions(property: InspectorProperty | 
   return false;
 }
 
-export function shouldRenderCompactNumberPair(
+export function shouldRenderCompactPair(
   left: InspectorProperty | MultiInspectorProperty | undefined,
   right: InspectorProperty | MultiInspectorProperty | undefined
 ): boolean {
   if (!left || !right) {
     return false;
   }
-  if (left.kind !== "number" || right.kind !== "number") {
+  const isNumberPair = left.kind === "number" && right.kind === "number";
+  const isLengthPair = left.kind === "length" && right.kind === "length";
+  if (!isNumberPair && !isLengthPair) {
     return false;
   }
-  return COMPACT_NUMBER_PAIR_IDS.has(`${left.id}:${right.id}`);
+  return COMPACT_PAIR_IDS.has(`${left.id}:${right.id}`);
 }
 
 export function buildMultiInspectorModel(descriptors: InspectorDescriptor[], selectionCount: number): MultiInspectorModel {
@@ -659,6 +664,9 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
       unit: base.unit,
       writes,
       note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
+      minimumDimensionsContexts: lengthProperties.map((property) => property.minimumDimensionsContext).every((context) => context != null)
+        ? (lengthProperties.map((property) => property.minimumDimensionsContext as NodeMinimumDimensionsMutationContext))
+        : undefined,
       readOnlyReason: deriveReadOnlyReason(writes)
     };
   }

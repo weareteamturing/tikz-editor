@@ -13,6 +13,7 @@ import {
   buildFillModeSetPropertyMutations,
   buildNodeFontSetPropertyMutation,
   buildNodeInnerSepSetPropertyMutation,
+  buildNodeMinimumDimensionSetPropertyMutations,
   buildNodeShapeSetPropertyMutation,
   NODE_INNER_SEP_DEFAULT,
   buildFillPatternOptionSetPropertyMutation,
@@ -41,6 +42,7 @@ import {
   type NodeFontFamilyId,
   type NodeFontMutationContext,
   type NodeFontSizePresetId,
+  type NodeMinimumDimensionKey,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
   type SetPropertyWriteTarget
@@ -436,6 +438,38 @@ export function InspectorPanel() {
     value: number,
     options: NumberChangeOptions = {}
   ): void {
+    if (
+      (property.id === "node-minimum-width" || property.id === "node-minimum-height")
+      && property.minimumDimensionsContext
+    ) {
+      const editedKey: NodeMinimumDimensionKey =
+        property.id === "node-minimum-width" ? "minimum width" : "minimum height";
+      const mutations = buildNodeMinimumDimensionSetPropertyMutations(
+        property.minimumDimensionsContext,
+        editedKey,
+        value
+      );
+      if (mutations.length === 0) {
+        return;
+      }
+      const mergeKey = options.recordInHistory === false ? undefined : `single-set:${Date.now().toString(36)}`;
+      for (const mutation of mutations) {
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          recordInHistory: options.recordInHistory,
+          action: {
+            kind: "setProperty",
+            elementId: property.write.elementId,
+            level: property.write.level,
+            key: mutation.key,
+            value: mutation.value,
+            clearKeys: mutation.clearKeys
+          }
+        });
+      }
+      return;
+    }
     applySetProperty(property.write, `${formatNumber(value)}pt`, {
       recordInHistory: options.recordInHistory
     });
@@ -446,6 +480,47 @@ export function InspectorPanel() {
     value: number,
     options: NumberChangeOptions = {}
   ): void {
+    if (
+      (property.id === "node-minimum-width" || property.id === "node-minimum-height")
+      && property.minimumDimensionsContexts
+    ) {
+      const editedKey: NodeMinimumDimensionKey =
+        property.id === "node-minimum-width" ? "minimum width" : "minimum height";
+      const writableEntries = property.writes
+        .map((write, index) => {
+          const context = property.minimumDimensionsContexts?.[index];
+          return context ? { write, context } : null;
+        })
+        .filter(
+          (
+            entry
+          ): entry is { write: SetPropertyWriteTarget; context: NonNullable<(typeof property.minimumDimensionsContexts)[number]> } =>
+            entry != null && entry.write.writable && entry.write.elementId.length > 0
+        );
+      if (writableEntries.length === 0) {
+        return;
+      }
+      const mergeKey = options.recordInHistory === false ? undefined : `multi-set:${Date.now().toString(36)}`;
+      for (const { write, context } of writableEntries) {
+        const mutations = buildNodeMinimumDimensionSetPropertyMutations(context, editedKey, value);
+        for (const mutation of mutations) {
+          dispatch({
+            type: "APPLY_EDIT_ACTION",
+            historyMergeKey: mergeKey,
+            recordInHistory: options.recordInHistory,
+            action: {
+              kind: "setProperty",
+              elementId: write.elementId,
+              level: write.level,
+              key: mutation.key,
+              value: mutation.value,
+              clearKeys: mutation.clearKeys
+            }
+          });
+        }
+      }
+      return;
+    }
     applySetPropertyMany(property.writes, `${formatNumber(value)}pt`, {
       recordInHistory: options.recordInHistory
     });
@@ -568,6 +643,92 @@ export function InspectorPanel() {
     );
   }
 
+  function renderSingleLengthField(
+    property: Extract<InspectorProperty, { kind: "length" }>,
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
+  ): JSX.Element {
+    const capability = getInspectorPropertyCapabilityStatus(property);
+    const capabilityReadOnlyReason =
+      capability.status === "unsupported" ? capability.reason : null;
+    const readOnlyReason = property.readOnlyReason ?? property.write.reason ?? capabilityReadOnlyReason;
+    const writable = property.write.writable && capability.status !== "unsupported";
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={formatNumber(property.value)}
+        disabled={!writable}
+        onChange={(event) => {
+          const next = Number(event.currentTarget.value);
+          if (!Number.isFinite(next)) {
+            return;
+          }
+          applySingleLengthValue(property, next);
+        }}
+      />
+    );
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        {renderScrubbableNumberLabel(property.label, {
+          writable,
+          value: property.value,
+          step: property.step,
+          onPreview: (next) => applySingleLengthValue(property, next, { recordInHistory: false }),
+          onCommit: (next) => applySingleLengthValue(property, next)
+        })}
+        <div className={css.controlRow}>
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
+          <span className={css.unitLabel}>{property.unit}</span>
+        </div>
+        {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+        {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  function renderMultiLengthField(
+    property: Extract<MultiInspectorProperty, { kind: "length" }>,
+    compact = false,
+    provenance: InspectorPropertyProvenance | null = null
+  ): JSX.Element {
+    const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+    const input = (
+      <input
+        className={withValueProvenanceClass(css.numberInput, provenance)}
+        type="number"
+        step={property.step}
+        value={property.mixed ? "" : formatNumber(property.value)}
+        disabled={!writable}
+        onChange={(event) => {
+          const next = Number(event.currentTarget.value);
+          if (!Number.isFinite(next)) {
+            return;
+          }
+          applyMultiLengthValue(property, next);
+        }}
+      />
+    );
+    return (
+      <div className={compact ? css.compactNumberField : undefined}>
+        {renderScrubbableNumberLabel(property.label, {
+          writable,
+          value: property.value,
+          step: property.step,
+          onPreview: (next) => applyMultiLengthValue(property, next, { recordInHistory: false }),
+          onCommit: (next) => applyMultiLengthValue(property, next)
+        })}
+        <div className={css.controlRow}>
+          {maybeWrapWithProvenanceTooltip(provenance, input, true)}
+          <span className={css.unitLabel}>{property.unit}</span>
+        </div>
+        {property.note ? <div className={css.propertyNote}>{property.note}</div> : null}
+        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
   function renderSingleNumberPair(
     left: Extract<InspectorProperty, { kind: "number" }>,
     right: Extract<InspectorProperty, { kind: "number" }>,
@@ -592,6 +753,34 @@ export function InspectorPanel() {
       <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
         {renderMultiNumberField(left, true, leftProvenance)}
         {renderMultiNumberField(right, true, rightProvenance)}
+      </div>
+    );
+  }
+
+  function renderSingleLengthPair(
+    left: Extract<InspectorProperty, { kind: "length" }>,
+    right: Extract<InspectorProperty, { kind: "length" }>,
+    leftProvenance: InspectorPropertyProvenance | null = null,
+    rightProvenance: InspectorPropertyProvenance | null = null
+  ): JSX.Element {
+    return (
+      <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
+        {renderSingleLengthField(left, true, leftProvenance)}
+        {renderSingleLengthField(right, true, rightProvenance)}
+      </div>
+    );
+  }
+
+  function renderMultiLengthPair(
+    left: Extract<MultiInspectorProperty, { kind: "length" }>,
+    right: Extract<MultiInspectorProperty, { kind: "length" }>,
+    leftProvenance: InspectorPropertyProvenance | null,
+    rightProvenance: InspectorPropertyProvenance | null
+  ): JSX.Element {
+    return (
+      <div key={`${left.id}:${right.id}`} className={css.compactNumberPair}>
+        {renderMultiLengthField(left, true, leftProvenance)}
+        {renderMultiLengthField(right, true, rightProvenance)}
       </div>
     );
   }
@@ -967,6 +1156,7 @@ export function InspectorPanel() {
                     setFillAdvancedOptionsOpen={setFillAdvancedOptionsOpen}
                     renderedSinglePropertyProvenance={renderedSinglePropertyProvenance}
                     renderSingleNumberPair={renderSingleNumberPair}
+                    renderSingleLengthPair={renderSingleLengthPair}
                     renderProperty={renderProperty}
                     onEnableGradientFillSingle={onEnableGradientFillSingle}
                     onEnablePatternFillSingle={onEnablePatternFillSingle}
@@ -998,6 +1188,7 @@ export function InspectorPanel() {
                     setFillAdvancedOptionsOpen={setFillAdvancedOptionsOpen}
                     renderedMultiPropertyProvenance={renderedMultiPropertyProvenance}
                     renderMultiNumberPair={renderMultiNumberPair}
+                    renderMultiLengthPair={renderMultiLengthPair}
                     renderMultiProperty={renderMultiProperty}
                     onEnableGradientFillMulti={onEnableGradientFillMulti}
                     onEnablePatternFillMulti={onEnablePatternFillMulti}
