@@ -8,6 +8,7 @@
     "dev": "npm run generate:example-previews && vite",
     "build": "npm run generate:example-previews && vite build",
     "test:e2e": "playwright test",
+    "profile:paper-selection": "playwright test e2e/profile-paper-selection.spec.ts --reporter=line",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ci": "playwright test --reporter=line"
   },

@@ -40,8 +40,13 @@ function benchmarkFrame(pathCount, targetIndex, iterations) {
   let parseStrategy = null;
   let parseFallbackReason = null;
   let semanticStrategy = null;
+  let semanticReplayMode = null;
   let semanticFallbackReason = null;
   let recomputeFromStatementIndex = null;
+  let corridorEndStatementIndex = null;
+  let affectedStatementCount = null;
+  let recomputedStatementCount = null;
+  let reusedStatementCount = null;
 
   for (let iteration = 0; iteration < iterations; iteration += 1) {
     const started = performance.now();
@@ -117,8 +122,13 @@ function benchmarkFrame(pathCount, targetIndex, iterations) {
       parseStrategy = parsed.stats.strategy;
       parseFallbackReason = parsed.stats.fallbackReason ?? null;
       semanticStrategy = semantic.stats.strategy;
+      semanticReplayMode = semantic.stats.replayMode ?? null;
       semanticFallbackReason = semantic.stats.fallbackReason ?? null;
       recomputeFromStatementIndex = semantic.stats.recomputeFromStatementIndex;
+      corridorEndStatementIndex = semantic.stats.corridorEndStatementIndex ?? null;
+      affectedStatementCount = semantic.stats.affectedStatementCount ?? null;
+      recomputedStatementCount = semantic.stats.recomputedStatementCount;
+      reusedStatementCount = semantic.stats.reusedStatementCount;
     }
   }
 
@@ -132,8 +142,13 @@ function benchmarkFrame(pathCount, targetIndex, iterations) {
       parseStrategy,
       parseFallbackReason,
       semanticStrategy,
+      semanticReplayMode,
       semanticFallbackReason,
-      recomputeFromStatementIndex
+      recomputeFromStatementIndex,
+      corridorEndStatementIndex,
+      affectedStatementCount,
+      recomputedStatementCount,
+      reusedStatementCount
     }
   };
 }

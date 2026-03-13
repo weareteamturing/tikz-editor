@@ -85,6 +85,117 @@ describe("computeSnapshot incremental parser integration", () => {
     expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
   });
 
+  it("reports selective semantic replay for a small dependency closure with a long suffix", async () => {
+    const source = makeClosureFigureWithLongTail(200);
+    const nextSource = source.replace("(1.5, -0.5)", "(2.1, -0.1)");
+
+    const seeded = await computeSnapshot({
+      id: "closure-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    const incremental = await computeSnapshot({
+      id: "closure-incremental",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: ["path:1"],
+      patches: [computeSinglePatch(source, nextSource)],
+      trigger: "drag-element"
+    });
+    const canonical = await computeSnapshot({
+      id: "closure-canonical",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
+    expect(incremental.snapshot.incremental?.corridorEndStatementIndex).toBe(3);
+    expect(incremental.snapshot.incremental?.affectedStatementCount).toBe(2);
+    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
+  });
+
+  it("keeps later graphical scopes on the selective path", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \begin{scope}[shift={(10,0)}]
+    \draw (0,0) rectangle (2,1);
+    \node[draw] at (1,0.5) {Box};
+  \end{scope}
+\end{tikzpicture}`;
+    const nextSource = source.replace("(2,0)", "(2.4,0.5)");
+
+    const seeded = await computeSnapshot({
+      id: "scope-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    const incremental = await computeSnapshot({
+      id: "scope-incremental",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: ["path:1"],
+      patches: [computeSinglePatch(source, nextSource)],
+      trigger: "drag-element"
+    });
+    const canonical = await computeSnapshot({
+      id: "scope-canonical",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
+    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+  });
+
+  it("keeps later foreach-origin fragments on the selective path", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \foreach \x in {0,1,2,3} {
+    \draw (\x,3) circle (0.2);
+  }
+\end{tikzpicture}`;
+    const nextSource = source.replace("(2,0)", "(2.3,0.35)");
+
+    const seeded = await computeSnapshot({
+      id: "foreach-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    const incremental = await computeSnapshot({
+      id: "foreach-incremental",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: ["path:1"],
+      patches: [computeSinglePatch(source, nextSource)],
+      trigger: "drag-element"
+    });
+    const canonical = await computeSnapshot({
+      id: "foreach-canonical",
+      kind: "render",
+      source: nextSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
+    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+  });
+
   it("keeps handle drags working when statement children regenerate ids", async () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (1,1);
@@ -235,4 +346,21 @@ function computeSinglePatch(oldSource: string, newSource: string) {
     newSpan: { from: prefix, to: newSuffix },
     replacement: newSource.slice(prefix, newSuffix)
   };
+}
+
+function makeClosureFigureWithLongTail(unrelatedPathCount: number): string {
+  const lines = [
+    "\\begin{tikzpicture}",
+    "  \\node[draw] (A) at (-1, -1) {A};",
+    "  \\node[draw] (B) at (1.5, -0.5) {B};",
+    "  \\node[draw] (C) at (0, 1.5) {C};",
+    "  \\draw (A) edge (B)",
+    "        (B) edge (C)",
+    "        (C) edge (A);"
+  ];
+  for (let index = 0; index < unrelatedPathCount; index += 1) {
+    lines.push(`  \\draw (${index},0) -- (${index + 1},1);`);
+  }
+  lines.push("\\end{tikzpicture}");
+  return lines.join("\n");
 }

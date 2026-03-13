@@ -1,21 +1,34 @@
-import type { TikzFigure } from "../ast/types.js";
+import type { Span, TikzFigure } from "../ast/types.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import {
+  applyStatementEffectSummary,
   restoreSemanticContext,
   retargetEditHandlesSourceFingerprint,
   snapshotSemanticContext,
-  type SemanticContextSnapshot
+  type SemanticContextSnapshot,
+  type SemanticStatementEffectSummary
 } from "./context.js";
 import { collectGeometryInvalidation } from "./dependencies.js";
 import {
+  collectNodeAnchorTargets,
+  computeBounds,
   createSemanticEvaluationRun,
   evaluateSemanticStatementByIndex,
   finalizeSemanticEvaluationRun,
   type EvaluateTikzResult
 } from "./evaluate.js";
-import type { EditHandle, EvaluateOptions, FeatureUsage, SceneElement } from "./types.js";
+import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
+import type {
+  EditHandle,
+  EvaluateOptions,
+  FeatureUsage,
+  NodeAnchorTarget,
+  SceneElement,
+  SceneFigure
+} from "./types.js";
 
 export type IncrementalSemanticTrigger = "drag-element" | "drag-handle" | "other";
+export type IncrementalSemanticReplayMode = "full" | "suffix" | "selective";
 
 export type IncrementalSemanticHints = {
   changedSourceIds?: readonly string[];
@@ -36,9 +49,12 @@ export type IncrementalSemanticFallbackReason =
 
 export type IncrementalSemanticStats = {
   strategy: "full" | "incremental";
+  replayMode?: IncrementalSemanticReplayMode;
   recomputeFromStatementIndex: number | null;
   recomputedStatementCount: number;
   reusedStatementCount: number;
+  corridorEndStatementIndex?: number | null;
+  affectedStatementCount?: number;
   fallbackReason?: IncrementalSemanticFallbackReason;
 };
 
@@ -59,22 +75,32 @@ export type IncrementalSemanticSession = {
   reset: () => void;
 };
 
-type HandleRange = {
-  start: number;
-  end: number;
+type SemanticStatementFragment = {
+  statementId: string;
+  sourceId: string;
+  sourceSpan: Span;
+  elements: SceneElement[];
+  editHandles: EditHandle[];
+  diagnostics: Diagnostic[];
+  effectSummary: SemanticStatementEffectSummary;
 };
 
 type CachedSemanticRun = {
   statementIds: string[];
-  elementsByStatement: SceneElement[][];
-  handleRangesByStatement: HandleRange[];
+  statementFragments: SemanticStatementFragment[];
   editHandles: readonly EditHandle[];
-  diagnosticsByStatement: Diagnostic[][];
   checkpointInterval: number;
   checkpointsBeforeStatement: Map<number, SemanticContextSnapshot>;
   featureUsageBeforeStatement: Map<number, FeatureUsage>;
   dependencies: EvaluateTikzResult["dependencies"];
   sourceStatementFirstIndexBySourceId: Map<string, number>;
+  finalFeatureUsage: FeatureUsage;
+};
+
+type SelectiveReplayPlan = {
+  restoreIndex: number;
+  corridorEndIndex: number;
+  affectedStatementCount: number;
 };
 
 const DEFAULT_CHECKPOINT_INTERVAL = 8;
@@ -128,11 +154,12 @@ export function createIncrementalSemanticSession(
       cached = full.cached;
       return full.output;
     }
-    const startIndex = Math.min(...affectedStatementIndices);
+
     const checkpointInterval = previous.checkpointInterval;
+    const earliestAffectedIndex = Math.min(...affectedStatementIndices);
     const restoreIndex = findCheckpointIndexAtOrBefore(
       previous.checkpointsBeforeStatement,
-      startIndex
+      earliestAffectedIndex
     );
     if (restoreIndex == null) {
       const full = evaluateFullyAndCache(run, statementIds, "checkpoint-missing");
@@ -153,84 +180,38 @@ export function createIncrementalSemanticSession(
       return full.output;
     }
 
-    try {
-      restoreSemanticContext(run.context, startCheckpoint, {
-        editHandleSource: previous.editHandles
-      });
-      retargetEditHandlesSourceFingerprint(run.context.editHandles, run.context.sourceFingerprint);
-    } catch (_error) {
-      const full = evaluateFullyAndCache(run, statementIds, "restore-failed");
-      cached = full.cached;
-      return full.output;
+    const selectivePlan = planSelectiveReplay(previous.statementFragments, restoreIndex, affectedStatementIndices);
+    if (selectivePlan) {
+      try {
+        const selective = evaluateSelectively({
+          run,
+          previous,
+          restoreIndex,
+          corridorEndIndex: selectivePlan.corridorEndIndex,
+          affectedStatementCount: selectivePlan.affectedStatementCount,
+          checkpointInterval,
+          startCheckpoint,
+          startFeatureUsage
+        });
+        return selective;
+      } catch (_error) {
+        // Fall through to the suffix replay path.
+      }
     }
 
     try {
-      assignFeatureUsage(run.featureUsage, startFeatureUsage);
-      run.diagnostics.length = run.baseDiagnosticsCount;
-      const diagnosticsByStatement = previous.diagnosticsByStatement.slice(0, restoreIndex);
-      for (const statementDiagnostics of diagnosticsByStatement) {
-        run.diagnostics.push(...statementDiagnostics);
-      }
-
-      const elementsByStatement = previous.elementsByStatement.slice(0, restoreIndex);
-      const handleRangesByStatement = previous.handleRangesByStatement.slice(0, restoreIndex);
-      const checkpointsBeforeStatement = cloneCheckpointsBefore(
-        previous.checkpointsBeforeStatement,
-        restoreIndex
-      );
-      const featureUsageBeforeStatement = cloneCheckpointsBefore(
-        previous.featureUsageBeforeStatement,
-        restoreIndex
-      );
-
-      for (let statementIndex = restoreIndex; statementIndex < statementCount; statementIndex += 1) {
-        if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
-          checkpointsBeforeStatement.set(
-            statementIndex,
-            snapshotSemanticContext(run.context, { editHandlesMode: "length" })
-          );
-          featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
-        }
-        const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
-        elementsByStatement[statementIndex] = evaluated.elements;
-        handleRangesByStatement[statementIndex] = {
-          start: evaluated.handleStart,
-          end: evaluated.handleEnd
-        };
-        diagnosticsByStatement[statementIndex] = run.diagnostics.slice(
-          evaluated.diagnosticsStart,
-          evaluated.diagnosticsEnd
-        );
-      }
-      checkpointsBeforeStatement.set(
-        statementCount,
-        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
-      );
-      featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
-
-      const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
-      cached = {
+      const suffix = evaluateIncrementalSuffix({
+        run,
+        previous,
         statementIds,
-        elementsByStatement,
-        handleRangesByStatement,
-        editHandles: semantic.editHandles,
-        diagnosticsByStatement,
+        restoreIndex,
         checkpointInterval,
-        checkpointsBeforeStatement,
-        featureUsageBeforeStatement,
-        dependencies: semantic.dependencies,
-        sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId)
-      };
-
-      return {
-        semantic,
-        stats: {
-          strategy: "incremental",
-          recomputeFromStatementIndex: restoreIndex,
-          recomputedStatementCount: statementCount - restoreIndex,
-          reusedStatementCount: restoreIndex
-        }
-      };
+        startCheckpoint,
+        startFeatureUsage,
+        affectedStatementCount: new Set(affectedStatementIndices).size
+      });
+      cached = suffix.cached;
+      return suffix.output;
     } catch (_error) {
       const full = evaluateFullyAndCache(
         createSemanticEvaluationRun(input.figure, input.source, options),
@@ -260,9 +241,7 @@ function evaluateFullyAndCache(
 } {
   const statementCount = run.expandedFigureBody.length;
   const checkpointInterval = DEFAULT_CHECKPOINT_INTERVAL;
-  const elementsByStatement: SceneElement[][] = [];
-  const handleRangesByStatement: HandleRange[] = [];
-  const diagnosticsByStatement: Diagnostic[][] = [];
+  const statementFragments: SemanticStatementFragment[] = [];
   const checkpointsBeforeStatement = new Map<number, SemanticContextSnapshot>();
   const featureUsageBeforeStatement = new Map<number, FeatureUsage>();
 
@@ -275,14 +254,7 @@ function evaluateFullyAndCache(
       featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
     }
     const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
-    elementsByStatement.push(evaluated.elements);
-    handleRangesByStatement.push({
-      start: evaluated.handleStart,
-      end: evaluated.handleEnd
-    });
-    diagnosticsByStatement.push(
-      run.diagnostics.slice(evaluated.diagnosticsStart, evaluated.diagnosticsEnd)
-    );
+    statementFragments.push(createStatementFragment(evaluated));
   }
   checkpointsBeforeStatement.set(
     statementCount,
@@ -290,32 +262,312 @@ function evaluateFullyAndCache(
   );
   featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
 
-  const semantic = finalizeSemanticEvaluationRun(run, elementsByStatement);
+  const semantic = finalizeSemanticEvaluationRun(
+    run,
+    statementFragments.map((fragment) => fragment.elements)
+  );
   const nextCached: CachedSemanticRun = {
     statementIds,
-    elementsByStatement,
-    handleRangesByStatement,
+    statementFragments,
     editHandles: semantic.editHandles,
-    diagnosticsByStatement,
     checkpointInterval,
     checkpointsBeforeStatement,
     featureUsageBeforeStatement,
     dependencies: semantic.dependencies,
-    sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId)
+    sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId),
+    finalFeatureUsage: cloneFeatureUsage(semantic.featureUsage)
   };
   return {
     output: {
       semantic,
       stats: {
         strategy: "full",
+        replayMode: "full",
         recomputeFromStatementIndex: null,
         recomputedStatementCount: statementCount,
         reusedStatementCount: 0,
+        corridorEndStatementIndex: null,
+        affectedStatementCount: statementCount,
         fallbackReason
       }
     },
     cached: nextCached
   };
+}
+
+function evaluateIncrementalSuffix(args: {
+  run: ReturnType<typeof createSemanticEvaluationRun>;
+  previous: CachedSemanticRun;
+  statementIds: string[];
+  restoreIndex: number;
+  checkpointInterval: number;
+  startCheckpoint: SemanticContextSnapshot;
+  startFeatureUsage: FeatureUsage;
+  affectedStatementCount: number;
+}): {
+  output: IncrementalSemanticEvaluateResult;
+  cached: CachedSemanticRun;
+} {
+  const {
+    run,
+    previous,
+    statementIds,
+    restoreIndex,
+    checkpointInterval,
+    startCheckpoint,
+    startFeatureUsage,
+    affectedStatementCount
+  } = args;
+  const statementCount = run.expandedFigureBody.length;
+
+  restoreSemanticContext(run.context, startCheckpoint, {
+    editHandleSource: previous.editHandles
+  });
+  retargetEditHandlesSourceFingerprint(run.context.editHandles, run.context.sourceFingerprint);
+  assignFeatureUsage(run.featureUsage, startFeatureUsage);
+  run.diagnostics.length = run.baseDiagnosticsCount;
+  for (let index = 0; index < restoreIndex; index += 1) {
+    run.diagnostics.push(...previous.statementFragments[index].diagnostics);
+  }
+
+  const nextFragments = previous.statementFragments.slice(0, restoreIndex);
+  const checkpointsBeforeStatement = cloneCheckpointsBefore(
+    previous.checkpointsBeforeStatement,
+    restoreIndex
+  );
+  const featureUsageBeforeStatement = cloneCheckpointsBefore(
+    previous.featureUsageBeforeStatement,
+    restoreIndex
+  );
+
+  for (let statementIndex = restoreIndex; statementIndex < statementCount; statementIndex += 1) {
+    if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
+      checkpointsBeforeStatement.set(
+        statementIndex,
+        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+      );
+      featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
+    }
+    const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
+    nextFragments[statementIndex] = createStatementFragment(evaluated);
+  }
+  checkpointsBeforeStatement.set(
+    statementCount,
+    snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+  );
+  featureUsageBeforeStatement.set(statementCount, cloneFeatureUsage(run.featureUsage));
+
+  const semantic = finalizeSemanticEvaluationRun(
+    run,
+    nextFragments.map((fragment) => fragment.elements)
+  );
+  return {
+    output: {
+      semantic,
+      stats: {
+        strategy: "incremental",
+        replayMode: "suffix",
+        recomputeFromStatementIndex: restoreIndex,
+        recomputedStatementCount: statementCount - restoreIndex,
+        reusedStatementCount: restoreIndex,
+        corridorEndStatementIndex: statementCount - 1,
+        affectedStatementCount
+      }
+    },
+    cached: {
+      statementIds,
+      statementFragments: nextFragments,
+      editHandles: semantic.editHandles,
+      checkpointInterval,
+      checkpointsBeforeStatement,
+      featureUsageBeforeStatement,
+      dependencies: semantic.dependencies,
+      sourceStatementFirstIndexBySourceId: mapSourceStatementFirstIndices(semantic.sourceStatementFirstIndexBySourceId),
+      finalFeatureUsage: cloneFeatureUsage(semantic.featureUsage)
+    }
+  };
+}
+
+function evaluateSelectively(args: {
+  run: ReturnType<typeof createSemanticEvaluationRun>;
+  previous: CachedSemanticRun;
+  restoreIndex: number;
+  corridorEndIndex: number;
+  affectedStatementCount: number;
+  checkpointInterval: number;
+  startCheckpoint: SemanticContextSnapshot;
+  startFeatureUsage: FeatureUsage;
+}): IncrementalSemanticEvaluateResult {
+  const {
+    run,
+    previous,
+    restoreIndex,
+    corridorEndIndex,
+    affectedStatementCount,
+    checkpointInterval,
+    startCheckpoint,
+    startFeatureUsage
+  } = args;
+  const statementCount = run.expandedFigureBody.length;
+
+  restoreSemanticContext(run.context, startCheckpoint, {
+    editHandleSource: previous.editHandles
+  });
+  retargetEditHandlesSourceFingerprint(run.context.editHandles, run.context.sourceFingerprint);
+  assignFeatureUsage(run.featureUsage, startFeatureUsage);
+  run.diagnostics.length = run.baseDiagnosticsCount;
+
+  const nextFragments = previous.statementFragments.slice();
+  const checkpointsBeforeStatement = cloneCheckpointsBefore(
+    previous.checkpointsBeforeStatement,
+    restoreIndex
+  );
+  const featureUsageBeforeStatement = cloneCheckpointsBefore(
+    previous.featureUsageBeforeStatement,
+    restoreIndex
+  );
+
+  for (let statementIndex = restoreIndex; statementIndex <= corridorEndIndex; statementIndex += 1) {
+    if (shouldCaptureCheckpoint(statementIndex, checkpointInterval)) {
+      checkpointsBeforeStatement.set(
+        statementIndex,
+        snapshotSemanticContext(run.context, { editHandlesMode: "length" })
+      );
+      featureUsageBeforeStatement.set(statementIndex, cloneFeatureUsage(run.featureUsage));
+    }
+    const evaluated = evaluateSemanticStatementByIndex(run, statementIndex);
+    nextFragments[statementIndex] = createStatementFragment(evaluated);
+  }
+
+  for (let statementIndex = corridorEndIndex + 1; statementIndex < statementCount; statementIndex += 1) {
+    applyStatementEffectSummary(run.context, previous.statementFragments[statementIndex].effectSummary);
+  }
+
+  const semantic = assembleSelectiveSemanticResult({
+    run,
+    fragments: nextFragments,
+    featureUsage: previous.finalFeatureUsage,
+    dependencies: previous.dependencies,
+    sourceStatementFirstIndexBySourceId: previous.sourceStatementFirstIndexBySourceId
+  });
+
+  return {
+    semantic,
+    stats: {
+      strategy: "incremental",
+      replayMode: "selective",
+      recomputeFromStatementIndex: restoreIndex,
+      recomputedStatementCount: corridorEndIndex - restoreIndex + 1,
+      reusedStatementCount: statementCount - (corridorEndIndex - restoreIndex + 1),
+      corridorEndStatementIndex: corridorEndIndex,
+      affectedStatementCount
+    }
+  };
+}
+
+function assembleSelectiveSemanticResult(args: {
+  run: ReturnType<typeof createSemanticEvaluationRun>;
+  fragments: readonly SemanticStatementFragment[];
+  featureUsage: FeatureUsage;
+  dependencies: EvaluateTikzResult["dependencies"];
+  sourceStatementFirstIndexBySourceId: ReadonlyMap<string, number>;
+}): EvaluateTikzResult {
+  const { run, fragments, featureUsage, dependencies, sourceStatementFirstIndexBySourceId } = args;
+  const sourceFingerprint = run.context.sourceFingerprint;
+  const elements: SceneElement[] = [];
+  const editHandles: EditHandle[] = [];
+  const diagnostics = run.diagnostics.slice(0, run.baseDiagnosticsCount);
+
+  for (let index = 0; index < fragments.length; index += 1) {
+    const fragment = fragments[index];
+    const currentSourceSpan =
+      run.sourceStatementSpanById.get(fragment.sourceId) ?? fragment.sourceSpan;
+    const materialized = materializeFragmentForCurrentSource(
+      fragment,
+      currentSourceSpan,
+      run.source,
+      sourceFingerprint
+    );
+    elements.push(...materialized.elements);
+    editHandles.push(...materialized.editHandles);
+    diagnostics.push(...fragment.diagnostics);
+  }
+
+  const finalFeatureUsage = cloneFeatureUsage(featureUsage);
+  const scene: SceneFigure = {
+    kind: "SceneFigure",
+    span: run.figure.span,
+    requiredTikzLibraries: inferRequiredTikzLibraries({
+      featureUsage: finalFeatureUsage,
+      elements
+    }),
+    elements,
+    bounds: computeBounds(elements)
+  };
+
+  return {
+    scene,
+    diagnostics,
+    featureUsage: finalFeatureUsage,
+    editHandles,
+    nodeAnchorTargets: collectNodeAnchorTargets(run.context),
+    dependencies,
+    sourceStatementFirstIndexBySourceId: unmapSourceStatementFirstIndices(sourceStatementFirstIndexBySourceId)
+  };
+}
+
+function createStatementFragment(
+  evaluated: ReturnType<typeof evaluateSemanticStatementByIndex>
+): SemanticStatementFragment {
+  return {
+    statementId: evaluated.statementId,
+    sourceId: evaluated.sourceId,
+    sourceSpan: { ...evaluated.sourceSpan },
+    elements: structuredClone(evaluated.elements),
+    editHandles: structuredClone(evaluated.editHandles),
+    diagnostics: structuredClone(evaluated.diagnostics),
+    effectSummary: structuredClone(evaluated.effectSummary)
+  };
+}
+
+function planSelectiveReplay(
+  fragments: readonly SemanticStatementFragment[],
+  restoreIndex: number,
+  affectedStatementIndices: readonly number[]
+): SelectiveReplayPlan | null {
+  const uniqueAffected = [...new Set(affectedStatementIndices)].sort((left, right) => left - right);
+  if (uniqueAffected.length === 0) {
+    return null;
+  }
+  const corridorEndIndex = uniqueAffected[uniqueAffected.length - 1] ?? restoreIndex;
+  for (let statementIndex = corridorEndIndex + 1; statementIndex < fragments.length; statementIndex += 1) {
+    const fragment = fragments[statementIndex];
+    if (!fragment) {
+      return null;
+    }
+    if (!isSuffixFragmentSelectiveSafe(fragment)) {
+      return null;
+    }
+  }
+  return {
+    restoreIndex,
+    corridorEndIndex,
+    affectedStatementCount: uniqueAffected.length
+  };
+}
+
+function isSuffixFragmentSelectiveSafe(
+  fragment: SemanticStatementFragment
+): boolean {
+  const { effectSummary } = fragment;
+  if (effectSummary.opaqueReasons.includes("macro-origin")) {
+    return false;
+  }
+  return (
+    effectSummary.suffixSkipKind === "safe" ||
+    effectSummary.suffixSkipKind === "scope-safe" ||
+    effectSummary.suffixSkipKind === "foreach-origin-safe"
+  );
 }
 
 function decideFallbackReason(
@@ -421,6 +673,12 @@ function mapSourceStatementFirstIndices(
   return mapped;
 }
 
+function unmapSourceStatementFirstIndices(
+  source: ReadonlyMap<string, number>
+): Record<string, number> {
+  return Object.fromEntries([...source.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+}
+
 function normalizeChangedSourceIds(
   sourceIds: readonly string[]
 ): string[] {
@@ -433,4 +691,159 @@ function normalizeChangedSourceIds(
     unique.add(normalized);
   }
   return [...unique];
+}
+
+function retargetElementsSourceFingerprint(
+  elements: readonly SceneElement[],
+  sourceFingerprint: string
+): SceneElement[] {
+  return elements.map((element) => {
+    if (element.sourceRef.sourceFingerprint === sourceFingerprint) {
+      return element;
+    }
+    return {
+      ...element,
+      sourceRef: {
+        ...element.sourceRef,
+        sourceFingerprint
+      }
+    };
+  });
+}
+
+function retargetHandlesSourceFingerprint(
+  handles: readonly EditHandle[],
+  sourceFingerprint: string
+): EditHandle[] {
+  return handles.map((handle) => {
+    if (handle.sourceRef.sourceFingerprint === sourceFingerprint) {
+      return handle;
+    }
+    return {
+      ...handle,
+      sourceRef: {
+        ...handle.sourceRef,
+        sourceFingerprint
+      }
+    };
+  });
+}
+
+function materializeFragmentForCurrentSource(
+  fragment: SemanticStatementFragment,
+  currentSourceSpan: Span,
+  source: string,
+  sourceFingerprint: string
+): Pick<SemanticStatementFragment, "elements" | "editHandles"> {
+  if (fragment.effectSummary.suffixSkipKind === "foreach-origin-safe") {
+    const elements = retargetElementsSourceFingerprint(
+      rebaseForeachOriginElements(
+        structuredClone(fragment.elements),
+        fragment.sourceId,
+        currentSourceSpan
+      ),
+      sourceFingerprint
+    );
+    const editHandles = retargetHandlesSourceFingerprint(
+      structuredClone(fragment.editHandles),
+      sourceFingerprint
+    );
+    return {
+      elements,
+      editHandles
+    };
+  }
+
+  const delta = currentSourceSpan.from - fragment.sourceSpan.from;
+  const elements = retargetElementsSourceFingerprint(
+    shiftSpansDeep(structuredClone(fragment.elements), delta),
+    sourceFingerprint
+  );
+  const editHandles = retargetHandlesSourceFingerprint(
+    shiftSpansDeep(structuredClone(fragment.editHandles), delta),
+    sourceFingerprint
+  ).map((handle) => ({
+    ...handle,
+    sourceText: source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to)
+  }));
+  return {
+    elements,
+    editHandles
+  };
+}
+
+function shiftSpansDeep<T>(value: T, delta: number): T {
+  if (delta === 0) {
+    return value;
+  }
+  shiftSpanObjectsInPlace(value, delta, new WeakSet<object>());
+  return value;
+}
+
+function shiftSpanObjectsInPlace(
+  value: unknown,
+  delta: number,
+  visited: WeakSet<object>
+): void {
+  if (!value || typeof value !== "object") {
+    return;
+  }
+  if (visited.has(value)) {
+    return;
+  }
+  visited.add(value);
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      shiftSpanObjectsInPlace(entry, delta, visited);
+    }
+    return;
+  }
+  if (isSpanLike(value)) {
+    value.from += delta;
+    value.to += delta;
+    return;
+  }
+  for (const entry of Object.values(value)) {
+    shiftSpanObjectsInPlace(entry, delta, visited);
+  }
+}
+
+function isSpanLike(value: object): value is Span {
+  return (
+    "from" in value &&
+    "to" in value &&
+    typeof (value as { from?: unknown }).from === "number" &&
+    typeof (value as { to?: unknown }).to === "number" &&
+    Object.keys(value).every((key) => key === "from" || key === "to")
+  );
+}
+
+function rebaseForeachOriginElements(
+  elements: SceneElement[],
+  sourceId: string,
+  currentSourceSpan: Span
+): SceneElement[] {
+  for (const element of elements) {
+    if (element.sourceRef.sourceId === sourceId) {
+      element.sourceRef = {
+        ...element.sourceRef,
+        sourceSpan: { ...currentSourceSpan }
+      };
+    }
+    const foreachStack = element.origin?.foreachStack;
+    if (!foreachStack) {
+      continue;
+    }
+    for (let index = 0; index < foreachStack.length; index += 1) {
+      const frame = foreachStack[index];
+      if (frame?.loopId !== sourceId) {
+        continue;
+      }
+      foreachStack[index] = {
+        ...frame,
+        loopSpan: { ...currentSourceSpan }
+      };
+    }
+  }
+  return elements;
 }

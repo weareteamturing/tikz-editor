@@ -155,6 +155,33 @@ export type SemanticContext = {
   editHandles: EditHandle[];
   dependencyBuilder: SemanticDependencyGraphBuilder;
   dependencyActiveSourceId: string | null;
+  statementEffectTracker: SemanticStatementEffectTracker | null;
+};
+
+export type SemanticStatementConsumedResource = {
+  kind: SemanticDependencyResourceKind;
+  key: string;
+};
+
+export type SemanticStatementSuffixSkipKind =
+  | "safe"
+  | "scope-safe"
+  | "foreach-origin-safe"
+  | "unsafe";
+
+export type SemanticStatementEffectSummary = {
+  producesNamedCoordinates: Array<{ key: string; point: Point }>;
+  producesNamedNodeGeometries: Array<{ key: string; geometry: NamedNodeGeometry }>;
+  producesNamedPaths: string[];
+  consumesNamedResources: SemanticStatementConsumedResource[];
+  mutatesCurrentPoint: boolean;
+  nextCurrentPoint: Point | null;
+  mutatesPathStartPoint: boolean;
+  nextPathStartPoint: Point | null;
+  requiresSequentialContext: boolean;
+  suffixSkipKind: SemanticStatementSuffixSkipKind;
+  opaque: boolean;
+  opaqueReasons: SemanticDependencyOpaqueReason[];
 };
 
 export type SemanticContextSnapshot = {
@@ -178,6 +205,14 @@ export type SnapshotSemanticContextOptions = {
 
 export type RestoreSemanticContextOptions = {
   editHandleSource?: readonly EditHandle[];
+};
+
+type SemanticStatementEffectTracker = {
+  producedNamedCoordinates: Map<string, Point>;
+  producedNamedNodeGeometries: Map<string, NamedNodeGeometry>;
+  producedNamedPaths: Set<string>;
+  consumedNamedResources: Map<string, SemanticStatementConsumedResource>;
+  opaqueReasons: Set<SemanticDependencyOpaqueReason>;
 };
 
 export function createSemanticContext(
@@ -279,7 +314,8 @@ export function createSemanticContext(
     macroTraceCollector: null,
     editHandles: [],
     dependencyBuilder: new SemanticDependencyGraphBuilder(),
-    dependencyActiveSourceId: null
+    dependencyActiveSourceId: null,
+    statementEffectTracker: null
   };
 }
 
@@ -343,6 +379,7 @@ export function restoreSemanticContext(
   }
   context.dependencyBuilder.importState(snapshot.dependencyBuilderState);
   context.dependencyActiveSourceId = snapshot.dependencyActiveSourceId;
+  context.statementEffectTracker = null;
 }
 
 export function retargetEditHandlesSourceFingerprint(
@@ -389,6 +426,12 @@ export function recordDependencyProducer(
   if (!sourceId) {
     return;
   }
+  const tracker = context.statementEffectTracker;
+  if (tracker) {
+    if (resourceKind === "named-path") {
+      tracker.producedNamedPaths.add(resourceKey);
+    }
+  }
   context.dependencyBuilder.addProducer(sourceId, resourceKind, resourceKey);
 }
 
@@ -402,6 +445,13 @@ export function recordDependencyConsumer(
   if (!sourceId) {
     return;
   }
+  const tracker = context.statementEffectTracker;
+  if (tracker) {
+    tracker.consumedNamedResources.set(`${resourceKind}\u0000${resourceKey}`, {
+      kind: resourceKind,
+      key: resourceKey
+    });
+  }
   context.dependencyBuilder.addConsumer(sourceId, resourceKind, resourceKey);
 }
 
@@ -410,6 +460,10 @@ export function markDependencyOpaque(
   sourceId: string,
   reason: SemanticDependencyOpaqueReason
 ): void {
+  const tracker = context.statementEffectTracker;
+  if (tracker && (context.dependencyActiveSourceId == null || context.dependencyActiveSourceId === sourceId)) {
+    tracker.opaqueReasons.add(reason);
+  }
   context.dependencyBuilder.markSourceOpaque(sourceId, reason);
 }
 
@@ -420,6 +474,10 @@ export function writeNamedCoordinate(
   explicitSourceId?: string
 ): void {
   context.namedCoordinates.set(name, point);
+  const tracker = context.statementEffectTracker;
+  if (tracker) {
+    tracker.producedNamedCoordinates.set(name, { ...point });
+  }
   recordDependencyProducer(context, "named-coordinate", name, explicitSourceId);
 }
 
@@ -442,6 +500,10 @@ export function writeNamedNodeGeometry(
   explicitSourceId?: string
 ): void {
   context.namedNodeGeometries.set(name, geometry);
+  const tracker = context.statementEffectTracker;
+  if (tracker) {
+    tracker.producedNamedNodeGeometries.set(name, structuredClone(geometry));
+  }
   recordDependencyProducer(context, "named-node-geometry", name, explicitSourceId);
 }
 
@@ -465,6 +527,10 @@ export function appendNamedPathElements(
 ): void {
   const existing = context.namedPaths.get(name) ?? [];
   context.namedPaths.set(name, [...existing, ...elements]);
+  const tracker = context.statementEffectTracker;
+  if (tracker) {
+    tracker.producedNamedPaths.add(name);
+  }
   for (const sourceId of producerSourceIds) {
     context.dependencyBuilder.addProducer(sourceId, "named-path", name);
   }
@@ -480,4 +546,87 @@ export function readNamedPath(
     recordDependencyConsumer(context, "named-path", name, explicitSourceId);
   }
   return elements;
+}
+
+export function beginStatementEffectTracking(context: SemanticContext): void {
+  context.statementEffectTracker = {
+    producedNamedCoordinates: new Map<string, Point>(),
+    producedNamedNodeGeometries: new Map<string, NamedNodeGeometry>(),
+    producedNamedPaths: new Set<string>(),
+    consumedNamedResources: new Map<string, SemanticStatementConsumedResource>(),
+    opaqueReasons: new Set<SemanticDependencyOpaqueReason>()
+  };
+}
+
+export function endStatementEffectTracking(
+  context: SemanticContext,
+  options: {
+    beforeCurrentPoint: Point | null;
+    beforePathStartPoint: Point | null;
+    requiresSequentialContext: boolean;
+  }
+): SemanticStatementEffectSummary {
+  const tracker = context.statementEffectTracker;
+  context.statementEffectTracker = null;
+  if (!tracker) {
+    return {
+      producesNamedCoordinates: [],
+      producesNamedNodeGeometries: [],
+      producesNamedPaths: [],
+      consumesNamedResources: [],
+      mutatesCurrentPoint: pointsDiffer(options.beforeCurrentPoint, context.currentPoint),
+      nextCurrentPoint: context.currentPoint ? { ...context.currentPoint } : null,
+      mutatesPathStartPoint: pointsDiffer(options.beforePathStartPoint, context.pathStartPoint),
+      nextPathStartPoint: context.pathStartPoint ? { ...context.pathStartPoint } : null,
+      requiresSequentialContext: options.requiresSequentialContext,
+      suffixSkipKind: "unsafe",
+      opaque: false,
+      opaqueReasons: []
+    };
+  }
+  return {
+    producesNamedCoordinates: [...tracker.producedNamedCoordinates.entries()].map(([key, point]) => ({
+      key,
+      point: { ...point }
+    })),
+    producesNamedNodeGeometries: [...tracker.producedNamedNodeGeometries.entries()].map(([key, geometry]) => ({
+      key,
+      geometry: structuredClone(geometry)
+    })),
+    producesNamedPaths: [...tracker.producedNamedPaths],
+    consumesNamedResources: [...tracker.consumedNamedResources.values()].sort((left, right) => {
+      const leftKey = `${left.kind}\u0000${left.key}`;
+      const rightKey = `${right.kind}\u0000${right.key}`;
+      return leftKey.localeCompare(rightKey);
+    }),
+    mutatesCurrentPoint: pointsDiffer(options.beforeCurrentPoint, context.currentPoint),
+    nextCurrentPoint: context.currentPoint ? { ...context.currentPoint } : null,
+    mutatesPathStartPoint: pointsDiffer(options.beforePathStartPoint, context.pathStartPoint),
+    nextPathStartPoint: context.pathStartPoint ? { ...context.pathStartPoint } : null,
+    requiresSequentialContext: options.requiresSequentialContext,
+    suffixSkipKind: "unsafe",
+    opaque: tracker.opaqueReasons.size > 0,
+    opaqueReasons: [...tracker.opaqueReasons].sort()
+  };
+}
+
+export function applyStatementEffectSummary(
+  context: SemanticContext,
+  summary: SemanticStatementEffectSummary
+): void {
+  for (const produced of summary.producesNamedCoordinates) {
+    context.namedCoordinates.set(produced.key, { ...produced.point });
+  }
+  for (const produced of summary.producesNamedNodeGeometries) {
+    context.namedNodeGeometries.set(produced.key, structuredClone(produced.geometry));
+  }
+  context.currentPoint = summary.nextCurrentPoint ? { ...summary.nextCurrentPoint } : null;
+  context.pathStartPoint = summary.nextPathStartPoint ? { ...summary.nextPathStartPoint } : null;
+}
+
+function pointsDiffer(left: Point | null, right: Point | null): boolean {
+  if (left == null || right == null) {
+    return left !== right;
+  }
+  return left.x !== right.x || left.y !== right.y;
 }

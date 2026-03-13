@@ -5,6 +5,7 @@ import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
 import { createIncrementalSemanticSession } from "../../packages/core/src/semantic/incremental.js";
 import type { EditHandle, EvaluateOptions } from "../../packages/core/src/semantic/types.js";
+import type { Statement } from "../../packages/core/src/ast/types.js";
 
 describe("semantic incremental evaluation", () => {
   it("matches full evaluation for repeated move-element drag updates", () => {
@@ -134,6 +135,216 @@ describe("semantic incremental evaluation", () => {
     const full = evaluateTikzFigure(parsed.figure, nextSource);
     expect(incremental.semantic).toEqual(full);
     expect(incremental.stats.strategy).toBe("incremental");
+  });
+
+  it("uses selective replay for a small dependency closure with a long unrelated suffix", () => {
+    const source = makeClosureFigureWithLongTail(200);
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = seededParsed.figure.body[1]?.id;
+    expect(changedSourceId).toBeDefined();
+    if (!changedSourceId) {
+      throw new Error("Expected the B node statement");
+    }
+
+    const nextSource = source.replace("(1.5, -0.5)", "(2.1, -0.1)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.replayMode).toBe("selective");
+    expect(incremental.stats.affectedStatementCount).toBe(2);
+    expect(incremental.stats.corridorEndStatementIndex).toBe(3);
+    expect(incremental.stats.recomputedStatementCount).toBe(4);
+    expect(incremental.stats.reusedStatementCount).toBe(200);
+  });
+
+  it("uses a one-statement selective corridor for an isolated supported node", () => {
+    const source = makeIsolatedNodeFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = seededParsed.figure.body[8]?.id;
+    expect(changedSourceId).toBeDefined();
+    if (!changedSourceId) {
+      throw new Error("Expected isolated node statement");
+    }
+
+    const nextSource = source.replace("(10,10)", "(10.4,10.2)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.strategy).toBe("incremental");
+    expect(incremental.stats.replayMode).toBe("selective");
+    expect(incremental.stats.affectedStatementCount).toBe(1);
+    expect(incremental.stats.recomputeFromStatementIndex).toBe(8);
+    expect(incremental.stats.corridorEndStatementIndex).toBe(8);
+    expect(incremental.stats.recomputedStatementCount).toBe(1);
+    expect(incremental.stats.reusedStatementCount).toBe(8);
+  });
+
+  it("keeps later graphical scopes on the selective path", () => {
+    const source = makeLaterScopeFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "(B) at (2,0)");
+    const nextSource = source.replace("(2,0)", "(2.4,0.5)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.replayMode).toBe("selective");
+  });
+
+  it("keeps nested graphical scopes on the selective path", () => {
+    const source = makeNestedScopeFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "(B) at (2,0)");
+    const nextSource = source.replace("(2,0)", "(2.35,0.45)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.replayMode).toBe("selective");
+  });
+
+  it("falls back to suffix replay when a later scope contains unsupported commands", () => {
+    const source = makeLaterScopeWithCommandFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "(B) at (2,0)");
+    const nextSource = source.replace("(2,0)", "(2.4,0.3)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.replayMode).toBe("suffix");
+  });
+
+  it("keeps unrelated later foreach-origin fragments on the selective path", () => {
+    const source = makeLaterForeachFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "(B) at (2,0)");
+    const nextSource = source.replace("(2,0)", "(2.3,0.35)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.replayMode).toBe("selective");
+  });
+
+  it("keeps later macro-origin fragments out of the selective path", () => {
+    const source = makeLaterMacroOriginFigure();
+    const session = createIncrementalSemanticSession();
+    const seededParsed = parseTikz(source, { recover: true });
+    session.evaluate({
+      figure: seededParsed.figure,
+      source,
+      hints: { trigger: "other" }
+    });
+
+    const changedSourceId = findStatementIdBySourceSnippet(seededParsed.figure.body, source, "(B) at (2,0)");
+    const nextSource = source.replace("(2,0)", "(2.25,0.4)");
+    const parsed = parseTikz(nextSource, { recover: true });
+    const incremental = session.evaluate({
+      figure: parsed.figure,
+      source: nextSource,
+      hints: {
+        trigger: "drag-element",
+        changedSourceIds: [changedSourceId]
+      }
+    });
+    const full = evaluateTikzFigure(parsed.figure, nextSource);
+
+    expect(incremental.semantic).toEqual(full);
+    expect(incremental.stats.replayMode).toBe("suffix");
   });
 
   it("falls back to full strategy when opaque dependencies are reached", () => {
@@ -272,3 +483,103 @@ const STARTUP_SOURCE = String.raw`\begin{tikzpicture}[every node/.style={fill=bl
         (B) edge (C)
         (C) edge (A);
 \end{tikzpicture}`;
+
+function makeClosureFigureWithLongTail(unrelatedPathCount: number): string {
+  const lines = [
+    "\\begin{tikzpicture}",
+    "  \\node[draw] (A) at (-1, -1) {A};",
+    "  \\node[draw] (B) at (1.5, -0.5) {B};",
+    "  \\node[draw] (C) at (0, 1.5) {C};",
+    "  \\draw (A) edge (B)",
+    "        (B) edge (C)",
+    "        (C) edge (A);"
+  ];
+  for (let index = 0; index < unrelatedPathCount; index += 1) {
+    lines.push(`  \\draw (${index},0) -- (${index + 1},1);`);
+  }
+  lines.push("\\end{tikzpicture}");
+  return lines.join("\n");
+}
+
+function makeIsolatedNodeFigure(): string {
+  const lines = ["\\begin{tikzpicture}"];
+  for (let index = 0; index < 8; index += 1) {
+    lines.push(`  \\draw (${index},0) -- (${index + 1},1);`);
+  }
+  lines.push("  \\node[draw] (Solo) at (10,10) {Solo};");
+  lines.push("\\end{tikzpicture}");
+  return lines.join("\n");
+}
+
+function makeLaterScopeFigure(): string {
+  return String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \begin{scope}[shift={(10,0)}]
+    \draw (0,0) rectangle (2,1);
+    \node[draw] at (1,0.5) {Box};
+  \end{scope}
+\end{tikzpicture}`;
+}
+
+function makeNestedScopeFigure(): string {
+  return String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \begin{scope}[shift={(10,0)}]
+    \draw (0,0) rectangle (2,1);
+    \begin{scope}[rotate=20]
+      \node[draw] at (1,2) {Nested};
+    \end{scope}
+  \end{scope}
+\end{tikzpicture}`;
+}
+
+function makeLaterScopeWithCommandFigure(): string {
+  return String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \begin{scope}[shift={(10,0)}]
+    \tikzset{every node/.style={fill=red!20}}
+    \node[draw] at (1,0.5) {Box};
+  \end{scope}
+\end{tikzpicture}`;
+}
+
+function makeLaterForeachFigure(): string {
+  return String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \foreach \x in {0,1,2,3} {
+    \draw (\x,3) circle (0.2);
+  }
+\end{tikzpicture}`;
+}
+
+function makeLaterMacroOriginFigure(): string {
+  return String.raw`\begin{tikzpicture}
+  \def\laterbox{\draw (5,0) rectangle (6,1);}
+  \node[draw] (A) at (0,0) {A};
+  \node[draw] (B) at (2,0) {B};
+  \draw (A) -- (B);
+  \laterbox
+\end{tikzpicture}`;
+}
+
+function findStatementIdBySourceSnippet(
+  statements: readonly Statement[],
+  source: string,
+  snippet: string
+): string {
+  const statement = statements.find((candidate) =>
+    source.slice(candidate.span.from, candidate.span.to).includes(snippet)
+  );
+  if (!statement) {
+    throw new Error(`Could not find statement containing snippet: ${snippet}`);
+  }
+  return statement.id;
+}

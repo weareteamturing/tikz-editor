@@ -26,13 +26,17 @@ import type {
 import { parseOptionListRaw } from "../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
+  beginStatementEffectTracking,
   createSemanticContext,
   currentFrame,
+  endStatementEffectTracking,
   markDependencyOpaque,
   popFrame,
   pushFrame,
   withDependencySource,
   type SemanticContext,
+  type SemanticStatementEffectSummary,
+  type SemanticStatementSuffixSkipKind,
   type ProvenanceOptionList,
   type NodeDistanceSpec,
   type NodeQuotesMode
@@ -78,11 +82,16 @@ export type EvaluateTikzResult = {
 
 export type SemanticStatementEvaluationRecord = {
   statementId: string;
+  sourceId: string;
+  sourceSpan: { from: number; to: number };
   elements: SceneElement[];
+  editHandles: EditHandle[];
+  diagnostics: Diagnostic[];
   handleStart: number;
   handleEnd: number;
   diagnosticsStart: number;
   diagnosticsEnd: number;
+  effectSummary: SemanticStatementEffectSummary;
 };
 
 export type SemanticEvaluationRun = {
@@ -92,6 +101,7 @@ export type SemanticEvaluationRun = {
   diagnostics: Diagnostic[];
   featureUsage: FeatureUsage;
   expandedFigureBody: Statement[];
+  sourceStatementSpanById: Map<string, { from: number; to: number }>;
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
@@ -240,6 +250,7 @@ export function createSemanticEvaluationRun(
     diagnostics,
     featureUsage,
     expandedFigureBody: expanded.figureBody,
+    sourceStatementSpanById: buildSourceStatementSpanById(figure.body),
     statementAttribution: expanded.statementAttribution,
     pathItemForeachStack: expanded.pathItemForeachStack,
     statementMacroAttribution,
@@ -258,24 +269,56 @@ export function evaluateSemanticStatementByIndex(
   }
   const handleStart = run.context.editHandles.length;
   const diagnosticsStart = run.diagnostics.length;
+  const beforeCurrentPoint = run.context.currentPoint ? { ...run.context.currentPoint } : null;
+  const beforePathStartPoint = run.context.pathStartPoint ? { ...run.context.pathStartPoint } : null;
+  beginStatementEffectTracking(run.context);
   const statementElements = withDependencySource(run.context, statement.id, () =>
     evaluateStatement(statement, run.context, run.diagnostics, run.featureUsage, run.statementMacroAttribution)
   );
-  const elements = applyForeachAttributionToElements(
-    statement,
-    statementElements,
-    run.statementAttribution,
-    run.pathItemForeachStack,
-    run.statementMacroAttribution
+  const sourceId = run.statementAttribution.get(statement)?.sourceId ?? statement.id;
+  const sourceSpan = run.sourceStatementSpanById.get(sourceId) ?? statement.span;
+  const elements = finalizeStatementElements(
+    applyForeachAttributionToElements(
+      statement,
+      statementElements,
+      run.statementAttribution,
+      run.pathItemForeachStack,
+      run.statementMacroAttribution
+    ),
+    run.context.sourceFingerprint
   );
   applyForeachAttributionToHandles(statement, run.context.editHandles, handleStart, run.statementAttribution);
+  const editHandles = finalizeStatementEditHandles(
+    run.context.editHandles.slice(handleStart),
+    run.context.sourceFingerprint
+  );
+  for (let index = 0; index < editHandles.length; index += 1) {
+    run.context.editHandles[handleStart + index] = editHandles[index];
+  }
+  const diagnostics = run.diagnostics.slice(diagnosticsStart);
+  const effectSummary = endStatementEffectTracking(run.context, {
+    beforeCurrentPoint,
+    beforePathStartPoint,
+    requiresSequentialContext: statement.kind !== "Path"
+  });
+  const opaqueReasons = extractElementOpaqueReasons(elements);
+  if (opaqueReasons.length > 0) {
+    effectSummary.opaque = true;
+    effectSummary.opaqueReasons = opaqueReasons;
+  }
+  effectSummary.suffixSkipKind = classifyStatementSuffixSkipKind(statement, opaqueReasons);
   return {
     statementId: statement.id,
+    sourceId,
+    sourceSpan,
     elements,
+    editHandles,
+    diagnostics,
     handleStart,
     handleEnd: run.context.editHandles.length,
     diagnosticsStart,
-    diagnosticsEnd: run.diagnostics.length
+    diagnosticsEnd: run.diagnostics.length,
+    effectSummary
   };
 }
 
@@ -354,7 +397,110 @@ function buildSourceStatementFirstIndexBySourceId(run: SemanticEvaluationRun): R
   return Object.fromEntries([...bySourceId.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 }
 
-function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTarget[] {
+function buildSourceStatementSpanById(
+  statements: readonly Statement[]
+): Map<string, { from: number; to: number }> {
+  const spans = new Map<string, { from: number; to: number }>();
+  const visit = (statement: Statement) => {
+    spans.set(statement.id, { ...statement.span });
+    if (statement.kind === "Scope") {
+      for (const nested of statement.body) {
+        visit(nested);
+      }
+    }
+  };
+  for (const statement of statements) {
+    visit(statement);
+  }
+  return spans;
+}
+
+function finalizeStatementElements(
+  elements: SceneElement[],
+  sourceFingerprint: string
+): SceneElement[] {
+  return elements.map((element) => ({
+    ...element,
+    runtimeId: element.runtimeId ?? element.id,
+    sourceRef: {
+      ...element.sourceRef,
+      sourceFingerprint
+    }
+  }));
+}
+
+function finalizeStatementEditHandles(
+  handles: EditHandle[],
+  sourceFingerprint: string
+): EditHandle[] {
+  return handles.map((handle) => ({
+    ...handle,
+    runtimeId: handle.runtimeId ?? handle.id,
+    sourceRef: {
+      ...handle.sourceRef,
+      sourceFingerprint
+    }
+  }));
+}
+
+function extractElementOpaqueReasons(
+  elements: readonly SceneElement[]
+): Array<"foreach-origin" | "macro-origin"> {
+  const reasons = new Set<"foreach-origin" | "macro-origin">();
+  for (const element of elements) {
+    const origin = element.origin;
+    if (!origin) {
+      continue;
+    }
+    if (origin.foreachStack.length > 0) {
+      reasons.add("foreach-origin");
+    }
+    if (origin.macroStack && origin.macroStack.length > 0) {
+      reasons.add("macro-origin");
+    }
+  }
+  return [...reasons].sort();
+}
+
+function classifyStatementSuffixSkipKind(
+  statement: Statement,
+  opaqueReasons: ReadonlyArray<"foreach-origin" | "macro-origin">
+): SemanticStatementSuffixSkipKind {
+  if (opaqueReasons.includes("macro-origin")) {
+    return "unsafe";
+  }
+  if (statement.kind === "Path") {
+    if (opaqueReasons.length === 0) {
+      return "safe";
+    }
+    if (opaqueReasons.length === 1 && opaqueReasons[0] === "foreach-origin") {
+      return "foreach-origin-safe";
+    }
+    return "unsafe";
+  }
+  if (statement.kind === "Scope") {
+    if (!isScopeBodySuffixSkipSafe(statement.body)) {
+      return "unsafe";
+    }
+    return "scope-safe";
+  }
+  return "unsafe";
+}
+
+function isScopeBodySuffixSkipSafe(body: readonly Statement[]): boolean {
+  for (const statement of body) {
+    if (statement.kind === "Path") {
+      continue;
+    }
+    if (statement.kind === "Scope" && isScopeBodySuffixSkipSafe(statement.body)) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+export function collectNodeAnchorTargets(context: SemanticContext): NodeAnchorTarget[] {
   const BASIC_ANCHORS = new Set([
     "center",
     "north",
@@ -1505,7 +1651,7 @@ function skipWhitespace(input: string, start: number): number {
   return cursor;
 }
 
-function computeBounds(elements: SceneElement[]): Bounds | undefined {
+export function computeBounds(elements: SceneElement[]): Bounds | undefined {
   const points: Array<{ x: number; y: number }> = [];
 
   for (const element of elements) {
@@ -1773,7 +1919,7 @@ function isCmOptionEntry(entry: OptionEntry): boolean {
   return entry.kind === "kv" && (entry.key === "cm" || entry.key === "/tikz/cm");
 }
 
-function initializeFeatureUsage(): FeatureUsage {
+export function initializeFeatureUsage(): FeatureUsage {
   const usage: FeatureUsage = {};
   for (const featureId of FEATURE_IDS) {
     usage[featureId] = "unused";

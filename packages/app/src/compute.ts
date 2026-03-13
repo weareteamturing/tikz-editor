@@ -41,10 +41,13 @@ export type SessionSnapshotIncrementalInfo = {
   reparsedStatementCount: number;
   parserReusedStatementCount: number;
   strategy: IncrementalSemanticStats["strategy"];
+  replayMode?: IncrementalSemanticStats["replayMode"];
   fallbackReason: IncrementalSemanticStats["fallbackReason"];
   recomputeFromStatementIndex: number | null;
   recomputedStatementCount: number;
   reusedStatementCount: number;
+  corridorEndStatementIndex?: number | null;
+  affectedStatementCount?: number;
 };
 
 export type ComputeRequest = {
@@ -139,10 +142,13 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
           reparsedStatementCount: result.parseStats.reparsedStatementCount,
           parserReusedStatementCount: result.parseStats.reusedStatementCount,
           strategy: result.semanticStats.strategy,
+          replayMode: result.semanticStats.replayMode,
           fallbackReason: result.semanticStats.fallbackReason,
           recomputeFromStatementIndex: result.semanticStats.recomputeFromStatementIndex,
           recomputedStatementCount: result.semanticStats.recomputedStatementCount,
-          reusedStatementCount: result.semanticStats.reusedStatementCount
+          reusedStatementCount: result.semanticStats.reusedStatementCount,
+          corridorEndStatementIndex: result.semanticStats.corridorEndStatementIndex,
+          affectedStatementCount: result.semanticStats.affectedStatementCount
         }
       };
       return {
@@ -170,6 +176,13 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     parseSession.prime(result.parse, {
       activeFigureId: request.activeFigureId ?? result.parse.activeFigureId,
       includeContextDefinitions: true
+    });
+    const semanticSession = await getIncrementalSemanticSession();
+    semanticSession.evaluate({
+      figure: result.parse.figure,
+      source: request.source,
+      options: { textEngine: await getOptionalTextEngine() },
+      hints: { trigger: "other" }
     });
     previousSvgModel = result.svg.model;
 
