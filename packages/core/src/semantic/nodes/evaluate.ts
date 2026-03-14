@@ -873,18 +873,16 @@ function resolveNodeStyleTrace(params: {
       })
     )
   ];
-  if (commandOptions.length > 0) {
-    layers.push({
-      kind: "command",
-      sourceRef: {
-        sourceId: params.item.id,
-        sourceSpan: params.item.optionsSpan ?? params.item.span,
-        sourceKind: "node-options",
-        label: "node"
-      },
-      rawOptions: commandOptions
-    });
-  }
+  layers.push({
+    kind: "command",
+    sourceRef: {
+      sourceId: params.item.id,
+      sourceSpan: params.item.optionsSpan ?? params.item.span,
+      sourceKind: "node-options",
+      label: "node"
+    },
+    rawOptions: commandOptions
+  });
 
   const resolved = resolveContextDelta(
     params.baseStyle,
