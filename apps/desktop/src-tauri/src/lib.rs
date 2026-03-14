@@ -452,6 +452,20 @@ fn desktop_list_recent_files(app: AppHandle) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+fn desktop_clear_recent_files(app: AppHandle) -> Result<(), String> {
+    {
+        let state = app.state::<RecentFilesState>();
+        let mut entries = state
+            .files
+            .lock()
+            .map_err(|_| "recent files state unavailable".to_string())?;
+        entries.clear();
+    }
+    save_recent_files_to_disk(&app, &[]);
+    Ok(())
+}
+
+#[tauri::command]
 fn desktop_open_external(url: String) -> Result<bool, String> {
     let sanitized = validate_external_url(&url)?;
 
@@ -733,6 +747,7 @@ pub fn run() {
             desktop_confirm_unsaved_changes,
             desktop_confirm_window_close,
             desktop_list_recent_files,
+            desktop_clear_recent_files,
             desktop_open_external,
             desktop_perform_snap_haptic,
             desktop_read_custom_clipboard_text,

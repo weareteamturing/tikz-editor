@@ -62,6 +62,7 @@ type DesktopBridge = {
   openExternalUrl: (url: string) => Promise<boolean>;
   performSnapHaptic?: () => Promise<void>;
   listRecentFiles: () => Promise<string[]>;
+  clearRecentFiles: () => Promise<void>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
   showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
   onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
@@ -306,25 +307,44 @@ function createNativeDesktopMenuManager(options: {
     }
 
     if (item.kind === "recent-files") {
-      const recentItems: any[] = recentFiles.length > 0
-        ? await Promise.all(
-          recentFiles.map(async (path, index) =>
+      const recentItems: any[] = [];
+      if (recentFiles.length > 0) {
+        for (let i = 0; i < recentFiles.length; i += 1) {
+          const path = recentFiles[i]!;
+          recentItems.push(
             await menuApi.MenuItem.new({
-              id: `file.open-recent.${index}`,
+              id: `file.open-recent.${i}`,
               text: basename(path),
               action: () => {
                 dispatchOpenRecent(path);
               }
             })
-          )
-        )
-        : [
+          );
+        }
+        recentItems.push(await menuApi.PredefinedMenuItem.new({ item: "Separator" }));
+        recentItems.push(
+          await menuApi.MenuItem.new({
+            id: APP_MENU_COMMAND_IDS.CLEAR_RECENT_FILES,
+            text: "Clear Open Recent",
+            action: () => {
+              void getBridge()
+                .clearRecentFiles()
+                .then(() => {
+                  nativeMenuManager.refreshRecents();
+                });
+            }
+          })
+        );
+      } else {
+        recentItems.push(
           await menuApi.MenuItem.new({
             id: "file.open-recent.empty",
             text: "No Recent Files",
             enabled: false
           })
-        ];
+        );
+      }
+
       return await menuApi.Submenu.new({
         id: "file.open-recent",
         text: item.label,
@@ -555,6 +575,10 @@ function createDefaultBridge(): DesktopBridge {
     listRecentFiles: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<string[]>("desktop_list_recent_files");
+    },
+    clearRecentFiles: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_clear_recent_files");
     },
     onWindowCloseRequest: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
@@ -834,6 +858,10 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           mimeType: options.mimeType,
           bytesBase64: base64FromBytes(new Uint8Array(arrayBuffer))
         });
+      },
+      clearRecentFiles: async () => {
+        await getBridge().clearRecentFiles();
+        nativeMenuManager.refreshRecents();
       }
     },
     assistant: {

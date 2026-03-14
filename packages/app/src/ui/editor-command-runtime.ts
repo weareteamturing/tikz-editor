@@ -256,6 +256,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: canOpen,
       run: () => runOpenDocument(true)
     },
+    [APP_MENU_COMMAND_IDS.CLEAR_RECENT_FILES]: {
+      enabled: typeof getActiveEditorPlatform().files?.clearRecentFiles === "function",
+      run: () => {
+        void getActiveEditorPlatform().files?.clearRecentFiles?.();
+      }
+    },
     [APP_MENU_COMMAND_IDS.SAVE_DOCUMENT]: {
       enabled: canSave,
       run: () => {

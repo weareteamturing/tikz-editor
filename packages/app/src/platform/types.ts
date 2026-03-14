@@ -37,6 +37,7 @@ export type PlatformFileApi = {
     | { status: "failed"; fileRef: DocumentFileRef | null; reason?: string }
   >;
   exportFile?: (content: BlobPart[], options: { fileName: string; mimeType: string }) => Promise<boolean>;
+  clearRecentFiles?: () => Promise<void>;
 };
 
 export type PlatformMenu = {
