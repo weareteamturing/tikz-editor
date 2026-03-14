@@ -7,6 +7,20 @@ import {
 } from "./helpers.js";
 import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../../packages/core/src/semantic/types.js";
 
+function expectLinearTransform(
+  transform: { a: number; b: number; c: number; d: number } | undefined,
+  expected: { a: number; b: number; c: number; d: number }
+): void {
+  expect(transform).toBeDefined();
+  if (!transform) {
+    return;
+  }
+  expect(transform.a).toBeCloseTo(expected.a, 3);
+  expect(transform.b).toBeCloseTo(expected.b, 3);
+  expect(transform.c).toBeCloseTo(expected.c, 3);
+  expect(transform.d).toBeCloseTo(expected.d, 3);
+}
+
 describe("semantic evaluator / nodes and shapes", () => {
     it("starts an edge directly after a named node at that node's border", () => {
       const source = String.raw`\begin{tikzpicture}
@@ -558,7 +572,14 @@ describe("semantic evaluator / nodes and shapes", () => {
       );
       expect(label?.kind).toBe("Text");
       if (label?.kind === "Text") {
-        expect(label.rotation ?? 0).toBeCloseTo(15, 3);
+          const radians = (15 * Math.PI) / 180;
+          expect(label.rotation ?? 0).toBeCloseTo(0, 3);
+          expectLinearTransform(label.transform, {
+            a: Math.cos(radians),
+            b: Math.sin(radians),
+            c: -Math.sin(radians),
+            d: Math.cos(radians)
+          });
       }
     });
 
@@ -574,13 +595,13 @@ describe("semantic evaluator / nodes and shapes", () => {
       );
       expect(nodeBox?.kind).toBe("Path");
       if (nodeBox?.kind === "Path") {
-        const move = nodeBox.commands[0];
-        const line = nodeBox.commands[1];
-        expect(move?.kind).toBe("M");
-        expect(line?.kind).toBe("L");
-        if (move?.kind === "M" && line?.kind === "L") {
-          expect(Math.abs(line.to.y - move.to.y)).toBeGreaterThan(1e-3);
-        }
+        const radians = (30 * Math.PI) / 180;
+        expectLinearTransform(nodeBox.transform, {
+          a: Math.cos(radians),
+          b: Math.sin(radians),
+          c: -Math.sin(radians),
+          d: Math.cos(radians)
+        });
       }
     });
 
@@ -603,7 +624,14 @@ describe("semantic evaluator / nodes and shapes", () => {
       if (label?.kind === "Text") {
         expect(label.position.x).toBeCloseTo(0, 3);
         expect(label.position.y).toBeCloseTo(0, 3);
-        expect(label.rotation ?? 0).toBeCloseTo(15, 3);
+          const radians = (15 * Math.PI) / 180;
+          expect(label.rotation ?? 0).toBeCloseTo(0, 3);
+          expectLinearTransform(label.transform, {
+            a: Math.cos(radians),
+            b: Math.sin(radians),
+            c: -Math.sin(radians),
+            d: Math.cos(radians)
+          });
       }
     });
 
@@ -780,7 +808,8 @@ describe("semantic evaluator / nodes and shapes", () => {
       expect(drawn?.kind).toBe("Text");
       expect(scaled?.kind).toBe("Text");
       if (drawn?.kind === "Text" && scaled?.kind === "Text") {
-        expect(scaled.style.fontSize).toBeGreaterThan(drawn.style.fontSize * 1.9);
+        expect(scaled.style.fontSize).toBeCloseTo(drawn.style.fontSize, 3);
+        expectLinearTransform(scaled.transform, { a: 2, b: 0, c: 0, d: 2 });
       }
     });
 
@@ -1892,7 +1921,8 @@ describe("semantic evaluator / nodes and shapes", () => {
       if (center?.kind === "Text" && base?.kind === "Text" && mid?.kind === "Text") {
         expect(base.position.y).toBeGreaterThan(mid.position.y);
         expect(mid.position.y).toBeGreaterThan(center.position.y);
-        expect(base.style.fontSize).toBeCloseTo(29.8879, 3);
+        expect(base.style.fontSize).toBeCloseTo(9.96264, 3);
+        expectLinearTransform(base.transform, { a: 3, b: 0, c: 0, d: 3 });
       }
     });
 
@@ -1906,7 +1936,14 @@ describe("semantic evaluator / nodes and shapes", () => {
       const text = result.scene.elements.find((element) => element.kind === "Text" && element.text === "test");
       expect(text?.kind).toBe("Text");
       if (text?.kind === "Text") {
-        expect(text.rotation ?? 0).toBeCloseTo(40, 3);
+          const radians = (40 * Math.PI) / 180;
+          expect(text.rotation ?? 0).toBeCloseTo(0, 3);
+          expectLinearTransform(text.transform, {
+            a: Math.cos(radians),
+            b: Math.sin(radians),
+            c: -Math.sin(radians),
+            d: Math.cos(radians)
+          });
       }
     });
 
