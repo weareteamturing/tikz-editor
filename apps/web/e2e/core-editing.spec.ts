@@ -258,14 +258,19 @@ test("group honors editor indent size and supports pointer-up drill-down behavio
   await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
   await expect(page.getByTestId("canvas-context-cmd-edit.ungroup")).toBeEnabled();
   await page.keyboard.press("Escape");
-  await expect.poll(async () => page.getByText("2 selected").isVisible()).toBe(true);
+  await expect(page.getByText("scope", { exact: true })).toBeVisible();
+  await expect(page.getByText("Transform", { exact: true })).toBeVisible();
+  await expect(page.getByText("X shift", { exact: true })).toBeVisible();
+  await expect(page.getByText("Y shift", { exact: true })).toBeVisible();
+  await expect(page.getByText("X scale", { exact: true })).toBeVisible();
+  await expect(page.getByText("Y scale", { exact: true })).toBeVisible();
   await openMenuSection(page, "edit");
   await expect(page.getByTestId("menu-cmd-edit.ungroup")).toBeEnabled();
   await page.getByRole("menuitem", { name: "Transform" }).hover();
-  await expect(page.getByTestId("menu-cmd-edit.rotate-left-90")).toBeDisabled();
-  await expect(page.getByTestId("menu-cmd-edit.rotate-right-90")).toBeDisabled();
-  await expect(page.getByTestId("menu-cmd-edit.flip-horizontal")).toBeDisabled();
-  await expect(page.getByTestId("menu-cmd-edit.flip-vertical")).toBeDisabled();
+  await expect(page.getByTestId("menu-cmd-edit.rotate-left-90")).toBeEnabled();
+  await expect(page.getByTestId("menu-cmd-edit.rotate-right-90")).toBeEnabled();
+  await expect(page.getByTestId("menu-cmd-edit.flip-horizontal")).toBeEnabled();
+  await expect(page.getByTestId("menu-cmd-edit.flip-vertical")).toBeEnabled();
 
   const sourceBeforeScopeGestureDrag = await readStoreSource(page);
   await dragHitRegionByTargetId(page, "path:1", 40, -20);

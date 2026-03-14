@@ -240,6 +240,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         : null;
       const singleSelectedScopeId =
         singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) ? singleSelectedId : null;
+      const hitSourceHasNodePositionHandle = snapshot.editHandles.some(
+        (handle) => handle.kind === "node-position" && handle.sourceRef.sourceId === hitSourceId
+      );
       const shouldDeferScopeDrillToPointerUp =
         !additiveSelection &&
         singleSelectedScopeId != null &&
@@ -256,7 +259,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       if (shouldDeferScopeDrillToPointerUp) {
-        const canDragSelectedScope = draggableSourceIds.has(singleSelectedScopeId);
+        const canDragSelectedScope =
+          draggableSourceIds.has(singleSelectedScopeId) &&
+          !hitSourceHasNodePositionHandle;
         pendingScopeDrillRef.current = {
           pointerId: event.pointerId,
           startClientX: event.clientX,
