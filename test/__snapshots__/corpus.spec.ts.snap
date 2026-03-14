@@ -146,11 +146,11 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topSemanticDiagnosticCodes": [
     {
       "code": "unsupported-statement",
-      "count": 1621,
+      "count": 1611,
     },
     {
       "code": "foreach-body-parse-error",
-      "count": 387,
+      "count": 377,
     },
     {
       "code": "unsupported-path-operator",
@@ -196,7 +196,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topSemanticUnsupportedCodes": [
     {
       "code": "unsupported-statement",
-      "count": 1621,
+      "count": 1611,
     },
     {
       "code": "unsupported-path-operator",

@@ -1,3 +1,4 @@
+import { expandTexConditionals } from "../conditionals/expand.js";
 import type { MacroBinding, MacroOriginFrame } from "./types.js";
 
 const CONTROL_SEQUENCE_REGEX = /\\[A-Za-z@]+/g;
@@ -33,7 +34,7 @@ export function expandMacroBindings(
   const seen = new Set<string>([current]);
 
   for (let depth = 0; depth < maxDepth; depth += 1) {
-    const next = substituteSinglePass(current, bindings, opts.trace);
+    const next = expandTexConditionals(substituteSinglePass(current, bindings, opts.trace));
     if (next === current) {
       return next;
     }

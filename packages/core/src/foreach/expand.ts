@@ -37,6 +37,7 @@ import type {
 } from "../ast/types.js";
 import { buildForeachIterations } from "./options.js";
 import { parseNodeItemsFromTemplate, parsePathItemsFromFragment, parseStatementsFromBody } from "./snippet-parse.js";
+import { expandTexConditionals } from "../conditionals/expand.js";
 import { substituteForeachBindings } from "./substitute.js";
 import type {
   ForeachExpansionDiagnostic,
@@ -185,7 +186,7 @@ function expandForeachStatement(
     };
     const nextStack = [...stack, frame];
 
-    const substitutedBodyRaw = substituteForeachBindings(statement.bodyRaw, combinedBindings);
+    const substitutedBodyRaw = expandTexConditionals(substituteForeachBindings(statement.bodyRaw, combinedBindings));
     const parsedBody = parseStatementsFromBody(substitutedBodyRaw);
     if (parsedBody.hasParseError) {
       context.diagnostics.push({
@@ -269,7 +270,7 @@ function expandPathItems(
           bindings: { ...iteration.bindings }
         };
         const nextStack = [...stack, frame];
-        const bodyRaw = substituteForeachBindings(item.bodyRaw, combinedBindings);
+        const bodyRaw = expandTexConditionals(substituteForeachBindings(item.bodyRaw, combinedBindings));
         const parsedItems = parsePathItemsFromFragment(bodyRaw);
         if (parsedItems.hasParseError) {
           context.diagnostics.push({
@@ -386,7 +387,7 @@ function expandChildOperationItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const childRaw = substituteForeachBindings(item.templateRaw, variant.bindings);
+    const childRaw = expandTexConditionals(substituteForeachBindings(item.templateRaw, variant.bindings));
     const parsed = parsePathItemsFromFragment(childRaw);
     if (parsed.hasParseError) {
       context.diagnostics.push({
@@ -505,7 +506,7 @@ function expandNodeForeachItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const nodeRaw = substituteForeachBindings(item.templateRaw, variant.bindings);
+    const nodeRaw = expandTexConditionals(substituteForeachBindings(item.templateRaw, variant.bindings));
     const parsed = parseNodeItemsFromTemplate(nodeRaw);
     if (parsed.hasParseError) {
       context.diagnostics.push({
