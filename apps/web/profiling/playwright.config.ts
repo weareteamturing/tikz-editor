@@ -21,7 +21,7 @@ export default defineConfig({
     trace: "off"
   },
   webServer: {
-    command: "npm run build && npx vite preview --host 127.0.0.1 --port 4174",
+    command: "npm run build -- --base /edit/ --sourcemap && npx vite preview --host 127.0.0.1 --port 4174",
     cwd: "..",
     url: "http://127.0.0.1:4174",
     reuseExistingServer: !process.env.CI,
