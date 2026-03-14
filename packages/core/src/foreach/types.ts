@@ -1,4 +1,5 @@
 import type { PathItem, Span, Statement } from "../ast/types.js";
+import type { MacroOriginFrame } from "../macros/types.js";
 import type { OptionListAst } from "../options/types.js";
 
 export type ForeachLoopHeader = {
@@ -36,4 +37,5 @@ export type ForeachExpansionResult = {
   diagnostics: ForeachExpansionDiagnostic[];
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
 };

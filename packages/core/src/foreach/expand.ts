@@ -28,13 +28,19 @@ import {
 import type {
   ChildOperationItem,
   ForeachStatement,
+  MacroAliasStatement,
+  MacroCommandDefinitionStatement,
+  MacroDefinitionStatement,
   NodeItem,
   PathItem,
   PathStatement,
   ScopeStatement,
   Statement,
-  TikzFigure
+  TikzFigure,
+  UnknownStatement
 } from "../ast/types.js";
+import { expandMacroBindings, isControlSequenceToken } from "../macros/expand.js";
+import type { MacroBinding, MacroOriginFrame as MacroOriginFrameType } from "../macros/types.js";
 import { buildForeachIterations } from "./options.js";
 import { parseNodeItemsFromTemplate, parsePathItemsFromFragment, parseStatementsFromBody } from "./snippet-parse.js";
 import { expandTexConditionals } from "../conditionals/expand.js";
@@ -49,10 +55,15 @@ import type {
 type ExpandContext = {
   maxForeachExpansions: number;
   expansionCount: number;
+  macroExpansionCount: number;
+  maxMacroStatementExpansions: number;
   diagnostics: ForeachExpansionDiagnostic[];
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrameType[]>;
+  macroBindings: Map<string, MacroBinding>;
   breakforeachWarned: Set<string>;
+  source: string;
 };
 
 type TemplateSource = {
@@ -65,13 +76,20 @@ export function expandForeachFigure(
   _source: string,
   maxForeachExpansions = 10_000
 ): ForeachExpansionResult {
+  const macroBindings = collectMacroBindings(figure.body);
+
   const context: ExpandContext = {
     maxForeachExpansions,
     expansionCount: 0,
+    macroExpansionCount: 0,
+    maxMacroStatementExpansions: 1_000,
     diagnostics: [],
     statementAttribution: new WeakMap<Statement, ForeachStatementAttribution>(),
     pathItemForeachStack: new WeakMap<PathItem, ForeachOriginFrame[]>(),
-    breakforeachWarned: new Set<string>()
+    statementMacroAttribution: new WeakMap<Statement, MacroOriginFrameType[]>(),
+    macroBindings,
+    breakforeachWarned: new Set<string>(),
+    source: _source
   };
 
   const expandedBody = expandStatements(figure.body, [], {}, context, undefined);
@@ -81,7 +99,8 @@ export function expandForeachFigure(
     figureBody: expandedBody,
     diagnostics: context.diagnostics,
     statementAttribution: context.statementAttribution,
-    pathItemForeachStack: context.pathItemForeachStack
+    pathItemForeachStack: context.pathItemForeachStack,
+    statementMacroAttribution: context.statementMacroAttribution
   };
 }
 
@@ -110,6 +129,24 @@ function expandStatement(
     return expandForeachStatement(statement, stack, inheritedBindings, context);
   }
 
+  if (statement.kind === "MacroDefinition") {
+    collectMacroDefinition(statement as MacroDefinitionStatement, context.macroBindings);
+    maybeRecordStatementAttribution(statement, stack, context, templateSource);
+    return [statement];
+  }
+
+  if (statement.kind === "MacroCommandDefinition") {
+    collectMacroCommandDefinition(statement as MacroCommandDefinitionStatement, context.macroBindings);
+    maybeRecordStatementAttribution(statement, stack, context, templateSource);
+    return [statement];
+  }
+
+  if (statement.kind === "MacroAlias") {
+    collectMacroAlias(statement as MacroAliasStatement, context.macroBindings);
+    maybeRecordStatementAttribution(statement, stack, context, templateSource);
+    return [statement];
+  }
+
   if (statement.kind === "Scope") {
     const scope = statement as ScopeStatement;
     const expandedBody = expandStatements(
@@ -131,6 +168,13 @@ function expandStatement(
     const expandedPath = expandPathStatement(statement, stack, inheritedBindings, context);
     maybeRecordStatementAttribution(expandedPath, stack, context, templateSource);
     return [expandedPath];
+  }
+
+  if (statement.kind === "UnknownStatement") {
+    const macroExpanded = tryExpandMacroStatement(statement, stack, context, templateSource);
+    if (macroExpanded != null) {
+      return macroExpanded;
+    }
   }
 
   maybeRecordStatementAttribution(statement, stack, context, templateSource);
@@ -186,7 +230,12 @@ function expandForeachStatement(
     };
     const nextStack = [...stack, frame];
 
-    const substitutedBodyRaw = expandTexConditionals(substituteForeachBindings(statement.bodyRaw, combinedBindings));
+    const substitutedBodyRaw = expandTexConditionals(
+      expandMacroBindings(
+        substituteForeachBindings(statement.bodyRaw, combinedBindings),
+        context.macroBindings
+      )
+    );
     const parsedBody = parseStatementsFromBody(substitutedBodyRaw);
     if (parsedBody.hasParseError) {
       context.diagnostics.push({
@@ -270,7 +319,12 @@ function expandPathItems(
           bindings: { ...iteration.bindings }
         };
         const nextStack = [...stack, frame];
-        const bodyRaw = expandTexConditionals(substituteForeachBindings(item.bodyRaw, combinedBindings));
+        const bodyRaw = expandTexConditionals(
+          expandMacroBindings(
+            substituteForeachBindings(item.bodyRaw, combinedBindings),
+            context.macroBindings
+          )
+        );
         const parsedItems = parsePathItemsFromFragment(bodyRaw);
         if (parsedItems.hasParseError) {
           context.diagnostics.push({
@@ -387,7 +441,12 @@ function expandChildOperationItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const childRaw = expandTexConditionals(substituteForeachBindings(item.templateRaw, variant.bindings));
+    const childRaw = expandTexConditionals(
+      expandMacroBindings(
+        substituteForeachBindings(item.templateRaw, variant.bindings),
+        context.macroBindings
+      )
+    );
     const parsed = parsePathItemsFromFragment(childRaw);
     if (parsed.hasParseError) {
       context.diagnostics.push({
@@ -506,7 +565,12 @@ function expandNodeForeachItem(
 
   const expanded: PathItem[] = [];
   for (const variant of variants) {
-    const nodeRaw = expandTexConditionals(substituteForeachBindings(item.templateRaw, variant.bindings));
+    const nodeRaw = expandTexConditionals(
+      expandMacroBindings(
+        substituteForeachBindings(item.templateRaw, variant.bindings),
+        context.macroBindings
+      )
+    );
     const parsed = parseNodeItemsFromTemplate(nodeRaw);
     if (parsed.hasParseError) {
       context.diagnostics.push({
@@ -574,6 +638,248 @@ function cloneForeachStack(stack: ForeachOriginFrame[]): ForeachOriginFrame[] {
     iterationIndex: frame.iterationIndex,
     bindings: { ...frame.bindings }
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Macro pre-collection and statement-level expansion
+// ---------------------------------------------------------------------------
+
+const CONTROL_SEQUENCE_REGEX_MACRO = /^\\[A-Za-z@]+/;
+
+function normalizeMacroName(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!isControlSequenceToken(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function collectMacroDefinition(statement: MacroDefinitionStatement, bindings: Map<string, MacroBinding>): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) return;
+  bindings.set(name, {
+    kind: "text",
+    value: statement.valueRaw,
+    provenance: [{ macroName: name, definitionId: statement.id, definitionSpan: statement.span, commandRaw: statement.commandRaw }]
+  });
+}
+
+function collectMacroCommandDefinition(statement: MacroCommandDefinitionStatement, bindings: Map<string, MacroBinding>): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) return;
+  const parameterCount = Math.min(Math.max(0, statement.arity), 9);
+  const origin: MacroOriginFrameType = { macroName: name, definitionId: statement.id, definitionSpan: statement.span, commandRaw: statement.commandRaw };
+  if (parameterCount === 0) {
+    bindings.set(name, { kind: "text", value: statement.bodyRaw, provenance: [origin] });
+  } else {
+    bindings.set(name, {
+      kind: "callable",
+      parameterCount,
+      optionalFirstArgDefault: statement.optionalDefaultRaw,
+      body: statement.bodyRaw,
+      provenance: [origin]
+    });
+  }
+}
+
+function collectMacroAlias(statement: MacroAliasStatement, bindings: Map<string, MacroBinding>): void {
+  const name = normalizeMacroName(statement.nameRaw);
+  if (!name) return;
+  const targetRaw = statement.targetRaw.trim();
+  if (targetRaw.length === 0) return;
+  const origin: MacroOriginFrameType = { macroName: name, definitionId: statement.id, definitionSpan: statement.span, commandRaw: statement.commandRaw };
+  if (isControlSequenceToken(targetRaw)) {
+    const existing = bindings.get(targetRaw);
+    if (existing) {
+      const cloned: MacroBinding = existing.kind === "text"
+        ? { kind: "text", value: existing.value, provenance: [...existing.provenance, origin] }
+        : { kind: "callable", parameterCount: existing.parameterCount, optionalFirstArgDefault: existing.optionalFirstArgDefault, body: existing.body, provenance: [...existing.provenance, origin] };
+      bindings.set(name, cloned);
+    } else {
+      bindings.set(name, { kind: "text", value: targetRaw, provenance: [origin] });
+    }
+  } else {
+    bindings.set(name, { kind: "text", value: targetRaw, provenance: [origin] });
+  }
+}
+
+function collectMacroBindings(statements: Statement[]): Map<string, MacroBinding> {
+  const bindings = new Map<string, MacroBinding>();
+  for (const statement of statements) {
+    if (statement.kind === "MacroDefinition") {
+      collectMacroDefinition(statement as MacroDefinitionStatement, bindings);
+    } else if (statement.kind === "MacroCommandDefinition") {
+      collectMacroCommandDefinition(statement as MacroCommandDefinitionStatement, bindings);
+    } else if (statement.kind === "MacroAlias") {
+      collectMacroAlias(statement as MacroAliasStatement, bindings);
+    } else if (statement.kind === "Scope") {
+      // Collect from scope bodies too (though scoping is approximate in pre-pass)
+      const scopeBindings = collectMacroBindings((statement as ScopeStatement).body);
+      for (const [key, value] of scopeBindings) {
+        bindings.set(key, value);
+      }
+    }
+  }
+  return bindings;
+}
+
+function tryExpandMacroStatement(
+  statement: UnknownStatement,
+  stack: ForeachOriginFrame[],
+  context: ExpandContext,
+  templateSource: TemplateSource | undefined
+): Statement[] | null {
+  if (context.macroBindings.size === 0) {
+    return null;
+  }
+
+  // The parser may not capture macro arguments (e.g., \mynode{red}{3} is parsed
+  // as UnknownStatement with raw="\mynode" and the {red}{3} is lost).
+  // Read ahead in the source to grab trailing arguments for callable macros.
+  const macroName = statement.raw.trim();
+  const binding = context.macroBindings.get(macroName);
+
+  let raw: string;
+  if (binding && binding.kind === "callable" && context.source.length > 0) {
+    // Read from the source starting at the macro name through any trailing brace args
+    const sourceFromMacro = context.source.slice(statement.span.from);
+    // Find end of arguments by scanning past the macro name + brace groups
+    const argsEnd = findEndOfMacroInvocation(sourceFromMacro, macroName.length, binding);
+    raw = sourceFromMacro.slice(0, argsEnd);
+  } else {
+    raw = statement.raw;
+  }
+
+  const expanded = expandTexConditionals(expandMacroBindings(raw, context.macroBindings));
+  if (expanded === raw) {
+    return null;
+  }
+
+  if (context.macroExpansionCount >= context.maxMacroStatementExpansions) {
+    context.diagnostics.push({
+      severity: "warning",
+      code: "macro-statement-expansion-limit",
+      message: `Macro statement expansion limit (${context.maxMacroStatementExpansions}) reached.`,
+      span: statement.span
+    });
+    return null;
+  }
+  context.macroExpansionCount += 1;
+
+  const parsed = parseStatementsFromBody(expanded);
+  if (parsed.hasParseError) {
+    context.diagnostics.push({
+      severity: "warning",
+      code: "macro-body-parse-error",
+      message: "Could not parse expanded macro body as TikZ statements.",
+      span: statement.span
+    });
+    return null;
+  }
+
+  // Determine provenance: find which macro(s) were involved
+  const macroMatch = CONTROL_SEQUENCE_REGEX_MACRO.exec(raw.trim());
+  const macroProvenance: MacroOriginFrameType[] = [];
+  if (macroMatch) {
+    const binding = context.macroBindings.get(macroMatch[0]);
+    if (binding) {
+      macroProvenance.push(...binding.provenance);
+    }
+  }
+
+  // Recursively expand the parsed statements (they may contain more macros/foreach)
+  const result = expandStatements(parsed.value, stack, {}, context, templateSource ?? {
+    sourceId: statement.id,
+    sourceSpan: statement.span
+  });
+
+  // Record macro attribution on all expanded statements
+  if (macroProvenance.length > 0) {
+    for (const expandedStatement of result) {
+      const existing = context.statementMacroAttribution.get(expandedStatement);
+      if (existing) {
+        context.statementMacroAttribution.set(expandedStatement, [...macroProvenance, ...existing]);
+      } else {
+        context.statementMacroAttribution.set(expandedStatement, [...macroProvenance]);
+      }
+    }
+  }
+
+  return result;
+}
+
+function findEndOfMacroInvocation(source: string, afterName: number, binding: MacroBinding): number {
+  if (binding.kind !== "callable") {
+    return afterName;
+  }
+
+  let cursor = afterName;
+  let argsFound = 0;
+  const totalArgs = binding.parameterCount;
+
+  // Skip whitespace before first arg
+  while (cursor < source.length && /\s/.test(source[cursor]!)) {
+    cursor += 1;
+  }
+
+  // Handle optional first argument
+  if (binding.optionalFirstArgDefault != null && source[cursor] === "[") {
+    cursor = skipBracketGroup(source, cursor);
+    argsFound += 1;
+  } else if (binding.optionalFirstArgDefault != null) {
+    // No optional arg provided, use default — don't consume anything
+    argsFound += 1;
+  }
+
+  // Parse required brace arguments
+  while (argsFound < totalArgs && cursor < source.length) {
+    while (cursor < source.length && /\s/.test(source[cursor]!)) {
+      cursor += 1;
+    }
+    if (cursor >= source.length) break;
+
+    if (source[cursor] === "{") {
+      cursor = skipBraceGroup(source, cursor);
+    } else if (source[cursor] === "\\") {
+      // Single control sequence as arg
+      cursor += 1;
+      while (cursor < source.length && /[a-zA-Z@]/.test(source[cursor]!)) {
+        cursor += 1;
+      }
+    } else {
+      // Single character arg
+      cursor += 1;
+    }
+    argsFound += 1;
+  }
+
+  return cursor;
+}
+
+function skipBraceGroup(source: string, start: number): number {
+  let depth = 0;
+  let cursor = start;
+  while (cursor < source.length) {
+    const ch = source[cursor]!;
+    if (ch === "\\") { cursor += 2; continue; }
+    if (ch === "{") { depth += 1; }
+    if (ch === "}") { depth -= 1; if (depth === 0) return cursor + 1; }
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function skipBracketGroup(source: string, start: number): number {
+  let depth = 0;
+  let cursor = start;
+  while (cursor < source.length) {
+    const ch = source[cursor]!;
+    if (ch === "\\") { cursor += 2; continue; }
+    if (ch === "[") { depth += 1; }
+    if (ch === "]") { depth -= 1; if (depth === 0) return cursor + 1; }
+    cursor += 1;
+  }
+  return cursor;
 }
 
 function reindexStatements(statements: Statement[]): void {

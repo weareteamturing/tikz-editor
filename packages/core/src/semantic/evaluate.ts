@@ -242,7 +242,6 @@ export function createSemanticEvaluationRun(
     }
   }
 
-  const statementMacroAttribution = new WeakMap<Statement, MacroOriginFrame[]>();
   return {
     figure,
     source,
@@ -253,7 +252,7 @@ export function createSemanticEvaluationRun(
     sourceStatementSpanById: buildSourceStatementSpanById(figure.body),
     statementAttribution: expanded.statementAttribution,
     pathItemForeachStack: expanded.pathItemForeachStack,
-    statementMacroAttribution,
+    statementMacroAttribution: expanded.statementMacroAttribution,
     rootFramePushed,
     baseDiagnosticsCount: diagnostics.length
   };
