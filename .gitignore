@@ -149,3 +149,4 @@ dist
 /prototypes/clipboard
 /apps/web/e2e/traces
 /test-results
+/apps/web/profiling/traces

@@ -1,13 +1,19 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { parseTikz, type Statement } from "@tikz-editor/core";
-import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from "./helpers";
+import { gotoApp, openMenuCommand, readActiveFigureId, readFigureCount } from "../e2e/helpers";
+import {
+  clearSelection,
+  resolvePaperTarget,
+  resolveVisibleSamplePointForSelector,
+  seedWorkspace,
+  startCDPProfile,
+  stopCDPProfile,
+  TRACES_DIR,
+  waitForActiveFigure,
+  type PaperTarget
+} from "./helpers";
 
-const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const TRACES_DIR = path.join(THIS_DIR, "traces");
-const PAPER_PATH = path.resolve(THIS_DIR, "../../../test/papers/equal_shares_arxiv_v2.tex");
 const TARGET_DRAW_LINE = String.raw`\draw[thick,->,magenta] (0.0, 0.0) -- (0.0, 4.5);`;
 const TARGET_NEXT_COLOR = "green";
 const VERBOSE_PROFILE_LOGS = process.env.TIKZ_PROFILE_VERBOSE === "1";
@@ -47,15 +53,6 @@ type ProfileSummary = {
   snapshot: ProbeSnapshot;
 };
 
-type PaperTarget = {
-  source: string;
-  targetLine: string;
-  targetOffset: number;
-  activeFigureId: string;
-  activeFigureNumber: number;
-  targetSourceId: string;
-};
-
 type DebugState = {
   activeFigureId: string | null;
   figureCount: number;
@@ -67,84 +64,6 @@ type DebugState = {
   statusBarText: string | null;
 };
 
-function resolvePaperTarget(): PaperTarget {
-  const source = fs.readFileSync(PAPER_PATH, "utf8");
-  const targetOffset = source.indexOf(TARGET_DRAW_LINE);
-  if (targetOffset < 0) {
-    throw new Error(`Target draw line not found in ${PAPER_PATH}`);
-  }
-
-  const fullParse = parseTikz(source, { recover: true, includeContextDefinitions: true });
-  const figure = fullParse.figures.find((candidate) => targetOffset >= candidate.span.from && targetOffset < candidate.span.to);
-  if (!figure) {
-    throw new Error(`Could not resolve figure containing target line in ${PAPER_PATH}`);
-  }
-  const activeFigureNumber = fullParse.figures.findIndex((candidate) => candidate.id === figure.id) + 1;
-  if (activeFigureNumber <= 0) {
-    throw new Error(`Could not resolve figure number for ${figure.id}`);
-  }
-
-  const activeParse = parseTikz(source, {
-    recover: true,
-    includeContextDefinitions: true,
-    activeFigureId: figure.id
-  });
-  const targetStatement = findStatementContainingOffset(activeParse.figure.body, targetOffset);
-  if (!targetStatement || targetStatement.kind !== "Path") {
-    throw new Error(`Could not resolve path statement containing target line in ${PAPER_PATH}`);
-  }
-
-  return {
-    source,
-    targetLine: TARGET_DRAW_LINE,
-    targetOffset,
-    activeFigureId: figure.id,
-    activeFigureNumber,
-    targetSourceId: targetStatement.id
-  };
-}
-
-function findStatementContainingOffset(statements: readonly Statement[], offset: number): Statement | null {
-  for (const statement of statements) {
-    if (offset < statement.span.from || offset >= statement.span.to) {
-      continue;
-    }
-    if (statement.kind === "Scope") {
-      return findStatementContainingOffset(statement.body, offset) ?? statement;
-    }
-    return statement;
-  }
-  return null;
-}
-
-async function seedWorkspace(page: import("@playwright/test").Page, target: PaperTarget): Promise<void> {
-  await page.addInitScript(({ source, activeFigureId }) => {
-    const payload = {
-      workspaceVersion: 3,
-      documents: [
-        {
-          id: "doc-profile-paper-color",
-          title: "equal_shares_arxiv_v2.tex",
-          source,
-          activeFigureId,
-          savedSource: source,
-          fileRef: null,
-          assistantThreadId: null,
-          assistantWorkspacePath: null,
-          assistantFigurePath: null,
-          assistantPreviewPath: null
-        }
-      ],
-      tabOrder: ["doc-profile-paper-color"],
-      activeDocumentId: "doc-profile-paper-color",
-      recentDocumentIds: ["doc-profile-paper-color"]
-    };
-    localStorage.setItem("tikz-editor:workspace", JSON.stringify(payload));
-  }, {
-    source: target.source,
-    activeFigureId: target.activeFigureId
-  });
-}
 
 async function installProbe(
   page: import("@playwright/test").Page,
@@ -246,14 +165,20 @@ async function installProbe(
           maxMs: null
         };
       }
-      const sorted = [...frameDeltas].sort((left, right) => left - right);
-      const p95Index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1));
-      const avgMs = frameDeltas.reduce((sum, value) => sum + value, 0) / frameDeltas.length;
+      const sorted = [...frameDeltas].sort((a, b) => a - b);
+      const index = (sorted.length - 1) * 0.95;
+      const lower = Math.floor(index);
+      const upper = Math.ceil(index);
+      const p95 =
+        lower === upper
+          ? sorted[lower] ?? null
+          : (sorted[lower] ?? 0) * (1 - (index - lower)) + (sorted[upper] ?? 0) * (index - lower);
+      const total = frameDeltas.reduce((sum, value) => sum + value, 0);
       return {
         count: frameDeltas.length,
-        avgMs,
-        p95Ms: sorted[p95Index] ?? null,
-        maxMs: sorted[sorted.length - 1] ?? null
+        avgMs: total / frameDeltas.length,
+        p95Ms: p95,
+        maxMs: Math.max(...frameDeltas)
       };
     };
 
@@ -312,24 +237,6 @@ async function installProbe(
   }, targetSourceId);
 }
 
-async function startCDPProfile(page: import("@playwright/test").Page) {
-  const client = await page.context().newCDPSession(page);
-  await client.send("Profiler.enable");
-  await client.send("Profiler.start");
-  return client;
-}
-
-async function stopCDPProfile(
-  client: import("playwright-core").CDPSession,
-  filename: string
-): Promise<string> {
-  const { profile } = await client.send("Profiler.stop");
-  await client.send("Profiler.disable");
-  fs.mkdirSync(TRACES_DIR, { recursive: true });
-  const outPath = path.join(TRACES_DIR, filename);
-  fs.writeFileSync(outPath, JSON.stringify(profile, null, 2), "utf8");
-  return outPath;
-}
 
 async function resetProbe(page: import("@playwright/test").Page, label: string): Promise<void> {
   await page.evaluate((nextLabel) => {
@@ -392,22 +299,7 @@ async function waitForTargetFigureReady(
   page: import("@playwright/test").Page,
   target: PaperTarget
 ): Promise<void> {
-  const figureButton = page.getByRole("button", { name: `Figure ${target.activeFigureNumber}` });
-  await expect.poll(async () => readFigureCount(page), {
-    timeout: 60_000,
-    message: "waiting for figure navigator to populate"
-  }).toBeGreaterThanOrEqual(target.activeFigureNumber);
-  await expect(figureButton).toBeVisible({ timeout: 60_000 });
-
-  const currentActiveFigureId = await readActiveFigureId(page);
-  if (currentActiveFigureId !== target.activeFigureId) {
-    await figureButton.click();
-  }
-
-  await expect.poll(async () => readActiveFigureId(page), {
-    timeout: 60_000,
-    message: "waiting for target active figure"
-  }).toBe(target.activeFigureId);
+  await waitForActiveFigure(page, target);
 
   await expect.poll(async () => {
     const state = await readDebugState(page, target);
@@ -426,61 +318,6 @@ async function waitForTargetFigureReady(
   });
 }
 
-async function resolveVisibleSamplePointForSelector(
-  page: import("@playwright/test").Page,
-  selector: string
-): Promise<{ x: number; y: number }> {
-  return await page.evaluate((rawSelector) => {
-    const elements = [...document.querySelectorAll(rawSelector)];
-    for (const element of elements) {
-      const rect = (element as Element).getBoundingClientRect();
-      const style = window.getComputedStyle(element as Element);
-      const visible =
-        (rect.width > 0 || rect.height > 0) &&
-        style.visibility !== "hidden" &&
-        style.display !== "none" &&
-        Number(style.opacity || "1") > 0;
-      if (!visible) {
-        continue;
-      }
-
-      const fallback = () => ({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      });
-
-      if (element instanceof SVGGeometryElement && typeof element.getTotalLength === "function") {
-        try {
-          const length = element.getTotalLength();
-          const sample = element.getPointAtLength(Math.min(Math.max(length * 0.25, 1), Math.max(length - 1, 1)));
-          const svg = element.ownerSVGElement;
-          const ctm = element.getScreenCTM();
-          if (!svg || !ctm) {
-            return fallback();
-          }
-          const point = svg.createSVGPoint();
-          point.x = sample.x;
-          point.y = sample.y;
-          const screen = point.matrixTransform(ctm);
-          return { x: screen.x, y: screen.y };
-        } catch {
-          return fallback();
-        }
-      }
-
-      return fallback();
-    }
-    throw new Error(`No visible element matched selector: ${rawSelector}`);
-  }, selector);
-}
-
-async function clearSelection(page: import("@playwright/test").Page): Promise<void> {
-  await page.evaluate(() => {
-    (window as typeof window & {
-      __TIKZ_EDITOR_APP_TEST_API__?: { clearSelection?: () => void };
-    }).__TIKZ_EDITOR_APP_TEST_API__?.clearSelection?.();
-  });
-}
 
 async function resetSourceToPaper(page: import("@playwright/test").Page, source: string): Promise<void> {
   await page.evaluate((nextSource) => {
@@ -540,7 +377,7 @@ function summarizeSnapshot(label: string, cpuProfilePath: string, snapshot: Prob
 }
 
 test("profile paper inspector color change for the magenta axis", async ({ page }) => {
-  const target = resolvePaperTarget();
+  const target = resolvePaperTarget(TARGET_DRAW_LINE);
   if (VERBOSE_PROFILE_LOGS) {
     console.log(
       `[paper-color] target=${JSON.stringify({
@@ -554,7 +391,7 @@ test("profile paper inspector color change for the magenta axis", async ({ page 
     );
   }
 
-  await seedWorkspace(page, target);
+  await seedWorkspace(page, target, "doc-profile-paper-color");
   await gotoApp(page, "/edit/");
   await installProbe(page, target.targetSourceId);
   await waitForTargetFigureReady(page, target);

@@ -27,10 +27,7 @@ Capability drift is CI-gated by `/Users/dominik/GitHub/tikz-editor/test/capabili
 7. `npm run test:desktop:e2e` runs desktop e2e (may skip on unsupported platforms).
 8. `npm run build` builds the core parser package.
 9. `cd /Users/dominik/GitHub/tikz-editor/apps/web && npm run build` builds the playground.
-10. `npm run profile:paper-selection` profiles selection on the paper corpus scenario.
-11. `npm run profile:paper-drag` profiles drag interactions on the paper corpus scenario.
-12. `npm run profile:paper-color` profiles inspector color changes on the paper corpus scenario.
-13. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
+10. `npm run compare:renderers -- --input path/to/snippet.tex` runs our renderer and a TeX reference render, then writes a comparison manifest.
 14. `npm run compare:pgf-docs -- --source-file pgfmanual-en-tikz-paths.tex` renders snippets from one PGF doc source file and writes an `index.html` side-by-side gallery. It generates side-by-side.png files that can be visually inspected for render accuracy.
 
 ## Corpus Source
@@ -39,8 +36,31 @@ The repository includes `pgf-docs/`, a copy of the PGF manual source files. It a
 ## Testing note
 vitest doesn’t support --runInBand in this environment.
 
+## Profiling Scripts
+Performance profiling scripts live in `apps/web/profiling/`. They use Playwright + CDP to capture CPU profiles of the running web app. They are manual dev tools, not part of CI.
+
+Run from `apps/web/`:
+```
+npx playwright test --config profiling/playwright.config.ts profiling/profile-paper-drag.spec.ts
+npx playwright test --config profiling/playwright.config.ts profiling/profile-paper-selection.spec.ts
+npx playwright test --config profiling/playwright.config.ts profiling/profile-paper-color.spec.ts
+npx playwright test --config profiling/playwright.config.ts profiling/profile-drag.spec.ts
+```
+
+The config builds the app in production mode and serves it on port 4174. Set `TIKZ_PROFILE_VERBOSE=1` for verbose logging. Output `.cpuprofile` and `-report.json` files go to `apps/web/profiling/traces/`.
+
+CPU profiles can be opened in Chrome DevTools → Performance → Load profile. JSON reports can be inspected directly. To analyze a `.cpuprofile` programmatically:
+```
+node scripts/analyze-cpuprofile.mjs apps/web/profiling/traces/paper-drag-visible.cpuprofile
+```
+
+The incremental drag benchmark (pure Node, no browser) runs via:
+```
+npm run bench:incremental-drag
+```
+
 ## Generated Artifacts
-1. `apps/web/test-results/`, `apps/web/e2e/traces/`, and `test-results/` are generated outputs and should not be committed.
+1. `apps/web/test-results/`, `apps/web/profiling/traces/`, and `test-results/` are generated outputs and should not be committed.
 2. `test/__snapshots__/` contains intentional, tracked test snapshots.
 
 ## Tauri

@@ -1,9 +1,9 @@
 /**
- * Playwright config for profiling tests.
+ * Playwright config for profiling scripts.
  * Uses a production build (no React dev overhead) for accurate CPU profiles.
  *
- * Run:
- *   npx playwright test -c e2e/playwright-profile.config.ts e2e/profile-drag.spec.ts
+ * Run from apps/web/:
+ *   npx playwright test --config profiling/playwright.config.ts profiling/profile-paper-drag.spec.ts
  */
 import { defineConfig, devices } from "@playwright/test";
 

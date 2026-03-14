@@ -2,18 +2,15 @@
  * CDP profiling test for drag interactions (move & resize).
  *
  * Run (production build, recommended):
- *   npx playwright test -c e2e/playwright-profile.config.ts e2e/profile-drag.spec.ts
+ *   npx playwright test --config profiling/playwright.config.ts profiling/profile-drag.spec.ts
  *
  * Run (dev mode, includes React dev overhead):
- *   npx playwright test e2e/profile-drag.spec.ts
+ *   npx playwright test profiling/profile-drag.spec.ts
  *
- * Produces JSON trace files in apps/web/e2e/traces/ that can be:
+ * Produces JSON trace files in apps/web/profiling/traces/ that can be:
  *  - Opened in Chrome DevTools → Performance → Load profile
  *  - Inspected programmatically
  */
-import * as fs from "node:fs";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import {
   clickHitRegion,
@@ -22,33 +19,8 @@ import {
   resetStorageBeforeNavigation,
   setSource,
   waitForHitRegions
-} from "./helpers";
-
-const TRACES_DIR = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "traces"
-);
-
-async function startCDPProfile(page: import("@playwright/test").Page) {
-  const client = await page.context().newCDPSession(page);
-  await client.send("Profiler.enable");
-  await client.send("Profiler.start");
-  return client;
-}
-
-async function stopCDPProfile(
-  client: import("playwright-core").CDPSession,
-  filename: string
-) {
-  const { profile } = await client.send("Profiler.stop");
-  await client.send("Profiler.disable");
-
-  fs.mkdirSync(TRACES_DIR, { recursive: true });
-  const outPath = path.join(TRACES_DIR, filename);
-  fs.writeFileSync(outPath, JSON.stringify(profile, null, 2), "utf-8");
-  console.log(`Profile written to ${outPath} (${profile.nodes.length} nodes)`);
-  return outPath;
-}
+} from "../e2e/helpers";
+import { startCDPProfile, stopCDPProfile } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
