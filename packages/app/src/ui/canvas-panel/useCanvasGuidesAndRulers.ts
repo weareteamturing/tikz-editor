@@ -41,7 +41,6 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     canvasTransform,
     svgResult,
     visibleRanges,
-    rulerAlignmentOffsets,
     showGrid,
     viewportRef,
     svgResultRef,
@@ -117,13 +116,12 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
     }
 
     const { majorStep, minorStep } = overlayGridSteps;
-
     const topTicks = buildTicks(
       visibleRanges.worldMinX,
       visibleRanges.worldMaxX,
       minorStep,
       majorStep,
-      (value) => toViewportXFromWorld(value, svgResult.viewBox, canvasTransform) + rulerAlignmentOffsets.topX
+      (value) => toViewportXFromWorld(value, svgResult.viewBox, canvasTransform)
     );
 
     const leftTicks = buildTicks(
@@ -131,11 +129,11 @@ export function useCanvasGuidesAndRulers(args: UseCanvasGuidesAndRulersArgs) {
       visibleRanges.worldMaxY,
       minorStep,
       majorStep,
-      (value) => toViewportYFromWorld(value, svgResult.viewBox, canvasTransform) + rulerAlignmentOffsets.leftY
+      (value) => toViewportYFromWorld(value, svgResult.viewBox, canvasTransform)
     );
 
     return { topTicks, leftTicks };
-  }, [canvasTransform, overlayGridSteps, rulerAlignmentOffsets.leftY, rulerAlignmentOffsets.topX, svgResult, visibleRanges]);
+  }, [canvasTransform, overlayGridSteps, svgResult, visibleRanges]);
 
   const gridLines = useMemo((): GridLines | null => {
     if (!svgResult || !visibleRanges || !showGrid) return null;

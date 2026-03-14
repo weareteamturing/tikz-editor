@@ -115,69 +115,73 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
         {showRulers ? <div className={css.rulerCorner}>cm</div> : null}
 
         {showRulers ? (
-          <svg
-            ref={topRulerRef}
-            className={css.topRuler}
-            viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
-            preserveAspectRatio="none"
-            onPointerDown={onTopRulerPointerDown}
-            onContextMenu={onCanvasContextMenu}
-          >
-            <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
-            {rulers.topTicks.map((tick: any, index: number) => (
-              <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
-                <line
-                  x1={0}
-                  y1={RULER_SIZE}
-                  x2={0}
-                  y2={tick.major ? 5 : 11}
-                  className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
-                />
-                {tick.label && (
-                  <text className={css.rulerLabel} x={2} y={10}>
-                    {tick.label}
-                  </text>
-                )}
-              </g>
-            ))}
-          </svg>
+          <div className={css.topRulerSlot}>
+            <svg
+              ref={topRulerRef}
+              className={css.topRuler}
+              viewBox={`0 0 ${Math.max(1, viewportSize.width)} ${RULER_SIZE}`}
+              preserveAspectRatio="none"
+              onPointerDown={onTopRulerPointerDown}
+              onContextMenu={onCanvasContextMenu}
+            >
+              <line x1={0} y1={RULER_SIZE - 0.5} x2={viewportSize.width} y2={RULER_SIZE - 0.5} className={css.rulerAxis} />
+              {rulers.topTicks.map((tick: any, index: number) => (
+                <g key={`top-${index}`} transform={`translate(${tick.viewportPos},0)`}>
+                  <line
+                    x1={0}
+                    y1={RULER_SIZE}
+                    x2={0}
+                    y2={tick.major ? 5 : 11}
+                    className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
+                  />
+                  {tick.label && (
+                    <text className={css.rulerLabel} x={2} y={10}>
+                      {tick.label}
+                    </text>
+                  )}
+                </g>
+              ))}
+            </svg>
+          </div>
         ) : null}
 
         {showRulers ? (
-          <svg
-            ref={leftRulerRef}
-            className={css.leftRuler}
-            viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
-            preserveAspectRatio="none"
-            onPointerDown={onLeftRulerPointerDown}
-            onContextMenu={onCanvasContextMenu}
-          >
-            <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
-            {rulers.leftTicks.map((tick: any, index: number) => (
-              <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
-                <line
-                  x1={RULER_SIZE}
-                  y1={0}
-                  x2={tick.major ? 5 : 11}
-                  y2={0}
-                  className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
-                />
-                {tick.label && (
-                  <text className={css.rulerLabel} x={1} y={-2}>
-                    {tick.label}
-                  </text>
-                )}
-              </g>
-            ))}
-            <rect
-              x={RULER_SIZE - LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
-              y={0}
-              width={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
-              height={Math.max(1, viewportSize.height)}
-              className={css.leftRulerGuideStrip}
-              fill="transparent"
-            />
-          </svg>
+          <div className={css.leftRulerSlot}>
+            <svg
+              ref={leftRulerRef}
+              className={css.leftRuler}
+              viewBox={`0 0 ${RULER_SIZE} ${Math.max(1, viewportSize.height)}`}
+              preserveAspectRatio="none"
+              onPointerDown={onLeftRulerPointerDown}
+              onContextMenu={onCanvasContextMenu}
+            >
+              <line x1={RULER_SIZE - 0.5} y1={0} x2={RULER_SIZE - 0.5} y2={viewportSize.height} className={css.rulerAxis} />
+              {rulers.leftTicks.map((tick: any, index: number) => (
+                <g key={`left-${index}`} transform={`translate(0,${tick.viewportPos})`}>
+                  <line
+                    x1={RULER_SIZE}
+                    y1={0}
+                    x2={tick.major ? 5 : 11}
+                    y2={0}
+                    className={tick.major ? css.rulerTickMajor : css.rulerTickMinor}
+                  />
+                  {tick.label && (
+                    <text className={css.rulerLabel} x={1} y={-2}>
+                      {tick.label}
+                    </text>
+                  )}
+                </g>
+              ))}
+              <rect
+                x={RULER_SIZE - LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+                y={0}
+                width={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+                height={Math.max(1, viewportSize.height)}
+                className={css.leftRulerGuideStrip}
+                fill="transparent"
+              />
+            </svg>
+          </div>
         ) : null}
 
         <div

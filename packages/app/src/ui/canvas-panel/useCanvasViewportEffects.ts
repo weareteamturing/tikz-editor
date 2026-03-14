@@ -13,10 +13,6 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     setToolCursorWorld,
     viewportRef,
     setViewportSize,
-    showRulers,
-    setRulerAlignmentOffsets,
-    topRulerRef,
-    leftRulerRef,
     canvasTransform,
     canvasTransformRef,
     selectedElementIds,
@@ -78,9 +74,10 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     if (!viewport) return;
 
     const updateSize = () => {
+      const rect = viewport.getBoundingClientRect();
       setViewportSize({
-        width: viewport.clientWidth,
-        height: viewport.clientHeight
+        width: rect.width,
+        height: rect.height
       });
     };
 
@@ -91,47 +88,6 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
 
     return () => observer.disconnect();
   }, [setViewportSize, viewportRef]);
-
-  useEffect(() => {
-    if (!showRulers) {
-      setRulerAlignmentOffsets((current: any) => (current.topX === 0 && current.leftY === 0 ? current : { topX: 0, leftY: 0 }));
-      return;
-    }
-
-    const viewport = viewportRef.current;
-    const topRuler = topRulerRef.current;
-    const leftRuler = leftRulerRef.current;
-    if (!viewport || !topRuler || !leftRuler) {
-      return;
-    }
-
-    const measure = () => {
-      const viewportRect = viewport.getBoundingClientRect();
-      const topRect = topRuler.getBoundingClientRect();
-      const leftRect = leftRuler.getBoundingClientRect();
-      const next = {
-        topX: viewportRect.left - topRect.left,
-        leftY: viewportRect.top - leftRect.top
-      };
-      setRulerAlignmentOffsets((current: any) => {
-        if (Math.abs(current.topX - next.topX) < 1e-6 && Math.abs(current.leftY - next.leftY) < 1e-6) {
-          return current;
-        }
-        return next;
-      });
-    };
-
-    measure();
-
-    const observer = new ResizeObserver(() => measure());
-    observer.observe(viewport);
-    observer.observe(topRuler);
-    observer.observe(leftRuler);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [leftRulerRef, setRulerAlignmentOffsets, showRulers, topRulerRef, viewportRef]);
 
   useEffect(() => {
     canvasTransformRef.current = canvasTransform;

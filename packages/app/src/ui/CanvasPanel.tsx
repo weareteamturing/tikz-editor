@@ -381,11 +381,6 @@ type SnapDebugOverlayDragState =
       startHeight: number;
     };
 
-type RulerAlignmentOffsets = {
-  topX: number;
-  leftY: number;
-};
-
 const RULER_SIZE = 24;
 const FIT_PADDING = 44;
 const MIN_SCALE = 0.05;
@@ -542,7 +537,6 @@ export function CanvasPanel() {
   const [guides, setGuides] = useState<GuidesState>({ vertical: [], horizontal: [] });
   const [guidePreview, setGuidePreview] = useState<GuidePreview | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
-  const [rulerAlignmentOffsets, setRulerAlignmentOffsets] = useState<RulerAlignmentOffsets>({ topX: 0, leftY: 0 });
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
   const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
@@ -990,7 +984,6 @@ export function CanvasPanel() {
     canvasTransform,
     svgResult,
     visibleRanges,
-    rulerAlignmentOffsets,
     showGrid,
     viewportRef,
     svgResultRef,
@@ -1862,10 +1855,6 @@ export function CanvasPanel() {
     setToolCursorWorld,
     viewportRef,
     setViewportSize,
-    showRulers,
-    setRulerAlignmentOffsets,
-    topRulerRef,
-    leftRulerRef,
     canvasTransform,
     canvasTransformRef,
     selectedElementIds,
