@@ -541,10 +541,15 @@ function shiftSpansDeep<T>(value: T, patchesOrDelta: readonly SourcePatch[] | nu
   const clone = structuredClone(value);
   const patches = typeof patchesOrDelta === "number" ? null : patchesOrDelta;
   const delta = typeof patchesOrDelta === "number" ? patchesOrDelta : 0;
+  const visited = new WeakSet<object>();
   const visit = (current: unknown): void => {
     if (!current || typeof current !== "object") {
       return;
     }
+    if (visited.has(current)) {
+      return;
+    }
+    visited.add(current);
     if (Array.isArray(current)) {
       for (const entry of current) {
         visit(entry);

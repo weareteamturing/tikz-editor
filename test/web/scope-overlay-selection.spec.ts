@@ -4,6 +4,7 @@ import {
   buildScopeOverlayIndex,
   isWorldPointWithinScopeBounds,
   resolveFocusedScopeIdForSelection,
+  resolveScopeAwareMarqueeSelection,
   resolveScopeAwareContextMenuTarget,
   resolveScopeAwarePointerDownTarget,
   resolveScopeAwarePointerUpDrillTarget
@@ -97,5 +98,33 @@ describe("scope overlay selection resolver", () => {
   it("supports focused-scope outside-click reset checks via bounds", () => {
     expect(isWorldPointWithinScopeBounds("scope:1", { x: 0.5, y: 1.5 }, overlay)).toBe(true);
     expect(isWorldPointWithinScopeBounds("scope:1", { x: 2, y: 2 }, overlay)).toBe(false);
+  });
+
+  it("marquee selects unscoped elements and only the outermost fully-contained scopes", () => {
+    const selected = resolveScopeAwareMarqueeSelection({
+      selectionBounds: { minX: -0.1, minY: -0.1, maxX: 1.1, maxY: 2.1 },
+      sourceBoundsById: new Map([
+        ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 0 }],
+        ["path:2", { minX: 0, minY: 1, maxX: 1, maxY: 1 }],
+        ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
+      ]),
+      scopeOverlay: overlay
+    });
+
+    expect(selected).toEqual(["path:0", "scope:1"]);
+  });
+
+  it("marquee can select an inner scope when its parent is not fully contained", () => {
+    const selected = resolveScopeAwareMarqueeSelection({
+      selectionBounds: { minX: -0.1, minY: 1.5, maxX: 1.1, maxY: 2.1 },
+      sourceBoundsById: new Map([
+        ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 0 }],
+        ["path:2", { minX: 0, minY: 1, maxX: 1, maxY: 1 }],
+        ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
+      ]),
+      scopeOverlay: overlay
+    });
+
+    expect(selected).toEqual(["scope:3"]);
   });
 });

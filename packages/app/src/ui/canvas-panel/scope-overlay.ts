@@ -144,6 +144,42 @@ export function resolveScopeAwareContextMenuTarget(input: {
   });
 }
 
+export function resolveScopeAwareMarqueeSelection(input: {
+  selectionBounds: Bounds;
+  sourceBoundsById: ReadonlyMap<string, Bounds>;
+  scopeOverlay: ScopeOverlayIndex;
+}): string[] {
+  const { selectionBounds, sourceBoundsById, scopeOverlay } = input;
+  const selectedScopeIds = new Set<string>();
+
+  for (const [scopeId, bounds] of scopeOverlay.boundsByScopeId) {
+    if (boundsContainedWithin(bounds, selectionBounds)) {
+      selectedScopeIds.add(scopeId);
+    }
+  }
+
+  const selectedIds: string[] = [];
+  for (const [sourceId, bounds] of sourceBoundsById) {
+    if (!boundsContainedWithin(bounds, selectionBounds)) {
+      continue;
+    }
+    const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
+    if (ancestors.length === 0) {
+      selectedIds.push(sourceId);
+    }
+  }
+
+  for (const scopeId of selectedScopeIds) {
+    const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(scopeId) ?? [];
+    if (ancestors.some((ancestorId) => selectedScopeIds.has(ancestorId))) {
+      continue;
+    }
+    selectedIds.push(scopeId);
+  }
+
+  return selectedIds;
+}
+
 export function resolveFocusedScopeIdForSelection(
   selectedSourceId: string,
   scopeOverlay: ScopeOverlayIndex
@@ -230,4 +266,13 @@ function mergeBounds(a: Bounds, b: Bounds): Bounds {
     maxX: Math.max(a.maxX, b.maxX),
     maxY: Math.max(a.maxY, b.maxY)
   };
+}
+
+function boundsContainedWithin(inner: Bounds, outer: Bounds): boolean {
+  return (
+    inner.minX >= outer.minX &&
+    inner.maxX <= outer.maxX &&
+    inner.minY >= outer.minY &&
+    inner.maxY <= outer.maxY
+  );
 }

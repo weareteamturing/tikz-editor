@@ -18,7 +18,6 @@ import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import {
   boundsFromPoints,
-  collectSourceIdsInBounds,
   createBezierTemplateFromBend,
   createTemplateForToolDrag,
   DEFAULT_GRID_TOOL_STEP_PT,
@@ -40,6 +39,7 @@ import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry
 import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
 import type { ResizeFrame } from "./resize-frames";
+import { resolveScopeAwareMarqueeSelection, type ScopeOverlayIndex } from "./scope-overlay";
 import { toolCreateSnapKind } from "../tool-config";
 import type {
   ApplyActionFeedback,
@@ -85,6 +85,7 @@ export function useCanvasDragController(params: {
   selectedElementIdsRef: { current: ReadonlySet<string> };
   sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
   interactionBoundsBySourceRef: { current: ReadonlyMap<string, Bounds & { sourceId: string }> };
+  scopeOverlay: ScopeOverlayIndex;
   pendingAddedSelectionRef: { current: PendingAddedSelection | null };
   setDragState: (drag: DragState | null) => void;
   setSnapLines: (lines: SnapLine[]) => void;
@@ -127,6 +128,7 @@ export function useCanvasDragController(params: {
     selectedElementIdsRef,
     sourceBoundsRef,
     interactionBoundsBySourceRef,
+    scopeOverlay,
     pendingAddedSelectionRef,
     setDragState,
     setSnapLines,
@@ -171,7 +173,11 @@ export function useCanvasDragController(params: {
         worldToSvgPoint(drag.startWorld, currentSvg.viewBox),
         worldToSvgPoint(world, currentSvg.viewBox)
       );
-      const hitIds = collectSourceIdsInBounds(sourceBoundsRef.current, selection);
+      const hitIds = resolveScopeAwareMarqueeSelection({
+        selectionBounds: selection,
+        sourceBoundsById: sourceBoundsRef.current,
+        scopeOverlay
+      });
       const nextIds = drag.additive
         ? [...new Set([...drag.baseSelectedIds, ...hitIds])]
         : hitIds;
@@ -1060,6 +1066,7 @@ export function useCanvasDragController(params: {
     snapshotScene,
     snapshotSource,
     nodeAnchorTargets,
+    scopeOverlay,
     source,
     sourceBoundsRef,
     svgResult,

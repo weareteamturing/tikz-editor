@@ -2144,6 +2144,7 @@ export function CanvasPanel() {
     selectedElementIdsRef,
     sourceBoundsRef,
     interactionBoundsBySourceRef,
+    scopeOverlay,
     pendingAddedSelectionRef,
     setDragState,
     setSnapLines,
