@@ -321,6 +321,7 @@ export function SourcePanel() {
   const ignoreNextDocUpdateRef = useRef(false);
   const ignoreNextSelectionSyncRef = useRef(false);
   const suppressStoreSelectionSyncRef = useRef(false);
+  const suppressElementScrollOnFigureSwitchRef = useRef(false);
   const colorPickerApplyingRef = useRef(false);
   const diagnosticTimerRef = useRef<number | null>(null);
   const spanIndexRef = useRef<SourceSpanIndex>(EMPTY_SPAN_INDEX);
@@ -572,6 +573,14 @@ export function SourcePanel() {
       return;
     }
 
+    // After a figure switch, suppress the scroll that would come from
+    // selectedElementIds changing (the figure-scroll effect already positioned
+    // the viewport at the figure header).
+    const suppressScroll = suppressElementScrollOnFigureSwitchRef.current;
+    if (suppressScroll) {
+      suppressElementScrollOnFigureSwitchRef.current = false;
+    }
+
     const selection = combineSelectedSourceSpan(selectedElementIds, spanIndexRef.current.bySourceId);
     if (!selection) {
       const currentSelection = view.state.selection.main;
@@ -593,7 +602,7 @@ export function SourcePanel() {
       return;
     }
 
-    const autoRevealSelection = shouldAutoRevealSourceSelection();
+    const autoRevealSelection = suppressScroll ? false : shouldAutoRevealSourceSelection();
     ignoreNextSelectionSyncRef.current = true;
     dispatchSelectionWithStableHorizontalScroll(view, {
       selection: { anchor: normalized.from, head: normalized.to },
@@ -656,6 +665,7 @@ export function SourcePanel() {
     view.dispatch({ effects: setFigureOverlay.of(decorations) });
   }, [activeFigureId, figures, source]);
 
+  const prevActiveFigureIdRef = useRef(activeFigureId);
   useEffect(() => {
     const view = viewRef.current;
     if (!view) {
@@ -665,21 +675,32 @@ export function SourcePanel() {
     if (!activeFigure) {
       return;
     }
+    // Only scroll to figure top when the active figure actually changes,
+    // not on every reparse (which updates the `figures` array reference).
+    const figureChanged = prevActiveFigureIdRef.current !== activeFigureId;
+    prevActiveFigureIdRef.current = activeFigureId;
+    if (!figureChanged) {
+      return;
+    }
+    // If the user changed figures by placing their caret in the source
+    // editor, they are already looking at the right spot — don't scroll.
+    if (view.hasFocus) {
+      return;
+    }
     const anchor = clamp(activeFigure.span.from, 0, view.state.doc.length);
-    if (!view.hasFocus) {
-      const selection = view.state.selection.main;
-      if (selection.anchor !== anchor || selection.head !== anchor) {
-        ignoreNextSelectionSyncRef.current = true;
-        dispatchSelectionWithStableHorizontalScroll(view, {
-          selection: { anchor, head: anchor },
-          annotations: [Transaction.addToHistory.of(false)],
-          scrollIntoView: true
-        });
-        return;
-      }
+    suppressElementScrollOnFigureSwitchRef.current = true;
+    const selection = view.state.selection.main;
+    if (selection.anchor !== anchor || selection.head !== anchor) {
+      ignoreNextSelectionSyncRef.current = true;
+      dispatchSelectionWithStableHorizontalScroll(view, {
+        selection: { anchor, head: anchor },
+        annotations: [Transaction.addToHistory.of(false)],
+        effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: 8 })
+      });
+      return;
     }
     view.dispatch({
-      effects: EditorView.scrollIntoView(anchor, { y: "center", yMargin: 48 })
+      effects: EditorView.scrollIntoView(anchor, { y: "start", yMargin: 8 })
     });
   }, [activeFigureId, figures]);
 
@@ -1339,16 +1360,15 @@ function dispatchSelectionWithStableHorizontalScroll(
 ): void {
   const previousScrollLeft = view.scrollDOM.scrollLeft;
   view.dispatch(spec);
+  // When word-wrap is on there is no horizontal overflow, so nothing to
+  // restore – skip the forced-reflow work entirely.
+  if (view.scrollDOM.scrollWidth <= view.scrollDOM.clientWidth) {
+    return;
+  }
   restoreHorizontalScroll(view, previousScrollLeft);
   window.requestAnimationFrame(() => {
     restoreHorizontalScroll(view, previousScrollLeft);
-    window.requestAnimationFrame(() => {
-      restoreHorizontalScroll(view, previousScrollLeft);
-    });
   });
-  window.setTimeout(() => {
-    restoreHorizontalScroll(view, previousScrollLeft);
-  }, 0);
 }
 
 function restoreHorizontalScroll(view: EditorView, scrollLeft: number): void {

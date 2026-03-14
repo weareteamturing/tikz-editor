@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     canvasInvert: false
   },
   editor: {
-    wordWrap: false,
+    wordWrap: true,
     fontSize: 12,
     lineNumbers: true,
     indentSize: 2,
