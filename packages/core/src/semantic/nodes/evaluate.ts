@@ -65,6 +65,7 @@ import {
 import { resolveCalloutPointerOffset, resolveNodeShapeGeometryParams } from "./shape-geometry.js";
 import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
+import { normalizeEscapedTextSpaces } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
 
 export type NodeAnchorExtents = {
@@ -155,7 +156,7 @@ export function measureNodeAnchorExtents(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
-  const resolvedNodeText = resolveTextColorAliases(expandedNodeText, frame.colorAliases);
+  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
   const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, transformScale, context.textEngine);
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const anchor = resolveNodeAnchor(expandedNodeOptions);
@@ -295,7 +296,7 @@ export function evaluateNodeItem(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
-  const resolvedNodeText = resolveTextColorAliases(expandedNodeText, frame.colorAliases);
+  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
 
   const matrixMode = resolveMatrixMode(effectiveNodeOptions);
   if (matrixMode.enabled) {

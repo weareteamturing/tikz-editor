@@ -39,6 +39,7 @@ import {
 } from "./elements.js";
 import { resolveNodeLayout } from "./layout.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
+import { normalizeEscapedTextSpaces } from "./normalize-text.js";
 import {
   resolveNodeLayer,
   resolveNodeOptionScale,
@@ -167,8 +168,9 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
           trace: params.context.macroTraceCollector ?? undefined
         }
       );
+      const resolvedCellText = normalizeEscapedTextSpaces(expandedCellText);
       const cellLayout = resolveNodeLayout(
-        expandedCellText,
+        resolvedCellText,
         combinedCellOptions,
         cellStyle,
         cellTransformScale,
@@ -672,13 +674,15 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         options: resolvedCell.options,
         textSource: "group",
         textSpan: resolvedCell.cell.textSpan,
-        text: expandMacroBindings(
-          resolvedCell.cell.text,
-          params.context.stack[params.context.stack.length - 1].macroBindings,
-          {
-            maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
-            trace: params.context.macroTraceCollector ?? undefined
-          }
+        text: normalizeEscapedTextSpaces(
+          expandMacroBindings(
+            resolvedCell.cell.text,
+            params.context.stack[params.context.stack.length - 1].macroBindings,
+            {
+              maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+              trace: params.context.macroTraceCollector ?? undefined
+            }
+          )
         )
       };
       const evaluatedCell = params.evaluateNestedNode(cellItem, position);

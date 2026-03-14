@@ -328,6 +328,7 @@ MacroCommandDefaultArgPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   PathKeyword |
@@ -379,6 +380,7 @@ OptionPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
@@ -441,9 +443,12 @@ GroupPart {
   EscapedAmpersandCmd |
   EscapedPercentCmd |
   EscapedDollarCmd |
+  EscapedSpaceCmd |
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   PathKeyword |
+  ForeachCmd |
+  ForeachKw |
   KnownCommand |
   NodeKw |
   CommandName |
@@ -668,6 +673,7 @@ StrayToken {
     EscapedAmpersandCmd,
     EscapedPercentCmd,
     EscapedDollarCmd,
+    EscapedSpaceCmd,
     EscapedParenOpenCmd,
     EscapedParenCloseCmd,
     AtKw,
@@ -743,6 +749,7 @@ StrayToken {
   EscapedAmpersandCmd { "\\&" }
   EscapedPercentCmd { "\\%" }
   EscapedDollarCmd { "\\$" }
+  EscapedSpaceCmd { "\\ " }
   EscapedParenOpenCmd { "\\(" }
   EscapedParenCloseCmd { "\\)" }
 

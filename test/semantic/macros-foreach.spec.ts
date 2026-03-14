@@ -48,6 +48,27 @@ describe("semantic evaluator / macros and foreach", () => {
       }
     });
 
+    it("supports nested foreach loops with braced bodies", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \foreach \x in {3,4,5}
+    {
+      \foreach \y in {0,1,2}
+      {
+        \draw (\x,\y) rectangle (\x+1,\y+1);
+      }
+    }
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      expect(result.diagnostics.some((diagnostic) => diagnostic.code === "foreach-body-parse-error")).toBe(false);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      expect(paths).toHaveLength(9);
+      for (const path of paths) {
+        expect(path.origin?.foreachStack).toHaveLength(2);
+      }
+    });
+
     it("preserves TeX control sequence boundaries during foreach substitution", () => {
       const source = String.raw`\begin{tikzpicture}
     \foreach \x in {a}
@@ -60,6 +81,19 @@ describe("semantic evaluator / macros and foreach", () => {
       expect(text?.kind).toBe("Text");
       if (text?.kind === "Text") {
         expect(text.text).toBe(String.raw`$\mathstrut{}aa$`);
+      }
+    });
+
+    it("normalizes escaped spaces in node text", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \node at (0,0) {min.\ utility};
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const label = result.scene.elements.find((element) => element.kind === "Text");
+      expect(label?.kind).toBe("Text");
+      if (label?.kind === "Text") {
+        expect(label.text).toBe("min. utility");
       }
     });
 
