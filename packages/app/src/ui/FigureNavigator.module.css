@@ -1,21 +1,22 @@
 .panel {
   border-top: 1px solid var(--border);
   background: var(--bg-pane);
-  padding: 6px 8px;
+  padding: 6px 10px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  min-height: 84px;
+  min-height: 88px;
 }
 
 .navButton {
-  border: 1px solid var(--border);
-  background: var(--bg-app);
-  color: var(--text);
-  border-radius: 4px;
-  width: 28px;
-  height: 28px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-pane);
+  color: var(--text-muted);
+  border-radius: 3px;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
 }
 
 .navButton:disabled {
@@ -25,36 +26,43 @@
 
 .strip {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   flex: 1;
-  padding-bottom: 2px;
+  padding: 1px 0 2px;
 }
 
 .thumb {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-app);
-  width: 120px;
-  min-width: 120px;
+  border: 1px solid var(--border-lighter);
+  border-radius: 4px;
+  background: var(--bg-diagnostics);
+  width: 124px;
+  min-width: 124px;
   cursor: pointer;
   overflow: hidden;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.thumb:hover {
+  border-color: var(--border);
+  background: var(--bg-pane);
 }
 
 .thumbActive {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(47, 122, 216, 0.28);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--bg-pane) 85%, var(--accent) 15%);
 }
 
 .thumbPreview {
   width: 100%;
-  height: 56px;
-  background: linear-gradient(135deg, rgba(88, 114, 140, 0.08), rgba(88, 114, 140, 0.18));
+  height: 58px;
+  background: var(--bg-pane);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-dim);
-  font-size: 10px;
+  color: var(--text-faint);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
 }
 
 .thumbPreview img {
@@ -66,12 +74,10 @@
 
 .thumbLabel {
   font-size: calc(var(--app-ui-scale, 1) * 10px);
-  font-family: var(--font-mono);
-  color: var(--text);
-  padding: 4px 6px;
-  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 7px;
+  border-top: 1px solid var(--border-lighter);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-

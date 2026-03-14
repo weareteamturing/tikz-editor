@@ -33,6 +33,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const updateEditorSettings = useSettingsStore((s) => s.updateEditorSettings);
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const updateColorPickerSettings = useSettingsStore((s) => s.updateColorPickerSettings);
+  const resetGeneralSettings = useSettingsStore((s) => s.resetGeneralSettings);
+  const resetEditorSettings = useSettingsStore((s) => s.resetEditorSettings);
+  const resetCanvasSettings = useSettingsStore((s) => s.resetCanvasSettings);
   const formatterMaxLineLengthValue = formatterMaxLineLengthInput ?? String(settings.editor.formatterMaxLineLength);
 
   const commitFormatterMaxLineLength = () => {
@@ -43,6 +46,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
     updateEditorSettings({ formatterMaxLineLength: clamped });
     setFormatterMaxLineLengthInput(null);
+  };
+
+  const resetActiveCategoryToDefaults = () => {
+    if (activeCategory === "general") {
+      resetGeneralSettings();
+      return;
+    }
+    if (activeCategory === "editor") {
+      resetEditorSettings();
+      setFormatterMaxLineLengthInput(null);
+      return;
+    }
+    resetCanvasSettings();
   };
 
   return (
@@ -141,6 +157,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       <option value="exact">Exact</option>
                     </select>
                   </div>
+                </div>
+                <div className={css.resetRow}>
+                  <button
+                    type="button"
+                    className={css.resetButton}
+                    data-testid="settings-reset-general"
+                    onClick={resetActiveCategoryToDefaults}
+                  >
+                    Reset to Defaults
+                  </button>
                 </div>
               </div>
             )}
@@ -249,6 +275,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     />
                   </div>
                 </div>
+                <div className={css.resetRow}>
+                  <button
+                    type="button"
+                    className={css.resetButton}
+                    data-testid="settings-reset-editor"
+                    onClick={resetActiveCategoryToDefaults}
+                  >
+                    Reset to Defaults
+                  </button>
+                </div>
               </div>
             )}
 
@@ -312,6 +348,16 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       <option value={0.0045} />
                     </datalist>
                   </div>
+                </div>
+                <div className={css.resetRow}>
+                  <button
+                    type="button"
+                    className={css.resetButton}
+                    data-testid="settings-reset-canvas"
+                    onClick={resetActiveCategoryToDefaults}
+                  >
+                    Reset to Defaults
+                  </button>
                 </div>
               </div>
             )}

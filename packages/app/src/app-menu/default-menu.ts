@@ -96,7 +96,8 @@ export const APP_MENU_DEFINITION = [
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.OPEN_SETTINGS,
-        label: "Settings..."
+        label: "Settings...",
+        accelerator: "CmdOrCtrl+,"
       }
     ]
   },
@@ -399,7 +400,20 @@ export const APP_MENU_DEFINITION = [
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.FIT_TO_CONTENT,
-        label: "Fit to Content"
+        label: "Fit to Content",
+        accelerator: "CmdOrCtrl+0"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.ZOOM_IN,
+        label: "Zoom In",
+        accelerator: "CmdOrCtrl+="
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.ZOOM_OUT,
+        label: "Zoom Out",
+        accelerator: "CmdOrCtrl+-"
       },
       { kind: "separator" },
       {

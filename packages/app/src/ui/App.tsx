@@ -739,6 +739,30 @@ export function App() {
         e.preventDefault();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "0") {
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.FIT_TO_CONTENT, "shortcut")) {
+          e.preventDefault();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === ",") {
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, "shortcut")) {
+          e.preventDefault();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && (key === "=" || key === "+")) {
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.ZOOM_IN, "shortcut")) {
+          e.preventDefault();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && key === "-") {
+        if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.ZOOM_OUT, "shortcut")) {
+          e.preventDefault();
+        }
+        return;
+      }
 
       // Ctrl+Shift+D: toggle dev panel
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && key === "d") {

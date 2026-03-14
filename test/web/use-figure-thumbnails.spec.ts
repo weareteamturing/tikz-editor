@@ -34,10 +34,13 @@ function createDeferred<T>(): Deferred<T> {
 function Harness(props: {
   source: string;
   figures: readonly FigureEntry[];
+  priorityFigureIds?: readonly string[];
+  maxToRender?: number;
   onUpdate: (value: ReadonlyMap<string, string>) => void;
 }) {
   const thumbnails = useFigureThumbnails(props.source, props.figures as any, {
-    maxToRender: 4,
+    priorityFigureIds: props.priorityFigureIds,
+    maxToRender: props.maxToRender ?? 4,
     refreshDelayMs: 0
   });
 
@@ -214,6 +217,86 @@ describe("useFigureThumbnails", () => {
     });
 
     expect(latest.get("figure:0")).toContain("%3Csvg%3Esecond%3C%2Fsvg%3E");
+  });
+
+  it("defers off-screen thumbnails until priority changes", async () => {
+    const pendingFigure1 = createDeferred<any>();
+    const pendingFigure3 = createDeferred<any>();
+    vi.mocked(requestThumbnail)
+      .mockReturnValueOnce(pendingFigure1.promise)
+      .mockReturnValueOnce(pendingFigure3.promise);
+
+    let latest: ReadonlyMap<string, string> = new Map<string, string>();
+    const figures = [
+      { id: "figure:1", span: { from: 0, to: 1000 } },
+      { id: "figure:2", span: { from: 0, to: 1000 } },
+      { id: "figure:3", span: { from: 0, to: 1000 } }
+    ] as const;
+    const source = "\\begin{tikzpicture}\\draw (0,0)--(1,1);\\end{tikzpicture}";
+
+    await act(async () => {
+      root.render(createElement(Harness, {
+        source,
+        figures,
+        priorityFigureIds: ["figure:1"],
+        maxToRender: 1,
+        onUpdate: (value: ReadonlyMap<string, string>) => { latest = value; }
+      }));
+      vi.runOnlyPendingTimers();
+      await flushMicrotasks();
+    });
+
+    expect(requestThumbnail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(requestThumbnail).mock.calls[0]?.[0].figureId).toBe("figure:1");
+
+    pendingFigure1.resolve({
+      type: "result",
+      ok: true,
+      requestId: "first",
+      groupId: "grp-1",
+      figureId: "figure:1",
+      figureSignature: "sig-1",
+      svg: "<svg>one</svg>"
+    });
+    await act(async () => {
+      await flushMicrotasks();
+      vi.runOnlyPendingTimers();
+      await flushMicrotasks();
+    });
+    expect(latest.get("figure:1")).toContain("%3Csvg%3Eone%3C%2Fsvg%3E");
+    expect(latest.get("figure:3")).toBeUndefined();
+
+    await act(async () => {
+      root.render(createElement(Harness, {
+        source,
+        figures,
+        priorityFigureIds: ["figure:3"],
+        maxToRender: 1,
+        onUpdate: (value: ReadonlyMap<string, string>) => { latest = value; }
+      }));
+      vi.runOnlyPendingTimers();
+      await flushMicrotasks();
+    });
+
+    expect(requestThumbnail).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(requestThumbnail).mock.calls[1]?.[0].figureId).toBe("figure:3");
+
+    pendingFigure3.resolve({
+      type: "result",
+      ok: true,
+      requestId: "second",
+      groupId: "grp-2",
+      figureId: "figure:3",
+      figureSignature: "sig-3",
+      svg: "<svg>three</svg>"
+    });
+    await act(async () => {
+      await flushMicrotasks();
+      vi.runOnlyPendingTimers();
+      await flushMicrotasks();
+    });
+
+    expect(latest.get("figure:3")).toContain("%3Csvg%3Ethree%3C%2Fsvg%3E");
   });
 });
 

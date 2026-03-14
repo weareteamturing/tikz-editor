@@ -406,6 +406,7 @@ function createNativeDesktopMenuManager(options: {
       id: "app.open-settings",
       text: "Settings...",
       enabled: settingsState.enabled,
+      accelerator: "CmdOrCtrl+,",
       action: () => {
         dispatchCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, "platform");
       }

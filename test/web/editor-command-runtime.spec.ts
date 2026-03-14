@@ -228,6 +228,42 @@ describe("editor-command-runtime", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "SET_TOOL_MODE", mode: "addFreehand" });
   });
 
+  it("routes zoom commands to zoom requests", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        historyIndex: 0,
+        historyLength: 1
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.ZOOM_IN, "shortcut")).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.ZOOM_OUT, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenNthCalledWith(1, { type: "REQUEST_ZOOM", direction: "in" });
+    expect(dispatch).toHaveBeenNthCalledWith(2, { type: "REQUEST_ZOOM", direction: "out" });
+  });
+
+  it("routes open settings command to host callback", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenSettings = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        onOpenSettings
+      })
+    );
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.OPEN_SETTINGS, "shortcut")).toBe(true);
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
   it("routes open example command to host callback", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const onOpenExample = vi.fn();
@@ -449,7 +485,8 @@ function makeInput({
   showDevPanel = false,
   onOpenExample,
   onOpenSvgExport,
-  onOpenPngExport
+  onOpenPngExport,
+  onOpenSettings
 }: {
   dispatch: (action: EditorAction) => void;
   source?: string;
@@ -473,6 +510,7 @@ function makeInput({
   onOpenExample?: () => void;
   onOpenSvgExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
   onOpenPngExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
+  onOpenSettings?: () => void;
 }) {
   const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
 
@@ -503,6 +541,7 @@ function makeInput({
     dispatch,
     onOpenExample,
     onOpenSvgExport,
-    onOpenPngExport
+    onOpenPngExport,
+    onOpenSettings
   };
 }

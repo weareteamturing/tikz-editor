@@ -198,6 +198,27 @@ test("freehand toolbar popup opens on activation and closes on outside click or 
   await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
 });
 
+test("multi-segment path tool finalizes on Enter", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await toolbarButton(page, "Path").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await page.mouse.click(box.x + 120, box.y + 120);
+  await page.mouse.click(box.x + 200, box.y + 120);
+  await page.mouse.click(box.x + 200, box.y + 180);
+  await page.keyboard.press("Enter");
+
+  await expect.poll(async () => readSource(page)).toContain("\\draw");
+  await expect.poll(async () => readSource(page)).toContain("--");
+});
+
 test("freehand smoothing popup slider changes generated curve complexity", async ({ page }) => {
   await gotoApp(page);
   const emptyPicture = String.raw`\begin{tikzpicture}

@@ -565,6 +565,14 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: snapshot.svg != null,
       run: () => dispatch({ type: "REQUEST_FIT_TO_CONTENT" })
     },
+    [APP_MENU_COMMAND_IDS.ZOOM_IN]: {
+      enabled: snapshot.svg != null,
+      run: () => dispatch({ type: "REQUEST_ZOOM", direction: "in" })
+    },
+    [APP_MENU_COMMAND_IDS.ZOOM_OUT]: {
+      enabled: snapshot.svg != null,
+      run: () => dispatch({ type: "REQUEST_ZOOM", direction: "out" })
+    },
     [APP_MENU_COMMAND_IDS.TOGGLE_GRID]: {
       enabled: true,
       checked: showGrid,

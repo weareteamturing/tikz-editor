@@ -30,6 +30,8 @@ export type SnapModes = {
   gaps: boolean;
 };
 
+export type ZoomRequestDirection = "in" | "out";
+
 export type CanvasTransform = {
   translateX: number;
   translateY: number;
@@ -116,6 +118,9 @@ export type WorkspaceEphemeralState = {
   freehandSmoothingPx: number;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
+  /** Monotonic token used to request zoom operations from CanvasPanel. */
+  zoomRequestToken: number;
+  zoomRequestDirection: ZoomRequestDirection | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   leftPanelWidth: number;
@@ -175,6 +180,9 @@ export type EditorState = {
   freehandSmoothingPx: number;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
+  /** Monotonic token used to request zoom operations from CanvasPanel. */
+  zoomRequestToken: number;
+  zoomRequestDirection: ZoomRequestDirection | null;
 
   // ── layout slice ─────────────────────────────────────────────────────────────
   leftPanelWidth: number;
@@ -256,6 +264,7 @@ export type EditorAction =
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
   | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }
   | { type: "REQUEST_FIT_TO_CONTENT" }
+  | { type: "REQUEST_ZOOM"; direction: ZoomRequestDirection }
   // Layout
   | { type: "SET_PANEL_WIDTH"; panel: "left" | "right"; width: number }
   | { type: "TOGGLE_PANEL"; panel: "source" | "inspector" }

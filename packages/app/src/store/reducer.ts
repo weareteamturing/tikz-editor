@@ -108,6 +108,8 @@ function initialUiState(): WorkspaceEphemeralState {
     showGuides: true,
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     fitToContentRequestToken: 0,
+    zoomRequestToken: 0,
+    zoomRequestDirection: null,
     leftPanelWidth: 340,
     rightPanelWidth: 280,
     showSourcePanel: true,
@@ -234,6 +236,8 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     showGuides: ui.showGuides,
     freehandSmoothingPx: ui.freehandSmoothingPx,
     fitToContentRequestToken: ui.fitToContentRequestToken,
+    zoomRequestToken: ui.zoomRequestToken,
+    zoomRequestDirection: ui.zoomRequestDirection,
     leftPanelWidth: ui.leftPanelWidth,
     rightPanelWidth: ui.rightPanelWidth,
     showSourcePanel: ui.showSourcePanel,
@@ -1030,6 +1034,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "REQUEST_FIT_TO_CONTENT":
       ui = { ...ui, fitToContentRequestToken: ui.fitToContentRequestToken + 1 };
+      break;
+
+    case "REQUEST_ZOOM":
+      ui = {
+        ...ui,
+        zoomRequestToken: ui.zoomRequestToken + 1,
+        zoomRequestDirection: action.direction
+      };
       break;
 
     case "SET_PANEL_WIDTH":

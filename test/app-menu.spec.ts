@@ -31,6 +31,11 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS).toBe("view.toggle-snap-object-gaps");
   });
 
+  it("defines zoom command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.ZOOM_IN).toBe("view.zoom-in");
+    expect(APP_MENU_COMMAND_IDS.ZOOM_OUT).toBe("view.zoom-out");
+  });
+
   it("defines a bezier insert command id", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_BEZIER).toBe("insert.bezier");
   });
@@ -335,6 +340,60 @@ describe("app menu definition", () => {
     expect(submenuLabels).toEqual(["Align", "Transform", "Distribute", "Reorder"]);
     expect(items[items.length - 5]).toEqual({ kind: "separator" });
     expect(items.slice(-4).every((item) => item.kind === "submenu")).toBe(true);
+  });
+
+  it("exposes Zoom In/Out directly below Fit to Content in the View menu", () => {
+    const viewSection = APP_MENU_DEFINITION.find((section) => section.id === "view");
+    expect(viewSection).toBeDefined();
+    const items = viewSection?.items ?? [];
+
+    const fitIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FIT_TO_CONTENT
+    );
+    const zoomInIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.ZOOM_IN
+    );
+    const zoomOutIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.ZOOM_OUT
+    );
+
+    expect(fitIndex).toBeGreaterThanOrEqual(0);
+    expect(zoomInIndex).toBe(fitIndex + 1);
+    expect(zoomOutIndex).toBe(zoomInIndex + 1);
+
+    const zoomInItem = items[zoomInIndex];
+    const zoomOutItem = items[zoomOutIndex];
+    if (!zoomInItem || zoomInItem.kind !== "command" || !zoomOutItem || zoomOutItem.kind !== "command") {
+      throw new Error("Expected zoom command items in View menu.");
+    }
+    expect("accelerator" in zoomInItem ? zoomInItem.accelerator : undefined).toBe("CmdOrCtrl+=");
+    expect("accelerator" in zoomOutItem ? zoomOutItem.accelerator : undefined).toBe("CmdOrCtrl+-");
+  });
+
+  it("assigns CmdOrCtrl+0 accelerator to Fit to Content", () => {
+    const viewSection = APP_MENU_DEFINITION.find((section) => section.id === "view");
+    expect(viewSection).toBeDefined();
+    const fitItem = (viewSection?.items ?? []).find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FIT_TO_CONTENT
+    );
+    expect(fitItem).toBeDefined();
+    if (!fitItem || fitItem.kind !== "command") {
+      throw new Error("Expected fit-to-content command item in View menu.");
+    }
+    expect("accelerator" in fitItem ? fitItem.accelerator : undefined).toBe("CmdOrCtrl+0");
+  });
+
+  it("exposes Settings with CmdOrCtrl+, in the File menu", () => {
+    const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
+    expect(fileSection).toBeDefined();
+    const settingsItem = (fileSection?.items ?? []).find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.OPEN_SETTINGS
+    );
+    expect(settingsItem).toBeDefined();
+    if (!settingsItem || settingsItem.kind !== "command") {
+      throw new Error("Expected open settings command item in File menu.");
+    }
+    expect("accelerator" in settingsItem ? settingsItem.accelerator : undefined).toBe("CmdOrCtrl+,");
   });
 
   it("exposes path editing actions in a dedicated Path menu", () => {

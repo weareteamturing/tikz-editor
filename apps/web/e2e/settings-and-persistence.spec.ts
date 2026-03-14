@@ -57,3 +57,35 @@ test("settings persist across reload and formatter line length is clamped", asyn
   await expect(page.locator("#setting-grid-size")).toHaveValue("coarse");
   await expect(page.locator("#setting-handle-size")).toHaveValue("11");
 });
+
+test("settings reset buttons restore defaults for the active page only", async ({ page }) => {
+  await gotoApp(page);
+  await openMenuCommand(page, "file", "file.open-settings");
+
+  await page.selectOption("#setting-ui-font-size", "14");
+  await page.selectOption("#setting-color-scheme", "dark");
+  await page.getByTestId("settings-category-editor").click();
+  await page.click("#setting-word-wrap");
+  await page.selectOption("#setting-font-size", "16");
+  await page.getByTestId("settings-category-canvas").click();
+  await page.selectOption("#setting-grid-size", "coarse");
+  await page.selectOption("#setting-handle-size", "11");
+
+  await page.getByTestId("settings-reset-canvas").click();
+  await expect(page.locator("#setting-grid-size")).toHaveValue("standard");
+  await expect(page.locator("#setting-handle-size")).toHaveValue("9");
+
+  await page.getByTestId("settings-category-editor").click();
+  await expect(page.locator("#setting-word-wrap")).toBeChecked();
+  await expect(page.locator("#setting-font-size")).toHaveValue("16");
+  await page.getByTestId("settings-reset-editor").click();
+  await expect(page.locator("#setting-word-wrap")).not.toBeChecked();
+  await expect(page.locator("#setting-font-size")).toHaveValue("12");
+
+  await page.getByTestId("settings-category-general").click();
+  await expect(page.locator("#setting-ui-font-size")).toHaveValue("14");
+  await expect(page.locator("#setting-color-scheme")).toHaveValue("dark");
+  await page.getByTestId("settings-reset-general").click();
+  await expect(page.locator("#setting-ui-font-size")).toHaveValue("11");
+  await expect(page.locator("#setting-color-scheme")).toHaveValue("system");
+});

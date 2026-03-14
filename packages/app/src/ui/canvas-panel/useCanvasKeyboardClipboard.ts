@@ -119,6 +119,13 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
         return;
       }
 
+      if (event.key === "Enter" && toolMode === "addPath") {
+        finalizePathDraft(false);
+        setWarning(null);
+        event.preventDefault();
+        return;
+      }
+
       if ((event.key === "Delete" || event.key === "Backspace") && selectedElementIds.size > 0) {
         const selectedIds = [...selectedElementIds];
         const ok = applyActionWithFeedback(

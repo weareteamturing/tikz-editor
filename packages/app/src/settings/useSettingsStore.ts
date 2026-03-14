@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AppSettings } from "./types";
+import { DEFAULT_SETTINGS } from "./types";
 import { loadSettings, saveSettings } from "./storage";
 
 type SettingsStore = {
@@ -8,6 +9,9 @@ type SettingsStore = {
   updateEditorSettings: (patch: Partial<AppSettings["editor"]>) => void;
   updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
   updateColorPickerSettings: (patch: Partial<AppSettings["colorPicker"]>) => void;
+  resetGeneralSettings: () => void;
+  resetEditorSettings: () => void;
+  resetCanvasSettings: () => void;
 };
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
@@ -47,6 +51,37 @@ export const useSettingsStore = create<SettingsStore>((set) => ({
       const next: AppSettings = {
         ...state.settings,
         colorPicker: { ...state.settings.colorPicker, ...patch }
+      };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
+  resetGeneralSettings: () => {
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        general: { ...DEFAULT_SETTINGS.general },
+        colorPicker: { ...DEFAULT_SETTINGS.colorPicker }
+      };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
+  resetEditorSettings: () => {
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        editor: { ...DEFAULT_SETTINGS.editor }
+      };
+      saveSettings(next);
+      return { settings: next };
+    });
+  },
+  resetCanvasSettings: () => {
+    set((state) => {
+      const next: AppSettings = {
+        ...state.settings,
+        canvas: { ...DEFAULT_SETTINGS.canvas }
       };
       saveSettings(next);
       return { settings: next };

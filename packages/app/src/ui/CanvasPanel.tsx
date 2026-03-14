@@ -99,6 +99,7 @@ import {
   toViewportXFromWorld,
   toViewportYFromWorld,
   vectorLengthSquared,
+  viewportToSvgPoint,
   viewportToWorldPoint,
   worldToSvgPoint,
   worldToSvgY,
@@ -507,6 +508,8 @@ export function CanvasPanel() {
   const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
+  const zoomRequestToken = useEditorStore((s) => s.zoomRequestToken);
+  const zoomRequestDirection = useEditorStore((s) => s.zoomRequestDirection);
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
@@ -1042,6 +1045,51 @@ export function CanvasPanel() {
     setFitToContentModeActive(true);
     fitToContent();
   }, [fitToContent, fitToContentRequestToken]);
+
+  const handledZoomRequestRef = useRef(0);
+  useEffect(() => {
+    if (zoomRequestToken <= 0) {
+      return;
+    }
+    if (zoomRequestToken === handledZoomRequestRef.current) {
+      return;
+    }
+    handledZoomRequestRef.current = zoomRequestToken;
+    if (!zoomRequestDirection || !svgResult || !viewportRef.current) {
+      return;
+    }
+
+    const currentTransform = canvasTransformRef.current;
+    const centerX = viewportRef.current.clientWidth / 2;
+    const centerY = viewportRef.current.clientHeight / 2;
+    const zoomFactor = zoomRequestDirection === "in" ? 1.15 : 1 / 1.15;
+    const nextScale = clamp(currentTransform.scale * zoomFactor, MIN_SCALE, MAX_SCALE);
+    if (Math.abs(nextScale - currentTransform.scale) < 1e-9) {
+      return;
+    }
+
+    const svgPoint = viewportToSvgPoint(centerX, centerY, currentTransform, svgResult.viewBox);
+    const translateX = centerX - (svgPoint.x - svgResult.viewBox.x) * nextScale;
+    const translateY = centerY - (svgPoint.y - svgResult.viewBox.y) * nextScale;
+
+    if (fitToContentModeActiveRef.current) {
+      setFitToContentModeActive(false);
+    }
+    dispatch({
+      type: "SET_CANVAS_TRANSFORM",
+      transform: { translateX, translateY, scale: nextScale }
+    });
+  }, [
+    MAX_SCALE,
+    MIN_SCALE,
+    canvasTransformRef,
+    dispatch,
+    fitToContentModeActiveRef,
+    setFitToContentModeActive,
+    svgResult,
+    zoomRequestDirection,
+    zoomRequestToken
+  ]);
 
   const copyWarningToClipboard = useCallback(() => {
     if (!warning) {

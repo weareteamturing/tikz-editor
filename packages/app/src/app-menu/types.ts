@@ -58,6 +58,8 @@ export const APP_MENU_COMMAND_IDS = {
   ADD_LABEL: "insert.add-label",
   ADD_PIN: "insert.add-pin",
   FIT_TO_CONTENT: "view.fit-to-content",
+  ZOOM_IN: "view.zoom-in",
+  ZOOM_OUT: "view.zoom-out",
   TOGGLE_GRID: "view.toggle-grid",
   TOGGLE_SNAP_GRID: "view.toggle-snap-grid",
   TOGGLE_SNAP_GUIDES: "view.toggle-snap-guides",
