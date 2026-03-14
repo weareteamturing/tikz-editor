@@ -44,6 +44,7 @@ export type DragState =
       pointerId: number;
       elementIds: string[];
       startWorld: Point;
+      lastAppliedTotalDelta: Point;
       adornmentDrag?: {
         ownerPoint: Point;
         ownerGeometry?: AdornmentOwnerGeometry;

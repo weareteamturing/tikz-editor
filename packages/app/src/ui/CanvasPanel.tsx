@@ -670,6 +670,7 @@ export function CanvasPanel() {
   const svgResultRef = useRef(svgResult);
   const fitToContentModeActiveRef = useRef(fitToContentModeActive);
   const sourceBoundsRef = useRef(new Map<string, Bounds>());
+  const interactionBoundsBySourceRef = useRef(new Map<string, Bounds & { sourceId: string }>());
   const liveResizeFramesRef = useRef(new Map<string, ReturnType<typeof resolveResizeFrameForSource>>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const guideDragRef = useRef<GuideDragState | null>(null);
@@ -940,6 +941,7 @@ export function CanvasPanel() {
     draggableSourceIds,
     sceneTextByRegionKey,
     sourceBounds,
+    interactionBoundsBySource,
     matrixSelectionSourceIds,
     resizeFramesBySource,
     selectionBoxes,
@@ -963,6 +965,14 @@ export function CanvasPanel() {
     viewportSize,
     ROTATE_HANDLE_OFFSET_PX
   });
+
+  canvasTransformRef.current = canvasTransform;
+  selectedElementIdsRef.current = selectedElementIds;
+  svgResultRef.current = svgResult;
+  fitToContentModeActiveRef.current = fitToContentModeActive;
+  sourceBoundsRef.current = sourceBounds;
+  interactionBoundsBySourceRef.current = interactionBoundsBySource;
+  liveResizeFramesRef.current = resizeFramesBySource;
 
   const {
     snapGuideInput,
@@ -1550,6 +1560,7 @@ export function CanvasPanel() {
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
+    interactionBoundsBySource,
     snapshot,
     source,
     setWarning,
@@ -1865,6 +1876,8 @@ export function CanvasPanel() {
     fitToContentModeActiveRef,
     sourceBounds,
     sourceBoundsRef,
+    interactionBoundsBySource,
+    interactionBoundsBySourceRef,
     resizeFramesBySource,
     liveResizeFramesRef,
     previousViewBoxRef,
@@ -2130,6 +2143,7 @@ export function CanvasPanel() {
     liveResizeFramesRef,
     selectedElementIdsRef,
     sourceBoundsRef,
+    interactionBoundsBySourceRef,
     pendingAddedSelectionRef,
     setDragState,
     setSnapLines,

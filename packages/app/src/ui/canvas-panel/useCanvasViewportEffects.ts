@@ -23,6 +23,8 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     fitToContentModeActiveRef,
     sourceBounds,
     sourceBoundsRef,
+    interactionBoundsBySource,
+    interactionBoundsBySourceRef,
     resizeFramesBySource,
     liveResizeFramesRef,
     previousViewBoxRef,
@@ -108,6 +110,10 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
   useEffect(() => {
     sourceBoundsRef.current = sourceBounds;
   }, [sourceBounds, sourceBoundsRef]);
+
+  useEffect(() => {
+    interactionBoundsBySourceRef.current = interactionBoundsBySource;
+  }, [interactionBoundsBySource, interactionBoundsBySourceRef]);
 
   useEffect(() => {
     liveResizeFramesRef.current = resizeFramesBySource;

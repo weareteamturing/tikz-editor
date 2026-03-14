@@ -230,6 +230,53 @@ describe("computeSnapshot incremental parser integration", () => {
     expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
   });
 
+  it("replays descendant scene elements when a scope move rewrites only scope options", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1560.27pt, yshift=-339.73pt]
+    \filldraw[fill=blue!20] (1.5,0) rectangle (2.77,-1.24);
+    \filldraw[fill=red!20] (1.75,-0.25) rectangle (3.02,-1.49);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const seeded = await computeSnapshot({
+      id: "scope-move-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    const action = applyEditAction(source, seeded.snapshot.editHandles, {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: { x: 5, y: 2 }
+    });
+    expect(action.kind === "success" || action.kind === "partial").toBe(true);
+    if (!(action.kind === "success" || action.kind === "partial")) {
+      throw new Error(`moveElement failed: ${action.kind}`);
+    }
+
+    const incremental = await computeSnapshot({
+      id: "scope-move-incremental",
+      kind: "render",
+      source: action.newSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: action.changedSourceIds ?? ["scope:0"],
+      patches: action.patches,
+      trigger: "drag-element"
+    });
+    const canonical = await computeSnapshot({
+      id: "scope-move-canonical",
+      kind: "render",
+      source: action.newSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
+    expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
+    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
+  });
+
   it("reuses the cached parse session for unchanged-source prewarm requests", async () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);

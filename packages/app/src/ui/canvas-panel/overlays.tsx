@@ -660,9 +660,15 @@ export function HitRegionLayer({
                 ? `rotate(${fmt(-region.rotation)} ${fmt(region.cx)} ${fmt(region.cy)})`
                 : undefined
             }
-            fill="transparent"
+            fill={region.pointerMode === "stroke" ? "none" : "transparent"}
+            stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
+            strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
             style={cursor ? { cursor } : undefined}
-            pointerEvents={toolMode === "select" ? "all" : "none"}
+            pointerEvents={
+              toolMode === "select"
+                ? (region.pointerMode === "stroke" ? "stroke" : "all")
+                : "none"
+            }
             onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
             onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
             onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}

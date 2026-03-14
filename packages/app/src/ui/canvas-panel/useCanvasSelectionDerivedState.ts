@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import type { NodeAnchorTarget, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import {
   computeVisibleRanges,
@@ -72,16 +73,6 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return ids;
   }, [snapshot.scene]);
-  const draggableSourceIds = useMemo(() => {
-    const ids = new Set<string>(dragCapability.draggableSourceIds);
-    for (const sourceId of matrixSourceIds) {
-      ids.add(sourceId);
-    }
-    for (const targetId of adornmentTargetIds) {
-      ids.add(targetId);
-    }
-    return ids;
-  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixSourceIds]);
 
   const sceneTextByRegionKey = useMemo(() => {
     const elements = snapshot.scene?.elements ?? [];
@@ -107,6 +98,36 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     [snapshot.parseResult, sourceBounds]
   );
 
+  const movableScopeSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!snapshot.parseResult) {
+      return ids;
+    }
+
+    for (const scopeId of scopeOverlay.scopesById.keys()) {
+      const resolved = resolvePropertyTargetFromParseResult(snapshot.source, snapshot.parseResult, scopeId);
+      if (resolved.kind === "found") {
+        ids.add(scopeId);
+      }
+    }
+
+    return ids;
+  }, [scopeOverlay.scopesById, snapshot.parseResult, snapshot.source]);
+
+  const draggableSourceIds = useMemo(() => {
+    const ids = new Set<string>(dragCapability.draggableSourceIds);
+    for (const sourceId of matrixSourceIds) {
+      ids.add(sourceId);
+    }
+    for (const scopeId of movableScopeSourceIds) {
+      ids.add(scopeId);
+    }
+    for (const targetId of adornmentTargetIds) {
+      ids.add(targetId);
+    }
+    return ids;
+  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixSourceIds, movableScopeSourceIds]);
+
   const selectionBounds = useMemo(() => {
     const selected: Array<{ sourceId: string; bounds: any }> = [];
     for (const sourceId of selectedElementIds) {
@@ -119,6 +140,12 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return selected;
   }, [scopeOverlay.boundsByScopeId, selectedElementIds, sourceBounds]);
 
+  const selectedScopeHitBounds = useMemo(() => {
+    return selectionBounds
+      .filter((entry) => movableScopeSourceIds.has(entry.sourceId) && scopeOverlay.scopesById.has(entry.sourceId))
+      .map((entry) => ({ scopeId: entry.sourceId, bounds: entry.bounds }));
+  }, [movableScopeSourceIds, scopeOverlay.scopesById, selectionBounds]);
+
   const selectionBoundsBySource = useMemo(() => {
     const bySource = new Map<string, any>();
     for (const entry of selectionBounds as any[]) {
@@ -126,6 +153,14 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return bySource;
   }, [selectionBounds]);
+
+  const interactionBoundsBySource = useMemo(() => {
+    const bySource = new Map<string, any>(sourceBounds);
+    for (const [scopeId, bounds] of scopeOverlay.boundsByScopeId) {
+      bySource.set(scopeId, { ...bounds, sourceId: scopeId });
+    }
+    return bySource;
+  }, [scopeOverlay.boundsByScopeId, sourceBounds]);
 
   const resizablePathShapeSourceIds = useMemo(() => {
     if (!snapshot.scene) {
@@ -570,8 +605,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
-    return buildHitRegions(snapshot.scene.elements, svgResult.viewBox, canvasTransform.scale);
-  }, [snapshot.scene, svgResult, canvasTransform.scale]);
+    return buildHitRegions(snapshot.scene.elements, svgResult.viewBox, canvasTransform.scale, selectedScopeHitBounds);
+  }, [canvasTransform.scale, selectedScopeHitBounds, snapshot.scene, svgResult]);
 
   const visibleRanges = useMemo<VisibleRanges | null>(() => {
     if (!svgResult || viewportSize.width <= 0 || viewportSize.height <= 0) return null;
@@ -601,6 +636,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     selectionBounds,
     sceneTextByRegionKey,
     sourceBounds,
+    interactionBoundsBySource,
     selectionBoundsBySource,
     resizablePathShapeSourceIds,
     nodeResizeSourceIds,

@@ -6,7 +6,7 @@ import { formatNumber } from "tikz-editor/edit/format";
 import { worldToLocal } from "tikz-editor/edit/coords";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import {
-  collectSelectionGeometry,
+  collectSelectionGeometryFromBounds,
   snapHandlePosition,
   snapSelectionTranslation,
   snapToolPointer,
@@ -22,7 +22,6 @@ import {
   createBezierTemplateFromBend,
   createTemplateForToolDrag,
   DEFAULT_GRID_TOOL_STEP_PT,
-  deriveSelectionTranslationDeltaFromAnchor,
   formatTooltipAngleRow,
   formatTooltipGridCountRow,
   formatTooltipLengthRows,
@@ -85,6 +84,7 @@ export function useCanvasDragController(params: {
   liveResizeFramesRef: { current: ReadonlyMap<string, ResizeFrame | null> };
   selectedElementIdsRef: { current: ReadonlySet<string> };
   sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
+  interactionBoundsBySourceRef: { current: ReadonlyMap<string, Bounds & { sourceId: string }> };
   pendingAddedSelectionRef: { current: PendingAddedSelection | null };
   setDragState: (drag: DragState | null) => void;
   setSnapLines: (lines: SnapLine[]) => void;
@@ -126,6 +126,7 @@ export function useCanvasDragController(params: {
     liveResizeFramesRef,
     selectedElementIdsRef,
     sourceBoundsRef,
+    interactionBoundsBySourceRef,
     pendingAddedSelectionRef,
     setDragState,
     setSnapLines,
@@ -652,13 +653,7 @@ export function useCanvasDragController(params: {
               lines: [] as SnapLine[]
             };
         const totalDelta = snapped.snappedDelta ?? rawTotalDelta;
-        const actualTotalDelta = drag.initialSelection && snapshotScene
-          ? deriveSelectionTranslationDeltaFromAnchor(
-              drag.initialSelection,
-              collectSelectionGeometry(snapshotScene.elements, drag.elementIds),
-              drag.selectionAnchorRatio
-            )
-          : { x: 0, y: 0 };
+        const actualTotalDelta = drag.lastAppliedTotalDelta;
         const incremental = {
           x: totalDelta.x - actualTotalDelta.x,
           y: totalDelta.y - actualTotalDelta.y
@@ -680,7 +675,7 @@ export function useCanvasDragController(params: {
           return;
         }
 
-        applyActionWithFeedback(
+        const result = applyActionWithFeedback(
           {
             kind: "moveElements",
             elementIds: drag.elementIds,
@@ -688,6 +683,9 @@ export function useCanvasDragController(params: {
           },
           drag.historyMergeKey
         );
+        if (result.sourceChanged) {
+          drag.lastAppliedTotalDelta = totalDelta;
+        }
         return;
       }
 

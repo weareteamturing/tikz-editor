@@ -130,6 +130,48 @@ describe("rectHitRegionsForTargetId", () => {
     expect(haloRegion.height).toBeGreaterThan(textRegion.height);
   });
 
+  it("adds a stroke hit region for selected scope bounds", () => {
+    const text: SceneText = {
+      kind: "Text",
+      id: "scene-text:scope-member",
+      runtimeId: "runtime:scene-text:scope-member",
+      sourceRef: {
+        sourceId: "path:1",
+        sourceSpan: { from: 0, to: 0 },
+        sourceFingerprint: "test-fingerprint"
+      },
+      style: {
+        fontSize: 10
+      } as SceneText["style"],
+      styleChain: [],
+      position: { x: 20, y: 20 },
+      text: "A",
+      textBlockWidth: 10,
+      textBlockHeight: 6
+    };
+
+    const regions = buildHitRegions(
+      [text],
+      { x: 0, y: 0, width: 100, height: 100 },
+      2,
+      [{ scopeId: "scope:0", bounds: { minX: 10, minY: 15, maxX: 30, maxY: 25 } }]
+    );
+    const scopeRegion = regions.find(
+      (region): region is Extract<HitRegion, { shape: "rect" }> => region.key === "scope-hit:scope:0"
+    );
+
+    expect(scopeRegion).toBeDefined();
+    if (!scopeRegion) {
+      return;
+    }
+
+    expect(scopeRegion.targetId).toBe("scope:0");
+    expect(scopeRegion.sourceId).toBe("scope:0");
+    expect(scopeRegion.interactionMode).toBe("move");
+    expect(scopeRegion.pointerMode).toBe("stroke");
+    expect(scopeRegion.strokeWidth).toBeCloseTo(9, 6);
+  });
+
   it("uses only pin label text bounds for pin adornment selection boxes", () => {
     const pinText: SceneText = {
       kind: "Text",

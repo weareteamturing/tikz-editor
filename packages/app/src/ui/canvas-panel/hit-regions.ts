@@ -1,4 +1,4 @@
-import type { Matrix2D, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
+import type { Bounds, Matrix2D, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
 const HIT_STROKE_PX = 18;
@@ -52,12 +52,24 @@ export type HitRegion =
       cy: number;
       rotation: number;
       interactionMode?: "move" | "text";
+      pointerMode?: "stroke" | "fill";
+      strokeWidth?: number;
       sceneTextKey?: string;
       contentWidth?: number;
       contentHeight?: number;
     };
 
-export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, scale: number): HitRegion[] {
+export type ScopeHitBounds = {
+  scopeId: string;
+  bounds: Bounds;
+};
+
+export function buildHitRegions(
+  elements: SceneElement[],
+  viewBox: SvgViewBox,
+  scale: number,
+  scopeHitBounds: readonly ScopeHitBounds[] = []
+): HitRegion[] {
   const regions: HitRegion[] = [];
   const strokeWidth = HIT_STROKE_PX / Math.max(scale, 1e-3);
 
@@ -152,9 +164,34 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       cy: textGeometry.cy,
       rotation: textGeometry.rotation,
       interactionMode: "text",
+      pointerMode: "fill",
       sceneTextKey,
       contentWidth: textGeometry.width,
       contentHeight: textGeometry.height
+    });
+  }
+
+  for (const scope of scopeHitBounds) {
+    const topLeft = worldToSvgPoint({ x: scope.bounds.minX, y: scope.bounds.maxY }, viewBox);
+    const bottomRight = worldToSvgPoint({ x: scope.bounds.maxX, y: scope.bounds.minY }, viewBox);
+    const pad = strokeWidth / 2;
+    const width = Math.max(0, bottomRight.x - topLeft.x) + strokeWidth;
+    const height = Math.max(0, bottomRight.y - topLeft.y) + strokeWidth;
+    regions.push({
+      shape: "rect",
+      key: `scope-hit:${scope.scopeId}`,
+      sourceId: scope.scopeId,
+      targetId: scope.scopeId,
+      x: topLeft.x - pad,
+      y: topLeft.y - pad,
+      width,
+      height,
+      cx: topLeft.x + (bottomRight.x - topLeft.x) / 2,
+      cy: topLeft.y + (bottomRight.y - topLeft.y) / 2,
+      rotation: 0,
+      interactionMode: "move",
+      pointerMode: "stroke",
+      strokeWidth
     });
   }
 

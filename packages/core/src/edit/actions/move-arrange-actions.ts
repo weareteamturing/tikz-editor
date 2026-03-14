@@ -5,6 +5,10 @@ import type { EditHandle, Point } from "../../semantic/types.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { localToSourceUnits, worldToLocal } from "../coords.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
+import {
+  buildTransformSetPropertyMutations,
+  resolveTransformInspectorMutationContext
+} from "../inspector.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import { rewriteCoordinate } from "../rewrite.js";
@@ -49,8 +53,15 @@ export function applyMoveElementsAction(
     const statement = findPathStatementById(parsed.figure.body, elementId);
     return statement != null && isMatrixPathStatement(statement);
   });
+  const scopeElementIdSet = new Set(
+    normalizedIds.filter((elementId) => findScopeStatementById(parsed.figure.body, elementId) != null)
+  );
   const matrixElementIdSet = new Set(matrixElementIds);
-  const nonMatrixElementIds = normalizedIds.filter((elementId) => !matrixElementIdSet.has(elementId));
+  const changedSourceIds = expandChangedSourceIdsForMovedElements(parsed.figure.body, normalizedIds);
+  const nonMatrixElementIds = normalizedIds.filter(
+    (elementId) => !matrixElementIdSet.has(elementId) && !scopeElementIdSet.has(elementId)
+  );
+  const scopeElementIds = normalizedIds.filter((elementId) => scopeElementIdSet.has(elementId));
 
   const matrixPlacementHandlesBySource = new Map<string, EditHandle>();
   for (const handle of editHandles) {
@@ -109,6 +120,28 @@ export function applyMoveElementsAction(
     }
   }
 
+  if (scopeElementIds.length > 0) {
+    const byScopeTransform = applyMoveScopeElementsWithTransformRewrite(
+      currentSource,
+      scopeElementIds,
+      delta,
+      parseOptions
+    );
+    if (byScopeTransform.kind === "error") {
+      return byScopeTransform;
+    }
+    if (byScopeTransform.kind === "success" || byScopeTransform.kind === "partial") {
+      currentSource = byScopeTransform.newSource;
+      patches.push(...byScopeTransform.patches);
+      movedAny = true;
+      if (byScopeTransform.kind === "partial") {
+        reasons.push(byScopeTransform.reason);
+      }
+    } else {
+      reasons.push(byScopeTransform.reason);
+    }
+  }
+
   if (!movedAny) {
     return {
       kind: "unsupported",
@@ -123,6 +156,7 @@ export function applyMoveElementsAction(
       newSource: currentSource,
       patches,
       skippedHandles: uniqueStrings(skippedHandles),
+      changedSourceIds,
       reason:
         uniqueReasons.length > 0
           ? uniqueReasons.join(" ")
@@ -130,7 +164,7 @@ export function applyMoveElementsAction(
     };
   }
 
-  return { kind: "success", newSource: currentSource, patches };
+  return { kind: "success", newSource: currentSource, patches, changedSourceIds };
 }
 
 export function applyAlignElementsAction(
@@ -302,6 +336,113 @@ function applyMoveMatrixElementsWithPlacementRewrite(
   return {
     kind: "success",
     newSource: currentSource,
+    patches
+  };
+}
+
+function applyMoveScopeElementsWithTransformRewrite(
+  source: string,
+  elementIds: readonly string[],
+  delta: Point,
+  parseOptions: EditParseOptions
+): EditActionResultLike {
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  const failedElementIds: string[] = [];
+  const failureReasons: string[] = [];
+
+  for (const elementId of elementIds) {
+    const rewrite = rewriteSingleScopeTransform(currentSource, elementId, delta, parseOptions);
+    if (rewrite.kind === "unsupported") {
+      failedElementIds.push(elementId);
+      failureReasons.push(rewrite.reason);
+      continue;
+    }
+
+    currentSource = rewrite.source;
+    patches.push(...rewrite.patches);
+  }
+
+  if (patches.length === 0) {
+    return {
+      kind: "unsupported",
+      reason: failureReasons[0] ?? "No scope transform rewrite succeeded"
+    };
+  }
+
+  if (failedElementIds.length > 0) {
+    return {
+      kind: "partial",
+      newSource: currentSource,
+      patches,
+      skippedHandles: [],
+      reason: `Could not move some scopes (${failedElementIds.join(", ")}): ${uniqueStrings(failureReasons).join(" ")}`
+    };
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches
+  };
+}
+
+type ScopeTransformRewriteResult =
+  | { kind: "success"; source: string; patches: SourcePatch[] }
+  | { kind: "unsupported"; reason: string };
+
+function rewriteSingleScopeTransform(
+  source: string,
+  elementId: string,
+  delta: Point,
+  parseOptions: EditParseOptions
+): ScopeTransformRewriteResult {
+  const resolved = resolvePropertyTarget(source, elementId, parseOptions);
+  if (resolved.kind !== "found") {
+    return { kind: "unsupported", reason: `Scope ${elementId} was not found` };
+  }
+
+  const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+  const mutations = [
+    ...buildTransformSetPropertyMutations(context, "xshift", context.values.xshift + delta.x),
+    ...buildTransformSetPropertyMutations(context, "yshift", context.values.yshift + delta.y)
+  ];
+
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+
+  for (const mutation of mutations) {
+    const currentTarget = resolvePropertyTarget(currentSource, resolved.target.id, parseOptions);
+    if (currentTarget.kind !== "found") {
+      return { kind: "unsupported", reason: `Scope ${elementId} target became unavailable during rewrite` };
+    }
+
+    const optionMutations = new Map<string, OptionMutation>();
+    for (const clearKey of mutation.clearKeys) {
+      optionMutations.set(clearKey, { kind: "remove" });
+    }
+    optionMutations.set(
+      mutation.key,
+      mutation.value.trim().length === 0
+        ? { kind: "remove" }
+        : { kind: "set", value: mutation.value }
+    );
+
+    const rewritten = applyOptionMutationsToTarget(currentSource, currentTarget.target, optionMutations);
+    if (!rewritten) {
+      continue;
+    }
+    currentSource = rewritten.source;
+    patches.push(rewritten.patch);
+  }
+
+  if (patches.length === 0) {
+    return { kind: "unsupported", reason: `Scope ${elementId} already matches the requested position` };
+  }
+
+  return {
+    kind: "success",
+    source: currentSource,
     patches
   };
 }
@@ -613,6 +754,62 @@ function isMatrixNodeItem(item: NodeItem): boolean {
     }
   }
   return false;
+}
+
+function findScopeStatementById(
+  statements: readonly Statement[],
+  scopeId: string
+): Extract<Statement, { kind: "Scope" }> | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope" && statement.id === scopeId) {
+      return statement;
+    }
+    if (statement.kind === "Scope") {
+      const nested = findScopeStatementById(statement.body, scopeId);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+
+function expandChangedSourceIdsForMovedElements(
+  statements: readonly Statement[],
+  elementIds: readonly string[]
+): string[] {
+  const expanded: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (sourceId: string) => {
+    const normalized = sourceId.trim();
+    if (normalized.length === 0 || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    expanded.push(normalized);
+  };
+
+  const visitScope = (scope: Extract<Statement, { kind: "Scope" }>) => {
+    push(scope.id);
+    for (const statement of scope.body) {
+      push(statement.id);
+      if (statement.kind === "Scope") {
+        visitScope(statement);
+      }
+    }
+  };
+
+  for (const elementId of elementIds) {
+    const scope = findScopeStatementById(statements, elementId);
+    if (!scope) {
+      push(elementId);
+      continue;
+    }
+    visitScope(scope);
+  }
+
+  return expanded;
 }
 
 function findPathStatementById(

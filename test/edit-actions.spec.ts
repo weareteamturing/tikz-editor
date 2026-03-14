@@ -466,6 +466,73 @@ describe("applyEditAction – moveElement", () => {
     expect(result.newSource).toMatch(/matrix of nodes,\s*at=\(1,2\)/);
   });
 
+  it("moves scopes by rewriting xshift and yshift options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=2pt, yshift=3pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: { x: 5, y: -2 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xshift=7pt");
+    expect(result.newSource).toContain("yshift=1pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves scopes without options by inserting xshift and yshift", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: { x: 4, y: -6 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\begin{scope}[xshift=4pt, yshift=-6pt]");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves scopes and regular elements together in moveElements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[xshift=1pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+  \draw (1,1) -- (2,2);
+\end{tikzpicture}`;
+    const raw = "(1,1)";
+    const from = source.lastIndexOf(raw);
+    const handle = makeHandle(source, {
+      world: { x: cm(1), y: cm(1) },
+      sourceSpan: { from, to: from + raw.length },
+      sourceId: "path:2"
+    });
+
+    const result = applyEditAction(source, [handle], {
+      kind: "moveElements",
+      elementIds: ["scope:0", "path:2"],
+      delta: { x: 3, y: 2 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xshift=4pt");
+    expect(result.newSource).toContain("(1.11,1.07)");
+    expectPatchesReconstructSource(source, result);
+  });
+
   it("prefers rewriting inline at when both inline and option placement are present", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,at={(10,10)}] at (0,0) {

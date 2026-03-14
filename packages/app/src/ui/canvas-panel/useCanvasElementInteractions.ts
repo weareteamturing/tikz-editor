@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { buildSnapContext, collectSelectionGeometry } from "tikz-editor/edit/snapping";
+import { buildSnapContext, collectSelectionGeometryFromBounds } from "tikz-editor/edit/snapping";
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import { requestSourceSelection } from "../source-sync";
@@ -25,6 +25,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
+    interactionBoundsBySource,
     snapshot,
     source,
     setWarning,
@@ -90,9 +91,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
             viewportWorld: viewportWorldBounds
           })
         : null;
-      const initialSelection = snapshot.scene
-        ? collectSelectionGeometry(snapshot.scene.elements, draggedIds)
-        : null;
+      const initialSelection = collectSelectionGeometryFromBounds(interactionBoundsBySource, draggedIds);
       const selectionAnchorRatio = initialSelection
         ? selectionAnchorRatioFromPoint(initialSelection.bounds, world)
         : null;
@@ -103,6 +102,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         pointerId,
         elementIds: draggedIds,
         startWorld: world,
+        lastAppliedTotalDelta: { x: 0, y: 0 },
         snapContext,
         initialSelection,
         selectionAnchorRatio,
@@ -124,6 +124,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     [
       canvasTransform.scale,
       draggableSourceIds,
+      interactionBoundsBySource,
       logSnapDebug,
       setDragState,
       setSnapLines,

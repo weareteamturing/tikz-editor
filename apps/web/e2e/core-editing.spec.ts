@@ -26,6 +26,11 @@ test.beforeEach(async ({ page }) => {
   await resetStorageBeforeNavigation(page);
 });
 
+function readShiftValue(source: string, axis: "x" | "y"): number | null {
+  const match = source.match(new RegExp(`${axis}shift=([-0-9.]+)pt`));
+  return match ? Number(match[1]) : null;
+}
+
 test("tool keyboard shortcut creates shape and escape returns to select", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
@@ -307,6 +312,339 @@ test("nested scope drill is outermost-first and dragging does not advance drill 
 
   await clickHitRegionByTargetId(page, "path:2", { button: "right" });
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:2"]);
+});
+
+test("selected scope drag tracks cursor displacement without runaway shifts", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}[xshift=-5.69pt]
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  expect(beforeBox).not.toBeNull();
+  if (!beforeBox) {
+    return;
+  }
+
+  const beforeSource = await readStoreSource(page);
+  const beforeXShift = readShiftValue(beforeSource, "x");
+  expect(beforeXShift).not.toBeNull();
+  if (beforeXShift === null) {
+    return;
+  }
+
+  const scopeHitRegion = page.locator("[data-hit-region-target-id='scope:1']").first();
+  const scopeHitBox = await scopeHitRegion.boundingBox();
+  expect(scopeHitBox).not.toBeNull();
+  if (!scopeHitBox) {
+    return;
+  }
+
+  const startX = scopeHitBox.x + scopeHitBox.width / 2;
+  const startY = scopeHitBox.y + scopeHitBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __TIKZ_EDITOR_APP_TEST_API__?: { getSource?: () => string };
+      __PW_SCOPE_DRAG_SAMPLES__?: { stop: () => string[] };
+    };
+    const samples: string[] = [];
+    let active = true;
+    const capture = () => {
+      if (!active) {
+        return;
+      }
+      samples.push(globalLike.__TIKZ_EDITOR_APP_TEST_API__?.getSource?.() ?? "");
+      globalLike.requestAnimationFrame(capture);
+    };
+    globalLike.requestAnimationFrame(capture);
+    globalLike.__PW_SCOPE_DRAG_SAMPLES__ = {
+      stop: () => {
+        active = false;
+        return [...samples];
+      }
+    };
+  });
+  await page.mouse.down();
+  await page.mouse.move(startX + 180, startY, { steps: 200 });
+  await page.mouse.up();
+  const dragSamples = await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __PW_SCOPE_DRAG_SAMPLES__?: { stop: () => string[] };
+    };
+    const samples = globalLike.__PW_SCOPE_DRAG_SAMPLES__?.stop() ?? [];
+    delete globalLike.__PW_SCOPE_DRAG_SAMPLES__;
+    return samples;
+  });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+
+  const sampledXShifts = dragSamples
+    .map((sample) => readShiftValue(sample, "x"))
+    .filter((sample): sample is number => sample !== null);
+  expect(sampledXShifts.length).toBeGreaterThan(0);
+  for (const sampledXShift of sampledXShifts) {
+    expect(Math.abs(sampledXShift - beforeXShift)).toBeLessThan(400);
+  }
+
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
+  }).toBeGreaterThan(120);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
+  }).toBeLessThan(260);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.y + currentBox.height / 2) - (beforeBox.y + beforeBox.height / 2);
+  }).toBeGreaterThan(-20);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.y + currentBox.height / 2) - (beforeBox.y + beforeBox.height / 2);
+  }).toBeLessThan(20);
+
+  const finalBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  expect(finalBox).not.toBeNull();
+  if (!finalBox) {
+    return;
+  }
+
+  const deltaX = (finalBox.x + finalBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
+  const deltaY = (finalBox.y + finalBox.height / 2) - (beforeBox.y + beforeBox.height / 2);
+  expect(deltaX).toBeGreaterThan(120);
+  expect(deltaX).toBeLessThan(260);
+  expect(Math.abs(deltaY)).toBeLessThan(20);
+
+  const afterSource = await readStoreSource(page);
+  const afterXShift = readShiftValue(afterSource, "x");
+  expect(afterXShift).not.toBeNull();
+  if (afterXShift === null) {
+    return;
+  }
+
+  const xshiftDelta = afterXShift - beforeXShift;
+  expect(Math.abs(xshiftDelta)).toBeLessThan(400);
+  expect(xshiftDelta).toBeGreaterThan(0);
+});
+
+test("selected scope drag from member area tracks cursor displacement without runaway shifts", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}[xshift=-5.69pt]
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  expect(beforeBox).not.toBeNull();
+  if (!beforeBox) {
+    return;
+  }
+
+  const beforeSource = await readStoreSource(page);
+  const beforeMatch = beforeSource.match(/xshift=([-0-9.]+)pt/);
+  expect(beforeMatch).not.toBeNull();
+  if (!beforeMatch) {
+    return;
+  }
+
+  const memberRegion = page.locator("[data-hit-region-target-id='path:2']").first();
+  const memberBox = await memberRegion.boundingBox();
+  expect(memberBox).not.toBeNull();
+  if (!memberBox) {
+    return;
+  }
+
+  const startX = memberBox.x + memberBox.width / 2;
+  const startY = memberBox.y + memberBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 180, startY, { steps: 40 });
+  await page.mouse.up();
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
+  }).toBeGreaterThan(120);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return (currentBox.x + currentBox.width / 2) - (beforeBox.x + beforeBox.width / 2);
+  }).toBeLessThan(260);
+
+  const afterSource = await readStoreSource(page);
+  const afterMatch = afterSource.match(/xshift=([-0-9.]+)pt/);
+  expect(afterMatch).not.toBeNull();
+  if (!afterMatch) {
+    return;
+  }
+
+  const xshiftDelta = Number(afterMatch[1]) - Number(beforeMatch[1]);
+  expect(Math.abs(xshiftDelta)).toBeLessThan(400);
+  expect(xshiftDelta).toBeGreaterThan(0);
+});
+
+test("unselected member drag promotes to scope drag without runaway shifts", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}[xshift=-5.69pt]
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+
+  const beforeSource = await readStoreSource(page);
+  const beforeMatch = beforeSource.match(/xshift=([-0-9.]+)pt/);
+  expect(beforeMatch).not.toBeNull();
+  if (!beforeMatch) {
+    return;
+  }
+
+  const memberRegion = page.locator("[data-hit-region-target-id='path:2']").first();
+  const memberBox = await memberRegion.boundingBox();
+  expect(memberBox).not.toBeNull();
+  if (!memberBox) {
+    return;
+  }
+
+  const startX = memberBox.x + memberBox.width / 2;
+  const startY = memberBox.y + memberBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + 180, startY, { steps: 40 });
+  await page.mouse.up();
+
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+
+  const afterSource = await readStoreSource(page);
+  const afterMatch = afterSource.match(/xshift=([-0-9.]+)pt/);
+  expect(afterMatch).not.toBeNull();
+  if (!afterMatch) {
+    return;
+  }
+
+  const xshiftDelta = Number(afterMatch[1]) - Number(beforeMatch[1]);
+  expect(Math.abs(xshiftDelta)).toBeLessThan(400);
+  expect(xshiftDelta).toBeGreaterThan(0);
+});
+
+test("small downward scope drag does not explode yshift", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}[xshift=5pt]
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeSource = await readStoreSource(page);
+  const beforeXShift = readShiftValue(beforeSource, "x");
+  const beforeYShift = readShiftValue(beforeSource, "y") ?? 0;
+  expect(beforeXShift).not.toBeNull();
+  if (beforeXShift === null) {
+    return;
+  }
+
+  const memberRegion = page.locator("[data-hit-region-target-id='path:2']").first();
+  const memberBox = await memberRegion.boundingBox();
+  expect(memberBox).not.toBeNull();
+  if (!memberBox) {
+    return;
+  }
+
+  const startX = memberBox.x + memberBox.width / 2;
+  const startY = memberBox.y + memberBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __TIKZ_EDITOR_APP_TEST_API__?: { getSource?: () => string };
+      __PW_SCOPE_DRAG_SAMPLES__?: { stop: () => string[] };
+    };
+    const samples: string[] = [];
+    let active = true;
+    const capture = () => {
+      if (!active) {
+        return;
+      }
+      samples.push(globalLike.__TIKZ_EDITOR_APP_TEST_API__?.getSource?.() ?? "");
+      globalLike.requestAnimationFrame(capture);
+    };
+    globalLike.requestAnimationFrame(capture);
+    globalLike.__PW_SCOPE_DRAG_SAMPLES__ = {
+      stop: () => {
+        active = false;
+        return [...samples];
+      }
+    };
+  });
+  await page.mouse.down();
+  await page.mouse.move(startX, startY + 10, { steps: 30 });
+  await page.mouse.up();
+  const dragSamples = await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __PW_SCOPE_DRAG_SAMPLES__?: { stop: () => string[] };
+    };
+    const samples = globalLike.__PW_SCOPE_DRAG_SAMPLES__?.stop() ?? [];
+    delete globalLike.__PW_SCOPE_DRAG_SAMPLES__;
+    return samples;
+  });
+
+  const sampledYShifts = dragSamples
+    .map((sample) => readShiftValue(sample, "y") ?? 0)
+    .filter((sample) => Number.isFinite(sample));
+  expect(sampledYShifts.length).toBeGreaterThan(0);
+  for (const sampledYShift of sampledYShifts) {
+    expect(Math.abs(sampledYShift - beforeYShift)).toBeLessThan(100);
+  }
+
+  const afterSource = await readStoreSource(page);
+  const afterYShift = readShiftValue(afterSource, "y") ?? 0;
+  expect(Math.abs(afterYShift - beforeYShift)).toBeLessThan(100);
 });
 
 test("child-hit-only scope targeting does not select scope on empty interior clicks", async ({ page }) => {
