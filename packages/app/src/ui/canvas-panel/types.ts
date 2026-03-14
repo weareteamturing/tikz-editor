@@ -180,9 +180,15 @@ export type PendingBezier = {
   endWorld: Point;
 };
 
+export type PathAppendTarget = {
+  elementId: string;
+  end: "start" | "end";
+};
+
 export type PathToolDraft = {
   startWorld: Point;
   segments: ComplexPathSegment[];
+  appendTarget?: PathAppendTarget;
 };
 
 export type FreehandToolDraft = {

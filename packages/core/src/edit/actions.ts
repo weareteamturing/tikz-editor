@@ -66,6 +66,7 @@ import {
   applyPasteStatementsAction
 } from "./actions/paste-duplicate.js";
 import {
+  applyAppendToPathAction,
   applyDeletePathPointAction,
   applyJoinPathsAction,
   applySetPathPointKindAction,
@@ -111,6 +112,7 @@ export type EditAction =
   | { kind: "toggleClosedPath"; elementId: string; closed: boolean }
   | { kind: "deletePathPoint"; elementId: string; handleId: string }
   | { kind: "setPathPointKind"; elementId: string; handleId: string; pointKind: PathPointKind }
+  | { kind: "appendToPath"; elementId: string; end: "start" | "end"; segmentSource: string }
   | {
       kind: "setProperty";
       elementId: string;
@@ -199,6 +201,8 @@ export function applyEditAction(
         return applyDeletePathPoint(source, editHandles, action, parseOptions);
       case "setPathPointKind":
         return applySetPathPointKind(source, editHandles, action, parseOptions);
+      case "appendToPath":
+        return applyAppendToPathAction(source, action, parseOptions);
       case "moveElement":
         return applyMoveElements(source, editHandles, [action.elementId], action.delta, parseOptions);
       case "moveElements":
@@ -627,6 +631,8 @@ function inferChangedSourceIds(
     case "setProperty":
       return [];
     case "resizeElement":
+      return normalizeElementIds([action.elementId]);
+    case "appendToPath":
       return normalizeElementIds([action.elementId]);
   }
 }

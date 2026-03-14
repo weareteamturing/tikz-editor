@@ -32,6 +32,7 @@ export type JoinPathsAction = { elementIds: [string, string] };
 export type ToggleClosedPathAction = { elementId: string; closed: boolean };
 export type DeletePathPointAction = { elementId: string; handleId: string };
 export type SetPathPointKindAction = { elementId: string; handleId: string; pointKind: PathPointKind };
+export type AppendToPathAction = { elementId: string; end: "start" | "end"; segmentSource: string };
 
 type PathEditingDeps = {
   normalizeElementIds: (elementIds: readonly string[]) => string[];
@@ -626,6 +627,54 @@ function cornerControlPositions(
   return {
     prev: { x: anchor.x - prevDirection.x * prevLength, y: anchor.y - prevDirection.y * prevLength },
     next: { x: anchor.x + nextDirection.x * nextLength, y: anchor.y + nextDirection.y * nextLength }
+  };
+}
+
+export function applyAppendToPathAction(
+  source: string,
+  action: AppendToPathAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
+  if (resolved.kind !== "eligible") {
+    return { kind: "unsupported", reason: resolved.reason };
+  }
+  const analysis = resolved.analysis;
+  if (analysis.closed) {
+    return { kind: "unsupported", reason: "Cannot append to a closed path." };
+  }
+
+  const lastAnchor = analysis.anchors[analysis.anchors.length - 1];
+  const firstAnchor = analysis.anchors[0];
+  if (!lastAnchor || !firstAnchor) {
+    return { kind: "unsupported", reason: "Path has no anchors." };
+  }
+
+  let newBody: string;
+  const allSegmentIndices = analysis.segments.map((_, i) => i);
+  const existingBody = buildPathBodyFromSegments(analysis, source, 0, allSegmentIndices);
+
+  if (action.end === "end") {
+    newBody = `${existingBody} ${action.segmentSource}`;
+  } else {
+    // Prepend: new segments go before the existing first anchor
+    newBody = `${action.segmentSource} ${existingBody}`;
+  }
+
+  const rewritten = replaceSourceSpan(
+    source,
+    analysis.statement.span,
+    buildStatementText(source, analysis, newBody)
+  );
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "Append would not change the source." };
+  }
+  return {
+    kind: "success",
+    newSource: rewritten.source,
+    patches: [rewritten.patch],
+    selectedSourceIds: [action.elementId],
+    changedSourceIds: [action.elementId]
   };
 }
 

@@ -143,6 +143,105 @@ export function generateComplexPathSource(
   return `\\draw ${parts.join(" ")};`;
 }
 
+/**
+ * Generate just the segment operators (e.g. `-- (x,y) .. controls ... .. (x2,y2)`)
+ * without the `\draw`, start coordinate, or `;`.
+ */
+export function generateComplexPathSegmentSource(
+  segments: readonly ComplexPathSegment[]
+): string | null {
+  if (segments.length === 0) {
+    return null;
+  }
+  const parts: string[] = [];
+  for (const segment of segments) {
+    if (segment.kind === "line") {
+      parts.push(`-- ${formatPointCm(segment.to)}`);
+    } else {
+      parts.push(
+        `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPointCm(segment.to)}`
+      );
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Reverse an array of path segments so they traverse the path in the opposite direction.
+ * `fromWorld` is the start point of the original (unreversed) segment sequence.
+ */
+export function reverseComplexPathSegments(
+  fromWorld: Point,
+  segments: readonly ComplexPathSegment[]
+): { startWorld: Point; segments: ComplexPathSegment[] } {
+  if (segments.length === 0) {
+    return { startWorld: fromWorld, segments: [] };
+  }
+  const reversed: ComplexPathSegment[] = [];
+  // Walk backwards. For each segment, the new "to" is the previous segment's start.
+  let previousFrom = fromWorld;
+  const segFromPoints = [fromWorld];
+  for (const seg of segments) {
+    segFromPoints.push(seg.to);
+  }
+  // segFromPoints: [from, seg0.to, seg1.to, ...]
+  // reversed[i] corresponds to segments[n-1-i]
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i]!;
+    const segStart = segFromPoints[i]!;
+    if (seg.kind === "line") {
+      reversed.push({ kind: "line", to: segStart });
+    } else {
+      // swap control1 and control2
+      reversed.push({
+        kind: "bezier",
+        to: segStart,
+        control1: seg.control2,
+        control2: seg.control1
+      });
+    }
+  }
+  const newStart = segFromPoints[segFromPoints.length - 1]!;
+  return { startWorld: newStart, segments: reversed };
+}
+
+/**
+ * Generate source for prepending to an existing path's start.
+ * Returns `(newStart) -- (p1) -- ... --` — ending with an operator (no final coordinate),
+ * so the existing path's first coordinate naturally follows.
+ *
+ * `startWorld` is the new far start point; `segments` should be reversed so the last
+ * segment's target is the existing path's old start (which will be omitted).
+ */
+export function generateComplexPathPrependSource(
+  startWorld: Point,
+  segments: readonly ComplexPathSegment[]
+): string | null {
+  if (segments.length === 0) return null;
+
+  const parts: string[] = [formatPointCm(startWorld)];
+
+  // All segments except the last: include full operator + target
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i]!;
+    if (seg.kind === "line") {
+      parts.push(`-- ${formatPointCm(seg.to)}`);
+    } else {
+      parts.push(`.. controls ${formatPointCm(seg.control1)} and ${formatPointCm(seg.control2)} .. ${formatPointCm(seg.to)}`);
+    }
+  }
+
+  // Last segment: operator only, no target (existing body provides it)
+  const last = segments[segments.length - 1]!;
+  if (last.kind === "line") {
+    parts.push("--");
+  } else {
+    parts.push(`.. controls ${formatPointCm(last.control1)} and ${formatPointCm(last.control2)} ..`);
+  }
+
+  return parts.join(" ");
+}
+
 function formatPointCm(point: Point): string {
   const x = formatNumber(point.x * CM_PER_PT);
   const y = formatNumber(point.y * CM_PER_PT);

@@ -1,9 +1,10 @@
 import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
-import { type Point } from "tikz-editor/semantic/types";
+import { type NodeAnchorTarget, type Point } from "tikz-editor/semantic/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared } from "./geometry";
 import { createPathToolDraft, pathToolCloseRadiusWorld, pathToolCurrentPoint, pathToolShouldClose } from "./path-tool";
+import { resolvePathEndpointSnap } from "./path-endpoint-snap";
 import { createFreehandToolDraft } from "./freehand-tool";
 import { isToolCreateMode } from "../tool-config";
 import type { DragState } from "./types";
@@ -181,7 +182,20 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         if (toolMode === "addPath") {
           const activeDraft = pathDraftRef.current;
           if (!activeDraft) {
-            setPathDraft(createPathToolDraft(resolvedStart));
+            // Check if click is near an endpoint of an existing open path
+            const endpointSnap = snapshot.editHandles.length > 0
+              ? resolvePathEndpointSnap({
+                  pointerWorld: resolvedStart,
+                  zoom: canvasTransform.scale,
+                  editHandles: snapshot.editHandles,
+                  source
+                })
+              : null;
+            const appendTarget = endpointSnap
+              ? { elementId: endpointSnap.elementId, end: endpointSnap.end }
+              : undefined;
+            const draftStart = endpointSnap ? endpointSnap.world : resolvedStart;
+            setPathDraft(createPathToolDraft(draftStart, appendTarget));
             setPathSegmentDraft(null);
             setToolDraft(null);
             setBezierBendDraft(null);
@@ -192,7 +206,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
               dragKind: null,
               context: toolSnapContext,
               rawPoint: world,
-              snappedPoint: resolvedStart,
+              snappedPoint: draftStart,
               offset: startSnapResult.offset,
               lines: startSnapResult.lines
             });
@@ -454,21 +468,32 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         kind: toolMode === "addPath" ? "line-end" : "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
-      const hoverEndpointAnchorOverlay =
+      const showNodeAnchors =
         !toolDraft &&
         !bezierBendDraft &&
         !pathSegmentDraft &&
-        (toolMode === "addLine" || toolMode === "addArrow")
-          ? resolveEndpointAnchorSnap({
-              pointerWorld: world,
-              zoom: snapContext.zoom,
-              nodeAnchorTargets
+        (toolMode === "addLine" || toolMode === "addArrow" || toolMode === "addPath");
+      const hoverEndpointAnchorOverlay = showNodeAnchors
+        ? resolveEndpointAnchorSnap({
+            pointerWorld: world,
+            zoom: snapContext.zoom,
+            nodeAnchorTargets
+          })
+        : null;
+      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      const hoverPathEndpoint =
+        toolMode === "addPath" && !pathDraft && !pathSegmentDraft
+          ? resolvePathEndpointSnap({
+              pointerWorld: snapped.snappedPoint ?? world,
+              zoom: canvasTransform.scale,
+              editHandles: snapshot.editHandles,
+              source
             })
           : null;
-      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      const combinedOverlay = mergePathEndpointIntoOverlay(hoverEndpointAnchorOverlay, hoverPathEndpoint);
       setNodeAnchorOverlay(
-        hoverEndpointAnchorOverlay && hoverEndpointAnchorOverlay.visibleAnchors.length > 0
-          ? hoverEndpointAnchorOverlay
+        combinedOverlay && combinedOverlay.visibleAnchors.length > 0
+          ? combinedOverlay
           : null
       );
       const closeCandidateWorld =
@@ -481,7 +506,9 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         )
           ? pathDraft.startWorld
           : null;
-      setToolCursorWorld(closeCandidateWorld ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
+      setToolCursorWorld(
+        closeCandidateWorld ?? hoverPathEndpoint?.world ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world
+      );
       if (!toolDraft && !bezierBendDraft && !pathSegmentDraft) {
         setSnapLines(snapped.lines);
       }
@@ -585,21 +612,32 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         kind: toolMode === "addPath" ? "line-end" : "node",
         modifiers: { ctrlOrMeta: event.ctrlKey || event.metaKey }
       });
-      const hoverEndpointAnchorOverlay =
+      const showNodeAnchorsEnter =
         !toolDraft &&
         !bezierBendDraft &&
         !pathSegmentDraft &&
-        (toolMode === "addLine" || toolMode === "addArrow")
-          ? resolveEndpointAnchorSnap({
-              pointerWorld: world,
-              zoom: snapContext.zoom,
-              nodeAnchorTargets
+        (toolMode === "addLine" || toolMode === "addArrow" || toolMode === "addPath");
+      const hoverEndpointAnchorOverlay = showNodeAnchorsEnter
+        ? resolveEndpointAnchorSnap({
+            pointerWorld: world,
+            zoom: snapContext.zoom,
+            nodeAnchorTargets
+          })
+        : null;
+      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      const hoverPathEndpointEnter =
+        toolMode === "addPath" && !pathDraft && !pathSegmentDraft
+          ? resolvePathEndpointSnap({
+              pointerWorld: snapped.snappedPoint ?? world,
+              zoom: canvasTransform.scale,
+              editHandles: snapshot.editHandles,
+              source
             })
           : null;
-      const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
+      const combinedOverlayEnter = mergePathEndpointIntoOverlay(hoverEndpointAnchorOverlay, hoverPathEndpointEnter);
       setNodeAnchorOverlay(
-        hoverEndpointAnchorOverlay && hoverEndpointAnchorOverlay.visibleAnchors.length > 0
-          ? hoverEndpointAnchorOverlay
+        combinedOverlayEnter && combinedOverlayEnter.visibleAnchors.length > 0
+          ? combinedOverlayEnter
           : null
       );
       const closeCandidateWorld =
@@ -612,7 +650,9 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         )
           ? pathDraft.startWorld
           : null;
-      setToolCursorWorld(closeCandidateWorld ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world);
+      setToolCursorWorld(
+        closeCandidateWorld ?? hoverPathEndpointEnter?.world ?? hoverEndpointAnchor?.world ?? snapped.snappedPoint ?? world
+      );
       if (!toolDraft && !bezierBendDraft && !pathSegmentDraft) {
         setSnapLines(snapped.lines);
       }
@@ -658,4 +698,31 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     onInteractionPointerLeave,
     onInteractionPointerEnter
   };
+}
+
+function mergePathEndpointIntoOverlay(
+  nodeOverlay: { visibleAnchors: NodeAnchorTarget[]; snappedAnchor: NodeAnchorTarget | null } | null,
+  pathEndpoint: { elementId: string; end: string; world: Point } | null
+): { visibleAnchors: NodeAnchorTarget[]; snappedAnchor: NodeAnchorTarget | null } | null {
+  if (!pathEndpoint && !nodeOverlay) return null;
+
+  // Create a synthetic NodeAnchorTarget for the path endpoint
+  const pathEndpointAnchor: NodeAnchorTarget | null = pathEndpoint
+    ? {
+        nodeName: `__path:${pathEndpoint.elementId}`,
+        anchor: pathEndpoint.end,
+        world: pathEndpoint.world,
+        tier: "basic" as const
+      }
+    : null;
+
+  const visibleAnchors = [
+    ...(nodeOverlay?.visibleAnchors ?? []),
+    ...(pathEndpointAnchor ? [pathEndpointAnchor] : [])
+  ];
+
+  // The snapped anchor: prefer path endpoint (it's the append target) over node anchors
+  const snappedAnchor = pathEndpointAnchor ?? nodeOverlay?.snappedAnchor ?? null;
+
+  return { visibleAnchors, snappedAnchor };
 }

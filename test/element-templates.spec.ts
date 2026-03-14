@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   generateComplexPathSource,
+  generateComplexPathSegmentSource,
+  generateComplexPathPrependSource,
   generateElementSource,
-  insertElementIntoSource
+  insertElementIntoSource,
+  reverseComplexPathSegments
 } from "../packages/core/src/edit/element-templates.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 
@@ -155,5 +158,56 @@ describe("insertElementIntoSource", () => {
     const source = "\\draw (0,0) -- (1,0);";
     const next = insertElementIntoSource(source, "\\node at (0,0) {n};");
     expect(next).toBe("\\draw (0,0) -- (1,0);\n\\node at (0,0) {n};");
+  });
+
+  it("generates segment-only source without draw prefix", () => {
+    const segments = [
+      { kind: "line" as const, to: { x: cm(1), y: cm(0) } },
+      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+    ];
+    const result = generateComplexPathSegmentSource(segments);
+    expect(result).toBe("-- (1,0) -- (2,0)");
+  });
+
+  it("reverses line segments", () => {
+    const from = { x: cm(0), y: cm(0) };
+    const segments = [
+      { kind: "line" as const, to: { x: cm(1), y: cm(0) } },
+      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+    ];
+    const reversed = reverseComplexPathSegments(from, segments);
+    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.segments).toHaveLength(2);
+    expect(reversed.segments[0]).toEqual({ kind: "line", to: { x: cm(1), y: cm(0) } });
+    expect(reversed.segments[1]).toEqual({ kind: "line", to: { x: cm(0), y: cm(0) } });
+  });
+
+  it("reverses bezier segments with swapped controls", () => {
+    const from = { x: cm(0), y: cm(0) };
+    const segments = [
+      {
+        kind: "bezier" as const,
+        to: { x: cm(2), y: cm(0) },
+        control1: { x: cm(0.5), y: cm(1) },
+        control2: { x: cm(1.5), y: cm(1) }
+      }
+    ];
+    const reversed = reverseComplexPathSegments(from, segments);
+    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.segments[0]).toEqual({
+      kind: "bezier",
+      to: { x: cm(0), y: cm(0) },
+      control1: { x: cm(1.5), y: cm(1) },
+      control2: { x: cm(0.5), y: cm(1) }
+    });
+  });
+
+  it("generates prepend source ending with operator", () => {
+    const start = { x: cm(-1), y: cm(0) };
+    const segments = [
+      { kind: "line" as const, to: { x: cm(0), y: cm(0) } }
+    ];
+    const result = generateComplexPathPrependSource(start, segments);
+    expect(result).toBe("(-1,0) --");
   });
 });

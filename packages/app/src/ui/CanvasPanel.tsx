@@ -131,6 +131,7 @@ import { resolveNodeAdornmentContextAction } from "./canvas-panel/node-adornment
 import {
   appendPathToolSegmentFromGesture,
   createPathToolDraft,
+  generateAppendSegmentSource,
   generatePathToolSource,
   pathToolCanClose,
   pathToolCloseRadiusWorld,
@@ -1275,21 +1276,39 @@ export function CanvasPanel() {
         return;
       }
 
-      const snippet = generatePathToolSource(draft, { closed });
-      if (!snippet) {
-        setPathDraft(null);
-        setToolCursorWorld(null);
-        dispatch({ type: "SET_TOOL_MODE", mode: "select" });
-        return;
-      }
-
-      const ok = applyActionWithFeedback({
-        kind: "pasteStatements",
-        snippets: [snippet],
-        delta: { x: 0, y: 0 }
-      });
-      if (!ok.sourceChanged) {
-        pendingAddedSelectionRef.current = null;
+      if (draft.appendTarget) {
+        const segSource = generateAppendSegmentSource(draft);
+        if (!segSource) {
+          setPathDraft(null);
+          setToolCursorWorld(null);
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          return;
+        }
+        const ok = applyActionWithFeedback({
+          kind: "appendToPath",
+          elementId: draft.appendTarget.elementId,
+          end: draft.appendTarget.end,
+          segmentSource: segSource
+        });
+        if (!ok.sourceChanged) {
+          pendingAddedSelectionRef.current = null;
+        }
+      } else {
+        const snippet = generatePathToolSource(draft, { closed });
+        if (!snippet) {
+          setPathDraft(null);
+          setToolCursorWorld(null);
+          dispatch({ type: "SET_TOOL_MODE", mode: "select" });
+          return;
+        }
+        const ok = applyActionWithFeedback({
+          kind: "pasteStatements",
+          snippets: [snippet],
+          delta: { x: 0, y: 0 }
+        });
+        if (!ok.sourceChanged) {
+          pendingAddedSelectionRef.current = null;
+        }
       }
 
       setPathDraft(null);

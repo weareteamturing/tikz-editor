@@ -186,6 +186,52 @@ describe("path edit actions", () => {
     expect(result.newSource).not.toContain(" -- (-2.72,1.74) -- ");
   });
 
+  it("appends segments to the end of an open path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "appendToPath",
+      elementId: "path:0",
+      end: "end",
+      segmentSource: "-- (3,0) -- (4,0)"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,0) -- (2,0) -- (3,0) -- (4,0);");
+  });
+
+  it("prepends segments to the start of an open path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "appendToPath",
+      elementId: "path:0",
+      end: "start",
+      segmentSource: "(-2,0) -- (-1,0) --"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (-2,0) -- (-1,0) -- (0,0) -- (1,0) -- (2,0);");
+  });
+
+  it("rejects appending to a closed path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "appendToPath",
+      elementId: "path:0",
+      end: "end",
+      segmentSource: "-- (2,0)"
+    });
+
+    expect(result.kind).toBe("unsupported");
+  });
+
   it("rejects shorthand shapes for topology edits", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) rectangle (1,1);
