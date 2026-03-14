@@ -258,8 +258,8 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       const svgFile = findSvgFileInDataTransfer(event.clipboardData);
       if (svgFile) {
         event.preventDefault();
-        void svgFile.text().then((svgSource) => {
-          const converted = convertSvgToScopeSnippet(svgSource);
+        void svgFile.text().then(async (svgSource) => {
+          const converted = await convertSvgToScopeSnippet(svgSource);
           if (converted.kind === "failure") {
             setWarning(converted.message);
             return;
@@ -323,7 +323,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           try {
             const custom = await readCustomText(DESKTOP_SVG_CLIPBOARD_FORMATS);
             if (custom?.text?.trim()) {
-              const converted = convertSvgToScopeSnippet(custom.text);
+              const converted = await convertSvgToScopeSnippet(custom.text);
               if (converted.kind === "failure") {
                 setWarning(converted.message);
                 return;
@@ -355,7 +355,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           try {
             const custom = await readCustomText(DESKTOP_KEYNOTE_CLIPBOARD_FORMATS);
             if (custom?.text?.trim()) {
-              const converted = convertKeynoteClipboardToScopeSnippet(custom.text);
+              const converted = await convertKeynoteClipboardToScopeSnippet(custom.text);
               if (converted.kind === "failure") {
                 setWarning(converted.message);
                 return;
@@ -434,8 +434,8 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       if (!svgFile) {
         return;
       }
-      void svgFile.text().then((svgSource) => {
-        const converted = convertSvgToScopeSnippet(svgSource);
+      void svgFile.text().then(async (svgSource) => {
+        const converted = await convertSvgToScopeSnippet(svgSource);
         if (converted.kind === "failure") {
           setWarning(converted.message);
           return;

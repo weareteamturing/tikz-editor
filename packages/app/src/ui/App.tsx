@@ -21,18 +21,10 @@ import { getActiveEditorPlatform } from "../platform/current";
 import css from "./App.module.css";
 import "./variables.css";
 import { TabStrip } from "./TabStrip";
-import { UnsavedChangesModal, type UnsavedChangesDecision } from "./UnsavedChangesModal";
+import type { UnsavedChangesDecision } from "./UnsavedChangesModal";
 import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guard";
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
-import { OpenExampleModal } from "./OpenExampleModal";
-import { SettingsModal } from "./SettingsModal";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
-import { SvgExportModal } from "./SvgExportModal";
-import { PngExportModal } from "./PngExportModal";
-import { TikzJaxModal } from "./TikzJaxModal";
-import { RightSidebar } from "./RightSidebar";
-import { FigureNavigator } from "./FigureNavigator";
-import { renderPngExport } from "./export-commands";
 import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
@@ -50,6 +42,46 @@ const CanvasPanel = lazy(async () => {
 const DevPanel = lazy(async () => {
   const mod = await import("./DevPanel");
   return { default: mod.DevPanel };
+});
+
+const RightSidebar = lazy(async () => {
+  const mod = await import("./RightSidebar");
+  return { default: mod.RightSidebar };
+});
+
+const FigureNavigator = lazy(async () => {
+  const mod = await import("./FigureNavigator");
+  return { default: mod.FigureNavigator };
+});
+
+const OpenExampleModal = lazy(async () => {
+  const mod = await import("./OpenExampleModal");
+  return { default: mod.OpenExampleModal };
+});
+
+const SettingsModal = lazy(async () => {
+  const mod = await import("./SettingsModal");
+  return { default: mod.SettingsModal };
+});
+
+const SvgExportModal = lazy(async () => {
+  const mod = await import("./SvgExportModal");
+  return { default: mod.SvgExportModal };
+});
+
+const PngExportModal = lazy(async () => {
+  const mod = await import("./PngExportModal");
+  return { default: mod.PngExportModal };
+});
+
+const TikzJaxModal = lazy(async () => {
+  const mod = await import("./TikzJaxModal");
+  return { default: mod.TikzJaxModal };
+});
+
+const UnsavedChangesModal = lazy(async () => {
+  const mod = await import("./UnsavedChangesModal");
+  return { default: mod.UnsavedChangesModal };
 });
 
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
@@ -373,6 +405,7 @@ export function App() {
 
       if (snapshotForDoc.svg && snapshotForDoc.source === sourceForDoc) {
         try {
+          const { renderPngExport } = await import("./export-commands");
           const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144, transparentBackground: false });
           const pngBase64 = await blobToBase64(rendered.blob);
           const dataUrl = `data:${rendered.artifact.mimeType};base64,${pngBase64}`;
@@ -471,6 +504,7 @@ export function App() {
     if (!snapshotForDoc.svg || snapshotForDoc.source !== sourceForDoc) {
       return null;
     }
+    const { renderPngExport } = await import("./export-commands");
     const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144, transparentBackground: false });
     return await blobToBase64(rendered.blob);
   }
@@ -979,10 +1013,16 @@ export function App() {
               <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
                 <CanvasPanel />
               </Suspense>
-              <FigureNavigator />
+              <Suspense fallback={null}>
+                <FigureNavigator />
+              </Suspense>
             </div>
           )}
-          right={<RightSidebar onSubmitPrompt={handleAssistantPrompt} onInterruptTurn={handleInterruptAssistantTurn} />}
+          right={(
+            <Suspense fallback={<div className={css.panelLoading}>Loading…</div>}>
+              <RightSidebar onSubmitPrompt={handleAssistantPrompt} onInterruptTurn={handleInterruptAssistantTurn} />
+            </Suspense>
+          )}
         />
       </div>
       <StatusBar />
@@ -990,40 +1030,52 @@ export function App() {
         <DevPanel />
       </Suspense>
       {showOpenExampleModal ? (
-        <OpenExampleModal
-          examples={OPEN_EXAMPLE_CATALOG}
-          onClose={() => setShowOpenExampleModal(false)}
-          onSelectExample={loadExampleIntoEditor}
-        />
+        <Suspense fallback={null}>
+          <OpenExampleModal
+            examples={OPEN_EXAMPLE_CATALOG}
+            onClose={() => setShowOpenExampleModal(false)}
+            onSelectExample={loadExampleIntoEditor}
+          />
+        </Suspense>
       ) : null}
       {compiledPictureSource !== null ? (
-        <TikzJaxModal
-          source={compiledPictureSource}
-          onClose={() => setCompiledPictureSource(null)}
-        />
+        <Suspense fallback={null}>
+          <TikzJaxModal
+            source={compiledPictureSource}
+            onClose={() => setCompiledPictureSource(null)}
+          />
+        </Suspense>
       ) : null}
       {showSettingsModal ? (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        <Suspense fallback={null}>
+          <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        </Suspense>
       ) : null}
       {svgExportSvgResult ? (
-        <SvgExportModal
-          svgResult={svgExportSvgResult}
-          onClose={() => setSvgExportSvgResult(null)}
-        />
+        <Suspense fallback={null}>
+          <SvgExportModal
+            svgResult={svgExportSvgResult}
+            onClose={() => setSvgExportSvgResult(null)}
+          />
+        </Suspense>
       ) : null}
       {pngExportSvgResult ? (
-        <PngExportModal
-          svgResult={pngExportSvgResult}
-          onClose={() => setPngExportSvgResult(null)}
-        />
+        <Suspense fallback={null}>
+          <PngExportModal
+            svgResult={pngExportSvgResult}
+            onClose={() => setPngExportSvgResult(null)}
+          />
+        </Suspense>
       ) : null}
       {pendingClose ? (
-        <UnsavedChangesModal
-          documentTitles={pendingClose.dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled")}
-          onChoose={(decision) => {
-            void handleUnsavedDecision(decision);
-          }}
-        />
+        <Suspense fallback={null}>
+          <UnsavedChangesModal
+            documentTitles={pendingClose.dirtyDocumentIds.map((id) => documents[id]?.title ?? "Untitled")}
+            onChoose={(decision) => {
+              void handleUnsavedDecision(decision);
+            }}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

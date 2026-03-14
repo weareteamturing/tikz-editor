@@ -31,7 +31,7 @@ import {
   setSelectedPathPointKind,
   splitSelectedPath
 } from "./editor-commands";
-import { canExportSvg, copySvgMarkup, exportPdfDownload, exportStandaloneLatexDownload } from "./export-commands";
+
 import { requestSourceFormat } from "./source-sync";
 import { resolveOpenedFileForDocument } from "./svg-import";
 
@@ -154,7 +154,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const availability = actionAvailability(commandContext);
   const canUndo = historyIndex >= 0;
   const canRedo = historyIndex < historyLength - 1;
-  const canExport = canExportSvg(snapshot.svg);
+  const canExport = snapshot.svg != null;
   const canOpen = typeof getActiveEditorPlatform().files?.openText === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
   const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
@@ -183,14 +183,14 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     if (!snapshot.svg) {
       return;
     }
-    void copySvgMarkup(snapshot.svg);
+    void import("./export-commands").then((mod) => mod.copySvgMarkup(snapshot.svg!));
   };
 
   const runPdfDownload = () => {
     if (!snapshot.svg) {
       return;
     }
-    void exportPdfDownload(snapshot.svg, { fileName: "tikz-export.pdf" });
+    void import("./export-commands").then((mod) => mod.exportPdfDownload(snapshot.svg!, { fileName: "tikz-export.pdf" }));
   };
 
   const runPngExport = () => {
@@ -204,9 +204,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     if (!snapshot.semanticResult) {
       return;
     }
-    void exportStandaloneLatexDownload(source, snapshot.semanticResult.scene.requiredTikzLibraries, {
+    void import("./export-commands").then((mod) => mod.exportStandaloneLatexDownload(source, snapshot.semanticResult!.scene.requiredTikzLibraries, {
       fileName: "tikz-export.tex"
-    });
+    }));
   };
 
   const runOpenDocument = (requireSvg = false) => {

@@ -1,5 +1,3 @@
-import { svgToTikz } from "svg2tikz";
-import { toTikzFromClipboard } from "keynote-clipboard";
 import type { DocumentFileRef } from "../store/types.js";
 
 type OpenedTextFile = {
@@ -63,7 +61,8 @@ export function extractTikzPictureBody(tikzSource: string): string {
     .replace(/\s+$/u, "");
 }
 
-function convertSvgToTikzSource(svgSource: string): string {
+async function convertSvgToTikzSource(svgSource: string): Promise<string> {
+  const { svgToTikz } = await import("svg2tikz");
   return svgToTikz(svgSource, { standalone: false });
 }
 
@@ -74,10 +73,10 @@ function toImportedFileRef(name: string): DocumentFileRef {
   };
 }
 
-function resolveOpenedSvgAsDocument(opened: OpenedTextFile): ResolveOpenedFileResult {
+async function resolveOpenedSvgAsDocument(opened: OpenedTextFile): Promise<ResolveOpenedFileResult> {
   const originalName = opened.fileRef?.name ?? "imported.svg";
   try {
-    const converted = convertSvgToTikzSource(opened.source);
+    const converted = await convertSvgToTikzSource(opened.source);
     const suggestedFileRef = toImportedFileRef(originalName);
     return {
       kind: "success",
@@ -94,10 +93,10 @@ function resolveOpenedSvgAsDocument(opened: OpenedTextFile): ResolveOpenedFileRe
   }
 }
 
-export function resolveOpenedFileForDocument(
+export async function resolveOpenedFileForDocument(
   opened: OpenedTextFile,
   options: ResolveOpenedFileOptions = {}
-): ResolveOpenedFileResult {
+): Promise<ResolveOpenedFileResult> {
   const isSvg = detectSvgText(opened.source, opened.fileRef?.name);
   if (isSvg) {
     return resolveOpenedSvgAsDocument(opened);
@@ -126,9 +125,9 @@ export function buildScopeWrappedSnippet(body: string, options: { scale?: number
     : `\\begin{scope}${scaleOption}\n\\end{scope}`;
 }
 
-export function convertSvgToScopeSnippet(svgSource: string): SvgScopeSnippetResult {
+export async function convertSvgToScopeSnippet(svgSource: string): Promise<SvgScopeSnippetResult> {
   try {
-    const converted = convertSvgToTikzSource(svgSource);
+    const converted = await convertSvgToTikzSource(svgSource);
     const body = extractTikzPictureBody(converted);
     return {
       kind: "success",
@@ -144,9 +143,10 @@ export function convertSvgToScopeSnippet(svgSource: string): SvgScopeSnippetResu
   }
 }
 
-export function convertKeynoteClipboardToScopeSnippet(rawClipboardText: string): KeynoteScopeSnippetResult {
+export async function convertKeynoteClipboardToScopeSnippet(rawClipboardText: string): Promise<KeynoteScopeSnippetResult> {
   try {
-    const converted = toTikzFromClipboard(rawClipboardText);
+    const { toTikzFromClipboard } = await import("keynote-clipboard");
+    const converted = await Promise.resolve(toTikzFromClipboard(rawClipboardText));
     const tikzSource = converted.tikz;
     const body = extractTikzPictureBody(tikzSource);
     return {
