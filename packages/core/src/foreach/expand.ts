@@ -116,7 +116,7 @@ function expandStatement(
       stack,
       inheritedBindings,
       context,
-      templateSource ?? { sourceId: scope.id, sourceSpan: scope.span }
+      templateSource
     );
     const expandedScope: ScopeStatement = {
       ...scope,

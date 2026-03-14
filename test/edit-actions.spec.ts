@@ -1839,6 +1839,193 @@ describe("applyEditAction – reorderElements", () => {
   });
 });
 
+describe("applyEditAction – group/ungroup", () => {
+  it("groups contiguous sibling statements into a scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:1"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\begin{scope}");
+    expect(result.newSource).toContain("\\end{scope}");
+    expect(result.newSource.indexOf("\\begin{scope}")).toBeLessThan(
+      result.newSource.indexOf("\\draw (0,2) -- (1,2);")
+    );
+    expect(result.selectedSourceIds?.[0]?.startsWith("scope:")).toBe(true);
+  });
+
+  it("groups with configured indentation width", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1, -1) {B};
+  \draw (-1.35,-2.28) rectangle (2.2,-3.4);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:1"]
+    }, {
+      parseOptions: {
+        indentSize: 4
+      }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\n      \\node[draw] (A) at (-1, -1) {A};");
+    expect(result.newSource).toContain("\n      \\node[draw] (B) at (1, -1) {B};");
+  });
+
+  it("keeps grouped children on their own source ids for downstream selection and drag", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1, -1) {B};
+  \draw (-1.35,-2.28) rectangle (2.2,-3.4);
+\end{tikzpicture}`;
+
+    const grouped = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:1"]
+    });
+    expect(grouped.kind).toBe("success");
+    if (grouped.kind !== "success") return;
+
+    const parsed = parseTikz(grouped.newSource, { recover: true, includeContextDefinitions: true });
+    const semantic = evaluateTikzFigure(parsed.figure, grouped.newSource);
+    const sourceIds = new Set(semantic.scene.elements.map((element) => element.sourceRef.sourceId));
+
+    expect(sourceIds.has("path:1")).toBe(true);
+    expect(sourceIds.has("path:2")).toBe(true);
+    expect(sourceIds.has("scope:0")).toBe(false);
+  });
+
+  it("groups non-contiguous statements at a dependency-safe position", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \coordinate (a) at (0,0);
+  \draw (a) -- (1,0);
+  \draw (2,0) -- (3,0);
+  \draw (a) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:3"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    const beginScopeIndex = result.newSource.indexOf("\\begin{scope}");
+    expect(beginScopeIndex).toBeGreaterThanOrEqual(0);
+    expect(beginScopeIndex).toBeLessThan(result.newSource.indexOf("\\draw (a) -- (1,0);"));
+    expect(beginScopeIndex).toBeLessThan(result.newSource.indexOf("\\draw (2,0) -- (3,0);"));
+  });
+
+  it("refuses grouping when no dependency-safe non-contiguous placement exists", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \coordinate (a) at (0,0);
+  \coordinate (b) at (a);
+  \draw (b) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "groupElements",
+      elementIds: ["path:0", "path:2"]
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("dependency order");
+  });
+
+  it("ungroups a scope with no options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+    \draw (0,1) -- (1,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("\\begin{scope}");
+    expect(result.newSource).not.toContain("\\end{scope}");
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,0);");
+    expect(result.newSource).toContain("\\draw (0,1) -- (1,1);");
+  });
+
+  it("ungroup reindents inlined scope statements to the parent indentation level", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+  \begin{scope}
+        \node[draw] (A) at (-1.1, -1.56) {A};
+        \node[draw] (B) at (0.9, -1.56) {B};
+  \end{scope}
+  \draw (-1.3,-2.3) rectangle (2.2,-3.4);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\n  \\node[draw] (A) at (-1.1, -1.56) {A};");
+    expect(result.newSource).toContain("\n  \\node[draw] (B) at (0.9, -1.56) {B};");
+    expect(result.newSource).not.toContain("\n        \\node[draw] (A) at (-1.1, -1.56) {A};");
+    expect(result.newSource).not.toContain("\n        \\node[draw] (B) at (0.9, -1.56) {B};");
+  });
+
+  it("ungroups a scope with name-only options and drops name", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[name=mygroup]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).not.toContain("\\begin{scope}");
+    expect(result.newSource).not.toContain("name=mygroup");
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,0);");
+  });
+
+  it("refuses ungroup when scope has transform/style options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift={(1,0)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "ungroupElements",
+      elementIds: ["scope:0"]
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("without options");
+  });
+});
+
 describe("applyEditAction – duplicateElements", () => {
   it("duplicates selected statements after the same-parent anchor with default down-right offset", () => {
     const source = String.raw`\begin{tikzpicture}

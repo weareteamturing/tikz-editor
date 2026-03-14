@@ -728,6 +728,7 @@ export function SelectionOverlay({
               className={bounds.isAdornment ? css.adornmentSelectionRect : css.selectionRect}
               points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
               strokeWidth={selectionStrokeWidth}
+              data-selection-overlay-box-source-id={bounds.sourceId}
             />
           ) : (
             <rect
@@ -738,6 +739,7 @@ export function SelectionOverlay({
               width={Math.max(0.001, bounds.maxX - bounds.minX)}
               height={Math.max(0.001, bounds.maxY - bounds.minY)}
               strokeWidth={selectionStrokeWidth}
+              data-selection-overlay-box-source-id={bounds.sourceId}
             />
           )
         )}

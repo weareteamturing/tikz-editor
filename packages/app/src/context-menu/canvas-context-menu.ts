@@ -253,6 +253,19 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
     },
     { kind: "separator" },
     {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.GROUP,
+      label: "Group",
+      accelerator: "CmdOrCtrl+G"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+      label: "Ungroup",
+      accelerator: "CmdOrCtrl+Shift+G"
+    },
+    { kind: "separator" },
+    {
       kind: "submenu",
       label: "Transform",
       items: TRANSFORM_ITEMS
@@ -313,6 +326,19 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
       label: "Duplicate",
       accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.GROUP,
+      label: "Group",
+      accelerator: "CmdOrCtrl+G"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+      label: "Ungroup",
+      accelerator: "CmdOrCtrl+Shift+G"
     },
     { kind: "separator" },
     {
@@ -381,6 +407,19 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
       label: "Duplicate",
       accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.GROUP,
+      label: "Group",
+      accelerator: "CmdOrCtrl+G"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+      label: "Ungroup",
+      accelerator: "CmdOrCtrl+Shift+G"
     },
     { kind: "separator" },
     {

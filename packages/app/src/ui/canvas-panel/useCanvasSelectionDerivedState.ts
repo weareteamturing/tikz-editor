@@ -14,9 +14,9 @@ import { buildHitRegions } from "./hit-regions";
 import { resolveResizeFrameForSource } from "./resize-frames";
 import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
 import { resolveRotateHandlePosition } from "./rotate-handle";
+import { buildScopeOverlayIndex } from "./scope-overlay";
 import {
   collectMatrixStatementSourceIds,
-  collectSelectionBounds,
   collectSourceBounds,
   getHandleCursor,
   preferredNodeBoundsForSource,
@@ -83,11 +83,6 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return ids;
   }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixSourceIds]);
 
-  const selectionBounds = useMemo(() => {
-    if (!snapshot.scene || !svgResult) return [];
-    return collectSelectionBounds(snapshot.scene.elements, selectedElementIds, svgResult.viewBox);
-  }, [snapshot.scene, selectedElementIds, svgResult]);
-
   const sceneTextByRegionKey = useMemo(() => {
     const elements = snapshot.scene?.elements ?? [];
     const byRegionKey = new Map<string, SceneText>();
@@ -106,6 +101,23 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return collectSourceBounds(snapshot.scene.elements, svgResult.viewBox);
   }, [snapshot.scene, svgResult]);
+
+  const scopeOverlay = useMemo(
+    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, sourceBounds),
+    [snapshot.parseResult, sourceBounds]
+  );
+
+  const selectionBounds = useMemo(() => {
+    const selected: Array<{ sourceId: string; bounds: any }> = [];
+    for (const sourceId of selectedElementIds) {
+      const bounds = sourceBounds.get(sourceId) ?? scopeOverlay.boundsByScopeId.get(sourceId);
+      if (!bounds) {
+        continue;
+      }
+      selected.push({ sourceId, bounds });
+    }
+    return selected;
+  }, [scopeOverlay.boundsByScopeId, selectedElementIds, sourceBounds]);
 
   const selectionBoundsBySource = useMemo(() => {
     const bySource = new Map<string, any>();
@@ -169,6 +181,24 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return ids;
   }, [matrixSelectionSourceIds, resizeFrameSourceIds]);
 
+  const scopeSelectionSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const sourceId of selectedElementIds) {
+      if (scopeOverlay.scopesById.has(sourceId)) {
+        ids.add(sourceId);
+      }
+    }
+    return ids;
+  }, [scopeOverlay.scopesById, selectedElementIds]);
+
+  const selectionBoxSourceIds = useMemo(() => {
+    const ids = new Set<string>(selectionFrameSourceIds);
+    for (const sourceId of scopeSelectionSourceIds) {
+      ids.add(sourceId);
+    }
+    return ids;
+  }, [scopeSelectionSourceIds, selectionFrameSourceIds]);
+
   const resizeFramesBySource = useMemo(() => {
     const frames = new Map<string, ReturnType<typeof resolveResizeFrameForSource>>();
     if (!snapshot.scene || !svgResult) {
@@ -193,7 +223,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [resizeFrameSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
 
   const selectionBoxes = useMemo(() => {
-    const boxes = [...selectionFrameSourceIds]
+    const boxes = [...selectionBoxSourceIds]
       .map((sourceId) => {
         const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
         if (resizeFrame) {
@@ -218,7 +248,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       })
       .filter((bounds): bounds is NonNullable<typeof bounds> => bounds != null);
     return boxes;
-  }, [resizeFramesBySource, selectionBoundsBySource, selectionFrameSourceIds]);
+  }, [resizeFramesBySource, selectionBoundsBySource, selectionBoxSourceIds]);
 
   const selectedAdornmentConnectors = useMemo(() => {
     if (!snapshot.scene || !svgResult) {
@@ -586,7 +616,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     handleDisplays,
     hitRegions,
     visibleRanges,
-    viewportWorldBounds
+    viewportWorldBounds,
+    scopeOverlay
   };
 }
 

@@ -934,7 +934,8 @@ export function CanvasPanel() {
     handleDisplays,
     hitRegions,
     visibleRanges,
-    viewportWorldBounds
+    viewportWorldBounds,
+    scopeOverlay
   } = useCanvasSelectionDerivedState({
     snapshot,
     selectedElementIds,
@@ -1507,7 +1508,8 @@ export function CanvasPanel() {
     sceneTextByRegionKey,
     findWordRangeAtIndex,
     densePathSourceIds,
-    setExpandedDensePathSourceId
+    setExpandedDensePathSourceId,
+    scopeOverlay
   });
 
   const {
@@ -1665,7 +1667,9 @@ export function CanvasPanel() {
 
   const { onElementContextMenu, onCanvasContextMenu } = useCanvasSelectionInteractions({
     openCanvasContextMenuAt,
-    setTextEditingSession
+    setTextEditingSession,
+    selectedElementIds,
+    scopeOverlay
   });
 
   const {

@@ -79,4 +79,45 @@ describe("cutover regressions", () => {
 
     expect(moved.kind).toBe("success");
   });
+
+  it("keeps grouped children incrementally draggable without source-id mismatch fallback", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \node[draw] (A) at (-1, -1) {A};
+    \node[draw] (B) at (1, -1) {B};
+  \end{scope}
+  \draw (-1.35,-2.28) rectangle (2.2,-3.4);
+\end{tikzpicture}`;
+
+    const initial = await computeSnapshot({
+      id: "grouped-drag-base",
+      kind: "render",
+      source
+    });
+    const initialSourceIds = new Set((initial.snapshot.scene?.elements ?? []).map((element) => element.sourceRef.sourceId));
+    expect(initialSourceIds.has("path:1")).toBe(true);
+    expect(initialSourceIds.has("path:2")).toBe(true);
+
+    const moved = applyEditAction(source, initial.snapshot.editHandles, {
+      kind: "moveElements",
+      elementIds: ["path:1", "path:2"],
+      delta: { x: cm(0.2), y: cm(0.1) }
+    });
+    expect(moved.kind === "success" || moved.kind === "partial").toBe(true);
+    if (moved.kind !== "success" && moved.kind !== "partial") {
+      return;
+    }
+
+    const next = await computeSnapshot({
+      id: "grouped-drag-next",
+      kind: "render",
+      source: moved.newSource,
+      activeFigureId: initial.snapshot.activeFigureId,
+      trigger: "drag-element",
+      changedSourceIds: moved.changedSourceIds ?? null,
+      patches: moved.patches
+    });
+
+    expect(next.snapshot.incremental?.parseFallbackReason).not.toBe("patch-source-id-mismatch");
+  });
 });

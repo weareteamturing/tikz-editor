@@ -1996,6 +1996,9 @@ function applyForeachAttributionToElements(
   }
 
   const attribution = statementAttribution.get(statement);
+  const shouldOverrideSource =
+    attribution != null &&
+    (attribution.sourceId !== statement.id || attribution.foreachStack.length > 0);
   const statementMacroStack = statementMacroAttribution.get(statement);
   const pathItemsById = statement.kind === "Path" ? buildPathItemLookup(statement) : undefined;
   const pathFallbackStack =
@@ -2032,8 +2035,8 @@ function applyForeachAttributionToElements(
           }
         : undefined;
 
-    const nextSourceId = attribution?.sourceId ?? element.sourceRef.sourceId;
-    const nextSourceSpan = attribution?.sourceSpan ?? element.sourceRef.sourceSpan;
+    const nextSourceId = shouldOverrideSource ? attribution!.sourceId : element.sourceRef.sourceId;
+    const nextSourceSpan = shouldOverrideSource ? attribution!.sourceSpan : element.sourceRef.sourceSpan;
     return {
       ...element,
       sourceRef: {
@@ -2053,7 +2056,10 @@ function applyForeachAttributionToHandles(
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>
 ): void {
   const attribution = statementAttribution.get(statement);
-  if (!attribution) {
+  const shouldOverrideSource =
+    attribution != null &&
+    (attribution.sourceId !== statement.id || attribution.foreachStack.length > 0);
+  if (!shouldOverrideSource || !attribution) {
     return;
   }
 

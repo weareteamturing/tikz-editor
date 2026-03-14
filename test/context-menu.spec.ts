@@ -69,6 +69,23 @@ describe("canvas context menu definition", () => {
     expect(items.some((item) => item.kind === "submenu" && item.label === "Reorder")).toBe(true);
   });
 
+  it("separates Group/Ungroup from clipboard actions with a divider under Duplicate", () => {
+    const targets: Array<keyof typeof CANVAS_CONTEXT_MENU_DEFINITION> = [
+      "selection-single",
+      "selection-single-node",
+      "selection-multi"
+    ];
+
+    for (const target of targets) {
+      const items = CANVAS_CONTEXT_MENU_DEFINITION[target];
+      const duplicateIndex = items.findIndex(
+        (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.DUPLICATE
+      );
+      expect(duplicateIndex).toBeGreaterThanOrEqual(0);
+      expect(items[duplicateIndex + 1]).toEqual({ kind: "separator" });
+    }
+  });
+
   it("groups selection-multi transform with align, distribute, and reorder without separators", () => {
     const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"];
     const submenuLabels = items.filter((item) => item.kind === "submenu").map((item) => item.label);

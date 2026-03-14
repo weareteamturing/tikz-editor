@@ -11,6 +11,7 @@ import { getSharedEditAnalysisView } from "../../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../../project-named-colors";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
+import { buildScopeOverlayIndex } from "../canvas-panel/scope-overlay";
 import {
   buildInspectorPropertyProvenanceMap,
   buildMultiInspectorModel,
@@ -27,6 +28,8 @@ export type FrozenInspectorView = {
   singlePropertyProvenance: InspectorPropertyProvenanceMap;
   multiPropertyProvenance: InspectorPropertyProvenanceMap;
 };
+
+const EMPTY_BOUNDS_BY_SOURCE = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
 
 export function useInspectorModel(args: {
   selectedIds: ReadonlySet<string>;
@@ -53,7 +56,52 @@ export function useInspectorModel(args: {
     });
   }, []);
 
-  const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
+  const rawSelectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
+  const scopeOverlay = useMemo(
+    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, EMPTY_BOUNDS_BY_SOURCE),
+    [snapshot.parseResult]
+  );
+  const selectedSourceIds = useMemo(() => {
+    if (rawSelectedSourceIds.length === 0) {
+      return rawSelectedSourceIds;
+    }
+    const selectedScopeIds = rawSelectedSourceIds.filter((sourceId) => scopeOverlay.scopesById.has(sourceId));
+    if (selectedScopeIds.length === 0) {
+      return rawSelectedSourceIds;
+    }
+
+    const selectedScopeSet = new Set<string>(selectedScopeIds);
+    const expandedSelectedSourceIds: string[] = [];
+    const seen = new Set<string>();
+
+    for (const sourceId of rawSelectedSourceIds) {
+      if (selectedScopeSet.has(sourceId)) {
+        continue;
+      }
+      if (seen.has(sourceId)) {
+        continue;
+      }
+      seen.add(sourceId);
+      expandedSelectedSourceIds.push(sourceId);
+    }
+
+    for (const element of snapshot.scene?.elements ?? []) {
+      const sourceId = element.sourceRef.sourceId;
+      const ancestorScopeIds = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
+      if (!ancestorScopeIds.some((scopeId) => selectedScopeSet.has(scopeId))) {
+        continue;
+      }
+      const targetId = element.adornment?.targetId ?? sourceId;
+      if (seen.has(targetId)) {
+        continue;
+      }
+      seen.add(targetId);
+      expandedSelectedSourceIds.push(targetId);
+    }
+
+    return expandedSelectedSourceIds.length > 0 ? expandedSelectedSourceIds : rawSelectedSourceIds;
+  }, [rawSelectedSourceIds, scopeOverlay, snapshot.scene]);
+  const selectedSourceIdSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
   const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
   const editAnalysisView = useMemo(
     () =>
@@ -82,7 +130,7 @@ export function useInspectorModel(args: {
     const bySource = new Map<string, SceneElement>();
     for (const element of snapshot.scene?.elements ?? []) {
       const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
-      if (!selectedIds.has(targetId) || bySource.has(targetId)) {
+      if (!selectedSourceIdSet.has(targetId) || bySource.has(targetId)) {
         continue;
       }
       bySource.set(targetId, element);
@@ -91,7 +139,7 @@ export function useInspectorModel(args: {
     return selectedSourceIds
       .map((sourceId) => bySource.get(sourceId))
       .filter((element): element is SceneElement => element != null);
-  }, [selectedIds, selectedSourceIds, snapshot.scene]);
+  }, [selectedSourceIdSet, selectedSourceIds, snapshot.scene]);
 
   const descriptors = useMemo(() => {
     return selectedElements.map((element) =>
@@ -172,10 +220,10 @@ export function useInspectorModel(args: {
       snapshotSource: snapshot.source,
       scene: snapshot.scene,
       editHandles: snapshot.editHandles,
-      selectedElementIds: selectedIds,
+      selectedElementIds: selectedSourceIdSet,
       dispatch
     }),
-    [activeFigureId, dispatch, parseOptions, selectedIds, snapshot.editHandles, snapshot.scene, snapshot.source, source]
+    [activeFigureId, dispatch, parseOptions, selectedSourceIdSet, snapshot.editHandles, snapshot.scene, snapshot.source, source]
   );
   const arrangeAvailability = useMemo(
     () => actionAvailability(commandContext),

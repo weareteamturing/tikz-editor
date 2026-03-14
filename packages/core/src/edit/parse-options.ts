@@ -5,6 +5,7 @@ export type EditParseOptions = {
   activeFigureId?: string | null;
   analysisSession?: EditAnalysisSession | null;
   analysisView?: EditAnalysisView | null;
+  indentSize?: 2 | 4;
 };
 
 export function parseTikzForEdit(source: string, options: EditParseOptions = {}): ParseTikzResult {

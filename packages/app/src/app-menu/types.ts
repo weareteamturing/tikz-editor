@@ -20,6 +20,8 @@ export const APP_MENU_COMMAND_IDS = {
   PASTE: "edit.paste",
   DELETE: "edit.delete",
   DUPLICATE: "edit.duplicate",
+  GROUP: "edit.group",
+  UNGROUP: "edit.ungroup",
   ROTATE_LEFT_90: "edit.rotate-left-90",
   ROTATE_RIGHT_90: "edit.rotate-right-90",
   FLIP_HORIZONTAL: "edit.flip-horizontal",

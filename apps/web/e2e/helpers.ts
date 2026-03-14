@@ -114,6 +114,17 @@ export async function readSource(page: Page): Promise<string> {
   return text ?? "";
 }
 
+export async function readStoreSource(page: Page): Promise<string> {
+  return await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getSource?: () => string;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getSource?.() ?? "";
+  });
+}
+
 export async function readPersistedWorkspaceDocumentCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
     const raw = localStorage.getItem("tikz-editor:workspace");
@@ -204,6 +215,50 @@ export async function clickHitRegion(
   }
 }
 
+export async function clickHitRegionByTargetId(
+  page: Page,
+  targetId: string,
+  options: { button?: "left" | "right"; shift?: boolean } = {}
+): Promise<void> {
+  await waitForHitRegions(page, 1);
+  const region = page.locator(`[data-hit-region-target-id='${targetId}']`).first();
+  await expect(region).toBeVisible();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error(`Missing hit-region bounds for ${targetId}.`);
+  }
+  if (options.shift) {
+    await page.keyboard.down("Shift");
+  }
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, {
+    button: options.button ?? "left"
+  });
+  if (options.shift) {
+    await page.keyboard.up("Shift");
+  }
+}
+
+export async function dragHitRegionByTargetId(
+  page: Page,
+  targetId: string,
+  dx: number,
+  dy: number
+): Promise<void> {
+  await waitForHitRegions(page, 1);
+  const region = page.locator(`[data-hit-region-target-id='${targetId}']`).first();
+  await expect(region).toBeVisible();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error(`Missing hit-region bounds for ${targetId}.`);
+  }
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + dx, startY + dy, { steps: 8 });
+  await page.mouse.up();
+}
+
 export async function dragBetweenPoints(
   page: Page,
   target: Locator,
@@ -254,6 +309,30 @@ export async function selectAllSceneElements(page: Page): Promise<void> {
       };
     }).__TIKZ_EDITOR_APP_TEST_API__;
     api?.selectAllElements?.();
+  });
+}
+
+export async function readSelectedSourceIds(page: Page): Promise<string[]> {
+  return await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getSelectedSourceIds?: () => string[];
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getSelectedSourceIds?.() ?? [];
+  });
+}
+
+export async function readSelectionOverlayBoxSourceIds(page: Page): Promise<string[]> {
+  return await page.evaluate(() => {
+    const values = new Set<string>();
+    for (const element of Array.from(document.querySelectorAll("[data-selection-overlay-box-source-id]"))) {
+      const sourceId = element.getAttribute("data-selection-overlay-box-source-id");
+      if (sourceId) {
+        values.add(sourceId);
+      }
+    }
+    return [...values].sort();
   });
 }
 

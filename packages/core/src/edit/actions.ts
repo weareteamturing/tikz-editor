@@ -80,6 +80,7 @@ import {
 import { applyReorderElementsAction, buildParentReorderReplacement } from "./actions/reorder-elements.js";
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
+import { applyGroupElementsAction, applyUngroupElementsAction } from "./actions/group-ungroup-actions.js";
 import type { EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 
@@ -128,6 +129,8 @@ export type EditAction =
   | { kind: "moveAdornment"; targetId: string; ownerPoint: Point; newWorld: Point; angleRaw?: string; distancePt?: number }
   | { kind: "addNodeAdornment"; nodeId: string; adornmentKind: "label" | "pin"; angle: string; text: string }
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
+  | { kind: "groupElements"; elementIds: string[] }
+  | { kind: "ungroupElements"; elementIds: string[] }
   | {
       kind: "resizeElement";
       elementId: string;
@@ -214,6 +217,10 @@ export function applyEditAction(
         return applyAddNodeAdornmentAction(source, action, parseOptions);
       case "reorderElements":
         return applyReorderElementsAction(source, action.elementIds, action.direction, parseOptions);
+      case "groupElements":
+        return applyGroupElements(source, action, parseOptions);
+      case "ungroupElements":
+        return applyUngroupElements(source, action, parseOptions);
       case "resizeElement":
         return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
@@ -451,6 +458,22 @@ function applyDuplicateAdornment(source: string, targetId: string, parseOptions:
   return applyDuplicateAdornmentAction(source, targetId, parseOptions);
 }
 
+function applyGroupElements(
+  source: string,
+  action: Extract<EditAction, { kind: "groupElements" }>,
+  parseOptions: EditParseOptions
+): EditActionResult {
+  return applyGroupElementsAction(source, action.elementIds, parseOptions);
+}
+
+function applyUngroupElements(
+  source: string,
+  action: Extract<EditAction, { kind: "ungroupElements" }>,
+  parseOptions: EditParseOptions
+): EditActionResult {
+  return applyUngroupElementsAction(source, action.elementIds, parseOptions);
+}
+
 
 
 function detectPreferredNewline(source: string, aroundOffset: number): string {
@@ -585,6 +608,10 @@ function inferChangedSourceIds(
       return normalizeElementIds([action.nodeId]);
     case "reorderElements":
       return normalizeElementIds(action.elementIds);
+    case "groupElements":
+      return [];
+    case "ungroupElements":
+      return [];
     case "setProperty":
       return [];
     case "resizeElement":

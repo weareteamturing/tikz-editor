@@ -51,6 +51,11 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.FORMAT_TIKZ).toBe("edit.format-tikz");
   });
 
+  it("defines group and ungroup command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.GROUP).toBe("edit.group");
+    expect(APP_MENU_COMMAND_IDS.UNGROUP).toBe("edit.ungroup");
+  });
+
   it("defines path editing command ids", () => {
     expect(APP_MENU_COMMAND_IDS.PATH_SPLIT).toBe("path.split");
     expect(APP_MENU_COMMAND_IDS.PATH_JOIN).toBe("path.join");
@@ -286,7 +291,7 @@ describe("app menu definition", () => {
     expect(commandItem.label).toBe("Format TikZ Code");
   });
 
-  it("places Format TikZ below Duplicate with dividers above and below", () => {
+  it("places Group/Ungroup below Duplicate with a divider and keeps Format TikZ separated", () => {
     const editSection = APP_MENU_DEFINITION.find((section) => section.id === "edit");
     expect(editSection).toBeDefined();
     const items = editSection?.items ?? [];
@@ -294,14 +299,31 @@ describe("app menu definition", () => {
     const duplicateIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.DUPLICATE
     );
+    const groupIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.GROUP
+    );
+    const ungroupIndex = items.findIndex(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.UNGROUP
+    );
     const formatIndex = items.findIndex(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.FORMAT_TIKZ
     );
 
     expect(duplicateIndex).toBeGreaterThanOrEqual(0);
-    expect(formatIndex).toBe(duplicateIndex + 2);
     expect(items[duplicateIndex + 1]?.kind).toBe("separator");
+    expect(groupIndex).toBe(duplicateIndex + 2);
+    expect(ungroupIndex).toBe(groupIndex + 1);
+    expect(items[ungroupIndex + 1]?.kind).toBe("separator");
+    expect(formatIndex).toBe(ungroupIndex + 2);
     expect(items[formatIndex + 1]?.kind).toBe("separator");
+
+    const groupItem = items[groupIndex];
+    const ungroupItem = items[ungroupIndex];
+    if (!groupItem || groupItem.kind !== "command" || !ungroupItem || ungroupItem.kind !== "command") {
+      throw new Error("Expected Group and Ungroup command items in Edit menu.");
+    }
+    expect(groupItem.accelerator).toBe("CmdOrCtrl+G");
+    expect(ungroupItem.accelerator).toBe("CmdOrCtrl+Shift+G");
   });
 
   it("groups Transform with Align, Distribute, and Reorder in the Edit menu", () => {

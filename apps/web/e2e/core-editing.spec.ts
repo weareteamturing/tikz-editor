@@ -1,16 +1,21 @@
 import { expect, test } from "@playwright/test";
 import {
   canvasViewport,
+  clickHitRegionByTargetId,
   clickHitRegion,
   dragBetweenPoints,
+  dragHitRegionByTargetId,
   focusCanvas,
   gotoApp,
   interactionLayer,
   openMenuCommand,
   openMenuSection,
   readSource,
+  readSelectionOverlayBoxSourceIds,
+  readStoreSource,
   resetStorageBeforeNavigation,
   runMenuCommandIfEnabled,
+  readSelectedSourceIds,
   selectAllSceneElements,
   selectFirstCanvasElement,
   setSource,
@@ -185,6 +190,104 @@ test("canvas context menu opens and runs duplicate command", async ({ page }) =>
   await page.getByTestId("canvas-context-cmd-edit.duplicate").click();
 
   await expect.poll(async () => readSource(page)).not.toEqual(sourceBefore);
+});
+
+test("group honors editor indent size and supports click drill-down to grouped children", async ({ page }) => {
+  await gotoApp(page);
+  await openMenuCommand(page, "file", "file.open-settings");
+  await page.getByTestId("settings-category-editor").click();
+  await page.selectOption("#setting-indent-size", "4");
+  await page.getByTestId("settings-modal").getByRole("button", { name: "Close" }).click();
+
+  await setSource(page, String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1, -1) {B};
+  \draw (-1.35,-2.28) rectangle (2.2,-3.4);
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        selectSourceIds?: (sourceIds: string[]) => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    api?.selectSourceIds?.(["path:0", "path:1"]);
+  });
+  await expect.poll(async () => {
+    const selected = await readSelectedSourceIds(page);
+    return selected.slice().sort();
+  }).toEqual(["path:0", "path:1"]);
+  const grouped = await runMenuCommandIfEnabled(page, "edit", "edit.group");
+  expect(grouped).toBe(true);
+  await expect.poll(async () => readStoreSource(page)).toContain("\\begin{scope}");
+  await expect.poll(async () => readStoreSource(page)).toContain("\n      \\node[draw] (A) at (-1, -1) {A};");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        clearSelection?: () => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    api?.clearSelection?.();
+  });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+
+  await clickHitRegionByTargetId(page, "path:1", { button: "right" });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+  await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
+  await expect(page.getByTestId("canvas-context-cmd-edit.ungroup")).toBeEnabled();
+  await page.keyboard.press("Escape");
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:1");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+  await clickHitRegionByTargetId(page, "path:1", { button: "right" });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+  await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
+  await expect(page.getByTestId("canvas-context-cmd-edit.ungroup")).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => page.getByText("2 selected").isVisible()).toBe(true);
+  await openMenuSection(page, "edit");
+  await expect(page.getByTestId("menu-cmd-edit.ungroup")).toBeEnabled();
+  await page.getByRole("menuitem", { name: "Transform" }).hover();
+  await expect(page.getByTestId("menu-cmd-edit.rotate-left-90")).toBeDisabled();
+  await expect(page.getByTestId("menu-cmd-edit.rotate-right-90")).toBeDisabled();
+  await expect(page.getByTestId("menu-cmd-edit.flip-horizontal")).toBeDisabled();
+  await expect(page.getByTestId("menu-cmd-edit.flip-vertical")).toBeDisabled();
+
+  const sourceBeforeScopeGestureDrag = await readStoreSource(page);
+  await dragHitRegionByTargetId(page, "path:1", 40, -20);
+  await expect.poll(async () => readStoreSource(page)).toEqual(sourceBeforeScopeGestureDrag);
+
+  await clickHitRegionByTargetId(page, "path:1");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
+  await clickHitRegionByTargetId(page, "path:1", { button: "right" });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
+  await expect(page.getByTestId("canvas-context-menu")).toBeVisible();
+  await expect(page.getByTestId("canvas-context-cmd-edit.ungroup")).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await clickHitRegionByTargetId(page, "path:1");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
+  await openMenuSection(page, "edit");
+  await expect(page.getByTestId("menu-cmd-edit.ungroup")).toBeDisabled();
+});
+
+test("selecting non-resizable multi-edge draw statements does not render an extra selection bbox", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (-1, -1) {A};
+  \node[draw] (B) at (1.5, -0.5) {B};
+  \node[draw] (C) at (0, 1.5) {C};
+  \draw (A) edge (B)
+        (B) edge (C)
+        (C) edge (A);
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:3");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:3"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual([]);
 });
 
 test("canvas context menu exposes snapping submenu check states", async ({ page }) => {

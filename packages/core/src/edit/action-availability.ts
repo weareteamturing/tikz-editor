@@ -1,8 +1,15 @@
 import type { EditHandle, SceneFigure } from "../semantic/types.js";
 import { collectSourceWorldBounds } from "./snapping/index.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "./arrange.js";
+import { parseEditableTargetId } from "./editable-targets.js";
 import { isAdornmentTargetId } from "./editable-targets.js";
 import type { EditParseOptions } from "./parse-options.js";
+import {
+  parseStatementSnapshot,
+  resolveStatementRefs,
+  type StatementSnapshot
+} from "./statement-ops.js";
+import { isUngroupableScopeStatement } from "./actions/group-ungroup-actions.js";
 import {
   resolveEligibleExplicitPath,
   resolveActivePathPointHandle,
@@ -17,6 +24,8 @@ export const EDIT_ACTION_IDS = [
   "paste",
   "duplicate",
   "delete",
+  "group",
+  "ungroup",
   "transform-rotateLeft90",
   "transform-rotateRight90",
   "transform-flipHorizontal",
@@ -80,6 +89,7 @@ type AvailabilityFacts = {
   hasAdornmentSelection: boolean;
   activeHandleId: string | null;
   parseOptions: EditParseOptions;
+  statementSnapshot: StatementSnapshot | null;
   explicitPathEligibilityBySourceId: Map<string, PathEditEligibility>;
   activePathHandleResolutionBySourceId: Map<string, PathHandleResolution>;
 };
@@ -107,6 +117,8 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
     facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to delete.",
+  group: makeGroupRule(),
+  ungroup: makeUngroupRule(),
   "transform-rotateLeft90": makeTransformRule(),
   "transform-rotateRight90": makeTransformRule(),
   "transform-flipHorizontal": makeTransformRule(),
@@ -235,9 +247,13 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
   return {
     source: input.source,
     activeFigureId: input.activeFigureId ?? null,
-    parseOptions: input.parseOptions ?? {
-      activeFigureId: input.activeFigureId ?? null
-    },
+    parseOptions:
+      input.parseOptions ??
+      (input.activeFigureId != null
+        ? {
+            activeFigureId: input.activeFigureId
+          }
+        : {}),
     snapshotMatchesSource: input.snapshotSource != null && input.snapshotSource === input.source,
     selectedSourceIds,
     selectedSet,
@@ -251,6 +267,7 @@ function deriveFacts(input: GetEditActionAvailabilityInput): AvailabilityFacts {
     selectedUnsupportedSources,
     hasAdornmentSelection: selectedSourceIds.some((sourceId) => isAdornmentTargetId(sourceId)),
     activeHandleId: input.activeHandleId ?? null,
+    statementSnapshot: null,
     explicitPathEligibilityBySourceId: new Map(),
     activePathHandleResolutionBySourceId: new Map()
   };
@@ -327,6 +344,9 @@ function makeTransformRule(): AvailabilityRule {
   return (facts) => {
     if (facts.hasAdornmentSelection) {
       return "Adornment selections cannot be transformed.";
+    }
+    if (facts.selectedSourceIds.some((sourceId) => sourceId.startsWith("scope:"))) {
+      return "Scope selections cannot be transformed yet.";
     }
     if (facts.selectedSourceIds.length === 0) {
       return "Select at least one element to transform.";
@@ -440,6 +460,61 @@ function makeDistributeRule(axis: DistributeAxis): AvailabilityRule {
 
     return null;
   };
+}
+
+function makeGroupRule(): AvailabilityRule {
+  return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be grouped.";
+    }
+    if (facts.selectedSourceIds.length < 2) {
+      return "Select at least 2 statements to group.";
+    }
+    const snapshot = resolveStatementSnapshot(facts);
+    const refs = resolveStatementRefs(snapshot, facts.selectedSourceIds);
+    if (refs.length < 2) {
+      return "Select at least 2 statements to group.";
+    }
+    const parentKeys = new Set(refs.map((ref) => ref.parentKey));
+    if (parentKeys.size !== 1) {
+      return "Grouping currently requires statements from the same parent scope.";
+    }
+    return null;
+  };
+}
+
+function makeUngroupRule(): AvailabilityRule {
+  return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be ungrouped.";
+    }
+    if (facts.selectedSourceIds.length !== 1) {
+      return "Select exactly one scope to ungroup.";
+    }
+
+    const selectedId = facts.selectedSourceIds[0]!;
+    const parsedTarget = parseEditableTargetId(selectedId);
+    if (parsedTarget.kind !== "statement" || !parsedTarget.id.startsWith("scope:")) {
+      return "Ungroup currently supports scope selections only.";
+    }
+
+    const snapshot = resolveStatementSnapshot(facts);
+    const ref = snapshot.byId.get(parsedTarget.id);
+    if (!ref || ref.statement.kind !== "Scope") {
+      return "Ungroup currently supports scope selections only.";
+    }
+    if (!isUngroupableScopeStatement(ref.statement)) {
+      return "Ungroup currently supports only scopes without options, or with `name=...` only.";
+    }
+    return null;
+  };
+}
+
+function resolveStatementSnapshot(facts: AvailabilityFacts): StatementSnapshot {
+  if (!facts.statementSnapshot) {
+    facts.statementSnapshot = parseStatementSnapshot(facts.source, facts.parseOptions);
+  }
+  return facts.statementSnapshot;
 }
 
 function checkArrangePreconditions(

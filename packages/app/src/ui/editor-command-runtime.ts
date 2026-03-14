@@ -6,6 +6,7 @@ import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
 import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
+import { useSettingsStore } from "../settings/useSettingsStore";
 import { useEditorStore } from "../store/store";
 import type { DocumentFileRef, EditorAction, SnapModes, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
@@ -19,10 +20,12 @@ import {
   deleteSelection,
   distributeSelection,
   duplicateSelection,
+  groupSelection,
   joinSelectedPaths,
   pasteSelectionFromSystemClipboard,
   reorderSelection,
   rotateSelection,
+  ungroupSelection,
   setSelectedPathClosed,
   setSelectedPathPointKind,
   splitSelectedPath
@@ -67,6 +70,7 @@ type RuntimeInput = {
   assistantAvailable: boolean;
   assistantRunning: boolean;
   showDevPanel: boolean;
+  indentSize?: 2 | 4;
   dispatch: Dispatch;
   onOpenExample?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
@@ -110,6 +114,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     assistantAvailable,
     assistantRunning,
     showDevPanel,
+    indentSize,
     dispatch,
     onOpenExample,
     onOpenSvgExport,
@@ -124,7 +129,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   } = input;
   const parseOptions = {
     activeFigureId,
-    analysisView: editAnalysisView
+    analysisView: editAnalysisView,
+    indentSize: indentSize ?? 2
   };
 
   const commandContext = {
@@ -385,6 +391,18 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: availability.duplicate.enabled,
       run: () => {
         duplicateSelection(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.GROUP]: {
+      enabled: availability.group.enabled,
+      run: () => {
+        groupSelection(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.UNGROUP]: {
+      enabled: availability.ungroup.enabled,
+      run: () => {
+        ungroupSelection(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.ROTATE_LEFT_90]: {
@@ -675,6 +693,7 @@ export function useEditorCommandRuntime(
     return doc?.assistantTurnStatus === "starting" || doc?.assistantTurnStatus === "inProgress";
   });
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
+  const indentSize = useSettingsStore((s) => s.settings.editor.indentSize);
   const dispatch = useEditorStore((s) => s.dispatch);
   const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
   const liveCommandInputs = useMemo(
@@ -739,6 +758,7 @@ export function useEditorCommandRuntime(
         assistantAvailable,
         assistantRunning,
         showDevPanel,
+        indentSize,
         dispatch,
         onOpenExample: options.onOpenExample,
         onOpenSvgExport: options.onOpenSvgExport,
@@ -772,6 +792,7 @@ export function useEditorCommandRuntime(
       assistantAvailable,
       assistantRunning,
       showDevPanel,
+      indentSize,
       dispatch,
       options.onOpenExample,
       options.onOpenSvgExport,

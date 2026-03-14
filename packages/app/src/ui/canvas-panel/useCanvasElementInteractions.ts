@@ -3,6 +3,7 @@ import { buildSnapContext, collectSelectionGeometry } from "tikz-editor/edit/sna
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import { requestSourceSelection } from "../source-sync";
+import { resolveScopeAwareSelectionTarget } from "./scope-overlay";
 
 export type UseCanvasElementInteractionsArgs = {
   [key: string]: any;
@@ -37,16 +38,25 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     sceneTextByRegionKey,
     findWordRangeAtIndex,
     densePathSourceIds,
-    setExpandedDensePathSourceId
+    setExpandedDensePathSourceId,
+    scopeOverlay
   } = args;
 
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
       if (!svgResult || toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+      const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
+      const resolvedTargetId = resolveScopeAwareSelectionTarget({
+        hitTargetId: targetId,
+        hitSourceId,
+        selectedSourceIds: selectedElementIds,
+        additiveSelection,
+        scopeOverlay
+      });
 
       viewportRef.current?.focus({ preventScroll: true });
-      const alreadySelected = selectedElementIds.has(targetId);
+      const alreadySelected = selectedElementIds.has(resolvedTargetId);
 
       if (event.button !== 0) {
         return;
@@ -55,28 +65,44 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       event.preventDefault();
       event.stopPropagation();
 
-      if (beginTextSelectionDrag(event, targetId, region)) {
+      if (resolvedTargetId === targetId && beginTextSelectionDrag(event, targetId, region)) {
         return;
       }
 
-      const isAdornmentTarget = targetId.startsWith("node-adornment:");
+      const isAdornmentTarget = resolvedTargetId.startsWith("node-adornment:");
       setTextEditingSession(null);
 
       if (!additiveSelection) {
         setExpandedDensePathSourceId(null);
       }
 
+      const singleSelectedId = selectedElementIds.size === 1
+        ? (selectedElementIds.values().next().value ?? null)
+        : null;
+      const hitAncestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
+      const isDrillDownFromSelectedScope =
+        !additiveSelection &&
+        singleSelectedId != null &&
+        scopeOverlay.scopesById.has(singleSelectedId) &&
+        resolvedTargetId !== singleSelectedId &&
+        hitAncestorScopes.includes(singleSelectedId);
+      if (isDrillDownFromSelectedScope) {
+        dispatch({ type: "SELECT", id: resolvedTargetId, additive: false });
+        setSnapLines([]);
+        return;
+      }
+
       const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
       if (!world) return;
 
       if (additiveSelection) {
-        dispatch({ type: "SELECT", id: targetId, additive: true });
+        dispatch({ type: "SELECT", id: resolvedTargetId, additive: true });
         return;
       }
 
-      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [targetId];
+      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [resolvedTargetId];
       if (!alreadySelected) {
-        dispatch({ type: "SELECT", id: targetId, additive: false });
+        dispatch({ type: "SELECT", id: resolvedTargetId, additive: false });
         if (isAdornmentTarget) {
           setSnapLines([]);
           return;
@@ -158,6 +184,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       setWarning,
       snapshot.scene,
       snapshot.source,
+      scopeOverlay,
       source,
       svgResult,
       toolMode,

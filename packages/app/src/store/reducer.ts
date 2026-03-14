@@ -775,6 +775,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         action.action.kind === "alignElements" ? "align" :
         action.action.kind === "distributeElements" ? "distribute" :
         action.action.kind === "reorderElements" ? "reorder" :
+        action.action.kind === "groupElements" ? "add-element" :
+        action.action.kind === "ungroupElements" ? "delete" :
         action.action.kind === "addElement" || action.action.kind === "addNodeAdornment" ? "add-element" :
         action.action.kind === "duplicateElements" || action.action.kind === "pasteStatements" || action.action.kind === "duplicateAdornment" ? "add-element" :
         action.action.kind === "deleteElement" || action.action.kind === "deleteElements" || action.action.kind === "deleteAdornment" ? "delete" :

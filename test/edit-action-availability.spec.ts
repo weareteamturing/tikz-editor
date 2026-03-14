@@ -102,6 +102,28 @@ describe("getEditActionAvailability", () => {
     expect(adornment["transform-flipHorizontal"].reason).toContain("Adornment");
   });
 
+  it("gates transform actions for scope selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const availability = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["scope:0"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(availability["transform-rotateLeft90"].enabled).toBe(false);
+    expect(availability["transform-rotateLeft90"].reason).toContain("Scope");
+    expect(availability["transform-flipHorizontal"].enabled).toBe(false);
+    expect(availability["transform-flipHorizontal"].reason).toContain("Scope");
+  });
+
   it("gates arrange actions when bounds are missing", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -207,5 +229,68 @@ describe("getEditActionAvailability", () => {
     expect(availability["path-delete-point"].enabled).toBe(true);
     expect(availability["path-point-smooth"].enabled).toBe(true);
     expect(parseSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables group for same-parent multi-statement selections and gates mixed parents", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \begin{scope}
+    \draw (0,2) -- (1,2);
+  \end{scope}
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const allowed = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["path:0", "path:1"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(allowed.group.enabled).toBe(true);
+
+    const mixedParents = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["path:0", "path:3"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(mixedParents.group.enabled).toBe(false);
+    expect(mixedParents.group.reason).toContain("same parent");
+  });
+
+  it("enables ungroup only for ungroupable scopes", () => {
+    const ungroupableSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[name=mygroup]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const ungroupableRendered = renderTikzToSvg(ungroupableSource);
+    const ungroupable = getEditActionAvailability({
+      source: ungroupableSource,
+      snapshotSource: ungroupableSource,
+      selectedSourceIds: ["scope:0"],
+      scene: ungroupableRendered.semantic.scene,
+      editHandles: ungroupableRendered.semantic.editHandles
+    });
+    expect(ungroupable.ungroup.enabled).toBe(true);
+
+    const transformedSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[shift={(1,0)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const transformedRendered = renderTikzToSvg(transformedSource);
+    const transformed = getEditActionAvailability({
+      source: transformedSource,
+      snapshotSource: transformedSource,
+      selectedSourceIds: ["scope:0"],
+      scene: transformedRendered.semantic.scene,
+      editHandles: transformedRendered.semantic.editHandles
+    });
+    expect(transformed.ungroup.enabled).toBe(false);
+    expect(transformed.ungroup.reason).toContain("without options");
   });
 });

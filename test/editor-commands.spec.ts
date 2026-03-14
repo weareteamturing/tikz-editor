@@ -668,6 +668,12 @@ describe("editor-commands", () => {
   \node[draw,label=above:A] {B};
 \end{tikzpicture}`;
     const rendered = renderTikzToSvg(source);
+    const groupedSource = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const groupedRendered = renderTikzToSvg(groupedSource);
     const dispatch = vi.fn<(action: EditorAction) => void>();
 
     const didRotate = rotateSelection({
@@ -686,9 +692,18 @@ describe("editor-commands", () => {
       selectedElementIds: new Set(["node-adornment:node:0:2:label:0"]),
       dispatch
     }, "horizontal");
+    const didRotateScope = rotateSelection({
+      source: groupedSource,
+      snapshotSource: groupedSource,
+      scene: groupedRendered.semantic.scene,
+      editHandles: groupedRendered.semantic.editHandles,
+      selectedElementIds: new Set(["scope:0"]),
+      dispatch
+    }, "left");
 
     expect(didRotate).toBe(false);
     expect(didFlip).toBe(false);
+    expect(didRotateScope).toBe(false);
     expect(dispatch).not.toHaveBeenCalled();
   });
 

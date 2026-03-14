@@ -158,6 +158,19 @@ export const APP_MENU_DEFINITION = [
       { kind: "separator" },
       {
         kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.GROUP,
+        label: "Group",
+        accelerator: "CmdOrCtrl+G"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+        label: "Ungroup",
+        accelerator: "CmdOrCtrl+Shift+G"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.FORMAT_TIKZ,
         label: "Format TikZ Code",
         accelerator: "CmdOrCtrl+Shift+F"

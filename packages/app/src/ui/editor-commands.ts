@@ -299,6 +299,54 @@ export function duplicateSelection(context: SelectionCommandContext): boolean {
   return true;
 }
 
+export function groupSelection(context: SelectionCommandContext): boolean {
+  if (!canGroupSelection(context)) {
+    return false;
+  }
+
+  const action = {
+    kind: "groupElements" as const,
+    elementIds: [...context.selectedElementIds]
+  };
+  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
+    parseOptions: parseOptionsForContext(context)
+  });
+  if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
+    return false;
+  }
+
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action,
+    precomputedResult
+  });
+  return true;
+}
+
+export function ungroupSelection(context: SelectionCommandContext): boolean {
+  if (!canUngroupSelection(context)) {
+    return false;
+  }
+
+  const action = {
+    kind: "ungroupElements" as const,
+    elementIds: [...context.selectedElementIds]
+  };
+  const precomputedResult = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
+    parseOptions: parseOptionsForContext(context)
+  });
+  if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
+    return false;
+  }
+
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action,
+    precomputedResult
+  });
+  return true;
+}
+
 export function reorderSelection(
   context: SelectionCommandContext,
   direction: ReorderDirection
@@ -394,6 +442,14 @@ export function canCutSelection(context: SelectionCommandContext): boolean {
 
 export function canDeleteSelection(context: SelectionCommandContext): boolean {
   return availabilityFor(context).delete.enabled;
+}
+
+export function canGroupSelection(context: SelectionCommandContext): boolean {
+  return availabilityFor(context).group.enabled;
+}
+
+export function canUngroupSelection(context: SelectionCommandContext): boolean {
+  return availabilityFor(context).ungroup.enabled;
 }
 
 export function canReorderSelection(
@@ -715,7 +771,8 @@ function parseOptionsForContext(context: SelectionCommandContext): EditParseOpti
   return {
     activeFigureId: resolvedContextActiveFigureId(context),
     analysisView: context.parseOptions?.analysisView,
-    analysisSession: context.parseOptions?.analysisSession
+    analysisSession: context.parseOptions?.analysisSession,
+    indentSize: context.parseOptions?.indentSize
   };
 }
 

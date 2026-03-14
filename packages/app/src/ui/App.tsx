@@ -589,10 +589,12 @@ export function App() {
     const globalLike = globalThis as typeof globalThis & {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;
+        getSource: () => string;
         selectFirstFigure: () => void;
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
         clearSelection: () => void;
+        getSelectedSourceIds: () => string[];
         getActiveFigureId: () => string | null;
         getFigureCount: () => number;
       };
@@ -600,6 +602,9 @@ export function App() {
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
       setSource: (nextSource) => {
         dispatch({ type: "CODE_EDITED", source: nextSource });
+      },
+      getSource: () => {
+        return useEditorStore.getState().source;
       },
       selectFirstFigure: () => {
         const firstFigureId = snapshotRef.current.figures[0]?.id ?? null;
@@ -618,6 +623,9 @@ export function App() {
       },
       clearSelection: () => {
         dispatch({ type: "CLEAR_SELECTION" });
+      },
+      getSelectedSourceIds: () => {
+        return [...useEditorStore.getState().selectedElementIds];
       },
       getActiveFigureId: () => {
         return useEditorStore.getState().activeFigureId;
@@ -805,6 +813,24 @@ export function App() {
             return;
           }
           commandRuntime.runCommand(APP_MENU_COMMAND_IDS.DUPLICATE, "shortcut");
+          e.preventDefault();
+          return;
+        }
+
+        if (!e.shiftKey && key === "g") {
+          if (!canvasShortcutContext) {
+            return;
+          }
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.GROUP, "shortcut");
+          e.preventDefault();
+          return;
+        }
+
+        if (e.shiftKey && key === "g") {
+          if (!canvasShortcutContext) {
+            return;
+          }
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.UNGROUP, "shortcut");
           e.preventDefault();
           return;
         }
