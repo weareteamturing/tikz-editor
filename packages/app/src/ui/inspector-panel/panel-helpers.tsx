@@ -194,6 +194,7 @@ export type MultiInspectorRoundedCornersProperty = {
   label: string;
   enabled: boolean;
   anyEnabled: boolean;
+  disableRequiresSharpCorners: boolean;
   radius: number;
   averageRadius: number;
   defaultRadius: number;
@@ -978,6 +979,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
       label: base.label,
       enabled: enabledValues.every(Boolean),
       anyEnabled,
+      disableRequiresSharpCorners: roundedProperties.some((property) => property.disableRequiresSharpCorners),
       radius: radiusValues[0] ?? defaultRadius,
       averageRadius: averageEnabledRadius,
       defaultRadius,

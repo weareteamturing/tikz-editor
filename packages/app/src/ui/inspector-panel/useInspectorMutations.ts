@@ -537,9 +537,10 @@ export function useInspectorMutations(dispatch: (action: any) => void) {
     write: SetPropertyWriteTarget,
     enabled: boolean,
     radius: number,
+    disableRequiresSharpCorners = true,
     options: ApplySetPropertyOptions = {}
   ): void => {
-    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius);
+    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius, disableRequiresSharpCorners);
     applySetProperty(write, mutation.value, {
       key: mutation.key,
       clearKeys: mutation.clearKeys,
@@ -551,9 +552,10 @@ export function useInspectorMutations(dispatch: (action: any) => void) {
     writes: readonly SetPropertyWriteTarget[],
     enabled: boolean,
     radius: number,
+    disableRequiresSharpCorners = true,
     options: ApplySetPropertyOptions = {}
   ): void => {
-    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius);
+    const mutation = buildRoundedCornersSetPropertyMutation(enabled, radius, disableRequiresSharpCorners);
     applySetPropertyMany(writes, mutation.value, {
       key: mutation.key,
       clearKeys: mutation.clearKeys,

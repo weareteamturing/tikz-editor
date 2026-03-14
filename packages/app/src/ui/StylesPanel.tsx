@@ -180,7 +180,11 @@ export function StylesPanel() {
         return;
       }
       case "roundedCorners": {
-        const mutation = buildRoundedCornersSetPropertyMutation(Boolean(nextValue), property.radius);
+        const mutation = buildRoundedCornersSetPropertyMutation(
+          Boolean(nextValue),
+          property.radius,
+          property.disableRequiresSharpCorners
+        );
         applySimpleMutation(writeTargets, mutation.key, mutation.value, mutation.clearKeys);
         return;
       }

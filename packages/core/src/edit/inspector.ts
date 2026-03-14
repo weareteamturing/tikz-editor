@@ -475,6 +475,7 @@ export type InspectorProperty =
       id: string;
       label: string;
       enabled: boolean;
+      disableRequiresSharpCorners: boolean;
       radius: number;
       defaultRadius: number;
       min: number;
@@ -711,12 +712,20 @@ export function buildPathMorphingDecorationSetPropertyMutations(
 
 export function buildRoundedCornersSetPropertyMutation(
   enabled: boolean,
-  radius: number = ROUNDED_CORNERS_DEFAULT_RADIUS
+  radius: number = ROUNDED_CORNERS_DEFAULT_RADIUS,
+  disableRequiresSharpCorners = true
 ): RoundedCornersSetPropertyMutation {
   const safeRadius = Number.isFinite(radius) && radius > 0 ? radius : ROUNDED_CORNERS_DEFAULT_RADIUS;
   const clearKeys = uniqueStrings(ROUNDED_CORNERS_CLEAR_KEYS);
 
   if (!enabled) {
+    if (!disableRequiresSharpCorners) {
+      return {
+        key: "rounded corners",
+        value: "",
+        clearKeys
+      };
+    }
     return {
       key: "sharp corners",
       value: "true",
@@ -1619,6 +1628,10 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     const roundedCornersRadius = roundedCornersEnabled
       ? clampRoundedCornersRadius(element.style.roundedCorners ?? ROUNDED_CORNERS_DEFAULT_RADIUS, roundedCornersMax)
       : roundedCornersDefaultRadius;
+    const roundedCornersDisableRequiresSharpCorners = resolveRoundedCornersDisableRequiresSharpCorners(
+      element,
+      inlineTarget.targetId
+    );
     const gridInspectorState = resolveGridInspectorState(snapshot.source, element.sourceRef.sourceId, snapshot.parseOptions);
     const pathMorphingPreset = resolvePathMorphingDecorationPreset(
       snapshot.source,
@@ -1655,6 +1668,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
         id: "rounded-corners",
         label: "Rounded corners",
         enabled: roundedCornersEnabled,
+        disableRequiresSharpCorners: roundedCornersDisableRequiresSharpCorners,
         radius: roundedCornersRadius,
         defaultRadius: roundedCornersDefaultRadius,
         min: ROUNDED_CORNERS_MIN,
@@ -3114,6 +3128,24 @@ function resolveInlineWriteTarget(
     writable: false,
     reason: "Inline command options could not be resolved for this element."
   };
+}
+
+function resolveRoundedCornersDisableRequiresSharpCorners(
+  element: SceneElement,
+  targetId: string | null
+): boolean {
+  const commandEntry =
+    (targetId
+      ? [...element.styleChain].reverse().find(
+          (entry) => entry.kind === "command" && entry.sourceRef?.sourceId === targetId
+        )
+      : undefined) ??
+    [...element.styleChain].reverse().find((entry) => entry.kind === "command");
+  if (!commandEntry) {
+    return true;
+  }
+  const inheritedRoundedCorners = commandEntry.before.roundedCorners;
+  return inheritedRoundedCorners != null && inheritedRoundedCorners > 0;
 }
 
 function resolveAdornmentInspectorState(

@@ -236,6 +236,7 @@ describe("inspector property capability status", () => {
       id: "rounded-corners",
       label: "Rounded corners",
       enabled: true,
+      disableRequiresSharpCorners: true,
       radius: 4,
       defaultRadius: 4,
       min: 0.1,

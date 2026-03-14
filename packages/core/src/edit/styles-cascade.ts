@@ -519,6 +519,7 @@ function buildAddPropertyTemplates(
       id: "rounded-corners",
       label: "Rounded corners",
       enabled: element.style.roundedCorners != null,
+      disableRequiresSharpCorners: true,
       radius: element.style.roundedCorners ?? 4,
       defaultRadius: 4,
       min: 0,

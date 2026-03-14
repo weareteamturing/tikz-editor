@@ -696,7 +696,8 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
                 applyRoundedCornersValue(
                   property.write,
                   event.currentTarget.checked,
-                  event.currentTarget.checked ? sliderValue : defaultRadius
+                  event.currentTarget.checked ? sliderValue : defaultRadius,
+                  property.disableRequiresSharpCorners
                 )}
             />
             <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
@@ -1406,7 +1407,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
                 applyRoundedCornersValueMany(
                   property.writes,
                   event.currentTarget.checked,
-                  event.currentTarget.checked ? sliderValue : defaultRadius
+                  event.currentTarget.checked ? sliderValue : defaultRadius,
+                  property.disableRequiresSharpCorners
                 )}
             />
             <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>

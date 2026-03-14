@@ -1684,6 +1684,68 @@ describe("getInspectorDescriptor", () => {
     });
     expect(disabled.clearKeys).toContain("rounded corners");
     expect(disabled.clearKeys).not.toContain("sharp corners");
+
+    const disabledWithoutSharp = buildRoundedCornersSetPropertyMutation(false, 6, false);
+    expect(disabledWithoutSharp).toMatchObject({
+      key: "rounded corners",
+      value: ""
+    });
+    expect(disabledWithoutSharp.clearKeys).toContain("rounded corners");
+    expect(disabledWithoutSharp.clearKeys).toContain("sharp corners");
+  });
+
+  it("requires explicit sharp-corners disable only when rounded corners are inherited", () => {
+    const inheritedSource = String.raw`\begin{tikzpicture}
+  \begin{scope}[rounded corners=6pt]
+    \draw (0,0) rectangle (1,1);
+  \end{scope}
+\end{tikzpicture}`;
+    const inheritedRendered = renderTikzToSvg(inheritedSource);
+    const inheritedPath = inheritedRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(inheritedPath).toBeDefined();
+    if (!inheritedPath) {
+      throw new Error("Expected inherited path element");
+    }
+    const inheritedDescriptor = getInspectorDescriptor(inheritedPath, {
+      source: inheritedSource,
+      editHandles: inheritedRendered.semantic.editHandles
+    });
+    const inheritedPathSection = inheritedDescriptor.sections.find((section) => section.id === "path");
+    expect(inheritedPathSection).toBeDefined();
+    if (!inheritedPathSection) {
+      throw new Error("Expected inherited path section");
+    }
+    const inheritedRounded = inheritedPathSection.properties.find((property) => property.kind === "roundedCorners");
+    expect(inheritedRounded).toBeDefined();
+    if (!inheritedRounded || inheritedRounded.kind !== "roundedCorners") {
+      throw new Error("Expected inherited rounded corners property");
+    }
+    expect(inheritedRounded.disableRequiresSharpCorners).toBe(true);
+
+    const localSource = String.raw`\begin{tikzpicture}
+  \draw[rounded corners=6pt] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const localRendered = renderTikzToSvg(localSource);
+    const localPath = localRendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(localPath).toBeDefined();
+    if (!localPath) {
+      throw new Error("Expected local path element");
+    }
+    const localDescriptor = getInspectorDescriptor(localPath, {
+      source: localSource,
+      editHandles: localRendered.semantic.editHandles
+    });
+    const localPathSection = localDescriptor.sections.find((section) => section.id === "path");
+    expect(localPathSection).toBeDefined();
+    if (!localPathSection) {
+      throw new Error("Expected local path section");
+    }
+    const localRounded = localPathSection.properties.find((property) => property.kind === "roundedCorners");
+    expect(localRounded).toBeDefined();
+    if (!localRounded || localRounded.kind !== "roundedCorners") {
+      throw new Error("Expected local rounded corners property");
+    }
+    expect(localRounded.disableRequiresSharpCorners).toBe(false);
   });
 
   it("shows a node section for node-backed text with shape, padding, minimum size, font, and text color controls", () => {
