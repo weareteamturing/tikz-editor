@@ -330,7 +330,7 @@ export function SourcePanel() {
   const figuresRef = useRef(figures);
   const activeFigureIdRef = useRef(activeFigureId);
   const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
-  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
+  const projectNamedColorSwatches = useProjectNamedColorSwatches();
 
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;

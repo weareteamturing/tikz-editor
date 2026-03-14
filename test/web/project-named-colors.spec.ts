@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { parser } from "../../packages/core/src/syntax/grammar/tikz-parser";
+import { collectDeclaredColors } from "../../packages/app/src/source-color-detection";
 import { collectProjectNamedColorSwatches } from "../../packages/app/src/project-named-colors";
+
+function collectFromSource(source: string) {
+  const tree = parser.parse(source);
+  const declaredColors = collectDeclaredColors(source, tree);
+  return collectProjectNamedColorSwatches(declaredColors);
+}
 
 describe("project named colors", () => {
   it("collects \\colorlet and \\definecolor in declaration order", () => {
@@ -9,7 +17,7 @@ describe("project named colors", () => {
 \\colorlet{highlight}{blue!50}
 `;
 
-    expect(collectProjectNamedColorSwatches(source)).toEqual([
+    expect(collectFromSource(source)).toEqual([
       { token: "accent", cssColor: "#0000ff" },
       { token: "brand", cssColor: "#ff8000" },
       { token: "highlight", cssColor: "#8080ff" }
@@ -23,7 +31,7 @@ describe("project named colors", () => {
 \\colorlet{custom}{green}
 `;
 
-    expect(collectProjectNamedColorSwatches(source)).toEqual([
+    expect(collectFromSource(source)).toEqual([
       { token: "custom", cssColor: "#00ff00" }
     ]);
   });
@@ -35,7 +43,7 @@ describe("project named colors", () => {
 \\definecolor{ok}{HTML}{112233}
 `;
 
-    expect(collectProjectNamedColorSwatches(source)).toEqual([
+    expect(collectFromSource(source)).toEqual([
       { token: "ok", cssColor: "#112233" }
     ]);
   });

@@ -118,6 +118,22 @@ export function collectDeclaredColors(source: string, tree: Tree): ReadonlyMap<s
   return declaredColors;
 }
 
+let _cachedDeclaredSource = "";
+let _cachedDeclaredColors: ReadonlyMap<string, string> = new Map();
+
+/**
+ * Cached wrapper around collectDeclaredColors — returns the same Map
+ * for the same source string, avoiding redundant tree walks.
+ */
+export function resolveDeclaredColors(source: string, tree: Tree): ReadonlyMap<string, string> {
+  if (source === _cachedDeclaredSource) {
+    return _cachedDeclaredColors;
+  }
+  _cachedDeclaredSource = source;
+  _cachedDeclaredColors = collectDeclaredColors(source, tree);
+  return _cachedDeclaredColors;
+}
+
 export function collectDetectedColors(
   source: string,
   tree: Tree,

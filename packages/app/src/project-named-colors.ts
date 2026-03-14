@@ -1,7 +1,7 @@
+import type { Tree } from "@lezer/common";
 import { useEffect, useMemo, useState } from "react";
-import { parser } from "tikz-editor/syntax/grammar/tikz-parser";
 import { BASIC_PICKER_COLOR_SET } from "./color-palette";
-import { collectDeclaredColors } from "./source-color-detection";
+import { resolveDeclaredColors } from "./source-color-detection";
 import { useEditorStore } from "./store/store";
 
 export type NamedColorSwatch = {
@@ -12,13 +12,9 @@ export type NamedColorSwatch = {
 let lastSource = "__project-named-colors:uninitialized__";
 let lastSwatches: NamedColorSwatch[] = [];
 
-export function collectProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
-  if (source.trim().length === 0) {
-    return [];
-  }
-
-  const tree = parser.parse(source);
-  const declaredColors = collectDeclaredColors(source, tree);
+export function collectProjectNamedColorSwatches(
+  declaredColors: ReadonlyMap<string, string>
+): NamedColorSwatch[] {
   const swatches: NamedColorSwatch[] = [];
   const seen = new Set<string>();
 
@@ -41,34 +37,42 @@ export function collectProjectNamedColorSwatches(source: string): NamedColorSwat
   return swatches;
 }
 
-export function resolveProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
+export function resolveProjectNamedColorSwatches(
+  source: string,
+  tree: Tree
+): NamedColorSwatch[] {
   if (source === lastSource) {
     return lastSwatches;
   }
   lastSource = source;
-  lastSwatches = collectProjectNamedColorSwatches(source);
+  const declaredColors = resolveDeclaredColors(source, tree);
+  lastSwatches = collectProjectNamedColorSwatches(declaredColors);
   return lastSwatches;
 }
 
-export function useProjectNamedColorSwatches(source: string): NamedColorSwatch[] {
+export function useProjectNamedColorSwatches(): NamedColorSwatch[] {
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
+  const source = useEditorStore((s) => s.source);
+  const parseTree = useEditorStore((s) => s.snapshot?.parseResult?.tree ?? null);
   const shouldFreeze =
     activeSourceScrubSourceId != null ||
     activeCanvasDragKind === "element" ||
     activeCanvasDragKind === "resize" ||
     activeCanvasDragKind === "rotate" ||
     activeCanvasDragKind === "handle";
-  const [stableSource, setStableSource] = useState(source);
+  const [stable, setStable] = useState({ source, parseTree });
 
   useEffect(() => {
     if (!shouldFreeze) {
-      setStableSource(source);
+      setStable({ source, parseTree });
     }
-  }, [shouldFreeze, source]);
+  }, [shouldFreeze, source, parseTree]);
 
-  return useMemo(
-    () => resolveProjectNamedColorSwatches(stableSource),
-    [stableSource]
-  );
+  return useMemo(() => {
+    if (stable.source.trim().length === 0 || !stable.parseTree) {
+      return [];
+    }
+    return resolveProjectNamedColorSwatches(stable.source, stable.parseTree);
+  }, [stable.source, stable.parseTree]);
 }

@@ -1,8 +1,7 @@
-import type { Tree } from "@lezer/common";
 import type { Extension } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import { Decoration, EditorView, type DecorationSet, ViewPlugin, type ViewUpdate, WidgetType } from "@codemirror/view";
-import { parser } from "tikz-editor/syntax/grammar/tikz-parser";
-import { collectDeclaredColors, collectDetectedColors, type DetectedColorOccurrence } from "./source-color-detection";
+import { collectDetectedColors, resolveDeclaredColors, type DetectedColorOccurrence } from "./source-color-detection";
 
 export type ColorSwatchPickRequest = {
   occurrence: DetectedColorOccurrence;
@@ -77,42 +76,26 @@ export function colorSwatches(options: ColorSwatchesOptions = {}): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
-      private source: string;
-      private tree: Tree;
-      private declaredColors: ReadonlyMap<string, string>;
 
       constructor(private readonly view: EditorView) {
-        this.source = this.view.state.doc.toString();
-        this.tree = parser.parse(this.source);
-        this.declaredColors = collectDeclaredColors(this.source, this.tree);
         this.decorations = this.buildDecorations();
       }
 
       update(update: ViewUpdate): void {
-        let shouldRebuildDecorations = false;
-
-        if (update.docChanged) {
-          this.source = update.state.doc.toString();
-          this.tree = parser.parse(this.source);
-          this.declaredColors = collectDeclaredColors(this.source, this.tree);
-          shouldRebuildDecorations = true;
-        }
-
-        if (update.viewportChanged) {
-          shouldRebuildDecorations = true;
-        }
-
-        if (shouldRebuildDecorations) {
+        if (update.docChanged || update.viewportChanged) {
           this.decorations = this.buildDecorations();
         }
       }
 
       private buildDecorations(): DecorationSet {
+        const source = this.view.state.doc.toString();
+        const tree = syntaxTree(this.view.state);
+        const declaredColors = resolveDeclaredColors(source, tree);
         const occurrences = collectDetectedColors(
-          this.source,
-          this.tree,
+          source,
+          tree,
           this.view.visibleRanges,
-          this.declaredColors
+          declaredColors
         );
         if (occurrences.length === 0) {
           return Decoration.none;

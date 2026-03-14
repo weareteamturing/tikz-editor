@@ -96,7 +96,7 @@ export function StylesPanel() {
     }
     return buildSharedStylesCascadeModel(models);
   }, [models]);
-  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
+  const projectNamedColorSwatches = useProjectNamedColorSwatches();
 
   function dispatchActions(actions: ReturnType<typeof planStylesSetPropertyActions>): void {
     const mergeKey = `styles:${Date.now().toString(36)}`;

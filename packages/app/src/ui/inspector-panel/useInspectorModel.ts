@@ -156,7 +156,7 @@ export function useInspectorModel(args: {
   const rawSelectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
   const selectedSourceIds = rawSelectedSourceIds;
   const selectedSourceIdSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
-  const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
+  const projectNamedColorSwatches = useProjectNamedColorSwatches();
   const editAnalysisView = useMemo(
     () =>
       getSharedEditAnalysisView({
