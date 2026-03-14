@@ -23,6 +23,7 @@ export type CanvasSettings = {
   gridSize: GridSize;
   handleSizePx: number;
   zoomSpeed: number;
+  snapHapticsEnabled: boolean;
 };
 
 export type AppSettings = {
@@ -57,7 +58,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   canvas: {
     gridSize: "standard",
     handleSizePx: 9,
-    zoomSpeed: 0.0045
+    zoomSpeed: 0.0045,
+    snapHapticsEnabled: true
   },
   colorPicker: {
     accuracy: "approximate"

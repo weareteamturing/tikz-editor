@@ -60,6 +60,7 @@ type DesktopBridge = {
   closeWindow: () => Promise<void>;
   confirmUnsavedChanges: (message: string) => Promise<"save" | "discard" | "cancel">;
   openExternalUrl: (url: string) => Promise<boolean>;
+  performSnapHaptic?: () => Promise<void>;
   listRecentFiles: () => Promise<string[]>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
   showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
@@ -547,6 +548,10 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<boolean>("desktop_open_external", { url });
     },
+    performSnapHaptic: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_perform_snap_haptic");
+    },
     listRecentFiles: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<string[]>("desktop_list_recent_files");
@@ -771,6 +776,11 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       openExternalUrl: async (url) => {
         return await getBridge().openExternalUrl(url);
+      }
+    },
+    haptics: {
+      performSnapFeedback: async () => {
+        await getBridge().performSnapHaptic?.();
       }
     },
     files: {

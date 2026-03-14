@@ -83,6 +83,10 @@ export type PlatformWindowApi = {
   openExternalUrl?: (url: string) => Promise<boolean> | boolean;
 };
 
+export type PlatformHaptics = {
+  performSnapFeedback?: () => Promise<void>;
+};
+
 export type AssistantChatContent =
   | { type: "text"; text: string }
   | { type: "image"; url: string }
@@ -228,5 +232,6 @@ export type EditorPlatform = {
   files?: PlatformFileApi;
   menu?: PlatformMenu;
   window?: PlatformWindowApi;
+  haptics?: PlatformHaptics;
   assistant?: AssistantApi;
 };

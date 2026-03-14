@@ -29,6 +29,7 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES).toBe("view.toggle-snap-guides");
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS).toBe("view.toggle-snap-object-points");
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS).toBe("view.toggle-snap-object-gaps");
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_HAPTICS).toBe("view.toggle-snap-haptics");
   });
 
   it("defines zoom command ids", () => {

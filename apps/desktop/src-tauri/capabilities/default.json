@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
-    "clipboard-x:default"
+    "clipboard-x:default",
+    "tauri-macos-haptics:default"
   ]
 }

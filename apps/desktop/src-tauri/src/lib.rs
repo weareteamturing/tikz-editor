@@ -482,6 +482,21 @@ fn desktop_open_external(url: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn desktop_perform_snap_haptic() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_macos_haptics::haptics::{
+            HapticFeedbackManager, HapticPattern, PerformanceTime,
+        };
+
+        HapticFeedbackManager::default_performer()
+            .perform(HapticPattern::Alignment, Some(PerformanceTime::Now))
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn desktop_read_custom_clipboard_text(
     formats: Vec<String>,
 ) -> Result<Option<DesktopCustomClipboardTextPayload>, String> {
@@ -678,8 +693,13 @@ fn desktop_assistant_read_account_snapshot(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_clipboard_x::init())
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_x::init());
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_macos_haptics::init());
+    }
+
+    builder
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
         .on_window_event(|window, event| {
@@ -714,6 +734,7 @@ pub fn run() {
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_open_external,
+            desktop_perform_snap_haptic,
             desktop_read_custom_clipboard_text,
             desktop_write_clipboard_bundle,
             desktop_show_context_menu,

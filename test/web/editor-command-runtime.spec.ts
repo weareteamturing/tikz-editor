@@ -483,6 +483,8 @@ function makeInput({
   showSourcePanel = true,
   showInspectorPanel = true,
   showDevPanel = false,
+  snapHapticsEnabled = true,
+  updateCanvasSettings = () => undefined,
   onOpenExample,
   onOpenSvgExport,
   onOpenPngExport,
@@ -507,6 +509,8 @@ function makeInput({
   showSourcePanel?: boolean;
   showInspectorPanel?: boolean;
   showDevPanel?: boolean;
+  snapHapticsEnabled?: boolean;
+  updateCanvasSettings?: (patch: { snapHapticsEnabled?: boolean }) => void;
   onOpenExample?: () => void;
   onOpenSvgExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
   onOpenPngExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
@@ -533,11 +537,13 @@ function makeInput({
     assistantRunning: false,
     showGrid,
     snapModes,
+    snapHapticsEnabled,
     showRulers,
     showGuides,
     showSourcePanel,
     showInspectorPanel,
     showDevPanel,
+    updateCanvasSettings,
     dispatch,
     onOpenExample,
     onOpenSvgExport,

@@ -454,6 +454,12 @@ export const APP_MENU_DEFINITION = [
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_GAPS,
             label: "Snap to Object Gaps"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.TOGGLE_SNAP_HAPTICS,
+            label: "Haptic Snap Feedback",
+            platforms: ["desktop-macos"]
           }
         ]
       },

@@ -11,11 +11,13 @@ function makeMockBridge() {
   const saved: string[] = [];
   const contextMenuPayloads: unknown[] = [];
   const assistantStartTurnPayloads: unknown[] = [];
+  let snapHapticCalls = 0;
   let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
   return {
     saved,
     contextMenuPayloads,
     assistantStartTurnPayloads,
+    getSnapHapticCalls: () => snapHapticCalls,
     bridge: {
       openText: async (path?: string | null) => {
         if (path && path !== opened.path) {
@@ -39,6 +41,9 @@ function makeMockBridge() {
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,
       openExternalUrl: async () => true,
+      performSnapHaptic: async () => {
+        snapHapticCalls += 1;
+      },
       listRecentFiles: async () => [opened.path],
       onWindowCloseRequest: async () => () => undefined,
       showContextMenu: async (payload) => {
@@ -278,5 +283,16 @@ describe("desktop shell flows", () => {
     if (typeof unbind === "function") {
       unbind();
     }
+  });
+
+  it("exposes haptic feedback bridge method", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await platform.haptics?.performSnapFeedback?.();
+    expect(mock.getSnapHapticCalls()).toBe(1);
   });
 });

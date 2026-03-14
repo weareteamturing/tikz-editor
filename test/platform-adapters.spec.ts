@@ -146,6 +146,39 @@ describe("platform adapter contracts", () => {
     });
   });
 
+  it("desktop adapter exposes haptic feedback bridge", async () => {
+    let hapticCalls = 0;
+    const platform = createDesktopPlatformAdapter({
+      storage: {
+        getItem: () => null,
+        setItem: () => undefined
+      },
+      bridge: {
+        openText: async () => null,
+        saveText: async () => ({ ok: false, path: null, name: null }),
+        exportFile: async () => false,
+        readClipboard: async () => "",
+        writeClipboard: async () => undefined,
+        readCustomClipboardText: async () => null,
+        writeClipboardBundle: async () => undefined,
+        setWindowTitle: async () => undefined,
+        closeWindow: async () => undefined,
+        openExternalUrl: async () => true,
+        performSnapHaptic: async () => {
+          hapticCalls += 1;
+        },
+        listRecentFiles: async () => [],
+        onWindowCloseRequest: async () => () => undefined,
+        showContextMenu: async () => undefined,
+        confirmUnsavedChanges: async () => "cancel",
+        onContextMenuCommand: async () => () => undefined
+      }
+    });
+
+    await platform.haptics?.performSnapFeedback?.();
+    expect(hapticCalls).toBe(1);
+  });
+
   it("desktop saveText returns desktop fileRef when save succeeds", async () => {
     const platform = createDesktopPlatformAdapter({
       storage: {

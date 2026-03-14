@@ -88,6 +88,7 @@ dependencies = [
  "serde_json",
  "tauri",
  "tauri-build",
+ "tauri-macos-haptics",
  "tauri-plugin-clipboard-x",
  "tauri-plugin-log",
  "url",
@@ -4136,6 +4137,19 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+]
+
+[[package]]
+name = "tauri-macos-haptics"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6bcec597de27ecb2a466c15e7263c6f8130ca67f7f1290df82b963a9defea68"
+dependencies = [
+ "objc2",
+ "objc2-app-kit",
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { AdornmentOwnerGeometry } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
@@ -66,6 +66,7 @@ const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT = 3;
 const ADORNMENT_DISTANCE_STEP_PT = 0.5;
 const GRID_RESIZE_STEP_EPSILON = 1e-9;
+const SNAP_FEEDBACK_EPSILON = 1e-6;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -100,6 +101,7 @@ export function useCanvasDragController(params: {
   setDragTooltip: (tooltip: DragTooltipState | null) => void;
   setWarning: (warning: string | null) => void;
   setTextEditingSession: (session: TextEditingSession | null) => void;
+  onSnapFeedback?: () => void;
   textIndexFromClient: (
     clientX: number,
     clientY: number,
@@ -140,8 +142,10 @@ export function useCanvasDragController(params: {
     setDragTooltip,
     setWarning,
     setTextEditingSession,
+    onSnapFeedback,
     textIndexFromClient
   } = params;
+  const wasSnappedRef = useRef(false);
 
   useEffect(() => {
     function sameIdsAsCurrentSelection(ids: readonly string[]): boolean {
@@ -176,6 +180,21 @@ export function useCanvasDragController(params: {
       dispatch({ type: "SELECT_RANGE", ids: nextIds });
     }
 
+    function maybeTriggerSnapFeedback(snapped: boolean) {
+      if (snapped && !wasSnappedRef.current) {
+        onSnapFeedback?.();
+      }
+      wasSnappedRef.current = snapped;
+    }
+
+    function resetSnapFeedbackState() {
+      wasSnappedRef.current = false;
+    }
+
+    function pointChanged(a: Point, b: Point): boolean {
+      return Math.abs(a.x - b.x) > SNAP_FEEDBACK_EPSILON || Math.abs(a.y - b.y) > SNAP_FEEDBACK_EPSILON;
+    }
+
     function onPointerMove(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
@@ -203,6 +222,7 @@ export function useCanvasDragController(params: {
             translateY: drag.startTransform.translateY + deltaY
           }
         });
+        maybeTriggerSnapFeedback(false);
         return;
       }
 
@@ -262,6 +282,7 @@ export function useCanvasDragController(params: {
           dragKind: "text-select",
           lines: []
         });
+        maybeTriggerSnapFeedback(false);
         return;
       }
 
@@ -269,6 +290,7 @@ export function useCanvasDragController(params: {
       if (!currentSvg) {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
+        maybeTriggerSnapFeedback(false);
         return;
       }
 
@@ -276,6 +298,7 @@ export function useCanvasDragController(params: {
       if (!world) {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
+        maybeTriggerSnapFeedback(false);
         return;
       }
 
@@ -339,6 +362,7 @@ export function useCanvasDragController(params: {
         });
         setToolCursorWorld(drag.currentWorld);
         setSnapLines(snapped.lines);
+        maybeTriggerSnapFeedback(snapped.lines.length > 0 || endpointAnchorOverlay?.snappedAnchor != null);
         logSnapDebug({
           phase: "drag-tool-create-move",
           snapshotMatchesSource: snapshotSource === source,
@@ -368,6 +392,7 @@ export function useCanvasDragController(params: {
         setBezierBendDraft({ ...drag });
         setToolCursorWorld(drag.currentWorld);
         setSnapLines(snapped.lines);
+        maybeTriggerSnapFeedback(snapped.lines.length > 0);
         logSnapDebug({
           phase: "drag-bezier-bend-move",
           snapshotMatchesSource: snapshotSource === source,
@@ -401,6 +426,7 @@ export function useCanvasDragController(params: {
         setPathSegmentDraft({ ...drag });
         setToolCursorWorld(drag.endWorld);
         setSnapLines(snapped.lines);
+        maybeTriggerSnapFeedback(snapped.lines.length > 0);
         logSnapDebug({
           phase: "drag-tool-path-segment-move",
           snapshotMatchesSource: snapshotSource === source,
@@ -423,6 +449,7 @@ export function useCanvasDragController(params: {
         }
         setToolCursorWorld(world);
         setSnapLines([]);
+        maybeTriggerSnapFeedback(false);
         logSnapDebug({
           phase: "drag-tool-freehand-move",
           snapshotMatchesSource: snapshotSource === source,
@@ -442,6 +469,7 @@ export function useCanvasDragController(params: {
           commitMarqueeSelection(drag, world, currentSvg);
         }
         setSnapLines([]);
+        maybeTriggerSnapFeedback(false);
         logSnapDebug({
           phase: "drag-marquee-move",
           snapshotMatchesSource: snapshotSource === source,
@@ -455,6 +483,7 @@ export function useCanvasDragController(params: {
       if (!svgResult || snapshotSource !== source) {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
+        maybeTriggerSnapFeedback(false);
         logSnapDebug({
           phase: "drag-move",
           note: "blocked: snapshot/source mismatch",
@@ -469,6 +498,7 @@ export function useCanvasDragController(params: {
       if (drag.kind === "resize") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
+        maybeTriggerSnapFeedback(false);
         const liveFrame = liveResizeFramesRef.current.get(drag.elementId) ?? null;
         const liveDimensions = liveFrame ? resolveFrameBasis(liveFrame) : null;
         const dimensions = liveDimensions
@@ -511,6 +541,7 @@ export function useCanvasDragController(params: {
       if (drag.kind === "rotate") {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
+        maybeTriggerSnapFeedback(false);
         const currentPointerAngleDeg = angleDeg(drag.centerWorld, world);
         const nextRotate = resolveDraggedRotateDeg({
           baseRotateDeg: drag.baseRotateDeg,
@@ -571,6 +602,7 @@ export function useCanvasDragController(params: {
               const ownerPoint = adornmentElement?.adornment?.ownerPoint;
               if (!ownerPoint) {
                 setSnapLines([]);
+                maybeTriggerSnapFeedback(false);
                 return;
               }
               adornmentDrag = {
@@ -588,6 +620,7 @@ export function useCanvasDragController(params: {
               defaultDistancePt: adornmentDrag.defaultDistancePt
             });
             setSnapLines([]);
+            maybeTriggerSnapFeedback(false);
             applyActionWithFeedback(
               {
                 kind: "moveAdornment",
@@ -631,6 +664,7 @@ export function useCanvasDragController(params: {
           y: totalDelta.y - actualTotalDelta.y
         };
         setSnapLines(snapped.lines);
+        maybeTriggerSnapFeedback(snapped.lines.length > 0);
         logSnapDebug({
           phase: "drag-element-move",
           snapshotMatchesSource: true,
@@ -663,6 +697,7 @@ export function useCanvasDragController(params: {
         setNodeAnchorOverlay(null);
         setDragTooltip(null);
         setWarning("Handle is no longer available after recompute. Release and drag again.");
+        maybeTriggerSnapFeedback(false);
         return;
       }
 
@@ -689,12 +724,18 @@ export function useCanvasDragController(params: {
       } else {
         drag.activeEndpointAnchor = null;
       }
+      const beforeGridResizeWorld = nextWorld;
       if (drag.gridResizeSnap && !ctrlOrMeta) {
         nextWorld = snapGridResizePoint(nextWorld, drag.gridResizeSnap);
       }
       setNodeAnchorOverlay(endpointAnchorOverlay && endpointAnchorOverlay.visibleAnchors.length > 0 ? endpointAnchorOverlay : null);
       setDragTooltip(null);
       setSnapLines(snapped.lines);
+      maybeTriggerSnapFeedback(
+        snapped.lines.length > 0 ||
+          endpointAnchorOverlay?.snappedAnchor != null ||
+          pointChanged(beforeGridResizeWorld, nextWorld)
+      );
       logSnapDebug({
         phase: "drag-handle-move",
         snapshotMatchesSource: true,
@@ -722,6 +763,7 @@ export function useCanvasDragController(params: {
     function onPointerUp(event: PointerEvent) {
       const drag = dragRef.current;
       if (!drag || event.pointerId !== drag.pointerId) return;
+      resetSnapFeedbackState();
       const ctrlOrMeta = event.ctrlKey || event.metaKey;
 
       const currentSvg = svgResultRef.current;
@@ -997,6 +1039,7 @@ export function useCanvasDragController(params: {
     interactionSvgRef,
     liveResizeFramesRef,
     logSnapDebug,
+    onSnapFeedback,
     pendingAddedSelectionRef,
     queueSelectionForAddedElement,
     selectedElementIdsRef,

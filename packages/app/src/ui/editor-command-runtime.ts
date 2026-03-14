@@ -6,6 +6,7 @@ import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
 import { getSharedEditAnalysisView } from "../edit-analysis-manager";
 import { getActiveEditorPlatform } from "../platform/current";
+import type { AppSettings } from "../settings/types";
 import { useSettingsStore } from "../settings/useSettingsStore";
 import { useEditorStore } from "../store/store";
 import type { DocumentFileRef, EditorAction, SnapModes, ToolMode } from "../store/types";
@@ -62,6 +63,7 @@ type RuntimeInput = {
   fileRef: DocumentFileRef | null;
   showGrid: boolean;
   snapModes: SnapModes;
+  snapHapticsEnabled: boolean;
   showRulers: boolean;
   showGuides: boolean;
   showSourcePanel: boolean;
@@ -71,6 +73,7 @@ type RuntimeInput = {
   assistantRunning: boolean;
   showDevPanel: boolean;
   indentSize?: 2 | 4;
+  updateCanvasSettings: (patch: Partial<AppSettings["canvas"]>) => void;
   dispatch: Dispatch;
   onOpenExample?: () => void;
   onOpenSvgExport?: (svgResult: EmitSvgResult) => void;
@@ -106,6 +109,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     fileRef,
     showGrid,
     snapModes,
+    snapHapticsEnabled,
     showRulers,
     showGuides,
     showSourcePanel,
@@ -115,6 +119,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     assistantRunning,
     showDevPanel,
     indentSize,
+    updateCanvasSettings,
     dispatch,
     onOpenExample,
     onOpenSvgExport,
@@ -153,6 +158,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canOpen = typeof getActiveEditorPlatform().files?.openText === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
   const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
+  const isMacDesktop =
+    getActiveEditorPlatform().id.startsWith("desktop") &&
+    typeof navigator !== "undefined" &&
+    /(mac|iphone|ipad)/i.test(navigator.platform);
 
   const insertBinding = (mode: ToolMode): CommandBinding => {
     const capability = getToolCapabilityStatus(mode);
@@ -598,6 +607,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       checked: snapModes.gaps,
       run: () => dispatch({ type: "TOGGLE_SNAP_MODE", mode: "gaps" })
     },
+    [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_HAPTICS]: {
+      enabled: isMacDesktop,
+      checked: snapHapticsEnabled,
+      run: () => updateCanvasSettings({ snapHapticsEnabled: !snapHapticsEnabled })
+    },
     [APP_MENU_COMMAND_IDS.TOGGLE_RULERS]: {
       enabled: true,
       checked: showRulers,
@@ -691,6 +705,7 @@ export function useEditorCommandRuntime(
   const fileRef = useEditorStore((s) => s.documents[s.activeDocumentId]?.fileRef ?? null);
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
+  const snapHapticsEnabled = useSettingsStore((s) => s.settings.canvas.snapHapticsEnabled);
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
@@ -702,6 +717,7 @@ export function useEditorCommandRuntime(
   });
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const indentSize = useSettingsStore((s) => s.settings.editor.indentSize);
+  const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const dispatch = useEditorStore((s) => s.dispatch);
   const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
   const liveCommandInputs = useMemo(
@@ -758,6 +774,7 @@ export function useEditorCommandRuntime(
         fileRef,
         showGrid,
         snapModes,
+        snapHapticsEnabled,
         showRulers,
         showGuides,
         showSourcePanel,
@@ -767,6 +784,7 @@ export function useEditorCommandRuntime(
         assistantRunning,
         showDevPanel,
         indentSize,
+        updateCanvasSettings,
         dispatch,
         onOpenExample: options.onOpenExample,
         onOpenSvgExport: options.onOpenSvgExport,
@@ -791,6 +809,7 @@ export function useEditorCommandRuntime(
       fileRef,
       showGrid,
       snapModes,
+      snapHapticsEnabled,
       showRulers,
       showGuides,
       showSourcePanel,
@@ -801,6 +820,7 @@ export function useEditorCommandRuntime(
       assistantRunning,
       showDevPanel,
       indentSize,
+      updateCanvasSettings,
       dispatch,
       options.onOpenExample,
       options.onOpenSvgExport,

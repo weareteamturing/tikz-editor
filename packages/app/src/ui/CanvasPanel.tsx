@@ -516,6 +516,7 @@ export function CanvasPanel() {
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
+  const snapHapticsEnabled = useSettingsStore((s) => s.settings.canvas.snapHapticsEnabled);
   const gridMinorTargetPx = GRID_SIZE_MINOR_TARGET_PX[gridSize];
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
@@ -743,6 +744,19 @@ export function CanvasPanel() {
     },
     [showDevPanel]
   );
+
+  const performSnapHapticFeedback = useCallback(() => {
+    if (!snapHapticsEnabled) {
+      return;
+    }
+    if (!platform.id.startsWith("desktop")) {
+      return;
+    }
+    if (typeof navigator === "undefined" || !/(mac|iphone|ipad)/i.test(navigator.platform)) {
+      return;
+    }
+    void platform.haptics?.performSnapFeedback?.();
+  }, [platform, snapHapticsEnabled]);
 
   const onSnapDebugMovePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -2143,7 +2157,8 @@ export function CanvasPanel() {
     setDragTooltip,
     setWarning,
     setTextEditingSession,
-    textIndexFromClient
+    textIndexFromClient,
+    onSnapFeedback: performSnapHapticFeedback
   });
 
   useEffect(() => () => setActiveCanvasDragKind(null), [setActiveCanvasDragKind]);

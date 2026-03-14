@@ -65,6 +65,7 @@ export const APP_MENU_COMMAND_IDS = {
   TOGGLE_SNAP_GUIDES: "view.toggle-snap-guides",
   TOGGLE_SNAP_OBJECT_POINTS: "view.toggle-snap-object-points",
   TOGGLE_SNAP_OBJECT_GAPS: "view.toggle-snap-object-gaps",
+  TOGGLE_SNAP_HAPTICS: "view.toggle-snap-haptics",
   TOGGLE_RULERS: "view.toggle-rulers",
   TOGGLE_GUIDES: "view.toggle-guides",
   TOGGLE_SOURCE_PANEL: "view.toggle-source-panel",

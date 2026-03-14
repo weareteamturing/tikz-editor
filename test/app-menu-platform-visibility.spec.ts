@@ -28,6 +28,12 @@ const TEST_MENU: AppMenuDefinition = [
       },
       {
         kind: "command",
+        commandId: "view.toggle-snap-haptics",
+        label: "Haptic Snap Feedback",
+        platforms: ["desktop-macos"]
+      },
+      {
+        kind: "command",
         commandId: "view.interrupt-assistant-turn",
         label: "Interrupt",
         platforms: ["web"]
@@ -52,12 +58,14 @@ describe("filterAppMenuDefinitionForTarget", () => {
     expect(commandIds(filtered)).toContain("view.toggle-source-panel");
     expect(commandIds(filtered)).toContain("view.toggle-inspector-panel");
     expect(commandIds(filtered)).not.toContain("view.toggle-assistant-panel");
+    expect(commandIds(filtered)).not.toContain("view.toggle-snap-haptics");
   });
 
   it("keeps generic desktop items on desktop-macos target", () => {
     const filtered = filterAppMenuDefinitionForTarget(TEST_MENU, "desktop-macos");
     expect(commandIds(filtered)).toContain("view.toggle-source-panel");
     expect(commandIds(filtered)).toContain("view.toggle-assistant-panel");
+    expect(commandIds(filtered)).toContain("view.toggle-snap-haptics");
     expect(commandIds(filtered)).not.toContain("view.toggle-inspector-panel");
   });
 
