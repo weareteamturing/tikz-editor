@@ -14,7 +14,7 @@ import { resolvePropertyTarget } from "../property-target.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../../semantic/path/parsers.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
-import { applyMatrix } from "../../semantic/transform.js";
+import { applyMatrix, inverseMatrix } from "../../semantic/transform.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { worldToLocal } from "../coords.js";
 import { replaceSpan } from "../patch.js";
@@ -111,7 +111,7 @@ export function applyResizeElementAction(
     x: (currentBounds.minX + currentBounds.maxX) / 2,
     y: (currentBounds.minY + currentBounds.maxY) / 2
   };
-  const rotation = resolveNodeResizeRotationDegrees(semantic.scene.elements, elementId);
+  const nodeLinearTransform = resolveNodeResizeLinearTransform(semantic.scene.elements, elementId);
 
   const floorMutations = new Map<string, OptionMutation>([
     ["minimum width", { kind: "remove" }],
@@ -137,11 +137,18 @@ export function applyResizeElementAction(
     x: action.newWorld.x - center.x,
     y: action.newWorld.y - center.y
   };
-  const localPointerDelta = rotateVector(pointerDelta, -rotation);
+  const localPointerDelta = nodeLinearTransform
+    ? worldVectorToLocal(pointerDelta, nodeLinearTransform)
+    : pointerDelta;
   const requestedWidth = 2 * Math.abs(localPointerDelta.x);
   const requestedHeight = 2 * Math.abs(localPointerDelta.y);
-  const intrinsicWidth = floorBounds.maxX - floorBounds.minX;
-  const intrinsicHeight = floorBounds.maxY - floorBounds.minY;
+  const intrinsicWorldWidth = floorBounds.maxX - floorBounds.minX;
+  const intrinsicWorldHeight = floorBounds.maxY - floorBounds.minY;
+  const intrinsicLocal = nodeLinearTransform
+    ? worldSizeToLocalSize({ width: intrinsicWorldWidth, height: intrinsicWorldHeight }, nodeLinearTransform)
+    : { width: intrinsicWorldWidth, height: intrinsicWorldHeight };
+  const intrinsicWidth = intrinsicLocal.width;
+  const intrinsicHeight = intrinsicLocal.height;
 
   const resizeMutations = new Map<string, OptionMutation>();
   if (affectsWidth) {
@@ -935,44 +942,79 @@ function pointDistanceSquared(left: Point, right: Point): number {
   return dx * dx + dy * dy;
 }
 
-function resolveNodeResizeRotationDegrees(elements: readonly SceneElement[], sourceId: string): number {
+function resolveNodeResizeLinearTransform(
+  elements: readonly SceneElement[],
+  sourceId: string
+): { a: number; b: number; c: number; d: number } | null {
   const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
-  const textElements = sourceElements.filter(
-    (element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text"
-  );
-  if (textElements.length === 1) {
-    return normalizeDegrees(textElements[0]?.rotation ?? 0);
+  const transformed = sourceElements.find((element) => element.transform != null);
+  if (!transformed?.transform) {
+    return null;
   }
-
-  const ellipseElements = sourceElements.filter(
-    (element): element is Extract<SceneElement, { kind: "Ellipse" }> => element.kind === "Ellipse"
-  );
-  if (ellipseElements.length === 1) {
-    return normalizeDegrees(ellipseElements[0]?.rotation ?? 0);
-  }
-
-  return 0;
-}
-
-function rotateVector(vector: Point, degrees: number): Point {
-  if (Math.abs(degrees) <= 1e-9) {
-    return vector;
-  }
-  const theta = (degrees * Math.PI) / 180;
-  const cos = Math.cos(theta);
-  const sin = Math.sin(theta);
   return {
-    x: vector.x * cos - vector.y * sin,
-    y: vector.x * sin + vector.y * cos
+    a: transformed.transform.a,
+    b: transformed.transform.b,
+    c: transformed.transform.c,
+    d: transformed.transform.d
   };
 }
 
-function normalizeDegrees(degrees: number): number {
-  if (!Number.isFinite(degrees)) {
-    return 0;
+function worldVectorToLocal(
+  vector: Point,
+  linearTransform: { a: number; b: number; c: number; d: number }
+): Point {
+  const matrix = {
+    ...linearTransform,
+    e: 0,
+    f: 0
+  };
+  const inverse = inverseMatrix(matrix);
+  if (!inverse) {
+    return vector;
   }
-  const normalized = ((degrees % 360) + 360) % 360;
-  return normalized > 180 ? normalized - 360 : normalized;
+  return {
+    x: inverse.a * vector.x + inverse.c * vector.y,
+    y: inverse.b * vector.x + inverse.d * vector.y
+  };
+}
+
+function worldSizeToLocalSize(
+  size: { width: number; height: number },
+  linearTransform: { a: number; b: number; c: number; d: number }
+): { width: number; height: number } {
+  const matrix = {
+    ...linearTransform,
+    e: 0,
+    f: 0
+  };
+  const inverse = inverseMatrix(matrix);
+  if (!inverse) {
+    return size;
+  }
+  const corners = [
+    { x: -size.width / 2, y: -size.height / 2 },
+    { x: size.width / 2, y: -size.height / 2 },
+    { x: size.width / 2, y: size.height / 2 },
+    { x: -size.width / 2, y: size.height / 2 }
+  ];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const corner of corners) {
+    const mapped = {
+      x: inverse.a * corner.x + inverse.c * corner.y,
+      y: inverse.b * corner.x + inverse.d * corner.y
+    };
+    minX = Math.min(minX, mapped.x);
+    minY = Math.min(minY, mapped.y);
+    maxX = Math.max(maxX, mapped.x);
+    maxY = Math.max(maxY, mapped.y);
+  }
+  return {
+    width: maxX - minX,
+    height: maxY - minY
+  };
 }
 
 function transformsApproximatelyEqual(

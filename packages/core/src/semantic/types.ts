@@ -134,6 +134,7 @@ export type ScenePath = {
   style: ResolvedStyle;
   styleChain: StyleChainEntry[];
   commands: ScenePathCommand[];
+  transform?: Matrix2D;
 };
 
 export type SceneCircle = {
@@ -147,6 +148,7 @@ export type SceneCircle = {
   styleChain: StyleChainEntry[];
   center: Point;
   radius: number;
+  transform?: Matrix2D;
 };
 
 export type SceneEllipse = {
@@ -162,6 +164,7 @@ export type SceneEllipse = {
   rx: number;
   ry: number;
   rotation?: number;
+  transform?: Matrix2D;
 };
 
 export type SceneText = {
@@ -181,6 +184,7 @@ export type SceneText = {
   textBlockHeight?: number;
   textRenderInfo?: NodeTextRenderInfo;
   rotation?: number;
+  transform?: Matrix2D;
 };
 
 export type ForeachOriginFrame = {

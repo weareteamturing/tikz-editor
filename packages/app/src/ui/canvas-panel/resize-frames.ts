@@ -144,15 +144,18 @@ function resolveNodePathResizeFrame(
   if (!corners) {
     return null;
   }
+  const transformedCorners = path.transform
+    ? corners.map((corner) => applyMatrix(path.transform!, corner))
+    : corners;
   const centerWorld = {
-    x: corners.reduce((sum, point) => sum + point.x, 0) / corners.length,
-    y: corners.reduce((sum, point) => sum + point.y, 0) / corners.length
+    x: transformedCorners.reduce((sum, point) => sum + point.x, 0) / transformedCorners.length,
+    y: transformedCorners.reduce((sum, point) => sum + point.y, 0) / transformedCorners.length
   };
-  const basis = resolveRectangleBasis(corners);
+  const basis = resolveRectangleBasis(transformedCorners);
   if (!basis) {
     return null;
   }
-  const cornersByRole = assignCornersByRoleWithBasis(corners, centerWorld, basis.u, basis.v);
+  const cornersByRole = assignCornersByRoleWithBasis(transformedCorners, centerWorld, basis.u, basis.v);
   if (!cornersByRole) {
     return null;
   }
@@ -319,7 +322,17 @@ function resolveTextResizeFrame(
     "bottom-right": rotateAndTranslatePoint(localByRole["bottom-right"], text.position, rotation),
     "bottom-left": rotateAndTranslatePoint(localByRole["bottom-left"], text.position, rotation)
   };
-  return buildResizeFrame(sourceId, text.position, cornersByRole, viewBox);
+  if (!text.transform) {
+    return buildResizeFrame(sourceId, text.position, cornersByRole, viewBox);
+  }
+  const transformedCornersByRole = {
+    "top-left": applyMatrix(text.transform, cornersByRole["top-left"]),
+    "top-right": applyMatrix(text.transform, cornersByRole["top-right"]),
+    "bottom-right": applyMatrix(text.transform, cornersByRole["bottom-right"]),
+    "bottom-left": applyMatrix(text.transform, cornersByRole["bottom-left"])
+  };
+  const centerWorld = applyMatrix(text.transform, text.position);
+  return buildResizeFrame(sourceId, centerWorld, transformedCornersByRole, viewBox);
 }
 
 function resolvePathArcRadii(

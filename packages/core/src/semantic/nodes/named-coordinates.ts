@@ -7,6 +7,7 @@ import {
 } from "../context.js";
 import type { Point } from "../types.js";
 import { intersectRayWithPolygon } from "./shape-geometry.js";
+import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 
 export function collectScopedNodeNames(name: string | undefined, aliases: string[] | undefined, context: SemanticContext): string[] {
   const names = [name, ...(aliases ?? [])].filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
@@ -194,43 +195,101 @@ function intersectNodeBorder(
   }
 
   if (geometry.shape === "circle") {
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
+    const localLen = Math.hypot(localDirection.x, localDirection.y);
+    if (!Number.isFinite(localLen) || localLen <= 1e-9) {
+      return null;
+    }
     const radius = geometry.anchorRadius;
     if (!Number.isFinite(radius) || radius <= 1e-9) {
       return null;
     }
-    const scale = radius / len;
+    const scale = radius / localLen;
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 
   if (geometry.shape === "rectangle") {
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
     const hw = geometry.anchorHalfWidth;
     const hh = geometry.anchorHalfHeight;
     if (!Number.isFinite(hw) || !Number.isFinite(hh) || hw <= 1e-9 || hh <= 1e-9) {
       return null;
     }
-    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 
   if (geometry.shape === "ellipse") {
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
     const rx = geometry.anchorHalfWidth;
     const ry = geometry.anchorHalfHeight;
     if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
       return null;
     }
-    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    const scale = 1 / Math.sqrt((localDirection.x * localDirection.x) / (rx * rx) + (localDirection.y * localDirection.y) / (ry * ry));
     if (!Number.isFinite(scale)) {
       return null;
     }
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 

@@ -188,23 +188,30 @@ export function collectSelectionGeometry(
 
 function elementBoundsInWorld(element: SceneElement): Bounds | null {
   if (element.kind === "Path") {
-    return pathBoundsInWorld(element);
+    const bounds = pathBoundsInWorld(element);
+    if (!bounds) {
+      return null;
+    }
+    return element.transform ? transformBounds(bounds, element.transform) : bounds;
   }
 
   if (element.kind === "Circle") {
-    return {
+    const bounds = {
       minX: element.center.x - element.radius,
       minY: element.center.y - element.radius,
       maxX: element.center.x + element.radius,
       maxY: element.center.y + element.radius
     };
+    return element.transform ? transformBounds(bounds, element.transform) : bounds;
   }
 
   if (element.kind === "Ellipse") {
-    return computeEllipseBounds(element.center.x, element.center.y, element.rx, element.ry, element.rotation ?? 0);
+    const bounds = computeEllipseBounds(element.center.x, element.center.y, element.rx, element.ry, element.rotation ?? 0);
+    return element.transform ? transformBounds(bounds, element.transform) : bounds;
   }
 
-  return textBoundsInWorld(element);
+  const bounds = textBoundsInWorld(element);
+  return element.transform ? transformBounds(bounds, element.transform) : bounds;
 }
 
 function isElementReferenceSnappable(element: SceneElement): boolean {
@@ -318,6 +325,30 @@ function computeRotatedRectBounds(cx: number, cy: number, width: number, height:
     minY: cy - extentY,
     maxY: cy + extentY
   };
+}
+
+function transformBounds(bounds: Bounds, transform: { a: number; b: number; c: number; d: number; e: number; f: number }): Bounds {
+  const corners = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY }
+  ];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const point of corners) {
+    const mapped = {
+      x: transform.a * point.x + transform.c * point.y + transform.e,
+      y: transform.b * point.x + transform.d * point.y + transform.f
+    };
+    minX = Math.min(minX, mapped.x);
+    minY = Math.min(minY, mapped.y);
+    maxX = Math.max(maxX, mapped.x);
+    maxY = Math.max(maxY, mapped.y);
+  }
+  return { minX, minY, maxX, maxY };
 }
 
 function estimateTextBlockWidth(text: string, fontSize: number): number {

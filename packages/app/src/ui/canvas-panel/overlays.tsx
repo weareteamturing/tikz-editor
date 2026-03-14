@@ -571,11 +571,15 @@ export function HitRegionLayer({
         };
 
         if (region.shape === "path") {
+          const transform = region.transform
+            ? `matrix(${fmt(region.transform.a)} ${fmt(region.transform.b)} ${fmt(region.transform.c)} ${fmt(region.transform.d)} ${fmt(region.transform.e)} ${fmt(region.transform.f)})`
+            : undefined;
           return (
             <path
               key={region.key}
               className={className}
               d={region.d}
+              transform={transform}
               fill={region.pointerMode === "fill" ? "transparent" : "none"}
               stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}

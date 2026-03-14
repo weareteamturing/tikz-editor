@@ -9,7 +9,7 @@ import {
   type SemanticContext
 } from "../context.js";
 import type { Matrix2D, Point } from "../types.js";
-import { applyMatrix, applyMatrixToVector, identityMatrix } from "../transform.js";
+import { applyMatrix, applyMatrixToVector, identityMatrix, inverseMatrix } from "../transform.js";
 import { parseLength, parseQuantityExpression } from "./parse-length.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 
@@ -419,15 +419,46 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Po
     return geometry.center;
   }
 
+  const transform = geometry.anchorTransform;
+  const localDirection = (() => {
+    if (!transform) {
+      return { x: dx, y: dy };
+    }
+    const inverse = inverseMatrix(transform);
+    if (!inverse) {
+      return { x: dx, y: dy };
+    }
+    return applyMatrixToVector(inverse, { x: dx, y: dy });
+  })();
+  const localDx = localDirection.x;
+  const localDy = localDirection.y;
+  const localLen = Math.hypot(localDx, localDy);
+  if (!Number.isFinite(localLen) || localLen <= 1e-9) {
+    return geometry.center;
+  }
+  const fromLocal = (point: Point): Point => {
+    if (!transform) {
+      return {
+        x: geometry.center.x + point.x,
+        y: geometry.center.y + point.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, point);
+    return {
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
+    };
+  };
+
   if (geometry.shape === "circle") {
     const radius = geometry.anchorRadius;
     if (!Number.isFinite(radius) || radius <= 1e-9) {
       return geometry.center;
     }
-    return {
-      x: geometry.center.x + (dx / len) * radius,
-      y: geometry.center.y + (dy / len) * radius
-    };
+    return fromLocal({
+      x: (localDx / localLen) * radius,
+      y: (localDy / localLen) * radius
+    });
   }
 
   if (geometry.shape === "rectangle") {
@@ -436,11 +467,11 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Po
     if (!Number.isFinite(hw) || !Number.isFinite(hh) || hw <= 1e-9 || hh <= 1e-9) {
       return geometry.center;
     }
-    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
-    return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
-    };
+    const scale = 1 / Math.max(Math.abs(localDx) / hw, Math.abs(localDy) / hh);
+    return fromLocal({
+      x: localDx * scale,
+      y: localDy * scale
+    });
   }
 
   if (geometry.shape === "ellipse") {
@@ -449,14 +480,14 @@ function intersectNamedGeometryBorder(geometry: NamedNodeGeometry, direction: Po
     if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx <= 1e-9 || ry <= 1e-9) {
       return geometry.center;
     }
-    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    const scale = 1 / Math.sqrt((localDx * localDx) / (rx * rx) + (localDy * localDy) / (ry * ry));
     if (!Number.isFinite(scale)) {
       return geometry.center;
     }
-    return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
-    };
+    return fromLocal({
+      x: localDx * scale,
+      y: localDy * scale
+    });
   }
 
   if (geometry.anchorPolygon && geometry.anchorPolygon.length >= 3) {

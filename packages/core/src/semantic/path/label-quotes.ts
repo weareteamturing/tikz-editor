@@ -13,6 +13,7 @@ import { applyNameScope } from "../nodes/named-coordinates.js";
 import { intersectRayWithPolygon } from "../nodes/shape-geometry.js";
 import { findTopLevelCharacter, readBalancedBlock, parseStyleValueAsOptionList } from "../style/option-utils.js";
 import type { Point } from "../types.js";
+import { applyMatrixToVector, inverseMatrix } from "../transform.js";
 import { stripWrappingBraces } from "../../utils/braces.js";
 
 type QuotesMode = NodeQuotesMode;
@@ -1031,32 +1032,90 @@ function intersectNodeBorder(geometry: NamedNodeGeometry | null, direction: Poin
 
   if (geometry.shape === "circle") {
     const radius = geometry.anchorRadius;
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
+    const localLen = Math.hypot(localDirection.x, localDirection.y);
+    if (!Number.isFinite(localLen) || localLen <= 1e-9) {
+      return geometry.center;
+    }
+    const localPoint = {
+      x: (localDirection.x / localLen) * radius,
+      y: (localDirection.y / localLen) * radius
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + (dx / len) * radius,
-      y: geometry.center.y + (dy / len) * radius
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 
   if (geometry.shape === "rectangle") {
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
     const hw = geometry.anchorHalfWidth;
     const hh = geometry.anchorHalfHeight;
-    const scale = 1 / Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+    const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 
   if (geometry.shape === "ellipse") {
+    const transform = geometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return { x: dx, y: dy };
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return { x: dx, y: dy };
+      return applyMatrixToVector(inverse, { x: dx, y: dy });
+    })();
     const rx = geometry.anchorHalfWidth;
     const ry = geometry.anchorHalfHeight;
-    const scale = 1 / Math.sqrt((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry));
+    const scale = 1 / Math.sqrt((localDirection.x * localDirection.x) / (rx * rx) + (localDirection.y * localDirection.y) / (ry * ry));
     if (!Number.isFinite(scale)) {
       return geometry.center;
     }
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    if (!transform) {
+      return {
+        x: geometry.center.x + localPoint.x,
+        y: geometry.center.y + localPoint.y
+      };
+    }
+    const mapped = applyMatrixToVector(transform, localPoint);
     return {
-      x: geometry.center.x + dx * scale,
-      y: geometry.center.y + dy * scale
+      x: geometry.center.x + mapped.x,
+      y: geometry.center.y + mapped.y
     };
   }
 

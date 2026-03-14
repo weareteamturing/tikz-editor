@@ -10,6 +10,8 @@ import type { ResolvedStyle } from "../types.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import type { NodeLayer, NodeShape } from "./types.js";
 import { normalizeOptionValue } from "./utils.js";
+import { identityMatrix, inverseMatrix, multiplyMatrix } from "../transform.js";
+import type { Matrix2D } from "../types.js";
 
 export function withDefaultNodePosition(options: OptionListAst | undefined, defaultPos: number | undefined): OptionListAst | undefined {
   if (defaultPos == null) {
@@ -142,6 +144,45 @@ export function resolveNodeOptionScale(
     frame.colorAliases
   );
   return computeRelativeTransformScale(frame.transform, resolved.transform);
+}
+
+export function resolveNodeOptionTransform(
+  options: PathOptionItem["options"] | undefined,
+  baseStyle: ResolvedStyle,
+  context: SemanticContext
+): Matrix2D {
+  if (!options) {
+    return identityMatrix();
+  }
+
+  const frame = context.stack[context.stack.length - 1];
+  const expanded = expandOptionListMacros([options], frame.macroBindings, context.macroTraceCollector ?? undefined);
+  const layers: StyleTraceLayerInput[] =
+    expanded.length > 0
+      ? [
+          {
+            kind: "command",
+            sourceRef: {
+              sourceId: "__node-transform__",
+              sourceSpan: options.span,
+              sourceKind: "node-options",
+              label: "node"
+            },
+            rawOptions: expanded
+          }
+        ]
+      : [];
+  const resolved = resolveContextDelta(
+    baseStyle,
+    frame.transform,
+    layers,
+    cloneCustomStyleRegistry(frame.customStyles),
+    undefined,
+    [],
+    frame.colorAliases
+  );
+
+  return computeRelativeTransformMatrix(frame.transform, resolved.transform);
 }
 
 export function resolveEffectiveNodeOptions(params: {
@@ -329,6 +370,14 @@ function computeRelativeTransformScale(
     return resolved;
   }
   return resolved / base;
+}
+
+function computeRelativeTransformMatrix(baseTransform: Matrix2D, resolvedTransform: Matrix2D): Matrix2D {
+  const inverseBase = inverseMatrix(baseTransform);
+  if (!inverseBase) {
+    return resolvedTransform;
+  }
+  return multiplyMatrix(inverseBase, resolvedTransform);
 }
 
 export function resolveNodeShape(options: PathOptionItem["options"] | undefined): NodeShape {

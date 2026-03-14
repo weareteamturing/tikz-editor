@@ -9,19 +9,19 @@ export function resolveNodeLayout(
   text: string,
   options: PathOptionItem["options"] | undefined,
   style: ResolvedStyle,
-  transformScale = 1,
+  _transformScale = 1,
   textEngine: NodeTextEngine | null = null
 ): NodeLayout {
   const fontSize = style.fontSize;
   const charWidth = fontSize * 0.7;
   const lineHeight = fontSize * 1.05;
 
-  const defaultInner = (parseLength(".3333em", "pt") ?? 3.333) * transformScale;
+  const defaultInner = parseLength(".3333em", "pt") ?? 3.333;
   let innerXSep = defaultInner;
   let innerYSep = defaultInner;
   let textWidth: number | null = null;
-  let minWidth = (parseLength("1pt", "pt") ?? 1) * transformScale;
-  let minHeight = (parseLength("1pt", "pt") ?? 1) * transformScale;
+  let minWidth = parseLength("1pt", "pt") ?? 1;
+  let minHeight = parseLength("1pt", "pt") ?? 1;
   let minSize: number | null = null;
 
   let outerSep = style.lineWidth / 2;
@@ -37,39 +37,38 @@ export function resolveNodeLayout(
       if (entry.key === "inner sep") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          const scaled = parsed * transformScale;
-          innerXSep = scaled;
-          innerYSep = scaled;
+          innerXSep = parsed;
+          innerYSep = parsed;
         }
       } else if (entry.key === "inner xsep") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          innerXSep = parsed * transformScale;
+          innerXSep = parsed;
         }
       } else if (entry.key === "inner ysep") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          innerYSep = parsed * transformScale;
+          innerYSep = parsed;
         }
       } else if (entry.key === "text width") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          textWidth = Math.max(0, parsed * transformScale);
+          textWidth = Math.max(0, parsed);
         }
       } else if (entry.key === "minimum width") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          minWidth = Math.max(0, parsed * transformScale);
+          minWidth = Math.max(0, parsed);
         }
       } else if (entry.key === "minimum height") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          minHeight = Math.max(0, parsed * transformScale);
+          minHeight = Math.max(0, parsed);
         }
       } else if (entry.key === "minimum size") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          minSize = Math.max(0, parsed * transformScale);
+          minSize = Math.max(0, parsed);
         }
       } else if (entry.key === "outer sep") {
         const normalized = normalizeOptionValue(entry.valueRaw).toLowerCase();
@@ -78,18 +77,18 @@ export function resolveNodeLayout(
         } else {
           const parsed = parseLength(entry.valueRaw, "pt");
           if (parsed != null) {
-            outerSep = parsed * transformScale;
+            outerSep = parsed;
           }
         }
       } else if (entry.key === "outer xsep") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          outerXSep = parsed * transformScale;
+          outerXSep = parsed;
         }
       } else if (entry.key === "outer ysep") {
         const parsed = parseLength(entry.valueRaw, "pt");
         if (parsed != null) {
-          outerYSep = parsed * transformScale;
+          outerYSep = parsed;
         }
       }
     }

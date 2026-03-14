@@ -65,6 +65,7 @@ export type NamedNodeGeometry = {
     | "double arrow"
     | "coordinate";
   center: Point;
+  anchorTransform?: Matrix2D;
   anchorHalfWidth: number;
   anchorHalfHeight: number;
   anchorRadius: number;

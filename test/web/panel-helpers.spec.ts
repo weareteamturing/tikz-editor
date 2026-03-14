@@ -261,4 +261,55 @@ describe("hit region and selection integrity", () => {
     expect(selections).toHaveLength(1);
     expect(selections[0]?.sourceId).toBe("path:2");
   });
+
+  it("applies affine transforms to path hit regions", () => {
+    const source = String.raw`\tikz \node[draw,xscale=0.6,minimum width=100pt] at (0.78,-2.26) {Hello};`;
+    const rendered = renderTikzToSvg(source);
+    const regions = buildHitRegions(rendered.semantic.scene.elements, rendered.svg.viewBox, 1);
+    const pathRegion = regions.find((region): region is Extract<HitRegion, { shape: "path" }> => region.shape === "path");
+    expect(pathRegion).toBeDefined();
+    if (!pathRegion) {
+      return;
+    }
+    expect(pathRegion.transform).toBeDefined();
+    if (!pathRegion.transform) {
+      return;
+    }
+    expect(pathRegion.transform.a).toBeCloseTo(0.6, 3);
+    expect(pathRegion.transform.d).toBeCloseTo(1, 3);
+  });
+
+  it("applies node affine transforms when collecting selection bounds", () => {
+    const baseSource = String.raw`\tikz \node[draw,minimum width=100pt] (C) at (0.78,-2.26) {Hello};`;
+    const scaledSource = String.raw`\tikz \node[draw,xscale=0.6,minimum width=100pt] (C) at (0.78,-2.26) {Hello};`;
+
+    const baseRendered = renderTikzToSvg(baseSource);
+    const scaledRendered = renderTikzToSvg(scaledSource);
+
+    const baseSourceId = baseRendered.semantic.scene.elements.find((element) => !element.adornment)?.sourceRef.sourceId;
+    const scaledSourceId = scaledRendered.semantic.scene.elements.find((element) => !element.adornment)?.sourceRef.sourceId;
+    expect(baseSourceId).toBeDefined();
+    expect(scaledSourceId).toBeDefined();
+    if (!baseSourceId || !scaledSourceId) {
+      return;
+    }
+
+    const baseBounds = collectSelectionBounds(baseRendered.semantic.scene.elements, new Set([baseSourceId]), baseRendered.svg.viewBox)[0]
+      ?.bounds;
+    const scaledBounds = collectSelectionBounds(
+      scaledRendered.semantic.scene.elements,
+      new Set([scaledSourceId]),
+      scaledRendered.svg.viewBox
+    )[0]?.bounds;
+
+    expect(baseBounds).toBeDefined();
+    expect(scaledBounds).toBeDefined();
+    if (!baseBounds || !scaledBounds) {
+      return;
+    }
+
+    const baseWidth = baseBounds.maxX - baseBounds.minX;
+    const scaledWidth = scaledBounds.maxX - scaledBounds.minX;
+    expect(scaledWidth / baseWidth).toBeCloseTo(0.6, 1);
+  });
 });

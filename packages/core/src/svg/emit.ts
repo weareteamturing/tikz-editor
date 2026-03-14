@@ -1,4 +1,5 @@
 import type {
+  Matrix2D,
   ResolvedPattern,
   ResolvedStyle,
   SceneElement,
@@ -233,6 +234,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
 
   const registerDefsForElement = (element: SceneElement): void => {
     let elementBounds: ElementBounds | null = null;
+    const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
     if (element.kind === "Path") {
       if (!hasDrawablePathCommands(element.commands)) {
         return;
@@ -246,6 +248,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         return;
       }
       elementBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+      if (elementBounds && svgElementTransform) {
+        elementBounds = transformBounds(elementBounds, svgElementTransform);
+      }
     } else if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
       elementBounds = {
@@ -254,9 +259,15 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         maxX: center.x + element.radius,
         maxY: center.y + element.radius
       };
+      if (svgElementTransform) {
+        elementBounds = transformBounds(elementBounds, svgElementTransform);
+      }
     } else if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
       elementBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+      if (svgElementTransform) {
+        elementBounds = transformBounds(elementBounds, svgElementTransform);
+      }
     } else if (element.kind === "Text") {
       return;
     }
@@ -293,7 +304,12 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
       if (shaftHasDrawableSegment) {
         const d = encodePathData(renderedPath.shaftCommands, viewBox);
         if (d.length > 0) {
-          const pathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+          const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
+          const rawPathBounds = computePathBounds(renderedPath.shaftCommands, viewBox);
+          if (!rawPathBounds) {
+            continue;
+          }
+          const pathBounds = svgElementTransform ? transformBounds(rawPathBounds, svgElementTransform) : rawPathBounds;
           emitShadowPathPart({
             appendPart,
             sourceId: element.sourceRef.sourceId,
@@ -312,6 +328,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
               lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
               fill: outerFill ?? undefined
             });
+            if (svgElementTransform) {
+              outerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+            }
             appendPart(
               `${element.id}:shaft:outer`,
               element.sourceRef.sourceId,
@@ -323,6 +342,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
               fill: "none",
               lineWidth: element.style.doubleDistance
             });
+            if (svgElementTransform) {
+              innerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+            }
             appendPart(
               `${element.id}:shaft:inner`,
               element.sourceRef.sourceId,
@@ -334,6 +356,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
             const attrs = styleAttributes(element.style, false, {
               fill: resolvedFill ?? undefined
             });
+            if (svgElementTransform) {
+              attrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+            }
             appendPart(
               `${element.id}:shaft`,
               element.sourceRef.sourceId,
@@ -350,6 +375,10 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           continue;
         }
         const attrs = arrowTipAttributes(element.style, tipPath);
+        const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
+        if (svgElementTransform) {
+          attrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+        }
         appendPart(
           `${element.id}:tip:${tipPath.side}:${tipPath.index}:${tipPath.tipKind}:${tipPath.bend ? "bend" : "flat"}`,
           element.sourceRef.sourceId,
@@ -364,12 +393,14 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
 
     if (element.kind === "Circle") {
       const center = toSvgPoint(element.center, viewBox);
+      const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
       const circleBounds: ElementBounds = {
         minX: center.x - element.radius,
         minY: center.y - element.radius,
         maxX: center.x + element.radius,
         maxY: center.y + element.radius
       };
+      const transformedCircleBounds = svgElementTransform ? transformBounds(circleBounds, svgElementTransform) : circleBounds;
       emitShadowCircle({
         appendPart,
         sourceId: element.sourceRef.sourceId,
@@ -377,18 +408,21 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         cx: center.x,
         cy: center.y,
         radius: element.radius,
-        bounds: circleBounds,
+        bounds: transformedCircleBounds,
         shadowLayers: element.style.shadowLayers,
         baseStyle: element.style,
         resolveFillPaint,
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, circleBounds);
+        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedCircleBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
         });
+        if (svgElementTransform) {
+          outerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+        }
         appendPart(
           `${element.id}:circle:outer`,
           element.sourceRef.sourceId,
@@ -400,6 +434,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           fill: "none",
           lineWidth: element.style.doubleDistance
         });
+        if (svgElementTransform) {
+          innerAttrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+        }
         appendPart(
           `${element.id}:circle:inner`,
           element.sourceRef.sourceId,
@@ -407,10 +444,13 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<circle data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" r="${fmt(element.radius)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, circleBounds);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedCircleBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
+        if (svgElementTransform) {
+          attrs.push(`transform="${formatMatrix(svgElementTransform)}"`);
+        }
         appendPart(
           `${element.id}:circle`,
           element.sourceRef.sourceId,
@@ -423,7 +463,9 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
 
     if (element.kind === "Ellipse") {
       const center = toSvgPoint(element.center, viewBox);
+      const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
       const ellipseBounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+      const transformedEllipseBounds = svgElementTransform ? transformBounds(ellipseBounds, svgElementTransform) : ellipseBounds;
       emitShadowEllipse({
         appendPart,
         sourceId: element.sourceRef.sourceId,
@@ -433,20 +475,23 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         rx: element.rx,
         ry: element.ry,
         rotation: element.rotation ?? 0,
-        bounds: ellipseBounds,
+        bounds: transformedEllipseBounds,
         shadowLayers: element.style.shadowLayers,
         baseStyle: element.style,
         resolveFillPaint,
         ensureCircularShadowMaskDefinition
       });
       if (shouldEmitDoubleStroke(element.style)) {
-        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, ellipseBounds);
+        const outerFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedEllipseBounds);
         const outerAttrs = styleAttributes(element.style, false, {
           lineWidth: element.style.lineWidth * 2 + element.style.doubleDistance,
           fill: outerFill ?? undefined
         });
-        if (element.rotation && Math.abs(element.rotation) > 1e-6) {
-          outerAttrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
+        const outerTransforms: string[] = [];
+        if (svgElementTransform) outerTransforms.push(formatMatrix(svgElementTransform));
+        if (element.rotation && Math.abs(element.rotation) > 1e-6) outerTransforms.push(`rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})`);
+        if (outerTransforms.length > 0) {
+          outerAttrs.push(`transform="${outerTransforms.join(" ")}"`);
         }
         appendPart(
           `${element.id}:ellipse:outer`,
@@ -459,8 +504,11 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           fill: "none",
           lineWidth: element.style.doubleDistance
         });
-        if (element.rotation && Math.abs(element.rotation) > 1e-6) {
-          innerAttrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
+        const innerTransforms: string[] = [];
+        if (svgElementTransform) innerTransforms.push(formatMatrix(svgElementTransform));
+        if (element.rotation && Math.abs(element.rotation) > 1e-6) innerTransforms.push(`rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})`);
+        if (innerTransforms.length > 0) {
+          innerAttrs.push(`transform="${innerTransforms.join(" ")}"`);
         }
         appendPart(
           `${element.id}:ellipse:inner`,
@@ -469,12 +517,15 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
           `<ellipse data-source-id="${escapeAttr(element.sourceRef.sourceId)}" cx="${fmt(center.x)}" cy="${fmt(center.y)}" rx="${fmt(element.rx)}" ry="${fmt(element.ry)}" ${innerAttrs.join(" ")} />`
         );
       } else {
-        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, ellipseBounds);
+        const resolvedFill = resolveFillPaint(element.style, element.sourceRef.sourceId, transformedEllipseBounds);
         const attrs = styleAttributes(element.style, false, {
           fill: resolvedFill ?? undefined
         });
-        if (element.rotation && Math.abs(element.rotation) > 1e-6) {
-          attrs.push(`transform="rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})"`);
+        const transforms: string[] = [];
+        if (svgElementTransform) transforms.push(formatMatrix(svgElementTransform));
+        if (element.rotation && Math.abs(element.rotation) > 1e-6) transforms.push(`rotate(${fmt(-element.rotation)} ${fmt(center.x)} ${fmt(center.y)})`);
+        if (transforms.length > 0) {
+          attrs.push(`transform="${transforms.join(" ")}"`);
         }
         appendPart(
           `${element.id}:ellipse`,
@@ -491,6 +542,7 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     const textBlockHeight = element.textBlockHeight ?? Math.max(1, element.text.split("\n").length) * element.style.fontSize * 1.15;
     const rotation = element.rotation ?? 0;
     const hasRotation = Math.abs(rotation) > 1e-6;
+    const svgElementTransform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : null;
     if (element.textRenderInfo?.mode === "mathjax") {
       const rendered = opts.textEngine?.renderFromCache(element.textRenderInfo.cacheKey) ?? null;
       if (!rendered) {
@@ -505,12 +557,15 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
         const y = position.y - textBlockHeight / 2;
         const renderedViewBox = `${fmt(rendered.viewBox.x)} ${fmt(rendered.viewBox.y)} ${fmt(rendered.viewBox.width)} ${fmt(rendered.viewBox.height)}`;
         const renderedSvg = `<svg data-source-id="${escapeAttr(element.sourceRef.sourceId)}" data-text-renderer="mathjax" x="${fmt(x)}" y="${fmt(y)}" width="${fmt(textBlockWidth)}" height="${fmt(textBlockHeight)}" viewBox="${renderedViewBox}" color="${escapeAttr(textColor)}" opacity="${fmt(textOpacity)}" overflow="visible">${rendered.body}</svg>`;
-        if (hasRotation) {
+        if (hasRotation || svgElementTransform) {
+          const transforms: string[] = [];
+          if (svgElementTransform) transforms.push(formatMatrix(svgElementTransform));
+          if (hasRotation) transforms.push(`rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})`);
           appendPart(
             `${element.id}:text:mathjax:rotated`,
             element.sourceRef.sourceId,
             element.id,
-            `<g transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})">${renderedSvg}</g>`
+            `<g transform="${transforms.join(" ")}">${renderedSvg}</g>`
           );
         } else {
           appendPart(`${element.id}:text:mathjax`, element.sourceRef.sourceId, element.id, renderedSvg);
@@ -520,8 +575,11 @@ export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): Svg
     }
     const textX = alignedTextAnchorX(position.x, textBlockWidth, element.style.textAlign);
     const attrs = styleAttributes(element.style, true);
-    if (hasRotation) {
-      attrs.push(`transform="rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})"`);
+    const textTransforms: string[] = [];
+    if (svgElementTransform) textTransforms.push(formatMatrix(svgElementTransform));
+    if (hasRotation) textTransforms.push(`rotate(${fmt(-rotation)} ${fmt(position.x)} ${fmt(position.y)})`);
+    if (textTransforms.length > 0) {
+      attrs.push(`transform="${textTransforms.join(" ")}"`);
     }
     const textBody = encodeTextBody(element.text, textX, position.y);
     appendPart(
@@ -1531,6 +1589,54 @@ function toSvgPoint(point: { x: number; y: number }, viewBox: { y: number; heigh
     x: point.x,
     y: viewBox.y + viewBox.height - (point.y - viewBox.y)
   };
+}
+
+function worldTransformToSvgTransform(
+  matrix: Matrix2D,
+  viewBox: { y: number; height: number }
+): Matrix2D {
+  const k = viewBox.y + viewBox.height + viewBox.y;
+  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
+  return multiplyAffine(multiplyAffine(flip, matrix), flip);
+}
+
+function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
+  return {
+    a: left.a * right.a + left.c * right.b,
+    b: left.b * right.a + left.d * right.b,
+    c: left.a * right.c + left.c * right.d,
+    d: left.b * right.c + left.d * right.d,
+    e: left.a * right.e + left.c * right.f + left.e,
+    f: left.b * right.e + left.d * right.f + left.f
+  };
+}
+
+function formatMatrix(matrix: Matrix2D): string {
+  return `matrix(${fmt(matrix.a)} ${fmt(matrix.b)} ${fmt(matrix.c)} ${fmt(matrix.d)} ${fmt(matrix.e)} ${fmt(matrix.f)})`;
+}
+
+function transformBounds(bounds: ElementBounds, transform: Matrix2D): ElementBounds {
+  const corners = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY }
+  ];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const point of corners) {
+    const mapped = {
+      x: transform.a * point.x + transform.c * point.y + transform.e,
+      y: transform.b * point.x + transform.d * point.y + transform.f
+    };
+    minX = Math.min(minX, mapped.x);
+    minY = Math.min(minY, mapped.y);
+    maxX = Math.max(maxX, mapped.x);
+    maxY = Math.max(maxY, mapped.y);
+  }
+  return { minX, minY, maxX, maxY };
 }
 
 function fmt(value: number): string {

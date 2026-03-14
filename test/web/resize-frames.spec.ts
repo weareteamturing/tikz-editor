@@ -115,6 +115,23 @@ describe("resize frame geometry", () => {
     expect(isAabbCorner).toBe(false);
   });
 
+  it("applies node affine transforms to node resize-frame geometry", () => {
+    const baseSource = String.raw`\tikz \node[draw,minimum width=100pt] at (0.78,-2.26) {Hello};`;
+    const scaledSource = String.raw`\tikz \node[draw,xscale=0.6,minimum width=100pt] at (0.78,-2.26) {Hello};`;
+
+    const baseFrame = resolveFrame(baseSource, "path:0");
+    const scaledFrame = resolveFrame(scaledSource, "path:0");
+    expect(baseFrame).not.toBeNull();
+    expect(scaledFrame).not.toBeNull();
+    if (!baseFrame || !scaledFrame) {
+      return;
+    }
+
+    const baseWidth = baseFrame.boundsSvg.maxX - baseFrame.boundsSvg.minX;
+    const scaledWidth = scaledFrame.boundsSvg.maxX - scaledFrame.boundsSvg.minX;
+    expect(scaledWidth / baseWidth).toBeCloseTo(0.6, 1);
+  });
+
   it("ignores label and pin adornments when resolving node resize frames", () => {
     const plainSource = String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {C};

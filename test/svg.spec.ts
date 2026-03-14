@@ -606,7 +606,8 @@ describe("svg emitter", () => {
     const emitted = emitSvg(semantic.scene);
 
     expect(emitted.svg).toContain('font-style="italic"');
-    expect(emitted.svg).toContain('font-size="29.8879"');
+    expect(emitted.svg).toContain('font-size="9.9626"');
+    expect(emitted.svg).toMatch(/<text[^>]*transform="matrix\(3 0 0 3 /);
   });
 
   it("emits rotated node text for scope rotation with transform shape", () => {
@@ -618,7 +619,7 @@ describe("svg emitter", () => {
     const semantic = evaluateTikzFigure(parsed.figure, source);
     const emitted = emitSvg(semantic.scene);
 
-    expect(emitted.svg).toMatch(/<text[^>]*transform="rotate\(-40 [^\"]+\)"/);
+    expect(emitted.svg).toMatch(/<text[^>]*transform="matrix\(0\.766 -0\.6428 0\.6428 0\.766 /);
   });
 
   it("rotates drawn node geometry together with node text", () => {
@@ -635,16 +636,88 @@ describe("svg emitter", () => {
     );
     expect(box?.kind).toBe("Path");
     if (box?.kind === "Path") {
-      const move = box.commands[0];
-      const line = box.commands[1];
-      expect(move?.kind).toBe("M");
-      expect(line?.kind).toBe("L");
-      if (move?.kind === "M" && line?.kind === "L") {
-        expect(Math.abs(line.to.y - move.to.y)).toBeGreaterThan(1e-3);
+      expect(box.transform).toBeDefined();
+      if (box.transform) {
+        expect(Math.abs(box.transform.b)).toBeGreaterThan(1e-3);
+        expect(Math.abs(box.transform.c)).toBeGreaterThan(1e-3);
       }
     }
 
-    expect(emitted.svg).toMatch(/<text[^>]*transform="rotate\(-30 [^\"]+\)"/);
+    expect(emitted.svg).toContain('transform="matrix(');
+  });
+
+  it("applies node-local xscale to both node box and node text via affine transform", () => {
+    const source = String.raw`\tikz \node[draw,minimum width=100pt,xscale=0.1] at (0,0) {Hello};`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const emitted = emitSvg(semantic.scene);
+
+    const box = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    const text = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.id.startsWith("scene-text:")
+    );
+
+    expect(box?.transform).toBeDefined();
+    expect(text?.transform).toBeDefined();
+    if (box?.transform && text?.transform) {
+      expect(box.transform.a).toBeCloseTo(0.1, 3);
+      expect(box.transform.d).toBeCloseTo(1, 3);
+      expect(text.transform.a).toBeCloseTo(0.1, 3);
+      expect(text.transform.d).toBeCloseTo(1, 3);
+    }
+    expect(emitted.svg).toMatch(/transform="matrix\(0\.1 0 0 1 /);
+  });
+
+  it("supports mixed node-local anisotropic scale for node geometry and text", () => {
+    const source = String.raw`\tikz \node[draw,xscale=0.5,yscale=2] at (0,0) {A};`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+
+    const box = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    const text = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.id.startsWith("scene-text:")
+    );
+
+    expect(box?.transform).toBeDefined();
+    expect(text?.transform).toBeDefined();
+    if (box?.transform && text?.transform) {
+      expect(box.transform.a).toBeCloseTo(0.5, 3);
+      expect(box.transform.d).toBeCloseTo(2, 3);
+      expect(text.transform.a).toBeCloseTo(0.5, 3);
+      expect(text.transform.d).toBeCloseTo(2, 3);
+    }
+  });
+
+  it("supports node-local cm and xslant transforms as affine matrices", () => {
+    const source = String.raw`\tikz \node[draw,cm={1,0.2,0.3,1,(4pt,5pt)},xslant=0.1] at (0,0) {A};`;
+    const parsed = parseTikz(source);
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+
+    const box = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Path" }> =>
+        element.kind === "Path" && element.id.startsWith("scene-node-box:")
+    );
+    const text = semantic.scene.elements.find(
+      (element): element is Extract<(typeof semantic.scene.elements)[number], { kind: "Text" }> =>
+        element.kind === "Text" && element.id.startsWith("scene-text:")
+    );
+
+    expect(box?.transform).toBeDefined();
+    expect(text?.transform).toBeDefined();
+    if (box?.transform && text?.transform) {
+      expect(Math.abs(box.transform.b)).toBeGreaterThan(1e-3);
+      expect(Math.abs(box.transform.c)).toBeGreaterThan(1e-3);
+      expect(Math.abs(text.transform.b)).toBeGreaterThan(1e-3);
+      expect(Math.abs(text.transform.c)).toBeGreaterThan(1e-3);
+    }
   });
 
   it("emits scaled font-size attributes for node font commands", () => {

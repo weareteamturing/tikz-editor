@@ -1068,6 +1068,26 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum height=40pt");
   });
 
+  it("maps visual drag through inverse node transform when resizing transformed nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,xscale=0.1] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "right",
+      newWorld: { x: 30, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    const match = /minimum width=([0-9.]+)pt/.exec(result.newSource);
+    expect(match).not.toBeNull();
+    const width = match ? Number(match[1]) : Number.NaN;
+    expect(width).toBeGreaterThan(200);
+  });
+
   it("removes the full option list when resize drops the last minimum constraints", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[minimum width=100pt,minimum height=80pt] at (0,0) {A};

@@ -4,6 +4,7 @@ import { parseCoordinateLike, parseLength } from "tikz-editor/semantic/coords/pa
 import type { OptionListAst } from "tikz-editor/options/types";
 import type {
   EditHandle,
+  Matrix2D,
   Point,
   SceneElement,
   ScenePath,
@@ -186,25 +187,29 @@ export function resolveBoundsEdgePointToward(bounds: Bounds, from: Point): Point
 
 export function elementBoundsInSvg(element: SceneElement, viewBox: SvgViewBox): Bounds | null {
   if (element.kind === "Path") {
-    return pathBoundsInSvg(element, viewBox);
+    const bounds = pathBoundsInSvg(element, viewBox);
+    return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
   }
 
   if (element.kind === "Circle") {
     const center = worldToSvgPoint(element.center, viewBox);
-    return {
+    const bounds = {
       minX: center.x - element.radius,
       maxX: center.x + element.radius,
       minY: center.y - element.radius,
       maxY: center.y + element.radius
     };
+    return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
   }
 
   if (element.kind === "Ellipse") {
     const center = worldToSvgPoint(element.center, viewBox);
-    return computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+    const bounds = computeEllipseBounds(center.x, center.y, element.rx, element.ry, element.rotation ?? 0);
+    return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
   }
 
-  return textBounds(element, viewBox);
+  const bounds = textBounds(element, viewBox);
+  return applyElementTransformToSvgBounds(bounds, element.transform, viewBox);
 }
 
 export function textBounds(element: SceneText, viewBox: SvgViewBox): Bounds {
@@ -329,6 +334,67 @@ export function mergeBounds(a: Bounds, b: Bounds): Bounds {
     maxX: Math.max(a.maxX, b.maxX),
     maxY: Math.max(a.maxY, b.maxY)
   };
+}
+
+function applyElementTransformToSvgBounds(
+  bounds: Bounds | null,
+  transform: Matrix2D | undefined,
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): Bounds | null {
+  if (!bounds) {
+    return null;
+  }
+  if (!transform) {
+    return bounds;
+  }
+  const svgTransform = worldTransformToSvgTransform(transform, viewBox);
+  return transformBounds(bounds, svgTransform);
+}
+
+function worldTransformToSvgTransform(
+  matrix: Matrix2D,
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): Matrix2D {
+  const k = viewBox.y + viewBox.height + viewBox.y;
+  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
+  return multiplyAffine(multiplyAffine(flip, matrix), flip);
+}
+
+function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
+  return {
+    a: left.a * right.a + left.c * right.b,
+    b: left.b * right.a + left.d * right.b,
+    c: left.a * right.c + left.c * right.d,
+    d: left.b * right.c + left.d * right.d,
+    e: left.a * right.e + left.c * right.f + left.e,
+    f: left.b * right.e + left.d * right.f + left.f
+  };
+}
+
+function transformBounds(bounds: Bounds, transform: Matrix2D): Bounds {
+  const corners = [
+    { x: bounds.minX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.minY },
+    { x: bounds.maxX, y: bounds.maxY },
+    { x: bounds.minX, y: bounds.maxY }
+  ];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const point of corners) {
+    const mapped = {
+      x: transform.a * point.x + transform.c * point.y + transform.e,
+      y: transform.b * point.x + transform.d * point.y + transform.f
+    };
+    minX = Math.min(minX, mapped.x);
+    minY = Math.min(minY, mapped.y);
+    maxX = Math.max(maxX, mapped.x);
+    maxY = Math.max(maxY, mapped.y);
+  }
+
+  return { minX, minY, maxX, maxY };
 }
 
 export function selectionAnchorRatioFromPoint(bounds: Bounds, point: Point): { x: number; y: number } {

@@ -1,4 +1,4 @@
-import type { SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
+import type { Matrix2D, SceneElement, ScenePathCommand, SceneText } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 
 const HIT_STROKE_PX = 18;
@@ -11,6 +11,7 @@ export type HitRegion =
       sourceId: string;
       targetId: string;
       d: string;
+      transform?: Matrix2D;
       pointerMode: "stroke" | "fill";
       strokeWidth: number;
     }
@@ -66,12 +67,14 @@ export function buildHitRegions(elements: SceneElement[], viewBox: SvgViewBox, s
       const d = encodePathData(element.commands, viewBox);
       if (!d) continue;
       const filled = hasVisibleFill(element.style.fill);
+      const transform = element.transform ? worldTransformToSvgTransform(element.transform, viewBox) : undefined;
       regions.push({
         shape: "path",
         key: `hit:${element.id}`,
         sourceId,
         targetId: element.adornment?.targetId ?? sourceId,
         d,
+        transform,
         pointerMode: filled ? "fill" : "stroke",
         strokeWidth
       });
@@ -234,4 +237,24 @@ function encodePathData(commands: ScenePathCommand[], viewBox: Pick<SvgViewBox, 
 
 function fmt(value: number): string {
   return Number(value.toFixed(4)).toString();
+}
+
+function worldTransformToSvgTransform(
+  matrix: Matrix2D,
+  viewBox: Pick<SvgViewBox, "y" | "height">
+): Matrix2D {
+  const k = viewBox.y + viewBox.height + viewBox.y;
+  const flip: Matrix2D = { a: 1, b: 0, c: 0, d: -1, e: 0, f: k };
+  return multiplyAffine(multiplyAffine(flip, matrix), flip);
+}
+
+function multiplyAffine(left: Matrix2D, right: Matrix2D): Matrix2D {
+  return {
+    a: left.a * right.a + left.c * right.b,
+    b: left.b * right.a + left.d * right.b,
+    c: left.a * right.c + left.c * right.d,
+    d: left.b * right.c + left.d * right.d,
+    e: left.a * right.e + left.c * right.f + left.e,
+    f: left.b * right.e + left.d * right.f + left.f
+  };
 }

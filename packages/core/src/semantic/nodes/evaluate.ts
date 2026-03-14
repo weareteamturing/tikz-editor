@@ -7,7 +7,7 @@ import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
 import { resolveNodePositioningTarget } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
-import type { Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
+import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
 import { expandOptionListMacros } from "../style/macro-options.js";
 import { resolveContextDelta } from "../style/resolve.js";
@@ -52,12 +52,10 @@ import { adjustNodeLayoutForShape, resolveNodeLayout } from "./layout.js";
 import { evaluateMatrixNodeItem, resolveMatrixMode } from "./matrix.js";
 import { collectScopedNodeNames } from "./named-coordinates.js";
 import {
-  computeTransformRotation,
-  computeTransformScale,
   resolveEffectiveNodeOptions,
   resolveNodeAnchor,
   resolveNodeLayer,
-  resolveNodeOptionScale,
+  resolveNodeOptionTransform,
   resolveNodeStyle,
   resolveNodeShape,
   withDefaultNodePosition
@@ -67,6 +65,7 @@ import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeEscapedTextSpaces } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
+import { identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
 
 export type NodeAnchorExtents = {
   left: number;
@@ -134,11 +133,8 @@ export function measureNodeAnchorExtents(
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
 
-  const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
   const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
-  const nodeOptionScale = resolveNodeOptionScale(expandedNodeLocalOptions, style, context);
-  const transformScale = inheritedTransformScale * nodeOptionScale;
 
   const nodeDecorationBaseStyle: ResolvedStyle = {
     ...style,
@@ -150,14 +146,14 @@ export function measureNodeAnchorExtents(
     decorationPreActions: [],
     decorationPostActions: []
   };
-  const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, transformScale);
+  const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, 1);
   const nodeShape = resolveNodeShape(expandedNodeOptions);
   const expandedNodeText = expandMacroBindings(item.text, frame.macroBindings, {
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
   const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
-  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, transformScale, context.textEngine);
+  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, 1, context.textEngine);
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const anchor = resolveNodeAnchor(expandedNodeOptions);
   const directionalExtents = resolveDirectionalAnchorExtents(anchor, nodeLayout.anchorHalfWidth, nodeLayout.anchorHalfHeight);
@@ -256,11 +252,8 @@ export function evaluateNodeItem(
     everySingleArrowNodeStyles: frame.everySingleArrowNodeStyles,
     everyDoubleArrowNodeStyles: frame.everyDoubleArrowNodeStyles
   });
-  const inheritedTransformScale = frame.transformShape ? computeTransformScale(frame.transform) : 1;
   const expandedNodeOptions = expandNodePlacementOptions(effectiveNodeOptions, context);
   const expandedNodeLocalOptions = expandNodePlacementOptions(effectiveNodeLocalOptions, context);
-  const nodeOptionScale = resolveNodeOptionScale(expandedNodeLocalOptions, style, context);
-  const transformScale = inheritedTransformScale * nodeOptionScale;
   const nodeDecorationBaseStyle: ResolvedStyle = {
     ...style,
     decoration: {
@@ -271,7 +264,7 @@ export function evaluateNodeItem(
     decorationPreActions: [],
     decorationPostActions: []
   };
-  const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, transformScale);
+  const nodeLocalStyle = resolveNodeStyle(expandedNodeLocalOptions, nodeDecorationBaseStyle, context, 1);
   const nodeShape = resolveNodeShape(expandedNodeOptions);
   const nodeStyleTrace = resolveNodeStyleTrace({
     item,
@@ -281,7 +274,7 @@ export function evaluateNodeItem(
     baseStyleChain: effectiveBaseStyleChain,
     nodeShape,
     nodeOptions,
-    transformScale
+    transformScale: 1
   });
   const nodeStyle = nodeStyleTrace.style;
   const nodeStyleChain = nodeStyleTrace.chain;
@@ -314,7 +307,7 @@ export function evaluateNodeItem(
       nodeStyleChain,
       effectiveNodeOptions,
       effectiveNodeLocalOptions,
-      inheritedTransformScale,
+      inheritedTransformScale: 1,
       resolvedPositioning,
       fallbackAnchor: resolvedPositioning.anchorOverride ?? anchor,
       evaluateNestedNode: (matrixCellItem, defaultTargetPoint) =>
@@ -334,26 +327,26 @@ export function evaluateNodeItem(
     });
   }
 
-  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, transformScale, context.textEngine);
+  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, 1, context.textEngine);
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
-  const optionRotation = resolveNodeOptionRotation(expandedNodeOptions);
-  const localTextRotation =
-    optionRotation != null && slopedRotation != null
-      ? optionRotation + slopedRotation
-      : (optionRotation ?? slopedRotation ?? 0);
-  const inheritedTextRotation = frame.transformShape ? computeTransformRotation(frame.transform) : 0;
-  const combinedTextRotation = localTextRotation + inheritedTextRotation;
-  const textRotation = Math.abs(combinedTextRotation) > 1e-6 ? combinedTextRotation : undefined;
-  const nodeShapeRotation = textRotation ?? 0;
+  const inheritedNodeTransform: Matrix2D = frame.transformShape
+    ? { a: frame.transform.a, b: frame.transform.b, c: frame.transform.c, d: frame.transform.d, e: 0, f: 0 }
+    : identityMatrix();
+  const nodeOptionTransform = resolveNodeOptionTransform(expandedNodeLocalOptions, style, context);
+  const baseNodeTransform = multiplyMatrix(inheritedNodeTransform, nodeOptionTransform);
+  const nodeTransform =
+    slopedRotation != null && Math.abs(slopedRotation) > 1e-6
+      ? multiplyMatrix(baseNodeTransform, rotationMatrix(slopedRotation))
+      : baseNodeTransform;
   const center = placeNodeCenter(
     resolvedPositioning.anchorPoint,
     nodeShape,
     nodeLayout,
     resolvedPositioning.anchorOverride ?? anchor,
     expandedNodeOptions,
-    textRotation ?? 0
+    nodeTransform
   );
   const setNames = collectSetNames(expandedNodeOptions);
   let scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
@@ -362,14 +355,16 @@ export function evaluateNodeItem(
   }
 
   for (const name of scopedNames) {
-    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, textRotation ?? 0, statement.id);
+    registerNamedNodeAnchors(context, name, center, nodeShape, nodeLayout, expandedNodeOptions, nodeTransform, statement.id);
   }
   registerNodeSetMembership(scopedNames, setNames, context);
 
+  const nodeElementTransform = resolveNodeElementTransform(center, nodeTransform);
   const nodeElements: SceneElement[] = [];
   const pushNodeElement = (element: SceneElement): void => {
-    const rotatedElement = rotateNodeElementGeometry(element, center, nodeShapeRotation);
+    const rotatedElement = rotateNodeElementGeometry(element, center, 0);
     rotatedElement.styleChain = cloneStyleChain(nodeStyleChain);
+    rotatedElement.transform = nodeElementTransform;
     nodeElements.push(rotatedElement);
   };
   const explicitPaintMode = resolveNodeBoxPaintMode(expandedNodeLocalOptions);
@@ -782,7 +777,7 @@ export function evaluateNodeItem(
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
         nodeLayout.textRenderInfo,
-        textRotation,
+        undefined,
         undefined,
         item.textSpan,
         hasTextWidthOption(expandedNodeOptions)
@@ -1200,24 +1195,6 @@ function hasSlopedOption(options: NodeItem["options"]): boolean {
   return sloped;
 }
 
-function resolveNodeOptionRotation(options: NodeItem["options"]): number | null {
-  if (!options) {
-    return null;
-  }
-
-  let rotation: number | null = null;
-  for (const entry of options.entries) {
-    if (entry.kind !== "kv" || entry.key !== "rotate") {
-      continue;
-    }
-    const parsed = Number(normalizeOptionValue(entry.valueRaw));
-    if (Number.isFinite(parsed)) {
-      rotation = parsed;
-    }
-  }
-  return rotation;
-}
-
 function allowsUpsideDown(options: NodeItem["options"]): boolean {
   if (!options) {
     return false;
@@ -1397,6 +1374,29 @@ function normalizeColorAliasKey(raw: string): string | null {
     return null;
   }
   return trimmed;
+}
+
+function resolveNodeElementTransform(center: Point, nodeTransform: Matrix2D): Matrix2D | undefined {
+  const hasLinear =
+    Math.abs(nodeTransform.a - 1) > 1e-9 ||
+    Math.abs(nodeTransform.b) > 1e-9 ||
+    Math.abs(nodeTransform.c) > 1e-9 ||
+    Math.abs(nodeTransform.d - 1) > 1e-9;
+  const hasTranslation = Math.abs(nodeTransform.e) > 1e-9 || Math.abs(nodeTransform.f) > 1e-9;
+  if (!hasLinear && !hasTranslation) {
+    return undefined;
+  }
+
+  const e = center.x - nodeTransform.a * center.x - nodeTransform.c * center.y + nodeTransform.e;
+  const f = center.y - nodeTransform.b * center.x - nodeTransform.d * center.y + nodeTransform.f;
+  return {
+    a: nodeTransform.a,
+    b: nodeTransform.b,
+    c: nodeTransform.c,
+    d: nodeTransform.d,
+    e,
+    f
+  };
 }
 
 function rotateNodeElementGeometry(element: SceneElement, center: Point, rotation: number): SceneElement {

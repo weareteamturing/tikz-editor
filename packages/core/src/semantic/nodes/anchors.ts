@@ -4,7 +4,8 @@ import {
   writeNamedNodeGeometry,
   type SemanticContext
 } from "../context.js";
-import type { Point } from "../types.js";
+import type { Matrix2D, Point } from "../types.js";
+import { applyMatrix, identityMatrix } from "../transform.js";
 import {
   makeCircularSector,
   makeCloud,
@@ -38,10 +39,10 @@ export function placeNodeCenter(
   layout: NodeLayout,
   anchor: string,
   options: OptionListAst | undefined = undefined,
-  anchorRotation = 0
+  nodeTransform: Matrix2D = identityMatrix()
 ): Point {
   const rawOffset = nodeAnchorOffset(shape, layout, anchor, options);
-  const offset = Math.abs(anchorRotation) > 1e-6 ? rotatePoint(rawOffset, anchorRotation) : rawOffset;
+  const offset = applyMatrix(nodeTransform, rawOffset);
   return {
     x: target.x - offset.x,
     y: target.y - offset.y
@@ -989,16 +990,6 @@ function circleHorizontalOffsetAtY(radius: number, y: number, direction: -1 | 1)
   return direction < 0 ? -xMagnitude : xMagnitude;
 }
 
-function rotatePoint(point: Point, degrees: number): Point {
-  const radians = (degrees * Math.PI) / 180;
-  const cos = Math.cos(radians);
-  const sin = Math.sin(radians);
-  return {
-    x: point.x * cos - point.y * sin,
-    y: point.x * sin + point.y * cos
-  };
-}
-
 function anchorSizingWithOuter(layout: NodeLayout): {
   naturalWidth: number;
   naturalHeight: number;
@@ -1020,12 +1011,17 @@ export function registerNamedNodeAnchors(
   shape: NodeShape,
   layout: NodeLayout,
   options: OptionListAst | undefined = undefined,
-  nodeRotation = 0,
+  nodeTransform: Matrix2D = identityMatrix(),
   producerSourceId?: string
 ): void {
   const shapeGeometry = resolveNodeShapeGeometryParams(options);
   let anchorPolygon = resolveAnchorPolygon(shape, layout, shapeGeometry);
-  if (!anchorPolygon && Math.abs(nodeRotation) > 1e-6) {
+  const needsFallbackPolygon =
+    Math.abs(nodeTransform.a - 1) > 1e-6 ||
+    Math.abs(nodeTransform.b) > 1e-6 ||
+    Math.abs(nodeTransform.c) > 1e-6 ||
+    Math.abs(nodeTransform.d - 1) > 1e-6;
+  if (!anchorPolygon && needsFallbackPolygon) {
     if (shape === "rectangle") {
       anchorPolygon = [
         { x: -layout.anchorHalfWidth, y: layout.anchorHalfHeight },
@@ -1039,16 +1035,28 @@ export function registerNamedNodeAnchors(
       anchorPolygon = makeEllipseAnchorPolygon(layout.anchorHalfWidth, layout.anchorHalfHeight);
     }
   }
-  if (anchorPolygon && Math.abs(nodeRotation) > 1e-6) {
-    anchorPolygon = anchorPolygon.map((point) => rotatePoint(point, nodeRotation));
+  if (anchorPolygon) {
+    anchorPolygon = anchorPolygon.map((point) => applyMatrix(nodeTransform, point));
   }
+  const transformedCenter = {
+    x: center.x + nodeTransform.e,
+    y: center.y + nodeTransform.f
+  };
 
   writeNamedNodeGeometry(
     context,
     name,
     {
       shape,
-      center,
+      center: transformedCenter,
+      anchorTransform: {
+        a: nodeTransform.a,
+        b: nodeTransform.b,
+        c: nodeTransform.c,
+        d: nodeTransform.d,
+        e: 0,
+        f: 0
+      },
       anchorHalfWidth: layout.anchorHalfWidth,
       anchorHalfHeight: layout.anchorHalfHeight,
       anchorRadius: layout.anchorRadius,
@@ -1252,10 +1260,10 @@ export function registerNamedNodeAnchors(
   }
 
   for (const [anchor, offset] of Object.entries(offsets)) {
-    const rotatedOffset = Math.abs(nodeRotation) > 1e-6 ? rotatePoint(offset, nodeRotation) : offset;
+    const transformedOffset = applyMatrix(nodeTransform, offset);
     const point = {
-      x: center.x + rotatedOffset.x,
-      y: center.y + rotatedOffset.y
+      x: center.x + transformedOffset.x,
+      y: center.y + transformedOffset.y
     };
     if (anchor === "center") {
       writeNamedCoordinate(context, name, point, producerSourceId);
