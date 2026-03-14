@@ -1,4 +1,5 @@
 import type { ParseTikzResult } from "tikz-editor/parser/index";
+import type { Statement } from "tikz-editor/ast/types";
 import type {
   IncrementalParseSession,
   IncrementalParseStats
@@ -284,6 +285,7 @@ async function computeSnapshotIncremental(
   let semanticResult = incremental.semantic;
   let incrementalStats = incremental.stats;
   let affectedSourceIdsForReuse = collectSvgReuseAffectedSourceIds(
+    parseResult,
     semanticResult,
     changedSourceIds,
     collectGeometryInvalidation
@@ -310,6 +312,7 @@ async function computeSnapshotIncremental(
     semanticResult = incremental.semantic;
     incrementalStats = incremental.stats;
     const dependencyAffectedSourceIds = collectSvgReuseAffectedSourceIds(
+      parseResult,
       semanticResult,
       changedSourceIds,
       collectGeometryInvalidation
@@ -373,6 +376,7 @@ function mergeSourceIds(left: string[] | null, right: string[] | null): string[]
 }
 
 function collectSvgReuseAffectedSourceIds(
+  parseResult: ParseTikzResult,
   semanticResult: EvaluateTikzResult,
   changedSourceIds: string[],
   collectGeometryInvalidation: (
@@ -389,7 +393,53 @@ function collectSvgReuseAffectedSourceIds(
   if (invalidation.affectedSourceIds.length === 0) {
     return null;
   }
-  return invalidation.affectedSourceIds;
+
+  const scopeDescendantSourceIds = collectNestedScopeSourceIds(parseResult.figure.body, changedSourceIds);
+  return mergeSourceIds(invalidation.affectedSourceIds, scopeDescendantSourceIds);
+}
+
+function collectNestedScopeSourceIds(
+  statements: readonly Statement[],
+  changedSourceIds: readonly string[]
+): string[] | null {
+  if (changedSourceIds.length === 0 || statements.length === 0) {
+    return null;
+  }
+
+  const changedSourceIdSet = new Set(changedSourceIds);
+  const nestedSourceIds = new Set<string>();
+
+  const collectStatementIds = (statement: Statement): void => {
+    nestedSourceIds.add(statement.id);
+    if (statement.kind !== "Scope") {
+      return;
+    }
+    for (const nested of statement.body) {
+      collectStatementIds(nested);
+    }
+  };
+
+  const visit = (statement: Statement): void => {
+    if (statement.kind !== "Scope") {
+      return;
+    }
+    if (changedSourceIdSet.has(statement.id)) {
+      collectStatementIds(statement);
+      return;
+    }
+    for (const nested of statement.body) {
+      visit(nested);
+    }
+  };
+
+  for (const statement of statements) {
+    visit(statement);
+  }
+
+  if (nestedSourceIds.size === 0) {
+    return null;
+  }
+  return [...nestedSourceIds].sort();
 }
 
 function buildSvgReuseHints(

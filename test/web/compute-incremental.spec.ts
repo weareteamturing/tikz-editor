@@ -325,6 +325,55 @@ describe("computeSnapshot incremental parser integration", () => {
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
+  it("keeps mixed scope descendants in sync for scope-resize SVG reuse", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \filldraw[fill=blue!20] (0,0) rectangle (1.2,-0.8);
+    \draw[fill=green!20] (2,0) circle[radius=0.45];
+    \node[draw, fill=yellow!20] at (3.2,-0.4) {A};
+  \end{scope}
+\end{tikzpicture}`;
+
+    const seeded = await computeSnapshot({
+      id: "scope-resize-mixed-seed",
+      kind: "render",
+      source,
+      activeFigureId: "figure:0"
+    });
+
+    const action = applyEditAction(source, seeded.snapshot.editHandles, {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "top-left",
+      newWorld: { x: -12, y: 10 }
+    });
+    expect(action.kind === "success" || action.kind === "partial").toBe(true);
+    if (!(action.kind === "success" || action.kind === "partial")) {
+      throw new Error(`resizeElement failed: ${action.kind}`);
+    }
+
+    const incremental = await computeSnapshot({
+      id: "scope-resize-mixed-incremental",
+      kind: "render",
+      source: action.newSource,
+      activeFigureId: seeded.snapshot.activeFigureId,
+      changedSourceIds: action.changedSourceIds ?? ["scope:0"],
+      patches: action.patches,
+      trigger: "drag-element"
+    });
+    const canonical = await computeSnapshot({
+      id: "scope-resize-mixed-canonical",
+      kind: "render",
+      source: action.newSource,
+      activeFigureId: "figure:0"
+    });
+
+    expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
+    expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
+    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
+  });
+
   it("reuses the cached parse session for unchanged-source prewarm requests", async () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
