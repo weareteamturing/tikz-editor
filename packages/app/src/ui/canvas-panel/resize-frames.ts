@@ -13,7 +13,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { applyMatrix, applyMatrixToVector } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/types";
-import { worldToSvgPoint } from "./geometry";
+import { svgToWorldPoint, worldToSvgPoint } from "./geometry";
 import type { Bounds } from "./types";
 
 export type ResizeFrameCornerRole = Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right">;
@@ -91,6 +91,39 @@ export function resolveResizeFrameForSource(
     return resolveTextResizeFrame(sourceId, textElements[0], viewBox);
   }
   return null;
+}
+
+export function resolveResizeFrameFromBounds(
+  sourceId: string,
+  bounds: Bounds,
+  viewBox: SvgViewBox
+): ResizeFrame | null {
+  const width = bounds.maxX - bounds.minX;
+  const height = bounds.maxY - bounds.minY;
+  if (!(width > EPSILON) || !(height > EPSILON)) {
+    return null;
+  }
+
+  const cornersByRoleSvg: Record<ResizeFrameCornerRole, Point> = {
+    "top-left": { x: bounds.minX, y: bounds.minY },
+    "top-right": { x: bounds.maxX, y: bounds.minY },
+    "bottom-right": { x: bounds.maxX, y: bounds.maxY },
+    "bottom-left": { x: bounds.minX, y: bounds.maxY }
+  };
+  const centerWorld = svgToWorldPoint(
+    {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2
+    },
+    viewBox
+  );
+  const cornersByRoleWorld: Record<ResizeFrameCornerRole, Point> = {
+    "top-left": svgToWorldPoint(cornersByRoleSvg["top-left"], viewBox),
+    "top-right": svgToWorldPoint(cornersByRoleSvg["top-right"], viewBox),
+    "bottom-right": svgToWorldPoint(cornersByRoleSvg["bottom-right"], viewBox),
+    "bottom-left": svgToWorldPoint(cornersByRoleSvg["bottom-left"], viewBox)
+  };
+  return buildResizeFrame(sourceId, centerWorld, cornersByRoleWorld, viewBox);
 }
 
 function resolvePathResizeFrame(

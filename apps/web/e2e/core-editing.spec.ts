@@ -4,6 +4,7 @@ import {
   clickHitRegionByTargetId,
   clickHitRegion,
   dragBetweenPoints,
+  dragLocatorBy,
   dragHitRegionByTargetId,
   focusCanvas,
   gotoApp,
@@ -28,6 +29,11 @@ test.beforeEach(async ({ page }) => {
 
 function readShiftValue(source: string, axis: "x" | "y"): number | null {
   const match = source.match(new RegExp(`${axis}shift=([-0-9.]+)pt`));
+  return match ? Number(match[1]) : null;
+}
+
+function readScaleValue(source: string, axis: "x" | "y"): number | null {
+  const match = source.match(new RegExp(`${axis}scale=([-0-9.]+)(?![a-zA-Z])`));
   return match ? Number(match[1]) : null;
 }
 
@@ -446,6 +452,128 @@ test("selected scope drag tracks cursor displacement without runaway shifts", as
   const xshiftDelta = afterXShift - beforeXShift;
   expect(Math.abs(xshiftDelta)).toBeLessThan(400);
   expect(xshiftDelta).toBeGreaterThan(0);
+});
+
+test("selected scope exposes resize handles and rewrites scale on corner drag", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => readSelectionOverlayBoxSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  expect(beforeBox).not.toBeNull();
+  if (!beforeBox) {
+    return;
+  }
+
+  const resizeHandle = page.locator("[data-handle-kind='resize-element'][data-source-id='scope:1'][data-resize-role='top-left']").first();
+  await expect(resizeHandle).toBeVisible();
+  await dragLocatorBy(page, resizeHandle, -90, -70);
+  await page.mouse.up();
+
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return currentBox.width - beforeBox.width;
+  }).toBeGreaterThan(40);
+  await expect.poll(async () => {
+    const currentBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+    if (!currentBox) {
+      return Number.NaN;
+    }
+    return currentBox.height - beforeBox.height;
+  }).toBeGreaterThan(30);
+
+  const afterSource = await readStoreSource(page);
+  const afterXScale = readScaleValue(afterSource, "x");
+  const afterYScale = readScaleValue(afterSource, "y");
+  expect(afterXScale).not.toBeNull();
+  expect(afterYScale).not.toBeNull();
+  if (afterXScale === null || afterYScale === null) {
+    return;
+  }
+  expect(afterXScale).toBeGreaterThan(1);
+  expect(afterYScale).toBeGreaterThan(1);
+});
+
+test("scope resize keeps the opposite edge visually anchored during drag", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (-3,-3) rectangle (3,3);
+  \begin{scope}
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeBox = await page.locator("[data-selection-overlay-box-source-id='scope:1']").boundingBox();
+  expect(beforeBox).not.toBeNull();
+  if (!beforeBox) {
+    return;
+  }
+
+  const resizeHandle = page.locator("[data-handle-kind='resize-element'][data-source-id='scope:1'][data-resize-role='top-right']").first();
+  await expect(resizeHandle).toBeVisible();
+
+  await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __PW_SCOPE_RESIZE_SAMPLES__?: { stop: () => Array<{ left: number; bottom: number }> };
+    };
+    const samples: Array<{ left: number; bottom: number }> = [];
+    let active = true;
+    const capture = () => {
+      if (!active) {
+        return;
+      }
+      const box = document.querySelector("[data-selection-overlay-box-source-id='scope:1']") as SVGGraphicsElement | null;
+      if (box) {
+        const rect = box.getBoundingClientRect();
+        samples.push({ left: rect.left, bottom: rect.bottom });
+      }
+      globalLike.requestAnimationFrame(capture);
+    };
+    globalLike.requestAnimationFrame(capture);
+    globalLike.__PW_SCOPE_RESIZE_SAMPLES__ = {
+      stop: () => {
+        active = false;
+        return [...samples];
+      }
+    };
+  });
+
+  await dragLocatorBy(page, resizeHandle, 110, 0);
+  await page.mouse.up();
+
+  const dragSamples = await page.evaluate(() => {
+    const globalLike = globalThis as typeof globalThis & {
+      __PW_SCOPE_RESIZE_SAMPLES__?: { stop: () => Array<{ left: number; bottom: number }> };
+    };
+    const samples = globalLike.__PW_SCOPE_RESIZE_SAMPLES__?.stop() ?? [];
+    delete globalLike.__PW_SCOPE_RESIZE_SAMPLES__;
+    return samples;
+  });
+
+  expect(dragSamples.length).toBeGreaterThan(0);
+  const maxLeftDeviation = Math.max(...dragSamples.map((sample) => Math.abs(sample.left - beforeBox.x)));
+  const maxBottomDeviation = Math.max(...dragSamples.map((sample) => Math.abs(sample.bottom - (beforeBox.y + beforeBox.height))));
+  expect(maxLeftDeviation).toBeLessThan(8);
+  expect(maxBottomDeviation).toBeLessThan(8);
 });
 
 test("selected scope drag from member area tracks cursor displacement without runaway shifts", async ({ page }) => {

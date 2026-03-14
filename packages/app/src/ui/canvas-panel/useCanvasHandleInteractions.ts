@@ -1,4 +1,5 @@
 import { useCallback, type PointerEvent as ReactPointerEvent } from "react";
+import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import { buildSnapContext } from "tikz-editor/edit/snapping";
 import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { EditHandle, Point, ScenePath } from "tikz-editor/semantic/types";
@@ -40,6 +41,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     snapSettingsPatch,
     canvasTransform,
     viewportWorldBounds,
+    resizeFramesBySource,
     setDragState,
     interactionSvgRef
   } = args;
@@ -193,13 +195,18 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       const pathShapeHint = pathElement ? resolveScenePathShapeHint(pathElement, statements, sourceId) : undefined;
       const isCircleResizeSource =
         pathShapeHint === "circle" || sourceElements.some((element: any) => element.kind === "Circle");
-      const initialFrame = resolveResizeFrameForSource(
-        snapshot.scene?.elements ?? [],
-        snapshot.editHandles,
-        sourceId,
-        svgResult.viewBox,
-        pathShapeHint
-      );
+      const initialScopeTransform = sourceId.startsWith("scope:")
+        ? resolveTransformInspectorMutationContext(source, sourceId).values
+        : null;
+      const initialFrame =
+        resizeFramesBySource?.get(sourceId) ??
+        resolveResizeFrameForSource(
+          snapshot.scene?.elements ?? [],
+          snapshot.editHandles,
+          sourceId,
+          svgResult.viewBox,
+          pathShapeHint
+        );
       if (!initialFrame) {
         setWarning("Resize tooltip needs a resolvable resize frame.");
         return;
@@ -214,7 +221,8 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
         cursor: cursor || resizeCursorForRole(role),
         preserveAspectRatio: isCircleResizeSource ? 1 : ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
         initialFrame,
-        measurementMode: pathShapeHint === "rectangle" ? "opposite-corner" : "center",
+        initialScopeTransform,
+        measurementMode: pathShapeHint === "rectangle" || sourceId.startsWith("scope:") ? "opposite-corner" : "center",
         preserveAspectDuringResize: isCircleResizeSource,
         historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
       });
@@ -230,6 +238,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       dispatch,
       interactionSvgRef,
       logSnapDebug,
+      resizeFramesBySource,
       selectedElementIds,
       setDragState,
       setSnapLines,

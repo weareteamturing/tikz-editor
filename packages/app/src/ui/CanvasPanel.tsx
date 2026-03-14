@@ -1607,6 +1607,7 @@ export function CanvasPanel() {
     snapSettingsPatch,
     canvasTransform,
     viewportWorldBounds,
+    resizeFramesBySource,
     setDragState,
     interactionSvgRef
   });

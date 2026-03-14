@@ -538,7 +538,18 @@ export function useCanvasDragController(params: {
             role: drag.role,
             newWorld: world,
             preserveAspect: event.shiftKey,
-            preserveAspectRatio: drag.preserveAspectRatio ?? undefined
+            preserveAspectRatio: drag.preserveAspectRatio ?? undefined,
+            referenceBounds: drag.elementId.startsWith("scope:")
+              ? {
+                  minX: drag.initialFrame.cornersByRole["bottom-left"].world.x,
+                  minY: drag.initialFrame.cornersByRole["bottom-left"].world.y,
+                  maxX: drag.initialFrame.cornersByRole["top-right"].world.x,
+                  maxY: drag.initialFrame.cornersByRole["top-right"].world.y
+                }
+              : undefined,
+            referenceScopeTransform: drag.elementId.startsWith("scope:")
+              ? drag.initialScopeTransform ?? undefined
+              : undefined
           },
           drag.historyMergeKey
         );

@@ -8,9 +8,42 @@ import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
+import { collectSourceWorldBounds } from "../packages/core/src/edit/snapping/geometry.js";
 import { applySourcePatches } from "../packages/core/src/edit/source-patches.js";
 
 const cm = (v: number) => v * PT_PER_CM;
+
+function mergeTestBounds(
+  left: { minX: number; minY: number; maxX: number; maxY: number },
+  right: { minX: number; minY: number; maxX: number; maxY: number }
+) {
+  return {
+    minX: Math.min(left.minX, right.minX),
+    minY: Math.min(left.minY, right.minY),
+    maxX: Math.max(left.maxX, right.maxX),
+    maxY: Math.max(left.maxY, right.maxY)
+  };
+}
+
+function scopeBodyBounds(source: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  const parsed = parseTikz(source, { recover: true });
+  const evaluated = evaluateTikzFigure(parsed.figure, source);
+  const boundsBySource = collectSourceWorldBounds(evaluated.scene.elements);
+  const scope = parsed.figure.body.find((statement) => statement.kind === "Scope");
+  if (!scope || scope.kind !== "Scope") {
+    return null;
+  }
+
+  let merged: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  for (const child of scope.body) {
+    const bounds = boundsBySource.get(child.id);
+    if (!bounds) {
+      continue;
+    }
+    merged = merged ? mergeTestBounds(merged, bounds) : bounds;
+  }
+  return merged;
+}
 
 function makeHandle(
   source: string,
@@ -1588,6 +1621,72 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("\\draw (-1,0) rectangle +(3,2);");
+  });
+
+  it("resizes scopes by rewriting scale and compensating shift", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) rectangle (2,1);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "top-left",
+      newWorld: { x: cm(-1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xscale=1.5");
+    expect(result.newSource).toContain("yscale=2");
+    const xshiftMatch = result.newSource.match(/xshift=([-0-9.]+)pt/);
+    expect(xshiftMatch).not.toBeNull();
+    expect(xshiftMatch ? Number(xshiftMatch[1]) : Number.NaN).toBeLessThan(-20);
+    expect(result.newSource).not.toContain("yshift=");
+    expect(result.changedSourceIds).toEqual(["scope:0", "path:1"]);
+  });
+
+  it("keeps the opposite scope edges fixed in semantic bounds during referenced top-right resize", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw[fill=red] (-2.5,1.5) rectangle (-0.8,-0.3);
+    \draw[fill=blue] (-2.4,0) rectangle (-0.9,-2);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const before = scopeBodyBounds(source);
+    expect(before).toBeDefined();
+    if (!before) {
+      return;
+    }
+
+    const parsed = parseTikz(source, { recover: true });
+    const evaluated = evaluateTikzFigure(parsed.figure, source);
+    const result = applyEditAction(source, evaluated.editHandles, {
+      kind: "resizeElement",
+      elementId: "scope:0",
+      role: "top-right",
+      newWorld: { x: before.maxX + cm(2), y: before.maxY },
+      referenceBounds: before,
+      referenceScopeTransform: { xscale: 1, yscale: 1, xshift: 0, yshift: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+
+    const after = scopeBodyBounds(result.newSource);
+    expect(after).toBeDefined();
+    if (!after) {
+      return;
+    }
+
+    expect(Math.abs(after.minX - before.minX)).toBeLessThan(0.5);
+    expect(Math.abs(after.minY - before.minY)).toBeLessThan(0.5);
+    expect(after.maxX).toBeGreaterThan(before.maxX);
   });
 
   it("returns unsupported for non-node elements", () => {

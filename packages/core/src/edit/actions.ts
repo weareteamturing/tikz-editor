@@ -138,6 +138,18 @@ export type EditAction =
       newWorld: Point;
       preserveAspect?: boolean;
       preserveAspectRatio?: number;
+      referenceBounds?: {
+        minX: number;
+        minY: number;
+        maxX: number;
+        maxY: number;
+      };
+      referenceScopeTransform?: {
+        xscale: number;
+        yscale: number;
+        xshift: number;
+        yshift: number;
+      };
     };
 
 export type EditActionResult =

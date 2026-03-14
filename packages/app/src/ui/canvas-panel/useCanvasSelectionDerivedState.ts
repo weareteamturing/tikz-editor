@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
+import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import type { NodeAnchorTarget, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import {
   computeVisibleRanges,
@@ -13,6 +14,7 @@ import { computeDragCapability } from "./drag-capability";
 import { deriveCurveControlLines } from "./curve-controls";
 import { buildHitRegions } from "./hit-regions";
 import { resolveResizeFrameForSource } from "./resize-frames";
+import { resolveResizeFrameFromBounds } from "./resize-frames";
 import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
 import { resolveRotateHandlePosition } from "./rotate-handle";
 import { buildScopeOverlayIndex } from "./scope-overlay";
@@ -190,13 +192,40 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return sourceIds;
   }, [matrixSourceIds, selectedHandles]);
 
+  const scopeResizeSourceIds = useMemo(() => {
+    const sourceIds = new Set<string>();
+    for (const sourceId of selectedElementIds) {
+      if (!movableScopeSourceIds.has(sourceId)) {
+        continue;
+      }
+      const transformContext = resolveTransformInspectorMutationContext(snapshot.source, sourceId);
+      if (Math.abs(transformContext.values.rotate) > 1e-6) {
+        continue;
+      }
+      const bounds = scopeOverlay.boundsByScopeId.get(sourceId);
+      if (!bounds) {
+        continue;
+      }
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      if (width <= 1e-6 || height <= 1e-6) {
+        continue;
+      }
+      sourceIds.add(sourceId);
+    }
+    return sourceIds;
+  }, [movableScopeSourceIds, scopeOverlay.boundsByScopeId, selectedElementIds, snapshot.source]);
+
   const resizeFrameSourceIds = useMemo(() => {
     const sourceIds = new Set<string>(resizablePathShapeSourceIds);
     for (const sourceId of nodeResizeSourceIds) {
       sourceIds.add(sourceId);
     }
+    for (const sourceId of scopeResizeSourceIds) {
+      sourceIds.add(sourceId);
+    }
     return sourceIds;
-  }, [nodeResizeSourceIds, resizablePathShapeSourceIds]);
+  }, [nodeResizeSourceIds, resizablePathShapeSourceIds, scopeResizeSourceIds]);
 
   const matrixSelectionSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -241,6 +270,14 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     const statements = snapshot.parseResult?.figure.body;
     for (const sourceId of resizeFrameSourceIds) {
+      if (scopeResizeSourceIds.has(sourceId)) {
+        const scopeBounds = scopeOverlay.boundsByScopeId.get(sourceId);
+        const frame = scopeBounds
+          ? resolveResizeFrameFromBounds(sourceId, scopeBounds, svgResult.viewBox)
+          : null;
+        frames.set(sourceId, frame);
+        continue;
+      }
       const path = snapshot.scene.elements.find(
         (element: any): element is ScenePath => element.sourceRef.sourceId === sourceId && element.kind === "Path"
       );
@@ -255,7 +292,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       frames.set(sourceId, frame);
     }
     return frames;
-  }, [resizeFrameSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
+  }, [resizeFrameSourceIds, scopeOverlay.boundsByScopeId, scopeResizeSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
 
   const selectionBoxes = useMemo(() => {
     const boxes = [...selectionBoxSourceIds]
@@ -430,7 +467,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     const rotateHandleSourceId =
       toolMode === "select" &&
       singleSelectedSourceId &&
-      resizeHandleSourceIds.has(singleSelectedSourceId)
+      resizeHandleSourceIds.has(singleSelectedSourceId) &&
+      !scopeResizeSourceIds.has(singleSelectedSourceId)
         ? singleSelectedSourceId
         : null;
 
@@ -601,7 +639,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
 
     return displays;
-  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode]);
+  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];

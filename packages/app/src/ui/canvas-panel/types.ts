@@ -64,6 +64,14 @@ export type DragState =
       cursor: string;
       preserveAspectRatio: number | null;
       initialFrame: ResizeFrame;
+      initialScopeTransform:
+        | {
+            xscale: number;
+            yscale: number;
+            xshift: number;
+            yshift: number;
+          }
+        | null;
       measurementMode: "center" | "opposite-corner";
       preserveAspectDuringResize: boolean;
       historyMergeKey: string;
