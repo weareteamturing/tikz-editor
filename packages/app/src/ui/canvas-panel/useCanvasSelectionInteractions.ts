@@ -1,5 +1,5 @@
 import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
-import { resolveScopeAwareSelectionTarget } from "./scope-overlay";
+import { resolveScopeAwareContextMenuTarget } from "./scope-overlay";
 
 export type UseCanvasSelectionInteractionsArgs = {
   [key: string]: any;
@@ -10,7 +10,8 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
     openCanvasContextMenuAt,
     setTextEditingSession,
     selectedElementIds,
-    scopeOverlay
+    scopeOverlay,
+    focusedScopeId
   } = args;
 
   const onElementContextMenu = useCallback(
@@ -18,17 +19,16 @@ export function useCanvasSelectionInteractions(args: UseCanvasSelectionInteracti
       event.preventDefault();
       event.stopPropagation();
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : sourceId;
-      const resolvedSourceId = resolveScopeAwareSelectionTarget({
+      const resolvedSourceId = resolveScopeAwareContextMenuTarget({
         hitTargetId: sourceId,
         hitSourceId,
         selectedSourceIds: selectedElementIds,
-        additiveSelection: false,
         scopeOverlay,
-        allowDrillDown: false
+        focusedScopeId
       });
       openCanvasContextMenuAt(event.clientX, event.clientY, resolvedSourceId, handleId ?? null);
     },
-    [openCanvasContextMenuAt, scopeOverlay, selectedElementIds]
+    [focusedScopeId, openCanvasContextMenuAt, scopeOverlay, selectedElementIds]
   );
 
   const onCanvasContextMenu = useCallback(

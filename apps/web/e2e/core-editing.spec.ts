@@ -192,7 +192,7 @@ test("canvas context menu opens and runs duplicate command", async ({ page }) =>
   await expect.poll(async () => readSource(page)).not.toEqual(sourceBefore);
 });
 
-test("group honors editor indent size and supports click drill-down to grouped children", async ({ page }) => {
+test("group honors editor indent size and supports pointer-up drill-down behavior", async ({ page }) => {
   await gotoApp(page);
   await openMenuCommand(page, "file", "file.open-settings");
   await page.getByTestId("settings-category-editor").click();
@@ -259,6 +259,7 @@ test("group honors editor indent size and supports click drill-down to grouped c
   const sourceBeforeScopeGestureDrag = await readStoreSource(page);
   await dragHitRegionByTargetId(page, "path:1", 40, -20);
   await expect.poll(async () => readStoreSource(page)).toEqual(sourceBeforeScopeGestureDrag);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
 
   await clickHitRegionByTargetId(page, "path:1");
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
@@ -271,6 +272,81 @@ test("group honors editor indent size and supports click drill-down to grouped c
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:1"]);
   await openMenuSection(page, "edit");
   await expect(page.getByTestId("menu-cmd-edit.ungroup")).toBeDisabled();
+});
+
+test("nested scope drill is outermost-first and dragging does not advance drill steps", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \begin{scope}
+      \node[draw] (A) at (0, 0) {A};
+    \end{scope}
+  \end{scope}
+  \node[draw] (B) at (3, 0) {B};
+\end{tikzpicture}`);
+
+  await focusCanvas(page);
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+
+  const beforeOuterDrag = await readStoreSource(page);
+  await dragHitRegionByTargetId(page, "path:2", 35, 0);
+  await expect.poll(async () => readStoreSource(page)).toEqual(beforeOuterDrag);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+
+  const beforeInnerDrag = await readStoreSource(page);
+  await dragHitRegionByTargetId(page, "path:2", 35, 0);
+  await expect.poll(async () => readStoreSource(page)).toEqual(beforeInnerDrag);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
+
+  await clickHitRegionByTargetId(page, "path:2");
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:2"]);
+
+  await clickHitRegionByTargetId(page, "path:2", { button: "right" });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:2"]);
+});
+
+test("child-hit-only scope targeting does not select scope on empty interior clicks", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \node[draw] (A) at (-2, 0) {A};
+    \node[draw] (B) at (2, 0) {B};
+  \end{scope}
+\end{tikzpicture}`);
+
+  await expect.poll(async () => page.locator("[data-hit-region-target-id='path:1']").count()).toBeGreaterThan(0);
+  await expect.poll(async () => page.locator("[data-hit-region-target-id='path:2']").count()).toBeGreaterThan(0);
+
+  const clickPoint = await page.evaluate(() => {
+    const left = document.querySelector("[data-hit-region-target-id='path:1']") as SVGGraphicsElement | null;
+    const right = document.querySelector("[data-hit-region-target-id='path:2']") as SVGGraphicsElement | null;
+    if (!left || !right) {
+      throw new Error("Expected node hit regions for grouped children.");
+    }
+    const leftBox = left.getBoundingClientRect();
+    const rightBox = right.getBoundingClientRect();
+    return {
+      x: (leftBox.right + rightBox.left) / 2,
+      y: (leftBox.top + leftBox.bottom + rightBox.top + rightBox.bottom) / 4
+    };
+  });
+
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        clearSelection?: () => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    api?.clearSelection?.();
+  });
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+
+  await page.mouse.click(clickPoint.x, clickPoint.y);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
 });
 
 test("selecting non-resizable multi-edge draw statements does not render an extra selection bbox", async ({ page }) => {

@@ -17,10 +17,8 @@ export type ScopeOverlayIndex = {
 export type ResolveScopeAwareSelectionTargetInput = {
   hitTargetId: string;
   hitSourceId: string;
-  selectedSourceIds: ReadonlySet<string>;
-  additiveSelection: boolean;
   scopeOverlay: ScopeOverlayIndex;
-  allowDrillDown?: boolean;
+  focusedScopeId?: string | null;
 };
 
 export function buildScopeOverlayIndex(
@@ -85,45 +83,109 @@ export function buildScopeOverlayIndex(
 export function resolveScopeAwareSelectionTarget(
   input: ResolveScopeAwareSelectionTargetInput
 ): string {
+  return resolveScopeAwarePointerDownTarget(input);
+}
+
+export function resolveScopeAwarePointerDownTarget(
+  input: ResolveScopeAwareSelectionTargetInput
+): string {
+  const { hitTargetId, hitSourceId, scopeOverlay, focusedScopeId = null } = input;
+  const ancestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
+  const outermost = resolveOutermostScopeUnderFocus(ancestorScopes, focusedScopeId);
+  return outermost ?? hitTargetId;
+}
+
+export function resolveScopeAwarePointerUpDrillTarget(input: {
+  selectedScopeId: string | null;
+  hitSourceId: string;
+  scopeOverlay: ScopeOverlayIndex;
+}): string | null {
+  const { selectedScopeId, hitSourceId, scopeOverlay } = input;
+  if (!selectedScopeId || !scopeOverlay.scopesById.has(selectedScopeId)) {
+    return null;
+  }
+  const ancestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
+  return resolveDirectChildWithinScope(selectedScopeId, hitSourceId, ancestorScopes);
+}
+
+export function resolveScopeAwareContextMenuTarget(input: {
+  hitTargetId: string;
+  hitSourceId: string;
+  selectedSourceIds: ReadonlySet<string>;
+  scopeOverlay: ScopeOverlayIndex;
+  focusedScopeId?: string | null;
+}): string {
   const {
     hitTargetId,
     hitSourceId,
     selectedSourceIds,
-    additiveSelection,
     scopeOverlay,
-    allowDrillDown = true
+    focusedScopeId = null
   } = input;
-
-  if (additiveSelection) {
-    return hitTargetId;
-  }
-
-  const ancestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
   const singleSelectedId = selectedSourceIds.size === 1 ? [...selectedSourceIds][0] ?? null : null;
+  const ancestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
+
   if (
     singleSelectedId &&
     (singleSelectedId === hitTargetId || singleSelectedId === hitSourceId)
   ) {
     return singleSelectedId;
   }
-  if (singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId)) {
-    if (!allowDrillDown) {
-      if (ancestorScopes.includes(singleSelectedId)) {
-        return singleSelectedId;
-      }
-    } else {
-      const directChild = resolveDirectChildWithinScope(singleSelectedId, hitSourceId, ancestorScopes);
-      if (directChild) {
-        return directChild;
-      }
-    }
+
+  if (singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) && ancestorScopes.includes(singleSelectedId)) {
+    return singleSelectedId;
   }
 
-  if (ancestorScopes.length > 0) {
-    return ancestorScopes[ancestorScopes.length - 1]!;
-  }
+  return resolveScopeAwarePointerDownTarget({
+    hitTargetId,
+    hitSourceId,
+    scopeOverlay,
+    focusedScopeId
+  });
+}
 
-  return hitTargetId;
+export function resolveFocusedScopeIdForSelection(
+  selectedSourceId: string,
+  scopeOverlay: ScopeOverlayIndex
+): string | null {
+  const selectedScope = scopeOverlay.scopesById.get(selectedSourceId);
+  if (selectedScope) {
+    return selectedScope.parentScopeId;
+  }
+  const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(selectedSourceId) ?? [];
+  return ancestors.length > 0 ? ancestors[ancestors.length - 1]! : null;
+}
+
+export function isSourceWithinScope(
+  scopeId: string | null | undefined,
+  sourceId: string,
+  scopeOverlay: ScopeOverlayIndex
+): boolean {
+  if (!scopeId) {
+    return false;
+  }
+  const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
+  return ancestors.includes(scopeId);
+}
+
+export function isWorldPointWithinScopeBounds(
+  scopeId: string | null | undefined,
+  world: { x: number; y: number },
+  scopeOverlay: ScopeOverlayIndex
+): boolean {
+  if (!scopeId) {
+    return false;
+  }
+  const bounds = scopeOverlay.boundsByScopeId.get(scopeId);
+  if (!bounds) {
+    return false;
+  }
+  return (
+    world.x >= bounds.minX &&
+    world.x <= bounds.maxX &&
+    world.y >= bounds.minY &&
+    world.y <= bounds.maxY
+  );
 }
 
 function resolveDirectChildWithinScope(
@@ -139,6 +201,26 @@ function resolveDirectChildWithinScope(
     return ancestorScopes[scopeIndex + 1] ?? null;
   }
   return hitSourceId;
+}
+
+function resolveOutermostScopeUnderFocus(
+  ancestorScopes: readonly string[],
+  focusedScopeId: string | null
+): string | null {
+  if (ancestorScopes.length === 0) {
+    return null;
+  }
+  if (!focusedScopeId) {
+    return ancestorScopes[0] ?? null;
+  }
+  const focusedIndex = ancestorScopes.indexOf(focusedScopeId);
+  if (focusedIndex < 0) {
+    return ancestorScopes[0] ?? null;
+  }
+  if (focusedIndex >= ancestorScopes.length - 1) {
+    return null;
+  }
+  return ancestorScopes[focusedIndex + 1] ?? null;
 }
 
 function mergeBounds(a: Bounds, b: Bounds): Bounds {

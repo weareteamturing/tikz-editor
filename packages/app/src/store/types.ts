@@ -75,6 +75,7 @@ export type DocumentSession = {
   history: HistoryEntry[];
   historyIndex: number;
   selectedElementIds: ReadonlySet<string>;
+  focusedScopeId: string | null;
   activeHandleId: string | null;
   fileRef: DocumentFileRef | null;
   savedSource: string;
@@ -153,6 +154,7 @@ export type EditorState = {
 
   // ── selection slice ──────────────────────────────────────────────────────────
   selectedElementIds: ReadonlySet<string>;
+  focusedScopeId: string | null;
   activeHandleId: string | null;
   activeDocumentId: string;
   tabOrder: string[];
@@ -241,7 +243,8 @@ export type EditorAction =
   // Selection
   | { type: "SELECT"; id: string; additive: boolean }
   | { type: "SELECT_RANGE"; ids: string[] }
-  | { type: "CLEAR_SELECTION" }
+  | { type: "CLEAR_SELECTION"; preserveFocusedScope?: boolean }
+  | { type: "SET_FOCUSED_SCOPE"; scopeId: string | null }
   | { type: "SET_ACTIVE_HANDLE"; handleId: string | null }
   // Canvas
   | { type: "SET_TOOL_MODE"; mode: ToolMode }

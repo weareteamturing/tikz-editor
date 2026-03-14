@@ -71,6 +71,7 @@ function createDocumentSession(params: {
     history: [],
     historyIndex: -1,
     selectedElementIds: new Set(),
+    focusedScopeId: null,
     activeHandleId: null,
     fileRef: params.fileRef ?? null,
     savedSource: params.source,
@@ -216,6 +217,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     history: active.history,
     historyIndex: active.historyIndex,
     selectedElementIds: active.selectedElementIds,
+    focusedScopeId: active.focusedScopeId,
     activeHandleId: active.activeHandleId,
     activeDocumentId: workspace.activeDocumentId,
     tabOrder: workspace.tabOrder,
@@ -351,6 +353,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       projectedActive.history !== state.history ||
       projectedActive.historyIndex !== state.historyIndex ||
       projectedActive.selectedElementIds !== state.selectedElementIds ||
+      projectedActive.focusedScopeId !== state.focusedScopeId ||
       projectedActive.activeHandleId !== state.activeHandleId
     )
   ) {
@@ -366,6 +369,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       history: state.history,
       historyIndex: state.historyIndex,
       selectedElementIds: state.selectedElementIds,
+      focusedScopeId: state.focusedScopeId,
       activeHandleId: state.activeHandleId
     }));
   }
@@ -938,11 +942,27 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
     case "CLEAR_SELECTION": {
       workspace = updateDocument(workspace, activeId, (doc) => {
-        if (doc.selectedElementIds.size === 0 && doc.activeHandleId == null) {
+        if (
+          doc.selectedElementIds.size === 0 &&
+          doc.activeHandleId == null &&
+          (action.preserveFocusedScope || doc.focusedScopeId == null)
+        ) {
           return doc;
         }
-        return { ...doc, selectedElementIds: new Set(), activeHandleId: null };
+        return {
+          ...doc,
+          selectedElementIds: new Set(),
+          activeHandleId: null,
+          focusedScopeId: action.preserveFocusedScope ? doc.focusedScopeId : null
+        };
       });
+      break;
+    }
+
+    case "SET_FOCUSED_SCOPE": {
+      workspace = updateDocument(workspace, activeId, (doc) =>
+        doc.focusedScopeId === action.scopeId ? doc : { ...doc, focusedScopeId: action.scopeId }
+      );
       break;
     }
 

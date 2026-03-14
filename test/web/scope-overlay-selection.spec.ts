@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
-import { buildScopeOverlayIndex, resolveScopeAwareSelectionTarget } from "../../packages/app/src/ui/canvas-panel/scope-overlay.js";
+import {
+  buildScopeOverlayIndex,
+  isWorldPointWithinScopeBounds,
+  resolveFocusedScopeIdForSelection,
+  resolveScopeAwareContextMenuTarget,
+  resolveScopeAwarePointerDownTarget,
+  resolveScopeAwarePointerUpDrillTarget
+} from "../../packages/app/src/ui/canvas-panel/scope-overlay.js";
 
 describe("scope overlay selection resolver", () => {
   const source = String.raw`\begin{tikzpicture}
@@ -20,72 +27,63 @@ describe("scope overlay selection resolver", () => {
     ["path:4", { minX: 0, minY: 2, maxX: 1, maxY: 2 }]
   ]));
 
-  it("selects the nearest enclosing scope on first click", () => {
-    const resolved = resolveScopeAwareSelectionTarget({
+  it("selects the outermost enclosing scope on first pointer-down", () => {
+    const resolved = resolveScopeAwarePointerDownTarget({
       hitTargetId: "path:4",
       hitSourceId: "path:4",
-      selectedSourceIds: new Set(),
-      additiveSelection: false,
       scopeOverlay: overlay
     });
 
-    expect(resolved).toBe("scope:3");
+    expect(resolved).toBe("scope:1");
   });
 
-  it("drills down one level when the clicked content is inside the selected scope", () => {
-    const resolvedIntoLeaf = resolveScopeAwareSelectionTarget({
+  it("respects focused scope when resolving pointer-down targets", () => {
+    const resolvedIntoInnerScope = resolveScopeAwarePointerDownTarget({
       hitTargetId: "path:4",
       hitSourceId: "path:4",
-      selectedSourceIds: new Set(["scope:3"]),
-      additiveSelection: false,
+      focusedScopeId: "scope:1",
+      scopeOverlay: overlay
+    });
+    expect(resolvedIntoInnerScope).toBe("scope:3");
+
+    const resolvedIntoLeaf = resolveScopeAwarePointerDownTarget({
+      hitTargetId: "path:4",
+      hitSourceId: "path:4",
+      focusedScopeId: "scope:3",
       scopeOverlay: overlay
     });
     expect(resolvedIntoLeaf).toBe("path:4");
+  });
 
-    const resolvedIntoNestedScope = resolveScopeAwareSelectionTarget({
+  it("drills down one level on pointer-up from the selected scope", () => {
+    const drillToInnerScope = resolveScopeAwarePointerUpDrillTarget({
+      selectedScopeId: "scope:1",
+      hitSourceId: "path:4",
+      scopeOverlay: overlay
+    });
+    expect(drillToInnerScope).toBe("scope:3");
+
+    const drillToLeaf = resolveScopeAwarePointerUpDrillTarget({
+      selectedScopeId: "scope:3",
+      hitSourceId: "path:4",
+      scopeOverlay: overlay
+    });
+    expect(drillToLeaf).toBe("path:4");
+  });
+
+  it("computes focused scope transitions for scope -> scope -> leaf", () => {
+    expect(resolveFocusedScopeIdForSelection("scope:1", overlay)).toBeNull();
+    expect(resolveFocusedScopeIdForSelection("scope:3", overlay)).toBe("scope:1");
+    expect(resolveFocusedScopeIdForSelection("path:4", overlay)).toBe("scope:3");
+  });
+
+  it("preserves selected ancestor scope for context-menu hits without drilling", () => {
+    const resolved = resolveScopeAwareContextMenuTarget({
       hitTargetId: "path:4",
       hitSourceId: "path:4",
       selectedSourceIds: new Set(["scope:1"]),
-      additiveSelection: false,
       scopeOverlay: overlay
     });
-    expect(resolvedIntoNestedScope).toBe("scope:3");
-  });
-
-  it("keeps a selected leaf selected when clicking it again", () => {
-    const resolved = resolveScopeAwareSelectionTarget({
-      hitTargetId: "path:4",
-      hitSourceId: "path:4",
-      selectedSourceIds: new Set(["path:4"]),
-      additiveSelection: false,
-      scopeOverlay: overlay
-    });
-
-    expect(resolved).toBe("path:4");
-  });
-
-  it("bypasses scope lifting when additive/modifier selection is used", () => {
-    const resolved = resolveScopeAwareSelectionTarget({
-      hitTargetId: "path:4",
-      hitSourceId: "path:4",
-      selectedSourceIds: new Set(["scope:1"]),
-      additiveSelection: true,
-      scopeOverlay: overlay
-    });
-
-    expect(resolved).toBe("path:4");
-  });
-
-  it("preserves selected scope on context-menu style hit-testing without drill-down", () => {
-    const resolved = resolveScopeAwareSelectionTarget({
-      hitTargetId: "path:4",
-      hitSourceId: "path:4",
-      selectedSourceIds: new Set(["scope:1"]),
-      additiveSelection: false,
-      scopeOverlay: overlay,
-      allowDrillDown: false
-    });
-
     expect(resolved).toBe("scope:1");
   });
 
@@ -94,5 +92,10 @@ describe("scope overlay selection resolver", () => {
     const inner = overlay.boundsByScopeId.get("scope:3");
     expect(outer).toEqual({ minX: 0, minY: 1, maxX: 1, maxY: 2 });
     expect(inner).toEqual({ minX: 0, minY: 2, maxX: 1, maxY: 2 });
+  });
+
+  it("supports focused-scope outside-click reset checks via bounds", () => {
+    expect(isWorldPointWithinScopeBounds("scope:1", { x: 0.5, y: 1.5 }, overlay)).toBe(true);
+    expect(isWorldPointWithinScopeBounds("scope:1", { x: 2, y: 2 }, overlay)).toBe(false);
   });
 });

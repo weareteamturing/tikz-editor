@@ -647,12 +647,28 @@ describe("editorReducer – selection", () => {
       { type: "CLEAR_SELECTION" }
     ]);
     expect(state.selectedElementIds.size).toBe(0);
+    expect(state.focusedScopeId).toBeNull();
   });
 
   it("CLEAR_SELECTION is a no-op when already empty", () => {
     const initial = makeInitialState();
     const after = editorReducer(initial, { type: "CLEAR_SELECTION" });
     expect(after).toBe(initial);
+  });
+
+  it("CLEAR_SELECTION can preserve focused scope", () => {
+    const state = applyActions([
+      { type: "SET_FOCUSED_SCOPE", scopeId: "scope:0" },
+      { type: "SELECT", id: "scope:0", additive: false },
+      { type: "CLEAR_SELECTION", preserveFocusedScope: true }
+    ]);
+    expect(state.selectedElementIds.size).toBe(0);
+    expect(state.focusedScopeId).toBe("scope:0");
+  });
+
+  it("SET_FOCUSED_SCOPE updates focus id", () => {
+    const state = applyActions([{ type: "SET_FOCUSED_SCOPE", scopeId: "scope:1" }]);
+    expect(state.focusedScopeId).toBe("scope:1");
   });
 
   it("SELECT_RANGE sets multiple ids", () => {

@@ -168,6 +168,10 @@ import { useCanvasViewportEffects } from "./canvas-panel/useCanvasViewportEffect
 import { useCanvasTextEditingEffects } from "./canvas-panel/useCanvasTextEditingEffects";
 import { useCanvasSelectionDerivedState } from "./canvas-panel/useCanvasSelectionDerivedState";
 import {
+  isWorldPointWithinScopeBounds,
+  resolveFocusedScopeIdForSelection
+} from "./canvas-panel/scope-overlay";
+import {
   copySelection,
   copySelectionToClipboardData,
   cutSelection,
@@ -495,6 +499,7 @@ export function CanvasPanel() {
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const focusedScopeId = useEditorStore((s) => s.focusedScopeId);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
   const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
@@ -1509,7 +1514,8 @@ export function CanvasPanel() {
     findWordRangeAtIndex,
     densePathSourceIds,
     setExpandedDensePathSourceId,
-    scopeOverlay
+    scopeOverlay,
+    focusedScopeId
   });
 
   const {
@@ -1566,6 +1572,14 @@ export function CanvasPanel() {
         return false;
       }
 
+      if (
+        !additiveSelection &&
+        focusedScopeId != null &&
+        !isWorldPointWithinScopeBounds(focusedScopeId, world, scopeOverlay)
+      ) {
+        dispatch({ type: "SET_FOCUSED_SCOPE", scopeId: null });
+      }
+
       dispatch({ type: "SET_HOVERED_ELEMENT", id: null });
       const nextMarquee: Extract<DragState, { kind: "marquee" }> = {
         kind: "marquee",
@@ -1589,10 +1603,12 @@ export function CanvasPanel() {
     },
     [
       dispatch,
+      focusedScopeId,
       logSnapDebug,
       resolveWorldFromViewportClient,
       selectedElementIds,
       setDragState,
+      scopeOverlay,
       snapshot.source,
       source
     ]
@@ -1614,7 +1630,7 @@ export function CanvasPanel() {
       });
 
       if (resolution.selectionAction.kind === "clear") {
-        if (selectedElementIds.size > 0) {
+        if (selectedElementIds.size > 0 || focusedScopeId != null) {
           dispatch({ type: "CLEAR_SELECTION" });
         }
         if (clickedHandleId != null) {
@@ -1630,11 +1646,19 @@ export function CanvasPanel() {
           });
           dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
           dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
+          dispatch({
+            type: "SET_FOCUSED_SCOPE",
+            scopeId: resolveFocusedScopeIdForSelection(resolution.selectionAction.sourceId, scopeOverlay)
+          });
           viewport.focus({ preventScroll: true });
           return;
         }
         dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
         dispatch({ type: "SELECT", id: resolution.selectionAction.sourceId, additive: false });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(resolution.selectionAction.sourceId, scopeOverlay)
+        });
       } else {
         dispatch({ type: "SET_ACTIVE_HANDLE", handleId: clickedHandleId });
       }
@@ -1662,14 +1686,26 @@ export function CanvasPanel() {
       setContextMenuState(nextContextMenuState);
       viewport.focus({ preventScroll: true });
     },
-    [canvasTransform, dispatch, platform.menu?.usesNativeContextMenus, selectedElementIds, showNativeContextMenu, source, svgResult, toolMode]
+    [
+      canvasTransform,
+      dispatch,
+      focusedScopeId,
+      platform.menu?.usesNativeContextMenus,
+      scopeOverlay,
+      selectedElementIds,
+      showNativeContextMenu,
+      source,
+      svgResult,
+      toolMode
+    ]
   );
 
   const { onElementContextMenu, onCanvasContextMenu } = useCanvasSelectionInteractions({
     openCanvasContextMenuAt,
     setTextEditingSession,
     selectedElementIds,
-    scopeOverlay
+    scopeOverlay,
+    focusedScopeId
   });
 
   const {

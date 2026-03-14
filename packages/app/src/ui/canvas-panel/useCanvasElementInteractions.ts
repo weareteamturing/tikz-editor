@@ -1,9 +1,14 @@
-import { useCallback, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, collectSelectionGeometry } from "tikz-editor/edit/snapping";
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import { requestSourceSelection } from "../source-sync";
-import { resolveScopeAwareSelectionTarget } from "./scope-overlay";
+import {
+  isSourceWithinScope,
+  resolveFocusedScopeIdForSelection,
+  resolveScopeAwarePointerDownTarget,
+  resolveScopeAwarePointerUpDrillTarget
+} from "./scope-overlay";
 
 export type UseCanvasElementInteractionsArgs = {
   [key: string]: any;
@@ -39,76 +44,23 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     findWordRangeAtIndex,
     densePathSourceIds,
     setExpandedDensePathSourceId,
-    scopeOverlay
+    scopeOverlay,
+    focusedScopeId
   } = args;
 
-  const onElementPointerDown = useCallback(
-    (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
-      if (!svgResult || toolMode !== "select") return;
-      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-      const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
-      const resolvedTargetId = resolveScopeAwareSelectionTarget({
-        hitTargetId: targetId,
-        hitSourceId,
-        selectedSourceIds: selectedElementIds,
-        additiveSelection,
-        scopeOverlay
-      });
+  const pendingScopeDrillRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    selectedScopeId: string;
+    hitSourceId: string;
+    dragIds: string[];
+    moved: boolean;
+    dragStarted: boolean;
+  } | null>(null);
 
-      viewportRef.current?.focus({ preventScroll: true });
-      const alreadySelected = selectedElementIds.has(resolvedTargetId);
-
-      if (event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (resolvedTargetId === targetId && beginTextSelectionDrag(event, targetId, region)) {
-        return;
-      }
-
-      const isAdornmentTarget = resolvedTargetId.startsWith("node-adornment:");
-      setTextEditingSession(null);
-
-      if (!additiveSelection) {
-        setExpandedDensePathSourceId(null);
-      }
-
-      const singleSelectedId = selectedElementIds.size === 1
-        ? (selectedElementIds.values().next().value ?? null)
-        : null;
-      const hitAncestorScopes = scopeOverlay.ancestorScopeIdsBySourceId.get(hitSourceId) ?? [];
-      const isDrillDownFromSelectedScope =
-        !additiveSelection &&
-        singleSelectedId != null &&
-        scopeOverlay.scopesById.has(singleSelectedId) &&
-        resolvedTargetId !== singleSelectedId &&
-        hitAncestorScopes.includes(singleSelectedId);
-      if (isDrillDownFromSelectedScope) {
-        dispatch({ type: "SELECT", id: resolvedTargetId, additive: false });
-        setSnapLines([]);
-        return;
-      }
-
-      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
-      if (!world) return;
-
-      if (additiveSelection) {
-        dispatch({ type: "SELECT", id: resolvedTargetId, additive: true });
-        return;
-      }
-
-      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [resolvedTargetId];
-      if (!alreadySelected) {
-        dispatch({ type: "SELECT", id: resolvedTargetId, additive: false });
-        if (isAdornmentTarget) {
-          setSnapLines([]);
-          return;
-        }
-      }
-
+  const startElementDrag = useCallback(
+    (pointerId: number, world: { x: number; y: number }, draggedIds: string[]) => {
       if (draggedIds.some((id) => !draggableSourceIds.has(id))) {
         setSnapLines([]);
         return;
@@ -148,7 +100,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       setDragState({
         kind: "element",
-        pointerId: event.pointerId,
+        pointerId,
         elementIds: draggedIds,
         startWorld: world,
         snapContext,
@@ -157,7 +109,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         historyMergeKey: makeMergeKey(
           "drag-element",
           draggedIds.slice().sort().join(","),
-          event.pointerId
+          pointerId
         )
       });
       logSnapDebug({
@@ -170,28 +122,189 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       });
     },
     [
-      beginTextSelectionDrag,
       canvasTransform.scale,
+      draggableSourceIds,
+      logSnapDebug,
+      setDragState,
+      setSnapLines,
+      setWarning,
+      snapGuideInput,
+      snapSettingsPatch,
+      snapshot.scene,
+      snapshot.source,
+      source,
+      viewportWorldBounds
+    ]
+  );
+
+  useEffect(() => {
+    function onPointerMove(event: PointerEvent) {
+      const pending = pendingScopeDrillRef.current;
+      if (!pending || pending.pointerId !== event.pointerId || pending.dragStarted) {
+        return;
+      }
+      const dx = event.clientX - pending.startClientX;
+      const dy = event.clientY - pending.startClientY;
+      if ((dx * dx) + (dy * dy) <= 16) {
+        return;
+      }
+      pending.moved = true;
+      if (pending.dragIds.length === 0 || !svgResult) {
+        return;
+      }
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) {
+        return;
+      }
+      startElementDrag(event.pointerId, world, pending.dragIds);
+      pending.dragStarted = true;
+    }
+
+    function onPointerUp(event: PointerEvent) {
+      const pending = pendingScopeDrillRef.current;
+      if (!pending || pending.pointerId !== event.pointerId) {
+        return;
+      }
+      pendingScopeDrillRef.current = null;
+      if (pending.moved) {
+        return;
+      }
+
+      const selectedScopeId = selectedElementIds.size === 1
+        ? (selectedElementIds.values().next().value ?? null)
+        : null;
+      if (!selectedScopeId || selectedScopeId !== pending.selectedScopeId) {
+        return;
+      }
+
+      const drillTarget = resolveScopeAwarePointerUpDrillTarget({
+        selectedScopeId,
+        hitSourceId: pending.hitSourceId,
+        scopeOverlay
+      });
+      if (!drillTarget || drillTarget === selectedScopeId) {
+        return;
+      }
+
+      dispatch({ type: "SELECT", id: drillTarget, additive: false });
+      dispatch({ type: "SET_FOCUSED_SCOPE", scopeId: resolveFocusedScopeIdForSelection(drillTarget, scopeOverlay) });
+      setSnapLines([]);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [dispatch, interactionSvgRef, scopeOverlay, selectedElementIds, setSnapLines, startElementDrag, svgResult]);
+
+  const onElementPointerDown = useCallback(
+    (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
+      if (!svgResult || toolMode !== "select") return;
+      const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
+      const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
+      const resolvedTargetId = resolveScopeAwarePointerDownTarget({
+        hitTargetId: targetId,
+        hitSourceId,
+        scopeOverlay,
+        focusedScopeId
+      });
+
+      viewportRef.current?.focus({ preventScroll: true });
+      const alreadySelected = selectedElementIds.has(resolvedTargetId);
+
+      if (event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (resolvedTargetId === targetId && beginTextSelectionDrag(event, targetId, region)) {
+        return;
+      }
+
+      const isAdornmentTarget = resolvedTargetId.startsWith("node-adornment:");
+      setTextEditingSession(null);
+
+      if (!additiveSelection) {
+        setExpandedDensePathSourceId(null);
+      }
+
+      const singleSelectedId = selectedElementIds.size === 1
+        ? (selectedElementIds.values().next().value ?? null)
+        : null;
+      const singleSelectedScopeId =
+        singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) ? singleSelectedId : null;
+      const shouldDeferScopeDrillToPointerUp =
+        !additiveSelection &&
+        singleSelectedScopeId != null &&
+        resolvedTargetId === singleSelectedScopeId &&
+        isSourceWithinScope(singleSelectedScopeId, hitSourceId, scopeOverlay);
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) return;
+
+      if (additiveSelection) {
+        dispatch({ type: "SELECT", id: resolvedTargetId, additive: true });
+        dispatch({ type: "SET_FOCUSED_SCOPE", scopeId: null });
+        return;
+      }
+
+      if (shouldDeferScopeDrillToPointerUp) {
+        const canDragSelectedScope = draggableSourceIds.has(singleSelectedScopeId);
+        pendingScopeDrillRef.current = {
+          pointerId: event.pointerId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          selectedScopeId: singleSelectedScopeId,
+          hitSourceId,
+          dragIds: canDragSelectedScope ? [singleSelectedScopeId] : [],
+          moved: false,
+          dragStarted: false
+        };
+        setSnapLines([]);
+        return;
+      }
+
+      const draggedIds = alreadySelected && selectedElementIds.size > 0 ? [...selectedElementIds] : [resolvedTargetId];
+      if (!alreadySelected) {
+        dispatch({ type: "SELECT", id: resolvedTargetId, additive: false });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(resolvedTargetId, scopeOverlay)
+        });
+        if (isAdornmentTarget) {
+          setSnapLines([]);
+          return;
+        }
+      } else if (selectedElementIds.size === 1 && selectedElementIds.has(resolvedTargetId)) {
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(resolvedTargetId, scopeOverlay)
+        });
+      }
+
+      startElementDrag(event.pointerId, world, draggedIds);
+    },
+    [
+      beginTextSelectionDrag,
       dispatch,
       draggableSourceIds,
+      focusedScopeId,
       interactionSvgRef,
-      logSnapDebug,
       selectedElementIds,
-      setDragState,
       setExpandedDensePathSourceId,
       setSnapLines,
       setTextEditingSession,
-      setWarning,
-      snapshot.scene,
-      snapshot.source,
+      startElementDrag,
       scopeOverlay,
-      source,
       svgResult,
       toolMode,
-      snapGuideInput,
-      snapSettingsPatch,
-      viewportRef,
-      viewportWorldBounds
+      viewportRef
     ]
   );
 
@@ -223,6 +336,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           const startIndex = wordRange?.start ?? clickIndex;
           const endIndex = wordRange?.end ?? clickIndex;
           dispatch({ type: "SELECT", id: targetId, additive: false });
+          dispatch({
+            type: "SET_FOCUSED_SCOPE",
+            scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
+          });
           applyCanvasTextSelection(target, startIndex, endIndex);
           return;
         }
@@ -230,6 +347,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       if (densePathSourceIds.has(sourceId)) {
         dispatch({ type: "SELECT", id: sourceId, additive: false });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(sourceId, scopeOverlay)
+        });
         setExpandedDensePathSourceId(sourceId);
         setTextEditingSession(null);
         return;
@@ -241,6 +362,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       dispatch({ type: "SELECT", id: targetId, additive: false });
+      dispatch({
+        type: "SET_FOCUSED_SCOPE",
+        scopeId: resolveFocusedScopeIdForSelection(targetId, scopeOverlay)
+      });
       requestSourceSelection({
         from: fallbackSpan.from,
         to: fallbackSpan.to,
@@ -260,6 +385,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       resolveEditableTextTarget,
       resolvePrefixTableForTarget,
       sceneTextByRegionKey,
+      scopeOverlay,
       setExpandedDensePathSourceId,
       setTextEditingSession,
       textIndexFromClient,
