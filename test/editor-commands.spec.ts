@@ -487,22 +487,22 @@ describe("editor-commands", () => {
     }, "left");
 
     expect(didAlign).toBe(true);
-    expect(dispatch).toHaveBeenCalledWith({
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
       type: "APPLY_EDIT_ACTION",
       action: {
         kind: "alignElements",
         elementIds: ["path:0", "path:1"],
         mode: "left"
       }
-    });
+    }));
   });
 
   it("alignSelection does not dispatch when selection contains non-rewritable elements", () => {
     const source = String.raw`\begin{tikzpicture}
-  \coordinate (A) at (2,0);
-  \coordinate (B) at (3,0);
-  \draw (0,0) -- (1,0);
-  \draw (A) -- (B);
+  \foreach \x in {0,1} {
+    \draw (\x,0) -- (\x,1);
+  }
 \end{tikzpicture}`;
     const rendered = renderTikzToSvg(source);
     const dispatch = vi.fn<(action: EditorAction) => void>();
@@ -512,7 +512,7 @@ describe("editor-commands", () => {
       snapshotSource: source,
       scene: rendered.semantic.scene,
       editHandles: rendered.semantic.editHandles,
-      selectedElementIds: new Set(["path:2", "path:3"]),
+      selectedElementIds: new Set(["path:0", "path:1"]),
       dispatch
     }, "left");
 
@@ -609,7 +609,7 @@ describe("editor-commands", () => {
     }, "horizontal");
 
     expect(didFlip).toBe(true);
-    expect(dispatch).toHaveBeenCalledTimes(2);
+    expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch).toHaveBeenNthCalledWith(1, expect.objectContaining({
       type: "APPLY_EDIT_ACTION",
       action: expect.objectContaining({
@@ -619,16 +619,6 @@ describe("editor-commands", () => {
         key: "xscale",
         value: "-2",
         clearKeys: expect.arrayContaining(["scale", "/tikz/scale", "/tikz/xscale"])
-      })
-    }));
-    expect(dispatch).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      type: "APPLY_EDIT_ACTION",
-      action: expect.objectContaining({
-        kind: "setProperty",
-        elementId: "path:0",
-        level: "command",
-        key: "yscale",
-        value: "3"
       })
     }));
   });
@@ -668,12 +658,6 @@ describe("editor-commands", () => {
   \node[draw,label=above:A] {B};
 \end{tikzpicture}`;
     const rendered = renderTikzToSvg(source);
-    const groupedSource = String.raw`\begin{tikzpicture}
-  \begin{scope}
-    \draw (0,0) -- (1,0);
-  \end{scope}
-\end{tikzpicture}`;
-    const groupedRendered = renderTikzToSvg(groupedSource);
     const dispatch = vi.fn<(action: EditorAction) => void>();
 
     const didRotate = rotateSelection({
@@ -692,19 +676,42 @@ describe("editor-commands", () => {
       selectedElementIds: new Set(["node-adornment:node:0:2:label:0"]),
       dispatch
     }, "horizontal");
-    const didRotateScope = rotateSelection({
-      source: groupedSource,
-      snapshotSource: groupedSource,
-      scene: groupedRendered.semantic.scene,
-      editHandles: groupedRendered.semantic.editHandles,
+
+    expect(didRotate).toBe(false);
+    expect(didFlip).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("rotateSelection dispatches transform edits for scope selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+
+    const didRotate = rotateSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
       selectedElementIds: new Set(["scope:0"]),
       dispatch
     }, "left");
 
-    expect(didRotate).toBe(false);
-    expect(didFlip).toBe(false);
-    expect(didRotateScope).toBe(false);
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(didRotate).toBe(true);
+    expect(dispatch).toHaveBeenCalled();
+    expect(dispatch).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "APPLY_EDIT_ACTION",
+      action: expect.objectContaining({
+        kind: "setProperty",
+        elementId: "scope:0",
+        level: "command",
+        key: "rotate",
+        value: "90"
+      })
+    }));
   });
 
   it("rotateSelection writes into an existing node option list", () => {

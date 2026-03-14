@@ -296,6 +296,21 @@ export type TransformInspectorValues = {
   rotate: number;
 };
 
+export type TransformInspectorPresence = {
+  shift: boolean;
+  scale: boolean;
+  xshift: boolean;
+  yshift: boolean;
+  xscale: boolean;
+  yscale: boolean;
+  rotate: boolean;
+};
+
+export type TransformInspectorMutationContext = {
+  values: TransformInspectorValues;
+  presence?: TransformInspectorPresence;
+};
+
 export type TransformSetPropertyMutation = {
   key: string;
   value: string;
@@ -316,6 +331,7 @@ export type SetPropertyWriteTarget = {
   transformContext?: {
     key: TransformInspectorKey;
     values: TransformInspectorValues;
+    presence?: TransformInspectorPresence;
   };
   writable: boolean;
   reason?: string;
@@ -502,7 +518,7 @@ export type InspectorSection = {
 };
 
 export type InspectorDescriptor = {
-  elementKind: "path" | "circle" | "ellipse" | "text";
+  elementKind: "path" | "circle" | "ellipse" | "text" | "scope";
   elementId: string;
   writeTargetId: string | null;
   readOnlyReason?: string;
@@ -853,19 +869,20 @@ export function buildNodeFontSetPropertyMutation(
   };
 }
 
-export function resolveTransformInspectorValues(
+export function resolveTransformInspectorMutationContext(
   source: string,
   targetId: string | null,
   parseOptions: EditParseOptions = {}
-): TransformInspectorValues {
+): TransformInspectorMutationContext {
   const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
+  const presence = createEmptyTransformInspectorPresence();
   if (!targetId) {
-    return values;
+    return { values, presence };
   }
 
   const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found" || !resolved.target.options) {
-    return values;
+    return { values, presence };
   }
 
   for (const entry of resolved.target.options.entries) {
@@ -875,6 +892,7 @@ export function resolveTransformInspectorValues(
 
     const key = normalizeOptionKey(entry.key);
     if (key === "scale" || key === "/tikz/scale") {
+      presence.scale = true;
       const parsed = parseTransformScalar(entry.valueRaw);
       if (parsed != null) {
         values.xscale = parsed;
@@ -884,6 +902,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "xscale" || key === "/tikz/xscale") {
+      presence.xscale = true;
       const parsed = parseTransformScalar(entry.valueRaw);
       if (parsed != null) {
         values.xscale = parsed;
@@ -892,6 +911,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "yscale" || key === "/tikz/yscale") {
+      presence.yscale = true;
       const parsed = parseTransformScalar(entry.valueRaw);
       if (parsed != null) {
         values.yscale = parsed;
@@ -900,6 +920,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "shift" || key === "/tikz/shift") {
+      presence.shift = true;
       const parsed = parseShiftTransformValue(entry.valueRaw);
       if (parsed) {
         values.xshift = parsed.x;
@@ -909,6 +930,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "xshift" || key === "/tikz/xshift") {
+      presence.xshift = true;
       const parsed = parseLength(entry.valueRaw, "pt");
       if (parsed != null) {
         values.xshift = parsed;
@@ -917,6 +939,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "yshift" || key === "/tikz/yshift") {
+      presence.yshift = true;
       const parsed = parseLength(entry.valueRaw, "pt");
       if (parsed != null) {
         values.yshift = parsed;
@@ -925,6 +948,7 @@ export function resolveTransformInspectorValues(
     }
 
     if (key === "rotate" || key === "/tikz/rotate") {
+      presence.rotate = true;
       const parsed = parseTransformScalar(entry.valueRaw);
       if (parsed != null) {
         values.rotate = parsed;
@@ -932,11 +956,19 @@ export function resolveTransformInspectorValues(
     }
   }
 
-  return values;
+  return { values, presence };
+}
+
+export function resolveTransformInspectorValues(
+  source: string,
+  targetId: string | null,
+  parseOptions: EditParseOptions = {}
+): TransformInspectorValues {
+  return resolveTransformInspectorMutationContext(source, targetId, parseOptions).values;
 }
 
 export function buildTransformSetPropertyMutations(
-  currentValues: TransformInspectorValues,
+  current: TransformInspectorValues | TransformInspectorMutationContext,
   editedKey: TransformInspectorKey,
   nextValue: number
 ): TransformSetPropertyMutation[] {
@@ -944,6 +976,8 @@ export function buildTransformSetPropertyMutations(
     return [];
   }
 
+  const mutationContext = coerceTransformInspectorMutationContext(current);
+  const currentValues = mutationContext.values;
   const sanitizedCurrent = sanitizeTransformInspectorValues(currentValues);
   const safeNextValue = normalizeTinyNumber(nextValue);
 
@@ -952,18 +986,32 @@ export function buildTransformSetPropertyMutations(
       ...sanitizedCurrent,
       [editedKey]: safeNextValue
     };
-    return [
-      {
-        key: "xshift",
-        value: `${formatInspectorLength(nextValues.xshift)}pt`,
-        clearKeys: uniqueStrings([...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.xshift])
-      },
-      {
-        key: "yshift",
-        value: `${formatInspectorLength(nextValues.yshift)}pt`,
-        clearKeys: uniqueStrings([...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS.yshift])
-      }
+    const companionKey: "xshift" | "yshift" = editedKey === "xshift" ? "yshift" : "xshift";
+    const mutations: TransformSetPropertyMutation[] = [
+      buildTransformMutation(
+        editedKey,
+        nextValues[editedKey],
+        DEFAULT_TRANSFORM_INSPECTOR_VALUES[editedKey],
+        [...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]]
+      )
     ];
+
+    const companionValue = nextValues[companionKey];
+    const companionDefault = DEFAULT_TRANSFORM_INSPECTOR_VALUES[companionKey];
+    if (shouldSetTransformCompanion(mutationContext, companionKey, companionValue, companionDefault, "shift")) {
+      mutations.push(
+        buildTransformMutation(
+          companionKey,
+          companionValue,
+          companionDefault,
+          TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]
+        )
+      );
+    } else if (shouldClearTransformCompanion(mutationContext, companionKey, companionDefault)) {
+      mutations.push(buildTransformMutation(companionKey, companionDefault, companionDefault, TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]));
+    }
+
+    return mutations;
   }
 
   if (editedKey === "xscale" || editedKey === "yscale") {
@@ -973,39 +1021,51 @@ export function buildTransformSetPropertyMutations(
     };
     const companionKey: "xscale" | "yscale" = editedKey === "xscale" ? "yscale" : "xscale";
     const mutations: TransformSetPropertyMutation[] = [
-      {
-        key: editedKey,
-        value: formatInspectorLength(nextValues[editedKey]),
-        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]])
-      }
+      buildTransformMutation(
+        editedKey,
+        nextValues[editedKey],
+        DEFAULT_TRANSFORM_INSPECTOR_VALUES[editedKey],
+        [...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[editedKey]]
+      )
     ];
 
     const companionValue = nextValues[companionKey];
     const companionDefault = DEFAULT_TRANSFORM_INSPECTOR_VALUES[companionKey];
-    if (Math.abs(companionValue - companionDefault) > 1e-6) {
-      mutations.push({
-        key: companionKey,
-        value: formatInspectorLength(companionValue),
-        clearKeys: uniqueStrings([...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]])
-      });
+    if (shouldSetTransformCompanion(mutationContext, companionKey, companionValue, companionDefault, "scale")) {
+      mutations.push(
+        buildTransformMutation(
+          companionKey,
+          companionValue,
+          companionDefault,
+          TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]
+        )
+      );
+    } else if (shouldClearTransformCompanion(mutationContext, companionKey, companionDefault)) {
+      mutations.push(buildTransformMutation(companionKey, companionDefault, companionDefault, TRANSFORM_KEY_ALIAS_CLEAR_KEYS[companionKey]));
     }
 
     return mutations;
   }
 
   return [
-    {
-      key: "rotate",
-      value: formatInspectorLength(safeNextValue),
-      clearKeys: uniqueStrings(ROTATE_CLEAR_KEYS)
-    }
+    buildTransformMutation(
+      "rotate",
+      safeNextValue,
+      DEFAULT_TRANSFORM_INSPECTOR_VALUES.rotate,
+      ROTATE_CLEAR_KEYS
+    )
   ];
 }
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source, snapshot.parseOptions);
   const colorAliases = collectInspectorColorAliases(snapshot.source);
-  const transformValues = resolveTransformInspectorValues(snapshot.source, inlineTarget.targetId, snapshot.parseOptions);
+  const transformContext = resolveTransformInspectorMutationContext(
+    snapshot.source,
+    inlineTarget.targetId,
+    snapshot.parseOptions
+  );
+  const transformValues = transformContext.values;
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
   const strokeColorSyntax = resolveColorSyntaxValue(
     snapshot.source,
@@ -1173,7 +1233,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           value: transformValues.xshift,
           step: 0.1,
           unit: "pt",
-          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xshift", transformValues)
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xshift", transformContext)
         },
         {
           kind: "number",
@@ -1182,7 +1242,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           value: transformValues.yshift,
           step: 0.1,
           unit: "pt",
-          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yshift", transformValues)
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yshift", transformContext)
         },
         {
           kind: "number",
@@ -1190,7 +1250,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           label: "X scale",
           value: transformValues.xscale,
           step: 0.1,
-          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xscale", transformValues)
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "xscale", transformContext)
         },
         {
           kind: "number",
@@ -1198,7 +1258,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           label: "Y scale",
           value: transformValues.yscale,
           step: 0.1,
-          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yscale", transformValues)
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "yscale", transformContext)
         },
         {
           kind: "number",
@@ -1207,7 +1267,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
           value: transformValues.rotate,
           step: 1,
           unit: "deg",
-          write: makeTransformSetPropertyWriteTarget(inlineTarget, "rotate", transformValues)
+          write: makeTransformSetPropertyWriteTarget(inlineTarget, "rotate", transformContext)
         }
       ]
     },
@@ -1806,13 +1866,14 @@ function makeSetPropertyWriteTargetForElementId(
 function makeTransformSetPropertyWriteTarget(
   inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
   key: TransformInspectorKey,
-  values: TransformInspectorValues
+  context: TransformInspectorMutationContext
 ): SetPropertyWriteTarget {
   return {
     ...makeSetPropertyWriteTarget(inlineTarget, key),
     transformContext: {
       key,
-      values: cloneTransformInspectorValues(values)
+      values: cloneTransformInspectorValues(context.values),
+      presence: context.presence ? { ...context.presence } : undefined
     }
   };
 }
@@ -3530,6 +3591,59 @@ function cloneTransformInspectorValues(values: TransformInspectorValues): Transf
   };
 }
 
+function createEmptyTransformInspectorPresence(): TransformInspectorPresence {
+  return {
+    shift: false,
+    scale: false,
+    xshift: false,
+    yshift: false,
+    xscale: false,
+    yscale: false,
+    rotate: false
+  };
+}
+
+function coerceTransformInspectorMutationContext(
+  current: TransformInspectorValues | TransformInspectorMutationContext
+): TransformInspectorMutationContext {
+  if ("values" in current) {
+    return {
+      values: cloneTransformInspectorValues(current.values),
+      presence: current.presence ? { ...current.presence } : createEmptyTransformInspectorPresence()
+    };
+  }
+  return {
+    values: cloneTransformInspectorValues(current),
+    presence: createEmptyTransformInspectorPresence()
+  };
+}
+
+function shouldSetTransformCompanion(
+  context: TransformInspectorMutationContext,
+  companionKey: "xshift" | "yshift" | "xscale" | "yscale",
+  companionValue: number,
+  companionDefault: number,
+  shorthandKey: "shift" | "scale"
+): boolean {
+  if (Math.abs(companionValue - companionDefault) <= 1e-6) {
+    return false;
+  }
+  const presence = context.presence ?? createEmptyTransformInspectorPresence();
+  return presence[shorthandKey] || !presence[companionKey];
+}
+
+function shouldClearTransformCompanion(
+  context: TransformInspectorMutationContext,
+  companionKey: "xshift" | "yshift" | "xscale" | "yscale",
+  companionDefault: number
+): boolean {
+  const presence = context.presence ?? createEmptyTransformInspectorPresence();
+  if (!presence[companionKey]) {
+    return false;
+  }
+  return Math.abs(context.values[companionKey] - companionDefault) <= 1e-6;
+}
+
 function sanitizeTransformInspectorValues(values: TransformInspectorValues): TransformInspectorValues {
   return {
     xshift: Number.isFinite(values.xshift) ? normalizeTinyNumber(values.xshift) : DEFAULT_TRANSFORM_INSPECTOR_VALUES.xshift,
@@ -3564,6 +3678,21 @@ function uniqueStrings(values: readonly string[]): string[] {
     unique.push(normalized);
   }
   return unique;
+}
+
+function buildTransformMutation(
+  key: TransformInspectorKey,
+  value: number,
+  defaultValue: number,
+  clearKeys: readonly string[]
+): TransformSetPropertyMutation {
+  const normalizedValue = normalizeTinyNumber(value);
+  const isDefault = Math.abs(normalizedValue - defaultValue) <= 1e-6;
+  return {
+    key,
+    value: isDefault ? "" : formatInspectorLength(normalizedValue) + (key === "xshift" || key === "yshift" ? "pt" : ""),
+    clearKeys: uniqueStrings(isDefault ? [key, ...clearKeys] : clearKeys)
+  };
 }
 
 function formatInspectorLength(value: number): string {

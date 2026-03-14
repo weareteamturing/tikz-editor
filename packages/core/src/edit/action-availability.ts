@@ -345,9 +345,6 @@ function makeTransformRule(): AvailabilityRule {
     if (facts.hasAdornmentSelection) {
       return "Adornment selections cannot be transformed.";
     }
-    if (facts.selectedSourceIds.some((sourceId) => sourceId.startsWith("scope:"))) {
-      return "Scope selections cannot be transformed yet.";
-    }
     if (facts.selectedSourceIds.length === 0) {
       return "Select at least one element to transform.";
     }

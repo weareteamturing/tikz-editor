@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID,
   type InspectorDescriptor,
+  type InspectorSection,
+  type SetPropertyWriteTarget,
+  type TransformInspectorKey,
+  type TransformInspectorMutationContext,
   type InspectorSnapshot
 } from "tikz-editor/edit/inspector";
+import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView } from "../../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../../project-named-colors";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
-import { buildScopeOverlayIndex } from "../canvas-panel/scope-overlay";
 import {
   buildInspectorPropertyProvenanceMap,
   buildMultiInspectorModel,
@@ -21,6 +26,100 @@ import {
   type MultiInspectorModel
 } from "./panel-helpers";
 
+function buildScopeTransformWriteTarget(
+  scopeId: string,
+  writable: boolean,
+  reason: string | undefined,
+  key: TransformInspectorKey,
+  context: TransformInspectorMutationContext
+): SetPropertyWriteTarget {
+  return {
+    mode: "setProperty",
+    elementId: scopeId,
+    level: "command",
+    key,
+    transformContext: {
+      key,
+      values: { ...context.values },
+      presence: context.presence ? { ...context.presence } : undefined
+    },
+    writable,
+    reason
+  };
+}
+
+function buildScopeInspectorDescriptor(
+  source: string,
+  scopeId: string,
+  parseOptions: InspectorSnapshot["parseOptions"]
+): InspectorDescriptor {
+  const resolved = resolvePropertyTarget(source, scopeId, parseOptions ?? {});
+  const writable = resolved.kind === "found";
+  const readOnlyReason = resolved.kind === "not-found" ? resolved.reason : undefined;
+  const transformContext = resolveTransformInspectorMutationContext(source, scopeId, parseOptions);
+  const transformValues = transformContext.values;
+  const sections: InspectorSection[] = [
+    {
+      id: "transform",
+      title: "Transform",
+      sourceLevel: "command",
+      properties: [
+        {
+          kind: "number",
+          id: "xshift",
+          label: "X shift",
+          value: transformValues.xshift,
+          step: 0.1,
+          unit: "pt",
+          write: buildScopeTransformWriteTarget(scopeId, writable, readOnlyReason, "xshift", transformContext)
+        },
+        {
+          kind: "number",
+          id: "yshift",
+          label: "Y shift",
+          value: transformValues.yshift,
+          step: 0.1,
+          unit: "pt",
+          write: buildScopeTransformWriteTarget(scopeId, writable, readOnlyReason, "yshift", transformContext)
+        },
+        {
+          kind: "number",
+          id: "xscale",
+          label: "X scale",
+          value: transformValues.xscale,
+          step: 0.1,
+          write: buildScopeTransformWriteTarget(scopeId, writable, readOnlyReason, "xscale", transformContext)
+        },
+        {
+          kind: "number",
+          id: "yscale",
+          label: "Y scale",
+          value: transformValues.yscale,
+          step: 0.1,
+          write: buildScopeTransformWriteTarget(scopeId, writable, readOnlyReason, "yscale", transformContext)
+        },
+        {
+          kind: "number",
+          id: "rotate",
+          label: "Rotate",
+          value: transformValues.rotate,
+          step: 1,
+          unit: "deg",
+          write: buildScopeTransformWriteTarget(scopeId, writable, readOnlyReason, "rotate", transformContext)
+        }
+      ]
+    }
+  ];
+
+  return {
+    elementKind: "scope",
+    elementId: scopeId,
+    writeTargetId: writable ? scopeId : null,
+    readOnlyReason,
+    sections
+  };
+}
+
 export type FrozenInspectorView = {
   selectedSourceIds: string[];
   descriptor: InspectorDescriptor | null;
@@ -28,8 +127,6 @@ export type FrozenInspectorView = {
   singlePropertyProvenance: InspectorPropertyProvenanceMap;
   multiPropertyProvenance: InspectorPropertyProvenanceMap;
 };
-
-const EMPTY_BOUNDS_BY_SOURCE = new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
 
 export function useInspectorModel(args: {
   selectedIds: ReadonlySet<string>;
@@ -57,50 +154,7 @@ export function useInspectorModel(args: {
   }, []);
 
   const rawSelectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
-  const scopeOverlay = useMemo(
-    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, EMPTY_BOUNDS_BY_SOURCE),
-    [snapshot.parseResult]
-  );
-  const selectedSourceIds = useMemo(() => {
-    if (rawSelectedSourceIds.length === 0) {
-      return rawSelectedSourceIds;
-    }
-    const selectedScopeIds = rawSelectedSourceIds.filter((sourceId) => scopeOverlay.scopesById.has(sourceId));
-    if (selectedScopeIds.length === 0) {
-      return rawSelectedSourceIds;
-    }
-
-    const selectedScopeSet = new Set<string>(selectedScopeIds);
-    const expandedSelectedSourceIds: string[] = [];
-    const seen = new Set<string>();
-
-    for (const sourceId of rawSelectedSourceIds) {
-      if (selectedScopeSet.has(sourceId)) {
-        continue;
-      }
-      if (seen.has(sourceId)) {
-        continue;
-      }
-      seen.add(sourceId);
-      expandedSelectedSourceIds.push(sourceId);
-    }
-
-    for (const element of snapshot.scene?.elements ?? []) {
-      const sourceId = element.sourceRef.sourceId;
-      const ancestorScopeIds = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
-      if (!ancestorScopeIds.some((scopeId) => selectedScopeSet.has(scopeId))) {
-        continue;
-      }
-      const targetId = element.adornment?.targetId ?? sourceId;
-      if (seen.has(targetId)) {
-        continue;
-      }
-      seen.add(targetId);
-      expandedSelectedSourceIds.push(targetId);
-    }
-
-    return expandedSelectedSourceIds.length > 0 ? expandedSelectedSourceIds : rawSelectedSourceIds;
-  }, [rawSelectedSourceIds, scopeOverlay, snapshot.scene]);
+  const selectedSourceIds = rawSelectedSourceIds;
   const selectedSourceIdSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
   const projectNamedColorSwatches = useProjectNamedColorSwatches(source);
   const editAnalysisView = useMemo(
@@ -126,7 +180,7 @@ export function useInspectorModel(args: {
     [parseOptions, source]
   );
 
-  const selectedElements = useMemo(() => {
+  const selectedElementBySourceId = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
     for (const element of snapshot.scene?.elements ?? []) {
       const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
@@ -136,22 +190,39 @@ export function useInspectorModel(args: {
       bySource.set(targetId, element);
     }
 
-    return selectedSourceIds
-      .map((sourceId) => bySource.get(sourceId))
-      .filter((element): element is SceneElement => element != null);
-  }, [selectedSourceIdSet, selectedSourceIds, snapshot.scene]);
+    return bySource;
+  }, [selectedSourceIdSet, snapshot.scene]);
 
-  const descriptors = useMemo(() => {
-    return selectedElements.map((element) =>
-      getInspectorDescriptor(element, {
+  const selectedElements = useMemo(() => {
+    return selectedSourceIds
+      .map((sourceId) => selectedElementBySourceId.get(sourceId))
+      .filter((element): element is SceneElement => element != null);
+  }, [selectedElementBySourceId, selectedSourceIds]);
+
+  const descriptorEntries = useMemo(() => {
+    return selectedSourceIds.map((sourceId) => {
+      if (sourceId.startsWith("scope:")) {
+        return buildScopeInspectorDescriptor(snapshot.source, sourceId, parseOptions);
+      }
+
+      const element = selectedElementBySourceId.get(sourceId);
+      if (!element) {
+        return null;
+      }
+
+      return getInspectorDescriptor(element, {
         source: snapshot.source,
         editHandles: snapshot.editHandles,
         parseOptions
-      })
-    );
-  }, [getInspectorDescriptor, parseOptions, selectedElements, snapshot.source, snapshot.editHandles]);
+      });
+    });
+  }, [getInspectorDescriptor, parseOptions, selectedElementBySourceId, selectedSourceIds, snapshot.editHandles, snapshot.source]);
 
-  const descriptor = selectedSourceIds.length === 1 ? descriptors[0] ?? null : null;
+  const descriptors = useMemo(() => {
+    return descriptorEntries.filter((entry): entry is InspectorDescriptor => entry != null);
+  }, [descriptorEntries]);
+
+  const descriptor = selectedSourceIds.length === 1 ? descriptorEntries[0] ?? null : null;
 
   const multiModel = useMemo(() => {
     if (selectedSourceIds.length <= 1) {
@@ -161,9 +232,10 @@ export function useInspectorModel(args: {
   }, [descriptors, selectedSourceIds.length]);
 
   const perElementPropertyProvenance = useMemo<InspectorPropertyProvenanceMap[]>(() => {
-    return selectedElements.map((element, index) => {
-      const elementDescriptor = descriptors[index];
-      if (!elementDescriptor) {
+    return selectedSourceIds.map((sourceId, index) => {
+      const element = selectedElementBySourceId.get(sourceId);
+      const elementDescriptor = descriptorEntries[index];
+      if (!element || !elementDescriptor) {
         return {};
       }
       const cascadeModel = buildStylesCascadeModel(
@@ -177,7 +249,7 @@ export function useInspectorModel(args: {
       );
       return buildInspectorPropertyProvenanceMap(cascadeModel);
     });
-  }, [descriptors, parseOptions, selectedElements, snapshot.editHandles, snapshot.source]);
+  }, [descriptorEntries, parseOptions, selectedElementBySourceId, selectedSourceIds, snapshot.editHandles, snapshot.source]);
 
   const singlePropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
     if (selectedSourceIds.length !== 1) {

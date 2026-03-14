@@ -122,7 +122,7 @@ export function StylesPanel() {
       case "number": {
         const writes = property.write ? writeTargets.map((target) => ({ ...target, key: property.write!.key, transformContext: property.write!.transformContext })) : [];
         if (property.write?.transformContext) {
-          const mutations = buildTransformSetPropertyMutations(property.write.transformContext.values, property.write.transformContext.key, Number(nextValue));
+          const mutations = buildTransformSetPropertyMutations(property.write.transformContext, property.write.transformContext.key, Number(nextValue));
           for (const mutation of mutations) {
             dispatchActions(planStylesSetPropertyActions(writes, mutation));
           }

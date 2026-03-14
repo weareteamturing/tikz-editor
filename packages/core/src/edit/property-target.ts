@@ -539,7 +539,7 @@ function makeScopeTarget(statement: Extract<Statement, { kind: "Scope" }>, sourc
     options: statement.options,
     optionsSpan: statement.options?.span,
     optionsFormat: "bracketed",
-    insertOffset: resolveInsertOffset(source, statement.span, /\bscope\b/)
+    insertOffset: resolveInsertOffset(source, statement.span, /\\begin\{scope\*?\}/)
   };
 }
 

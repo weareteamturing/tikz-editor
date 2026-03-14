@@ -266,7 +266,7 @@ export function InspectorPanel() {
     }
 
     const mutations = buildTransformSetPropertyMutations(
-      write.transformContext.values,
+      write.transformContext,
       write.transformContext.key,
       next
     );
@@ -350,7 +350,7 @@ export function InspectorPanel() {
         continue;
       }
       const mutations = buildTransformSetPropertyMutations(
-        write.transformContext.values,
+        write.transformContext,
         write.transformContext.key,
         next
       );

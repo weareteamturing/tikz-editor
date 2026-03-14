@@ -3,6 +3,7 @@ import { getEditActionAvailability } from "tikz-editor/edit/action-availability"
 import { PT_PER_CM } from "tikz-editor/edit/format";
 import {
   buildTransformSetPropertyMutations,
+  resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues,
   type TransformInspectorKey
 } from "tikz-editor/edit/inspector";
@@ -694,8 +695,12 @@ function transformSelection(
     if (!targetId) {
       continue;
     }
-    const values = resolveTransformInspectorValues(context.source, targetId, parseOptions);
-    const mutations = buildTransformSetPropertyMutations(values, key, resolveNextValue(values, key));
+    const transformContext = resolveTransformInspectorMutationContext(context.source, targetId, parseOptions);
+    const mutations = buildTransformSetPropertyMutations(
+      transformContext,
+      key,
+      resolveNextValue(transformContext.values, key)
+    );
     for (const mutation of mutations) {
       context.dispatch({
         type: "APPLY_EDIT_ACTION",

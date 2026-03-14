@@ -102,7 +102,7 @@ describe("getEditActionAvailability", () => {
     expect(adornment["transform-flipHorizontal"].reason).toContain("Adornment");
   });
 
-  it("gates transform actions for scope selections", () => {
+  it("allows transform actions for scope selections", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}
     \draw (0,0) -- (1,0);
@@ -118,10 +118,10 @@ describe("getEditActionAvailability", () => {
       editHandles: rendered.semantic.editHandles
     });
 
-    expect(availability["transform-rotateLeft90"].enabled).toBe(false);
-    expect(availability["transform-rotateLeft90"].reason).toContain("Scope");
-    expect(availability["transform-flipHorizontal"].enabled).toBe(false);
-    expect(availability["transform-flipHorizontal"].reason).toContain("Scope");
+    expect(availability["transform-rotateLeft90"].enabled).toBe(true);
+    expect(availability["transform-rotateLeft90"].reason).toBeNull();
+    expect(availability["transform-flipHorizontal"].enabled).toBe(true);
+    expect(availability["transform-flipHorizontal"].reason).toBeNull();
   });
 
   it("gates arrange actions when bounds are missing", () => {

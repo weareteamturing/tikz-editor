@@ -16,9 +16,11 @@ import {
   buildRoundedCornersSetPropertyMutation,
   buildTransformSetPropertyMutations,
   getInspectorDescriptor,
+  resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID
 } from "../packages/core/src/edit/inspector.js";
+import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
 
 describe("getInspectorDescriptor", () => {
   it("returns adornment-specific sections for pins", () => {
@@ -801,6 +803,89 @@ describe("getInspectorDescriptor", () => {
     expect(updated).toContain("xshift=5pt");
     expect(updated).toContain("yshift=3pt");
     expect(updated).not.toMatch(/\bshift\s*=/);
+  });
+
+  it("inserts new scope transform options after \\begin{scope} when a scope has no option list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \node[draw] (B) at (1.5, -0.5) {B};
+    \node[draw] (C) at (0, 1.5) {C};
+  \end{scope}
+\end{tikzpicture}`;
+
+    const resolved = resolvePropertyTarget(source, "scope:0");
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error("Expected scope property target");
+    }
+
+    const mutations = buildTransformSetPropertyMutations(
+      resolveTransformInspectorValues(source, "scope:0"),
+      "xshift",
+      0.8
+    );
+    expect(mutations).toHaveLength(1);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: resolved.target.id,
+        level: "command",
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful scope transform mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("\\begin{scope}[xshift=0.8pt]");
+    expect(updated).not.toContain("yshift=0pt");
+    expect(updated).not.toContain("\\begin{scope[xshift=0.8pt]}");
+  });
+
+  it("clears default xscale while preserving a non-default yscale companion", () => {
+    const source = String.raw`\begin{tikzpicture}[xscale=1.5, yscale=2]
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const mutations = buildTransformSetPropertyMutations(
+      resolveTransformInspectorMutationContext(source, TIKZPICTURE_GLOBAL_TARGET_ID),
+      "xscale",
+      1
+    );
+    expect(mutations).toEqual([
+      {
+        key: "xscale",
+        value: "",
+        clearKeys: ["xscale", "scale", "/tikz/scale", "/tikz/xscale"]
+      }
+    ]);
+
+    let updated = source;
+    for (const mutation of mutations) {
+      const result = applyEditAction(updated, [], {
+        kind: "setProperty",
+        elementId: TIKZPICTURE_GLOBAL_TARGET_ID,
+        level: "command",
+        key: mutation.key,
+        value: mutation.value,
+        clearKeys: mutation.clearKeys
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful xscale reset mutation");
+      }
+      updated = result.newSource;
+    }
+
+    expect(updated).toContain("\\begin{tikzpicture}[yscale=2]");
+    expect(updated).not.toContain("xscale=");
+    expect(updated).not.toMatch(/\bscale\s*=/);
   });
 
   it("builds rotate mutations without touching scale or shift keys", () => {
