@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { optimize as svgoOptimize } from "svgo";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outDir = join(repoRoot, "apps", "web", "public", "font-previews");
@@ -82,7 +83,25 @@ for (const font of FONTS) {
     continue;
   }
 
-  writeFileSync(outPath, result.stdout, "utf8");
+  const { data: optimized } = svgoOptimize(result.stdout, {
+    multipass: true,
+    plugins: [
+      {
+        name: "removeUnknownsAndDefaults",
+        params: {
+          unknownContent: true,
+          unknownAttrs: true,
+          defaultAttrs: true,
+          defaultMarkupDeclarations: true,
+          uselessOverrides: true,
+          keepDataAttrs: false,
+          keepAriaAttrs: true,
+          keepRoleAttr: false
+        }
+      }
+    ]
+  });
+  writeFileSync(outPath, optimized, "utf8");
   console.log("ok");
   ok++;
 }
@@ -104,7 +123,7 @@ const MathJax = await mathjaxPkg.init({
     packages: { '[+]': ['textmacros'] },
     formatError: (_jax, err) => { throw err; },
   },
-  svg: { fontCache: 'none' },
+  svg: { fontCache: 'none', linebreaks: { inline: false } },
   startup: { typeset: false },
 });
 
