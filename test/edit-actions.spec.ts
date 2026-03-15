@@ -1102,6 +1102,46 @@ describe("applyEditAction – setProperty", () => {
     }
   });
 
+  it("keeps a shadow preset as a flag when setProperty receives true", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[copy shadow] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "drop shadow",
+      value: "true",
+      clearKeys: ["copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw[drop shadow] (0,0) -- (1,0);");
+    expect(result.newSource).not.toContain("copy shadow");
+  });
+
+  it("writes nested shadow options with braces", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "drop shadow",
+      value: "{shadow xshift=2pt,shadow yshift=-3pt,opacity=0.25}",
+      clearKeys: ["copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(
+      "\\draw[drop shadow={shadow xshift=2pt,shadow yshift=-3pt,opacity=0.25}] (0,0) -- (1,0);"
+    );
+    expect(result.newSource).not.toContain("drop shadow=shadow xshift=2pt");
+  });
+
   it("returns unsupported when the target id is missing", () => {
     const result = applyEditAction("\\draw (0,0);", [], {
       kind: "setProperty",

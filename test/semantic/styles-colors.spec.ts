@@ -413,6 +413,8 @@ describe("semantic evaluator / styles and colors", () => {
       expect(copyShadow?.kind).toBe("Path");
       if (copyShadow?.kind === "Path") {
         expect(copyShadow.style.shadowLayers).toHaveLength(1);
+        expect(copyShadow.style.shadowLayers[0]?.xshift).toBeCloseTo(2.15, 2);
+        expect(copyShadow.style.shadowLayers[0]?.yshift).toBeCloseTo(-2.15, 2);
         expect(copyShadow.style.shadowLayers[0]?.style.stroke).toBe(SHADOW_INHERIT_STROKE);
         expect(copyShadow.style.shadowLayers[0]?.style.fill).toBe(SHADOW_INHERIT_FILL);
         expect(copyShadow.style.shadowLayers[0]?.style.fillOpacity).toBeCloseTo(0.4, 4);
@@ -436,6 +438,9 @@ describe("semantic evaluator / styles and colors", () => {
         expect(circularGlow.style.shadowLayers).toHaveLength(1);
         expect(circularGlow.style.shadowLayers[0]?.fade).toBe("circle-fuzzy-edge-15");
         expect(circularGlow.style.shadowLayers[0]?.scale).toBeCloseTo(1.25, 4);
+        expect(circularGlow.style.shadowLayers[0]?.xshift).toBeCloseTo(0, 4);
+        expect(circularGlow.style.shadowLayers[0]?.yshift).toBeCloseTo(0, 4);
+        expect(circularGlow.style.shadowLayers[0]?.style.fill).toBe("#000000");
       }
     });
 

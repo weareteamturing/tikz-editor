@@ -11,7 +11,9 @@ import type {
   LineJoinPresetId,
   NodeFontSizePresetId,
   NodeShapePresetId,
-  PathMorphingDecorationPresetId
+  PathMorphingDecorationPresetId,
+  ShadowPresetId,
+  ShadowPresetOption
 } from "tikz-editor/edit/inspector";
 import {
   ArrowTipPreview,
@@ -38,6 +40,7 @@ import {
   isSelectableNodeFontSizeValue,
   isSelectableNodeShapeValue,
   isSelectablePathMorphingDecorationValue,
+  isSelectableShadowPresetValue,
   lineCapPreviewPreset,
   lineCapValueLabel,
   lineJoinPreviewPreset,
@@ -47,6 +50,7 @@ import {
   nodeShapeValueLabel,
   pathMorphingDecorationPreviewPreset,
   pathMorphingDecorationValueLabel,
+  shadowPresetValueLabel,
   toArrowTipDropdownOptions,
   toDashStyleDropdownOptions,
   toFillModeDropdownOptions,
@@ -57,6 +61,7 @@ import {
   toNodeFontSizeDropdownOptions,
   toNodeShapeDropdownOptions,
   toPathMorphingDecorationDropdownOptions,
+  toShadowPresetDropdownOptions,
   type ArrowTipDropdownValue,
   type DashStyleDropdownValue,
   type FillModeDropdownValue,
@@ -66,7 +71,8 @@ import {
   type LineJoinDropdownValue,
   type NodeFontSizeDropdownValue,
   type NodeShapeDropdownValue,
-  type PathMorphingDecorationDropdownValue
+  type PathMorphingDecorationDropdownValue,
+  type ShadowPresetDropdownValue
 } from "./panel-helpers";
 
 export function renderArrowTipDropdown(
@@ -594,6 +600,37 @@ export function renderNodeFontSizeDropdown(
           </span>
         );
       }}
+    />
+  );
+}
+
+export function renderShadowPresetDropdown(
+  property: {
+    label: string;
+    value: ShadowPresetId;
+    options: ShadowPresetOption[];
+  },
+  writable: boolean,
+  onApply: (value: ShadowPresetId) => void,
+  valueOverride?: ShadowPresetDropdownValue,
+  valueClassName?: string
+) {
+  const dropdownValue: ShadowPresetDropdownValue = valueOverride ?? property.value;
+  const dropdownOptions = toShadowPresetDropdownOptions(property.options);
+  const displayLabel = shadowPresetValueLabel(dropdownValue, property.options);
+  return (
+    <CustomDropdown
+      ariaLabel={property.label}
+      value={dropdownValue}
+      options={dropdownOptions}
+      disabled={!writable}
+      onChange={(nextValue) => {
+        if (!writable || !isSelectableShadowPresetValue(nextValue)) {
+          return;
+        }
+        onApply(nextValue);
+      }}
+      renderValue={() => <span className={valueClassName}>{displayLabel}</span>}
     />
   );
 }

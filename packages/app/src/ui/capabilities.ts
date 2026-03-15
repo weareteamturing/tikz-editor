@@ -129,6 +129,10 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
   arrowTip: [
     { feature: "options_structured", layers: ["edit"], label: "arrow option editing" },
     { feature: "arrow_tips", layers: ["semantic", "svg"], label: "arrow tip rendering" }
+  ],
+  shadowPreset: [
+    { feature: "options_structured", layers: ["edit"], label: "shadow option editing" },
+    { feature: "path_shadows", layers: ["semantic", "svg"], label: "shadow rendering" }
   ]
 };
 

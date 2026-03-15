@@ -186,7 +186,7 @@ export function InspectorMultiSection(props: {
     leftProvenance?: any,
     rightProvenance?: any
   ) => JSX.Element;
-  renderMultiProperty: (property: MultiInspectorProperty) => JSX.Element;
+  renderMultiProperty: (property: MultiInspectorProperty) => JSX.Element | null;
   onEnableGradientFillMulti: () => void;
   onEnablePatternFillMulti: () => void;
   fillModeMultiCanWrite: boolean;

@@ -622,3 +622,77 @@ export const SHADING_ACTIVATION_KEYS = new Set([
 ]);
 
 export const ROUNDED_CORNERS_DEFAULT_RADIUS = 4;
+
+export type ShadowPresetId = "none" | "drop-shadow" | "copy-shadow" | "circular-drop-shadow" | "circular-glow";
+
+export type ShadowPresetOption = {
+  value: Exclude<ShadowPresetId, "none">;
+  label: string;
+};
+
+export const SHADOW_PRESET_OPTIONS: ShadowPresetOption[] = [
+  { value: "drop-shadow", label: "Drop shadow" },
+  { value: "copy-shadow", label: "Copy shadow" },
+  { value: "circular-drop-shadow", label: "Circular drop shadow" },
+  { value: "circular-glow", label: "Circular glow" }
+];
+
+export const SHADOW_PRESET_TIKZ_KEY: Record<Exclude<ShadowPresetId, "none">, string> = {
+  "drop-shadow": "drop shadow",
+  "copy-shadow": "copy shadow",
+  "circular-drop-shadow": "circular drop shadow",
+  "circular-glow": "circular glow"
+};
+
+export const SHADOW_ALL_KEYS = [
+  "drop shadow",
+  "copy shadow",
+  "circular drop shadow",
+  "circular glow",
+  "general shadow",
+  "double copy shadow"
+] as const;
+
+// 1ex = 4.3pt (standard approximation used throughout this codebase)
+const SHADOW_EX_IN_PT = 4.3;
+
+export type ShadowPresetDefaults = {
+  xshiftPt: number;
+  yshiftPt: number;
+  scale: number;
+  /** null means opacity is not written by this preset */
+  opacity: number | null;
+  /** null means fill is not written by this preset (uses path's own color) */
+  color: string | null;
+};
+
+export const SHADOW_PRESET_DEFAULTS: Record<Exclude<ShadowPresetId, "none">, ShadowPresetDefaults> = {
+  "drop-shadow": {
+    xshiftPt: 0.5 * SHADOW_EX_IN_PT,
+    yshiftPt: -0.5 * SHADOW_EX_IN_PT,
+    scale: 1,
+    opacity: 0.5,
+    color: "black!50"
+  },
+  "copy-shadow": {
+    xshiftPt: 0.5 * SHADOW_EX_IN_PT,
+    yshiftPt: -0.5 * SHADOW_EX_IN_PT,
+    scale: 1,
+    opacity: null,
+    color: null
+  },
+  "circular-drop-shadow": {
+    xshiftPt: 0.3 * SHADOW_EX_IN_PT,
+    yshiftPt: -0.3 * SHADOW_EX_IN_PT,
+    scale: 1.1,
+    opacity: null,
+    color: "black"
+  },
+  "circular-glow": {
+    xshiftPt: 0,
+    yshiftPt: 0,
+    scale: 1.25,
+    opacity: null,
+    color: "black"
+  }
+};

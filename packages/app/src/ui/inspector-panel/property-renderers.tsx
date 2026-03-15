@@ -22,6 +22,7 @@ import {
   LINE_WIDTH_PRESET_KEYS,
   NODE_SHAPE_MIXED_OPTION_VALUE,
   PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE,
+  SHADOW_PRESET_MIXED_OPTION_VALUE,
   LineWidthPreview,
   clampNumber,
   isPathMorphingSuboptionPropertyId,
@@ -49,7 +50,8 @@ import {
   renderLineCapDropdown,
   renderLineJoinDropdown,
   renderNodeShapeDropdown,
-  renderPathMorphingDecorationDropdown
+  renderPathMorphingDecorationDropdown,
+  renderShadowPresetDropdown
 } from "./property-dropdowns";
 
 type RenderPropertyApi = any;
@@ -86,7 +88,9 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
     applyLineJoinValue,
     applyPathMorphingDecorationValue,
     applyRoundedCornersValue,
-    applyArrowTipValue
+    applyArrowTipValue,
+    applyShadowPropertyValue,
+    applyShadowPresetValue
   } = api;
     const provenance = renderedSinglePropertyProvenance[property.id] ?? implicitDefaultProvenance(property);
     const valueClassName = withValueProvenanceClass(undefined, provenance);
@@ -300,6 +304,10 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
               disabled={!writable}
               triggerLabelClassName={valueClassName}
               onChange={(nextValue) => {
+                if (property.write.shadowContext) {
+                  applyShadowPropertyValue(property.write, property.id, nextValue);
+                  return;
+                }
                 const change = normalizeColorSetPropertyChange(property.write, nextValue, property.syntaxValue);
                 applySetProperty(property.write, change.value, {
                   clearKeys: change.clearKeys
@@ -728,6 +736,31 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
       );
     }
 
+    if (property.kind === "shadowPreset") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            renderShadowPresetDropdown(
+              {
+                label: property.label,
+                value: property.value,
+                options: property.options
+              },
+              writable,
+              (nextValue) => applyShadowPresetValue(property.write, property.context, nextValue),
+              undefined,
+              valueClassName
+            ),
+            true
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
     const writable = property.write.writable && capability.status !== "unsupported";
     const previewOwnerKey = `arrow-tip:${property.write.elementId}:${property.id}`;
     return (
@@ -796,7 +829,8 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
     applyLineJoinValueMany,
     applyPathMorphingDecorationValueMany,
     applyRoundedCornersValueMany,
-    applyArrowTipValueMany
+    applyArrowTipValueMany,
+    applyShadowPresetValue
   } = api;
     const provenance = renderedMultiPropertyProvenance[property.id] ?? implicitDefaultProvenance(property);
     const valueClassName = withValueProvenanceClass(undefined, provenance);
@@ -1439,6 +1473,7 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
       );
     }
 
+  if (property.kind === "arrowTip") {
     const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
     const dropdownValue: ArrowTipDropdownValue = property.mixed
       ? ARROW_TIP_MIXED_OPTION_VALUE
@@ -1478,3 +1513,40 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
       </div>
     );
   }
+
+  if (property.kind === "shadowPreset") {
+    const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+    const dropdownValue = property.mixed ? SHADOW_PRESET_MIXED_OPTION_VALUE : property.value;
+    return (
+      <div key={property.id} className={propertyClassName}>
+        <div className={css.propertyLabel}>{property.label}</div>
+        {maybeWrapWithProvenanceTooltip(
+          provenance,
+          renderShadowPresetDropdown(
+            {
+              label: property.label,
+              value: property.value,
+              options: property.options
+            },
+            writable,
+            (nextValue) => {
+              for (let i = 0; i < property.writes.length; i++) {
+                const write = property.writes[i];
+                const context = property.contexts[i];
+                if (write && context) {
+                  applyShadowPresetValue(write, context, nextValue);
+                }
+              }
+            },
+            dropdownValue,
+            valueClassName
+          ),
+          true
+        )}
+        {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+      </div>
+    );
+  }
+
+  return null;
+}

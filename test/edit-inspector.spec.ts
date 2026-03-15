@@ -14,6 +14,8 @@ import {
   buildNodeShapeSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
+  buildShadowMutationContextForPreset,
+  buildShadowSetPropertyMutations,
   buildTransformSetPropertyMutations,
   getInspectorDescriptor,
   resolveTransformInspectorMutationContext,
@@ -1831,6 +1833,259 @@ describe("getInspectorDescriptor", () => {
       throw new Error("Expected local rounded corners property");
     }
     expect(localRounded.disableRequiresSharpCorners).toBe(false);
+  });
+
+  it("shows shadow controls for paths with a drop shadow", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow={shadow xshift=1pt,shadow yshift=-2pt,opacity=.25,fill=gray}] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(path).toBeDefined();
+    if (!path) {
+      throw new Error("Expected path element");
+    }
+
+    const descriptor = getInspectorDescriptor(path, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const shadowSection = descriptor.sections.find((section) => section.id === "shadow");
+    expect(shadowSection).toBeDefined();
+    if (!shadowSection) {
+      throw new Error("Expected shadow section");
+    }
+
+    expect(shadowSection.properties.map((property) => property.id)).toEqual([
+      "shadow-preset",
+      "shadow-xshift",
+      "shadow-yshift",
+      "shadow-scale",
+      "shadow-opacity",
+      "shadow-color"
+    ]);
+
+    const preset = shadowSection.properties.find((property) => property.id === "shadow-preset");
+    const xshift = shadowSection.properties.find((property) => property.id === "shadow-xshift");
+    const yshift = shadowSection.properties.find((property) => property.id === "shadow-yshift");
+    const scale = shadowSection.properties.find((property) => property.id === "shadow-scale");
+    const opacity = shadowSection.properties.find((property) => property.id === "shadow-opacity");
+    const color = shadowSection.properties.find((property) => property.id === "shadow-color");
+
+    if (!preset || preset.kind !== "shadowPreset") {
+      throw new Error("Expected shadow preset property");
+    }
+    if (!xshift || xshift.kind !== "length") {
+      throw new Error("Expected shadow xshift property");
+    }
+    if (!yshift || yshift.kind !== "length") {
+      throw new Error("Expected shadow yshift property");
+    }
+    if (!scale || scale.kind !== "number") {
+      throw new Error("Expected shadow scale property");
+    }
+    if (!opacity || opacity.kind !== "number") {
+      throw new Error("Expected shadow opacity property");
+    }
+    if (!color || color.kind !== "color") {
+      throw new Error("Expected shadow color property");
+    }
+
+    expect(preset.value).toBe("drop-shadow");
+    expect(xshift.value).toBeCloseTo(1, 6);
+    expect(yshift.value).toBeCloseTo(-2, 6);
+    expect(scale.value).toBeCloseTo(1, 6);
+    expect(opacity.value).toBeCloseTo(0.25, 6);
+    expect(opacity.min).toBe(0);
+    expect(opacity.max).toBe(1);
+    expect(color.value).toBe("gray");
+    expect(color.syntaxValue).toBe("gray");
+    expect(xshift.write.shadowContext).toBeDefined();
+  });
+
+  it("preserves preset default shadow color syntax as black!50", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[drop shadow] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(path).toBeDefined();
+    if (!path) {
+      throw new Error("Expected path element");
+    }
+
+    const descriptor = getInspectorDescriptor(path, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const shadowSection = descriptor.sections.find((section) => section.id === "shadow");
+    expect(shadowSection).toBeDefined();
+    if (!shadowSection) {
+      throw new Error("Expected shadow section");
+    }
+
+    const color = shadowSection.properties.find((property) => property.id === "shadow-color");
+    if (!color || color.kind !== "color") {
+      throw new Error("Expected shadow color property");
+    }
+
+    expect(color.value).toBe("black!50");
+    expect(color.syntaxValue).toBe("black!50");
+  });
+
+  it("matches documented circular glow defaults", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[circular glow] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const path = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(path).toBeDefined();
+    if (!path) {
+      throw new Error("Expected path element");
+    }
+
+    const descriptor = getInspectorDescriptor(path, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const shadowSection = descriptor.sections.find((section) => section.id === "shadow");
+    expect(shadowSection).toBeDefined();
+    if (!shadowSection) {
+      throw new Error("Expected shadow section");
+    }
+
+    const xshift = shadowSection.properties.find((property) => property.id === "shadow-xshift");
+    const yshift = shadowSection.properties.find((property) => property.id === "shadow-yshift");
+    const scale = shadowSection.properties.find((property) => property.id === "shadow-scale");
+    const opacity = shadowSection.properties.find((property) => property.id === "shadow-opacity");
+    const color = shadowSection.properties.find((property) => property.id === "shadow-color");
+
+    if (!xshift || xshift.kind !== "length") {
+      throw new Error("Expected circular glow xshift property");
+    }
+    if (!yshift || yshift.kind !== "length") {
+      throw new Error("Expected circular glow yshift property");
+    }
+    if (!scale || scale.kind !== "number") {
+      throw new Error("Expected circular glow scale property");
+    }
+    if (!opacity || opacity.kind !== "number") {
+      throw new Error("Expected circular glow opacity property");
+    }
+    if (!color || color.kind !== "color") {
+      throw new Error("Expected circular glow color property");
+    }
+
+    expect(xshift.value).toBeCloseTo(0, 6);
+    expect(yshift.value).toBeCloseTo(0, 6);
+    expect(scale.value).toBeCloseTo(1.25, 6);
+    expect(opacity.value).toBeCloseTo(1, 6);
+    expect(opacity.min).toBe(0);
+    expect(opacity.max).toBe(1);
+    expect(color.value).toBe("black");
+    expect(color.syntaxValue).toBe("black");
+  });
+
+  it("builds shadow mutations as flags or nested option payloads", () => {
+    const defaultDropShadow = buildShadowSetPropertyMutations({
+      preset: "drop-shadow",
+      xshiftPt: 2.15,
+      yshiftPt: -2.15,
+      scale: 1,
+      opacity: 0.5,
+      color: "black!50"
+    });
+    expect(defaultDropShadow).toEqual([
+      {
+        key: "drop shadow",
+        value: "true",
+        clearKeys: ["copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+      }
+    ]);
+
+    const customDropShadow = buildShadowSetPropertyMutations({
+      preset: "drop-shadow",
+      xshiftPt: 2,
+      yshiftPt: -3,
+      scale: 1,
+      opacity: 0.25,
+      color: "gray"
+    });
+    expect(customDropShadow).toEqual([
+      {
+        key: "drop shadow",
+        value: "{shadow xshift=2pt,shadow yshift=-3pt,opacity=0.25,fill=gray}",
+        clearKeys: ["copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+      }
+    ]);
+
+    const disabledShadow = buildShadowSetPropertyMutations({
+      preset: "none",
+      xshiftPt: 0,
+      yshiftPt: 0,
+      scale: 1,
+      opacity: 1,
+      color: null
+    });
+    expect(disabledShadow).toEqual([
+      {
+        key: "drop shadow",
+        value: "",
+        clearKeys: ["drop shadow", "copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+      }
+    ]);
+
+    const copyToDropShadow = buildShadowSetPropertyMutations({
+      preset: "drop-shadow",
+      xshiftPt: 2.15,
+      yshiftPt: -2.15,
+      scale: 1,
+      opacity: 0.5,
+      color: "__tikz-shadow-inherit-fill__"
+    });
+    expect(copyToDropShadow).toEqual([
+      {
+        key: "drop shadow",
+        value: "true",
+        clearKeys: ["copy shadow", "circular drop shadow", "circular glow", "general shadow", "double copy shadow"]
+      }
+    ]);
+
+    const circularGlowOpacity = buildShadowSetPropertyMutations({
+      preset: "circular-glow",
+      xshiftPt: 0,
+      yshiftPt: 0,
+      scale: 1.25,
+      opacity: 0.4,
+      color: "black"
+    });
+    expect(circularGlowOpacity).toEqual([
+      {
+        key: "circular glow",
+        value: "{opacity=0.4}",
+        clearKeys: ["drop shadow", "copy shadow", "circular drop shadow", "general shadow", "double copy shadow"]
+      }
+    ]);
+  });
+
+  it("builds documented preset contexts for shadow preset switches", () => {
+    expect(buildShadowMutationContextForPreset("circular-glow")).toEqual({
+      preset: "circular-glow",
+      xshiftPt: 0,
+      yshiftPt: 0,
+      scale: 1.25,
+      opacity: 1,
+      color: "black"
+    });
+
+    expect(buildShadowMutationContextForPreset("copy-shadow")).toEqual({
+      preset: "copy-shadow",
+      xshiftPt: 2.15,
+      yshiftPt: -2.15,
+      scale: 1,
+      opacity: 1,
+      color: null
+    });
   });
 
   it("shows a node section for node-backed text with shape, padding, minimum size, font, and text color controls", () => {

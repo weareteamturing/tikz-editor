@@ -111,7 +111,7 @@ export function applyKvEntry(
 
   if (key === "copy shadow") {
     return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
-      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=.5ex",
+      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=-.5ex",
       applyEveryShadow: true,
       copyMainPaint: true
     });
@@ -119,7 +119,7 @@ export function applyKvEntry(
 
   if (key === "double copy shadow") {
     return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
-      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=.5ex",
+      preset: "shadow scale=1,shadow xshift=.5ex,shadow yshift=-.5ex",
       applyEveryShadow: true,
       duplicateWithDoubleShift: true,
       copyMainPaint: true
@@ -129,7 +129,7 @@ export function applyKvEntry(
   if (key === "circular drop shadow") {
     return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
       preset:
-        "shadow scale=1.1,shadow xshift=.3ex,shadow yshift=-.3ex,fill=black!50,path fading={circle with fuzzy edge 15 percent}",
+        "shadow scale=1.1,shadow xshift=.3ex,shadow yshift=-.3ex,fill=black,path fading={circle with fuzzy edge 15 percent}",
       applyEveryShadow: true
     });
   }
@@ -137,7 +137,7 @@ export function applyKvEntry(
   if (key === "circular glow") {
     return appendShadowLayers(style, transform, valueRaw, applyOptionEntry, {
       preset:
-        "shadow scale=1.25,shadow xshift=0pt,shadow yshift=0pt,fill=black!50,path fading={circle with fuzzy edge 15 percent}",
+        "shadow scale=1.25,shadow xshift=0pt,shadow yshift=0pt,fill=black,path fading={circle with fuzzy edge 15 percent}",
       applyEveryShadow: true
     });
   }

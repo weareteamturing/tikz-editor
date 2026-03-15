@@ -21,7 +21,10 @@ import {
   type NodeFontSizePresetId,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
-  type SetPropertyWriteTarget
+  type SetPropertyWriteTarget,
+  type ShadowMutationContext,
+  type ShadowPresetId,
+  type ShadowPresetOption
 } from "tikz-editor/edit/inspector";
 import type { StylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import { makeDefaultArrowMarker } from "tikz-editor/semantic/style/arrows";
@@ -39,6 +42,8 @@ export type MultiInspectorNumberProperty = {
   value: number;
   mixed: boolean;
   step: number;
+  min?: number;
+  max?: number;
   unit?: string;
   clearKeys?: string[];
   writes: SetPropertyWriteTarget[];
@@ -260,6 +265,18 @@ export type MultiInspectorArrowTipProperty = {
   readOnlyReason?: string;
 };
 
+export type MultiInspectorShadowPresetProperty = {
+  kind: "shadowPreset";
+  id: string;
+  label: string;
+  value: ShadowPresetId;
+  mixed: boolean;
+  options: ShadowPresetOption[];
+  contexts: ShadowMutationContext[];
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
 export type MultiInspectorProperty =
   | MultiInspectorNumberProperty
   | MultiInspectorLengthProperty
@@ -276,7 +293,8 @@ export type MultiInspectorProperty =
   | MultiInspectorFillPatternProperty
   | MultiInspectorFillPatternOptionProperty
   | MultiInspectorRoundedCornersProperty
-  | MultiInspectorArrowTipProperty;
+  | MultiInspectorArrowTipProperty
+  | MultiInspectorShadowPresetProperty;
 
 export type MultiInspectorSection = {
   id: string;
@@ -318,6 +336,7 @@ export const FILL_SHADING_MIXED_OPTION_VALUE = "__mixed-fill-shading__";
 export const FILL_PATTERN_MIXED_OPTION_VALUE = "__mixed-fill-pattern__";
 export const NODE_SHAPE_MIXED_OPTION_VALUE = "__mixed-node-shape__";
 export const NODE_FONT_SIZE_MIXED_OPTION_VALUE = "__mixed-node-font-size__";
+export const SHADOW_PRESET_MIXED_OPTION_VALUE = "__mixed-shadow-preset__";
 export const NODE_FONT_SIZE_PT_BY_PRESET: Record<Exclude<NodeFontSizePresetId, "custom">, number> = {
   tiny: 5,
   scriptsize: 7,
@@ -336,6 +355,14 @@ export const META_FILL_PATTERN_PRESETS = new Set<Exclude<FillPatternPresetId, "c
   "Dots",
   "Stars"
 ]);
+export const SHADOW_PARAM_PROPERTY_IDS = new Set([
+  "shadow-xshift",
+  "shadow-yshift",
+  "shadow-scale",
+  "shadow-opacity",
+  "shadow-color"
+]);
+
 export const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
 export const PATH_MORPHING_SUBOPTION_PROPERTY_IDS = new Set([
   "path-morphing-segment-length",
@@ -345,6 +372,7 @@ export const PATH_MORPHING_SUBOPTION_PROPERTY_IDS = new Set([
 export const OPTIONAL_MULTI_PROPERTY_IDS = new Set([
   ...STROKE_MORE_OPTIONS_PROPERTY_IDS,
   ...PATH_MORPHING_SUBOPTION_PROPERTY_IDS,
+  ...SHADOW_PARAM_PROPERTY_IDS,
   "rounded-corners"
 ]);
 export const FILL_ADVANCED_PROPERTY_IDS = new Set([
@@ -370,7 +398,8 @@ export const COMPACT_PAIR_IDS = new Set([
   "xshift:yshift",
   "xscale:yscale",
   "grid-xstep:grid-ystep",
-  "node-minimum-width:node-minimum-height"
+  "node-minimum-width:node-minimum-height",
+  "shadow-xshift:shadow-yshift"
 ]);
 export type LineWidthDropdownValue = string;
 export type ArrowTipDropdownValue = ArrowTipPresetId | typeof ARROW_TIP_MIXED_OPTION_VALUE;
@@ -385,6 +414,7 @@ export type NodeFontSizeDropdownValue = NodeFontSizePresetId | typeof NODE_FONT_
 export type PathMorphingDecorationDropdownValue =
   | PathMorphingDecorationPresetId
   | typeof PATH_MORPHING_DECORATION_MIXED_OPTION_VALUE;
+export type ShadowPresetDropdownValue = ShadowPresetId | typeof SHADOW_PRESET_MIXED_OPTION_VALUE;
 
 export const LINE_WIDTH_PRESET_BY_LABEL = new Map<string, number>(
   LINE_WIDTH_PRESETS.map((preset) => [preset.label, preset.value] as const)
@@ -640,6 +670,12 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
       value: numberProperties[0]?.value ?? 0,
       mixed: !numbersAreEqual(numberProperties.map((property) => property.value)),
       step: base.step,
+      min: numberProperties.every((property) => property.min != null)
+        ? Math.max(...numberProperties.map((property) => property.min as number))
+        : undefined,
+      max: numberProperties.every((property) => property.max != null)
+        ? Math.min(...numberProperties.map((property) => property.max as number))
+        : undefined,
       unit: base.unit,
       clearKeys,
       writes,
@@ -992,25 +1028,51 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
     };
   }
 
-  const sameKind = properties.every((property) => property.kind === "arrowTip");
-  if (!sameKind) return null;
-  const arrowBase = base as Extract<InspectorProperty, { kind: "arrowTip" }>;
-  const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
-  const values = arrowProperties.map((property) => property.value);
-  const writes = arrowProperties.map((property) => property.write);
+  if (base.kind === "arrowTip") {
+    const sameKind = properties.every((property) => property.kind === "arrowTip");
+    if (!sameKind) return null;
+    const arrowBase = base as Extract<InspectorProperty, { kind: "arrowTip" }>;
+    const arrowProperties = properties as Array<Extract<InspectorProperty, { kind: "arrowTip" }>>;
+    const values = arrowProperties.map((property) => property.value);
+    const writes = arrowProperties.map((property) => property.write);
 
-  return {
-    kind: "arrowTip",
-    id: arrowBase.id,
-    label: arrowBase.label,
-    side: arrowBase.side,
-    value: values[0] ?? "none",
-    mixed: !allValuesEqual(values),
-    previewLineWidth: averageNumbers(arrowProperties.map((property) => property.previewLineWidth)),
-    options: arrowBase.options,
-    writes,
-    readOnlyReason: deriveReadOnlyReason(writes)
-  };
+    return {
+      kind: "arrowTip",
+      id: arrowBase.id,
+      label: arrowBase.label,
+      side: arrowBase.side,
+      value: values[0] ?? "none",
+      mixed: !allValuesEqual(values),
+      previewLineWidth: averageNumbers(arrowProperties.map((property) => property.previewLineWidth)),
+      options: arrowBase.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "shadowPreset") {
+    const sameKind = properties.every((property) => property.kind === "shadowPreset");
+    if (!sameKind) return null;
+    const shadowBase = base as Extract<InspectorProperty, { kind: "shadowPreset" }>;
+    const shadowProperties = properties as Array<Extract<InspectorProperty, { kind: "shadowPreset" }>>;
+    const values = shadowProperties.map((property) => property.value);
+    const writes = shadowProperties.map((property) => property.write);
+    const contexts = shadowProperties.map((property) => property.context);
+
+    return {
+      kind: "shadowPreset",
+      id: shadowBase.id,
+      label: shadowBase.label,
+      value: values[0] ?? "none",
+      mixed: !allValuesEqual(values),
+      options: shadowBase.options,
+      contexts,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  return null;
 }
 
 export function deriveReadOnlyReason(
@@ -1463,6 +1525,30 @@ export function isSelectableArrowTipValue(
   value: ArrowTipDropdownValue
 ): value is Exclude<ArrowTipPresetId, "custom"> {
   return value !== "custom" && value !== ARROW_TIP_MIXED_OPTION_VALUE;
+}
+
+export function toShadowPresetDropdownOptions(
+  options: ShadowPresetOption[]
+): Array<CustomDropdownOption<ShadowPresetDropdownValue>> {
+  return [
+    { value: "none" as ShadowPresetId, label: "None" },
+    ...options.map((option) => ({ value: option.value as ShadowPresetDropdownValue, label: option.label }))
+  ];
+}
+
+export function shadowPresetValueLabel(
+  value: ShadowPresetDropdownValue,
+  options: ShadowPresetOption[]
+): string {
+  if (value === SHADOW_PRESET_MIXED_OPTION_VALUE) return "Mixed";
+  if (value === "none") return "None";
+  return options.find((o) => o.value === value)?.label ?? value;
+}
+
+export function isSelectableShadowPresetValue(
+  value: ShadowPresetDropdownValue
+): value is ShadowPresetId {
+  return value !== SHADOW_PRESET_MIXED_OPTION_VALUE;
 }
 
 export function arrowTipPreviewPreset(value: ArrowTipDropdownValue): Exclude<ArrowTipPresetId, "custom"> {

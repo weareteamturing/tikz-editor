@@ -24,7 +24,9 @@ import {
 } from "../semantic/style/option-utils.js";
 import { parseCoordinateLike, parseLength } from "../semantic/coords/parse-length.js";
 import { DEFAULT_TEXT_FONT_SIZE } from "../semantic/style/constants.js";
-import { CM_PER_PT } from "./format.js";
+import { normalizeColor } from "../semantic/style/colors.js";
+import { SHADOW_INHERIT_FILL, SHADOW_INHERIT_STROKE } from "../semantic/types.js";
+import { CM_PER_PT, formatNumber } from "./format.js";
 import {
   ARROW_DEFAULT_CLEAR_KEYS,
   ARROW_OPTION_KEY,
@@ -78,6 +80,10 @@ import {
   RADIAL_SHADING_CONFLICT_CLEAR_KEYS,
   ROUNDED_CORNERS_CLEAR_KEYS,
   ROUNDED_CORNERS_DEFAULT_RADIUS,
+  SHADOW_ALL_KEYS,
+  SHADOW_PRESET_DEFAULTS,
+  SHADOW_PRESET_OPTIONS,
+  SHADOW_PRESET_TIKZ_KEY,
   SHADING_ACTIVATION_KEYS
 } from "./inspector/presets.js";
 import {
@@ -114,7 +120,9 @@ import type {
   PathMorphingDecorationPresetId,
   PathMorphingDecorationPresetOption,
   PathMorphingDecorationSuboptionKey,
-  PathMorphingDecorationSuboptionSpec
+  PathMorphingDecorationSuboptionSpec,
+  ShadowPresetId,
+  ShadowPresetOption
 } from "./inspector/presets.js";
 import type {
   ArrowMarker,
@@ -152,7 +160,9 @@ export type {
   NodeShapePresetId,
   NodeShapePresetOption,
   PathMorphingDecorationPresetId,
-  PathMorphingDecorationPresetOption
+  PathMorphingDecorationPresetOption,
+  ShadowPresetId,
+  ShadowPresetOption
 } from "./inspector/presets.js";
 export {
   DASH_STYLE_OPTIONS,
@@ -164,7 +174,9 @@ export {
   LINE_WIDTH_PRESETS,
   NODE_INNER_SEP_DEFAULT,
   NODE_SHAPE_OPTIONS,
-  ROUNDED_CORNERS_DEFAULT_RADIUS
+  ROUNDED_CORNERS_DEFAULT_RADIUS,
+  SHADOW_PRESET_DEFAULTS,
+  SHADOW_PRESET_OPTIONS
 } from "./inspector/presets.js";
 
 export type ArrowTipWriteContext = {
@@ -323,6 +335,21 @@ export type InspectorSnapshot = {
   parseOptions?: EditParseOptions;
 };
 
+export type ShadowMutationContext = {
+  preset: ShadowPresetId;
+  xshiftPt: number;
+  yshiftPt: number;
+  scale: number;
+  opacity: number;
+  color: string | null;
+};
+
+export type ShadowSetPropertyMutation = {
+  key: string;
+  value: string;
+  clearKeys: string[];
+};
+
 export type SetPropertyWriteTarget = {
   mode: "setProperty";
   elementId: string;
@@ -333,6 +360,7 @@ export type SetPropertyWriteTarget = {
     values: TransformInspectorValues;
     presence?: TransformInspectorPresence;
   };
+  shadowContext?: ShadowMutationContext;
   writable: boolean;
   reason?: string;
 };
@@ -352,6 +380,8 @@ export type InspectorProperty =
       label: string;
       value: number;
       step: number;
+      min?: number;
+      max?: number;
       unit?: string;
       clearKeys?: string[];
       write?: SetPropertyWriteTarget;
@@ -508,6 +538,15 @@ export type InspectorProperty =
       options: ArrowTipPresetOption[];
       previewLineWidth: number;
       write: ArrowTipWriteTarget;
+    }
+  | {
+      kind: "shadowPreset";
+      id: string;
+      label: string;
+      value: ShadowPresetId;
+      options: ShadowPresetOption[];
+      context: ShadowMutationContext;
+      write: SetPropertyWriteTarget;
     };
 
 export type InspectorSection = {
@@ -1055,6 +1094,70 @@ export function buildTransformSetPropertyMutations(
       ROTATE_CLEAR_KEYS
     )
   ];
+}
+
+const SHADOW_EPS = 0.001;
+
+export function buildShadowMutationContextForPreset(preset: ShadowPresetId): ShadowMutationContext {
+  if (preset === "none") {
+    return {
+      preset,
+      xshiftPt: 0,
+      yshiftPt: 0,
+      scale: 1,
+      opacity: 1,
+      color: null
+    };
+  }
+
+  const defaults = SHADOW_PRESET_DEFAULTS[preset];
+  return {
+    preset,
+    xshiftPt: defaults.xshiftPt,
+    yshiftPt: defaults.yshiftPt,
+    scale: defaults.scale,
+    opacity: defaults.opacity ?? 1,
+    color: defaults.color
+  };
+}
+
+export function buildShadowSetPropertyMutations(
+  nextContext: ShadowMutationContext
+): ShadowSetPropertyMutation[] {
+  const allKeys = [...SHADOW_ALL_KEYS] as string[];
+
+  if (nextContext.preset === "none") {
+    return [{ key: allKeys[0], value: "", clearKeys: allKeys }];
+  }
+
+  const tikzKey = SHADOW_PRESET_TIKZ_KEY[nextContext.preset];
+  const defaults = SHADOW_PRESET_DEFAULTS[nextContext.preset];
+  const defaultOpacity = defaults.opacity ?? 1;
+  const otherClearKeys = allKeys.filter((k) => k !== tikzKey);
+  const sanitizedColor =
+    nextContext.color === SHADOW_INHERIT_FILL || nextContext.color === SHADOW_INHERIT_STROKE
+      ? defaults.color
+      : nextContext.color;
+
+  const opts: string[] = [];
+
+  if (Math.abs(nextContext.xshiftPt - defaults.xshiftPt) > SHADOW_EPS) {
+    opts.push(`shadow xshift=${formatNumber(nextContext.xshiftPt)}pt`);
+  }
+  if (Math.abs(nextContext.yshiftPt - defaults.yshiftPt) > SHADOW_EPS) {
+    opts.push(`shadow yshift=${formatNumber(nextContext.yshiftPt)}pt`);
+  }
+  if (Math.abs(nextContext.scale - defaults.scale) > SHADOW_EPS) {
+    opts.push(`shadow scale=${formatNumber(nextContext.scale)}`);
+  }
+  if (Math.abs(nextContext.opacity - defaultOpacity) > SHADOW_EPS) {
+    opts.push(`opacity=${formatNumber(nextContext.opacity)}`);
+  }
+  if (defaults.color !== null && sanitizedColor !== null && sanitizedColor !== defaults.color) {
+    opts.push(`fill=${sanitizedColor}`);
+  }
+
+  return [{ key: tikzKey, value: opts.length === 0 ? "true" : `{${opts.join(",")}}`, clearKeys: otherClearKeys }];
 }
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
@@ -1832,6 +1935,112 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     });
   }
 
+  // Shadow section
+  {
+    const shadowLayer = element.style.shadowLayers[0] ?? null;
+    const shadowPreset = resolveShadowPreset(snapshot.source, inlineTarget.targetId, snapshot.parseOptions);
+    const shadowOverrides = resolveShadowOptionOverrides(
+      snapshot.source,
+      inlineTarget.targetId,
+      snapshot.parseOptions
+    );
+    const defaults = SHADOW_PRESET_DEFAULTS[shadowPreset !== "none" ? shadowPreset : "drop-shadow"];
+    const shadowColor =
+      shadowOverrides.color != null
+        ? resolveShadowOverrideColorValue(shadowOverrides.color, defaults.color)
+        : resolveShadowInspectorColorValue(shadowLayer?.style.fill ?? defaults.color, defaults.color, colorAliases);
+
+    const shadowContext: ShadowMutationContext = {
+      preset: shadowPreset,
+      xshiftPt: shadowOverrides.xshiftPt ?? shadowLayer?.xshift ?? defaults.xshiftPt,
+      yshiftPt: shadowOverrides.yshiftPt ?? shadowLayer?.yshift ?? defaults.yshiftPt,
+      scale: shadowOverrides.scale ?? shadowLayer?.scale ?? defaults.scale,
+      opacity:
+        shadowOverrides.opacity ??
+        shadowLayer?.style.fillOpacity ??
+        shadowLayer?.style.strokeOpacity ??
+        defaults.opacity ??
+        1,
+      color: shadowColor
+    };
+
+    const shadowWrite = (): SetPropertyWriteTarget => ({
+      ...makeSetPropertyWriteTarget(inlineTarget, "drop shadow"),
+      shadowContext
+    });
+
+    const shadowProperties: InspectorProperty[] = [
+      {
+        kind: "shadowPreset",
+        id: "shadow-preset",
+        label: "Shadow",
+        value: shadowPreset,
+        options: SHADOW_PRESET_OPTIONS,
+        context: shadowContext,
+        write: makeSetPropertyWriteTarget(inlineTarget, "drop shadow")
+      }
+    ];
+
+    if (shadowPreset !== "none") {
+      shadowProperties.push(
+        {
+          kind: "length",
+          id: "shadow-xshift",
+          label: "X offset",
+          value: shadowContext.xshiftPt,
+          step: 1,
+          unit: "pt",
+          write: shadowWrite()
+        },
+        {
+          kind: "length",
+          id: "shadow-yshift",
+          label: "Y offset",
+          value: shadowContext.yshiftPt,
+          step: 1,
+          unit: "pt",
+          write: shadowWrite()
+        },
+        {
+          kind: "number",
+          id: "shadow-scale",
+          label: "Scale",
+          value: shadowContext.scale,
+          step: 0.05,
+          write: shadowWrite()
+        }
+      );
+      shadowProperties.push({
+        kind: "number",
+        id: "shadow-opacity",
+        label: "Opacity",
+        value: shadowContext.opacity,
+        step: 0.05,
+        min: 0,
+        max: 1,
+        write: shadowWrite()
+      });
+      if (defaults.color !== null) {
+        shadowProperties.push({
+          kind: "color",
+          id: "shadow-color",
+          label: "Color",
+          value: shadowContext.color,
+          syntaxValue: shadowContext.color,
+          options: colorOptionsForValue(shadowContext.color),
+          write: shadowWrite()
+        });
+      }
+    }
+
+    sections.push({
+      id: "shadow",
+      title: "Shadow",
+      sourceLevel: "command",
+      properties: shadowProperties
+    });
+  }
+
   return {
     elementKind: normalizeElementKind(element.kind),
     elementId: element.sourceRef.sourceId,
@@ -2426,6 +2635,172 @@ function resolvePathMorphingDecorationSuboptionValue(
 
   const parsed = Number(stripEnclosingBraces(rawValue).trim());
   return Number.isFinite(parsed) ? parsed : spec.defaultValue;
+}
+
+function resolveShadowPreset(
+  source: string,
+  targetId: string | null,
+  parseOptions: EditParseOptions = {}
+): ShadowPresetId {
+  if (!targetId) {
+    return "none";
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return "none";
+  }
+
+  for (const entry of resolved.target.options.entries) {
+    const key =
+      entry.kind === "flag" || entry.kind === "kv" ? normalizeOptionKey(entry.key) : null;
+    if (!key) {
+      continue;
+    }
+    if (key === "drop shadow") return "drop-shadow";
+    if (key === "copy shadow" || key === "double copy shadow") return "copy-shadow";
+    if (key === "circular drop shadow") return "circular-drop-shadow";
+    if (key === "circular glow") return "circular-glow";
+    if (key === "general shadow") return "drop-shadow";
+  }
+
+  return "none";
+}
+
+function resolveShadowOptionOverrides(
+  source: string,
+  targetId: string | null,
+  parseOptions: EditParseOptions = {}
+): Partial<Omit<ShadowMutationContext, "preset">> {
+  if (!targetId) {
+    return {};
+  }
+
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  if (resolved.kind === "not-found" || !resolved.target.options) {
+    return {};
+  }
+
+  let overrides: Partial<Omit<ShadowMutationContext, "preset">> = {};
+  for (const entry of resolved.target.options.entries) {
+    const key =
+      entry.kind === "flag" || entry.kind === "kv" ? normalizeOptionKey(entry.key) : null;
+    if (
+      key !== "drop shadow" &&
+      key !== "copy shadow" &&
+      key !== "double copy shadow" &&
+      key !== "circular drop shadow" &&
+      key !== "circular glow" &&
+      key !== "general shadow"
+    ) {
+      continue;
+    }
+
+    if (entry.kind !== "kv") {
+      overrides = {};
+      continue;
+    }
+
+    const nested = parseStyleValueAsOptionList(entry.valueRaw);
+    if (!nested) {
+      continue;
+    }
+
+    const nextOverrides: Partial<Omit<ShadowMutationContext, "preset">> = {};
+    for (const nestedEntry of nested.entries) {
+      if (nestedEntry.kind !== "kv") {
+        continue;
+      }
+      const nestedKey = normalizeOptionKey(nestedEntry.key);
+      if (nestedKey === "shadow xshift") {
+        const parsed = parseLength(nestedEntry.valueRaw, "pt");
+        if (parsed != null) {
+          nextOverrides.xshiftPt = parsed;
+        }
+        continue;
+      }
+      if (nestedKey === "shadow yshift") {
+        const parsed = parseLength(nestedEntry.valueRaw, "pt");
+        if (parsed != null) {
+          nextOverrides.yshiftPt = parsed;
+        }
+        continue;
+      }
+      if (nestedKey === "shadow scale") {
+        const parsed = Number(stripEnclosingBraces(nestedEntry.valueRaw).trim());
+        if (Number.isFinite(parsed)) {
+          nextOverrides.scale = parsed;
+        }
+        continue;
+      }
+      if (nestedKey === "opacity") {
+        const parsed = Number(stripEnclosingBraces(nestedEntry.valueRaw).trim());
+        if (Number.isFinite(parsed)) {
+          nextOverrides.opacity = parsed;
+        }
+        continue;
+      }
+      if (nestedKey === "fill") {
+        const rawColor = stripEnclosingBraces(nestedEntry.valueRaw).trim();
+        if (rawColor.length > 0) {
+          nextOverrides.color = rawColor;
+        }
+      }
+    }
+    overrides = nextOverrides;
+  }
+
+  return overrides;
+}
+
+function resolveShadowInspectorColorValue(
+  rawColor: string | null | undefined,
+  defaultColor: string | null,
+  colorAliases: ReadonlyMap<string, string>
+): string | null {
+  if (!rawColor) {
+    return defaultColor;
+  }
+
+  const trimmed = rawColor.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed === SHADOW_INHERIT_FILL ||
+    trimmed === SHADOW_INHERIT_STROKE
+  ) {
+    return defaultColor;
+  }
+
+  const resolveAlias = (candidate: string): string | null => colorAliases.get(candidate.trim().toLowerCase()) ?? null;
+  const normalizedRaw = normalizeInspectorColorValue(normalizeColor(trimmed, { resolveAlias }));
+  if (defaultColor) {
+    const normalizedDefault = normalizeInspectorColorValue(normalizeColor(defaultColor, { resolveAlias }));
+    if (normalizedRaw != null && normalizedRaw === normalizedDefault) {
+      return defaultColor;
+    }
+  }
+
+  return normalizeInspectorColorValue(trimmed) ?? trimmed;
+}
+
+function resolveShadowOverrideColorValue(
+  rawColor: string | null | undefined,
+  defaultColor: string | null
+): string | null {
+  if (!rawColor) {
+    return defaultColor;
+  }
+
+  const trimmed = rawColor.trim();
+  if (
+    trimmed.length === 0 ||
+    trimmed === SHADOW_INHERIT_FILL ||
+    trimmed === SHADOW_INHERIT_STROKE
+  ) {
+    return defaultColor;
+  }
+
+  return trimmed;
 }
 
 function resolvePathMorphingDecorationPreset(

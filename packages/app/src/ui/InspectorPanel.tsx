@@ -23,6 +23,8 @@ import {
   buildLineJoinSetPropertyMutation,
   buildPathMorphingDecorationSetPropertyMutations,
   buildRoundedCornersSetPropertyMutation,
+  buildShadowMutationContextForPreset,
+  buildShadowSetPropertyMutations,
   buildTransformSetPropertyMutations,
   getInspectorDescriptor,
   resolveTransformInspectorValues,
@@ -45,7 +47,9 @@ import {
   type NodeMinimumDimensionKey,
   type NodeShapePresetId,
   type PathMorphingDecorationPresetId,
-  type SetPropertyWriteTarget
+  type SetPropertyWriteTarget,
+  type ShadowMutationContext,
+  type ShadowPresetId
 } from "tikz-editor/edit/inspector";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
@@ -255,8 +259,20 @@ export function InspectorPanel() {
   ): void {
     const write = property.write;
     if (!write || write.mode !== "setProperty" || !write.writable || write.elementId.length === 0) return;
-    const next = Number(raw);
+    const parsed = Number(raw);
+    const next =
+      Number.isFinite(parsed) && property.min != null && property.max != null
+        ? clampNumber(parsed, property.min, property.max)
+        : Number.isFinite(parsed) && property.min != null
+          ? Math.max(parsed, property.min)
+          : Number.isFinite(parsed) && property.max != null
+            ? Math.min(parsed, property.max)
+            : parsed;
     if (!Number.isFinite(next)) return;
+    if (write.shadowContext) {
+      applyShadowParamValue(write, property.id, next, options);
+      return;
+    }
     if (!write.transformContext) {
       applySetProperty(write, formatNumberWriteValue(property, next), {
         clearKeys: property.clearKeys,
@@ -323,7 +339,15 @@ export function InspectorPanel() {
     raw: string,
     options: NumberChangeOptions = {}
   ): void {
-    const next = Number(raw);
+    const parsed = Number(raw);
+    const next =
+      Number.isFinite(parsed) && property.min != null && property.max != null
+        ? clampNumber(parsed, property.min, property.max)
+        : Number.isFinite(parsed) && property.min != null
+          ? Math.max(parsed, property.min)
+          : Number.isFinite(parsed) && property.max != null
+            ? Math.min(parsed, property.max)
+            : parsed;
     if (!Number.isFinite(next)) return;
 
     const writableWrites = property.writes.filter((write) => write.writable && write.elementId.length > 0);
@@ -470,9 +494,82 @@ export function InspectorPanel() {
       }
       return;
     }
+    if (property.write.shadowContext) {
+      applyShadowParamValue(property.write, property.id, value, options);
+      return;
+    }
     applySetProperty(property.write, `${formatNumber(value)}pt`, {
       recordInHistory: options.recordInHistory
     });
+  }
+
+  function applyShadowParamValue(
+    write: SetPropertyWriteTarget,
+    propertyId: string,
+    value: number | string | null,
+    options: NumberChangeOptions = {}
+  ): void {
+    if (!write.shadowContext || !write.writable || write.elementId.length === 0) return;
+    const ctx = write.shadowContext;
+    let nextContext: ShadowMutationContext;
+    if (propertyId === "shadow-xshift") {
+      nextContext = { ...ctx, xshiftPt: value as number };
+    } else if (propertyId === "shadow-yshift") {
+      nextContext = { ...ctx, yshiftPt: value as number };
+    } else if (propertyId === "shadow-scale") {
+      nextContext = { ...ctx, scale: value as number };
+    } else if (propertyId === "shadow-opacity") {
+      nextContext = { ...ctx, opacity: value as number };
+    } else if (propertyId === "shadow-color") {
+      nextContext = { ...ctx, color: value as string | null };
+    } else {
+      return;
+    }
+    const mutations = buildShadowSetPropertyMutations(nextContext);
+    if (mutations.length === 0) return;
+    const mergeKey = options.recordInHistory === false ? undefined : `single-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        recordInHistory: options.recordInHistory,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
+  }
+
+  function applyShadowPresetValue(
+    write: SetPropertyWriteTarget,
+    context: ShadowMutationContext,
+    nextPreset: ShadowPresetId
+  ): void {
+    if (!write.writable || write.elementId.length === 0) return;
+    const nextContext =
+      nextPreset === context.preset ? context : buildShadowMutationContextForPreset(nextPreset);
+    const mutations = buildShadowSetPropertyMutations(nextContext);
+    if (mutations.length === 0) return;
+    const mergeKey = `single-set:${Date.now().toString(36)}`;
+    for (const mutation of mutations) {
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        historyMergeKey: mergeKey,
+        action: {
+          kind: "setProperty",
+          elementId: write.elementId,
+          level: write.level,
+          key: mutation.key,
+          value: mutation.value,
+          clearKeys: mutation.clearKeys
+        }
+      });
+    }
   }
 
   function applyMultiLengthValue(
@@ -586,6 +683,8 @@ export function InspectorPanel() {
         className={withValueProvenanceClass(css.numberInput, provenance)}
         type="number"
         step={property.step}
+        min={property.min}
+        max={property.max}
         value={formatNumber(property.value)}
         disabled={!writable}
         onChange={(event) => handleNumberChange(property, event.currentTarget.value)}
@@ -597,6 +696,8 @@ export function InspectorPanel() {
           writable,
           value: property.value,
           step: property.step,
+          min: property.min,
+          max: property.max,
           onPreview: (next) => handleNumberChange(property, String(next), { recordInHistory: false }),
           onCommit: (next) => handleNumberChange(property, String(next))
         })}
@@ -620,6 +721,8 @@ export function InspectorPanel() {
         className={withValueProvenanceClass(css.numberInput, provenance)}
         type="number"
         step={property.step}
+        min={property.min}
+        max={property.max}
         value={property.mixed ? "" : formatNumber(property.value)}
         disabled={!writable}
         onChange={(event) => handleMultiNumberChange(property, event.currentTarget.value)}
@@ -631,6 +734,8 @@ export function InspectorPanel() {
           writable,
           value: property.value,
           step: property.step,
+          min: property.min,
+          max: property.max,
           onPreview: (next) => handleMultiNumberChange(property, String(next), { recordInHistory: false }),
           onCommit: (next) => handleMultiNumberChange(property, String(next))
         })}
@@ -960,7 +1065,9 @@ export function InspectorPanel() {
     applyRoundedCornersValue,
     applyRoundedCornersValueMany,
     applyArrowTipValue,
-    applyArrowTipValueMany
+    applyArrowTipValueMany,
+    applyShadowPropertyValue: applyShadowParamValue,
+    applyShadowPresetValue
   };
 
   function renderProperty(property: InspectorProperty) {
