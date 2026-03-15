@@ -23,6 +23,7 @@
     "compare:pgf-docs": "node scripts/compare-pgf-docs-renderings.mjs",
     "compare:kottwitz-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kottwitz-book",
     "compare:kolda-book": "node scripts/compare-pgf-docs-renderings.mjs --mode kolda-book",
+    "generate:font-previews": "node scripts/generate-font-previews.mjs",
     "bench:incremental-drag": "node scripts/benchmark-incremental-drag.mjs",
     "dev:web": "npm run -w @tikz-editor/web dev",
     "dev:desktop": "npm run -w @tikz-editor/desktop tauri:dev",

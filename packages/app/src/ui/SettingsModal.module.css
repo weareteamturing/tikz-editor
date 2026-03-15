@@ -189,6 +189,20 @@
   cursor: pointer;
 }
 
+.fontPreviewRow {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  background: var(--settings-card-bg, #fff);
+}
+
+.fontPreviewImg {
+  height: 28px;
+  width: auto;
+  max-width: 100%;
+}
+
 .resetRow {
   display: flex;
   justify-content: flex-end;

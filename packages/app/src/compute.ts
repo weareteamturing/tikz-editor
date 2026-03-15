@@ -9,6 +9,7 @@ import type { EmitSvgOptions, EmitSvgResult, SvgRenderModel } from "tikz-editor/
 import type { EditHandle, SceneFigure } from "tikz-editor/semantic/types";
 import type { RenderDiagnostic } from "tikz-editor/render/index";
 import type { NodeTextEngine } from "tikz-editor/text/types";
+import type { MathJaxFont } from "tikz-editor/text/mathjax-engine";
 import type { SourcePatch } from "tikz-editor/edit/types";
 import type {
   IncrementalSemanticStats,
@@ -75,6 +76,7 @@ let revisionCounter = 0;
 let incrementalSemanticSession: IncrementalSemanticSession | null = null;
 let incrementalParseSession: IncrementalParseSession | null = null;
 let textEnginePromise: Promise<NodeTextEngine | null> | null = null;
+let currentMathJaxFont: MathJaxFont = "mathjax-newcm";
 let previousSvgModel: SvgRenderModel | null = null;
 let incrementalWarmSource: string | null = null;
 
@@ -473,12 +475,19 @@ async function getIncrementalParseSession(): Promise<IncrementalParseSession> {
   return incrementalParseSession;
 }
 
+export function setMathJaxFont(font: MathJaxFont): void {
+  if (font === currentMathJaxFont) return;
+  currentMathJaxFont = font;
+  textEnginePromise = null;
+}
+
 async function getOptionalTextEngine(): Promise<NodeTextEngine | null> {
   if (!textEnginePromise) {
+    const font = currentMathJaxFont;
     textEnginePromise = (async () => {
       try {
         const { createMathJaxNodeTextEngine } = await import("tikz-editor/text/mathjax-engine");
-        return await createMathJaxNodeTextEngine();
+        return await createMathJaxNodeTextEngine({ font });
       } catch (_error) {
         return null;
       }

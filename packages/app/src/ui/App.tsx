@@ -6,7 +6,7 @@ import {
   type AppMenuPlatformTarget
 } from "../app-menu";
 import { useEditorStore } from "../store/store";
-import { computeSnapshot, makeEmptySnapshot, type ComputeRequest, type ComputeResponse } from "../compute";
+import { computeSnapshot, makeEmptySnapshot, setMathJaxFont, type ComputeRequest, type ComputeResponse } from "../compute";
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
@@ -139,6 +139,7 @@ export function App() {
   const uiFontSizePx = useSettingsStore((s) => s.settings.general.uiFontSizePx);
   const colorScheme = useSettingsStore((s) => s.settings.general.colorScheme);
   const canvasInvert = useSettingsStore((s) => s.settings.general.canvasInvert);
+  const mathJaxFont = useSettingsStore((s) => s.settings.rendering.mathJaxFont);
   const dispatch = useEditorStore((s) => s.dispatch);
   const platform = getActiveEditorPlatform();
   const menuTarget = menuTargetFromPlatformId(platform.id);
@@ -305,6 +306,7 @@ export function App() {
     if (!scheduler) {
       return;
     }
+    setMathJaxFont(mathJaxFont);
     const changedSourceIds = lastEditChangedSourceIds ?? (activeSourceScrubSourceId ? [activeSourceScrubSourceId] : null);
     const trigger = computeTrigger(activeCanvasDragKind, activeSourceScrubSourceId);
 
@@ -344,7 +346,7 @@ export function App() {
     }
 
     scheduleCompute();
-  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, lastEditPatches, source]);
+  }, [activeCanvasDragKind, activeDocumentId, activeFigureId, activeSourceScrubSourceId, dispatch, lastEditChangedSourceIds, lastEditPatches, mathJaxFont, source]);
 
   useEffect(() => {
     const scheduler = computeSchedulerRef.current;

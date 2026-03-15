@@ -45,6 +45,21 @@ type FontSwitchRule = {
   apply: (font: TextFontOptions) => void;
 };
 
+export type MathJaxFont =
+  | "mathjax-newcm"
+  | "mathjax-asana"
+  | "mathjax-bonum"
+  | "mathjax-dejavu"
+  | "mathjax-fira"
+  | "mathjax-modern"
+  | "mathjax-pagella"
+  | "mathjax-schola"
+  | "mathjax-stix2"
+  | "mathjax-termes"
+  | "mathjax-tex";
+
+const DEFAULT_FONT: MathJaxFont = "mathjax-newcm";
+
 const MIDLINE_FROM_BASELINE_RATIO = 0.215;
 const BROWSER_STARTUP_COMPONENT_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/startup.js";
 const BROWSER_STARTUP_COMPONENT_ID = "tikz-editor-mathjax-startup";
@@ -101,6 +116,7 @@ const FONT_SWITCH_RULES: FontSwitchRule[] = [
 let sharedEnginePromise: Promise<NodeTextEngine> | null = null;
 let browserRuntimePromise: Promise<MathJaxRuntime> | null = null;
 let moduleWorkerRuntimePromise: Promise<MathJaxRuntime> | null = null;
+let activeBrowserFont: MathJaxFont = DEFAULT_FONT;
 
 type WorkerFontLoader = (name: string) => Promise<unknown>;
 let workerFontLoader: WorkerFontLoader | null = null;
@@ -114,9 +130,16 @@ export function setWorkerFontLoader(loader: WorkerFontLoader): void {
   workerFontLoader = loader;
 }
 
-export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
+export async function createMathJaxNodeTextEngine(options?: { font?: MathJaxFont }): Promise<NodeTextEngine> {
+  const font = options?.font ?? DEFAULT_FONT;
+  if (hasBrowserDomGlobals() && font !== activeBrowserFont) {
+    activeBrowserFont = font;
+    sharedEnginePromise = null;
+    browserRuntimePromise = null;
+    resetBrowserMathJax();
+  }
   if (!sharedEnginePromise) {
-    sharedEnginePromise = initializeEngine();
+    sharedEnginePromise = initializeEngine(font);
   }
   try {
     return await sharedEnginePromise;
@@ -126,9 +149,9 @@ export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
   }
 }
 
-async function initializeEngine(): Promise<NodeTextEngine> {
+async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
   const runtime = hasBrowserDomGlobals()
-    ? await initializeBrowserRuntime()
+    ? await initializeBrowserRuntime(font)
     : hasWorkerRuntimeGlobals()
       ? await initializeWorkerRuntime()
       : await initializeNodeRuntime();
@@ -354,9 +377,9 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
   return runtime;
 }
 
-async function initializeBrowserRuntime(): Promise<MathJaxRuntime> {
+async function initializeBrowserRuntime(font: MathJaxFont): Promise<MathJaxRuntime> {
   if (!browserRuntimePromise) {
-    browserRuntimePromise = initializeBrowserRuntimeOnce();
+    browserRuntimePromise = initializeBrowserRuntimeOnce(font);
   }
   try {
     return await browserRuntimePromise;
@@ -366,13 +389,13 @@ async function initializeBrowserRuntime(): Promise<MathJaxRuntime> {
   }
 }
 
-async function initializeBrowserRuntimeOnce(): Promise<MathJaxRuntime> {
+async function initializeBrowserRuntimeOnce(font: MathJaxFont): Promise<MathJaxRuntime> {
   const preloadedRuntime = await readBrowserRuntime(150);
   if (preloadedRuntime) {
     return preloadedRuntime;
   }
 
-  configureBrowserMathJaxGlobal();
+  configureBrowserMathJaxGlobal(font);
   await ensureBrowserStartupComponentLoaded();
 
   const runtime = await readBrowserRuntime(5000);
@@ -464,12 +487,13 @@ async function coerceBrowserRuntime(candidate: unknown): Promise<MathJaxRuntime 
   };
 }
 
-function configureBrowserMathJaxGlobal(): void {
+function configureBrowserMathJaxGlobal(font: MathJaxFont): void {
   const globals = globalThis as { MathJax?: Record<string, unknown> };
   const existing = isRecord(globals.MathJax) ? globals.MathJax : {};
   const existingLoader = isRecord(existing.loader) ? existing.loader : {};
   const existingTex = isRecord(existing.tex) ? existing.tex : {};
   const existingSvg = isRecord(existing.svg) ? existing.svg : {};
+  const existingOutput = isRecord(existing.output) ? existing.output : {};
   const existingStartup = isRecord(existing.startup) ? existing.startup : {};
   const existingTexPackages = isRecord(existingTex.packages) ? existingTex.packages : {};
   const existingSvgLinebreaks = isRecord(existingSvg.linebreaks) ? existingSvg.linebreaks : {};
@@ -480,6 +504,10 @@ function configureBrowserMathJaxGlobal(): void {
 
   globals.MathJax = {
     ...existing,
+    output: {
+      ...existingOutput,
+      font
+    },
     loader: {
       ...existingLoader,
       load: loaderLoad
@@ -508,6 +536,17 @@ function configureBrowserMathJaxGlobal(): void {
       typeset: false
     }
   };
+}
+
+function resetBrowserMathJax(): void {
+  const documentRef = getBrowserDocument();
+  if (documentRef && typeof documentRef.getElementById === "function") {
+    const script = documentRef.getElementById(BROWSER_STARTUP_COMPONENT_ID);
+    if (isRecord(script) && typeof (script as { remove?: () => void }).remove === "function") {
+      (script as { remove: () => void }).remove();
+    }
+  }
+  delete (globalThis as { MathJax?: unknown }).MathJax;
 }
 
 async function ensureBrowserStartupComponentLoaded(): Promise<void> {
