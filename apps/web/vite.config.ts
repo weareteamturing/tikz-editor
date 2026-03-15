@@ -5,6 +5,7 @@ import path from "path";
 export default defineConfig({
   base: "https://tikz.dev/edit/",
   plugins: [react()],
+  publicDir: path.resolve(__dirname, "../../packages/app/public"),
   worker: {
     format: "es"
   },

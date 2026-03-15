@@ -6,6 +6,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 export default defineConfig({
   plugins: [react()],
+  publicDir: path.resolve(__dirname, "../../packages/app/public"),
   resolve: {
     alias: {
       "tikz-editor": path.resolve(__dirname, "../../packages/core/src")

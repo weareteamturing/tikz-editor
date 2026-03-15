@@ -2,7 +2,7 @@
 /**
  * Generates SVG font preview images for all 11 MathJax fonts.
  *
- * Output: apps/web/public/font-previews/<font-name>.svg
+ * Output: packages/app/public/font-previews/<font-name>.svg
  * Usage:  node scripts/generate-font-previews.mjs [--force]
  *
  * Each font's npm package is installed on demand (--no-save) if absent.
@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { optimize as svgoOptimize } from "svgo";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const outDir = join(repoRoot, "apps", "web", "public", "font-previews");
+const outDir = join(repoRoot, "packages", "app", "public", "font-previews");
 const force = process.argv.includes("--force");
 
 const FONTS = [
