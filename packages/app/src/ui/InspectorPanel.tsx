@@ -198,6 +198,7 @@ export function InspectorPanel() {
     () => new Set()
   );
   const [strokeMoreOptionsOpen, setStrokeMoreOptionsOpen] = useState(false);
+  const [fillMoreOptionsOpen, setFillMoreOptionsOpen] = useState(false);
   const [fillAdvancedOptionsOpen, setFillAdvancedOptionsOpen] = useState(false);
 
   const {
@@ -1259,6 +1260,8 @@ export function InspectorPanel() {
                     section={section}
                     strokeMoreOptionsOpen={strokeMoreOptionsOpen}
                     setStrokeMoreOptionsOpen={setStrokeMoreOptionsOpen}
+                    fillMoreOptionsOpen={fillMoreOptionsOpen}
+                    setFillMoreOptionsOpen={setFillMoreOptionsOpen}
                     fillAdvancedOptionsOpen={fillAdvancedOptionsOpen}
                     setFillAdvancedOptionsOpen={setFillAdvancedOptionsOpen}
                     renderedSinglePropertyProvenance={renderedSinglePropertyProvenance}
@@ -1291,6 +1294,8 @@ export function InspectorPanel() {
                     section={section}
                     strokeMoreOptionsOpen={strokeMoreOptionsOpen}
                     setStrokeMoreOptionsOpen={setStrokeMoreOptionsOpen}
+                    fillMoreOptionsOpen={fillMoreOptionsOpen}
+                    setFillMoreOptionsOpen={setFillMoreOptionsOpen}
                     fillAdvancedOptionsOpen={fillAdvancedOptionsOpen}
                     setFillAdvancedOptionsOpen={setFillAdvancedOptionsOpen}
                     renderedMultiPropertyProvenance={renderedMultiPropertyProvenance}

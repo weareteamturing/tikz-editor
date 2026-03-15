@@ -4,9 +4,11 @@ import {
   type MultiInspectorProperty,
   type MultiInspectorSection,
   shouldAutoShowFillAdvancedOptions,
+  shouldAutoShowFillMoreOptions,
   shouldAutoShowStrokeMoreOptions,
   shouldRenderCompactPair,
   isFillAdvancedPropertyId,
+  isFillMoreOptionsPropertyId,
   isStrokeMoreOptionsPropertyId,
   type InspectorPropertyProvenanceMap
 } from "./panel-helpers";
@@ -17,6 +19,8 @@ export function InspectorSingleSection(props: {
   section: InspectorDescriptor["sections"][number];
   strokeMoreOptionsOpen: boolean;
   setStrokeMoreOptionsOpen: (updater: (current: boolean) => boolean) => void;
+  fillMoreOptionsOpen: boolean;
+  setFillMoreOptionsOpen: (updater: (current: boolean) => boolean) => void;
   fillAdvancedOptionsOpen: boolean;
   setFillAdvancedOptionsOpen: (next: boolean) => void;
   renderedSinglePropertyProvenance: InspectorPropertyProvenanceMap;
@@ -41,6 +45,8 @@ export function InspectorSingleSection(props: {
     section,
     strokeMoreOptionsOpen,
     setStrokeMoreOptionsOpen,
+    fillMoreOptionsOpen,
+    setFillMoreOptionsOpen,
     fillAdvancedOptionsOpen,
     setFillAdvancedOptionsOpen,
     renderedSinglePropertyProvenance,
@@ -60,6 +66,14 @@ export function InspectorSingleSection(props: {
     shouldAutoShowStrokeMoreOptions(property)
   );
   const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+  const fillMoreOptionsProperties =
+    section.id === "fill"
+      ? section.properties.filter((property) => isFillMoreOptionsPropertyId(property.id))
+      : [];
+  const forceShowFillMoreOptions = fillMoreOptionsProperties.some((property) =>
+    shouldAutoShowFillMoreOptions(property)
+  );
+  const showFillMoreOptions = forceShowFillMoreOptions || fillMoreOptionsOpen;
   const fillAdvancedProperties =
     section.id === "fill"
       ? section.properties.filter((property) => isFillAdvancedPropertyId(property.id))
@@ -75,11 +89,14 @@ export function InspectorSingleSection(props: {
   const visibleProperties =
     section.id === "stroke" && !showStrokeMoreOptions
       ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
-      : section.id === "fill" && !showFillAdvancedOptions
-        ? section.properties.filter((property) => !isFillAdvancedPropertyId(property.id))
-        : section.id === "fill" && showFillAdvancedOptions
-          ? section.properties.filter((property) => property.id !== "fill-color")
-          : section.properties;
+      : section.id === "fill"
+        ? section.properties.filter((property) => {
+            if (!showFillMoreOptions && isFillMoreOptionsPropertyId(property.id)) return false;
+            if (!showFillAdvancedOptions && isFillAdvancedPropertyId(property.id)) return false;
+            if (showFillAdvancedOptions && property.id === "fill-color") return false;
+            return true;
+          })
+        : section.properties;
 
   return (
     <SidePanel.Section key={section.id}>
@@ -128,6 +145,17 @@ export function InspectorSingleSection(props: {
           </button>
         ) : null}
         {section.id === "fill" &&
+        fillMoreOptionsProperties.length > 0 &&
+        !forceShowFillMoreOptions ? (
+          <button
+            type="button"
+            className={css.moreOptionsToggle}
+            onClick={() => setFillMoreOptionsOpen((current) => !current)}
+          >
+            {showFillMoreOptions ? "fewer options.." : "more options.."}
+          </button>
+        ) : null}
+        {section.id === "fill" &&
         fillAdvancedProperties.length > 0 &&
         !showFillAdvancedOptions &&
         fillModeProperty ? (
@@ -171,6 +199,8 @@ export function InspectorMultiSection(props: {
   section: MultiInspectorSection;
   strokeMoreOptionsOpen: boolean;
   setStrokeMoreOptionsOpen: (updater: (current: boolean) => boolean) => void;
+  fillMoreOptionsOpen: boolean;
+  setFillMoreOptionsOpen: (updater: (current: boolean) => boolean) => void;
   fillAdvancedOptionsOpen: boolean;
   setFillAdvancedOptionsOpen: (next: boolean) => void;
   renderedMultiPropertyProvenance: InspectorPropertyProvenanceMap;
@@ -195,6 +225,8 @@ export function InspectorMultiSection(props: {
     section,
     strokeMoreOptionsOpen,
     setStrokeMoreOptionsOpen,
+    fillMoreOptionsOpen,
+    setFillMoreOptionsOpen,
     fillAdvancedOptionsOpen,
     setFillAdvancedOptionsOpen,
     renderedMultiPropertyProvenance,
@@ -214,6 +246,14 @@ export function InspectorMultiSection(props: {
     shouldAutoShowStrokeMoreOptions(property)
   );
   const showStrokeMoreOptions = forceShowStrokeMoreOptions || strokeMoreOptionsOpen;
+  const fillMoreOptionsProperties =
+    section.id === "fill"
+      ? section.properties.filter((property) => isFillMoreOptionsPropertyId(property.id))
+      : [];
+  const forceShowFillMoreOptions = fillMoreOptionsProperties.some((property) =>
+    shouldAutoShowFillMoreOptions(property)
+  );
+  const showFillMoreOptions = forceShowFillMoreOptions || fillMoreOptionsOpen;
   const fillAdvancedProperties =
     section.id === "fill"
       ? section.properties.filter((property) => isFillAdvancedPropertyId(property.id))
@@ -229,11 +269,14 @@ export function InspectorMultiSection(props: {
   const visibleProperties =
     section.id === "stroke" && !showStrokeMoreOptions
       ? section.properties.filter((property) => !isStrokeMoreOptionsPropertyId(property.id))
-      : section.id === "fill" && !showFillAdvancedOptions
-        ? section.properties.filter((property) => !isFillAdvancedPropertyId(property.id))
-        : section.id === "fill" && showFillAdvancedOptions
-          ? section.properties.filter((property) => property.id !== "fill-color")
-          : section.properties;
+      : section.id === "fill"
+        ? section.properties.filter((property) => {
+            if (!showFillMoreOptions && isFillMoreOptionsPropertyId(property.id)) return false;
+            if (!showFillAdvancedOptions && isFillAdvancedPropertyId(property.id)) return false;
+            if (showFillAdvancedOptions && property.id === "fill-color") return false;
+            return true;
+          })
+        : section.properties;
 
   return (
     <SidePanel.Section key={section.id}>
@@ -279,6 +322,17 @@ export function InspectorMultiSection(props: {
             onClick={() => setStrokeMoreOptionsOpen((current) => !current)}
           >
             {showStrokeMoreOptions ? "fewer options.." : "more options.."}
+          </button>
+        ) : null}
+        {section.id === "fill" &&
+        fillMoreOptionsProperties.length > 0 &&
+        !forceShowFillMoreOptions ? (
+          <button
+            type="button"
+            className={css.moreOptionsToggle}
+            onClick={() => setFillMoreOptionsOpen((current) => !current)}
+          >
+            {showFillMoreOptions ? "fewer options.." : "more options.."}
           </button>
         ) : null}
         {section.id === "fill" &&

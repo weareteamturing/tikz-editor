@@ -363,14 +363,16 @@ export const SHADOW_PARAM_PROPERTY_IDS = new Set([
   "shadow-color"
 ]);
 
-export const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join"]);
+export const STROKE_MORE_OPTIONS_PROPERTY_IDS = new Set(["line-cap", "line-join", "stroke-opacity"]);
 export const PATH_MORPHING_SUBOPTION_PROPERTY_IDS = new Set([
   "path-morphing-segment-length",
   "path-morphing-amplitude",
   "path-morphing-aspect"
 ]);
+export const FILL_MORE_OPTIONS_PROPERTY_IDS = new Set(["fill-opacity"]);
 export const OPTIONAL_MULTI_PROPERTY_IDS = new Set([
   ...STROKE_MORE_OPTIONS_PROPERTY_IDS,
+  ...FILL_MORE_OPTIONS_PROPERTY_IDS,
   ...PATH_MORPHING_SUBOPTION_PROPERTY_IDS,
   ...SHADOW_PARAM_PROPERTY_IDS,
   "rounded-corners"
@@ -437,6 +439,10 @@ export function isStrokeMoreOptionsPropertyId(propertyId: string): boolean {
   return STROKE_MORE_OPTIONS_PROPERTY_IDS.has(propertyId);
 }
 
+export function isFillMoreOptionsPropertyId(propertyId: string): boolean {
+  return FILL_MORE_OPTIONS_PROPERTY_IDS.has(propertyId);
+}
+
 export function isFillAdvancedPropertyId(propertyId: string): boolean {
   return FILL_ADVANCED_PROPERTY_IDS.has(propertyId);
 }
@@ -451,6 +457,16 @@ export function shouldAutoShowStrokeMoreOptions(property: InspectorProperty | Mu
   }
   if (property.kind === "lineJoin") {
     return property.value !== "miter" || ("mixed" in property && property.mixed);
+  }
+  if (property.kind === "number" && property.id === "stroke-opacity") {
+    return property.value !== 1 || ("mixed" in property && property.mixed);
+  }
+  return false;
+}
+
+export function shouldAutoShowFillMoreOptions(property: InspectorProperty | MultiInspectorProperty): boolean {
+  if (property.kind === "number" && property.id === "fill-opacity") {
+    return property.value !== 1 || ("mixed" in property && property.mixed);
   }
   return false;
 }

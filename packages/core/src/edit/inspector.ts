@@ -1748,6 +1748,16 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       }
     }
 
+    fillProperties.push({
+      kind: "number",
+      id: "fill-opacity",
+      label: "Opacity",
+      value: element.style.fillOpacity,
+      step: 0.05,
+      min: 0,
+      max: 1,
+      write: makeSetPropertyWriteTarget(inlineTarget, "fill opacity")
+    });
     sections.push({
       id: "fill",
       title: "Fill",
@@ -1780,6 +1790,16 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
         write: makeSetPropertyWriteTarget(inlineTarget, "line join")
       });
     }
+    strokeSection.properties.push({
+      kind: "number",
+      id: "stroke-opacity",
+      label: "Opacity",
+      value: element.style.strokeOpacity,
+      step: 0.05,
+      min: 0,
+      max: 1,
+      write: makeSetPropertyWriteTarget(inlineTarget, "draw opacity")
+    });
   }
 
   if (element.kind === "Path") {
