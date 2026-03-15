@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   canvasViewport,
   clickHitRegion,
+  clickHitRegionByTargetId,
   dragBetweenPoints,
   dragLocatorBy,
   gotoApp,
@@ -49,6 +50,10 @@ async function drawFreehandStroke(
 
 function countBezierControls(source: string): number {
   return (source.match(/\.\. controls/g) ?? []).length;
+}
+
+function normalizeSourceWhitespace(source: string): string {
+  return source.replace(/\s+/g, "");
 }
 
 async function doubleClickHitRegion(
@@ -196,6 +201,83 @@ test("freehand toolbar popup opens on activation and closes on outside click or 
 
   await page.mouse.click(4, 4);
   await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
+});
+
+test("bucket popup chooses color, previews on hover, and stays active across fills", async ({ page }) => {
+  await gotoApp(page);
+  const source = String.raw`\begin{tikzpicture}
+  \filldraw[fill=blue!20] (0,0) rectangle (2,2);
+  \filldraw[fill=green!20] (3,0) rectangle (5,2);
+\end{tikzpicture}`;
+  await setSource(page, source);
+
+  await toolbarButton(page, "Bucket").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addBucket")).toBeVisible();
+  await page.getByRole("button", { name: "Bucket fill color red" }).click();
+
+  const firstRegion = page.locator("[data-hit-region-target-id='path:0']").first();
+  await expect(firstRegion).toBeVisible();
+  const firstBox = await firstRegion.boundingBox();
+  if (!firstBox) {
+    throw new Error("First bucket target bounds missing.");
+  }
+
+  await page.mouse.move(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=green!20] (3,0) rectangle (5,2);");
+
+  const layer = interactionLayer(page);
+  const layerBox = await layer.boundingBox();
+  if (!layerBox) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+  await page.mouse.move(layerBox.x + 8, layerBox.y + 8);
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toBe(normalizeSourceWhitespace(source));
+
+  await clickHitRegionByTargetId(page, "path:0");
+  await clickHitRegionByTargetId(page, "path:1");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (3,0) rectangle (5,2);");
+  await expect(toolbarButton(page, "Bucket")).toHaveClass(/btnActive/);
+});
+
+test("bucket fills draw-only closed paths from the interior", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (2,2);
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Bucket").click();
+  await page.getByRole("button", { name: "Bucket fill color red" }).click();
+
+  const region = page.locator("[data-hit-region-target-id='path:0']").first();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error("Bucket target bounds missing.");
+  }
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
+
+  await clickHitRegionByTargetId(page, "path:0");
+  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
+});
+
+test("bucket warns on tikzpicture background", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (2,2);
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Bucket").click();
+
+  const layer = interactionLayer(page);
+  const layerBox = await layer.boundingBox();
+  if (!layerBox) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+  await page.mouse.click(layerBox.x + layerBox.width - 20, layerBox.y + 20);
+  await expect(page.getByTestId("canvas-warning-message")).toContainText("Cannot fill the tikzpicture background.");
 });
 
 test("multi-segment path tool finalizes on Enter", async ({ page }) => {

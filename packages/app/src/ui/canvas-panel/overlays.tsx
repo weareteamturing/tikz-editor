@@ -550,7 +550,7 @@ export function HitRegionLayer({
   return (
     <g className={css.hitRegions}>
       {hitRegions.map((region) => {
-        const isHovered = hoveredElementId === region.targetId;
+        const isHovered = hoveredElementId === (toolMode === "addBucket" ? region.sourceId : region.targetId);
         const cursor =
           toolMode === "select"
             ? region.shape === "rect" && region.interactionMode === "move"
@@ -560,14 +560,43 @@ export function HitRegionLayer({
               : draggableSourceIds.has(region.targetId)
                 ? "move"
                 : undefined
+            : toolMode === "addBucket"
+              ? isBucketPreviewRegion(region)
+                ? "copy"
+                : undefined
             : undefined;
         const className = [css.hitRegion, isHovered ? css.hitRegionHovered : ""].filter(Boolean).join(" ");
+        const bucketUsesFillHitArea = toolMode === "addBucket" && shouldUseBucketFillHitArea(region);
+        const pointerEvents =
+          toolMode === "select"
+            ? region.pointerMode === "stroke"
+              ? "stroke"
+              : region.shape === "rect"
+                ? "all"
+                : "fill"
+            : toolMode === "addBucket"
+              ? bucketUsesFillHitArea
+                ? region.shape === "rect"
+                  ? "all"
+                  : "fill"
+                : region.pointerMode === "stroke"
+                ? "stroke"
+                : region.shape === "rect"
+                  ? "all"
+                  : "fill"
+              : "none";
 
         const onEnter = () => {
-          if (toolMode === "select") onHoverChange(region.targetId);
+          if (toolMode === "select") {
+            onHoverChange(region.targetId);
+            return;
+          }
+          if (toolMode === "addBucket") {
+            onHoverChange(isBucketPreviewRegion(region) ? region.sourceId : null);
+          }
         };
         const onLeave = () => {
-          if (toolMode === "select") onHoverChange(null);
+          if (toolMode === "select" || toolMode === "addBucket") onHoverChange(null);
         };
 
         if (region.shape === "path") {
@@ -580,11 +609,11 @@ export function HitRegionLayer({
               className={className}
               d={region.d}
               transform={transform}
-              fill={region.pointerMode === "fill" ? "transparent" : "none"}
+              fill={bucketUsesFillHitArea || region.pointerMode === "fill" ? "transparent" : "none"}
               stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
-              pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
+              pointerEvents={pointerEvents}
               onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
               onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
@@ -603,11 +632,11 @@ export function HitRegionLayer({
               cx={region.cx}
               cy={region.cy}
               r={region.r}
-              fill={region.pointerMode === "fill" ? "transparent" : "none"}
+              fill={bucketUsesFillHitArea || region.pointerMode === "fill" ? "transparent" : "none"}
               stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
-              pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
+              pointerEvents={pointerEvents}
               onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
               onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
@@ -632,11 +661,11 @@ export function HitRegionLayer({
               rx={region.rx}
               ry={region.ry}
               transform={transform}
-              fill={region.pointerMode === "fill" ? "transparent" : "none"}
+              fill={bucketUsesFillHitArea || region.pointerMode === "fill" ? "transparent" : "none"}
               stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
               strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
               style={cursor ? { cursor } : undefined}
-              pointerEvents={toolMode === "select" ? (region.pointerMode === "stroke" ? "stroke" : "fill") : "none"}
+              pointerEvents={pointerEvents}
               onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
               onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
               onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
@@ -664,11 +693,7 @@ export function HitRegionLayer({
             stroke={region.pointerMode === "stroke" ? "transparent" : "none"}
             strokeWidth={region.pointerMode === "stroke" ? region.strokeWidth : undefined}
             style={cursor ? { cursor } : undefined}
-            pointerEvents={
-              toolMode === "select"
-                ? (region.pointerMode === "stroke" ? "stroke" : "all")
-                : "none"
-            }
+            pointerEvents={pointerEvents}
             onPointerDown={(event) => onElementPointerDown(event, region.targetId, region)}
             onContextMenu={(event) => onElementContextMenu(event, region.targetId, region)}
             onDoubleClick={(event) => onElementDoubleClick(event, region.targetId, region)}
@@ -680,6 +705,14 @@ export function HitRegionLayer({
       })}
     </g>
   );
+}
+
+function isBucketPreviewRegion(region: HitRegion): boolean {
+  return region.shape !== "rect";
+}
+
+function shouldUseBucketFillHitArea(region: HitRegion): boolean {
+  return region.shape !== "rect";
 }
 
 export function SelectionOverlay({

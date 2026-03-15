@@ -57,6 +57,7 @@ import {
 import { buildHitRegions, type HitRegion } from "./canvas-panel/hit-regions";
 import { computeDragCapability } from "./canvas-panel/drag-capability";
 import { deriveCurveControlLines } from "./canvas-panel/curve-controls";
+import { resolveBucketFillEdit } from "./canvas-panel/bucket-fill";
 import { resolveEndpointAnchorSnap } from "./canvas-panel/endpoint-anchor-snap";
 import {
   boundsFromPoints,
@@ -325,6 +326,13 @@ type GuidePreview = {
   visible?: boolean;
 };
 
+
+type BucketPreviewSession = {
+  sourceId: string;
+  colorToken: string;
+  baseSource: string;
+  previewSource: string;
+};
 type GuideDragState = {
   pointerId: number;
   orientation: GuideOrientation;
@@ -509,6 +517,7 @@ export function CanvasPanel() {
   const showGrid = useEditorStore((s) => s.showGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
+  const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
@@ -557,6 +566,7 @@ export function CanvasPanel() {
     useState<PendingNativeContextMenuRequest | null>(null);
   const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
   const [expandedDensePathSourceId, setExpandedDensePathSourceId] = useState<string | null>(null);
+  const bucketPreviewSessionRef = useRef<BucketPreviewSession | null>(null);
   const contextMenuContextRef = useRef<{ clickedTargetId: string | null; clickedWorld: Point | null }>({
     clickedTargetId: null,
     clickedWorld: null
@@ -1583,6 +1593,36 @@ export function CanvasPanel() {
     snapshot,
     source,
     setWarning,
+    onBucketFillRegion: (region: HitRegion | undefined) => {
+      const resolution = resolveBucketFillEdit({
+        sourceId: region?.sourceId ?? "",
+        colorToken: bucketFillColor,
+        source: bucketPreviewSessionRef.current?.baseSource ?? source,
+        elements: snapshot.scene?.elements ?? [],
+        editHandles: snapshot.editHandles,
+        activeFigureId,
+        figureCount: snapshot.figures.length
+      });
+
+      if (resolution.kind !== "ready") {
+        if (resolution.reason !== "setProperty would not change the source.") {
+          setWarning(resolution.reason ?? "This item cannot be filled.");
+        }
+        return;
+      }
+
+      if (resolution.result.kind === "partial") {
+        const skippedCount = resolution.result.skippedHandles.length;
+        setWarning(`${resolution.result.reason} (${skippedCount} handle${skippedCount === 1 ? "" : "s"} skipped)`);
+      }
+
+      dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: resolution.action,
+        precomputedResult: resolution.result
+      });
+      bucketPreviewSessionRef.current = null;
+    },
     setSnapLines,
     logSnapDebug,
     snapGuideInput,
@@ -1918,6 +1958,67 @@ export function CanvasPanel() {
     setGuides,
     showGuides
   });
+
+  useEffect(() => {
+    const current = bucketPreviewSessionRef.current;
+    if (toolMode !== "addBucket" || !hoveredElementId) {
+      if (current && source !== current.baseSource) {
+        dispatch({
+          type: "SET_SOURCE_TRANSIENT",
+          source: current.baseSource,
+          changedSourceIds: [current.sourceId]
+        });
+      }
+      bucketPreviewSessionRef.current = null;
+      return;
+    }
+
+    const baseSource = current?.baseSource ?? source;
+    const resolution = resolveBucketFillEdit({
+      sourceId: hoveredElementId,
+      colorToken: bucketFillColor,
+      source: baseSource,
+      elements: snapshot.scene?.elements ?? [],
+      editHandles: snapshot.editHandles,
+      activeFigureId,
+      figureCount: snapshot.figures.length
+    });
+
+    if (resolution.kind !== "ready") {
+      if (current && source !== current.baseSource) {
+        dispatch({
+          type: "SET_SOURCE_TRANSIENT",
+          source: current.baseSource,
+          changedSourceIds: [current.sourceId]
+        });
+      }
+      bucketPreviewSessionRef.current = null;
+      return;
+    }
+
+    const nextPreviewSource = resolution.result.newSource;
+    if (
+      current &&
+      current.sourceId === hoveredElementId &&
+      current.colorToken === bucketFillColor &&
+      current.previewSource === nextPreviewSource &&
+      source === nextPreviewSource
+    ) {
+      return;
+    }
+
+    dispatch({
+      type: "SET_SOURCE_TRANSIENT",
+      source: nextPreviewSource,
+      changedSourceIds: [hoveredElementId]
+    });
+    bucketPreviewSessionRef.current = {
+      sourceId: hoveredElementId,
+      colorToken: bucketFillColor,
+      baseSource,
+      previewSource: nextPreviewSource
+    };
+  }, [activeFigureId, bucketFillColor, dispatch, hoveredElementId, snapshot.editHandles, snapshot.figures.length, snapshot.scene, source, toolMode]);
 
   useEffect(() => {
     if (!warning) return;

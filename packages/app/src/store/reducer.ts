@@ -31,6 +31,7 @@ export { WORKSPACE_VERSION };
 const FREEHAND_SMOOTHING_MIN_PX = 4;
 const FREEHAND_SMOOTHING_MAX_PX = 32;
 const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
+const DEFAULT_BUCKET_FILL_COLOR = "yellow";
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
   translateX: 0,
@@ -107,6 +108,7 @@ function initialUiState(): WorkspaceEphemeralState {
     showRulers: true,
     showGuides: true,
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
+    bucketFillColor: DEFAULT_BUCKET_FILL_COLOR,
     fitToContentRequestToken: 0,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
@@ -235,6 +237,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     showRulers: ui.showRulers,
     showGuides: ui.showGuides,
     freehandSmoothingPx: ui.freehandSmoothingPx,
+    bucketFillColor: ui.bucketFillColor,
     fitToContentRequestToken: ui.fitToContentRequestToken,
     zoomRequestToken: ui.zoomRequestToken,
     zoomRequestDirection: ui.zoomRequestDirection,
@@ -1004,6 +1007,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       );
       if (ui.freehandSmoothingPx === nextValue) return state;
       ui = { ...ui, freehandSmoothingPx: nextValue };
+      break;
+    }
+
+    case "SET_BUCKET_FILL_COLOR": {
+      const nextValue = action.value.trim().toLowerCase();
+      if (nextValue.length === 0 || ui.bucketFillColor === nextValue) return state;
+      ui = { ...ui, bucketFillColor: nextValue };
       break;
     }
 

@@ -96,6 +96,14 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         if (!world) {
           return;
         }
+        if (toolMode === "addBucket") {
+          setToolCursorWorld(null);
+          setNodeAnchorOverlay(null);
+          setSnapLines([]);
+          setWarning("Cannot fill the tikzpicture background.");
+          event.preventDefault();
+          return;
+        }
         const drawDragKind: DragState["kind"] =
           toolMode === "addPath"
             ? "tool-path-segment"
@@ -417,6 +425,12 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         setNodeAnchorOverlay(null);
         return;
       }
+      if (toolMode === "addBucket") {
+        setToolCursorWorld(null);
+        setNodeAnchorOverlay(null);
+        setSnapLines([]);
+        return;
+      }
       if (pathSegmentDraft) {
         return;
       }
@@ -560,6 +574,12 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (toolMode === "addBucket") {
+        setToolCursorWorld(null);
+        setNodeAnchorOverlay(null);
+        setSnapLines([]);
         return;
       }
       if (pathSegmentDraft) {

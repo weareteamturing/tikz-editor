@@ -1,8 +1,10 @@
 import React from "react";
+import { BASIC_PICKER_COLORS } from "../color-palette";
 import type { SnapToolPointerKind } from "tikz-editor/edit/snapping";
 import type { ToolMode } from "../store/types";
 import {
   RiCursorLine,
+  RiPaintFill,
   RiText,
   RiPencilLine,
   RiBrushLine,
@@ -36,10 +38,13 @@ export type ToolButtonDef = {
   popupKind?: ToolPopupKind;
 };
 
-export type ToolPopupKind = "freehand-smoothing";
+export type ToolPopupKind = "freehand-smoothing" | "bucket-color";
+
+export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 
 export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",  title: "Select and move elements (V)",                     shortcut: "v", icon: RiCursorLine },
+  { mode: "addBucket",  label: "Bucket",  title: "Fill a shape with the selected color.",                           icon: RiPaintFill, popupKind: "bucket-color" },
   { mode: "addNode",    label: "Node",    title: "Place a text node (N)",                            shortcut: "n", icon: RiText },
   { mode: "addPath",    label: "Path",    title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: RiPencilLine },
   {

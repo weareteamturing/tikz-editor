@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
+import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
+import { ColorPicker } from "./ColorPicker";
 import { getToolCapabilityStatus } from "./capabilities";
 import { RenderedTooltip } from "./RenderedTooltip";
 import {
   resolveToolbarToolMode,
   TOOL_BUTTONS,
+  TOOL_COLOR_OPTIONS,
   toolModePopupKind,
   type ToolPopupKind
 } from "./tool-config";
@@ -16,7 +19,9 @@ import css from "./Toolbar.module.css";
 export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
+  const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const projectNamedColorSwatches = useProjectNamedColorSwatches();
   const [openPopupMode, setOpenPopupMode] = useState<ToolMode | null>(null);
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
   const isMacDesktop =
@@ -49,6 +54,22 @@ export function Toolbar() {
             data-testid="toolbar-freehand-smoothing-slider"
             onChange={(event) => {
               dispatch({ type: "SET_FREEHAND_SMOOTHING", value: Number(event.currentTarget.value) });
+            }}
+          />
+        </ToolbarPopupSection>
+      );
+    }
+    if (popupKind === "bucket-color") {
+      return (
+        <ToolbarPopupSection title="Bucket">
+          <ColorPicker
+            ariaLabel="Bucket fill color"
+            value={bucketFillColor}
+            syntaxValue={bucketFillColor}
+            options={TOOL_COLOR_OPTIONS}
+            namedColorSwatches={projectNamedColorSwatches}
+            onChange={(nextValue) => {
+              dispatch({ type: "SET_BUCKET_FILL_COLOR", value: nextValue });
             }}
           />
         </ToolbarPopupSection>

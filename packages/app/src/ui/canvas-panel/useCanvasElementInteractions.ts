@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, collectSelectionGeometryFromBounds } from "tikz-editor/edit/snapping";
+import type { EditHandle } from "tikz-editor/semantic/types";
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import { requestSourceSelection } from "../source-sync";
@@ -29,6 +30,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     snapshot,
     source,
     setWarning,
+    onBucketFillRegion,
     setSnapLines,
     logSnapDebug,
     snapGuideInput,
@@ -204,7 +206,19 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
   const onElementPointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, targetId: string, region?: any) => {
-      if (!svgResult || toolMode !== "select") return;
+      if (!svgResult) return;
+      if (toolMode === "addBucket") {
+        if (event.button !== 0) {
+          return;
+        }
+        viewportRef.current?.focus({ preventScroll: true });
+        setTextEditingSession(null);
+        event.preventDefault();
+        event.stopPropagation();
+        onBucketFillRegion(region);
+        return;
+      }
+      if (toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
       const resolvedTargetId = resolveScopeAwarePointerDownTarget({
@@ -241,7 +255,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       const singleSelectedScopeId =
         singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) ? singleSelectedId : null;
       const hitSourceHasNodePositionHandle = snapshot.editHandles.some(
-        (handle) => handle.kind === "node-position" && handle.sourceRef.sourceId === hitSourceId
+        (handle: EditHandle) => handle.kind === "node-position" && handle.sourceRef.sourceId === hitSourceId
       );
       const shouldDeferScopeDrillToPointerUp =
         !additiveSelection &&
@@ -302,6 +316,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       draggableSourceIds,
       focusedScopeId,
       interactionSvgRef,
+      onBucketFillRegion,
       selectedElementIds,
       setExpandedDensePathSourceId,
       setSnapLines,

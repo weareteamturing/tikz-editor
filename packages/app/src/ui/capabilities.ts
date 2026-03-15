@@ -26,6 +26,9 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
   select: [
     { feature: "path_statement", layers: ["parser", "semantic", "svg", "edit"], label: "selection/move pipeline" }
   ],
+  addBucket: [
+    { feature: "options_structured", layers: ["edit"], label: "fill option editing" }
+  ],
   addNode: [
     { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
     { feature: "svg_text", layers: ["semantic", "svg"], label: "text node rendering" }
@@ -144,7 +147,14 @@ export function getToolCapabilityStatus(
   toolMode: ToolMode,
   matrix: CapabilityMatrix = capabilityMatrix
 ): CapabilitySummary {
-  return evaluateChecks(TOOL_CHECKS[toolMode], matrix);
+  const checks = TOOL_CHECKS[toolMode];
+  if (!checks) {
+    return {
+      status: "unsupported",
+      reason: `No capability checks registered for tool mode ${toolMode}.`
+    };
+  }
+  return evaluateChecks(checks, matrix);
 }
 
 export function getInspectorPropertyCapabilityStatus(
