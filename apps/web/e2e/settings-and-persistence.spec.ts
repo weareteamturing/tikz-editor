@@ -49,7 +49,7 @@ test("settings persist across reload and formatter line length is clamped", asyn
   await expect(page.locator("#setting-ui-font-size")).toHaveValue("14");
   await expect(page.locator("#setting-color-scheme")).toHaveValue("dark");
   await page.getByTestId("settings-category-editor").click();
-  await expect(page.locator("#setting-word-wrap")).toBeChecked();
+  await expect(page.locator("#setting-word-wrap")).not.toBeChecked();
   await expect(page.locator("#setting-font-size")).toHaveValue("16");
   await expect(page.locator("#setting-formatter-max-line-length")).toHaveValue("240");
 
@@ -76,10 +76,10 @@ test("settings reset buttons restore defaults for the active page only", async (
   await expect(page.locator("#setting-handle-size")).toHaveValue("9");
 
   await page.getByTestId("settings-category-editor").click();
-  await expect(page.locator("#setting-word-wrap")).toBeChecked();
+  await expect(page.locator("#setting-word-wrap")).not.toBeChecked();
   await expect(page.locator("#setting-font-size")).toHaveValue("16");
   await page.getByTestId("settings-reset-editor").click();
-  await expect(page.locator("#setting-word-wrap")).not.toBeChecked();
+  await expect(page.locator("#setting-word-wrap")).toBeChecked();
   await expect(page.locator("#setting-font-size")).toHaveValue("12");
 
   await page.getByTestId("settings-category-general").click();

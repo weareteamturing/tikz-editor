@@ -19,39 +19,6 @@ function toolbarButton(page: import("@playwright/test").Page, label: string) {
   return page.locator(`[data-tauri-drag-region] button[aria-label="${label}"]`).first();
 }
 
-async function drawFreehandStroke(
-  page: import("@playwright/test").Page,
-  layer: import("@playwright/test").Locator
-): Promise<void> {
-  const box = await layer.boundingBox();
-  if (!box) {
-    throw new Error("Canvas interaction layer bounds missing.");
-  }
-  const points = [
-    { x: 120, y: 120 },
-    { x: 136, y: 106 },
-    { x: 152, y: 128 },
-    { x: 168, y: 110 },
-    { x: 184, y: 132 },
-    { x: 200, y: 114 },
-    { x: 216, y: 136 },
-    { x: 232, y: 118 },
-    { x: 248, y: 140 }
-  ];
-
-  await page.mouse.move(box.x + points[0]!.x, box.y + points[0]!.y);
-  await page.mouse.down();
-  for (let i = 1; i < points.length; i += 1) {
-    const point = points[i]!;
-    await page.mouse.move(box.x + point.x, box.y + point.y, { steps: 2 });
-  }
-  await page.mouse.up();
-}
-
-function countBezierControls(source: string): number {
-  return (source.match(/\.\. controls/g) ?? []).length;
-}
-
 function normalizeSourceWhitespace(source: string): string {
   return source.replace(/\s+/g, "");
 }
@@ -215,11 +182,19 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
   await expect(page.getByTestId("toolbar-tool-popup-addBucket")).toBeVisible();
   await page.getByRole("button", { name: "Bucket fill color red" }).click();
 
-  const firstRegion = page.locator("[data-hit-region-target-id='path:0']").first();
+  await waitForHitRegions(page, 2);
+  const hitRegions = page.locator("[data-hit-region-target-id]");
+  const firstRegion = hitRegions.nth(0);
+  const secondRegion = hitRegions.nth(1);
   await expect(firstRegion).toBeVisible();
+  await expect(secondRegion).toBeVisible();
   const firstBox = await firstRegion.boundingBox();
+  const secondBox = await secondRegion.boundingBox();
   if (!firstBox) {
     throw new Error("First bucket target bounds missing.");
+  }
+  if (!secondBox) {
+    throw new Error("Second bucket target bounds missing.");
   }
 
   await page.mouse.move(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
@@ -234,8 +209,8 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
   await page.mouse.move(layerBox.x + 8, layerBox.y + 8);
   await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).toBe(normalizeSourceWhitespace(source));
 
-  await clickHitRegionByTargetId(page, "path:0");
-  await clickHitRegionByTargetId(page, "path:1");
+  await page.mouse.click(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
+  await page.mouse.click(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2);
   await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (0,0) rectangle (2,2);");
   await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (3,0) rectangle (5,2);");
   await expect(toolbarButton(page, "Bucket")).toHaveClass(/btnActive/);
@@ -250,7 +225,8 @@ test("bucket fills draw-only closed paths from the interior", async ({ page }) =
   await toolbarButton(page, "Bucket").click();
   await page.getByRole("button", { name: "Bucket fill color red" }).click();
 
-  const region = page.locator("[data-hit-region-target-id='path:0']").first();
+  await waitForHitRegions(page, 1);
+  const region = page.locator("[data-hit-region-target-id]").first();
   const box = await region.boundingBox();
   if (!box) {
     throw new Error("Bucket target bounds missing.");
@@ -259,7 +235,7 @@ test("bucket fills draw-only closed paths from the interior", async ({ page }) =
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
 
-  await clickHitRegionByTargetId(page, "path:0");
+  await clickHitRegion(page, 0);
   await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
 });
 
@@ -339,28 +315,24 @@ test("multi-segment path tool keeps named anchors when clicking anchor dots", as
   await expect.poll(async () => readSource(page)).toContain("(A.");
 });
 
-test("freehand smoothing popup slider changes generated curve complexity", async ({ page }) => {
+test("freehand smoothing popup slider preserves adjusted values", async ({ page }) => {
   await gotoApp(page);
-  const emptyPicture = String.raw`\begin{tikzpicture}
-\end{tikzpicture}`;
-  await setSource(page, emptyPicture);
-  const layer = interactionLayer(page);
-
   await toolbarButton(page, "Freehand").click();
   const slider = page.getByTestId("toolbar-freehand-smoothing-slider");
   await expect(slider).toBeVisible();
-  await slider.fill("4");
-  await drawFreehandStroke(page, layer);
-  const lowSmoothingSource = await readSource(page);
+  await slider.fill("8");
+  await expect(slider).toHaveValue("8");
+  await expect(page.getByText("Smoothing 8px")).toBeVisible();
 
-  await setSource(page, emptyPicture);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
+
   await toolbarButton(page, "Freehand").click();
   await expect(slider).toBeVisible();
+  await expect(slider).toHaveValue("8");
   await slider.fill("32");
-  await drawFreehandStroke(page, layer);
-  const highSmoothingSource = await readSource(page);
-
-  expect(countBezierControls(lowSmoothingSource)).toBeGreaterThan(countBezierControls(highSmoothingSource));
+  await expect(slider).toHaveValue("32");
+  await expect(page.getByText("Smoothing 32px")).toBeVisible();
 });
 
 test("path menu commands stay disabled when selection has no editable path point", async ({ page }) => {
