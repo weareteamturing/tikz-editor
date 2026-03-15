@@ -89,3 +89,54 @@ test("settings reset buttons restore defaults for the active page only", async (
   await expect(page.locator("#setting-ui-font-size")).toHaveValue("11");
   await expect(page.locator("#setting-color-scheme")).toHaveValue("system");
 });
+
+test("settings modal controls follow dark theme colors", async ({ page }) => {
+  await gotoApp(page);
+  await openMenuCommand(page, "file", "file.open-settings");
+  await page.selectOption("#setting-color-scheme", "dark");
+
+  const expectedThemeColors = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    document.body.appendChild(probe);
+
+    probe.style.backgroundColor = "var(--bg-pane)";
+    const paneBackground = getComputedStyle(probe).backgroundColor;
+
+    probe.style.color = "var(--text)";
+    const textColor = getComputedStyle(probe).color;
+
+    probe.style.borderColor = "var(--border)";
+    const borderColor = getComputedStyle(probe).borderColor;
+
+    document.body.removeChild(probe);
+    return { paneBackground, textColor, borderColor };
+  });
+
+  const generalSelectStyles = await page.locator("#setting-color-scheme").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor
+    };
+  });
+
+  expect(generalSelectStyles.backgroundColor).toBe(expectedThemeColors.paneBackground);
+  expect(generalSelectStyles.color).toBe(expectedThemeColors.textColor);
+  expect(generalSelectStyles.borderColor).toBe(expectedThemeColors.borderColor);
+
+  await page.getByTestId("settings-category-editor").click();
+
+  const numberInputStyles = await page.locator("#setting-formatter-max-line-length").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor
+    };
+  });
+
+  expect(numberInputStyles.backgroundColor).toBe(expectedThemeColors.paneBackground);
+  expect(numberInputStyles.color).toBe(expectedThemeColors.textColor);
+  expect(numberInputStyles.borderColor).toBe(expectedThemeColors.borderColor);
+});
