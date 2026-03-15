@@ -438,7 +438,72 @@ impl AssistantState {
           "dynamicTools": [
             {
               "name": "get_latest_preview_png",
-              "description": "Request a freshly rendered PNG preview of figure.tex from the TikZ editor.",
+              "description": "Request a freshly rendered PNG preview of figure.tex from the TikZ editor. Supports optional overlay code (appended before \\end{tikzpicture} without modifying the file), coordinate grid overlay with numbered ticks, and zoom into a TikZ coordinate region.",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "overlay_code": {
+                    "type": "string",
+                    "description": "TikZ code to append before \\end{tikzpicture} for temporary visual guides or prototyping. Does NOT modify the source file."
+                  },
+                  "show_grid": {
+                    "type": "object",
+                    "description": "Show a coordinate grid overlay with numbered tick marks in TikZ coordinate space.",
+                    "properties": {
+                      "spacing": { "type": "number", "description": "Grid line spacing in TikZ units (default: 1)" },
+                      "color": { "type": "string", "description": "Grid line color as CSS color (default: #cccccc)" }
+                    },
+                    "additionalProperties": false
+                  },
+                  "zoom_region": {
+                    "type": "object",
+                    "description": "Zoom into a rectangular region specified in TikZ coordinates.",
+                    "properties": {
+                      "min_x": { "type": "number" },
+                      "min_y": { "type": "number" },
+                      "max_x": { "type": "number" },
+                      "max_y": { "type": "number" }
+                    },
+                    "required": ["min_x", "min_y", "max_x", "max_y"],
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "get_diagnostics",
+              "description": "Get current parse errors and warnings for the TikZ source. Returns diagnostics with severity, line number, code, and message.",
+              "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "get_element_list",
+              "description": "Get a compact list of all rendered elements with their sourceId, kind, bounding box, source line range, draw/fill colors, and for nodes: name and center position.",
+              "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "get_node_anchors",
+              "description": "Get the resolved anchor positions (center, east, north, etc.) for a named TikZ node. Coordinates are in TikZ units (cm).",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "node_name": { "type": "string", "description": "The name of the node (e.g. 'A', 'mynode')" }
+                },
+                "required": ["node_name"],
+                "additionalProperties": false
+              }
+            },
+            {
+              "name": "get_bounds",
+              "description": "Get the bounding box of the entire scene in TikZ coordinates (cm).",
               "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -489,6 +554,8 @@ impl AssistantState {
         figure_path: Option<String>,
         preview_path: Option<String>,
         model: Option<String>,
+        figure_context: Option<String>,
+        diagnostics_text: Option<String>,
     ) -> Result<Option<String>, String> {
         let summary = self.ensure_document_thread(
             document_id.clone(),
@@ -525,6 +592,8 @@ impl AssistantState {
             &prompt,
             &source,
             is_first_turn,
+            figure_context.as_deref(),
+            diagnostics_text.as_deref(),
         );
         let mut turn_start_params = json!({
           "threadId": summary.thread_id,
@@ -1288,16 +1357,31 @@ fn build_turn_input(
     prompt: &str,
     source: &str,
     is_first_turn: bool,
+    figure_context: Option<&str>,
+    diagnostics_text: Option<&str>,
 ) -> Vec<Value> {
     let mut input = if is_first_turn {
+        let source_section = if let Some(ctx) = figure_context {
+            ctx.to_string()
+        } else {
+            format!("Current figure source:\n```tex\n{source}\n```")
+        };
+
+        let diagnostics_section = match diagnostics_text {
+            Some(text) if !text.is_empty() => format!("\n\nCurrent diagnostics:\n{text}"),
+            _ => String::new(),
+        };
+
         vec![json!({
           "type": "text",
           "text": format!(
             "You are assisting a user inside a WYSIWYG TikZ editor. The user edits the figure visually and sees the current TikZ source directly in the interface.\n\
         Apply requested changes to `{figure_path}` as needed, but do not mention local filenames or paths in your user-facing response.\n\
         After making edits, call the `get_latest_preview_png` tool to verify the rendered output before finalizing your response.\n\
+        The preview tool supports `overlay_code` (temporary TikZ code for guides/prototyping), `show_grid` (coordinate grid with numbered ticks), and `zoom_region` (zoom into TikZ coordinates).\n\
+        You can call `get_diagnostics` to check for parse errors, `get_element_list` for a compact element inventory, `get_node_anchors` for resolved node positions, and `get_bounds` for the scene bounding box.\n\
         Explain figure-level edits clearly and keep the response focused on what changed in the picture.\n\n\
-        Current figure source:\n```tex\n{source}\n```\n\n\
+        {source_section}{diagnostics_section}\n\n\
         User request: {prompt}"
           )
         })]

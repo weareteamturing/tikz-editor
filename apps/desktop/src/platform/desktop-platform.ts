@@ -85,6 +85,8 @@ type DesktopBridge = {
     figurePath?: string | null;
     previewPath?: string | null;
     model?: string | null;
+    figureContext?: string | null;
+    diagnosticsText?: string | null;
   }) => Promise<{ turnId: string | null }>;
   assistantInterruptTurn?: (params: { documentId: string }) => Promise<void>;
   assistantSyncSource?: (params: { documentId: string; source: string }) => Promise<void>;
@@ -611,7 +613,7 @@ function createDefaultBridge(): DesktopBridge {
         previewPath
       });
     },
-    assistantStartTurn: async ({ documentId, prompt, source, pngBase64, pastedImages, threadId, workspacePath, figurePath, previewPath, model }) => {
+    assistantStartTurn: async ({ documentId, prompt, source, pngBase64, pastedImages, threadId, workspacePath, figurePath, previewPath, model, figureContext, diagnosticsText }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<{ turnId: string | null }>("desktop_assistant_start_turn", {
         documentId,
@@ -623,7 +625,9 @@ function createDefaultBridge(): DesktopBridge {
         workspacePath,
         figurePath,
         previewPath,
-        model
+        model,
+        figureContext,
+        diagnosticsText
       });
     },
     assistantInterruptTurn: async ({ documentId }) => {

@@ -624,6 +624,8 @@ fn desktop_assistant_start_turn(
     figurePath: Option<String>,
     previewPath: Option<String>,
     model: Option<String>,
+    figureContext: Option<String>,
+    diagnosticsText: Option<String>,
     assistant: tauri::State<'_, AssistantState>,
 ) -> Result<serde_json::Value, String> {
     let turn_id = assistant.start_turn(
@@ -637,6 +639,8 @@ fn desktop_assistant_start_turn(
         figurePath,
         previewPath,
         model,
+        figureContext,
+        diagnosticsText,
     )?;
     Ok(serde_json::json!({ "turnId": turn_id }))
 }

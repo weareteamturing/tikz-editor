@@ -400,37 +400,115 @@ export function App() {
       }
       const sourceForDoc = event.documentId === activeDocumentIdRef.current ? sourceRef.current : doc.source;
       const snapshotForDoc = event.documentId === activeDocumentIdRef.current ? snapshotRef.current : doc.snapshot;
-      let result: { success?: boolean; contentItems?: unknown[] } = {
-        success: false,
-        contentItems: [{ type: "inputText", text: "Preview could not be rendered." }]
+      const args = (event.arguments ?? {}) as Record<string, unknown>;
+
+      const respond = async (success: boolean, text: string, imageUrl?: string) => {
+        const contentItems: unknown[] = [{ type: "inputText", text }];
+        if (imageUrl) contentItems.push({ type: "inputImage", imageUrl });
+        await assistantApi.respondToDynamicToolCall?.({
+          documentId: event.documentId,
+          requestId: event.requestId,
+          result: { success, contentItems }
+        });
       };
 
-      if (snapshotForDoc.svg && snapshotForDoc.source === sourceForDoc) {
+      // ── get_diagnostics ───────────────────────────────────────────────
+      if (event.tool === "get_diagnostics") {
+        const { buildDiagnosticsText: buildDiag } = await import("./assistant-tool-handlers");
+        const text = buildDiag(sourceForDoc, snapshotForDoc);
+        await respond(true, text || "No diagnostics — source parses cleanly.");
+        return;
+      }
+
+      // ── get_element_list ──────────────────────────────────────────────
+      if (event.tool === "get_element_list") {
+        const { buildElementList } = await import("./assistant-tool-handlers");
+        await respond(true, buildElementList(sourceForDoc, snapshotForDoc));
+        return;
+      }
+
+      // ── get_node_anchors ──────────────────────────────────────────────
+      if (event.tool === "get_node_anchors") {
+        const { buildNodeAnchors } = await import("./assistant-tool-handlers");
+        const nodeName = typeof args.node_name === "string" ? args.node_name : "";
+        await respond(true, buildNodeAnchors(snapshotForDoc, nodeName));
+        return;
+      }
+
+      // ── get_bounds ────────────────────────────────────────────────────
+      if (event.tool === "get_bounds") {
+        const { buildBoundsText } = await import("./assistant-tool-handlers");
+        await respond(true, buildBoundsText(snapshotForDoc));
+        return;
+      }
+
+      // ── get_latest_preview_png ────────────────────────────────────────
+      const hasOverlayCode = typeof args.overlay_code === "string" && args.overlay_code.length > 0;
+      const hasGrid = args.show_grid != null;
+      const hasZoom = args.zoom_region != null;
+
+      let svgToRender = snapshotForDoc.svg;
+      let sourceMatches = snapshotForDoc.source === sourceForDoc;
+
+      // If overlay_code is requested, re-render with modified source
+      if (hasOverlayCode && sourceMatches) {
         try {
-          const { renderPngExport } = await import("./export-commands");
-          const rendered = await renderPngExport(snapshotForDoc.svg, { dpi: 144, transparentBackground: false });
-          const pngBase64 = await blobToBase64(rendered.blob);
-          const dataUrl = `data:${rendered.artifact.mimeType};base64,${pngBase64}`;
-          result = {
-            success: true,
-            contentItems: [
-              { type: "inputText", text: "Rendered an updated PNG preview for the current figure." },
-              { type: "inputImage", imageUrl: dataUrl }
-            ]
-          };
-        } catch (error) {
-          result = {
-            success: false,
-            contentItems: [{ type: "inputText", text: error instanceof Error ? error.message : String(error) }]
-          };
+          const { injectOverlayCode } = await import("./assistant-tool-handlers");
+          const activeFigId = snapshotForDoc.activeFigureId;
+          const activeFig = snapshotForDoc.figures.find((f) => f.id === activeFigId);
+          const modifiedSource = injectOverlayCode(sourceForDoc, args.overlay_code as string, activeFig?.span);
+          const result = await computeSnapshot({
+            id: crypto.randomUUID(),
+            documentId: event.documentId,
+            kind: "render",
+            source: modifiedSource,
+            activeFigureId: activeFigId,
+            changedSourceIds: null,
+            patches: null,
+            trigger: "other"
+          });
+          svgToRender = result.snapshot.svg;
+          sourceMatches = true;
+        } catch {
+          await respond(false, "Failed to render with overlay code.");
+          return;
         }
       }
 
-      await assistantApi.respondToDynamicToolCall?.({
-        documentId: event.documentId,
-        requestId: event.requestId,
-        result
-      });
+      if (!svgToRender || !sourceMatches) {
+        await respond(false, "Preview could not be rendered.");
+        return;
+      }
+
+      try {
+        const { applyPreviewEnhancements } = await import("./assistant-tool-handlers");
+        const { renderPngExport } = await import("./export-commands");
+
+        let enhancedSvg = svgToRender;
+        if (hasGrid || hasZoom) {
+          enhancedSvg = applyPreviewEnhancements(svgToRender, {
+            showGrid: hasGrid ? (args.show_grid as { spacing?: number; color?: string }) : undefined,
+            zoomRegion: hasZoom ? (args.zoom_region as { min_x: number; min_y: number; max_x: number; max_y: number }) : undefined
+          });
+        }
+
+        const rendered = await renderPngExport(enhancedSvg, { dpi: 144, transparentBackground: false });
+        const pngBase64 = await blobToBase64(rendered.blob);
+        const dataUrl = `data:${rendered.artifact.mimeType};base64,${pngBase64}`;
+
+        let description = "Rendered an updated PNG preview";
+        if (hasOverlayCode) description += " with overlay code";
+        if (hasGrid) description += " with coordinate grid";
+        if (hasZoom) {
+          const z = args.zoom_region as { min_x: number; min_y: number; max_x: number; max_y: number };
+          description += ` zoomed to (${z.min_x},${z.min_y})–(${z.max_x},${z.max_y})`;
+        }
+        description += ".";
+
+        await respond(true, description, dataUrl);
+      } catch (error) {
+        await respond(false, error instanceof Error ? error.message : String(error));
+      }
     }
 
     const unbind = bindAssistantEvents((event) => {
@@ -520,6 +598,9 @@ export function App() {
     const currentDocument = documents[documentId];
     const currentSource = currentDocument?.source ?? source;
     const currentSnapshot = currentDocument?.snapshot ?? snapshot;
+    const { buildFigureContext: buildFigCtx, buildDiagnosticsText: buildDiag } = await import("./assistant-tool-handlers");
+    const figureContext = buildFigCtx(currentSource, currentSnapshot);
+    const diagnosticsText = buildDiag(currentSource, currentSnapshot);
     const pastedImages = await Promise.all(
       attachments.map(async (attachment) => ({
         base64: await blobToBase64(attachment.blob),
@@ -576,7 +657,9 @@ export function App() {
         workspacePath: thread?.workspacePath ?? currentDocument?.assistantWorkspacePath ?? null,
         figurePath: thread?.figurePath ?? currentDocument?.assistantFigurePath ?? null,
         previewPath: thread?.previewPath ?? currentDocument?.assistantPreviewPath ?? null,
-        model
+        model,
+        figureContext,
+        diagnosticsText
       });
     } catch (error) {
       dispatch({

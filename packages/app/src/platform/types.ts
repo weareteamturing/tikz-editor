@@ -215,6 +215,8 @@ export type AssistantApi = {
     figurePath?: string | null;
     previewPath?: string | null;
     model?: string | null;
+    figureContext?: string | null;
+    diagnosticsText?: string | null;
   }) => Promise<{ turnId: string | null }>;
   interruptTurn?: (params: { documentId: string }) => Promise<void>;
   syncSource?: (params: { documentId: string; source: string }) => Promise<void>;
