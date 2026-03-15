@@ -102,6 +102,18 @@ let sharedEnginePromise: Promise<NodeTextEngine> | null = null;
 let browserRuntimePromise: Promise<MathJaxRuntime> | null = null;
 let moduleWorkerRuntimePromise: Promise<MathJaxRuntime> | null = null;
 
+type WorkerFontLoader = (name: string) => Promise<unknown>;
+let workerFontLoader: WorkerFontLoader | null = null;
+
+/**
+ * Register a font loader for the worker runtime. Must be called before the first
+ * render so that mathjax.asyncLoad can route bare-specifier font imports through
+ * Vite-bundled lazy chunks instead of failing with a module resolution error.
+ */
+export function setWorkerFontLoader(loader: WorkerFontLoader): void {
+  workerFontLoader = loader;
+}
+
 export async function createMathJaxNodeTextEngine(): Promise<NodeTextEngine> {
   if (!sharedEnginePromise) {
     sharedEnginePromise = initializeEngine();
@@ -263,8 +275,32 @@ async function initializeWorkerRuntimeOnce(): Promise<MathJaxRuntime> {
     import("@mathjax/src/js/input/tex/ams/AmsConfiguration.js"),
     import("@mathjax/src/js/input/tex/newcommand/NewcommandConfiguration.js"),
     import("@mathjax/src/js/input/tex/color/ColorConfiguration.js"),
-    import("@mathjax/src/js/input/tex/textmacros/TextMacrosConfiguration.js")
+    import("@mathjax/src/js/input/tex/textmacros/TextMacrosConfiguration.js"),
   ]);
+
+  // Override mathjax.asyncLoad (set by asyncLoad/esm.js) so that bare-specifier
+  // font imports are routed through the registered workerFontLoader (Vite lazy
+  // chunks) rather than a raw import() that fails without an import map.
+  // Falls back silently for any specifier not handled by the loader.
+  const mjx = mathjax as { asyncLoad?: (name: string) => Promise<unknown> };
+  if (typeof mjx.asyncLoad === "function") {
+    const origAsyncLoad = mjx.asyncLoad;
+    mjx.asyncLoad = async (name: string) => {
+      if (workerFontLoader) {
+        try {
+          return await workerFontLoader(name);
+        } catch {
+          // Font subset not in the loader map; fall through to silent failure.
+        }
+      }
+      try {
+        return await origAsyncLoad(name);
+      } catch {
+        console.warn(`[tikz-editor] MathJax could not load dynamic font subset: ${name}`);
+        return {};
+      }
+    };
+  }
 
   const adaptor = liteAdaptor();
   RegisterHTMLHandler(adaptor);
