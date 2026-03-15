@@ -330,7 +330,7 @@ function createNativeDesktopMenuManager(options: {
               void getBridge()
                 .clearRecentFiles()
                 .then(() => {
-                  nativeMenuManager.refreshRecents();
+                  refreshRecents();
                 });
             }
           })
@@ -497,6 +497,14 @@ function createNativeDesktopMenuManager(options: {
     }).catch(() => undefined);
   }
 
+  function refreshRecents(): void {
+    recentsDirty = true;
+    if (!latestPayload) {
+      return;
+    }
+    enqueueSync();
+  }
+
   return {
     sync(payload: NativeMenuSyncPayload): Promise<void> {
       latestPayload = payload;
@@ -504,11 +512,7 @@ function createNativeDesktopMenuManager(options: {
       return syncQueue;
     },
     refreshRecents(): void {
-      recentsDirty = true;
-      if (!latestPayload) {
-        return;
-      }
-      enqueueSync();
+      refreshRecents();
     }
   };
 }

@@ -3,6 +3,31 @@ import { APP_MENU_COMMAND_IDS, type EditorPlatform } from "../packages/app/src/i
 import { createBrowserPlatformAdapter } from "../apps/web/src/platform/browser-platform.js";
 import { createDesktopPlatformAdapter } from "../apps/desktop/src/platform/desktop-platform.js";
 
+type DesktopPlatformEnv = NonNullable<Parameters<typeof createDesktopPlatformAdapter>[0]>;
+type DesktopBridge = NonNullable<DesktopPlatformEnv["bridge"]>;
+
+function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridge {
+  return {
+    openText: async () => null,
+    saveText: async () => ({ ok: false, path: null, name: null }),
+    exportFile: async () => false,
+    readClipboard: async () => "",
+    writeClipboard: async () => undefined,
+    readCustomClipboardText: async () => null,
+    writeClipboardBundle: async () => undefined,
+    setWindowTitle: async () => undefined,
+    closeWindow: async () => undefined,
+    confirmUnsavedChanges: async () => "cancel",
+    openExternalUrl: async () => true,
+    listRecentFiles: async () => [],
+    clearRecentFiles: async () => undefined,
+    onWindowCloseRequest: async () => () => undefined,
+    showContextMenu: async () => undefined,
+    onContextMenuCommand: async () => () => undefined,
+    ...overrides
+  };
+}
+
 function runPlatformContract(name: string, create: () => EditorPlatform) {
   describe(name, () => {
     it("round-trips persistence values", () => {
@@ -57,23 +82,7 @@ describe("platform adapter contracts", () => {
           storageMap.set(key, value);
         }
       },
-      bridge: {
-        openText: async () => null,
-        saveText: async () => ({ ok: false, path: null, name: null }),
-        exportFile: async () => false,
-        readClipboard: async () => "",
-        writeClipboard: async () => undefined,
-        readCustomClipboardText: async () => null,
-        writeClipboardBundle: async () => undefined,
-        setWindowTitle: async () => undefined,
-        closeWindow: async () => undefined,
-        openExternalUrl: async () => true,
-        listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined,
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+      bridge: makeDesktopBridge()
       });
     })()
   );
@@ -103,30 +112,19 @@ describe("platform adapter contracts", () => {
         getItem: () => null,
         setItem: () => undefined
       },
-      bridge: {
-        openText: async () => null,
-        saveText: async () => ({ ok: false, path: null, name: null }),
-        exportFile: async () => false,
+      bridge: makeDesktopBridge({
         readClipboard: async () => clipboardText,
-        writeClipboard: async (text) => {
+        writeClipboard: async (text: string) => {
           clipboardText = text;
         },
-        readCustomClipboardText: async (formats) => {
+        readCustomClipboardText: async (formats: readonly string[]) => {
           customReadFormats = formats;
           return { format: "com.microsoft.image-svg-xml", text: "<svg></svg>" };
         },
-        writeClipboardBundle: async (payload) => {
+        writeClipboardBundle: async (payload: { plainText: string; tikzJson?: string | null; svgText?: string | null }) => {
           bundleWrite = payload;
-        },
-        setWindowTitle: async () => undefined,
-        closeWindow: async () => undefined,
-        openExternalUrl: async () => true,
-        listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined,
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+        }
+      })
     });
     await platform.clipboard?.writeText?.("desktop-hello");
     const read = await platform.clipboard?.readText?.();
@@ -153,26 +151,11 @@ describe("platform adapter contracts", () => {
         getItem: () => null,
         setItem: () => undefined
       },
-      bridge: {
-        openText: async () => null,
-        saveText: async () => ({ ok: false, path: null, name: null }),
-        exportFile: async () => false,
-        readClipboard: async () => "",
-        writeClipboard: async () => undefined,
-        readCustomClipboardText: async () => null,
-        writeClipboardBundle: async () => undefined,
-        setWindowTitle: async () => undefined,
-        closeWindow: async () => undefined,
-        openExternalUrl: async () => true,
+      bridge: makeDesktopBridge({
         performSnapHaptic: async () => {
           hapticCalls += 1;
-        },
-        listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined,
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+        }
+      })
     });
 
     await platform.haptics?.performSnapFeedback?.();
@@ -185,23 +168,9 @@ describe("platform adapter contracts", () => {
         getItem: () => null,
         setItem: () => undefined
       },
-      bridge: {
-        openText: async () => null,
-        saveText: async () => ({ ok: true, path: "/tmp/a.tex", name: "a.tex" }),
-        exportFile: async () => false,
-        readClipboard: async () => "",
-        writeClipboard: async () => undefined,
-        readCustomClipboardText: async () => null,
-        writeClipboardBundle: async () => undefined,
-        setWindowTitle: async () => undefined,
-        closeWindow: async () => undefined,
-        openExternalUrl: async () => true,
-        listRecentFiles: async () => [],
-        onWindowCloseRequest: async () => () => undefined,
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+      bridge: makeDesktopBridge({
+        saveText: async () => ({ ok: true, path: "/tmp/a.tex", name: "a.tex" })
+      })
     });
     const result = await platform.files?.saveText?.("abc", {
       suggestedName: "a.tex",
@@ -225,26 +194,13 @@ describe("platform adapter contracts", () => {
         getItem: () => null,
         setItem: () => undefined
       },
-      bridge: {
-        openText: async (path) =>
+      bridge: makeDesktopBridge({
+        openText: async (path?: string | null) =>
           path
             ? { source: "\\draw (0,0)--(1,1);", path, name: "recent.tex" }
             : null,
-        saveText: async () => ({ ok: false, path: null, name: null }),
-        exportFile: async () => false,
-        readClipboard: async () => "",
-        writeClipboard: async () => undefined,
-        readCustomClipboardText: async () => null,
-        writeClipboardBundle: async () => undefined,
-        setWindowTitle: async () => undefined,
-        closeWindow: async () => undefined,
-        openExternalUrl: async () => true,
-        listRecentFiles: async () => ["/tmp/recent.tex"],
-        onWindowCloseRequest: async () => () => undefined,
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+        listRecentFiles: async () => ["/tmp/recent.tex"]
+      })
     });
     let seenSource = "";
     const unbind = platform.files?.bindOpenRequest?.((opened) => {
@@ -277,32 +233,19 @@ describe("platform adapter contracts", () => {
         getItem: () => null,
         setItem: () => undefined
       },
-      bridge: {
-        openText: async () => null,
-        saveText: async () => ({ ok: false, path: null, name: null }),
-        exportFile: async () => false,
-        readClipboard: async () => "",
-        writeClipboard: async () => undefined,
-        readCustomClipboardText: async () => null,
-        writeClipboardBundle: async () => undefined,
-        setWindowTitle: async () => undefined,
+      bridge: makeDesktopBridge({
         closeWindow: async () => {
           closeCalled = true;
         },
-        openExternalUrl: async () => true,
-        listRecentFiles: async () => [],
-        onWindowCloseRequest: async (handler) => {
+        onWindowCloseRequest: async (handler: () => void) => {
           closeRequestHandler = handler;
           return () => {
             if (closeRequestHandler === handler) {
               closeRequestHandler = null;
             }
           };
-        },
-        showContextMenu: async () => undefined,
-        confirmUnsavedChanges: async () => "cancel",
-        onContextMenuCommand: async () => () => undefined
-      }
+        }
+      })
     });
 
     let seenCloseRequest = 0;

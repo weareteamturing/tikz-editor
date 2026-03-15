@@ -3,6 +3,7 @@ import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
 import {
   appendPathToolSegmentFromGesture,
   createPathToolDraft,
+  generateAppendSegmentSource,
   generatePathToolSource,
   pathToolCloseRadiusWorld,
   pathToolShouldClose
@@ -97,5 +98,37 @@ describe("path-tool state machine", () => {
   it("does not finalize degenerate drafts with no segments", () => {
     const draft = createPathToolDraft({ x: cm(0), y: cm(0) });
     expect(generatePathToolSource(draft, { closed: false })).toBeNull();
+  });
+
+  it("keeps anchor references when appending to the end of an existing path", () => {
+    const base = createPathToolDraft(
+      { x: cm(0), y: cm(0) },
+      { elementId: "path:0", end: "end" },
+      { nodeName: "A", anchor: "west" }
+    );
+    const withSegment = appendPathToolSegmentFromGesture(base, {
+      endWorld: { x: cm(1), y: cm(0) },
+      endAnchor: { nodeName: "B", anchor: "east" },
+      bendWorld: { x: cm(0.5), y: cm(0) },
+      asBezier: false
+    });
+
+    expect(generateAppendSegmentSource(withSegment)).toBe("-- (B.east)");
+  });
+
+  it("keeps anchor references when prepending to the start of an existing path", () => {
+    const base = createPathToolDraft(
+      { x: cm(0), y: cm(0) },
+      { elementId: "path:0", end: "start" },
+      { nodeName: "A", anchor: "west" }
+    );
+    const withSegment = appendPathToolSegmentFromGesture(base, {
+      endWorld: { x: cm(1), y: cm(0) },
+      endAnchor: { nodeName: "B", anchor: "east" },
+      bendWorld: { x: cm(0.5), y: cm(0) },
+      asBezier: false
+    });
+
+    expect(generateAppendSegmentSource(withSegment)).toBe("(B.east) --");
   });
 });
