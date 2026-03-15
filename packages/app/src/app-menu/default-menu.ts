@@ -299,6 +299,11 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.PATH_JOIN,
         label: "Join Paths"
       },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PATH_REVERSE,
+        label: "Reverse Path"
+      },
       { kind: "separator" },
       {
         kind: "command",

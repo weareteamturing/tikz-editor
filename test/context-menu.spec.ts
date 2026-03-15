@@ -51,6 +51,10 @@ describe("canvas context menu definition", () => {
     expect(path).toBeDefined();
     expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Align")).toBe(false);
     expect(items.some((item) => item.kind === "submenu" && (item.label as string) === "Distribute")).toBe(false);
+    if (!path || path.kind !== "submenu") {
+      throw new Error("Expected Path submenu on single selection context menu.");
+    }
+    expect(collectCommandIds(path.items)).toContain(APP_MENU_COMMAND_IDS.PATH_REVERSE);
   });
 
   it("defines selection-single-node with label and pin insertion commands", () => {

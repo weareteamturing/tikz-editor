@@ -106,6 +106,11 @@ const PATH_ITEMS: readonly AppMenuItem[] = [
     commandId: APP_MENU_COMMAND_IDS.PATH_JOIN,
     label: "Join Paths"
   },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PATH_REVERSE,
+    label: "Reverse Path"
+  },
   { kind: "separator" },
   {
     kind: "command",

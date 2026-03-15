@@ -29,6 +29,7 @@ type EditActionResultLike =
 
 export type SplitPathAction = { elementId: string; handleId: string };
 export type JoinPathsAction = { elementIds: [string, string] };
+export type ReversePathAction = { elementId: string };
 export type ToggleClosedPathAction = { elementId: string; closed: boolean };
 export type DeletePathPointAction = { elementId: string; handleId: string };
 export type SetPathPointKindAction = { elementId: string; handleId: string; pointKind: PathPointKind };
@@ -163,6 +164,39 @@ export function applyJoinPathsAction(
     patches: replacements.patches,
     selectedSourceIds: [firstResolved.analysis.statement.id],
     changedSourceIds: elementIds
+  };
+}
+
+export function applyReversePathAction(
+  source: string,
+  action: ReversePathAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
+  if (resolved.kind !== "eligible") {
+    return { kind: "unsupported", reason: resolved.reason };
+  }
+
+  const reversedBody = buildReversedPathBody(source, resolved.analysis);
+  if (!reversedBody) {
+    return { kind: "unsupported", reason: "Reverse path would not change the source." };
+  }
+
+  const rewritten = replaceSourceSpan(
+    source,
+    resolved.analysis.statement.span,
+    buildStatementText(source, resolved.analysis, reversedBody)
+  );
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "Reverse path would not change the source." };
+  }
+
+  return {
+    kind: "success",
+    newSource: rewritten.source,
+    patches: [rewritten.patch],
+    selectedSourceIds: [action.elementId],
+    changedSourceIds: [action.elementId]
   };
 }
 
@@ -468,6 +502,59 @@ function buildOpenedClosedPathBody(
   return parts.join(" ");
 }
 
+function buildReversedPathBody(source: string, analysis: ExplicitPathAnalysis): string | null {
+  if (analysis.segments.length === 0) {
+    return null;
+  }
+
+  if (!analysis.closed) {
+    const lastAnchor = analysis.anchors[analysis.anchors.length - 1];
+    if (!lastAnchor) {
+      return null;
+    }
+    const parts = [lastAnchor.raw];
+    for (let index = analysis.segments.length - 1; index >= 0; index -= 1) {
+      const segment = analysis.segments[index];
+      if (!segment || segment.closesPath) {
+        continue;
+      }
+      const reversed = reversedSegmentText(source, analysis, segment);
+      if (!reversed) {
+        return null;
+      }
+      parts.push(reversed);
+    }
+    return parts.join(" ");
+  }
+
+  const closingSegment = analysis.segments.find((segment) => segment.closesPath);
+  const firstAnchor = analysis.anchors[0];
+  if (!closingSegment || !firstAnchor) {
+    return null;
+  }
+
+  const parts = [firstAnchor.raw];
+  const reversedClosing = reversedSegmentText(source, analysis, closingSegment);
+  if (!reversedClosing) {
+    return null;
+  }
+  parts.push(reversedClosing);
+
+  for (let index = analysis.segments.length - 1; index >= 0; index -= 1) {
+    const segment = analysis.segments[index];
+    if (!segment || segment.closesPath) {
+      continue;
+    }
+    const reversed = reversedSegmentText(source, analysis, segment, { useCycleTarget: index === 0 });
+    if (!reversed) {
+      return null;
+    }
+    parts.push(reversed);
+  }
+
+  return parts.join(" ");
+}
+
 function buildDeletedPointReplacement(
   source: string,
   analysis: ExplicitPathAnalysis,
@@ -560,6 +647,36 @@ function sourceSliceForItem(source: string, analysis: ExplicitPathAnalysis, item
     return null;
   }
   return source.slice(item.span.from, item.span.to);
+}
+
+function reversedSegmentText(
+  source: string,
+  analysis: ExplicitPathAnalysis,
+  segment: ExplicitPathAnalysis["segments"][number],
+  options: { useCycleTarget?: boolean } = {}
+): string | null {
+  const targetRaw = options.useCycleTarget ? "cycle" : analysis.anchors[segment.startAnchorIndex]?.raw;
+  if (!targetRaw) {
+    return null;
+  }
+
+  if (segment.kind === "line") {
+    return `-- ${targetRaw}`;
+  }
+
+  if (segment.control1Index == null || segment.control2Index == null) {
+    return null;
+  }
+  const control1Raw = sourceSliceForItem(source, analysis, segment.control1Index);
+  const control2Raw = sourceSliceForItem(source, analysis, segment.control2Index);
+  if (!control1Raw || !control2Raw) {
+    return null;
+  }
+
+  if (segment.usedAnd) {
+    return `.. controls ${control2Raw} and ${control1Raw} .. ${targetRaw}`;
+  }
+  return `.. controls ${control2Raw} .. ${targetRaw}`;
 }
 
 function explicitSegmentText(source: string, analysis: ExplicitPathAnalysis, segment: ExplicitPathAnalysis["segments"][number]): string {

@@ -47,6 +47,7 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.ROTATE_LEFT_90].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_REVERSE].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_GRID].checked).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID].checked).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES].checked).toBe(true);
@@ -176,6 +177,7 @@ describe("editor-command-runtime", () => {
     );
 
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_SPLIT].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_REVERSE].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_DELETE_POINT].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_POINT_CORNER].enabled).toBe(false);
@@ -186,6 +188,29 @@ describe("editor-command-runtime", () => {
         kind: "splitPath",
         elementId: "path:0",
         handleId: activeHandleId
+      }
+    });
+  });
+
+  it("runs reverse path without requiring an active path point", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(["path:0"]),
+        activeHandleId: null
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_REVERSE].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.PATH_REVERSE, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "reversePath",
+        elementId: "path:0"
       }
     });
   });

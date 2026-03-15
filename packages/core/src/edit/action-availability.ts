@@ -44,6 +44,7 @@ export const EDIT_ACTION_IDS = [
   "distribute-vertical",
   "path-split",
   "path-join",
+  "path-reverse",
   "path-close",
   "path-open",
   "path-delete-point",
@@ -149,6 +150,7 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
       : "Select at least one element to reorder.",
   "path-split": makePathRule("split"),
   "path-join": makePathRule("join"),
+  "path-reverse": makePathRule("reverse"),
   "path-close": makePathRule("close"),
   "path-open": makePathRule("open"),
   "path-delete-point": makePathRule("delete-point"),
@@ -356,7 +358,7 @@ function makeTransformRule(): AvailabilityRule {
 }
 
 function makePathRule(
-  mode: "split" | "join" | "close" | "open" | "delete-point" | "point-corner" | "point-smooth"
+  mode: "split" | "join" | "reverse" | "close" | "open" | "delete-point" | "point-corner" | "point-smooth"
 ): AvailabilityRule {
   return (facts) => {
     if (facts.hasAdornmentSelection) {
@@ -393,6 +395,9 @@ function makePathRule(
     }
     if (mode === "open") {
       return eligible.analysis.closed ? null : "Path is already open.";
+    }
+    if (mode === "reverse") {
+      return eligible.analysis.segments.length > 0 ? null : "Path has no segments to reverse.";
     }
 
     const handleResolution = resolveActivePathHandleResolution(facts, selectedId, eligible.analysis);

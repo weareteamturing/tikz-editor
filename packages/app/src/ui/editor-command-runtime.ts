@@ -25,6 +25,7 @@ import {
   joinSelectedPaths,
   pasteSelectionFromSystemClipboard,
   reorderSelection,
+  reverseSelectedPath,
   rotateSelection,
   ungroupSelection,
   setSelectedPathClosed,
@@ -526,6 +527,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: availability["path-join"].enabled,
       run: () => {
         joinSelectedPaths(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.PATH_REVERSE]: {
+      enabled: availability["path-reverse"].enabled,
+      run: () => {
+        reverseSelectedPath(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.PATH_CLOSE]: {

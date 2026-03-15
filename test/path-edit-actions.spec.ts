@@ -68,6 +68,56 @@ describe("path edit actions", () => {
     expect(result.newSource.match(/\\draw/g)?.length).toBe(1);
   });
 
+  it("reverses an open polyline", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (2,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "reversePath",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (2,0) -- (1,0) -- (0,0);");
+  });
+
+  it("reverses cubic segments by swapping controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) .. controls (1,0) and (2,1) .. (3,1) .. controls (4,1) and (5,0) .. (6,0);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "reversePath",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(
+      "\\draw (6,0) .. controls (5,0) and (4,1) .. (3,1) .. controls (2,1) and (1,0) .. (0,0);"
+    );
+  });
+
+  it("reverses a closed polygon while preserving cycle closure", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0) -- (1,1) -- cycle;
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const result = applyEditAction(source, rendered.semantic.editHandles, {
+      kind: "reversePath",
+      elementId: "path:0"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("\\draw (0,0) -- (1,1) -- (1,0) -- cycle;");
+  });
+
   it("closes and reopens an explicit polyline", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (1,1);

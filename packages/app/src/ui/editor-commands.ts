@@ -526,6 +526,21 @@ export function joinSelectedPaths(context: SelectionCommandContext): boolean {
   return true;
 }
 
+export function reverseSelectedPath(context: SelectionCommandContext): boolean {
+  const ids = [...context.selectedElementIds];
+  if (ids.length !== 1 || !availabilityFor(context)["path-reverse"].enabled) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "reversePath",
+      elementId: ids[0]!
+    }
+  });
+  return true;
+}
+
 export function setSelectedPathClosed(context: SelectionCommandContext, closed: boolean): boolean {
   const ids = [...context.selectedElementIds];
   const actionId = closed ? "path-close" : "path-open";

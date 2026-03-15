@@ -65,6 +65,7 @@ describe("app menu definition", () => {
   it("defines path editing command ids", () => {
     expect(APP_MENU_COMMAND_IDS.PATH_SPLIT).toBe("path.split");
     expect(APP_MENU_COMMAND_IDS.PATH_JOIN).toBe("path.join");
+    expect(APP_MENU_COMMAND_IDS.PATH_REVERSE).toBe("path.reverse");
     expect(APP_MENU_COMMAND_IDS.PATH_CLOSE).toBe("path.close");
     expect(APP_MENU_COMMAND_IDS.PATH_OPEN).toBe("path.open");
     expect(APP_MENU_COMMAND_IDS.PATH_DELETE_POINT).toBe("path.delete-point");
@@ -404,6 +405,7 @@ describe("app menu definition", () => {
     expect(commandIds).toEqual([
       APP_MENU_COMMAND_IDS.PATH_SPLIT,
       APP_MENU_COMMAND_IDS.PATH_JOIN,
+      APP_MENU_COMMAND_IDS.PATH_REVERSE,
       APP_MENU_COMMAND_IDS.PATH_CLOSE,
       APP_MENU_COMMAND_IDS.PATH_OPEN,
       APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,

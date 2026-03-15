@@ -40,6 +40,7 @@ export const APP_MENU_COMMAND_IDS = {
   DISTRIBUTE_VERTICAL: "edit.distribute-vertical",
   PATH_SPLIT: "path.split",
   PATH_JOIN: "path.join",
+  PATH_REVERSE: "path.reverse",
   PATH_CLOSE: "path.close",
   PATH_OPEN: "path.open",
   PATH_DELETE_POINT: "path.delete-point",

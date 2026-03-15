@@ -69,6 +69,7 @@ import {
   applyAppendToPathAction,
   applyDeletePathPointAction,
   applyJoinPathsAction,
+  applyReversePathAction,
   applySetPathPointKindAction,
   applySplitPathAction,
   applyToggleClosedPathAction
@@ -109,6 +110,7 @@ export type EditAction =
   | { kind: "connectHandle"; handleId: string; nodeName: string; anchor: string }
   | { kind: "splitPath"; elementId: string; handleId: string }
   | { kind: "joinPaths"; elementIds: [string, string] }
+  | { kind: "reversePath"; elementId: string }
   | { kind: "toggleClosedPath"; elementId: string; closed: boolean }
   | { kind: "deletePathPoint"; elementId: string; handleId: string }
   | { kind: "setPathPointKind"; elementId: string; handleId: string; pointKind: PathPointKind }
@@ -195,6 +197,8 @@ export function applyEditAction(
         return applySplitPath(source, editHandles, action, parseOptions);
       case "joinPaths":
         return applyJoinPaths(source, action, parseOptions);
+      case "reversePath":
+        return applyReversePath(source, action, parseOptions);
       case "toggleClosedPath":
         return applyToggleClosedPath(source, action, parseOptions);
       case "deletePathPoint":
@@ -400,6 +404,14 @@ function applyToggleClosedPath(
   return applyToggleClosedPathAction(source, action, parseOptions);
 }
 
+function applyReversePath(
+  source: string,
+  action: Extract<EditAction, { kind: "reversePath" }>,
+  parseOptions: EditParseOptions
+): EditActionResult {
+  return applyReversePathAction(source, action, parseOptions);
+}
+
 function applyDeletePathPoint(
   source: string,
   editHandles: EditHandle[],
@@ -587,6 +599,8 @@ function inferChangedSourceIds(
       return normalizeElementIds([action.elementId]);
     case "joinPaths":
       return normalizeElementIds(action.elementIds);
+    case "reversePath":
+      return normalizeElementIds([action.elementId]);
     case "toggleClosedPath":
       return normalizeElementIds([action.elementId]);
     case "deletePathPoint":
