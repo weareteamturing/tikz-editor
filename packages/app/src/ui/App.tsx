@@ -674,8 +674,8 @@ export function App() {
   }, [dispatch]);
 
   useEffect(() => {
-    const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.((opened) => {
-      const resolved = resolveOpenedFileForDocument(opened);
+    const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.(async (opened) => {
+      const resolved = await resolveOpenedFileForDocument(opened);
       if (resolved.kind === "failure") {
         const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
         if (typeof alertFn === "function") {

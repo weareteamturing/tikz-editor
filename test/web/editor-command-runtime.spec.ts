@@ -391,10 +391,13 @@ describe("editor-command-runtime", () => {
     );
 
     const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.IMPORT_SVG, "menu");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(ran).toBe(true);
-    expect(svgToTikzMock).toHaveBeenCalledTimes(1);
+
+    await vi.waitFor(() => {
+      expect(svgToTikzMock).toHaveBeenCalledTimes(1);
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "NEW_DOCUMENT" }));
+    });
+
     expect(dispatch).toHaveBeenNthCalledWith(1, {
       type: "NEW_DOCUMENT",
       source: String.raw`\begin{tikzpicture}
@@ -436,9 +439,12 @@ describe("editor-command-runtime", () => {
     );
 
     const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT, "menu");
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
     expect(ran).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "NEW_DOCUMENT" }));
+    });
+
     expect(svgToTikzMock).not.toHaveBeenCalled();
     expect(dispatch).toHaveBeenNthCalledWith(1, {
       type: "NEW_DOCUMENT",

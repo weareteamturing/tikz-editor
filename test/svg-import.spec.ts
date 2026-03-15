@@ -16,13 +16,13 @@ describe("svg-import keynote helper", () => {
     toTikzFromClipboardMock.mockReset();
   });
 
-  it("converts keynote clipboard payload to scope snippet", () => {
+  it("converts keynote clipboard payload to scope snippet", async () => {
     const tikz = String.raw`\begin{tikzpicture}
 \draw (0,0) -- (1,1);
 \end{tikzpicture}`;
     toTikzFromClipboardMock.mockReturnValue({ tikz });
 
-    const converted = convertKeynoteClipboardToScopeSnippet("{\"dummy\":true}");
+    const converted = await convertKeynoteClipboardToScopeSnippet("{\"dummy\":true}");
 
     expect(converted.kind).toBe("success");
     if (converted.kind !== "success") {
@@ -35,12 +35,12 @@ describe("svg-import keynote helper", () => {
     expect(converted.snippet).toContain("\\end{scope}");
   });
 
-  it("surfaces keynote conversion errors with a keynote prefix", () => {
+  it("surfaces keynote conversion errors with a keynote prefix", async () => {
     toTikzFromClipboardMock.mockImplementation(() => {
       throw new Error("bad keynote payload");
     });
 
-    const converted = convertKeynoteClipboardToScopeSnippet("not json");
+    const converted = await convertKeynoteClipboardToScopeSnippet("not json");
 
     expect(converted).toEqual({
       kind: "failure",

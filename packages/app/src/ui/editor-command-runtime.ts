@@ -214,11 +214,11 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     if (!openText) {
       return;
     }
-    void openText().then((opened) => {
+    void openText().then(async (opened) => {
       if (!opened) {
         return;
       }
-      const resolved = resolveOpenedFileForDocument(opened, { requireSvg });
+      const resolved = await resolveOpenedFileForDocument(opened, { requireSvg });
       if (resolved.kind === "failure") {
         const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
         if (typeof alertFn === "function") {
