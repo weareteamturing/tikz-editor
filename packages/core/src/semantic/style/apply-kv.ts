@@ -591,6 +591,18 @@ export function applyKvEntry(
     }
     return { style: { ...style, roundedCorners }, transform, diagnostics: [] };
   }
+  if (key === "transparent") {
+    return {
+      style: {
+        ...style,
+        strokeOpacity: 0,
+        fillOpacity: 0,
+        textOpacity: 0
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "opacity") {
     const value = Number(valueRaw);
     if (Number.isFinite(value)) {

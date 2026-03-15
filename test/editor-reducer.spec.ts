@@ -778,6 +778,13 @@ describe("editorReducer – layout", () => {
     expect(after.showInspectorPanel).toBe(false);
   });
 
+  it("SET_RIGHT_SIDEBAR_TAB switches to objects and keeps the sidebar visible", () => {
+    const initial = makeInitialState();
+    const after = editorReducer(initial, { type: "SET_RIGHT_SIDEBAR_TAB", tab: "objects" });
+    expect(after.rightSidebarTab).toBe("objects");
+    expect(after.showInspectorPanel).toBe(true);
+  });
+
   it("TOGGLE_CANVAS_AID toggles grid/rulers/guides visibility", () => {
     const initial = makeInitialState();
     expect(initial.showGrid).toBe(true);

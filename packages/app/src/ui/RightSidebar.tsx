@@ -1,4 +1,5 @@
 import { InspectorPanel } from "./InspectorPanel";
+import { ObjectsPanel } from "./ObjectsPanel";
 import { StylesPanel } from "./StylesPanel";
 import { AssistantPanel } from "./AssistantPanel";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -32,6 +33,14 @@ export function RightSidebar({ onSubmitPrompt, onInterruptTurn }: RightSidebarPr
         </button>
         <button
           type="button"
+          className={[css.tab, tab === "objects" ? css.tabActive : ""].filter(Boolean).join(" ")}
+          onClick={() => dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "objects" })}
+          data-testid="objects-tab"
+        >
+          Objects
+        </button>
+        <button
+          type="button"
           className={[css.tab, tab === "styles" ? css.tabActive : ""].filter(Boolean).join(" ")}
           onClick={() => dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "styles" })}
           data-testid="styles-tab"
@@ -53,6 +62,8 @@ export function RightSidebar({ onSubmitPrompt, onInterruptTurn }: RightSidebarPr
       <div className={css.body}>
         {tab === "assistant" && assistantAvailable ? (
           <AssistantPanel onSubmitPrompt={onSubmitPrompt} onInterruptTurn={onInterruptTurn} />
+        ) : tab === "objects" ? (
+          <ObjectsPanel />
         ) : tab === "styles" ? (
           <StylesPanel />
         ) : (

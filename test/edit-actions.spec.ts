@@ -1028,6 +1028,38 @@ describe("applyEditAction – setProperty", () => {
     }
   });
 
+  it("appends transparent inside an existing named node option list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (B) at (1.5, -0.5) {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source);
+    const statement = parsed.figure.body[0];
+    expect(statement?.kind).toBe("Path");
+    if (!statement || statement.kind !== "Path") {
+      throw new Error("Expected first statement to be a path");
+    }
+    const node = statement.items.find((item) => item.kind === "Node");
+    expect(node?.kind).toBe("Node");
+    if (!node || node.kind !== "Node") {
+      throw new Error("Expected a node item");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: node.id,
+      level: "command",
+      key: "transparent",
+      value: "true"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected node transparent rewrite to succeed");
+    }
+    expect(result.newSource).toContain("\\node[draw, transparent] (B) at (1.5, -0.5) {B};");
+    expect(result.newSource).not.toContain("\\node[transparent][draw]");
+  });
+
   it("updates an existing grid keyword option list by keyword id", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) grid[step=2mm] (2,2);

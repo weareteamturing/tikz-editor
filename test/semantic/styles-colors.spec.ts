@@ -137,6 +137,22 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("treats transparent as a hide override without altering stored opacity options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \fill[red, opacity=0.4, transparent] (0,0) rectangle (1,1);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const path = firstElementOfKind(result.scene.elements, "Path");
+      expect(path?.kind).toBe("Path");
+      if (path?.kind === "Path") {
+        expect(path.style.fill).toBe("#ff0000");
+        expect(path.style.fillOpacity).toBe(0);
+        expect(path.style.strokeOpacity).toBe(0);
+        expect(path.style.textOpacity).toBe(0);
+      }
+    });
+
     it("supports the standard TikZ line width presets and explicit line width values", () => {
       const presets: Array<{ key: string; width: number }> = [
         { key: "ultra thin", width: 0.1 },

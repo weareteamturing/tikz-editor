@@ -129,7 +129,7 @@ export type WorkspaceEphemeralState = {
   rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
-  rightSidebarTab: "inspector" | "styles" | "assistant";
+  rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
@@ -192,7 +192,7 @@ export type EditorState = {
   rightPanelWidth: number;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
-  rightSidebarTab: "inspector" | "styles" | "assistant";
+  rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
 
   // ── debug ─────────────────────────────────────────────────────────────────────
   showDevPanel: boolean;
@@ -223,7 +223,7 @@ export type EditorAction =
   | { type: "COMPUTE_REQUESTED"; requestId: string; documentId?: string }
   | { type: "SNAPSHOT_READY"; requestId: string; snapshot: SessionSnapshot; documentId?: string }
   | { type: "REORDER_TABS"; fromId: string; toId: string }
-  | { type: "SET_RIGHT_SIDEBAR_TAB"; tab: "inspector" | "styles" | "assistant" }
+  | { type: "SET_RIGHT_SIDEBAR_TAB"; tab: "inspector" | "objects" | "styles" | "assistant" }
   | {
       type: "ASSISTANT_THREAD_READY";
       documentId?: string;

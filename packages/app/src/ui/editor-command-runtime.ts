@@ -69,7 +69,7 @@ type RuntimeInput = {
   showGuides: boolean;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
-  rightSidebarTab: "inspector" | "styles" | "assistant";
+  rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
   assistantAvailable: boolean;
   assistantRunning: boolean;
   showDevPanel: boolean;

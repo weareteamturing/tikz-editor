@@ -52,6 +52,18 @@ export function applyFlagEntry(
       diagnostics: []
     };
   }
+  if (key === "transparent") {
+    return {
+      style: {
+        ...style,
+        strokeOpacity: 0,
+        fillOpacity: 0,
+        textOpacity: 0
+      },
+      transform,
+      diagnostics: []
+    };
+  }
   if (key === "rounded corners") {
     return { style: { ...style, roundedCorners: parseLength("4pt", "pt") ?? 4 }, transform, diagnostics: [] };
   }
