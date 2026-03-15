@@ -17,10 +17,20 @@ describe("path-tool state machine", () => {
     expect(draft.segments).toHaveLength(0);
   });
 
+  it("stores an anchor reference for an anchored draft start", () => {
+    const draft = createPathToolDraft(
+      { x: cm(1), y: cm(2) },
+      undefined,
+      { nodeName: "A", anchor: "east" }
+    );
+    expect(draft.startAnchor).toEqual({ nodeName: "A", anchor: "east" });
+  });
+
   it("adds a straight segment for click-only placement", () => {
     const draft = createPathToolDraft({ x: cm(0), y: cm(0) });
     const next = appendPathToolSegmentFromGesture(draft, {
       endWorld: { x: cm(1), y: cm(0) },
+      endAnchor: { nodeName: "B", anchor: "north" },
       bendWorld: { x: cm(0.5), y: cm(0) },
       asBezier: false
     });
@@ -28,7 +38,8 @@ describe("path-tool state machine", () => {
     expect(next.segments).toHaveLength(1);
     expect(next.segments[0]).toEqual({
       kind: "line",
-      to: { x: cm(1), y: cm(0) }
+      to: { x: cm(1), y: cm(0) },
+      toAnchor: { nodeName: "B", anchor: "north" }
     });
   });
 
@@ -67,15 +78,20 @@ describe("path-tool state machine", () => {
   });
 
   it("finalizes open paths on escape", () => {
-    const base = createPathToolDraft({ x: cm(0), y: cm(0) });
+    const base = createPathToolDraft(
+      { x: cm(0), y: cm(0) },
+      undefined,
+      { nodeName: "A", anchor: "west" }
+    );
     const withSegment = appendPathToolSegmentFromGesture(base, {
       endWorld: { x: cm(1), y: cm(0) },
+      endAnchor: { nodeName: "B", anchor: "east" },
       bendWorld: { x: cm(0.5), y: cm(0) },
       asBezier: false
     });
 
     const snippet = generatePathToolSource(withSegment, { closed: false });
-    expect(snippet).toBe("\\draw (0,0) -- (1,0);");
+    expect(snippet).toBe("\\draw (A.west) -- (B.east);");
   });
 
   it("does not finalize degenerate drafts with no segments", () => {

@@ -976,6 +976,12 @@ export function useCanvasDragController(params: {
 
         commitPathToolSegment({
           endWorld: drag.endWorld,
+          endAnchor: drag.endEndpointAnchor
+            ? {
+                nodeName: drag.endEndpointAnchor.nodeName,
+                anchor: drag.endEndpointAnchor.anchor
+              }
+            : undefined,
           bendWorld: finalBend,
           asBezier
         });

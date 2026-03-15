@@ -301,6 +301,44 @@ test("multi-segment path tool finalizes on Enter", async ({ page }) => {
   await expect.poll(async () => readSource(page)).toContain("--");
 });
 
+test("multi-segment path tool keeps named anchors when clicking anchor dots", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \node[draw] (A) at (2,1) {A};
+\end{tikzpicture}`);
+  await toolbarButton(page, "Path").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await page.mouse.click(box.x + 120, box.y + 120);
+
+  await waitForHitRegions(page, 1);
+  const nodeRegion = page.locator("[data-hit-region-target-id]").first();
+  const nodeTarget = await nodeRegion.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+  await page.mouse.move(nodeTarget.x, nodeTarget.y, { steps: 10 });
+
+  await expect.poll(async () => page.locator("svg circle").count()).toBeGreaterThan(0);
+  const anchorCenters = await page.locator("svg circle").evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    })
+  );
+  const eastMostAnchor = anchorCenters.reduce((best, current) => (current.x > best.x ? current : best));
+  await page.mouse.click(eastMostAnchor.x, eastMostAnchor.y);
+  await page.keyboard.press("Enter");
+
+  await expect.poll(async () => readSource(page)).toContain("\\draw");
+  await expect.poll(async () => readSource(page)).toContain("(A.");
+});
+
 test("freehand smoothing popup slider changes generated curve complexity", async ({ page }) => {
   await gotoApp(page);
   const emptyPicture = String.raw`\begin{tikzpicture}

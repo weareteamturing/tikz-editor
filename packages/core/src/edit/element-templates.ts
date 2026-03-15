@@ -1,14 +1,14 @@
 import type { Point } from "../semantic/types.js";
 import { CM_PER_PT, PT_PER_CM, formatNumber } from "./format.js";
 
-type LineAnchorReference = {
+export type AnchorReference = {
   nodeName: string;
   anchor: string;
 };
 
 export type ElementTemplate =
   | { kind: "node"; text?: string }
-  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: LineAnchorReference; toAnchor?: LineAnchorReference }
+  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
   | { kind: "grid"; corner?: Point }
   | { kind: "rectangle"; corner?: Point }
@@ -17,8 +17,8 @@ export type ElementTemplate =
   | { kind: "filledCircle"; edge?: Point };
 
 export type ComplexPathSegment =
-  | { kind: "line"; to: Point }
-  | { kind: "bezier"; to: Point; control1: Point; control2: Point };
+  | { kind: "line"; to: Point; toAnchor?: AnchorReference }
+  | { kind: "bezier"; to: Point; control1: Point; control2: Point; toAnchor?: AnchorReference };
 
 const DEFAULT_NODE_TEXT = "node";
 const DEFAULT_LINE_LENGTH_PT = 2 * PT_PER_CM;
@@ -118,21 +118,21 @@ export function insertElementIntoSource(source: string, snippet: string): string
 export function generateComplexPathSource(
   start: Point,
   segments: readonly ComplexPathSegment[],
-  options: { closed?: boolean } = {}
+  options: { closed?: boolean; startAnchor?: AnchorReference } = {}
 ): string | null {
   if (segments.length === 0) {
     return null;
   }
 
-  const parts: string[] = [formatPointCm(start)];
+  const parts: string[] = [formatPathEndpoint(options.startAnchor, start)];
   for (const segment of segments) {
     if (segment.kind === "line") {
-      parts.push(`-- ${formatPointCm(segment.to)}`);
+      parts.push(`-- ${formatPathEndpoint(segment.toAnchor, segment.to)}`);
       continue;
     }
 
     parts.push(
-      `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPointCm(segment.to)}`
+      `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPathEndpoint(segment.toAnchor, segment.to)}`
     );
   }
 
@@ -156,10 +156,10 @@ export function generateComplexPathSegmentSource(
   const parts: string[] = [];
   for (const segment of segments) {
     if (segment.kind === "line") {
-      parts.push(`-- ${formatPointCm(segment.to)}`);
+      parts.push(`-- ${formatPathEndpoint(segment.toAnchor, segment.to)}`);
     } else {
       parts.push(
-        `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPointCm(segment.to)}`
+        `.. controls ${formatPointCm(segment.control1)} and ${formatPointCm(segment.control2)} .. ${formatPathEndpoint(segment.toAnchor, segment.to)}`
       );
     }
   }
@@ -172,37 +172,42 @@ export function generateComplexPathSegmentSource(
  */
 export function reverseComplexPathSegments(
   fromWorld: Point,
-  segments: readonly ComplexPathSegment[]
-): { startWorld: Point; segments: ComplexPathSegment[] } {
+  segments: readonly ComplexPathSegment[],
+  fromAnchor?: AnchorReference
+): { startWorld: Point; startAnchor?: AnchorReference; segments: ComplexPathSegment[] } {
   if (segments.length === 0) {
-    return { startWorld: fromWorld, segments: [] };
+    return { startWorld: fromWorld, startAnchor: fromAnchor, segments: [] };
   }
   const reversed: ComplexPathSegment[] = [];
   // Walk backwards. For each segment, the new "to" is the previous segment's start.
-  let previousFrom = fromWorld;
   const segFromPoints = [fromWorld];
+  const segFromAnchors: Array<AnchorReference | undefined> = [fromAnchor];
   for (const seg of segments) {
     segFromPoints.push(seg.to);
+    segFromAnchors.push(seg.toAnchor);
   }
   // segFromPoints: [from, seg0.to, seg1.to, ...]
   // reversed[i] corresponds to segments[n-1-i]
   for (let i = segments.length - 1; i >= 0; i--) {
     const seg = segments[i]!;
     const segStart = segFromPoints[i]!;
+    const segStartAnchor = segFromAnchors[i];
     if (seg.kind === "line") {
-      reversed.push({ kind: "line", to: segStart });
+      reversed.push({ kind: "line", to: segStart, toAnchor: segStartAnchor });
     } else {
       // swap control1 and control2
       reversed.push({
         kind: "bezier",
         to: segStart,
         control1: seg.control2,
-        control2: seg.control1
+        control2: seg.control1,
+        toAnchor: segStartAnchor
       });
     }
   }
   const newStart = segFromPoints[segFromPoints.length - 1]!;
-  return { startWorld: newStart, segments: reversed };
+  const newStartAnchor = segFromAnchors[segFromAnchors.length - 1];
+  return { startWorld: newStart, startAnchor: newStartAnchor, segments: reversed };
 }
 
 /**
@@ -215,19 +220,20 @@ export function reverseComplexPathSegments(
  */
 export function generateComplexPathPrependSource(
   startWorld: Point,
-  segments: readonly ComplexPathSegment[]
+  segments: readonly ComplexPathSegment[],
+  startAnchor?: AnchorReference
 ): string | null {
   if (segments.length === 0) return null;
 
-  const parts: string[] = [formatPointCm(startWorld)];
+  const parts: string[] = [formatPathEndpoint(startAnchor, startWorld)];
 
   // All segments except the last: include full operator + target
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]!;
     if (seg.kind === "line") {
-      parts.push(`-- ${formatPointCm(seg.to)}`);
+      parts.push(`-- ${formatPathEndpoint(seg.toAnchor, seg.to)}`);
     } else {
-      parts.push(`.. controls ${formatPointCm(seg.control1)} and ${formatPointCm(seg.control2)} .. ${formatPointCm(seg.to)}`);
+      parts.push(`.. controls ${formatPointCm(seg.control1)} and ${formatPointCm(seg.control2)} .. ${formatPathEndpoint(seg.toAnchor, seg.to)}`);
     }
   }
 
@@ -248,7 +254,15 @@ function formatPointCm(point: Point): string {
   return `(${x},${y})`;
 }
 
-function formatLineEndpoint(anchor: LineAnchorReference | undefined, fallbackCoord: string): string {
+function formatLineEndpoint(anchor: AnchorReference | undefined, fallbackCoord: string): string {
+  return formatAnchorReference(anchor, fallbackCoord);
+}
+
+function formatPathEndpoint(anchor: AnchorReference | undefined, fallbackPoint: Point): string {
+  return formatAnchorReference(anchor, formatPointCm(fallbackPoint));
+}
+
+function formatAnchorReference(anchor: AnchorReference | undefined, fallbackCoord: string): string {
   if (!anchor) {
     return fallbackCoord;
   }

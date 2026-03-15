@@ -146,7 +146,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           : { snappedPoint: world, offset: undefined, lines: [] as SnapLine[] };
         const snappedStart = startSnapResult.snappedPoint ?? world;
         const lineToolStartAnchorSnap =
-          toolMode === "addLine" || toolMode === "addArrow"
+          toolMode === "addLine" || toolMode === "addArrow" || toolMode === "addPath"
             ? resolveEndpointAnchorSnap({
                 pointerWorld: world,
                 zoom: toolSnapContext?.zoom ?? canvasTransform.scale,
@@ -203,7 +203,18 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
               ? { elementId: endpointSnap.elementId, end: endpointSnap.end }
               : undefined;
             const draftStart = endpointSnap ? endpointSnap.world : resolvedStart;
-            setPathDraft(createPathToolDraft(draftStart, appendTarget));
+            setPathDraft(
+              createPathToolDraft(
+                draftStart,
+                appendTarget,
+                endpointSnap || !startEndpointAnchor
+                  ? undefined
+                  : {
+                      nodeName: startEndpointAnchor.nodeName,
+                      anchor: startEndpointAnchor.anchor
+                    }
+              )
+            );
             setPathSegmentDraft(null);
             setToolDraft(null);
             setBezierBendDraft(null);
@@ -242,6 +253,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             pointerId: event.pointerId,
             startWorld: segmentStart,
             endWorld: resolvedStart,
+            endEndpointAnchor: startEndpointAnchor,
             startPointerWorld: resolvedStart,
             rawBendWorld: midpoint,
             bendWorld: midpoint,

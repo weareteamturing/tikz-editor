@@ -3,6 +3,7 @@ import {
   generateComplexPathSegmentSource,
   generateComplexPathPrependSource,
   reverseComplexPathSegments,
+  type AnchorReference,
   type ComplexPathSegment
 } from "tikz-editor/edit/element-templates";
 import type { Point } from "tikz-editor/semantic/types";
@@ -20,19 +21,26 @@ export type PathAppendTarget = {
 
 export type PathToolDraft = {
   startWorld: Point;
+  startAnchor?: AnchorReference;
   segments: ComplexPathSegment[];
   appendTarget?: PathAppendTarget;
 };
 
 export type PathToolGestureSegment = {
   endWorld: Point;
+  endAnchor?: AnchorReference;
   bendWorld: Point;
   asBezier: boolean;
 };
 
-export function createPathToolDraft(startWorld: Point, appendTarget?: PathAppendTarget): PathToolDraft {
+export function createPathToolDraft(
+  startWorld: Point,
+  appendTarget?: PathAppendTarget,
+  startAnchor?: AnchorReference
+): PathToolDraft {
   return {
     startWorld: { ...startWorld },
+    startAnchor,
     segments: [],
     appendTarget
   };
@@ -109,13 +117,33 @@ export function appendPathToolSegmentFromGesture(
   draft: PathToolDraft,
   segment: PathToolGestureSegment
 ): PathToolDraft {
-  return segment.asBezier
+  const nextDraft = segment.asBezier
     ? appendPathToolBezierSegment(draft, segment.endWorld, segment.bendWorld)
     : appendPathToolLineSegment(draft, segment.endWorld);
+  if (nextDraft === draft || !segment.endAnchor) {
+    return nextDraft;
+  }
+
+  const nextSegments = [...nextDraft.segments];
+  const lastSegment = nextSegments[nextSegments.length - 1];
+  if (!lastSegment) {
+    return nextDraft;
+  }
+  nextSegments[nextSegments.length - 1] = {
+    ...lastSegment,
+    toAnchor: segment.endAnchor
+  };
+  return {
+    ...nextDraft,
+    segments: nextSegments
+  };
 }
 
 export function generatePathToolSource(draft: PathToolDraft, options: { closed: boolean }): string | null {
-  return generateComplexPathSource(draft.startWorld, draft.segments, { closed: options.closed });
+  return generateComplexPathSource(draft.startWorld, draft.segments, {
+    closed: options.closed,
+    startAnchor: draft.startAnchor
+  });
 }
 
 /**
@@ -134,12 +162,13 @@ export function generateAppendSegmentSource(draft: PathToolDraft): string | null
 
   // Prepend to start: reverse the drawn segments so they go from the
   // new far end back to the old start point.
-  const { startWorld: newStart, segments: revSegs } = reverseComplexPathSegments(
+  const { startWorld: newStart, startAnchor: newStartAnchor, segments: revSegs } = reverseComplexPathSegments(
     draft.startWorld,
-    draft.segments
+    draft.segments,
+    draft.startAnchor
   );
 
-  return generateComplexPathPrependSource(newStart, revSegs);
+  return generateComplexPathPrependSource(newStart, revSegs, newStartAnchor);
 }
 
 function distanceSquared(a: Point, b: Point): number {

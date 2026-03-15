@@ -127,6 +127,24 @@ describe("element templates", () => {
     expect(snippet).toBe("\\draw (0,0) -- (1,0) .. controls (2,1) and (3,1) .. (4,0);");
   });
 
+  it("generates a complex path snippet with named anchor endpoints", () => {
+    const snippet = generateComplexPathSource(
+      { x: cm(0), y: cm(0) },
+      [
+        { kind: "line", to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
+        {
+          kind: "bezier",
+          control1: { x: cm(2), y: cm(1) },
+          control2: { x: cm(3), y: cm(1) },
+          to: { x: cm(4), y: cm(0) },
+          toAnchor: { nodeName: "C", anchor: "north" }
+        }
+      ],
+      { startAnchor: { nodeName: "A", anchor: "west" } }
+    );
+    expect(snippet).toBe("\\draw (A.west) -- (B.east) .. controls (2,1) and (3,1) .. (C.north);");
+  });
+
   it("generates a closed complex path snippet with cycle", () => {
     const snippet = generateComplexPathSource(
       { x: cm(0), y: cm(0) },
@@ -169,6 +187,15 @@ describe("insertElementIntoSource", () => {
     expect(result).toBe("-- (1,0) -- (2,0)");
   });
 
+  it("generates segment-only source with anchor references", () => {
+    const segments = [
+      { kind: "line" as const, to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line" as const, to: { x: cm(2), y: cm(0) } }
+    ];
+    const result = generateComplexPathSegmentSource(segments);
+    expect(result).toBe("-- (B.east) -- (2,0)");
+  });
+
   it("reverses line segments", () => {
     const from = { x: cm(0), y: cm(0) };
     const segments = [
@@ -180,6 +207,21 @@ describe("insertElementIntoSource", () => {
     expect(reversed.segments).toHaveLength(2);
     expect(reversed.segments[0]).toEqual({ kind: "line", to: { x: cm(1), y: cm(0) } });
     expect(reversed.segments[1]).toEqual({ kind: "line", to: { x: cm(0), y: cm(0) } });
+  });
+
+  it("reverses anchor references together with endpoints", () => {
+    const from = { x: cm(0), y: cm(0) };
+    const segments = [
+      { kind: "line" as const, to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line" as const, to: { x: cm(2), y: cm(0) }, toAnchor: { nodeName: "C", anchor: "north" } }
+    ];
+    const reversed = reverseComplexPathSegments(from, segments, { nodeName: "A", anchor: "west" });
+    expect(reversed.startWorld).toEqual({ x: cm(2), y: cm(0) });
+    expect(reversed.startAnchor).toEqual({ nodeName: "C", anchor: "north" });
+    expect(reversed.segments).toEqual([
+      { kind: "line", to: { x: cm(1), y: cm(0) }, toAnchor: { nodeName: "B", anchor: "east" } },
+      { kind: "line", to: { x: cm(0), y: cm(0) }, toAnchor: { nodeName: "A", anchor: "west" } }
+    ]);
   });
 
   it("reverses bezier segments with swapped controls", () => {
@@ -209,5 +251,14 @@ describe("insertElementIntoSource", () => {
     ];
     const result = generateComplexPathPrependSource(start, segments);
     expect(result).toBe("(-1,0) --");
+  });
+
+  it("generates prepend source with an anchored start", () => {
+    const start = { x: cm(-1), y: cm(0) };
+    const segments = [
+      { kind: "line" as const, to: { x: cm(0), y: cm(0) }, toAnchor: { nodeName: "A", anchor: "west" } }
+    ];
+    const result = generateComplexPathPrependSource(start, segments, { nodeName: "C", anchor: "north" });
+    expect(result).toBe("(C.north) --");
   });
 });

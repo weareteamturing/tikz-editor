@@ -140,6 +140,7 @@ export type DragState =
       pointerId: number;
       startWorld: Point;
       endWorld: Point;
+      endEndpointAnchor: NodeAnchorTarget | null;
       startPointerWorld: Point;
       rawBendWorld: Point;
       bendWorld: Point;
