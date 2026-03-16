@@ -1566,13 +1566,27 @@ export function evaluatePathStatement(
       };
       const sourceLogicalPoint = currentPointLogical ?? context.currentPoint;
       const hasOperatorSegment = currentOperator != null && context.currentPoint != null && sourceLogicalPoint != null;
+      // For -| and |- operators, compute border intersections using the bend point
+      // direction rather than the direct source→target direction.
+      // -| means horizontal-then-vertical: bend at (target.x, source.y)
+      // |- means vertical-then-horizontal: bend at (source.x, target.y)
+      const sourceBorderRef = hasOperatorSegment && currentOperator === "-|"
+        ? { x: evaluated.world.x, y: sourceLogicalPoint.y }
+        : hasOperatorSegment && currentOperator === "|-"
+          ? { x: sourceLogicalPoint.x, y: evaluated.world.y }
+          : evaluated.world;
+      const targetBorderRef = hasOperatorSegment && currentOperator === "-|"
+        ? { x: evaluated.world.x, y: sourceLogicalPoint.y }
+        : hasOperatorSegment && currentOperator === "|-"
+          ? { x: sourceLogicalPoint.x, y: evaluated.world.y }
+          : sourceLogicalPoint;
       const pathSourcePoint = hasOperatorSegment
         ? currentPointCoordinate
-          ? maybeResolveNamedCoordinateBorderPoint(currentPointCoordinate, sourceLogicalPoint, evaluated.world, context)
+          ? maybeResolveNamedCoordinateBorderPoint(currentPointCoordinate, sourceLogicalPoint, sourceBorderRef, context)
           : sourceLogicalPoint
         : null;
       const pathTargetPoint = hasOperatorSegment
-        ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.world, sourceLogicalPoint, context)
+        ? maybeResolveNamedCoordinateBorderPoint(item, evaluated.world, targetBorderRef, context)
         : evaluated.world;
       const advancedPoint = hasOperatorSegment ? pathTargetPoint : evaluated.world;
       if (!hasOperatorSegment && pendingSegmentPlacements.length > 0) {

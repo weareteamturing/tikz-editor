@@ -30,10 +30,10 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     "semanticEmptySceneSnippets": 686,
     "semanticErrorRate": 0.054,
     "semanticErrorSnippets": 118,
-    "semanticUnsupportedRate": 0.4915,
-    "semanticUnsupportedSnippets": 1075,
-    "semanticWarningRate": 0.5016,
-    "semanticWarningSnippets": 1097,
+    "semanticUnsupportedRate": 0.4911,
+    "semanticUnsupportedSnippets": 1074,
+    "semanticWarningRate": 0.5011,
+    "semanticWarningSnippets": 1096,
   },
   "semanticCoverage": {
     "allUnknownSnippetRate": 0.192,
@@ -269,7 +269,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
       "filePath": "pgfmanual-en-base-transformations.tex",
     },
     {
-      "count": 31,
+      "count": 30,
       "filePath": "pgfmanual-en-tikz-transparency.tex",
     },
     {
