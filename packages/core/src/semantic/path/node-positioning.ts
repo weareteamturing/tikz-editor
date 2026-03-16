@@ -89,6 +89,14 @@ export type NodePositioningResolution = {
   anchorPoint: Point;
   anchorOverride?: string;
   diagnostics: string[];
+  relativePlacement?: {
+    direction: PositioningDirection;
+    targetNodeName: string;
+    targetWorld: Point;
+    targetCenter: Point;
+    legacyOf: boolean;
+    span: Span;
+  };
 };
 
 export function parseDirectionalKey(key: string): ParsedDirectionalKey | null {
@@ -113,6 +121,10 @@ export function parseDirectionalKey(key: string): ParsedDirectionalKey | null {
 
 export function currentAnchorForDirection(direction: PositioningDirection): string {
   return DIRECTION_META[direction].currentAnchor;
+}
+
+export function targetAnchorForDirection(direction: PositioningDirection): string {
+  return DIRECTION_META[direction].targetAnchor;
 }
 
 export function parseNodeDistance(raw: string, opts: { allowNegative?: boolean } = {}): NodeDistanceSpec | null {
@@ -278,6 +290,8 @@ export function resolveNodePositioningTarget(
   };
   let anchorOverride: string | undefined;
 
+  let relativePlacementResult: NodePositioningResolution["relativePlacement"];
+
   if (relativePlacement) {
     const resolved = resolveRelativePlacement(relativePlacement, context, onGrid, nodeDistance, activeTransform);
     diagnostics.push(...resolved.diagnostics);
@@ -290,9 +304,19 @@ export function resolveNodePositioningTarget(
     if (resolved.anchorOverride) {
       anchorOverride = resolved.anchorOverride;
     }
+    if (resolved.targetWorld) {
+      relativePlacementResult = {
+        direction: relativePlacement.direction,
+        targetNodeName: relativePlacement.targetRaw,
+        targetWorld: resolved.targetWorld,
+        targetCenter: resolved.targetCenter ?? resolved.targetWorld,
+        legacyOf: relativePlacement.legacyOf,
+        span: relativePlacement.span
+      };
+    }
   }
 
-  return { anchorPoint, anchorOverride, diagnostics };
+  return { anchorPoint, anchorOverride, diagnostics, relativePlacement: relativePlacementResult };
 }
 
 function parseDirectionalOffset(direction: PositioningDirection, raw: string, transform: Matrix2D): Point | null {
@@ -331,7 +355,7 @@ function resolveRelativePlacement(
   onGrid: boolean,
   defaultNodeDistance: NodeDistanceSpec,
   transform: Matrix2D
-): { anchorPoint: Point | null; anchorOverride?: string; diagnostics: string[] } {
+): { anchorPoint: Point | null; targetWorld?: Point; targetCenter?: Point; anchorOverride?: string; diagnostics: string[] } {
   const diagnostics: string[] = [];
   const meta = DIRECTION_META[spec.direction];
   const resolvedReference = resolveReferencePoint(spec, context, onGrid);
@@ -339,6 +363,9 @@ function resolveRelativePlacement(
   if (!resolvedReference.point) {
     return { anchorPoint: null, diagnostics };
   }
+  // Also resolve the target center (on-grid mode) for continuous rewriting
+  const resolvedCenter = resolveReferencePoint(spec, context, /* onGrid */ true);
+  const targetCenter = resolvedCenter.point ?? resolvedReference.point;
 
   const shiftSpec =
     spec.shiftRaw.trim().length === 0 ? defaultNodeDistance : parseNodeDistance(spec.shiftRaw, { allowNegative: true });
@@ -353,9 +380,13 @@ function resolveRelativePlacement(
     y: resolvedReference.point.y + shift.y
   };
 
+  const targetWorld = resolvedReference.point;
+
   if (spec.legacyOf || (resolvedReference.usesBareNodeName && onGrid)) {
     return {
       anchorPoint,
+      targetWorld,
+      targetCenter,
       anchorOverride: "center",
       diagnostics
     };
@@ -363,6 +394,8 @@ function resolveRelativePlacement(
 
   return {
     anchorPoint,
+    targetWorld,
+    targetCenter,
     anchorOverride: meta.currentAnchor,
     diagnostics
   };

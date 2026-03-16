@@ -417,8 +417,22 @@ export type EditHandle = {
   coordinateForm: CoordinateForm;
   relativePrefix?: "+" | "++";
   relativeBaseWorld?: Point;
-  rewriteMode: "direct" | "delta" | "unsupported";
+  rewriteMode: "direct" | "delta" | "positioning" | "unsupported";
   rewriteTargetHandleId?: string;
   curveEdit?: CurveEditHandleData;
   insertion?: EditHandleInsertion;
+  positioningContext?: {
+    direction: string;
+    targetNodeName: string;
+    targetCenter: Point;
+    currentCenter: Point;
+    legacyOf: boolean;
+    anchorOffsetsByDirection?: Record<string, { targetAnchor: Point; currentAnchor: Point }>;
+    /** Anchor half-dimensions for the target node (A), used for anchor compensation */
+    targetAnchorHW: number;
+    targetAnchorHH: number;
+    /** Anchor half-dimensions for the current node (B), used for anchor compensation */
+    currentAnchorHW: number;
+    currentAnchorHH: number;
+  };
 };

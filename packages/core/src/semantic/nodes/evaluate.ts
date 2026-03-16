@@ -1,11 +1,16 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import type { ProvenanceOptionList, SemanticContext } from "../context.js";
+import { readNamedNodeGeometry, type ProvenanceOptionList, type SemanticContext } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
-import { resolveNodePositioningTarget } from "../path/node-positioning.js";
+import {
+  currentAnchorForDirection,
+  resolveNodePositioningTarget,
+  targetAnchorForDirection,
+  type PositioningDirection
+} from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "../path/types.js";
 import type { Matrix2D, Point, ResolvedStyle, SceneAdornment, SceneElement, ScenePath, ScenePathCommand } from "../types.js";
 import { cloneCustomStyleRegistry, walkOptionEntriesWithCustomStyles } from "../style/custom-styles.js";
@@ -20,7 +25,7 @@ import {
   type StyleSourceRef,
   type StyleTraceLayerInput
 } from "../style-chain.js";
-import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
+import { nodeAnchorOffset, placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
   applyNodeBoxPaintMode,
   makeCircleElement,
@@ -65,7 +70,18 @@ import type { NodeShape } from "./types.js";
 import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeEscapedTextSpaces } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
-import { identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
+import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
+
+const CONTINUOUS_POSITIONING_DIRECTIONS: PositioningDirection[] = [
+  "above",
+  "below",
+  "left",
+  "right",
+  "above left",
+  "above right",
+  "below left",
+  "below right"
+];
 
 export type NodeAnchorExtents = {
   left: number;
@@ -75,6 +91,62 @@ export type NodeAnchorExtents = {
   halfWidth: number;
   halfHeight: number;
 };
+
+function computePositioningAnchorOffsetsByDirection(params: {
+  targetNodeName: string;
+  targetCenter: Point;
+  currentCenter: Point;
+  context: SemanticContext;
+  legacyOf: boolean;
+  nodeShape: NodeShape;
+  nodeLayout: ReturnType<typeof adjustNodeLayoutForShape>;
+  nodeOptions: OptionListAst | undefined;
+  nodeTransform: Matrix2D;
+}): Record<string, { targetAnchor: Point; currentAnchor: Point }> {
+  const {
+    targetNodeName,
+    targetCenter,
+    currentCenter,
+    context,
+    legacyOf,
+    nodeShape,
+    nodeLayout,
+    nodeOptions,
+    nodeTransform
+  } = params;
+  const offsets: Record<string, { targetAnchor: Point; currentAnchor: Point }> = {};
+
+  for (const direction of CONTINUOUS_POSITIONING_DIRECTIONS) {
+    const currentAnchor = applyMatrixToVector(
+      nodeTransform,
+      nodeAnchorOffset(nodeShape, nodeLayout, currentAnchorForDirection(direction), nodeOptions)
+    );
+    let targetAnchor: Point = { x: 0, y: 0 };
+
+    if (!legacyOf) {
+      const targetAnchorPoint = evaluateRawCoordinate(
+        `(${targetNodeName}.${targetAnchorForDirection(direction)})`,
+        context
+      ).world;
+      if (targetAnchorPoint) {
+        targetAnchor = {
+          x: targetAnchorPoint.x - targetCenter.x,
+          y: targetAnchorPoint.y - targetCenter.y
+        };
+      }
+    }
+
+    offsets[direction] = {
+      targetAnchor,
+      currentAnchor: {
+        x: currentAnchor.x,
+        y: currentAnchor.y
+      }
+    };
+  }
+
+  return offsets;
+}
 
 export function measureNodeAnchorExtents(
   item: NodeItem,
@@ -359,6 +431,64 @@ export function evaluateNodeItem(
     expandedNodeOptions,
     nodeTransform
   );
+  // Create positioning handle now that we have center and nodeLayout for the current node (B)
+  if (resolvedPositioning.relativePlacement) {
+    const rp = resolvedPositioning.relativePlacement;
+    const dir = rp.direction;
+    const isBaseOrMid = dir.startsWith("base ") || dir.startsWith("mid ");
+    if (!isBaseOrMid) {
+      // Remove any implicit origin handle that resolveNodeTargetPoint created for this node
+      const implicitIdx = context.editHandles.findIndex(
+        (h) => h.sourceRef.sourceId === statement.id && h.kind === "node-position"
+      );
+      if (implicitIdx !== -1) {
+        context.editHandles.splice(implicitIdx, 1);
+      }
+
+      // Look up target node's geometry for anchor compensation
+      const targetGeom = readNamedNodeGeometry(context, rp.targetNodeName);
+
+      const sourceText = context.source.slice(rp.span.from, rp.span.to);
+      context.editHandles.push({
+        id: `handle:${statement.id}:node-position:${context.editHandles.length}`,
+        runtimeId: `handle:${statement.id}:node-position:${context.editHandles.length}`,
+        sourceRef: {
+          sourceId: statement.id,
+          sourceSpan: rp.span,
+          sourceFingerprint: context.sourceFingerprint
+        },
+        kind: "node-position",
+        world: center,
+        transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+        sourceText,
+        coordinateForm: "cartesian",
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: rp.direction,
+          targetNodeName: rp.targetNodeName,
+          targetCenter: rp.targetCenter,
+          currentCenter: center,
+          legacyOf: rp.legacyOf,
+          anchorOffsetsByDirection: computePositioningAnchorOffsetsByDirection({
+            targetNodeName: rp.targetNodeName,
+            targetCenter: rp.targetCenter,
+            currentCenter: center,
+            context,
+            legacyOf: rp.legacyOf,
+            nodeShape,
+            nodeLayout,
+            nodeOptions: expandedNodeOptions,
+            nodeTransform
+          }),
+          targetAnchorHW: targetGeom?.anchorHalfWidth ?? 0,
+          targetAnchorHH: targetGeom?.anchorHalfHeight ?? 0,
+          currentAnchorHW: nodeLayout.anchorHalfWidth,
+          currentAnchorHH: nodeLayout.anchorHalfHeight
+        }
+      });
+    }
+  }
+
   const setNames = collectSetNames(expandedNodeOptions);
   let scopedNames = collectScopedNodeNames(forcedName ?? item.name, item.aliases, context);
   if (scopedNames.length === 0 && setNames.length > 0) {

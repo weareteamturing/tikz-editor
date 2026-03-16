@@ -605,6 +605,65 @@ describe("applyEditAction – moveElement", () => {
   });
 });
 
+describe("applyEditAction – moveElement with positioning", () => {
+  it("rewrites right=1cm of A to compound direction when dragged diagonally", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node (A) at (0,0) {A};
+\node[right=1cm of A] (B) {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const evaluated = evaluateTikzFigure(parsed.figure, source);
+    const handles = evaluated.editHandles;
+
+    // Find the positioning handle for node B
+    const posHandle = handles.find((h) => h.rewriteMode === "positioning");
+    expect(posHandle).toBeDefined();
+    if (!posHandle) return;
+
+    // The positioning handle's sourceId is the statement ID for node B
+    const elementId = posHandle.sourceRef.sourceId;
+
+    // Move node B up and further right
+    const result = applyEditAction(source, handles, {
+      kind: "moveElement",
+      elementId,
+      delta: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    // Should have rewritten the positioning option
+    expect(result.newSource).toContain("above right=");
+    expect(result.newSource).toContain("of A");
+    // Should NOT contain the original "right=1cm of A"
+    expect(result.newSource).not.toContain("right=1cm of A");
+  });
+
+  it("rewrites below right positioning to above right when dragged upward across the target center", () => {
+    const source = String.raw`\begin{tikzpicture}[every node/.style={fill=blue!10}]
+\node (A) at (0,0) {A};
+\node[below right={1cm and 1cm} of A] (B) {B};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const evaluated = evaluateTikzFigure(parsed.figure, source);
+    const handles = evaluated.editHandles;
+    const posHandle = handles.find((handle) => handle.rewriteMode === "positioning");
+
+    expect(posHandle).toBeDefined();
+    if (!posHandle) return;
+
+    const result = applyEditAction(source, handles, {
+      kind: "moveElement",
+      elementId: posHandle.sourceRef.sourceId,
+      delta: { x: 0, y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("above right={-0.23cm and 1cm} of A");
+  });
+});
+
 describe("applyEditAction – node adornments", () => {
   it("duplicates a single label option without duplicating the whole node", () => {
     const source = String.raw`\begin{tikzpicture}

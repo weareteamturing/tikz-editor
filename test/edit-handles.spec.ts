@@ -214,6 +214,41 @@ describe("edit handles", () => {
     expect(h.world.y).toBeCloseTo(cm(3));
   });
 
+  it("positioning: node with right=1cm of emits positioning handle", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node (A) at (0,0) {A};
+\node[right=1cm of A] (B) {B};
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const nodeHandles = result.editHandles.filter((h) => h.kind === "node-position");
+    // First handle: node A (direct), second: node B implicit origin, third: node B positioning
+    const posHandles = nodeHandles.filter((h) => h.rewriteMode === "positioning");
+    expect(posHandles).toHaveLength(1);
+    const h = posHandles[0];
+    expect(h.positioningContext).toBeDefined();
+    expect(h.positioningContext!.direction).toBe("right");
+    expect(h.positioningContext!.targetNodeName).toBe("A");
+    expect(h.positioningContext!.legacyOf).toBe(false);
+    // Target center should be at node A's center (0,0)
+    expect(h.positioningContext!.targetCenter.x).toBeCloseTo(0, 0);
+    expect(h.positioningContext!.targetCenter.y).toBeCloseTo(0, 0);
+    // handle.world is now B's center, should be to the right of A's center
+    expect(h.world.x).toBeGreaterThan(cm(1) * 0.8);
+    // Anchor half-dimensions should be populated
+    expect(h.positioningContext!.targetAnchorHW).toBeGreaterThan(0);
+    expect(h.positioningContext!.currentAnchorHW).toBeGreaterThan(0);
+  });
+
+  it("positioning: base left direction is not draggable", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node (A) at (0,0) {A};
+\node[base left=1cm of A] (B) {B};
+\end{tikzpicture}`;
+    const result = evaluate(source);
+    const posHandles = result.editHandles.filter((h) => h.rewriteMode === "positioning");
+    expect(posHandles).toHaveLength(0);
+  });
+
   it("matrix without explicit placement does not emit synthetic node-position handles", () => {
     const source = String.raw`\begin{tikzpicture}
 \matrix[matrix of nodes] {

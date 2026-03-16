@@ -286,4 +286,175 @@ describe("rewriteCoordinate", () => {
       expect(result).toBeNull();
     });
   });
+
+  describe("positioning", () => {
+    it("rewrites right= to updated distance when dragged horizontally", () => {
+      const source = "right=1cm of A";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(0) },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "right",
+          targetNodeName: "A",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 0, y: 0 },
+          legacyOf: false,
+          targetAnchorHW: 0, targetAnchorHH: 0,
+          currentAnchorHW: 0, currentAnchorHH: 0
+        }
+      });
+      const result = rewriteCoordinate({ x: cm(2.5), y: cm(0) }, handle, source);
+      expect(result).toBe("right=2.5cm of A");
+    });
+
+    it("rewrites to compound direction when dragged diagonally", () => {
+      const source = "right=1cm of A";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(0) },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "right",
+          targetNodeName: "A",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 0, y: 0 },
+          legacyOf: false,
+          targetAnchorHW: 0, targetAnchorHH: 0,
+          currentAnchorHW: 0, currentAnchorHH: 0
+        }
+      });
+      const result = rewriteCoordinate({ x: cm(2), y: cm(1.5) }, handle, source);
+      expect(result).toBe("above right={1.5cm and 2cm} of A");
+    });
+
+    it("snaps to cardinal direction when one component is near zero", () => {
+      const source = "above right={1cm and 1cm} of B";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(1) },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "above right",
+          targetNodeName: "B",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 0, y: 0 },
+          legacyOf: false,
+          targetAnchorHW: 0, targetAnchorHH: 0,
+          currentAnchorHW: 0, currentAnchorHH: 0
+        }
+      });
+      // Move to nearly pure vertical
+      const result = rewriteCoordinate({ x: cm(0.001), y: cm(3) }, handle, source);
+      expect(result).toBe("above=3cm of B");
+    });
+
+    it("can leave a diagonal quadrant when one axis clearly dominates", () => {
+      const source = "above right={1cm and 1cm} of A";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(1) },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "above right",
+          targetNodeName: "A",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 0, y: 0 },
+          legacyOf: false,
+          targetAnchorHW: 0, targetAnchorHH: 0,
+          currentAnchorHW: 0, currentAnchorHH: 0
+        }
+      });
+      const result = rewriteCoordinate({ x: cm(3), y: cm(0.6) }, handle, source);
+      expect(result).toBe("right=3cm of A");
+    });
+
+    it("handles negative directions (below left)", () => {
+      const source = "right=1cm of A";
+      const handle = makeHandle({
+        world: { x: cm(1), y: cm(0) },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "right",
+          targetNodeName: "A",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 0, y: 0 },
+          legacyOf: false,
+          targetAnchorHW: 0, targetAnchorHH: 0,
+          currentAnchorHW: 0, currentAnchorHH: 0
+        }
+      });
+      const result = rewriteCoordinate({ x: cm(-2), y: cm(-1) }, handle, source);
+      expect(result).toBe("below left={1cm and 2cm} of A");
+    });
+
+    it("switches from below right to above right before anchor extents fully clear", () => {
+      const source = "below right={1cm and 1cm} of A";
+      const handle = makeHandle({
+        world: { x: 42.492603905500005, y: -45.97952790549999 },
+        sourceRef: { sourceSpan: { from: 0, to: source.length } },
+        sourceText: source,
+        rewriteMode: "positioning",
+        positioningContext: {
+          direction: "below right",
+          targetNodeName: "A",
+          targetCenter: { x: 0, y: 0 },
+          currentCenter: { x: 42.492603905500005, y: -45.97952790549999 },
+          legacyOf: false,
+          targetAnchorHW: 7.0199240000000005,
+          targetAnchorHH: 8.763385999999999,
+          currentAnchorHW: 7.0199240000000005,
+          currentAnchorHH: 8.763385999999999,
+          anchorOffsetsByDirection: {
+            above: {
+              targetAnchor: { x: 0, y: 8.763385999999999 },
+              currentAnchor: { x: 0, y: -8.763385999999999 }
+            },
+            below: {
+              targetAnchor: { x: 0, y: -8.763385999999999 },
+              currentAnchor: { x: 0, y: 8.763385999999999 }
+            },
+            left: {
+              targetAnchor: { x: -7.0199240000000005, y: 0 },
+              currentAnchor: { x: 7.0199240000000005, y: 0 }
+            },
+            right: {
+              targetAnchor: { x: 7.0199240000000005, y: 0 },
+              currentAnchor: { x: -7.0199240000000005, y: 0 }
+            },
+            "above left": {
+              targetAnchor: { x: -7.0199240000000005, y: 8.763385999999999 },
+              currentAnchor: { x: 7.0199240000000005, y: -8.763385999999999 }
+            },
+            "above right": {
+              targetAnchor: { x: 7.0199240000000005, y: 8.763385999999999 },
+              currentAnchor: { x: -7.0199240000000005, y: -8.763385999999999 }
+            },
+            "below left": {
+              targetAnchor: { x: -7.0199240000000005, y: -8.763385999999999 },
+              currentAnchor: { x: 7.0199240000000005, y: 8.763385999999999 }
+            },
+            "below right": {
+              targetAnchor: { x: 7.0199240000000005, y: -8.763385999999999 },
+              currentAnchor: { x: -7.0199240000000005, y: 8.763385999999999 }
+            }
+          }
+        }
+      });
+
+      const result = rewriteCoordinate(
+        { x: 42.492603905500005, y: 10.925983905500004 },
+        handle,
+        source
+      );
+
+      expect(result).toBe("above right={-0.23cm and 1cm} of A");
+    });
+  });
 });

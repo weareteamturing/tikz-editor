@@ -1,6 +1,6 @@
 import type { EditHandle, Point } from "../semantic/types.js";
 import { worldToLocal, worldDeltaToLocalDelta, localToSourceUnits } from "./coords.js";
-import { formatNumber } from "./format.js";
+import { CM_PER_PT, formatNumber } from "./format.js";
 import { formatCoordinate, formatPolarCoordinate } from "./style.js";
 
 /**
@@ -12,6 +12,10 @@ export function rewriteCoordinate(
   handle: EditHandle,
   source: string
 ): string | null {
+  if (handle.rewriteMode === "positioning") {
+    return rewritePositioning(newWorld, handle);
+  }
+
   if (handle.rewriteMode === "unsupported") {
     return rewriteUnsupportedCoordinate(newWorld, handle, source);
   }
@@ -137,4 +141,227 @@ function toPolar(point: Point): { angleDeg: number; radius: number } {
     angleDeg += 360;
   }
   return { angleDeg, radius };
+}
+
+/** Snap threshold: if one component is less than this fraction of the other, use a cardinal direction. */
+const CARDINAL_SNAP_RATIO = 0.25;
+
+const POSITIONING_DIRECTION_SIGNS: Record<string, { x: -1 | 0 | 1; y: -1 | 0 | 1 }> = {
+  above: { x: 0, y: 1 },
+  below: { x: 0, y: -1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  "above left": { x: -1, y: 1 },
+  "above right": { x: 1, y: 1 },
+  "below left": { x: -1, y: -1 },
+  "below right": { x: 1, y: -1 }
+};
+
+/**
+ * For a given positioning direction, return the anchor offsets (from center) for
+ * target and current nodes, using the stored half-dimensions.
+ * Returns { targetAnchor, currentAnchor } as offsets from each node's center.
+ */
+function anchorOffsetsForDirection(
+  direction: string,
+  targetHW: number,
+  targetHH: number,
+  currentHW: number,
+  currentHH: number
+): { targetAnchor: Point; currentAnchor: Point } {
+  // TikZ positioning: target anchor is the "outward" side of A toward B,
+  // current anchor is the "inward" side of B toward A.
+  const dirMeta: Record<string, { tx: number; ty: number; cx: number; cy: number }> = {
+    "right":       { tx:  1, ty:  0, cx: -1, cy:  0 },
+    "left":        { tx: -1, ty:  0, cx:  1, cy:  0 },
+    "above":       { tx:  0, ty:  1, cx:  0, cy: -1 },
+    "below":       { tx:  0, ty: -1, cx:  0, cy:  1 },
+    "above right": { tx:  1, ty:  1, cx: -1, cy: -1 },
+    "above left":  { tx: -1, ty:  1, cx:  1, cy: -1 },
+    "below right": { tx:  1, ty: -1, cx: -1, cy:  1 },
+    "below left":  { tx: -1, ty: -1, cx:  1, cy:  1 }
+  };
+  const m = dirMeta[direction];
+  if (!m) {
+    return { targetAnchor: { x: 0, y: 0 }, currentAnchor: { x: 0, y: 0 } };
+  }
+  return {
+    targetAnchor: { x: m.tx * targetHW, y: m.ty * targetHH },
+    currentAnchor: { x: m.cx * currentHW, y: m.cy * currentHH }
+  };
+}
+
+function cardinalDirectionFromSigns(signs: { x: -1 | 0 | 1; y: -1 | 0 | 1 }): string | null {
+  if (signs.x > 0) {
+    return "right";
+  }
+  if (signs.x < 0) {
+    return "left";
+  }
+  if (signs.y > 0) {
+    return "above";
+  }
+  if (signs.y < 0) {
+    return "below";
+  }
+  return null;
+}
+
+function diagonalDirectionFromSigns(signs: { x: -1 | 0 | 1; y: -1 | 0 | 1 }): string | null {
+  if (signs.x > 0 && signs.y > 0) {
+    return "above right";
+  }
+  if (signs.x < 0 && signs.y > 0) {
+    return "above left";
+  }
+  if (signs.x > 0 && signs.y < 0) {
+    return "below right";
+  }
+  if (signs.x < 0 && signs.y < 0) {
+    return "below left";
+  }
+  return null;
+}
+
+function signedScalarForDirection(direction: string, shiftXcm: number, shiftYcm: number): number | null {
+  const signs = POSITIONING_DIRECTION_SIGNS[direction];
+  if (!signs) {
+    return null;
+  }
+  if (signs.x !== 0 && signs.y === 0) {
+    return shiftXcm * signs.x;
+  }
+  if (signs.y !== 0 && signs.x === 0) {
+    return shiftYcm * signs.y;
+  }
+  return null;
+}
+
+function signedPairForDirection(
+  direction: string,
+  shiftXcm: number,
+  shiftYcm: number
+): { vertical: number; horizontal: number } | null {
+  const signs = POSITIONING_DIRECTION_SIGNS[direction];
+  if (!signs || signs.x === 0 || signs.y === 0) {
+    return null;
+  }
+  return {
+    vertical: shiftYcm * signs.y,
+    horizontal: shiftXcm * signs.x
+  };
+}
+
+function rewritePositioning(
+  newWorld: Point,
+  handle: EditHandle
+): string | null {
+  const ctx = handle.positioningContext;
+  if (!ctx) return null;
+
+  const centerDeltaWorld = {
+    x: newWorld.x - ctx.targetCenter.x,
+    y: newWorld.y - ctx.targetCenter.y
+  };
+  const c2cXcm = centerDeltaWorld.x * CM_PER_PT;
+  const c2cYcm = centerDeltaWorld.y * CM_PER_PT;
+  const absCx = Math.abs(c2cXcm);
+  const absCy = Math.abs(c2cYcm);
+  const maxComp = Math.max(absCx, absCy);
+  const currentSigns = POSITIONING_DIRECTION_SIGNS[ctx.direction] ?? { x: 1, y: 0 };
+
+  const computeShift = (direction: string): Point => {
+    const offsets = ctx.anchorOffsetsByDirection?.[direction]
+      ?? anchorOffsetsForDirection(direction, ctx.targetAnchorHW, ctx.targetAnchorHH, ctx.currentAnchorHW, ctx.currentAnchorHH);
+    return {
+      x: centerDeltaWorld.x - offsets.targetAnchor.x + offsets.currentAnchor.x,
+      y: centerDeltaWorld.y - offsets.targetAnchor.y + offsets.currentAnchor.y
+    };
+  };
+
+  let direction = ctx.direction;
+  let shift = computeShift(direction);
+
+  if (maxComp >= 1e-6) {
+    const resolvedSigns = {
+      x: (absCx < 1e-6 ? currentSigns.x : Math.sign(c2cXcm)) as -1 | 0 | 1,
+      y: (absCy < 1e-6 ? currentSigns.y : Math.sign(c2cYcm)) as -1 | 0 | 1
+    };
+    const horizontalDominant = absCy <= Math.max(absCx * CARDINAL_SNAP_RATIO, 1e-6);
+    const verticalDominant = absCx <= Math.max(absCy * CARDINAL_SNAP_RATIO, 1e-6);
+    const candidateDirections: string[] = [];
+
+    if (horizontalDominant) {
+      const cardinal = cardinalDirectionFromSigns({ x: resolvedSigns.x, y: 0 });
+      if (cardinal) {
+        candidateDirections.push(cardinal);
+      }
+    }
+    if (verticalDominant) {
+      const cardinal = cardinalDirectionFromSigns({ x: 0, y: resolvedSigns.y });
+      if (cardinal) {
+        candidateDirections.push(cardinal);
+      }
+    }
+
+    const diagonalSigns = {
+      x: (resolvedSigns.x === 0 ? (currentSigns.x === 0 ? 1 : currentSigns.x) : resolvedSigns.x) as -1 | 0 | 1,
+      y: (resolvedSigns.y === 0 ? (currentSigns.y === 0 ? 1 : currentSigns.y) : resolvedSigns.y) as -1 | 0 | 1
+    };
+    const diagonal = diagonalDirectionFromSigns(diagonalSigns);
+    if (diagonal) {
+      candidateDirections.push(diagonal);
+    }
+
+    if (!candidateDirections.includes(ctx.direction)) {
+      candidateDirections.push(ctx.direction);
+    }
+
+    for (const candidateDirection of candidateDirections) {
+      const candidateShift = computeShift(candidateDirection);
+      const shiftXcm = candidateShift.x * CM_PER_PT;
+      const shiftYcm = candidateShift.y * CM_PER_PT;
+      const absShiftXcm = Math.abs(shiftXcm);
+      const absShiftYcm = Math.abs(shiftYcm);
+      const expected = POSITIONING_DIRECTION_SIGNS[candidateDirection]!;
+
+      if (expected.x === 0 || expected.y === 0) {
+        const axial = Math.max(absShiftXcm, absShiftYcm);
+        const orthogonal = expected.x === 0 ? absShiftXcm : absShiftYcm;
+        const maxOrthogonal = Math.max(axial * CARDINAL_SNAP_RATIO, 1e-6);
+        if (orthogonal > maxOrthogonal) {
+          continue;
+        }
+      }
+
+      direction = candidateDirection;
+      shift = candidateShift;
+      break;
+    }
+  }
+
+  const shiftXcm = shift.x * CM_PER_PT;
+  const shiftYcm = shift.y * CM_PER_PT;
+
+  if (direction === "left" || direction === "right") {
+    const scalar = signedScalarForDirection(direction, shiftXcm, shiftYcm);
+    if (scalar == null) {
+      return null;
+    }
+    return `${direction}=${formatNumber(scalar)}cm of ${ctx.targetNodeName}`;
+  }
+  if (direction === "above" || direction === "below") {
+    const scalar = signedScalarForDirection(direction, shiftXcm, shiftYcm);
+    if (scalar == null) {
+      return null;
+    }
+    return `${direction}=${formatNumber(scalar)}cm of ${ctx.targetNodeName}`;
+  }
+
+  const pair = signedPairForDirection(direction, shiftXcm, shiftYcm);
+  if (!pair) {
+    return null;
+  }
+
+  return `${direction}={${formatNumber(pair.vertical)}cm and ${formatNumber(pair.horizontal)}cm} of ${ctx.targetNodeName}`;
 }
