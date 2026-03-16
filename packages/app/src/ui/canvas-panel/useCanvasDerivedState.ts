@@ -67,7 +67,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       return null;
     }
 
-    if (toolMode === "addNode") {
+    if (toolMode === "addNode" || toolMode === "addShape") {
       const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
       if (!liveWorld) {
         return null;

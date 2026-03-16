@@ -16,6 +16,28 @@ const DECORATION_FEATURE_TO_LIBRARY: Record<string, string> = {
   decoration_footprints: "decorations.footprints"
 };
 
+const SHAPE_FEATURE_TO_LIBRARY: Record<string, string> = {
+  shape_diamond: "shapes.geometric",
+  shape_trapezium: "shapes.geometric",
+  shape_semicircle: "shapes.geometric",
+  shape_regular_polygon: "shapes.geometric",
+  shape_star: "shapes.geometric",
+  shape_isosceles_triangle: "shapes.geometric",
+  shape_kite: "shapes.geometric",
+  shape_dart: "shapes.geometric",
+  shape_circular_sector: "shapes.geometric",
+  shape_cylinder: "shapes.geometric",
+  shape_cloud: "shapes.symbols",
+  shape_starburst: "shapes.symbols",
+  shape_signal: "shapes.symbols",
+  shape_tape: "shapes.symbols",
+  shape_rectangle_callout: "shapes.callouts",
+  shape_ellipse_callout: "shapes.callouts",
+  shape_cloud_callout: "shapes.callouts",
+  shape_single_arrow: "shapes.arrows",
+  shape_double_arrow: "shapes.arrows"
+};
+
 function isFeatureUsed(featureUsage: FeatureUsage, featureId: string): boolean {
   const state = featureUsage[featureId];
   return state === "used-supported" || state === "used-unsupported";
@@ -82,6 +104,12 @@ export function inferRequiredTikzLibraries(input: InferRequiredTikzLibrariesInpu
   }
 
   for (const [featureId, libraryName] of Object.entries(DECORATION_FEATURE_TO_LIBRARY)) {
+    if (isFeatureUsed(featureUsage, featureId)) {
+      required.add(libraryName);
+    }
+  }
+
+  for (const [featureId, libraryName] of Object.entries(SHAPE_FEATURE_TO_LIBRARY)) {
     if (isFeatureUsed(featureUsage, featureId)) {
       required.add(libraryName);
     }

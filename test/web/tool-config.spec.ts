@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isToolCreateMode,
   resolveToolbarToolMode,
+  toolModeAutoOpensPopup,
   toolModeFromShortcut,
   toolModeHasPopup,
   toolModePopupKind
@@ -15,6 +16,7 @@ describe("resolveToolbarToolMode", () => {
 
   it("keeps popup-enabled tool active when reclicked", () => {
     expect(resolveToolbarToolMode("addFreehand", "addFreehand")).toBe("addFreehand");
+    expect(resolveToolbarToolMode("addShape", "addShape")).toBe("addShape");
   });
 
   it("keeps select active when reclicking select", () => {
@@ -41,6 +43,11 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModeFromShortcut("F")).toBe("addFreehand");
   });
 
+  it("maps keyboard shortcut S to addShape", () => {
+    expect(toolModeFromShortcut("s")).toBe("addShape");
+    expect(toolModeFromShortcut("S")).toBe("addShape");
+  });
+
   it("treats addBezier as a tool-create mode", () => {
     expect(isToolCreateMode("addBezier")).toBe(true);
     expect(isToolCreateMode("addPath")).toBe(true);
@@ -57,6 +64,9 @@ describe("resolveToolbarToolMode", () => {
   it("exposes popup metadata for freehand and no popup for rectangle", () => {
     expect(toolModeHasPopup("addFreehand")).toBe(true);
     expect(toolModePopupKind("addFreehand")).toBe("freehand-smoothing");
+    expect(toolModeHasPopup("addShape")).toBe(true);
+    expect(toolModePopupKind("addShape")).toBe("shape-picker");
+    expect(toolModeAutoOpensPopup("addShape")).toBe(true);
     expect(toolModeHasPopup("addRect")).toBe(false);
     expect(toolModePopupKind("addRect")).toBeNull();
   });

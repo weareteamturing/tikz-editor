@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
+import { NODE_SHAPE_OPTIONS } from "tikz-editor/edit/inspector";
 import { ColorPicker } from "./ColorPicker";
 import { getToolCapabilityStatus } from "./capabilities";
 import { RenderedTooltip } from "./RenderedTooltip";
@@ -9,20 +10,30 @@ import {
   resolveToolbarToolMode,
   TOOL_BUTTONS,
   TOOL_COLOR_OPTIONS,
+  toolModeAutoOpensPopup,
   toolModePopupKind,
   type ToolPopupKind
 } from "./tool-config";
-import { ToolbarToolPopup, ToolbarPopupSection } from "./ToolbarToolPopup";
+import { GENERATED_NODE_SHAPE_PREVIEWS } from "./generated-node-shape-previews";
+import { ToolbarToolPopup, ToolbarPopupSection, ToolbarPopupVisualChoiceGrid } from "./ToolbarToolPopup";
 import type { ToolMode } from "../store/types";
 import css from "./Toolbar.module.css";
+
+const SHAPE_POPUP_CHOICES = NODE_SHAPE_OPTIONS.map((option) => ({
+  id: option.value,
+  label: option.label,
+  previewSvg: GENERATED_NODE_SHAPE_PREVIEWS[option.value] ?? null
+}));
 
 export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
+  const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
   const dispatch = useEditorStore((s) => s.dispatch);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
   const [openPopupMode, setOpenPopupMode] = useState<ToolMode | null>(null);
+  const previousToolModeRef = useRef<ToolMode>(toolMode);
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
   const isMacDesktop =
     isDesktop &&
@@ -35,6 +46,13 @@ export function Toolbar() {
       setOpenPopupMode(null);
     }
   }, [openPopupMode, toolMode]);
+
+  useEffect(() => {
+    if (previousToolModeRef.current !== toolMode && toolModeAutoOpensPopup(toolMode)) {
+      setOpenPopupMode(toolMode);
+    }
+    previousToolModeRef.current = toolMode;
+  }, [toolMode]);
 
   const renderPopup = (popupKind: ToolPopupKind) => {
     if (popupKind === "freehand-smoothing") {
@@ -71,6 +89,20 @@ export function Toolbar() {
             onChange={(nextValue) => {
               dispatch({ type: "SET_BUCKET_FILL_COLOR", value: nextValue });
             }}
+          />
+        </ToolbarPopupSection>
+      );
+    }
+    if (popupKind === "shape-picker") {
+      return (
+        <ToolbarPopupSection title="Shape">
+          <ToolbarPopupVisualChoiceGrid
+            choices={SHAPE_POPUP_CHOICES}
+            selectedId={selectedAddShape}
+            onSelect={(id) => {
+              dispatch({ type: "SET_ADD_SHAPE_PRESET", value: id as typeof selectedAddShape });
+            }}
+            testIdPrefix="toolbar-shape-choice"
           />
         </ToolbarPopupSection>
       );

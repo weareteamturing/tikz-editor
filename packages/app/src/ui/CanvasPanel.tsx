@@ -520,6 +520,7 @@ export function CanvasPanel() {
   const snapModes = useEditorStore((s) => s.snapModes);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
+  const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
@@ -1921,6 +1922,7 @@ export function CanvasPanel() {
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
+    selectedAddShape,
     pathDraft,
     pathSegmentDraft,
     dragRef,

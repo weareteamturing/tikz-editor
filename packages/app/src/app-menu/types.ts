@@ -47,6 +47,7 @@ export const APP_MENU_COMMAND_IDS = {
   PATH_POINT_CORNER: "path.point-corner",
   PATH_POINT_SMOOTH: "path.point-smooth",
   INSERT_NODE: "insert.node",
+  INSERT_SHAPE: "insert.shape",
   INSERT_PATH: "insert.path",
   INSERT_FREEHAND: "insert.freehand",
   INSERT_LINE: "insert.line",

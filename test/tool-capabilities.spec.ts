@@ -9,6 +9,7 @@ describe("tool capability status", () => {
   it("reports select/addNode as supported", () => {
     expect(getToolCapabilityStatus("select").status).toBe("supported");
     expect(getToolCapabilityStatus("addNode").status).toBe("supported");
+    expect(getToolCapabilityStatus("addShape").status).toBe("supported");
   });
 
   it("treats add tools as supported when parse/semantic/svg support is stable", () => {
@@ -113,6 +114,22 @@ describe("inspector property capability status", () => {
       }
     };
     expect(getInspectorPropertyCapabilityStatus(nodeShapeProperty).status).toBe("partial");
+
+    const starNodeShapeProperty: InspectorProperty = {
+      kind: "nodeShape",
+      id: "node-shape",
+      label: "Shape",
+      value: "star",
+      options: [{ value: "star", label: "Star" }],
+      write: {
+        mode: "setProperty",
+        elementId: "node-item:0",
+        level: "command",
+        key: "shape",
+        writable: true
+      }
+    };
+    expect(getInspectorPropertyCapabilityStatus(starNodeShapeProperty).status).toBe("partial");
 
     const nodeFontProperty: InspectorProperty = {
       kind: "nodeFont",

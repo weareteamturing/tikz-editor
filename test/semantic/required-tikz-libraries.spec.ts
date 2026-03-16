@@ -54,4 +54,20 @@ describe("semantic evaluator / required tikz libraries", () => {
     expect(withLibraries.scene.requiredTikzLibraries).toEqual(["arrows.meta", "patterns"]);
     expect(withoutLibraries.scene.requiredTikzLibraries).toEqual([]);
   });
+
+  it("infers shape libraries for non-basic node shapes", () => {
+    const result = evaluateSemantic(String.raw`\begin{tikzpicture}
+  \node[draw, diamond] {};
+  \node[draw, cloud] at (2,0) {};
+  \node[draw, rectangle callout] at (4,0) {};
+  \node[draw, single arrow] at (6,0) {};
+\end{tikzpicture}`);
+
+    expect(result.scene.requiredTikzLibraries).toEqual([
+      "shapes.arrows",
+      "shapes.callouts",
+      "shapes.geometric",
+      "shapes.symbols"
+    ]);
+  });
 });

@@ -82,6 +82,12 @@ export type ToolbarPopupChoice = {
   label: string;
 };
 
+export type ToolbarPopupVisualChoice = {
+  id: string;
+  label: string;
+  previewSvg?: string | null;
+};
+
 export function ToolbarPopupChoiceList({
   choices,
   selectedId,
@@ -105,6 +111,44 @@ export function ToolbarPopupChoiceList({
             onClick={() => onSelect(choice.id)}
           >
             {choice.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ToolbarPopupVisualChoiceGrid({
+  choices,
+  selectedId,
+  onSelect,
+  testIdPrefix
+}: {
+  choices: readonly ToolbarPopupVisualChoice[];
+  selectedId: string;
+  onSelect: (id: string) => void;
+  testIdPrefix?: string;
+}) {
+  return (
+    <div className={css.visualChoiceGrid} role="listbox" aria-label="Node shapes">
+      {choices.map((choice) => {
+        const selected = choice.id === selectedId;
+        const testId = testIdPrefix ? `${testIdPrefix}-${choice.id.replace(/\s+/g, "-")}` : undefined;
+        return (
+          <button
+            key={choice.id}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            data-testid={testId}
+            className={[css.visualChoiceButton, selected ? css.visualChoiceButtonSelected : ""].filter(Boolean).join(" ")}
+            onClick={() => onSelect(choice.id)}
+            title={choice.label}
+          >
+            <span className={css.visualChoicePreview} aria-hidden="true">
+              {choice.previewSvg ? <span dangerouslySetInnerHTML={{ __html: choice.previewSvg }} /> : choice.label[0]}
+            </span>
+            <span className={css.visualChoiceLabel}>{choice.label}</span>
           </button>
         );
       })}

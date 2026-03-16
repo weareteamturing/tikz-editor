@@ -47,6 +47,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
+    selectedAddShape,
     pathDraft,
     pathSegmentDraft,
     dragRef,
@@ -315,7 +316,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
 
-        if (toolMode === "addNode") {
+        if (toolMode === "addNode" || toolMode === "addShape") {
           const snapResult = toolSnapContext
               ? snapToolPointer({
                   context: toolSnapContext,
@@ -339,7 +340,9 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           queueSelectionForAddedElement(nodeAt);
           const ok = applyActionWithFeedback({
             kind: "addElement",
-            template: { kind: "node" },
+            template: toolMode === "addShape"
+              ? { kind: "node", shape: selectedAddShape, text: "" }
+              : { kind: "node" },
             at: nodeAt
           });
           if (!ok.sourceChanged) {
@@ -403,6 +406,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       queueSelectionForAddedElement,
       setDragState,
       setNodeAnchorOverlay,
+      selectedAddShape,
       snapshot.scene,
       snapshot.source,
       source,

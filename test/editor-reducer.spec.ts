@@ -718,6 +718,20 @@ describe("editorReducer – SET_FREEHAND_SMOOTHING", () => {
   });
 });
 
+describe("editorReducer – SET_ADD_SHAPE_PRESET", () => {
+  it("updates the selected add-shape preset", () => {
+    const state = applyActions([{ type: "SET_ADD_SHAPE_PRESET", value: "diamond" }]);
+    expect(state.selectedAddShape).toBe("diamond");
+  });
+
+  it("is a no-op when the preset is unchanged", () => {
+    const initial = makeInitialState();
+    expect(initial.selectedAddShape).toBe("rectangle");
+    const after = editorReducer(initial, { type: "SET_ADD_SHAPE_PRESET", value: "rectangle" });
+    expect(after).toBe(initial);
+  });
+});
+
 // ── SET_CANVAS_TRANSFORM ───────────────────────────────────────────────────────
 
 describe("editorReducer – SET_CANVAS_TRANSFORM", () => {

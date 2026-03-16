@@ -7,7 +7,7 @@ export type AnchorReference = {
 };
 
 export type ElementTemplate =
-  | { kind: "node"; text?: string }
+  | { kind: "node"; text?: string; shape?: string }
   | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
   | { kind: "grid"; corner?: Point }
@@ -21,6 +21,8 @@ export type ComplexPathSegment =
   | { kind: "bezier"; to: Point; control1: Point; control2: Point; toAnchor?: AnchorReference };
 
 const DEFAULT_NODE_TEXT = "node";
+const SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM = 2.2;
+const SHAPE_TOOL_DEFAULT_MINIMUM_HEIGHT_CM = 1.4;
 const DEFAULT_LINE_LENGTH_PT = 2 * PT_PER_CM;
 const DEFAULT_RECT_WIDTH_PT = 2.2 * PT_PER_CM;
 const DEFAULT_RECT_HEIGHT_PT = 1.4 * PT_PER_CM;
@@ -32,7 +34,10 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
 
   switch (template.kind) {
     case "node": {
-      const text = sanitizeNodeText(template.text ?? DEFAULT_NODE_TEXT);
+      const text = template.text == null ? DEFAULT_NODE_TEXT : sanitizeNodeText(template.text);
+      if (template.shape) {
+        return `\\node[draw, shape=${template.shape}, minimum width=${SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM}cm, minimum height=${SHAPE_TOOL_DEFAULT_MINIMUM_HEIGHT_CM}cm] at ${atCoord} {${text}};`;
+      }
       return `\\node at ${atCoord} {${text}};`;
     }
 
@@ -305,7 +310,7 @@ function ellipseFromCorner(anchor: Point, corner: Point | undefined): { center: 
 }
 
 function sanitizeNodeText(raw: string): string {
-  return raw.replace(/[{}]/g, "").trim() || DEFAULT_NODE_TEXT;
+  return raw.replace(/[{}]/g, "").trim();
 }
 
 function resolveBezierControls(

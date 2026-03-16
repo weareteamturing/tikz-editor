@@ -58,3 +58,57 @@
   background: var(--accent-btn-bg);
   border-color: var(--accent-btn-border);
 }
+
+.visualChoiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 280px;
+}
+
+.visualChoiceButton {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-pane) 82%, var(--bg-app));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.visualChoiceButton:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--border-light);
+}
+
+.visualChoiceButtonSelected {
+  background: var(--accent-btn-bg);
+  border-color: var(--accent-btn-border);
+}
+
+.visualChoicePreview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 2px;
+  background: color-mix(in srgb, var(--bg-app) 78%, white 22%);
+  border-radius: 4px;
+}
+
+.visualChoicePreview > span,
+.visualChoicePreview svg {
+  width: 100%;
+  max-width: 72px;
+  height: auto;
+  display: block;
+}
+
+.visualChoiceLabel {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  line-height: 1.2;
+  text-align: center;
+}

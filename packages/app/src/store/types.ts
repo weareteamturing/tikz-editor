@@ -1,5 +1,6 @@
 import type { SessionSnapshot } from "../compute";
 import type { EditAction, EditActionResult } from "tikz-editor/edit/actions";
+import type { NodeShapePresetId } from "tikz-editor/edit/inspector";
 import type {
   AssistantItem,
   AssistantPendingApproval,
@@ -11,6 +12,7 @@ export type ToolMode =
   | "select"
   | "addBucket"
   | "addNode"
+  | "addShape"
   | "addPath"
   | "addFreehand"
   | "addLine"
@@ -118,6 +120,7 @@ export type WorkspaceEphemeralState = {
   showGuides: boolean;
   freehandSmoothingPx: number;
   bucketFillColor: string;
+  selectedAddShape: Exclude<NodeShapePresetId, "custom">;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
@@ -181,6 +184,7 @@ export type EditorState = {
   showGuides: boolean;
   freehandSmoothingPx: number;
   bucketFillColor: string;
+  selectedAddShape: Exclude<NodeShapePresetId, "custom">;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
@@ -264,6 +268,7 @@ export type EditorAction =
   | { type: "SET_ACTIVE_CANVAS_DRAG"; kind: CanvasDragKind | null }
   | { type: "SET_FREEHAND_SMOOTHING"; value: number }
   | { type: "SET_BUCKET_FILL_COLOR"; value: string }
+  | { type: "SET_ADD_SHAPE_PRESET"; value: Exclude<NodeShapePresetId, "custom"> }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
   | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }

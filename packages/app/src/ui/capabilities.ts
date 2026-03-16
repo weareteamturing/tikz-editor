@@ -33,6 +33,31 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
     { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
     { feature: "svg_text", layers: ["semantic", "svg"], label: "text node rendering" }
   ],
+  addShape: [
+    { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
+    { feature: "shape_rectangle", layers: ["parser", "semantic", "svg"], label: "rectangle shape rendering" },
+    { feature: "shape_circle", layers: ["parser", "semantic", "svg"], label: "circle shape rendering" },
+    { feature: "shape_ellipse", layers: ["parser", "semantic", "svg"], label: "ellipse shape rendering" },
+    { feature: "shape_diamond", layers: ["parser", "semantic", "svg"], label: "diamond shape rendering" },
+    { feature: "shape_trapezium", layers: ["parser", "semantic", "svg"], label: "trapezium shape rendering" },
+    { feature: "shape_semicircle", layers: ["parser", "semantic", "svg"], label: "semicircle shape rendering" },
+    { feature: "shape_regular_polygon", layers: ["parser", "semantic", "svg"], label: "regular polygon rendering" },
+    { feature: "shape_star", layers: ["parser", "semantic", "svg"], label: "star shape rendering" },
+    { feature: "shape_isosceles_triangle", layers: ["parser", "semantic", "svg"], label: "triangle shape rendering" },
+    { feature: "shape_kite", layers: ["parser", "semantic", "svg"], label: "kite shape rendering" },
+    { feature: "shape_dart", layers: ["parser", "semantic", "svg"], label: "dart shape rendering" },
+    { feature: "shape_circular_sector", layers: ["parser", "semantic", "svg"], label: "circular sector rendering" },
+    { feature: "shape_cylinder", layers: ["parser", "semantic", "svg"], label: "cylinder rendering" },
+    { feature: "shape_cloud", layers: ["parser", "semantic", "svg"], label: "cloud rendering" },
+    { feature: "shape_starburst", layers: ["parser", "semantic", "svg"], label: "starburst rendering" },
+    { feature: "shape_signal", layers: ["parser", "semantic", "svg"], label: "signal rendering" },
+    { feature: "shape_tape", layers: ["parser", "semantic", "svg"], label: "tape rendering" },
+    { feature: "shape_rectangle_callout", layers: ["parser", "semantic", "svg"], label: "rectangle callout rendering" },
+    { feature: "shape_ellipse_callout", layers: ["parser", "semantic", "svg"], label: "ellipse callout rendering" },
+    { feature: "shape_cloud_callout", layers: ["parser", "semantic", "svg"], label: "cloud callout rendering" },
+    { feature: "shape_single_arrow", layers: ["parser", "semantic", "svg"], label: "single arrow rendering" },
+    { feature: "shape_double_arrow", layers: ["parser", "semantic", "svg"], label: "double arrow rendering" }
+  ],
   addPath: [
     { feature: "path_operators_basic", layers: ["parser", "semantic", "svg"], label: "polyline path rendering" },
     { feature: "path_operator_curves", layers: ["parser", "semantic", "svg"], label: "Bezier segment rendering" },
@@ -144,7 +169,23 @@ const NODE_SHAPE_FEATURE_BY_VALUE: Partial<
   ellipse: "shape_ellipse",
   diamond: "shape_diamond",
   trapezium: "shape_trapezium",
-  coordinate: "named_coordinates"
+  semicircle: "shape_semicircle",
+  "regular polygon": "shape_regular_polygon",
+  star: "shape_star",
+  "isosceles triangle": "shape_isosceles_triangle",
+  kite: "shape_kite",
+  dart: "shape_dart",
+  "circular sector": "shape_circular_sector",
+  cylinder: "shape_cylinder",
+  cloud: "shape_cloud",
+  starburst: "shape_starburst",
+  signal: "shape_signal",
+  tape: "shape_tape",
+  "rectangle callout": "shape_rectangle_callout",
+  "ellipse callout": "shape_ellipse_callout",
+  "cloud callout": "shape_cloud_callout",
+  "single arrow": "shape_single_arrow",
+  "double arrow": "shape_double_arrow"
 };
 
 export function getToolCapabilityStatus(

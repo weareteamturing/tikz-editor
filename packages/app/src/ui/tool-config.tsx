@@ -27,6 +27,15 @@ function EllipseIcon({ size = 24 }: { size?: number }) {
   );
 }
 
+function ShapeIcon({ size = 24 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width={size} height={size} fill="none">
+      <path d="M4 6.5H12.5V13.5H4V6.5ZM14.25 5.75L19.75 10L14.25 14.25L8.75 10L14.25 5.75Z" fill="currentColor" />
+      <circle cx="18" cy="17.5" r="2.25" fill="currentColor" />
+    </svg>
+  );
+}
+
 type AnyIconType = RemixiconComponentType | (({ size }: { size?: number }) => React.ReactElement);
 
 export type ToolButtonDef = {
@@ -36,9 +45,10 @@ export type ToolButtonDef = {
   shortcut?: string;
   icon: AnyIconType;
   popupKind?: ToolPopupKind;
+  autoOpenPopup?: boolean;
 };
 
-export type ToolPopupKind = "freehand-smoothing" | "bucket-color";
+export type ToolPopupKind = "freehand-smoothing" | "bucket-color" | "shape-picker";
 
 export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 
@@ -46,6 +56,7 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",  title: "Select and move elements (V)",                     shortcut: "v", icon: RiCursorLine },
   { mode: "addBucket",  label: "Bucket",  title: "Fill a shape with the selected color.",                           icon: RiPaintFill, popupKind: "bucket-color" },
   { mode: "addNode",    label: "Node",    title: "Place a text node (N)",                            shortcut: "n", icon: RiText },
+  { mode: "addShape",   label: "Shape",   title: "Place a shaped node (S).",                         shortcut: "s", icon: ShapeIcon, popupKind: "shape-picker", autoOpenPopup: true },
   { mode: "addPath",    label: "Path",    title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: RiPencilLine },
   {
     mode: "addFreehand",
@@ -74,6 +85,9 @@ const TOOL_SHORTCUT_MAP = new Map<string, ToolMode>(
 const TOOL_POPUP_KIND_MAP = new Map<ToolMode, ToolPopupKind>(
   TOOL_BUTTONS.flatMap((tool) => (tool.popupKind ? [[tool.mode, tool.popupKind] as const] : []))
 );
+const TOOL_AUTO_OPEN_POPUP_SET = new Set<ToolMode>(
+  TOOL_BUTTONS.flatMap((tool) => (tool.autoOpenPopup ? [tool.mode] : []))
+);
 
 const TOOL_CREATE_MODE_SET = new Set<ToolCreateMode>(TOOL_CREATE_MODES);
 
@@ -94,6 +108,10 @@ export function toolModePopupKind(mode: ToolMode): ToolPopupKind | null {
 
 export function toolModeHasPopup(mode: ToolMode): boolean {
   return toolModePopupKind(mode) != null;
+}
+
+export function toolModeAutoOpensPopup(mode: ToolMode): boolean {
+  return TOOL_AUTO_OPEN_POPUP_SET.has(mode);
 }
 
 export function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {

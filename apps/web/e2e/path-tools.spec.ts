@@ -170,6 +170,30 @@ test("freehand toolbar popup opens on activation and closes on outside click or 
   await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
 });
 
+test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an empty shaped node", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addShape")).toBeVisible();
+
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+  await page.mouse.click(box.x + 160, box.y + 160);
+
+  await expect.poll(async () => readSource(page)).toContain("\\node[draw, shape=diamond, minimum width=2.2cm, minimum height=1.4cm] at");
+  await expect.poll(async () => readSource(page)).toContain("{};");
+
+  await toolbarButton(page, "Shape").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addShape")).toBeVisible();
+  await expect(page.getByTestId("toolbar-shape-choice-diamond")).toHaveAttribute("aria-selected", "true");
+});
+
 test("bucket popup chooses color, previews on hover, and stays active across fills", async ({ page }) => {
   await gotoApp(page);
   const source = String.raw`\begin{tikzpicture}

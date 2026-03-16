@@ -32,6 +32,7 @@ const FREEHAND_SMOOTHING_MIN_PX = 4;
 const FREEHAND_SMOOTHING_MAX_PX = 32;
 const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
 const DEFAULT_BUCKET_FILL_COLOR = "yellow";
+const DEFAULT_ADD_SHAPE_PRESET = "rectangle";
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
   translateX: 0,
@@ -109,6 +110,7 @@ function initialUiState(): WorkspaceEphemeralState {
     showGuides: true,
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     bucketFillColor: DEFAULT_BUCKET_FILL_COLOR,
+    selectedAddShape: DEFAULT_ADD_SHAPE_PRESET,
     fitToContentRequestToken: 0,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
@@ -238,6 +240,7 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     showGuides: ui.showGuides,
     freehandSmoothingPx: ui.freehandSmoothingPx,
     bucketFillColor: ui.bucketFillColor,
+    selectedAddShape: ui.selectedAddShape,
     fitToContentRequestToken: ui.fitToContentRequestToken,
     zoomRequestToken: ui.zoomRequestToken,
     zoomRequestDirection: ui.zoomRequestDirection,
@@ -1016,6 +1019,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       ui = { ...ui, bucketFillColor: nextValue };
       break;
     }
+
+    case "SET_ADD_SHAPE_PRESET":
+      if (ui.selectedAddShape === action.value) return state;
+      ui = { ...ui, selectedAddShape: action.value };
+      break;
 
     case "SET_ACTIVE_SOURCE_SCRUB":
       if (ui.activeSourceScrubSourceId === action.sourceId) return state;

@@ -140,7 +140,23 @@ export type NodeShapePresetId =
   | "ellipse"
   | "diamond"
   | "trapezium"
-  | "coordinate"
+  | "semicircle"
+  | "regular polygon"
+  | "star"
+  | "isosceles triangle"
+  | "kite"
+  | "dart"
+  | "circular sector"
+  | "cylinder"
+  | "cloud"
+  | "starburst"
+  | "signal"
+  | "tape"
+  | "rectangle callout"
+  | "ellipse callout"
+  | "cloud callout"
+  | "single arrow"
+  | "double arrow"
   | "custom";
 
 export type NodeShapePresetOption = {
@@ -337,7 +353,23 @@ export const NODE_SHAPE_OPTIONS: NodeShapePresetOption[] = [
   { value: "ellipse", label: "Ellipse" },
   { value: "diamond", label: "Diamond" },
   { value: "trapezium", label: "Trapezium" },
-  { value: "coordinate", label: "Coordinate" }
+  { value: "semicircle", label: "Semicircle" },
+  { value: "regular polygon", label: "Regular polygon" },
+  { value: "star", label: "Star" },
+  { value: "isosceles triangle", label: "Isosceles triangle" },
+  { value: "kite", label: "Kite" },
+  { value: "dart", label: "Dart" },
+  { value: "circular sector", label: "Circular sector" },
+  { value: "cylinder", label: "Cylinder" },
+  { value: "cloud", label: "Cloud" },
+  { value: "starburst", label: "Starburst" },
+  { value: "signal", label: "Signal" },
+  { value: "tape", label: "Tape" },
+  { value: "rectangle callout", label: "Rectangle callout" },
+  { value: "ellipse callout", label: "Ellipse callout" },
+  { value: "cloud callout", label: "Cloud callout" },
+  { value: "single arrow", label: "Single arrow" },
+  { value: "double arrow", label: "Double arrow" }
 ];
 export const NODE_SHAPE_KEY = "shape";
 export const NODE_SHAPE_KNOWN_KEYS = [
@@ -370,7 +402,7 @@ export const CURATED_NODE_SHAPE_SET = new Set<Exclude<NodeShapePresetId, "custom
 );
 export const NODE_SHAPE_KNOWN_SET = new Set<string>(NODE_SHAPE_KNOWN_KEYS);
 export const NODE_SHAPE_CUSTOM_NOTE =
-  "Custom node shape detected. Picking a curated shape will replace non-curated shape keys.";
+  "Custom node shape detected. Picking a preset shape will replace non-preset shape keys.";
 export const NODE_INNER_SEP_DEFAULT = parseLength(".3333em", "pt") ?? 3.333;
 export const NODE_INNER_SEP_CLEAR_KEYS = ["inner xsep", "inner ysep"] as const;
 export const NODE_INNER_SEP_CONFLICT_NOTE =
