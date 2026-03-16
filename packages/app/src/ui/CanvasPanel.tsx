@@ -30,6 +30,7 @@ import {
 import type { NodeTextEngine } from "tikz-editor/text/types";
 import type { Statement } from "tikz-editor/ast/types";
 import { PT_PER_CM } from "tikz-editor/edit/format";
+import { resolveEligibleExplicitPath } from "tikz-editor/edit/path-editing";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import {
   finalizePrefixWidthTable,
@@ -347,6 +348,7 @@ type CanvasContextMenuState = {
   target: CanvasContextMenuTarget;
   anchorX: number;
   anchorY: number;
+  handleIdOverride?: string | null;
 };
 
 type PendingNativeContextMenuRequest = {
@@ -573,6 +575,9 @@ export function CanvasPanel() {
   });
   const pendingNativeContextMenuTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const contextMenuHandleIdOverride =
+    pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
+
   const commandRuntime = useEditorCommandRuntime({
     onAddNodeAdornment: (kind) => {
       const result = resolveNodeAdornmentContextAction({
@@ -593,7 +598,8 @@ export function CanvasPanel() {
         action: result.action
       });
       setPendingAdornmentTextEditTargetId(result.pendingTextTargetId);
-    }
+    },
+    activeHandleIdOverride: contextMenuHandleIdOverride
   });
 
   const showNativeContextMenu = useCallback(
@@ -645,9 +651,14 @@ export function CanvasPanel() {
     }
     dispatch({ type: "SET_ACTIVE_HANDLE", handleId: pendingNativeContextMenuRequest.clickedHandleId });
 
+    const nativeEffectiveTarget =
+      pendingNativeContextMenuRequest.clickedHandleId && resolution.target === "selection-single"
+        ? "selection-single-path-point" as CanvasContextMenuTarget
+        : resolution.target;
+
     pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
       pendingNativeContextMenuTimeoutRef.current = null;
-      showNativeContextMenu(resolution.target);
+      showNativeContextMenu(nativeEffectiveTarget);
       setPendingNativeContextMenuRequest(null);
       viewport.focus({ preventScroll: true });
     }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
@@ -941,10 +952,25 @@ export function CanvasPanel() {
     return collapsed;
   }, [densePathSourceIds, expandedDensePathSourceId, selectedElementIds, toolMode]);
 
-  const densePathSelectionHint =
-    warning || toolMode !== "select" || collapsedDensePathSourceIds.size === 0
-      ? null
-      : "Double-click path to edit points.";
+  const pathSelectionHint = useMemo(() => {
+    if (warning || toolMode !== "select") return null;
+    if (collapsedDensePathSourceIds.size > 0) return "Double-click path to edit points.";
+    if (selectedElementIds.size !== 1) return null;
+    const sourceId = [...selectedElementIds][0]!;
+    // dense paths that are expanded are also eligible for add-point hint
+    const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
+    if (!element || element.kind !== "Path") return null;
+    const parseOptions = {
+      activeFigureId:
+        activeFigureId == null
+          ? (snapshot.figures.length > 1 ? null : undefined)
+          : activeFigureId
+    };
+    const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
+    if (resolved.kind !== "eligible") return null;
+    if (resolved.analysis.segments.length === 0) return null;
+    return "Double-click path to add a point.";
+  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.scene, snapshot.figures.length, activeFigureId, source]);
 
   const {
     nodeAnchorTargets,
@@ -1640,7 +1666,9 @@ export function CanvasPanel() {
     densePathSourceIds,
     setExpandedDensePathSourceId,
     scopeOverlay,
-    focusedScopeId
+    focusedScopeId,
+    applyActionWithFeedback,
+    activeFigureId
   });
 
   const {
@@ -1797,14 +1825,30 @@ export function CanvasPanel() {
             : null
       };
 
+      const effectiveTarget =
+        clickedHandleId && resolution.target === "selection-single"
+          ? "selection-single-path-point" as CanvasContextMenuTarget
+          : resolution.target;
+
       const nextContextMenuState: CanvasContextMenuState = {
-        target: resolution.target,
+        target: effectiveTarget,
         anchorX: clientX - rect.left,
-        anchorY: clientY - rect.top
+        anchorY: clientY - rect.top,
+        handleIdOverride: clickedHandleId
       };
 
       if (platform.menu?.usesNativeContextMenus) {
-        showNativeContextMenu(resolution.target);
+        if (clickedHandleId && clickedSourceId) {
+          setPendingNativeContextMenuRequest({
+            clientX,
+            clientY,
+            clickedSourceId,
+            clickedHandleId
+          });
+          viewport.focus({ preventScroll: true });
+          return;
+        }
+        showNativeContextMenu(effectiveTarget);
         viewport.focus({ preventScroll: true });
         return;
       }
@@ -1831,7 +1875,11 @@ export function CanvasPanel() {
     setTextEditingSession,
     selectedElementIds,
     scopeOverlay,
-    focusedScopeId
+    focusedScopeId,
+    snapshot,
+    svgResult,
+    interactionSvgRef,
+    canvasTransform
   });
 
   const {
@@ -2448,7 +2496,7 @@ export function CanvasPanel() {
       warning={warning}
       copyWarningToClipboard={copyWarningToClipboard}
       onWarningBarKeyDown={onWarningBarKeyDown}
-      selectionHint={densePathSelectionHint}
+      selectionHint={pathSelectionHint}
       showDevPanel={showDevPanel}
       snapDebugRect={snapDebugRect}
       onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}

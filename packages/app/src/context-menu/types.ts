@@ -4,6 +4,7 @@ export type CanvasContextMenuTarget =
   | "canvas-empty"
   | "selection-single"
   | "selection-single-node"
+  | "selection-single-path-point"
   | "selection-multi";
 
 export type CanvasContextMenuCommandId = AppMenuCommandId;

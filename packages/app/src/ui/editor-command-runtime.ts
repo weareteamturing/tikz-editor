@@ -700,6 +700,7 @@ export function useEditorCommandRuntime(
     onOpenSettings?: () => void;
     onFocusAssistant?: () => void;
     onInterruptAssistant?: () => void;
+    activeHandleIdOverride?: string | null;
   } = {}
 ): EditorCommandRuntime {
   const source = useEditorStore((s) => s.source);
@@ -733,6 +734,9 @@ export function useEditorCommandRuntime(
   const updateCanvasSettings = useSettingsStore((s) => s.updateCanvasSettings);
   const dispatch = useEditorStore((s) => s.dispatch);
   const assistantAvailable = typeof getActiveEditorPlatform().assistant?.startTurn === "function";
+  const effectiveActiveHandleId = options.activeHandleIdOverride !== undefined
+    ? options.activeHandleIdOverride
+    : activeHandleId;
   const liveCommandInputs = useMemo(
     () => ({
       source,
@@ -740,9 +744,9 @@ export function useEditorCommandRuntime(
       sourceRevision,
       snapshot,
       selectedElementIds,
-      activeHandleId
+      activeHandleId: effectiveActiveHandleId
     }),
-    [activeFigureId, activeHandleId, selectedElementIds, snapshot, source, sourceRevision]
+    [activeFigureId, effectiveActiveHandleId, selectedElementIds, snapshot, source, sourceRevision]
   );
   const frozenCommandInputsRef = useRef(liveCommandInputs);
   if (!activeCanvasDragKind) {

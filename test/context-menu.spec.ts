@@ -9,13 +9,15 @@ describe("canvas context menu definition", () => {
       "canvas-empty",
       "selection-multi",
       "selection-single",
-      "selection-single-node"
+      "selection-single-node",
+      "selection-single-path-point"
     ]);
   });
 
   it("uses only known app command ids", () => {
     const knownCommandIds = new Set(Object.values(APP_MENU_COMMAND_IDS));
     const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["canvas-empty"])
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
@@ -62,6 +64,18 @@ describe("canvas context menu definition", () => {
 
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_LABEL);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_PIN);
+  });
+
+  it("defines selection-single-path-point with point-editing commands up front", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point"];
+    const commandItems = items.filter((item) => item.kind === "command");
+
+    expect(commandItems.slice(0, 4).map((item) => item.commandId)).toEqual([
+      APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
+      APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
+      APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,
+      APP_MENU_COMMAND_IDS.PATH_SPLIT
+    ]);
   });
 
   it("defines selection-multi with align, distribute, and reorder submenus", () => {

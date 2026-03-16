@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, collectSelectionGeometryFromBounds } from "tikz-editor/edit/snapping";
-import type { EditHandle } from "tikz-editor/semantic/types";
+import type { EditHandle, Point } from "tikz-editor/semantic/types";
+import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
+import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import { clientToWorldPoint } from "./geometry";
 import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchorRatioFromPoint } from "./panel-helpers";
 import { requestSourceSelection } from "../source-sync";
@@ -48,7 +50,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     densePathSourceIds,
     setExpandedDensePathSourceId,
     scopeOverlay,
-    focusedScopeId
+    focusedScopeId,
+    applyActionWithFeedback,
+    activeFigureId
   } = args;
 
   const pendingScopeDrillRef = useRef<{
@@ -329,6 +333,41 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     ]
   );
 
+  const tryInsertPathPoint = useCallback(
+    (event: ReactMouseEvent<SVGElement>, sourceId: string): boolean => {
+      if (!svgResult || snapshot.source !== source) return false;
+
+      const parseOptions = {
+        activeFigureId:
+          activeFigureId == null
+            ? (snapshot.figures.length > 1 ? null : undefined)
+            : activeFigureId
+      };
+      const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
+      if (resolved.kind !== "eligible") return false;
+      const analysis = resolved.analysis;
+
+      const world = clientToWorldPoint(event.clientX, event.clientY, interactionSvgRef.current, svgResult.viewBox);
+      if (!world) return false;
+
+      const result = findClosestSegmentPoint(snapshot.editHandles, sourceId, analysis, world);
+      if (!result) return false;
+
+      // Threshold: 12px screen distance
+      const thresholdWorld = 12 / canvasTransform.scale;
+      if (result.distance > thresholdWorld) return false;
+
+      applyActionWithFeedback({
+        kind: "insertPathPoint",
+        elementId: sourceId,
+        segmentIndex: result.segmentIndex,
+        point: result.point
+      });
+      return true;
+    },
+    [svgResult, snapshot, source, activeFigureId, interactionSvgRef, canvasTransform.scale, applyActionWithFeedback]
+  );
+
   const onElementDoubleClick = useCallback(
     (event: ReactMouseEvent<SVGElement>, targetId: string, region?: any) => {
       if (toolMode !== "select") return;
@@ -377,6 +416,11 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         return;
       }
 
+      // Try to insert a point on a path segment
+      if (tryInsertPathPoint(event, sourceId)) {
+        return;
+      }
+
       const fallbackSpan = resolveFallbackTextSourceSpanForSourceId(targetId, hitRegions, sceneTextByRegionKey);
       if (!fallbackSpan) {
         return;
@@ -411,7 +455,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       setTextEditingSession,
       textIndexFromClient,
       toolMode,
-      viewportRef
+      viewportRef,
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      source, snapshot, svgResult, interactionSvgRef, canvasTransform, applyActionWithFeedback, activeFigureId
     ]
   );
 
@@ -419,4 +465,72 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     onElementPointerDown,
     onElementDoubleClick
   };
+}
+
+function findClosestSegmentPoint(
+  editHandles: readonly EditHandle[],
+  sourceId: string,
+  analysis: ExplicitPathAnalysis,
+  pointer: Point
+): { segmentIndex: number; point: Point; distance: number } | null {
+  let best: { segmentIndex: number; point: Point; distance: number } | null = null;
+
+  for (let i = 0; i < analysis.segments.length; i++) {
+    const seg = analysis.segments[i]!;
+    const startW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.startAnchorIndex]!);
+    const endW = resolveAnchorWorld(editHandles, sourceId, analysis.anchors[seg.endAnchorIndex]!);
+    if (!startW || !endW) continue;
+
+    let closest: { point: Point };
+    if (seg.kind === "line") {
+      closest = closestPointOnLine(pointer, startW, endW);
+    } else if (seg.kind === "cubic") {
+      const c1Item = seg.control1Index != null ? analysis.statement.items[seg.control1Index] : null;
+      const c2Item = seg.control2Index != null ? analysis.statement.items[seg.control2Index] : null;
+      if (!c1Item || c1Item.kind !== "Coordinate" || !c2Item || c2Item.kind !== "Coordinate") continue;
+      const c1W = resolveControlWorld(editHandles, sourceId, c1Item.span);
+      const c2W = seg.usedAnd ? resolveControlWorld(editHandles, sourceId, c2Item.span) : c1W;
+      if (!c1W || !c2W) continue;
+      closest = closestPointOnCubic(pointer, startW, c1W, c2W, endW);
+    } else {
+      continue;
+    }
+
+    const dist = Math.hypot(closest.point.x - pointer.x, closest.point.y - pointer.y);
+    if (!best || dist < best.distance) {
+      best = { segmentIndex: i, point: closest.point, distance: dist };
+    }
+  }
+
+  return best;
+}
+
+function resolveAnchorWorld(
+  editHandles: readonly EditHandle[],
+  sourceId: string,
+  anchor: ExplicitPathAnalysis["anchors"][number]
+): Point | null {
+  const handle = editHandles.find(
+    (h) =>
+      h.sourceRef.sourceId === sourceId &&
+      h.kind === "path-point" &&
+      h.sourceRef.sourceSpan.from === anchor.item.span.from &&
+      h.sourceRef.sourceSpan.to === anchor.item.span.to
+  );
+  return handle ? handle.world : null;
+}
+
+function resolveControlWorld(
+  editHandles: readonly EditHandle[],
+  sourceId: string,
+  span: { from: number; to: number }
+): Point | null {
+  const handle = editHandles.find(
+    (h) =>
+      h.sourceRef.sourceId === sourceId &&
+      h.kind === "path-control" &&
+      h.sourceRef.sourceSpan.from === span.from &&
+      h.sourceRef.sourceSpan.to === span.to
+  );
+  return handle ? handle.world : null;
 }

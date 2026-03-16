@@ -95,6 +95,29 @@ const TRANSFORM_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
+const PATH_POINT_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
+    label: "Delete Point"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
+    label: "Point to Corner"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,
+    label: "Point to Smooth"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PATH_SPLIT,
+    label: "Split at Point"
+  }
+];
+
 const PATH_ITEMS: readonly AppMenuItem[] = [
   {
     kind: "command",
@@ -123,21 +146,7 @@ const PATH_ITEMS: readonly AppMenuItem[] = [
     label: "Open Path"
   },
   { kind: "separator" },
-  {
-    kind: "command",
-    commandId: APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
-    label: "Delete Point"
-  },
-  {
-    kind: "command",
-    commandId: APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
-    label: "Point to Corner"
-  },
-  {
-    kind: "command",
-    commandId: APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,
-    label: "Point to Smooth"
-  }
+  ...PATH_POINT_ITEMS
 ];
 
 const SNAP_ITEMS: readonly AppMenuItem[] = [
@@ -282,6 +291,64 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
       items: PATH_ITEMS
     },
     { kind: "separator" },
+    {
+      kind: "submenu",
+      label: "Reorder",
+      items: REORDER_ITEMS
+    }
+  ],
+  "selection-single-path-point": [
+    ...PATH_POINT_ITEMS,
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNDO,
+      label: "Undo",
+      accelerator: "CmdOrCtrl+Z"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REDO,
+      label: "Redo",
+      accelerator: "CmdOrCtrl+Shift+Z"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.CUT,
+      label: "Cut",
+      accelerator: "CmdOrCtrl+X"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.COPY,
+      label: "Copy",
+      accelerator: "CmdOrCtrl+C"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.PASTE,
+      label: "Paste",
+      accelerator: "CmdOrCtrl+V"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DELETE,
+      label: "Delete",
+      accelerator: "Delete"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+      label: "Duplicate",
+      accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "submenu",
+      label: "Path",
+      items: PATH_ITEMS
+    },
     {
       kind: "submenu",
       label: "Reorder",

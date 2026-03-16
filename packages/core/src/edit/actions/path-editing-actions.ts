@@ -3,6 +3,7 @@ import type { PathStatement, Span } from "../../ast/types.js";
 import { rewriteCoordinate } from "../rewrite.js";
 import { replaceSpan } from "../patch.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
+import { closestPointOnLine, closestPointOnCubic, subdivideCubicAt } from "../curve-math.js";
 import {
   applyTextReplacements,
   lineIndentAtOffset,
@@ -34,6 +35,7 @@ export type ToggleClosedPathAction = { elementId: string; closed: boolean };
 export type DeletePathPointAction = { elementId: string; handleId: string };
 export type SetPathPointKindAction = { elementId: string; handleId: string; pointKind: PathPointKind };
 export type AppendToPathAction = { elementId: string; end: "start" | "end"; segmentSource: string };
+export type InsertPathPointAction = { elementId: string; segmentIndex: number; point: Point };
 
 type PathEditingDeps = {
   normalizeElementIds: (elementIds: readonly string[]) => string[];
@@ -793,6 +795,113 @@ export function applyAppendToPathAction(
     selectedSourceIds: [action.elementId],
     changedSourceIds: [action.elementId]
   };
+}
+
+export function applyInsertPathPointAction(
+  source: string,
+  editHandles: EditHandle[],
+  action: InsertPathPointAction,
+  parseOptions: EditParseOptions = {}
+): EditActionResultLike {
+  const resolved = resolveEligibleExplicitPath(source, action.elementId, parseOptions);
+  if (resolved.kind !== "eligible") {
+    return { kind: "unsupported", reason: resolved.reason };
+  }
+  const analysis = resolved.analysis;
+  const segment = analysis.segments[action.segmentIndex];
+  if (!segment) {
+    return { kind: "unsupported", reason: "Invalid segment index." };
+  }
+
+  const startWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.startAnchorIndex]!, source);
+  const endWorld = resolveAnchorWorld(editHandles, action.elementId, analysis.anchors[segment.endAnchorIndex]!, source);
+  if (!startWorld || !endWorld) {
+    return { kind: "unsupported", reason: "Could not resolve segment endpoint positions." };
+  }
+
+  const formatPt = (pt: Point): string =>
+    `(${formatNumber(pt.x * CM_PER_PT)},${formatNumber(pt.y * CM_PER_PT)})`;
+
+  let replacementSegments: string;
+
+  if (segment.kind === "line") {
+    const closest = closestPointOnLine(action.point, startWorld, endWorld);
+    const newPt = closest.point;
+    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex]!.raw;
+    replacementSegments = `-- ${formatPt(newPt)} -- ${endAnchorRaw}`;
+  } else if (segment.kind === "cubic") {
+    const control1Item = segment.control1Index != null ? analysis.statement.items[segment.control1Index] : null;
+    const control2Item = segment.control2Index != null ? analysis.statement.items[segment.control2Index] : null;
+    if (!control1Item || control1Item.kind !== "Coordinate" || !control2Item || control2Item.kind !== "Coordinate") {
+      return { kind: "unsupported", reason: "Could not resolve cubic control points." };
+    }
+    const control1World = resolveControlWorld(editHandles, action.elementId, control1Item, source);
+    const control2World = segment.usedAnd
+      ? resolveControlWorld(editHandles, action.elementId, control2Item, source)
+      : control1World;
+    if (!control1World || !control2World) {
+      return { kind: "unsupported", reason: "Could not resolve cubic control point positions." };
+    }
+
+    const closest = closestPointOnCubic(action.point, startWorld, control1World, control2World, endWorld);
+    const { left, right } = subdivideCubicAt(closest.t, startWorld, control1World, control2World, endWorld);
+
+    const endAnchorRaw = segment.closesPath ? "cycle" : analysis.anchors[segment.endAnchorIndex]!.raw;
+    replacementSegments =
+      `.. controls ${formatPt(left[1])} and ${formatPt(left[2])} .. ${formatPt(left[3])}` +
+      ` .. controls ${formatPt(right[1])} and ${formatPt(right[2])} .. ${endAnchorRaw}`;
+  } else {
+    return { kind: "unsupported", reason: "Unsupported segment kind for point insertion." };
+  }
+
+  // Rebuild the path body with the segment replaced
+  const bodyParts = [analysis.anchors[0]!.raw];
+  for (let i = 0; i < analysis.segments.length; i++) {
+    const seg = analysis.segments[i]!;
+    if (i === action.segmentIndex) {
+      bodyParts.push(replacementSegments);
+    } else if (!seg.closesPath) {
+      bodyParts.push(seg.raw);
+    } else {
+      // Closing segment not being replaced — keep it
+      bodyParts.push(seg.raw);
+    }
+  }
+
+  const rewritten = replaceSourceSpan(
+    source,
+    analysis.statement.span,
+    buildStatementText(source, analysis, bodyParts.join(" "))
+  );
+  if (!rewritten) {
+    return { kind: "unsupported", reason: "Insert point would not change the source." };
+  }
+  return {
+    kind: "success",
+    newSource: rewritten.source,
+    patches: [rewritten.patch],
+    changedSourceIds: [action.elementId]
+  };
+}
+
+function resolveControlWorld(
+  editHandles: readonly EditHandle[],
+  sourceId: string,
+  coordinate: { span: { from: number; to: number } },
+  source: string
+): Point | null {
+  const handle = editHandles.find(
+    (candidate) =>
+      candidate.sourceRef.sourceId === sourceId &&
+      candidate.kind === "path-control" &&
+      candidate.sourceRef.sourceSpan.from === coordinate.span.from &&
+      candidate.sourceRef.sourceSpan.to === coordinate.span.to
+  );
+  if (!handle) {
+    return null;
+  }
+  const currentSourceText = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
+  return currentSourceText === handle.sourceText ? handle.world : null;
 }
 
 function normalizeVector(vector: Point): Point | null {

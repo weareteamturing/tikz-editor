@@ -68,6 +68,7 @@ import {
 import {
   applyAppendToPathAction,
   applyDeletePathPointAction,
+  applyInsertPathPointAction,
   applyJoinPathsAction,
   applyReversePathAction,
   applySetPathPointKindAction,
@@ -115,6 +116,7 @@ export type EditAction =
   | { kind: "deletePathPoint"; elementId: string; handleId: string }
   | { kind: "setPathPointKind"; elementId: string; handleId: string; pointKind: PathPointKind }
   | { kind: "appendToPath"; elementId: string; end: "start" | "end"; segmentSource: string }
+  | { kind: "insertPathPoint"; elementId: string; segmentIndex: number; point: Point }
   | {
       kind: "setProperty";
       elementId: string;
@@ -207,6 +209,8 @@ export function applyEditAction(
         return applySetPathPointKind(source, editHandles, action, parseOptions);
       case "appendToPath":
         return applyAppendToPathAction(source, action, parseOptions);
+      case "insertPathPoint":
+        return applyInsertPathPointAction(source, editHandles, action, parseOptions);
       case "moveElement":
         return applyMoveElements(source, editHandles, [action.elementId], action.delta, parseOptions);
       case "moveElements":
@@ -647,6 +651,8 @@ function inferChangedSourceIds(
     case "resizeElement":
       return normalizeElementIds([action.elementId]);
     case "appendToPath":
+      return normalizeElementIds([action.elementId]);
+    case "insertPathPoint":
       return normalizeElementIds([action.elementId]);
   }
 }
