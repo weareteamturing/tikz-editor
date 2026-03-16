@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
-  base: "https://tikz.dev/edit/",
+  base: "https://tikz.dev/editor/",
   plugins: [react()],
   publicDir: path.resolve(__dirname, "../../packages/app/public"),
   worker: {

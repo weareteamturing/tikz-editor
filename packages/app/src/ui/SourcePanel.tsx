@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useSettingsStore } from "../settings/useSettingsStore";
-import { autocompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
+import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import {
   Compartment,
   EditorSelection,
@@ -11,27 +11,48 @@ import {
   StateField
 } from "@codemirror/state";
 import {
+  defaultKeymap,
   deleteLine,
+  history,
+  historyKeymap,
   isolateHistory,
   indentLess,
   indentMore
 } from "@codemirror/commands";
 import {
+  bracketMatching,
+  defaultHighlightStyle,
+  foldGutter,
+  foldKeymap,
+  HighlightStyle,
+  indentOnInput,
+  syntaxHighlighting
+} from "@codemirror/language";
+import { lintKeymap } from "@codemirror/lint";
+import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import {
+  crosshairCursor,
+  drawSelection,
+  dropCursor,
   EditorView,
   Decoration,
   type DecorationSet,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  highlightSpecialChars,
   hoverTooltip,
-  keymap
+  keymap,
+  lineNumbers,
+  rectangularSelection
 } from "@codemirror/view";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
-import { basicSetup } from "codemirror";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
 import type { SceneElement } from "tikz-editor/semantic/types";
-import { NAMED_COLORS, NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tikz-editor/semantic/style/constants";
+import { NAMED_COLORS } from "tikz-editor/semantic/style/constants";
 import { patchesMatchSourceTransition } from "tikz-editor/edit/source-patches";
 import { tikzLanguage } from "../codemirror-tikz";
+import { tikzCompletion } from "../tikz-autocomplete";
 import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
@@ -137,76 +158,8 @@ const DIAGNOSTIC_DEBOUNCE_MS = 120;
 const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
 const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 
-const COMMON_OPTION_KEYS = [
-  "draw",
-  "fill",
-  "text",
-  "line width",
-  "opacity",
-  "fill opacity",
-  "text opacity",
-  "rounded corners",
-  "dash pattern",
-  "dashed",
-  "dotted",
-  "thick",
-  "thin",
-  "very thick",
-  "very thin",
-  "ultra thick",
-  "ultra thin",
-  "line cap",
-  "line join",
-  "font",
-  "xshift",
-  "yshift",
-  "shift",
-  "rotate",
-  "scale",
-  "xscale",
-  "yscale",
-  "minimum width",
-  "minimum height",
-  "minimum size",
-  "inner sep",
-  "outer sep",
-  "shape",
-  "name",
-  "alias",
-  "at",
-  "<-",
-  "->",
-  "<->"
-] as const;
-
-const COORDINATE_FORM_COMPLETIONS: Completion[] = [
-  { label: "(0,0)", type: "snippet", detail: "cartesian coordinate" },
-  { label: "(30:1cm)", type: "snippet", detail: "polar coordinate" },
-  { label: "++(1,0)", type: "snippet", detail: "incremental coordinate" },
-  { label: "+(1,0)", type: "snippet", detail: "relative coordinate" },
-  { label: "($(A)+(1,0)$)", type: "snippet", detail: "calc coordinate" },
-  { label: "(intersection of A--B and C--D)", type: "snippet", detail: "intersection coordinate" }
-];
-
-const OPTION_KEY_COMPLETIONS: Completion[] = uniqueStrings([
-  ...COMMON_OPTION_KEYS,
-  ...NON_STYLE_OPTION_KEYS,
-  ...NON_STYLE_OPTION_FLAGS
-]).map((key) => ({ label: key, type: "keyword", detail: "TikZ option" }));
-
-const COLOR_COMPLETIONS: Completion[] = uniqueStrings([...NAMED_COLORS]).map((color) => ({
-  label: color,
-  type: "constant",
-  detail: "color"
-}));
-
-const BASE_COMPLETIONS: Completion[] = dedupeCompletions([
-  ...OPTION_KEY_COMPLETIONS,
-  ...COLOR_COMPLETIONS,
-  ...COORDINATE_FORM_COMPLETIONS
-]);
 const SOURCE_PICKER_COLORS = uniqueStrings(["none", ...NAMED_COLORS]);
-const ENABLE_TIKZ_AUTOCOMPLETE = false;
+const ENABLE_TIKZ_AUTOCOMPLETE = true;
 
 // ── State fields ─────────────────────────────────────────────────────────────
 
@@ -443,22 +396,45 @@ export function SourcePanel() {
       }
     });
 
-    const completionExtensions = ENABLE_TIKZ_AUTOCOMPLETE
-      ? [
-          autocompletion({
-            override: [
-              (context) => completeTikz(context, symbolsRef.current)
-            ]
-          })
-        ]
-      : [];
+    const completionExtension = ENABLE_TIKZ_AUTOCOMPLETE
+      ? autocompletion({
+          override: [
+            (context) => tikzCompletion(context, symbolsRef.current)
+          ]
+        })
+      : autocompletion();
 
     const state = CMState.create({
       doc: source,
       extensions: [
-        basicSetup,
+        // basicSetup equivalent, minus autocompletion() (we add our own above)
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightSpecialChars(),
+        history(),
+        foldGutter(),
+        drawSelection(),
+        dropCursor(),
+        CMState.allowMultipleSelections.of(true),
+        indentOnInput(),
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+        bracketMatching(),
+        closeBrackets(),
+        completionExtension,
+        rectangularSelection(),
+        crosshairCursor(),
+        highlightActiveLine(),
+        highlightSelectionMatches(),
+        keymap.of([
+          ...closeBracketsKeymap,
+          ...defaultKeymap,
+          ...searchKeymap,
+          ...historyKeymap,
+          ...foldKeymap,
+          ...completionKeymap,
+          ...lintKeymap,
+        ]),
         editorKeymap,
-        ...completionExtensions,
         tikzLanguage(),
         wordWrapCompartment.of(editorWordWrap ? EditorView.lineWrapping : []),
         fontSizeCompartment.of(EditorView.theme({ "& .cm-scroller": { fontSize: `${editorFontSize}px` } })),
@@ -1044,61 +1020,6 @@ function clampFormatterMaxLineLength(value: number): number {
   return Math.max(MIN_FORMATTER_MAX_LINE_LENGTH, Math.min(MAX_FORMATTER_MAX_LINE_LENGTH, rounded));
 }
 
-function completeTikz(context: CompletionContext, symbols: DocumentSymbols) {
-  const coordinatePrefix = context.matchBefore(/(?:\+\+|\+)?\([^)\]\}\s,]*$/);
-  const word = context.matchBefore(/[A-Za-z_][A-Za-z0-9_./:-]*/);
-
-  if (!context.explicit && !coordinatePrefix && (!word || word.from === word.to)) {
-    return null;
-  }
-
-  const from = coordinatePrefix?.from ?? word?.from ?? context.pos;
-  return {
-    from,
-    options: buildCompletionOptions(symbols),
-    validFor: /[A-Za-z0-9_./:+\-()$ ]*/
-  };
-}
-
-function buildCompletionOptions(symbols: DocumentSymbols): Completion[] {
-  const dynamic: Completion[] = [];
-
-  for (const nodeName of symbols.nodeNames) {
-    dynamic.push({
-      label: nodeName,
-      type: "variable",
-      detail: "node name"
-    });
-    dynamic.push({
-      label: `(${nodeName})`,
-      type: "snippet",
-      detail: "node coordinate"
-    });
-  }
-
-  for (const coordinateName of symbols.coordinateNames) {
-    dynamic.push({
-      label: coordinateName,
-      type: "variable",
-      detail: "coordinate name"
-    });
-    dynamic.push({
-      label: `(${coordinateName})`,
-      type: "snippet",
-      detail: "named coordinate"
-    });
-  }
-
-  for (const styleName of symbols.styleNames) {
-    dynamic.push({
-      label: styleName,
-      type: "type",
-      detail: "style name"
-    });
-  }
-
-  return dedupeCompletions([...dynamic, ...BASE_COMPLETIONS]);
-}
 
 function buildSourceSpanIndex(elements: readonly SceneElement[], statements: readonly Statement[] | undefined): SourceSpanIndex {
   if (elements.length === 0 && (!statements || statements.length === 0)) {
@@ -1418,15 +1339,6 @@ function bestDiagnosticAt(diagnostics: Diagnostic[], pos: number): Diagnostic | 
     }
   }
   return best;
-}
-
-function dedupeCompletions(completions: Completion[]): Completion[] {
-  const byLabel = new Map<string, Completion>();
-  for (const completion of completions) {
-    if (byLabel.has(completion.label)) continue;
-    byLabel.set(completion.label, completion);
-  }
-  return [...byLabel.values()];
 }
 
 function uniqueStrings(values: Iterable<string>): string[] {
