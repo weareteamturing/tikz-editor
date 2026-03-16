@@ -734,7 +734,8 @@ export function evaluatePathStatement(
           forcedMainNodeName,
           undefined,
           standaloneNodeDefaultTarget,
-          statementStyleChain
+          statementStyleChain,
+          { allowImplicitOriginHandle: statement.command === "node" && !hasPathCurrentPoint }
         );
         pendingNodeNameForNodeCommand = null;
         const edgeStartName = declaredNodeName ?? forcedMainNodeName;

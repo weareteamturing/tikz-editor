@@ -80,6 +80,33 @@ describe("edit integration (round-trip)", () => {
     expect(result.newHandle!.world.y).toBeCloseTo(cm(4), 0);
   });
 
+  it("moves a node without explicit placement by inserting an inline at coordinate", () => {
+    const source = String.raw`\begin{tikzpicture}
+\node (A) {A};
+\end{tikzpicture}`;
+    const { handles } = evaluateAndGetHandles(source);
+    const handle = handles.find((candidate) => candidate.kind === "node-position");
+
+    expect(handle).toBeDefined();
+
+    const result = applyEditIntent(source, handles, {
+      kind: "move",
+      handleId: handle!.id,
+      newWorld: { x: cm(2), y: cm(3) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+
+    expect(result.newSource).toContain("\\node (A) at (2,3) {A};");
+
+    const reevaluated = evaluateAndGetHandles(result.newSource);
+    const movedHandle = reevaluated.handles.find((candidate) => candidate.kind === "node-position");
+    expect(movedHandle).toBeDefined();
+    expect(movedHandle!.world.x).toBeCloseTo(cm(2), 0);
+    expect(movedHandle!.world.y).toBeCloseTo(cm(3), 0);
+  });
+
   it("moves a path-point coordinate", () => {
     const source = String.raw`\begin{tikzpicture}
 \draw (0,0) -- (2,3);

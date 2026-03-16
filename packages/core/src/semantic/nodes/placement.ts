@@ -14,7 +14,8 @@ export function resolveNodeTargetPoint(
   pushDiagnostic: DiagnosticPushFn,
   options: PathOptionItem["options"] | undefined,
   segment: PlacementSegment | null,
-  defaultPoint?: Point
+  defaultPoint?: Point,
+  opts: { allowImplicitOriginHandle?: boolean } = {}
 ): Point {
   if (item.atRaw) {
     const evaluated = evaluateRawCoordinate(item.atRaw, context, item.atRelativePrefix);
@@ -59,7 +60,40 @@ export function resolveNodeTargetPoint(
     return pointAtSegmentEnd(segment);
   }
 
+  if (opts.allowImplicitOriginHandle) {
+    const frame = context.stack[context.stack.length - 1];
+    const insertionOffset = resolveImplicitNodePlacementInsertionOffset(item, context.source);
+    const implicitPoint = defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
+    context.editHandles.push({
+      id: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
+      runtimeId: `handle:${handleSourceId}:node-position:${context.editHandles.length}`,
+      sourceRef: {
+        sourceId: handleSourceId,
+        sourceSpan: { from: insertionOffset, to: insertionOffset },
+        sourceFingerprint: context.sourceFingerprint
+      },
+      kind: "node-position",
+      world: implicitPoint,
+      local: { x: 0, y: 0 },
+      transform: frame?.transform ?? { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 },
+      sourceText: "",
+      coordinateForm: "cartesian",
+      rewriteMode: "direct",
+      insertion: { kind: "node-inline-at" }
+    });
+  }
+
   return defaultPoint ?? context.currentPoint ?? { x: 0, y: 0 };
+}
+
+function resolveImplicitNodePlacementInsertionOffset(
+  item: PathItem & { kind: "Node"; textSource: "group" | "option"; textSpan: Span },
+  source: string
+): number {
+  if (item.textSource === "group" && item.textSpan.from > item.span.from && source[item.textSpan.from - 1] === "{") {
+    return item.textSpan.from - 1;
+  }
+  return item.span.to;
 }
 
 export function resolveNodePositionFraction(options: PathOptionItem["options"] | undefined): number | null {

@@ -130,7 +130,7 @@ function applyMoveIntent(
   if (
     rewriteHandle.sourceRef.sourceSpan.from < 0 ||
     rewriteHandle.sourceRef.sourceSpan.to > source.length ||
-    rewriteHandle.sourceRef.sourceSpan.from >= rewriteHandle.sourceRef.sourceSpan.to
+    rewriteHandle.sourceRef.sourceSpan.from > rewriteHandle.sourceRef.sourceSpan.to
   ) {
     return { kind: "error", message: "Handle source span exceeds source length (stale handle?)" };
   }

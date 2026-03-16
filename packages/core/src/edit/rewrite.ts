@@ -62,7 +62,8 @@ function rewriteCartesian(
   }
   const cm = localToSourceUnits(local);
   const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
-  return formatCoordinate(oldRaw, formatNumber(cm.x), formatNumber(cm.y));
+  const coordinate = formatCoordinate(oldRaw, formatNumber(cm.x), formatNumber(cm.y));
+  return applyInsertionSyntax(source, handle, coordinate);
 }
 
 function rewritePolar(
@@ -77,7 +78,8 @@ function rewritePolar(
   const cm = localToSourceUnits(local);
   const { angleDeg, radius } = toPolar(cm);
   const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
-  return formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));
+  const coordinate = formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));
+  return applyInsertionSyntax(source, handle, coordinate);
 }
 
 function rewriteDelta(
@@ -101,12 +103,31 @@ function rewriteDelta(
   const oldRaw = source.slice(handle.sourceRef.sourceSpan.from, handle.sourceRef.sourceSpan.to);
   if (handle.coordinateForm === "polar") {
     const { angleDeg, radius } = toPolar(cm);
-    return formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));
+    const coordinate = formatPolarCoordinate(oldRaw, formatNumber(angleDeg), formatNumber(radius));
+    return applyInsertionSyntax(source, handle, coordinate);
   }
   if (handle.coordinateForm === "xyz") {
     return null;
   }
-  return formatCoordinate(oldRaw, formatNumber(cm.x), formatNumber(cm.y));
+  const coordinate = formatCoordinate(oldRaw, formatNumber(cm.x), formatNumber(cm.y));
+  return applyInsertionSyntax(source, handle, coordinate);
+}
+
+function applyInsertionSyntax(source: string, handle: EditHandle, coordinate: string): string {
+  if (!handle.insertion) {
+    return coordinate;
+  }
+
+  if (handle.insertion.kind === "node-inline-at") {
+    const offset = handle.sourceRef.sourceSpan.from;
+    const previousChar = offset > 0 ? source[offset - 1] : "";
+    const nextChar = offset < source.length ? source[offset] : "";
+    const leading = previousChar.length > 0 && !/\s/.test(previousChar) ? " " : "";
+    const trailing = nextChar.length > 0 && !/\s/.test(nextChar) && nextChar !== ";" ? " " : "";
+    return `${leading}at ${coordinate}${trailing}`;
+  }
+
+  return coordinate;
 }
 
 function toPolar(point: Point): { angleDeg: number; radius: number } {

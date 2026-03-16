@@ -401,6 +401,10 @@ export type CurveEditHandleData =
       baseHeading: number;
     };
 
+export type EditHandleInsertion = {
+  kind: "node-inline-at";
+};
+
 export type EditHandle = {
   id: string;
   runtimeId: string;
@@ -416,4 +420,5 @@ export type EditHandle = {
   rewriteMode: "direct" | "delta" | "unsupported";
   rewriteTargetHandleId?: string;
   curveEdit?: CurveEditHandleData;
+  insertion?: EditHandleInsertion;
 };

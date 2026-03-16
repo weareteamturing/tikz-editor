@@ -463,6 +463,25 @@ describe("applyEditAction – moveElement", () => {
     expect(result.newSource).not.toContain("at=(1,2)");
   });
 
+  it("moves nodes without explicit placement by inserting an inline at coordinate", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node (A) {A};
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+
+    const result = applyEditAction(source, semantic.editHandles, {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(2), y: cm(3) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("  \\node (A) at (2,3) {A};");
+    expectPatchesReconstructSource(source, result);
+  });
+
   it("moves matrix statements by rewriting at options when inline placement is absent", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,at={(0,0)}] {
