@@ -7,7 +7,7 @@ export type AnchorReference = {
 };
 
 export type ElementTemplate =
-  | { kind: "node"; text?: string; shape?: string }
+  | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number }
   | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
   | { kind: "grid"; corner?: Point }
@@ -36,7 +36,20 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
     case "node": {
       const text = template.text == null ? DEFAULT_NODE_TEXT : sanitizeNodeText(template.text);
       if (template.shape) {
-        return `\\node[draw, shape=${template.shape}, minimum width=${SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM}cm, minimum height=${SHAPE_TOOL_DEFAULT_MINIMUM_HEIGHT_CM}cm] at ${atCoord} {${text}};`;
+        const hasExplicitShapeSize = template.minimumWidthPt != null || template.minimumHeightPt != null;
+        const optionParts = ["draw", `shape=${template.shape}`];
+        if (hasExplicitShapeSize) {
+          if (template.minimumWidthPt != null) {
+            optionParts.push(`minimum width=${formatNumber(template.minimumWidthPt * CM_PER_PT)}cm`);
+          }
+          if (template.minimumHeightPt != null) {
+            optionParts.push(`minimum height=${formatNumber(template.minimumHeightPt * CM_PER_PT)}cm`);
+          }
+        } else {
+          optionParts.push(`minimum width=${SHAPE_TOOL_DEFAULT_MINIMUM_WIDTH_CM}cm`);
+          optionParts.push(`minimum height=${SHAPE_TOOL_DEFAULT_MINIMUM_HEIGHT_CM}cm`);
+        }
+        return `\\node[${optionParts.join(", ")}] at ${atCoord} {${text}};`;
       }
       return `\\node at ${atCoord} {${text}};`;
     }

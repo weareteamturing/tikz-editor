@@ -101,6 +101,7 @@ export function Toolbar() {
             selectedId={selectedAddShape}
             onSelect={(id) => {
               dispatch({ type: "SET_ADD_SHAPE_PRESET", value: id as typeof selectedAddShape });
+              setOpenPopupMode(null);
             }}
             testIdPrefix="toolbar-shape-choice"
           />

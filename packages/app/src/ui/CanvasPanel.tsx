@@ -1046,6 +1046,7 @@ export function CanvasPanel() {
     toolMode,
     toolDraft,
     toolCursorWorld,
+    selectedAddShape,
     freehandDraft,
     freehandSmoothingPx,
     pathDraft,
@@ -2332,6 +2333,7 @@ export function CanvasPanel() {
     setDragTooltip,
     setWarning,
     setTextEditingSession,
+    selectedAddShape,
     textIndexFromClient,
     onSnapFeedback: performSnapHapticFeedback
   });

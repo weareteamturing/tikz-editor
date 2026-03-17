@@ -168,24 +168,27 @@ export function applyResizeElementAction(
   const intrinsicWidth = intrinsicLocal.width;
   const intrinsicHeight = intrinsicLocal.height;
 
-  const resizeMutations = new Map<string, OptionMutation>();
-  if (affectsWidth) {
-    if (requestedWidth > intrinsicWidth + RESIZE_EPSILON) {
-      resizeMutations.set("minimum width", { kind: "set", value: `${formatNumber(requestedWidth)}pt` });
-    } else {
-      resizeMutations.set("minimum width", { kind: "remove" });
-    }
-  }
-
-  if (affectsHeight) {
-    if (requestedHeight > intrinsicHeight + RESIZE_EPSILON) {
-      resizeMutations.set("minimum height", { kind: "set", value: `${formatNumber(requestedHeight)}pt` });
-    } else {
-      resizeMutations.set("minimum height", { kind: "remove" });
-    }
-  }
-
-  const rewritten = applyOptionMutationsToTarget(source, resizeTarget, resizeMutations);
+  const resizeCandidates = buildNodeResizeMutationCandidates({
+    affectsWidth,
+    affectsHeight,
+    requestedWidth,
+    requestedHeight,
+    intrinsicWidth,
+    intrinsicHeight
+  });
+  const rewritten = chooseBestNodeResizeMutationCandidate({
+    source,
+    resizeTarget,
+    elementId,
+    evaluateOptions,
+    parseOptions,
+    nodeLinearTransform,
+    affectsWidth,
+    affectsHeight,
+    requestedWidth,
+    requestedHeight,
+    candidates: resizeCandidates
+  });
   if (!rewritten) {
     return { kind: "unsupported", reason: "Resize would not change node constraints." };
   }
@@ -195,6 +198,147 @@ export function applyResizeElementAction(
     newSource: rewritten.source,
     patches: [rewritten.patch]
   };
+}
+
+function buildNodeResizeMutationCandidates(args: {
+  affectsWidth: boolean;
+  affectsHeight: boolean;
+  requestedWidth: number;
+  requestedHeight: number;
+  intrinsicWidth: number;
+  intrinsicHeight: number;
+}): Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> {
+  const { affectsWidth, affectsHeight, requestedWidth, requestedHeight, intrinsicWidth, intrinsicHeight } = args;
+  const widthMutation: OptionMutation =
+    requestedWidth > intrinsicWidth + RESIZE_EPSILON
+      ? { kind: "set", value: `${formatNumber(requestedWidth)}pt` }
+      : { kind: "remove" };
+  const heightMutation: OptionMutation =
+    requestedHeight > intrinsicHeight + RESIZE_EPSILON
+      ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
+      : { kind: "remove" };
+
+  const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
+
+  if (affectsWidth && affectsHeight) {
+    candidates.push(buildResizeCandidate(new Map([
+      ["minimum width", widthMutation],
+      ["minimum height", heightMutation]
+    ]), false));
+    candidates.push(buildResizeCandidate(new Map([
+      ["minimum width", widthMutation],
+      ["minimum height", { kind: "remove" }]
+    ]), true));
+    candidates.push(buildResizeCandidate(new Map([
+      ["minimum width", { kind: "remove" }],
+      ["minimum height", heightMutation]
+    ]), true));
+    return dedupeResizeCandidates(candidates);
+  }
+
+  if (affectsWidth) {
+    candidates.push(buildResizeCandidate(new Map([["minimum width", widthMutation]]), false));
+    candidates.push(buildResizeCandidate(new Map([
+      ["minimum width", widthMutation],
+      ["minimum height", { kind: "remove" }]
+    ]), true));
+  }
+
+  if (affectsHeight) {
+    candidates.push(buildResizeCandidate(new Map([["minimum height", heightMutation]]), false));
+    candidates.push(buildResizeCandidate(new Map([
+      ["minimum width", { kind: "remove" }],
+      ["minimum height", heightMutation]
+    ]), true));
+  }
+
+  return dedupeResizeCandidates(candidates);
+}
+
+function buildResizeCandidate(
+  mutations: Map<string, OptionMutation>,
+  removesOtherConstraint: boolean
+): { mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean } {
+  let explicitConstraintCount = 0;
+  for (const mutation of mutations.values()) {
+    if (mutation.kind === "set") {
+      explicitConstraintCount += 1;
+    }
+  }
+  return { mutations, explicitConstraintCount, removesOtherConstraint };
+}
+
+function dedupeResizeCandidates(
+  candidates: ReadonlyArray<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }>
+): Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> {
+  const unique = new Map<string, { mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }>();
+  for (const candidate of candidates) {
+    const key = [...candidate.mutations.entries()]
+      .map(([name, mutation]) => `${name}:${mutation.kind === "set" ? mutation.value : "remove"}`)
+      .sort()
+      .join("|");
+    if (!unique.has(key)) {
+      unique.set(key, candidate);
+    }
+  }
+  return [...unique.values()];
+}
+
+function chooseBestNodeResizeMutationCandidate(args: {
+  source: string;
+  resizeTarget: PropertyTarget;
+  elementId: string;
+  evaluateOptions: EvaluateOptions | undefined;
+  parseOptions: EditParseOptions;
+  nodeLinearTransform: { a: number; b: number; c: number; d: number } | null;
+  affectsWidth: boolean;
+  affectsHeight: boolean;
+  requestedWidth: number;
+  requestedHeight: number;
+  candidates: ReadonlyArray<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }>;
+}): OptionMutationApplyResult | null {
+  const {
+    source,
+    resizeTarget,
+    elementId,
+    evaluateOptions,
+    parseOptions,
+    nodeLinearTransform,
+    affectsWidth,
+    affectsHeight,
+    requestedWidth,
+    requestedHeight,
+    candidates
+  } = args;
+
+  let best: OptionMutationApplyResult | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const rewritten = applyOptionMutationsToTarget(source, resizeTarget, candidate.mutations);
+    const candidateSource = rewritten ? rewritten.source : source;
+    const parsed = parseTikzForEdit(candidateSource, parseOptions);
+    const semantic = evaluateTikzFigure(parsed.figure, candidateSource, evaluateOptions);
+    const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+    const bounds = boundsBySource.get(elementId);
+    if (!bounds) {
+      continue;
+    }
+    const localSize = nodeLinearTransform
+      ? worldSizeToLocalSize({ width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY }, nodeLinearTransform)
+      : { width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY };
+    const score =
+      (affectsWidth ? Math.abs(localSize.width - requestedWidth) : 0) +
+      (affectsHeight ? Math.abs(localSize.height - requestedHeight) : 0) +
+      candidate.explicitConstraintCount * 0.01 +
+      (candidate.removesOtherConstraint ? 0.005 : 0);
+    if (score < bestScore - 1e-6) {
+      bestScore = score;
+      best = rewritten;
+    }
+  }
+
+  return best;
 }
 
 function applyResizeScope(

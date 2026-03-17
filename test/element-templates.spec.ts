@@ -20,6 +20,33 @@ describe("element templates", () => {
     expect(snippet).toBe("\\node at (1.5,-2) {Hello};");
   });
 
+  it("generates a shaped node snippet with explicit dragged minimum dimensions", () => {
+    const snippet = generateElementSource(
+      {
+        kind: "node",
+        shape: "diamond",
+        text: "",
+        minimumWidthPt: cm(3),
+        minimumHeightPt: cm(2)
+      },
+      { x: cm(2), y: cm(3) }
+    );
+    expect(snippet).toBe("\\node[draw, shape=diamond, minimum width=3cm, minimum height=2cm] at (2,3) {};");
+  });
+
+  it("omits minimum height when a shaped drag draft only resolves width", () => {
+    const snippet = generateElementSource(
+      {
+        kind: "node",
+        shape: "circle",
+        text: "",
+        minimumWidthPt: cm(3)
+      },
+      { x: cm(2), y: cm(3) }
+    );
+    expect(snippet).toBe("\\node[draw, shape=circle, minimum width=3cm] at (2,3) {};");
+  });
+
   it("generates a drag-aware arrow line snippet", () => {
     const snippet = generateElementSource(
       { kind: "line", hasArrow: true, to: { x: cm(3), y: cm(4) } },

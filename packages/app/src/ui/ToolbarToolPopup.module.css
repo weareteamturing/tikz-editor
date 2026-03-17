@@ -64,6 +64,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   min-width: 280px;
+  max-height: min(52vh, 360px);
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .visualChoiceButton {

@@ -1318,6 +1318,43 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum height=40pt");
   });
 
+  it("resizes non-rectangular shaped nodes by rewriting shape constraints", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,minimum width=2.2cm,minimum height=1.4cm] at (0,0) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-right",
+      newWorld: { x: 100, y: 100 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("shape=diamond");
+    expect(/minimum (width|height)=/.test(result.newSource)).toBe(true);
+    expect(result.newSource).not.toContain("minimum width=2.2cm, minimum height=1.4cm");
+  });
+
+  it("can prefer a single constraint when resizing dependent shapes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=isosceles triangle,minimum width=2.2cm,minimum height=1.4cm] at (0,0) {};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "resizeElement",
+      elementId: "path:0",
+      role: "top-right",
+      newWorld: { x: 120, y: 60 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("shape=isosceles triangle");
+    expect(/minimum (width|height)=/.test(result.newSource)).toBe(true);
+  });
+
   it("maps visual drag through inverse node transform when resizing transformed nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,xscale=0.1] at (0,0) {A};

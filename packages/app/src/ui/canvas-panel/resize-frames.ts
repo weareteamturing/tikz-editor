@@ -136,7 +136,7 @@ function resolvePathResizeFrame(
 ): ResizeFrame | null {
   const pathShapeHint = pathShapeHintOverride === undefined ? (path.shapeHint ?? null) : pathShapeHintOverride;
   if (!pathShapeHint) {
-    return resolveNodePathResizeFrame(path, sourceElements, sourceId, viewBox);
+    return resolveNodePathResizeFrame(path, sourceElements, editHandles, sourceId, viewBox);
   }
   if (pathShapeHint === "rectangle") {
     return resolvePathRectangleResizeFrame(editHandles, sourceId, viewBox);
@@ -165,11 +165,14 @@ function resolvePathResizeFrame(
 function resolveNodePathResizeFrame(
   path: ScenePath,
   sourceElements: readonly SceneElement[],
+  editHandles: readonly EditHandle[],
   sourceId: string,
   viewBox: SvgViewBox
 ): ResizeFrame | null {
-  const hasTextElement = sourceElements.some((element) => element.kind === "Text");
-  if (!hasTextElement) {
+  const isNodeSource =
+    sourceElements.some((element) => element.kind === "Text") ||
+    editHandles.some((handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position");
+  if (!isNodeSource) {
     return null;
   }
 

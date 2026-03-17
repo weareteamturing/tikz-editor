@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { PT_PER_CM } from "tikz-editor/edit/format";
-import type { Point } from "tikz-editor/semantic/types";
-import { distanceSquared, worldToSvgPoint, worldToSvgY } from "./geometry";
+import type { Point, ScenePathCommand } from "tikz-editor/semantic/types";
+import type { SvgViewBox } from "tikz-editor/svg/types";
+import { distanceSquared, fmt, worldToSvgPoint, worldToSvgY } from "./geometry";
 import { resolveBezierControlsFromBend } from "./interaction-helpers";
+import { resolveAddShapeDraft } from "./add-shape-draft";
 import {
   pathToolCanClose,
   pathToolCloseRadiusWorld,
@@ -41,7 +43,8 @@ type ToolPreview =
   | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
-  | { kind: "circle"; cx: number; cy: number; r: number };
+  | { kind: "circle"; cx: number; cy: number; r: number }
+  | { kind: "path"; d: string };
 
 export type UseCanvasDerivedStateArgs = {
   [key: string]: any;
@@ -53,6 +56,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
     toolMode,
     toolDraft,
     toolCursorWorld,
+    selectedAddShape,
     freehandDraft,
     freehandSmoothingPx,
     pathDraft,
@@ -67,7 +71,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       return null;
     }
 
-    if (toolMode === "addNode" || toolMode === "addShape") {
+    if (toolMode === "addNode" || (toolMode === "addShape" && !toolDraft)) {
       const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
       if (!liveWorld) {
         return null;
@@ -324,11 +328,45 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       };
     }
 
-    if (toolDraft.toolMode === "addRect" || toolDraft.toolMode === "addEllipse") {
+    if (
+      toolDraft.toolMode === "addRect" ||
+      toolDraft.toolMode === "addEllipse" ||
+      toolDraft.toolMode === "addShape"
+    ) {
       const x = Math.min(start.x, end.x);
       const y = Math.min(start.y, end.y);
       const width = Math.abs(end.x - start.x);
       const height = Math.abs(end.y - start.y);
+      if (toolDraft.toolMode === "addShape") {
+        const centerX = (start.x + end.x) / 2;
+        const centerY = (start.y + end.y) / 2;
+        const draft = resolveAddShapeDraft(
+          selectedAddShape,
+          Math.abs(toolDraft.currentWorld.x - toolDraft.startWorld.x),
+          Math.abs(toolDraft.currentWorld.y - toolDraft.startWorld.y)
+        );
+        if (draft.preview.kind === "circle") {
+          return {
+            kind: "circle",
+            cx: centerX,
+            cy: centerY,
+            r: draft.preview.radius > 1e-4 ? draft.preview.radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
+          };
+        }
+        if (draft.preview.kind === "ellipse") {
+          return {
+            kind: "ellipse",
+            cx: centerX,
+            cy: centerY,
+            rx: draft.preview.rx,
+            ry: draft.preview.ry
+          };
+        }
+        return {
+          kind: "path",
+          d: encodeTranslatedPathPreview(draft.preview.commands, centerX, centerY, svgResult.viewBox)
+        };
+      }
       if (toolDraft.toolMode === "addRect") {
         return {
           kind: "rect",
@@ -357,9 +395,41 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       cy: start.y,
       r: radius > 1e-4 ? radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
     };
-  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, freehandSmoothingPx, pathDraft, pathSegmentDraft, pendingBezier, svgResult, toolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, canvasTransform.scale, freehandDraft, freehandSmoothingPx, pathDraft, pathSegmentDraft, pendingBezier, selectedAddShape, svgResult, toolCursorWorld, toolDraft, toolMode]);
 
   return {
     toolPreview
   };
+}
+
+function encodeTranslatedPathPreview(
+  commands: readonly ScenePathCommand[],
+  centerX: number,
+  centerY: number,
+  viewBox: SvgViewBox
+): string {
+  const parts: string[] = [];
+  for (const command of commands) {
+    if (command.kind === "M" || command.kind === "L") {
+      const point = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      parts.push(`${command.kind} ${fmt(point.x)},${fmt(point.y)}`);
+      continue;
+    }
+    if (command.kind === "C") {
+      const c1 = worldToSvgPoint({ x: command.c1.x + centerX, y: command.c1.y + centerY }, viewBox);
+      const c2 = worldToSvgPoint({ x: command.c2.x + centerX, y: command.c2.y + centerY }, viewBox);
+      const to = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      parts.push(`C ${fmt(c1.x)},${fmt(c1.y)} ${fmt(c2.x)},${fmt(c2.y)} ${fmt(to.x)},${fmt(to.y)}`);
+      continue;
+    }
+    if (command.kind === "A") {
+      const to = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      parts.push(
+        `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${command.sweep ? 1 : 0} ${fmt(to.x)},${fmt(to.y)}`
+      );
+      continue;
+    }
+    parts.push("Z");
+  }
+  return parts.join(" ");
 }

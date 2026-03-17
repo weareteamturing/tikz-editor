@@ -7,6 +7,19 @@ import { renderTikzToSvg } from "../../../packages/core/src/render/index";
 
 type GeneratedNodeShapePreview = Record<string, string | null>;
 
+const CM_TO_PT = 28.45274;
+
+const PREVIEW_NODE_SIZE_BY_SHAPE: Record<string, { minimumWidthPt: number; minimumHeightPt: number }> = {
+  "isosceles triangle": {
+    minimumWidthPt: 3.2 * CM_TO_PT,
+    minimumHeightPt: 1.2 * CM_TO_PT
+  }
+};
+
+const PREVIEW_EXTRA_OPTIONS_BY_SHAPE: Record<string, string[]> = {
+  "isosceles triangle": ["isosceles triangle stretches"]
+};
+
 function main(): Promise<void> {
   return writeGeneratedModule();
 }
@@ -15,7 +28,8 @@ async function writeGeneratedModule(): Promise<void> {
   const generated: GeneratedNodeShapePreview = {};
 
   for (const option of NODE_SHAPE_OPTIONS) {
-    const snippet = generateElementSource({ kind: "node", shape: option.value, text: "" }, { x: 0, y: 0 });
+    const previewSize = PREVIEW_NODE_SIZE_BY_SHAPE[option.value];
+    const snippet = buildPreviewNodeSource(option.value, previewSize);
     const source = ["\\begin{tikzpicture}", `  ${snippet}`, "\\end{tikzpicture}"].join("\n");
     const result = renderTikzToSvg(source, { svg: { padding: 10 } });
     generated[option.value] = namespaceSvgIds(result.svg.svg, `node-shape-${slugify(option.value)}`);
@@ -48,6 +62,27 @@ async function readIfExists(path: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function buildPreviewNodeSource(
+  shape: string,
+  previewSize: { minimumWidthPt: number; minimumHeightPt: number } | undefined
+): string {
+  const baseSnippet = generateElementSource(
+    {
+      kind: "node",
+      shape,
+      text: "",
+      minimumWidthPt: previewSize?.minimumWidthPt,
+      minimumHeightPt: previewSize?.minimumHeightPt
+    },
+    { x: 0, y: 0 }
+  );
+  const extraOptions = PREVIEW_EXTRA_OPTIONS_BY_SHAPE[shape];
+  if (!extraOptions || extraOptions.length === 0) {
+    return baseSnippet;
+  }
+  return baseSnippet.replace("shape=", `${extraOptions.join(", ")}, shape=`);
 }
 
 function slugify(value: string): string {

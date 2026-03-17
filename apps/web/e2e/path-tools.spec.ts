@@ -179,19 +179,55 @@ test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an
   await expect(page.getByTestId("toolbar-tool-popup-addShape")).toBeVisible();
 
   await page.getByTestId("toolbar-shape-choice-diamond").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addShape")).toHaveCount(0);
   const layer = interactionLayer(page);
   const box = await layer.boundingBox();
   if (!box) {
     throw new Error("Canvas interaction layer bounds missing.");
   }
-  await page.mouse.click(box.x + 160, box.y + 160);
+  await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 260, y: 210 });
+  await page.mouse.up();
 
-  await expect.poll(async () => readSource(page)).toContain("\\node[draw, shape=diamond, minimum width=2.2cm, minimum height=1.4cm] at");
+  await expect.poll(async () => readSource(page)).toContain("\\node[draw, shape=diamond");
+  await expect.poll(async () => /minimum (width|height)=/.test(await readSource(page))).toBe(true);
+  await expect.poll(async () => readSource(page)).not.toContain("shape=diamond, minimum width=2.2cm, minimum height=1.4cm");
   await expect.poll(async () => readSource(page)).toContain("{};");
 
   await toolbarButton(page, "Shape").click();
   await expect(page.getByTestId("toolbar-tool-popup-addShape")).toBeVisible();
   await expect(page.getByTestId("toolbar-shape-choice-diamond")).toHaveAttribute("aria-selected", "true");
+});
+
+test("diamond shapes show drag-size preview and can be resized with handles", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 260, y: 210 });
+  await expect(page.getByTestId("canvas-tool-preview-path")).toBeVisible();
+  await page.mouse.up();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const resizeHandle = page.locator('[data-handle-kind="resize-element"][data-source-id="path:0"]').first();
+  await expect(resizeHandle).toBeVisible();
+
+  const before = await readSource(page);
+  await dragLocatorBy(page, resizeHandle, 60, -40);
+  await page.mouse.up();
+  const after = await readSource(page);
+
+  expect(after).toContain("shape=diamond");
+  expect(after).not.toBe(before);
 });
 
 test("bucket popup chooses color, previews on hover, and stays active across fills", async ({ page }) => {

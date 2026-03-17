@@ -7,11 +7,13 @@ import { distanceSquared } from "./geometry";
 import { shouldConstrainToolCreateToSquare, type ToolCreateMode } from "../tool-config";
 import type { Bounds, DragState, DragTooltipRow } from "./types";
 import type { ResizeFrame } from "./resize-frames";
+import { resolveAddShapeDraft } from "./add-shape-draft";
 
 const DEFAULT_BEZIER_LENGTH_PT = 2 * PT_PER_CM;
 const STEP_SNAP_EPSILON = 1e-9;
 export const DEFAULT_GRID_TOOL_STEP_PT = PT_PER_CM;
 const TOOLTIP_ZERO_EPSILON = 1e-6;
+const MIN_SHAPE_DRAG_DIMENSION_PT = 0.1 * PT_PER_CM;
 
 export function boundsFromPoints(a: { x: number; y: number }, b: { x: number; y: number }): Bounds {
   return {
@@ -53,7 +55,10 @@ export function deriveSelectionTranslationDeltaFromAnchor(
 export function createTemplateForToolDrag(
   mode: ToolCreateMode,
   startWorld: Point,
-  endWorld: Point
+  endWorld: Point,
+  options?: {
+    selectedAddShape?: string;
+  }
 ): ElementTemplate {
   const dx = endWorld.x - startWorld.x;
   const dy = endWorld.y - startWorld.y;
@@ -104,6 +109,27 @@ export function createTemplateForToolDrag(
     return hasDrag
       ? { kind: "ellipse", corner: endWorld }
       : { kind: "ellipse" };
+  }
+
+  if (mode === "addShape") {
+    const draft = resolveAddShapeDraft(
+      options?.selectedAddShape ?? "rectangle",
+      Math.max(Math.abs(dx), MIN_SHAPE_DRAG_DIMENSION_PT),
+      Math.max(Math.abs(dy), MIN_SHAPE_DRAG_DIMENSION_PT)
+    );
+    return hasDrag
+      ? {
+          kind: "node",
+          shape: options?.selectedAddShape ?? "rectangle",
+          text: "",
+          minimumWidthPt: draft.minimumWidthPt,
+          minimumHeightPt: draft.minimumHeightPt
+        }
+      : {
+          kind: "node",
+          shape: options?.selectedAddShape ?? "rectangle",
+          text: ""
+        };
   }
 
   return hasDrag

@@ -115,6 +115,21 @@ describe("resize frame geometry", () => {
     expect(isAabbCorner).toBe(false);
   });
 
+  it("builds resize frames for empty shaped nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,shape=diamond,minimum width=2.2cm,minimum height=1.4cm] at (0,0) {};
+\end{tikzpicture}`;
+    const frame = resolveFrame(source, "path:0");
+    expect(frame).not.toBeNull();
+    if (!frame) {
+      return;
+    }
+
+    expect(frame.polygonSvg).toHaveLength(4);
+    expect(frame.boundsSvg.maxX - frame.boundsSvg.minX).toBeGreaterThan(1e-3);
+    expect(frame.boundsSvg.maxY - frame.boundsSvg.minY).toBeGreaterThan(1e-3);
+  });
+
   it("applies node affine transforms to node resize-frame geometry", () => {
     const baseSource = String.raw`\tikz \node[draw,minimum width=100pt] at (0.78,-2.26) {Hello};`;
     const scaledSource = String.raw`\tikz \node[draw,xscale=0.6,minimum width=100pt] at (0.78,-2.26) {Hello};`;

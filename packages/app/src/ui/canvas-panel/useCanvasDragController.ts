@@ -102,6 +102,7 @@ export function useCanvasDragController(params: {
   setDragTooltip: (tooltip: DragTooltipState | null) => void;
   setWarning: (warning: string | null) => void;
   setTextEditingSession: (session: TextEditingSession | null) => void;
+  selectedAddShape: string;
   onSnapFeedback?: () => void;
   textIndexFromClient: (
     clientX: number,
@@ -145,6 +146,7 @@ export function useCanvasDragController(params: {
     setDragTooltip,
     setWarning,
     setTextEditingSession,
+    selectedAddShape,
     onSnapFeedback,
     textIndexFromClient
   } = params;
@@ -871,7 +873,9 @@ export function useCanvasDragController(params: {
           x: (drag.startWorld.x + finalWorld.x) / 2,
           y: (drag.startWorld.y + finalWorld.y) / 2
         });
-        const rawTemplate = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld);
+        const rawTemplate = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld, {
+          selectedAddShape
+        });
         const template =
           rawTemplate.kind === "line"
             ? {
@@ -894,10 +898,17 @@ export function useCanvasDragController(params: {
                   : {})
               }
             : rawTemplate;
+        const insertionAt =
+          drag.toolMode === "addShape"
+            ? {
+                x: (drag.startWorld.x + finalWorld.x) / 2,
+                y: (drag.startWorld.y + finalWorld.y) / 2
+              }
+            : drag.startWorld;
         const ok = applyActionWithFeedback({
           kind: "addElement",
           template,
-          at: drag.startWorld
+          at: insertionAt
         });
         if (!ok.sourceChanged) {
           pendingAddedSelectionRef.current = null;
@@ -1063,6 +1074,7 @@ export function useCanvasDragController(params: {
     onSnapFeedback,
     pendingAddedSelectionRef,
     queueSelectionForAddedElement,
+    selectedAddShape,
     selectedElementIdsRef,
     setMarqueeDraft,
     setDragTooltip,

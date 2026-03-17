@@ -75,7 +75,7 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "addCircle",  label: "Circle",  title: "Draw a circle from center (C)",                   shortcut: "c", icon: RiCircleLine },
 ];
 
-export const TOOL_CREATE_MODES = ["addPath", "addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle"] as const;
+export const TOOL_CREATE_MODES = ["addPath", "addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle", "addShape"] as const;
 
 export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 
@@ -119,7 +119,7 @@ export function isToolCreateMode(mode: ToolMode): mode is ToolCreateMode {
 }
 
 export function toolCreateSnapKind(mode: ToolCreateMode): SnapToolPointerKind {
-  if (mode === "addGrid" || mode === "addRect" || mode === "addEllipse") {
+  if (mode === "addGrid" || mode === "addRect" || mode === "addEllipse" || mode === "addShape") {
     return "rect-corner";
   }
   if (mode === "addCircle") {

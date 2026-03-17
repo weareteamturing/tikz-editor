@@ -316,7 +316,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
 
-        if (toolMode === "addNode" || toolMode === "addShape") {
+        if (toolMode === "addNode") {
           const snapResult = toolSnapContext
               ? snapToolPointer({
                   context: toolSnapContext,

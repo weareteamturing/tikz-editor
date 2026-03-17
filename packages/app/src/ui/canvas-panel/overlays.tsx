@@ -41,7 +41,8 @@ type ToolPreview =
   | { kind: "grid"; x: number; y: number; width: number; height: number; verticalLines: number[]; horizontalLines: number[] }
   | { kind: "rect"; x: number; y: number; width: number; height: number }
   | { kind: "ellipse"; cx: number; cy: number; rx: number; ry: number }
-  | { kind: "circle"; cx: number; cy: number; r: number };
+  | { kind: "circle"; cx: number; cy: number; r: number }
+  | { kind: "path"; d: string };
 
 type HandleDisplay =
   | {
@@ -484,6 +485,14 @@ export function ToolPreviewOverlay({
           cx={toolPreview.cx}
           cy={toolPreview.cy}
           r={toolPreview.r}
+          className={css.toolPreviewFill}
+          strokeWidth={handleStrokeWidth}
+        />
+      )}
+      {toolPreview.kind === "path" && (
+        <path
+          d={toolPreview.d}
+          data-testid="canvas-tool-preview-path"
           className={css.toolPreviewFill}
           strokeWidth={handleStrokeWidth}
         />
