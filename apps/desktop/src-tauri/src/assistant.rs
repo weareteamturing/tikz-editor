@@ -1566,9 +1566,18 @@ mod tests {
             .unwrap_or_default()
             .to_string();
         assert!(first_text.contains("User request: make line thicker"));
-        assert_eq!(item_path(&input[1]), Some(pasted_a.to_string_lossy().to_string()));
-        assert_eq!(item_path(&input[2]), Some(pasted_b.to_string_lossy().to_string()));
-        assert_eq!(item_path(&input[3]), Some(preview.to_string_lossy().to_string()));
+        assert_eq!(
+            item_path(&input[1]),
+            Some(pasted_a.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            item_path(&input[2]),
+            Some(pasted_b.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            item_path(&input[3]),
+            Some(preview.to_string_lossy().to_string())
+        );
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1597,8 +1606,14 @@ mod tests {
             .unwrap_or_default()
             .to_string();
         assert_eq!(first_text, "nudge the label");
-        assert_eq!(item_path(&input[1]), Some(pasted.to_string_lossy().to_string()));
-        assert_eq!(item_path(&input[2]), Some(preview.to_string_lossy().to_string()));
+        assert_eq!(
+            item_path(&input[1]),
+            Some(pasted.to_string_lossy().to_string())
+        );
+        assert_eq!(
+            item_path(&input[2]),
+            Some(preview.to_string_lossy().to_string())
+        );
 
         let _ = fs::remove_dir_all(dir);
     }

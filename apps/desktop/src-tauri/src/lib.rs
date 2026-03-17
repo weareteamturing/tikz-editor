@@ -15,7 +15,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::{
-    menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder},
+    menu::{
+        CheckMenuItemBuilder, Menu, MenuItemBuilder, MenuItemKind, PredefinedMenuItem,
+        SubmenuBuilder,
+    },
     AppHandle, Emitter, Manager,
 };
 use url::Url;
@@ -24,7 +27,8 @@ const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
 #[cfg(target_os = "macos")]
-const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] = ["public.svg-image", "com.microsoft.image-svg-xml"];
+const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] =
+    ["public.svg-image", "com.microsoft.image-svg-xml"];
 #[cfg(not(target_os = "macos"))]
 const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 3] = [
     "image/svg+xml",
@@ -234,11 +238,9 @@ fn build_context_menu_item<R: tauri::Runtime>(
     item: &DesktopContextMenuItemPayload,
 ) -> Result<MenuItemKind<R>, String> {
     match item {
-        DesktopContextMenuItemPayload::Separator => {
-            PredefinedMenuItem::separator(manager)
-                .map(MenuItemKind::Predefined)
-                .map_err(|error| error.to_string())
-        }
+        DesktopContextMenuItemPayload::Separator => PredefinedMenuItem::separator(manager)
+            .map(MenuItemKind::Predefined)
+            .map_err(|error| error.to_string()),
         DesktopContextMenuItemPayload::Submenu { label, items } => {
             let submenu = SubmenuBuilder::new(manager, label)
                 .build()
@@ -270,10 +272,12 @@ fn build_context_menu_item<R: tauri::Runtime>(
             }
 
             if let Some(checked) = checked {
-                let mut builder =
-                    CheckMenuItemBuilder::with_id(context_menu_item_id(request_id, command_id), label)
-                        .enabled(*enabled)
-                        .checked(*checked);
+                let mut builder = CheckMenuItemBuilder::with_id(
+                    context_menu_item_id(request_id, command_id),
+                    label,
+                )
+                .enabled(*enabled)
+                .checked(*checked);
                 if let Some(accelerator) = accelerator {
                     builder = builder.accelerator(accelerator);
                 }
@@ -499,9 +503,7 @@ fn desktop_open_external(url: String) -> Result<bool, String> {
 fn desktop_perform_snap_haptic() -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        use tauri_macos_haptics::haptics::{
-            HapticFeedbackManager, HapticPattern, PerformanceTime,
-        };
+        use tauri_macos_haptics::haptics::{HapticFeedbackManager, HapticPattern, PerformanceTime};
 
         HapticFeedbackManager::default_performer()
             .perform(HapticPattern::Alignment, Some(PerformanceTime::Now))
@@ -540,7 +542,9 @@ fn desktop_read_custom_clipboard_text(
         }
         Ok(None)
     }))
-    .map_err(|panic_payload| format!("Clipboard native panic: {}", panic_to_string(panic_payload)))?
+    .map_err(|panic_payload| {
+        format!("Clipboard native panic: {}", panic_to_string(panic_payload))
+    })?
 }
 
 #[tauri::command]
@@ -570,7 +574,9 @@ fn desktop_write_clipboard_bundle(
         let ctx = ClipboardContext::new().map_err(|error| error.to_string())?;
         ctx.set(contents).map_err(|error| error.to_string())
     }))
-    .map_err(|panic_payload| format!("Clipboard native panic: {}", panic_to_string(panic_payload)))?
+    .map_err(|panic_payload| {
+        format!("Clipboard native panic: {}", panic_to_string(panic_payload))
+    })?
 }
 
 #[tauri::command]
@@ -711,7 +717,9 @@ fn desktop_assistant_read_account_snapshot(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_clipboard_x::init());
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_x::init());
     #[cfg(target_os = "macos")]
     {
         builder = builder.plugin(tauri_macos_haptics::init());

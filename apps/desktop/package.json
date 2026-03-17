@@ -14,10 +14,11 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
-    "tauri-plugin-clipboard-x-api": "^2.0.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "@tikz-editor/app": "0.1.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tauri-plugin-clipboard-x-api": "^2.0.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
