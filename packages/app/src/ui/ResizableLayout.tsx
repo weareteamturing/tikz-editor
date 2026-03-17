@@ -24,13 +24,14 @@ export function ResizableLayout({ left, center, right }: Props) {
     startWidth: number;
   } | null>(null);
 
-  const handleSplitterMouseDown = useCallback(
-    (side: "left" | "right") => (e: React.MouseEvent) => {
+  const handleSplitterPointerDown = useCallback(
+    (side: "left" | "right") => (e: React.PointerEvent) => {
       dragRef.current = {
         side,
         startX: e.clientX,
         startWidth: side === "left" ? leftPanelWidth : rightPanelWidth
       };
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       document.body.classList.add("is-resizing-h");
       e.preventDefault();
     },
@@ -38,7 +39,7 @@ export function ResizableLayout({ left, center, right }: Props) {
   );
 
   useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
+    function onPointerMove(e: PointerEvent) {
       const drag = dragRef.current;
       const container = containerRef.current;
       if (!drag || !container) return;
@@ -53,18 +54,20 @@ export function ResizableLayout({ left, center, right }: Props) {
       dispatch({ type: "SET_PANEL_WIDTH", panel: drag.side, width: newWidth });
     }
 
-    function onMouseUp() {
+    function onPointerUp() {
       if (dragRef.current) {
         dragRef.current = null;
         document.body.classList.remove("is-resizing-h");
       }
     }
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
     return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
     };
   }, [dispatch]);
 
@@ -77,7 +80,7 @@ export function ResizableLayout({ left, center, right }: Props) {
           </div>
           <div
             className={css.splitter}
-            onMouseDown={handleSplitterMouseDown("left")}
+            onPointerDown={handleSplitterPointerDown("left")}
             data-testid="layout-splitter-left"
           />
         </>
@@ -91,7 +94,7 @@ export function ResizableLayout({ left, center, right }: Props) {
         <>
           <div
             className={css.splitter}
-            onMouseDown={handleSplitterMouseDown("right")}
+            onPointerDown={handleSplitterPointerDown("right")}
             data-testid="layout-splitter-right"
           />
           <div className={`${css.pane} ${css.paneRight}`} style={{ flex: `0 0 ${rightPanelWidth}px`, width: rightPanelWidth }}>

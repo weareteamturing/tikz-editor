@@ -301,7 +301,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
           type: "SET_FOCUSED_SCOPE",
           scopeId: resolveFocusedScopeIdForSelection(resolvedTargetId, scopeOverlay)
         });
-        if (isAdornmentTarget) {
+        if (isAdornmentTarget || event.pointerType === "touch") {
+          // On touch: selecting an unselected element doesn't immediately start a drag;
+          // the user can begin a new gesture to drag once it's selected.
           setSnapLines([]);
           return;
         }
