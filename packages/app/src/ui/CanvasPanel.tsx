@@ -693,8 +693,7 @@ export function CanvasPanel() {
   const selectedElementIdsRef = useRef(selectedElementIds);
   const svgResultRef = useRef(svgResult);
   const fitToContentModeActiveRef = useRef(fitToContentModeActive);
-  const sourceBoundsRef = useRef(new Map<string, Bounds>());
-  const interactionBoundsBySourceRef = useRef(new Map<string, Bounds & { sourceId: string }>());
+  const sourceBoundsSvgRef = useRef(new Map<string, Bounds>());
   const liveResizeFramesRef = useRef(new Map<string, ReturnType<typeof resolveResizeFrameForSource>>());
   const previousViewBoxRef = useRef<SvgViewBox | null>(null);
   const guideDragRef = useRef<GuideDragState | null>(null);
@@ -980,8 +979,8 @@ export function CanvasPanel() {
     dragCapability,
     draggableSourceIds,
     sceneTextByRegionKey,
-    sourceBounds,
-    interactionBoundsBySource,
+    sourceBoundsSvg,
+    interactionBoundsSvgBySource,
     matrixSelectionSourceIds,
     resizeFramesBySource,
     selectionBoxes,
@@ -1010,8 +1009,7 @@ export function CanvasPanel() {
   selectedElementIdsRef.current = selectedElementIds;
   svgResultRef.current = svgResult;
   fitToContentModeActiveRef.current = fitToContentModeActive;
-  sourceBoundsRef.current = sourceBounds;
-  interactionBoundsBySourceRef.current = interactionBoundsBySource;
+  sourceBoundsSvgRef.current = sourceBoundsSvg;
   liveResizeFramesRef.current = resizeFramesBySource;
 
   const {
@@ -1619,7 +1617,6 @@ export function CanvasPanel() {
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
-    interactionBoundsBySource,
     snapshot,
     source,
     setWarning,
@@ -1993,10 +1990,8 @@ export function CanvasPanel() {
     svgResultRef,
     fitToContentModeActive,
     fitToContentModeActiveRef,
-    sourceBounds,
-    sourceBoundsRef,
-    interactionBoundsBySource,
-    interactionBoundsBySourceRef,
+    sourceBoundsSvg,
+    sourceBoundsSvgRef,
     resizeFramesBySource,
     liveResizeFramesRef,
     previousViewBoxRef,
@@ -2322,8 +2317,7 @@ export function CanvasPanel() {
     interactionSvgRef,
     liveResizeFramesRef,
     selectedElementIdsRef,
-    sourceBoundsRef,
-    interactionBoundsBySourceRef,
+    sourceBoundsSvgRef,
     scopeOverlay,
     pendingAddedSelectionRef,
     setDragState,

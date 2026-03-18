@@ -83,8 +83,7 @@ export function useCanvasDragController(params: {
   interactionSvgRef: { current: SVGSVGElement | null };
   liveResizeFramesRef: { current: ReadonlyMap<string, ResizeFrame | null> };
   selectedElementIdsRef: { current: ReadonlySet<string> };
-  sourceBoundsRef: { current: ReadonlyMap<string, Bounds> };
-  interactionBoundsBySourceRef: { current: ReadonlyMap<string, Bounds & { sourceId: string }> };
+  sourceBoundsSvgRef: { current: ReadonlyMap<string, Bounds> };
   scopeOverlay: ScopeOverlayIndex;
   pendingAddedSelectionRef: { current: PendingAddedSelection | null };
   setDragState: (drag: DragState | null) => void;
@@ -127,8 +126,7 @@ export function useCanvasDragController(params: {
     interactionSvgRef,
     liveResizeFramesRef,
     selectedElementIdsRef,
-    sourceBoundsRef,
-    interactionBoundsBySourceRef,
+    sourceBoundsSvgRef,
     scopeOverlay,
     pendingAddedSelectionRef,
     setDragState,
@@ -177,7 +175,7 @@ export function useCanvasDragController(params: {
       );
       const hitIds = resolveScopeAwareMarqueeSelection({
         selectionBounds: selection,
-        sourceBoundsById: sourceBoundsRef.current,
+        sourceBoundsById: sourceBoundsSvgRef.current,
         scopeOverlay
       });
       const nextIds = drag.additive
@@ -1097,7 +1095,7 @@ export function useCanvasDragController(params: {
     nodeAnchorTargets,
     scopeOverlay,
     source,
-    sourceBoundsRef,
+    sourceBoundsSvgRef,
     svgResult,
     svgResultRef,
     textIndexFromClient

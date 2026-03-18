@@ -538,6 +538,45 @@ describe("applyEditAction – moveElement", () => {
     expectPatchesReconstructSource(source, result);
   });
 
+  it("moves scopes with scale before shift by adjusting shift in local scope units", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[scale=2, shift={(2pt,3pt)}]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: { x: 4, y: 6 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toMatch(/shift=\{\(4pt,6pt\)\}|shift=\(4pt,6pt\)/);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves scopes with scale before xshift/yshift by adjusting shifts in local scope units", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}[scale=2, xshift=2pt, yshift=3pt]
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "scope:0",
+      delta: { x: 4, y: 6 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("xshift=4pt");
+    expect(result.newSource).toContain("yshift=6pt");
+    expectPatchesReconstructSource(source, result);
+  });
+
   it("moves scopes without options by inserting xshift and yshift", () => {
     const source = String.raw`\begin{tikzpicture}
   \begin{scope}

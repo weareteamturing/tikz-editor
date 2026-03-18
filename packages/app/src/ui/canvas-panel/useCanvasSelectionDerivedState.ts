@@ -88,7 +88,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return byRegionKey;
   }, [snapshot.scene]);
 
-  const sourceBounds = useMemo(() => {
+  const sourceBoundsSvg = useMemo(() => {
     if (!snapshot.scene || !svgResult) {
       return new Map<string, any>();
     }
@@ -96,8 +96,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [snapshot.scene, svgResult]);
 
   const scopeOverlay = useMemo(
-    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, sourceBounds),
-    [snapshot.parseResult, sourceBounds]
+    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, sourceBoundsSvg),
+    [snapshot.parseResult, sourceBoundsSvg]
   );
 
   const movableScopeSourceIds = useMemo(() => {
@@ -133,14 +133,14 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   const selectionBounds = useMemo(() => {
     const selected: Array<{ sourceId: string; bounds: any }> = [];
     for (const sourceId of selectedElementIds) {
-      const bounds = sourceBounds.get(sourceId) ?? scopeOverlay.boundsByScopeId.get(sourceId);
+      const bounds = sourceBoundsSvg.get(sourceId) ?? scopeOverlay.boundsByScopeId.get(sourceId);
       if (!bounds) {
         continue;
       }
       selected.push({ sourceId, bounds });
     }
     return selected;
-  }, [scopeOverlay.boundsByScopeId, selectedElementIds, sourceBounds]);
+  }, [scopeOverlay.boundsByScopeId, selectedElementIds, sourceBoundsSvg]);
 
   const selectedScopeHitBounds = useMemo(() => {
     return selectionBounds
@@ -156,13 +156,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     return bySource;
   }, [selectionBounds]);
 
-  const interactionBoundsBySource = useMemo(() => {
-    const bySource = new Map<string, any>(sourceBounds);
+  const interactionBoundsSvgBySource = useMemo(() => {
+    const bySource = new Map<string, any>(sourceBoundsSvg);
     for (const [scopeId, bounds] of scopeOverlay.boundsByScopeId) {
       bySource.set(scopeId, { ...bounds, sourceId: scopeId });
     }
     return bySource;
-  }, [scopeOverlay.boundsByScopeId, sourceBounds]);
+  }, [scopeOverlay.boundsByScopeId, sourceBoundsSvg]);
 
   const resizablePathShapeSourceIds = useMemo(() => {
     if (!snapshot.scene) {
@@ -673,8 +673,8 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     draggableSourceIds,
     selectionBounds,
     sceneTextByRegionKey,
-    sourceBounds,
-    interactionBoundsBySource,
+    sourceBoundsSvg,
+    interactionBoundsSvgBySource,
     selectionBoundsBySource,
     resizablePathShapeSourceIds,
     nodeResizeSourceIds,

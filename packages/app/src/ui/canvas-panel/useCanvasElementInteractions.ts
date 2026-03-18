@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { buildSnapContext, collectSelectionGeometryFromBounds } from "tikz-editor/edit/snapping";
+import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import type { EditHandle, Point } from "tikz-editor/semantic/types";
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
@@ -28,7 +28,6 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     interactionSvgRef,
     dispatch,
     draggableSourceIds,
-    interactionBoundsBySource,
     snapshot,
     source,
     setWarning,
@@ -87,17 +86,68 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         return;
       }
 
+      const snapExcludedSourceIds = (() => {
+        if (draggedIds.length === 0) {
+          return draggedIds;
+        }
+        const selectedForSnap = new Set<string>(draggedIds);
+        const draggedScopeIds = draggedIds.filter((id) => scopeOverlay.scopesById.has(id));
+        if (draggedScopeIds.length === 0) {
+          return [...selectedForSnap];
+        }
+        for (const [sourceId, ancestorScopeIds] of scopeOverlay.ancestorScopeIdsBySourceId.entries()) {
+          if (draggedScopeIds.some((scopeId) => ancestorScopeIds.includes(scopeId))) {
+            selectedForSnap.add(sourceId);
+          }
+        }
+        return [...selectedForSnap];
+      })();
+
       const snapContext = snapshot.scene
         ? buildSnapContext({
             sceneElements: snapshot.scene.elements,
-            selectedSourceIds: draggedIds,
+            selectedSourceIds: snapExcludedSourceIds,
             guides: snapGuideInput,
             settings: snapSettingsPatch,
             zoom: canvasTransform.scale,
             viewportWorld: viewportWorldBounds
           })
         : null;
-      const initialSelection = collectSelectionGeometryFromBounds(interactionBoundsBySource, draggedIds);
+      const worldBoundsBySource = snapshot.scene
+        ? collectSourceWorldBounds(snapshot.scene.elements)
+        : new Map<string, { minX: number; minY: number; maxX: number; maxY: number; sourceId: string }>();
+      const worldInteractionBoundsBySource = new Map(worldBoundsBySource);
+      for (const scopeId of scopeOverlay.scopesById.keys()) {
+        let mergedBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+        for (const [sourceId, sourceBounds] of worldBoundsBySource.entries()) {
+          const ancestors = scopeOverlay.ancestorScopeIdsBySourceId.get(sourceId) ?? [];
+          if (!ancestors.includes(scopeId)) {
+            continue;
+          }
+          mergedBounds = mergedBounds
+            ? {
+                minX: Math.min(mergedBounds.minX, sourceBounds.minX),
+                minY: Math.min(mergedBounds.minY, sourceBounds.minY),
+                maxX: Math.max(mergedBounds.maxX, sourceBounds.maxX),
+                maxY: Math.max(mergedBounds.maxY, sourceBounds.maxY)
+              }
+            : {
+                minX: sourceBounds.minX,
+                minY: sourceBounds.minY,
+                maxX: sourceBounds.maxX,
+                maxY: sourceBounds.maxY
+              };
+        }
+        if (!mergedBounds) {
+          continue;
+        }
+        worldInteractionBoundsBySource.set(scopeId, {
+          ...mergedBounds,
+          sourceId: scopeId
+        });
+      }
+
+      const initialSelection = collectSelectionGeometryFromBounds(worldInteractionBoundsBySource, draggedIds);
       const selectionAnchorRatio = initialSelection
         ? selectionAnchorRatioFromPoint(initialSelection.bounds, world)
         : null;
@@ -130,8 +180,9 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     [
       canvasTransform.scale,
       draggableSourceIds,
-      interactionBoundsBySource,
       logSnapDebug,
+      scopeOverlay.ancestorScopeIdsBySourceId,
+      scopeOverlay.scopesById,
       setDragState,
       setSnapLines,
       setWarning,
@@ -258,9 +309,6 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         : null;
       const singleSelectedScopeId =
         singleSelectedId && scopeOverlay.scopesById.has(singleSelectedId) ? singleSelectedId : null;
-      const hitSourceHasNodePositionHandle = snapshot.editHandles.some(
-        (handle: EditHandle) => handle.kind === "node-position" && handle.sourceRef.sourceId === hitSourceId
-      );
       const shouldDeferScopeDrillToPointerUp =
         !additiveSelection &&
         singleSelectedScopeId != null &&
@@ -277,9 +325,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       if (shouldDeferScopeDrillToPointerUp) {
-        const canDragSelectedScope =
-          draggableSourceIds.has(singleSelectedScopeId) &&
-          !hitSourceHasNodePositionHandle;
+        const canDragSelectedScope = draggableSourceIds.has(singleSelectedScopeId);
         pendingScopeDrillRef.current = {
           pointerId: event.pointerId,
           startClientX: event.clientX,

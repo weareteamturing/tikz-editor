@@ -10,12 +10,13 @@ import {
   resolveTransformInspectorMutationContext
 } from "../inspector.js";
 import { replaceSpan } from "../patch.js";
-import { resolvePropertyTarget } from "../property-target.js";
+import { resolvePropertyTarget, type PropertyTarget } from "../property-target.js";
 import { rewriteCoordinate } from "../rewrite.js";
 import type { SourcePatch } from "../types.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "../arrange.js";
 import { applyOptionMutationsToTarget, type OptionMutation } from "../option-mutations.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
+import { normalizeOptionKey } from "../option-key.js";
 
 const ARRANGE_EPSILON = 1e-6;
 
@@ -402,10 +403,17 @@ function rewriteSingleScopeTransform(
     return { kind: "unsupported", reason: `Scope ${elementId} was not found` };
   }
 
+  const inPlaceShiftRewrite = rewriteSingleScopeShiftInPlace(source, resolved.target, elementId, delta, parseOptions);
+  if (inPlaceShiftRewrite) {
+    return inPlaceShiftRewrite;
+  }
+
+  const normalizedDelta = resolveDeltaUsingFullLinear(targetOptionsEntries(resolved.target), delta) ?? delta;
+
   const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
   const mutations = [
-    ...buildTransformSetPropertyMutations(context, "xshift", context.values.xshift + delta.x),
-    ...buildTransformSetPropertyMutations(context, "yshift", context.values.yshift + delta.y)
+    ...buildTransformSetPropertyMutations(context, "xshift", context.values.xshift + normalizedDelta.x),
+    ...buildTransformSetPropertyMutations(context, "yshift", context.values.yshift + normalizedDelta.y)
   ];
 
   let currentSource = source;
@@ -444,6 +452,198 @@ function rewriteSingleScopeTransform(
     kind: "success",
     source: currentSource,
     patches
+  };
+}
+
+function rewriteSingleScopeShiftInPlace(
+  source: string,
+  target: PropertyTarget,
+  elementId: string,
+  delta: Point,
+  parseOptions: EditParseOptions
+): ScopeTransformRewriteResult | null {
+  if (!target.options) {
+    return null;
+  }
+
+  const entries = target.options.entries;
+  const shiftEntries = entries
+    .map((entry, index) => ({ entry, index }))
+    .filter((candidate) => {
+      if (candidate.entry.kind !== "kv") {
+        return false;
+      }
+      const key = normalizeOptionKey(candidate.entry.key);
+      return key === "shift" || key === "/tikz/shift";
+    });
+  const lastShift = shiftEntries[shiftEntries.length - 1] ?? null;
+  if (!lastShift) {
+    const xyTranslationEntries = entries
+      .map((entry, index) => ({ entry, index }))
+      .filter((candidate) => {
+        if (candidate.entry.kind !== "kv") {
+          return false;
+        }
+        const key = normalizeOptionKey(candidate.entry.key);
+        return key === "xshift" || key === "/tikz/xshift" || key === "yshift" || key === "/tikz/yshift";
+      });
+    if (xyTranslationEntries.length === 0) {
+      return null;
+    }
+
+    const firstTranslationIndex = Math.min(...xyTranslationEntries.map((candidate) => candidate.index));
+    const prefixLinear = resolvePrefixLinearTransform(entries, firstTranslationIndex);
+    if (!prefixLinear) {
+      return null;
+    }
+    const localDelta = applyInverseLinear(prefixLinear, delta);
+    if (!localDelta) {
+      return null;
+    }
+
+    const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+    const nextShiftX = context.values.xshift + localDelta.x;
+    const nextShiftY = context.values.yshift + localDelta.y;
+    const hasXShiftEntry = xyTranslationEntries.some((candidate) => {
+      const key = candidate.entry.kind === "kv" ? normalizeOptionKey(candidate.entry.key) : "";
+      return key === "xshift" || key === "/tikz/xshift";
+    });
+    const hasYShiftEntry = xyTranslationEntries.some((candidate) => {
+      const key = candidate.entry.kind === "kv" ? normalizeOptionKey(candidate.entry.key) : "";
+      return key === "yshift" || key === "/tikz/yshift";
+    });
+    const optionMutations = new Map<string, OptionMutation>();
+    if (hasXShiftEntry || Math.abs(nextShiftX) > 1e-6) {
+      optionMutations.set("xshift", { kind: "set", value: `${formatNumber(nextShiftX)}pt` });
+    } else {
+      optionMutations.set("xshift", { kind: "remove" });
+    }
+    if (hasYShiftEntry || Math.abs(nextShiftY) > 1e-6) {
+      optionMutations.set("yshift", { kind: "set", value: `${formatNumber(nextShiftY)}pt` });
+    } else {
+      optionMutations.set("yshift", { kind: "remove" });
+    }
+
+    const rewritten = applyOptionMutationsToTarget(source, target, optionMutations);
+    if (!rewritten) {
+      return { kind: "unsupported", reason: `Scope ${elementId} already matches the requested position` };
+    }
+
+    return {
+      kind: "success",
+      source: rewritten.source,
+      patches: [rewritten.patch]
+    };
+  }
+
+  const prefixLinear = resolvePrefixLinearTransform(entries, lastShift.index);
+  if (!prefixLinear) {
+    return null;
+  }
+  const localDelta = applyInverseLinear(prefixLinear, delta);
+  if (!localDelta) {
+    return null;
+  }
+
+  const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+  const nextShiftX = context.values.xshift + localDelta.x;
+  const nextShiftY = context.values.yshift + localDelta.y;
+  const optionMutations = new Map<string, OptionMutation>([
+    ["shift", { kind: "set", value: `(${formatNumber(nextShiftX)}pt,${formatNumber(nextShiftY)}pt)` }]
+  ]);
+
+  const rewritten = applyOptionMutationsToTarget(source, target, optionMutations);
+  if (!rewritten) {
+    return { kind: "unsupported", reason: `Scope ${elementId} already matches the requested position` };
+  }
+
+  return {
+    kind: "success",
+    source: rewritten.source,
+    patches: [rewritten.patch]
+  };
+}
+
+function targetOptionsEntries(target: PropertyTarget): readonly OptionEntry[] {
+  return target.options?.entries ?? [];
+}
+
+function resolveDeltaUsingFullLinear(entries: readonly OptionEntry[], delta: Point): Point | null {
+  const fullLinear = resolvePrefixLinearTransform(entries, entries.length);
+  if (!fullLinear) {
+    return null;
+  }
+  return applyInverseLinear(fullLinear, delta);
+}
+
+type LinearTransform = { a: number; b: number; c: number; d: number };
+
+function resolvePrefixLinearTransform(entries: readonly OptionEntry[], endExclusive: number): LinearTransform | null {
+  let linear: LinearTransform = { a: 1, b: 0, c: 0, d: 1 };
+
+  for (let index = 0; index < endExclusive; index += 1) {
+    const entry = entries[index];
+    if (!entry || entry.kind !== "kv") {
+      continue;
+    }
+    const key = normalizeOptionKey(entry.key);
+    if (key === "scale" || key === "/tikz/scale") {
+      const factor = Number(entry.valueRaw);
+      if (!Number.isFinite(factor)) {
+        return null;
+      }
+      linear = multiplyLinear(linear, { a: factor, b: 0, c: 0, d: factor });
+      continue;
+    }
+    if (key === "xscale" || key === "/tikz/xscale") {
+      const factor = Number(entry.valueRaw);
+      if (!Number.isFinite(factor)) {
+        return null;
+      }
+      linear = multiplyLinear(linear, { a: factor, b: 0, c: 0, d: 1 });
+      continue;
+    }
+    if (key === "yscale" || key === "/tikz/yscale") {
+      const factor = Number(entry.valueRaw);
+      if (!Number.isFinite(factor)) {
+        return null;
+      }
+      linear = multiplyLinear(linear, { a: 1, b: 0, c: 0, d: factor });
+      continue;
+    }
+    if (key === "rotate" || key === "/tikz/rotate") {
+      const degrees = Number(entry.valueRaw);
+      if (!Number.isFinite(degrees)) {
+        return null;
+      }
+      const radians = (degrees * Math.PI) / 180;
+      const cos = Math.cos(radians);
+      const sin = Math.sin(radians);
+      linear = multiplyLinear(linear, { a: cos, b: sin, c: -sin, d: cos });
+    }
+  }
+
+  return linear;
+}
+
+function multiplyLinear(left: LinearTransform, right: LinearTransform): LinearTransform {
+  return {
+    a: left.a * right.a + left.c * right.b,
+    b: left.b * right.a + left.d * right.b,
+    c: left.a * right.c + left.c * right.d,
+    d: left.b * right.c + left.d * right.d
+  };
+}
+
+function applyInverseLinear(linear: LinearTransform, point: Point): Point | null {
+  const det = linear.a * linear.d - linear.b * linear.c;
+  if (!Number.isFinite(det) || Math.abs(det) <= 1e-12) {
+    return null;
+  }
+
+  return {
+    x: (linear.d * point.x - linear.c * point.y) / det,
+    y: (-linear.b * point.x + linear.a * point.y) / det
   };
 }
 

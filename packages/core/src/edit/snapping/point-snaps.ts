@@ -140,54 +140,42 @@ export function pointSnapOffset(nearest: AxisSnapBuckets): { x: number; y: numbe
 }
 
 export function createPointSnapLines(nearest: AxisSnapBuckets): SnapLine[] {
-  const xGroups = new Map<number, PointSnapCandidate[]>();
-  const yGroups = new Map<number, PointSnapCandidate[]>();
+  const lines: SnapLine[] = [];
+  const seen = new Set<string>();
 
   for (const snap of nearest.x) {
-    if (snap.kind !== "point") continue;
-    const key = snap.key;
-    const entry = xGroups.get(key) ?? [];
-    entry.push(snap);
-    xGroups.set(key, entry);
-  }
-
-  for (const snap of nearest.y) {
-    if (snap.kind !== "point") continue;
-    const key = snap.key;
-    const entry = yGroups.get(key) ?? [];
-    entry.push(snap);
-    yGroups.set(key, entry);
-  }
-
-  const lines: SnapLine[] = [];
-
-  for (const [key, group] of xGroups.entries()) {
-    const points = dedupePoints(
-      group.flatMap((snap) => [
-        { x: key, y: snap.from.y },
-        { x: key, y: snap.to.y }
-      ])
-    ).sort((a, b) => a.y - b.y);
-
+    if (snap.kind !== "point") {
+      continue;
+    }
+    const from = { x: snap.to.x, y: snap.from.y };
+    const to = { x: snap.to.x, y: snap.to.y };
+    const key = makeLineKey("x", from, to);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
     lines.push({
       type: "points",
       axis: "x",
-      points
+      points: [from, to]
     });
   }
 
-  for (const [key, group] of yGroups.entries()) {
-    const points = dedupePoints(
-      group.flatMap((snap) => [
-        { x: snap.from.x, y: key },
-        { x: snap.to.x, y: key }
-      ])
-    ).sort((a, b) => a.x - b.x);
-
+  for (const snap of nearest.y) {
+    if (snap.kind !== "point") {
+      continue;
+    }
+    const from = { x: snap.from.x, y: snap.to.y };
+    const to = { x: snap.to.x, y: snap.to.y };
+    const key = makeLineKey("y", from, to);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
     lines.push({
       type: "points",
       axis: "y",
-      points
+      points: [from, to]
     });
   }
 
@@ -238,16 +226,17 @@ export function roundSnapValue(value: number): number {
   return Math.round(value * 1e6) / 1e6;
 }
 
-function dedupePoints(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
-  const map = new Map<string, { x: number; y: number }>();
-  for (const point of points) {
-    const key = `${roundSnapValue(point.x)},${roundSnapValue(point.y)}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        x: roundSnapValue(point.x),
-        y: roundSnapValue(point.y)
-      });
-    }
+function makeLineKey(
+  axis: Axis,
+  from: { x: number; y: number },
+  to: { x: number; y: number }
+): string {
+  const ax = roundSnapValue(from.x);
+  const ay = roundSnapValue(from.y);
+  const bx = roundSnapValue(to.x);
+  const by = roundSnapValue(to.y);
+  if (axis === "x") {
+    return `${axis}:${ax}:${Math.min(ay, by)}:${Math.max(ay, by)}`;
   }
-  return [...map.values()];
+  return `${axis}:${ay}:${Math.min(ax, bx)}:${Math.max(ax, bx)}`;
 }
