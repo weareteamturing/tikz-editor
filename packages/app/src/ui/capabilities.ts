@@ -99,6 +99,12 @@ const INSPECTOR_CHECKS: Record<InspectorProperty["kind"], readonly CapabilityChe
     { feature: "options_structured", layers: ["edit"], label: "text option editing" },
     { feature: "svg_text", layers: ["semantic", "svg"], label: "text rendering" }
   ],
+  enum: [
+    { feature: "options_structured", layers: ["edit"], label: "enum option editing" }
+  ],
+  boolean: [
+    { feature: "options_structured", layers: ["edit"], label: "boolean option editing" }
+  ],
   number: [
     { feature: "options_structured", layers: ["edit"], label: "transform option editing" }
   ],

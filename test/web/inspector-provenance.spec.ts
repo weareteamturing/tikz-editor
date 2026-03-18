@@ -121,4 +121,25 @@ describe("inspector property provenance", () => {
     const provenance = buildMultiInspectorPropertyProvenanceMap(multi, perElement, elements.length);
     expect(provenance["fill-color"]).toBeUndefined();
   });
+
+  it("hides adaptive node-shape properties when selected shapes are mixed", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[star,star points=7] at (0,0) {A};
+  \node[trapezium,trapezium left angle=75] at (2,0) {B};
+\end{tikzpicture}`;
+    const elements = textElements(source);
+    expect(elements).toHaveLength(2);
+    if (elements.length !== 2) return;
+
+    const descriptors = elements.map((element) => getInspectorDescriptor(element, { source }));
+    const multi = buildMultiInspectorModel(descriptors, elements.length);
+    const nodeSection = multi.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) return;
+
+    const adaptiveIds = nodeSection.properties
+      .map((property) => property.id)
+      .filter((id) => id.startsWith("node-shape-star-") || id.startsWith("node-shape-trapezium-"));
+    expect(adaptiveIds).toHaveLength(0);
+  });
 });

@@ -500,6 +500,7 @@ export function InspectorPanel() {
       return;
     }
     applySetProperty(property.write, `${formatNumber(value)}pt`, {
+      clearKeys: property.clearKeys,
       recordInHistory: options.recordInHistory
     });
   }
@@ -620,6 +621,7 @@ export function InspectorPanel() {
       return;
     }
     applySetPropertyMany(property.writes, `${formatNumber(value)}pt`, {
+      clearKeys: property.clearKeys,
       recordInHistory: options.recordInHistory
     });
   }

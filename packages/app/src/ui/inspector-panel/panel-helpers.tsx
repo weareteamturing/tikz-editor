@@ -58,9 +58,34 @@ export type MultiInspectorLengthProperty = {
   mixed: boolean;
   step: number;
   unit: "pt";
+  clearKeys?: string[];
   writes: SetPropertyWriteTarget[];
   note?: string;
   minimumDimensionsContexts?: NodeMinimumDimensionsMutationContext[];
+  readOnlyReason?: string;
+};
+
+export type MultiInspectorEnumProperty = {
+  kind: "enum";
+  id: string;
+  label: string;
+  value: string;
+  mixed: boolean;
+  options: Array<{ value: string; label: string }>;
+  writes: SetPropertyWriteTarget[];
+  readOnlyReason?: string;
+};
+
+export type MultiInspectorBooleanProperty = {
+  kind: "boolean";
+  id: string;
+  label: string;
+  value: boolean;
+  mixed: boolean;
+  trueValue?: string;
+  falseValue?: string;
+  clearKeys?: string[];
+  writes: SetPropertyWriteTarget[];
   readOnlyReason?: string;
 };
 
@@ -278,6 +303,8 @@ export type MultiInspectorShadowPresetProperty = {
 };
 
 export type MultiInspectorProperty =
+  | MultiInspectorEnumProperty
+  | MultiInspectorBooleanProperty
   | MultiInspectorNumberProperty
   | MultiInspectorLengthProperty
   | MultiInspectorColorProperty
@@ -668,6 +695,51 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
     return null;
   }
 
+  if (base.kind === "enum") {
+    const sameKind = properties.every((property) => property.kind === "enum");
+    if (!sameKind) return null;
+    const enumProperties = properties as Array<Extract<InspectorProperty, { kind: "enum" }>>;
+    const writes = enumProperties.map((property) => property.write);
+    return {
+      kind: "enum",
+      id: base.id,
+      label: base.label,
+      value: enumProperties[0]?.value ?? "",
+      mixed: !allValuesEqual(enumProperties.map((property) => property.value)),
+      options: base.options,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
+  if (base.kind === "boolean") {
+    const sameKind = properties.every((property) => property.kind === "boolean");
+    if (!sameKind) return null;
+    const booleanProperties = properties as Array<Extract<InspectorProperty, { kind: "boolean" }>>;
+    const writes = booleanProperties.map((property) => property.write);
+    const clearKeys = allValuesEqual(booleanProperties.map((property) => (property.clearKeys ?? []).join("\n")))
+      ? booleanProperties[0]?.clearKeys
+      : undefined;
+    const trueValue = allValuesEqual(booleanProperties.map((property) => property.trueValue ?? "true"))
+      ? (booleanProperties[0]?.trueValue ?? undefined)
+      : undefined;
+    const falseValue = allValuesEqual(booleanProperties.map((property) => property.falseValue ?? "false"))
+      ? (booleanProperties[0]?.falseValue ?? undefined)
+      : undefined;
+    return {
+      kind: "boolean",
+      id: base.id,
+      label: base.label,
+      value: booleanProperties[0]?.value ?? false,
+      mixed: !allValuesEqual(booleanProperties.map((property) => property.value)),
+      trueValue,
+      falseValue,
+      clearKeys,
+      writes,
+      readOnlyReason: deriveReadOnlyReason(writes)
+    };
+  }
+
   if (base.kind === "number") {
     const sameKind = properties.every((property) => property.kind === "number");
     if (!sameKind) return null;
@@ -706,6 +778,9 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
     const values = lengthProperties.map((property) => property.value);
     const writes = lengthProperties.map((property) => property.write);
     const notes = lengthProperties.map((property) => property.note ?? null);
+    const clearKeys = allValuesEqual(lengthProperties.map((property) => (property.clearKeys ?? []).join("\n")))
+      ? lengthProperties[0]?.clearKeys
+      : undefined;
 
     return {
       kind: "length",
@@ -715,6 +790,7 @@ export function buildMultiInspectorProperty(properties: InspectorProperty[]): Mu
       mixed: !numbersAreEqual(values),
       step: base.step,
       unit: base.unit,
+      clearKeys,
       writes,
       note: allValuesEqual(notes) ? (notes[0] ?? undefined) : undefined,
       minimumDimensionsContexts: lengthProperties.map((property) => property.minimumDimensionsContext).every((context) => context != null)

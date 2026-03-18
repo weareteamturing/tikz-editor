@@ -23,6 +23,7 @@ import {
   TIKZPICTURE_GLOBAL_TARGET_ID
 } from "../packages/core/src/edit/inspector.js";
 import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
+import { buildMultiInspectorModel } from "../packages/app/src/ui/inspector-panel/panel-helpers.js";
 
 describe("getInspectorDescriptor", () => {
   it("returns adornment-specific sections for pins", () => {
@@ -2208,7 +2209,7 @@ describe("getInspectorDescriptor", () => {
   \node[shape=diamond] at (0,0) {A};
 \end{tikzpicture}`;
     const customSource = String.raw`\begin{tikzpicture}
-  \node[shape=star] at (0,0) {A};
+  \node[shape=rounded rectangle] at (0,0) {A};
 \end{tikzpicture}`;
 
     const circleElement = renderTikzToSvg(circleSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
@@ -2233,6 +2234,264 @@ describe("getInspectorDescriptor", () => {
     expect(diamondShape.value).toBe("diamond");
     expect(customShape.value).toBe("custom");
     expect(customShape.note).toContain("Custom node shape detected");
+  });
+
+  it("adds adaptive shape controls under node shape for supported core and arrow shapes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[star,star points=7,star point ratio=1.8,shape border rotate=25] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+    const propertyIds = nodeSection.properties.map((property) => property.id);
+    expect(propertyIds).toContain("node-shape-star-points");
+    expect(propertyIds).toContain("node-shape-star-point-ratio");
+    expect(propertyIds).toContain("node-shape-star-point-height");
+    expect(propertyIds).toContain("node-shape-star-border-rotate");
+  });
+
+  it("enforces star ratio/height conflict clear-keys for adaptive controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[star,star point ratio=1.65] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+
+    const ratio = nodeSection.properties.find((property) => property.id === "node-shape-star-point-ratio");
+    const height = nodeSection.properties.find((property) => property.id === "node-shape-star-point-height");
+    if (!ratio || ratio.kind !== "number") {
+      throw new Error("Expected star point ratio number property");
+    }
+    if (!height || height.kind !== "length") {
+      throw new Error("Expected star point height length property");
+    }
+
+    expect(ratio.clearKeys).toContain("star point height");
+    expect(height.clearKeys).toContain("star point ratio");
+  });
+
+  it("edits adaptive number/length/enum/boolean properties through inspector write targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[trapezium,trapezium left angle=75,trapezium stretches=false] at (0,0) {A};
+  \node[tape,tape bend top=none,tape bend height=4pt] at (2,0) {B};
+  \node[signal,signal to=east,signal from=nowhere] at (4,0) {C};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const texts = rendered.semantic.scene.elements.filter((entry) => entry.kind === "Text");
+    expect(texts.length).toBeGreaterThanOrEqual(3);
+    if (texts.length < 3) {
+      throw new Error("Expected three text elements");
+    }
+
+    const trapezium = getInspectorDescriptor(texts[0]!, { source, editHandles: rendered.semantic.editHandles });
+    const tape = getInspectorDescriptor(texts[1]!, { source, editHandles: rendered.semantic.editHandles });
+    const signal = getInspectorDescriptor(texts[2]!, { source, editHandles: rendered.semantic.editHandles });
+
+    const leftAngle = getNodePropertyById(trapezium, "node-shape-trapezium-left-angle");
+    if (!leftAngle || leftAngle.kind !== "number") {
+      throw new Error("Expected trapezium left-angle number property");
+    }
+    const stretches = getNodePropertyById(trapezium, "node-shape-trapezium-stretches");
+    if (!stretches || stretches.kind !== "boolean") {
+      throw new Error("Expected trapezium stretches boolean property");
+    }
+    const bendTop = getNodePropertyById(tape, "node-shape-tape-bend-top");
+    if (!bendTop || bendTop.kind !== "enum") {
+      throw new Error("Expected tape bend-top enum property");
+    }
+    const bendHeight = getNodePropertyById(tape, "node-shape-tape-bend-height");
+    if (!bendHeight || bendHeight.kind !== "length") {
+      throw new Error("Expected tape bend-height length property");
+    }
+    const signalTo = getNodePropertyById(signal, "node-shape-signal-to");
+    if (!signalTo || signalTo.kind !== "enum") {
+      throw new Error("Expected signal-to enum property");
+    }
+
+    const applyProperty = (
+      currentSource: string,
+      property: typeof leftAngle | typeof stretches | typeof bendTop | typeof bendHeight | typeof signalTo,
+      value: string
+    ) => {
+      if (!("write" in property) || !property.write) {
+        throw new Error("Expected writable inspector property");
+      }
+      const result = applyEditAction(currentSource, [], {
+        kind: "setProperty",
+        elementId: property.write.elementId,
+        level: property.write.level,
+        key: property.write.key,
+        value,
+        clearKeys:
+          property.kind === "number" || property.kind === "length" || property.kind === "boolean"
+            ? property.clearKeys
+            : undefined
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected successful inspector property mutation");
+      }
+      return result.newSource;
+    };
+
+    let next = source;
+    next = applyProperty(next, leftAngle, "80deg");
+    next = applyProperty(next, stretches, "true");
+    next = applyProperty(next, bendTop, "in and out");
+    next = applyProperty(next, bendHeight, "7pt");
+    next = applyProperty(next, signalTo, "west");
+
+    expect(next).toContain("trapezium left angle=80deg");
+    expect(next).toContain("trapezium stretches");
+    expect(next).not.toContain("trapezium stretches=false");
+    expect(next).toContain("tape bend top=in and out");
+    expect(next).toContain("tape bend height=7pt");
+    expect(next).toContain("signal to=west");
+  });
+
+  it("clears the conflicting star adaptive key when editing ratio vs point height", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[star,star points=5,star point ratio=1.65] at (0,0) {A};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const text = rendered.semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(text).toBeDefined();
+    if (!text) {
+      throw new Error("Expected text element");
+    }
+
+    const descriptor = getInspectorDescriptor(text, { source, editHandles: rendered.semantic.editHandles });
+    const pointHeight = getNodePropertyById(descriptor, "node-shape-star-point-height");
+    const pointRatio = getNodePropertyById(descriptor, "node-shape-star-point-ratio");
+    if (!pointHeight || pointHeight.kind !== "length") {
+      throw new Error("Expected star point-height length property");
+    }
+    if (!pointRatio || pointRatio.kind !== "number") {
+      throw new Error("Expected star point-ratio number property");
+    }
+    if (!pointHeight.write || !pointRatio.write) {
+      throw new Error("Expected write targets for star adaptive properties");
+    }
+
+    const heightResult = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: pointHeight.write.elementId,
+      level: pointHeight.write.level,
+      key: pointHeight.write.key,
+      value: "9pt",
+      clearKeys: pointHeight.clearKeys
+    });
+    expect(heightResult.kind).toBe("success");
+    if (heightResult.kind !== "success") {
+      throw new Error("Expected successful star point-height mutation");
+    }
+    expect(heightResult.newSource).toContain("star point height=9pt");
+    expect(heightResult.newSource).not.toContain("star point ratio=");
+
+    const ratioResult = applyEditAction(heightResult.newSource, [], {
+      kind: "setProperty",
+      elementId: pointRatio.write.elementId,
+      level: pointRatio.write.level,
+      key: pointRatio.write.key,
+      value: "1.9",
+      clearKeys: pointRatio.clearKeys
+    });
+    expect(ratioResult.kind).toBe("success");
+    if (ratioResult.kind !== "success") {
+      throw new Error("Expected successful star point-ratio mutation");
+    }
+    expect(ratioResult.newSource).toContain("star point ratio=1.9");
+    expect(ratioResult.newSource).not.toContain("star point height=");
+  });
+
+  it("shows shape border rotate only for shapes that use rotation in semantic rendering", () => {
+    const withRotationSource = String.raw`\begin{tikzpicture}
+  \node[star,shape border rotate=10] at (0,0) {A};
+\end{tikzpicture}`;
+    const withoutRotationSource = String.raw`\begin{tikzpicture}
+  \node[diamond,aspect=1.2] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const withRotationText = renderTikzToSvg(withRotationSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    const withoutRotationText = renderTikzToSvg(withoutRotationSource).semantic.scene.elements.find((entry) => entry.kind === "Text");
+    expect(withRotationText).toBeDefined();
+    expect(withoutRotationText).toBeDefined();
+    if (!withRotationText || !withoutRotationText) {
+      throw new Error("Expected text elements");
+    }
+
+    const withRotationDescriptor = getInspectorDescriptor(withRotationText, { source: withRotationSource });
+    const withoutRotationDescriptor = getInspectorDescriptor(withoutRotationText, { source: withoutRotationSource });
+    const withRotation = getNodePropertyById(withRotationDescriptor, "node-shape-star-border-rotate");
+    const withoutRotation = getNodePropertyById(withoutRotationDescriptor, "node-shape-diamond-border-rotate");
+
+    expect(withRotation).toBeDefined();
+    expect(withRotation?.kind).toBe("number");
+    expect(withoutRotation).toBeUndefined();
+  });
+
+  it("merges adaptive properties for same-shape multi-selection and hides them for mixed shapes", () => {
+    const sameShapeSource = String.raw`\begin{tikzpicture}
+  \node[star,star points=5] at (0,0) {A};
+  \node[star,star points=7] at (2,0) {B};
+\end{tikzpicture}`;
+    const mixedShapeSource = String.raw`\begin{tikzpicture}
+  \node[star,star points=5] at (0,0) {A};
+  \node[trapezium,trapezium left angle=70] at (2,0) {B};
+\end{tikzpicture}`;
+
+    const sameTexts = renderTikzToSvg(sameShapeSource).semantic.scene.elements.filter((entry) => entry.kind === "Text");
+    const mixedTexts = renderTikzToSvg(mixedShapeSource).semantic.scene.elements.filter((entry) => entry.kind === "Text");
+    expect(sameTexts).toHaveLength(2);
+    expect(mixedTexts).toHaveLength(2);
+    if (sameTexts.length !== 2 || mixedTexts.length !== 2) {
+      throw new Error("Expected two text elements in each source");
+    }
+
+    const sameDescriptors = sameTexts.map((entry) => getInspectorDescriptor(entry, { source: sameShapeSource }));
+    const mixedDescriptors = mixedTexts.map((entry) => getInspectorDescriptor(entry, { source: mixedShapeSource }));
+    const sameMulti = buildMultiInspectorModel(sameDescriptors, sameDescriptors.length);
+    const mixedMulti = buildMultiInspectorModel(mixedDescriptors, mixedDescriptors.length);
+
+    const sameNode = sameMulti.sections.find((section) => section.id === "node");
+    const mixedNode = mixedMulti.sections.find((section) => section.id === "node");
+    expect(sameNode).toBeDefined();
+    expect(mixedNode).toBeDefined();
+    if (!sameNode || !mixedNode) {
+      throw new Error("Expected node sections");
+    }
+
+    const sameStarPoints = sameNode.properties.find((property) => property.id === "node-shape-star-points");
+    expect(sameStarPoints).toBeDefined();
+    expect(sameStarPoints && "mixed" in sameStarPoints ? sameStarPoints.mixed : false).toBe(true);
+
+    const mixedAdaptive = mixedNode.properties.filter(
+      (property) =>
+        property.id.startsWith("node-shape-star-")
+        || property.id.startsWith("node-shape-trapezium-")
+    );
+    expect(mixedAdaptive).toHaveLength(0);
   });
 
   it("builds node shape mutations that normalize existing shape flags", () => {
@@ -2545,6 +2804,14 @@ function getNodeShapeProperty(descriptor: ReturnType<typeof getInspectorDescript
     throw new Error("Expected node shape property");
   }
   return shape;
+}
+
+function getNodePropertyById(descriptor: ReturnType<typeof getInspectorDescriptor>, propertyId: string) {
+  const nodeSection = descriptor.sections.find((section) => section.id === "node");
+  if (!nodeSection) {
+    throw new Error("Expected node section");
+  }
+  return nodeSection.properties.find((property) => property.id === propertyId);
 }
 
 function getNodeLengthProperty(

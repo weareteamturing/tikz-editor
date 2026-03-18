@@ -124,6 +124,54 @@ export function renderSingleInspectorProperty(property: InspectorProperty, api: 
       );
     }
 
+    if (property.kind === "enum") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <CustomDropdown
+              ariaLabel={property.label}
+              value={property.value}
+              options={property.options}
+              disabled={!writable}
+              onChange={(nextValue) => applySetProperty(property.write, nextValue)}
+              renderValue={() => <span className={valueClassName}>{property.options.find((option) => option.value === property.value)?.label ?? property.value}</span>}
+            />,
+            true
+          )}
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "boolean") {
+      const writable = property.write.writable && capability.status !== "unsupported";
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <label className={css.checkboxControl}>
+            <input
+              className={css.checkboxInput}
+              type="checkbox"
+              checked={property.value}
+              disabled={!writable}
+              onChange={(event) => {
+                const nextChecked = event.currentTarget.checked;
+                applySetProperty(
+                  property.write,
+                  nextChecked ? (property.trueValue ?? "true") : (property.falseValue ?? "false"),
+                  { clearKeys: property.clearKeys }
+                );
+              }}
+            />
+            <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
+          </label>
+          {readOnlyReason ? <div className={css.propertyNote}>{readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
     if (property.kind === "number") {
       return (
         <div key={property.id} className={propertyClassName}>
@@ -837,6 +885,72 @@ export function renderMultiInspectorProperty(property: MultiInspectorProperty, a
     const propertyClassName = isPathMorphingSuboptionPropertyId(property.id)
       ? `${css.property} ${css.subProperty}`
       : css.property;
+    if (property.kind === "enum") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      const mixedValue = "__mixed-enum__";
+      const dropdownValue = property.mixed ? mixedValue : property.value;
+      const dropdownOptions = property.mixed
+        ? [{ value: mixedValue, label: "Mixed" }, ...property.options]
+        : property.options;
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <div className={css.propertyLabel}>{property.label}</div>
+          {maybeWrapWithProvenanceTooltip(
+            provenance,
+            <CustomDropdown
+              ariaLabel={property.label}
+              value={dropdownValue}
+              options={dropdownOptions}
+              disabled={!writable}
+              onChange={(nextValue) => {
+                if (nextValue === mixedValue) {
+                  return;
+                }
+                applySetPropertyMany(property.writes, nextValue);
+              }}
+              renderValue={() => {
+                const active = dropdownOptions.find((option) => option.value === dropdownValue);
+                return <span className={valueClassName}>{active?.label ?? ""}</span>;
+              }}
+            />,
+            true
+          )}
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
+    if (property.kind === "boolean") {
+      const writable = property.writes.some((write) => write.writable && write.elementId.length > 0);
+      return (
+        <div key={property.id} className={propertyClassName}>
+          <label className={css.checkboxControl}>
+            <input
+              className={css.checkboxInput}
+              type="checkbox"
+              checked={property.value}
+              ref={(input) => {
+                if (input) {
+                  input.indeterminate = property.mixed;
+                }
+              }}
+              disabled={!writable}
+              onChange={(event) => {
+                const nextChecked = event.currentTarget.checked;
+                applySetPropertyMany(
+                  property.writes,
+                  nextChecked ? (property.trueValue ?? "true") : (property.falseValue ?? "false"),
+                  { clearKeys: property.clearKeys }
+                );
+              }}
+            />
+            <span className={withValueProvenanceClass(css.checkboxLabel, provenance)}>{property.label}</span>
+          </label>
+          {property.readOnlyReason ? <div className={css.propertyNote}>{property.readOnlyReason}</div> : null}
+        </div>
+      );
+    }
+
     if (property.kind === "number") {
       return (
         <div key={property.id} className={propertyClassName}>
