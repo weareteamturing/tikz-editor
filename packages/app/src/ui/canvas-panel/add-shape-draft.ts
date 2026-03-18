@@ -1,4 +1,4 @@
-import type { ScenePathCommand } from "tikz-editor/semantic/types";
+import type { Point, ScenePathCommand } from "tikz-editor/semantic/types";
 import type { NodeShape } from "tikz-editor/semantic/nodes/types";
 import {
   makeCircularSector,
@@ -44,6 +44,26 @@ export type AddShapeDraftResolution = {
   minimumHeightPt?: number;
   preview: AddShapeDraftPreviewGeometry;
 };
+
+export function resolveAddShapeOriginFromDrag(
+  shapeRaw: string,
+  startWorld: Point,
+  endWorld: Point
+): Point {
+  const draft = resolveAddShapeDraft(
+    shapeRaw,
+    Math.abs(endWorld.x - startWorld.x),
+    Math.abs(endWorld.y - startWorld.y)
+  );
+  const dx = endWorld.x - startWorld.x;
+  const dy = endWorld.y - startWorld.y;
+  const anchorX = dx >= 0 ? draft.preview.bounds.minX : draft.preview.bounds.maxX;
+  const anchorY = dy >= 0 ? draft.preview.bounds.minY : draft.preview.bounds.maxY;
+  return {
+    x: startWorld.x - anchorX,
+    y: startWorld.y - anchorY
+  };
+}
 
 type ShapeConstraintCandidate = {
   minimumWidthPt?: number;

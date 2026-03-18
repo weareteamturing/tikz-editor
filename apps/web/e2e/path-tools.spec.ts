@@ -222,11 +222,42 @@ test("diamond shapes show drag-size preview and can be resized with handles", as
   await expect(resizeHandle).toBeVisible();
 
   const before = await readSource(page);
-  await dragLocatorBy(page, resizeHandle, 60, -40);
+  await dragLocatorBy(page, resizeHandle, -80, -80);
   await page.mouse.up();
   const after = await readSource(page);
 
   expect(after).toContain("shape=diamond");
+  expect(after).not.toBe(before);
+});
+
+test("circle shapes can be resized with handles", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-circle").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 260, y: 210 });
+  await page.mouse.up();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const resizeHandle = page.locator('[data-handle-kind="resize-element"][data-source-id="path:0"]').first();
+  await expect(resizeHandle).toBeVisible();
+
+  const before = await readSource(page);
+  await dragLocatorBy(page, resizeHandle, 60, -40);
+  await page.mouse.up();
+  const after = await readSource(page);
+
+  expect(after).toContain("shape=circle");
   expect(after).not.toBe(before);
 });
 

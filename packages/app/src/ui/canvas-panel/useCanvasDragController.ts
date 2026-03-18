@@ -37,7 +37,7 @@ import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
 import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
-import { resolveAddShapeDraft } from "./add-shape-draft";
+import { resolveAddShapeOriginFromDrag } from "./add-shape-draft";
 import { angleDeg, normalizeSignedDeg, resolveDraggedRotateDeg } from "./rotate-handle";
 import type { ResizeFrame } from "./resize-frames";
 import { resolveScopeAwareMarqueeSelection, type ScopeOverlayIndex } from "./scope-overlay";
@@ -921,7 +921,7 @@ export function useCanvasDragController(params: {
             : rawTemplate;
         const insertionAt =
           drag.toolMode === "addShape"
-            ? resolveAddShapeInsertionPoint(drag.startWorld, finalWorld, selectedAddShape)
+            ? resolveAddShapeOriginFromDrag(selectedAddShape, drag.startWorld, finalWorld)
             : drag.startWorld;
         queueSelectionForAddedElement(insertionAt);
         const ok = applyActionWithFeedback({
@@ -1121,26 +1121,6 @@ export function useCanvasDragController(params: {
     svgResultRef,
     textIndexFromClient
   ]);
-}
-
-function resolveAddShapeInsertionPoint(startWorld: Point, endWorld: Point, selectedAddShape: string): Point {
-  const draft = resolveAddShapeDraft(
-    selectedAddShape,
-    Math.abs(endWorld.x - startWorld.x),
-    Math.abs(endWorld.y - startWorld.y)
-  );
-  const dragCenter = {
-    x: (startWorld.x + endWorld.x) / 2,
-    y: (startWorld.y + endWorld.y) / 2
-  };
-  const boundsCenter = {
-    x: (draft.preview.bounds.minX + draft.preview.bounds.maxX) / 2,
-    y: (draft.preview.bounds.minY + draft.preview.bounds.maxY) / 2
-  };
-  return {
-    x: dragCenter.x - boundsCenter.x,
-    y: dragCenter.y - boundsCenter.y
-  };
 }
 
 function snapGridResizePoint(point: Point, config: GridResizeSnapConfig): Point {

@@ -4,7 +4,7 @@ import type { Point, ScenePathCommand } from "tikz-editor/semantic/types";
 import type { SvgViewBox } from "tikz-editor/svg/types";
 import { distanceSquared, fmt, worldToSvgPoint, worldToSvgY } from "./geometry";
 import { resolveBezierControlsFromBend } from "./interaction-helpers";
-import { resolveAddShapeDraft } from "./add-shape-draft";
+import { resolveAddShapeDraft, resolveAddShapeOriginFromDrag } from "./add-shape-draft";
 import {
   pathToolCanClose,
   pathToolCloseRadiusWorld,
@@ -338,37 +338,38 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       const width = Math.abs(end.x - start.x);
       const height = Math.abs(end.y - start.y);
       if (toolDraft.toolMode === "addShape") {
-        const dragCenterWorld = {
-          x: (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
-          y: (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
-        };
+        const nodeOriginWorld = resolveAddShapeOriginFromDrag(
+          selectedAddShape,
+          toolDraft.startWorld,
+          toolDraft.currentWorld
+        );
         const draft = resolveAddShapeDraft(
           selectedAddShape,
           Math.abs(toolDraft.currentWorld.x - toolDraft.startWorld.x),
           Math.abs(toolDraft.currentWorld.y - toolDraft.startWorld.y)
         );
-        const boundsCenter = {
+        const localBoundsCenter = {
           x: (draft.preview.bounds.minX + draft.preview.bounds.maxX) / 2,
           y: (draft.preview.bounds.minY + draft.preview.bounds.maxY) / 2
         };
-        const nodeCenterWorld = {
-          x: dragCenterWorld.x - boundsCenter.x,
-          y: dragCenterWorld.y - boundsCenter.y
+        const centerWorld = {
+          x: nodeOriginWorld.x + localBoundsCenter.x,
+          y: nodeOriginWorld.y + localBoundsCenter.y
         };
-        const nodeCenter = worldToSvgPoint(nodeCenterWorld, svgResult.viewBox);
+        const center = worldToSvgPoint(centerWorld, svgResult.viewBox);
         if (draft.preview.kind === "circle") {
           return {
             kind: "circle",
-            cx: nodeCenter.x,
-            cy: nodeCenter.y,
+            cx: center.x,
+            cy: center.y,
             r: draft.preview.radius > 1e-4 ? draft.preview.radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
           };
         }
         if (draft.preview.kind === "ellipse") {
           return {
             kind: "ellipse",
-            cx: nodeCenter.x,
-            cy: nodeCenter.y,
+            cx: center.x,
+            cy: center.y,
             rx: draft.preview.rx,
             ry: draft.preview.ry
           };
@@ -377,8 +378,8 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
           kind: "path",
           d: encodeTranslatedPathPreview(
             draft.preview.commands,
-            nodeCenterWorld.x,
-            nodeCenterWorld.y,
+            nodeOriginWorld.x,
+            nodeOriginWorld.y,
             svgResult.viewBox
           )
         };
@@ -420,26 +421,26 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
 
 function encodeTranslatedPathPreview(
   commands: readonly ScenePathCommand[],
-  centerWorldX: number,
-  centerWorldY: number,
+  originWorldX: number,
+  originWorldY: number,
   viewBox: SvgViewBox
 ): string {
   const parts: string[] = [];
   for (const command of commands) {
     if (command.kind === "M" || command.kind === "L") {
-      const point = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
+      const point = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
       parts.push(`${command.kind} ${fmt(point.x)},${fmt(point.y)}`);
       continue;
     }
     if (command.kind === "C") {
-      const c1 = worldToSvgPoint({ x: command.c1.x + centerWorldX, y: command.c1.y + centerWorldY }, viewBox);
-      const c2 = worldToSvgPoint({ x: command.c2.x + centerWorldX, y: command.c2.y + centerWorldY }, viewBox);
-      const to = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
+      const c1 = worldToSvgPoint({ x: command.c1.x + originWorldX, y: command.c1.y + originWorldY }, viewBox);
+      const c2 = worldToSvgPoint({ x: command.c2.x + originWorldX, y: command.c2.y + originWorldY }, viewBox);
+      const to = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
       parts.push(`C ${fmt(c1.x)},${fmt(c1.y)} ${fmt(c2.x)},${fmt(c2.y)} ${fmt(to.x)},${fmt(to.y)}`);
       continue;
     }
     if (command.kind === "A") {
-      const to = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
+      const to = worldToSvgPoint({ x: command.to.x + originWorldX, y: command.to.y + originWorldY }, viewBox);
       parts.push(
         `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${command.sweep ? 1 : 0} ${fmt(to.x)},${fmt(to.y)}`
       );

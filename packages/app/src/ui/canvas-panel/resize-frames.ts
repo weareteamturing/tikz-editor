@@ -178,7 +178,7 @@ function resolveNodePathResizeFrame(
 
   const corners = resolveRectanglePathCorners(path);
   if (!corners) {
-    return null;
+    return resolveGenericNodePathResizeFrame(path, sourceId, viewBox);
   }
   const transformedCorners = path.transform
     ? corners.map((corner) => applyMatrix(path.transform!, corner))
@@ -196,6 +196,90 @@ function resolveNodePathResizeFrame(
     return null;
   }
   return buildResizeFrame(sourceId, centerWorld, cornersByRole, viewBox);
+}
+
+function resolveGenericNodePathResizeFrame(
+  path: ScenePath,
+  sourceId: string,
+  viewBox: SvgViewBox
+): ResizeFrame | null {
+  const points = collectPathRepresentativePoints(path.commands);
+  if (points.length === 0) {
+    return null;
+  }
+
+  const localBounds = boundsFromPoints(points);
+  const width = localBounds.maxX - localBounds.minX;
+  const height = localBounds.maxY - localBounds.minY;
+  if (!(width > EPSILON) || !(height > EPSILON)) {
+    return null;
+  }
+
+  const roleLocal: Record<ResizeFrameCornerRole, Point> = {
+    "top-left": { x: localBounds.minX, y: localBounds.maxY },
+    "top-right": { x: localBounds.maxX, y: localBounds.maxY },
+    "bottom-right": { x: localBounds.maxX, y: localBounds.minY },
+    "bottom-left": { x: localBounds.minX, y: localBounds.minY }
+  };
+  const transform = path.transform;
+  const roleWorld: Record<ResizeFrameCornerRole, Point> = transform
+    ? {
+        "top-left": applyMatrix(transform, roleLocal["top-left"]),
+        "top-right": applyMatrix(transform, roleLocal["top-right"]),
+        "bottom-right": applyMatrix(transform, roleLocal["bottom-right"]),
+        "bottom-left": applyMatrix(transform, roleLocal["bottom-left"])
+      }
+    : roleLocal;
+  const centerLocal = {
+    x: (localBounds.minX + localBounds.maxX) / 2,
+    y: (localBounds.minY + localBounds.maxY) / 2
+  };
+  const centerWorld = transform ? applyMatrix(transform, centerLocal) : centerLocal;
+  return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
+}
+
+function collectPathRepresentativePoints(commands: readonly ScenePath["commands"][number][]): Point[] {
+  const points: Point[] = [];
+  let current: Point | null = null;
+  let subpathStart: Point | null = null;
+
+  for (const command of commands) {
+    if (command.kind === "M") {
+      current = command.to;
+      subpathStart = command.to;
+      points.push(command.to);
+      continue;
+    }
+    if (command.kind === "L") {
+      current = command.to;
+      points.push(command.to);
+      continue;
+    }
+    if (command.kind === "C") {
+      if (current) {
+        points.push(current);
+      }
+      points.push(command.c1, command.c2, command.to);
+      current = command.to;
+      continue;
+    }
+    if (command.kind === "A") {
+      if (current) {
+        points.push(current);
+      }
+      points.push(command.to);
+      current = command.to;
+      continue;
+    }
+    if (command.kind === "Z") {
+      if (subpathStart) {
+        points.push(subpathStart);
+        current = subpathStart;
+      }
+    }
+  }
+
+  return points;
 }
 
 function resolvePathRectangleResizeFrame(
@@ -577,9 +661,15 @@ function pickCenterPathPointHandle(
   sourceId: string,
   targetCenter?: Point
 ): EditHandle | null {
-  const candidateHandles = editHandles.filter(
+  const pathPointHandles = editHandles.filter(
     (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "path-point"
   );
+  const candidateHandles =
+    pathPointHandles.length > 0
+      ? pathPointHandles
+      : editHandles.filter(
+          (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
+        );
   if (candidateHandles.length === 0) {
     return null;
   }
