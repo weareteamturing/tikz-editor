@@ -59,11 +59,7 @@ import { requestSourceSelection } from "../source-sync";
 const ROTATE_SHIFT_SNAP_STEP_DEG = 15;
 const ROTATE_SOFT_SNAP_STEP_DEG = 90;
 const ROTATE_SOFT_SNAP_THRESHOLD_DEG = 7;
-const ADORNMENT_ANGLE_SNAP_STEP_DEG = 45;
-const ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG = 10;
 const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
-const ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT = 3;
-const ADORNMENT_DISTANCE_STEP_PT = 0.5;
 const GRID_RESIZE_STEP_EPSILON = 1e-9;
 const SNAP_FEEDBACK_EPSILON = 1e-6;
 
@@ -612,6 +608,7 @@ export function useCanvasDragController(params: {
         if (drag.elementIds.length === 1) {
           const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
           if (parsedTarget.kind === "node-adornment") {
+            const rawWorld = world;
             let adornmentDrag = drag.adornmentDrag;
             if (!adornmentDrag) {
               const adornmentElements =
@@ -623,19 +620,21 @@ export function useCanvasDragController(params: {
                 maybeTriggerSnapFeedback(false);
                 return;
               }
+              const referenceWorld = resolveAdornmentDragReferenceWorld(adornmentElement) ?? ownerPoint;
               adornmentDrag = {
                 ownerPoint,
                 ownerGeometry: adornmentElement?.adornment?.ownerGeometry,
                 allowCenter: adornmentElement?.adornment?.kind === "label",
-                defaultDistancePt:
-                  adornmentElement?.adornment?.defaultDistancePt ?? adornmentElement?.adornment?.distancePt ?? 0
+                pointerOffsetFromReference: {
+                  x: rawWorld.x - referenceWorld.x,
+                  y: rawWorld.y - referenceWorld.y
+                }
               };
               drag.adornmentDrag = adornmentDrag;
             }
-            const rawWorld = world;
-            const placement = resolveAdornmentDragPlacement(rawWorld, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
-              allowCenter: adornmentDrag.allowCenter,
-              defaultDistancePt: adornmentDrag.defaultDistancePt
+            const referenceWorld = applyAdornmentPointerOffset(rawWorld, adornmentDrag.pointerOffsetFromReference);
+            const placement = resolveAdornmentDragPlacement(referenceWorld, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
+              allowCenter: adornmentDrag.allowCenter
             });
             setSnapLines([]);
             maybeTriggerSnapFeedback(false);
@@ -644,7 +643,7 @@ export function useCanvasDragController(params: {
                 kind: "moveAdornment",
                 targetId: parsedTarget.id,
                 ownerPoint: adornmentDrag.ownerPoint,
-                newWorld: rawWorld,
+                newWorld: referenceWorld,
                 angleRaw: placement.angleRaw,
                 distancePt: placement.distancePt
               },
@@ -1132,11 +1131,97 @@ function selectPrimaryAdornmentElement(elements: readonly SceneElement[]): Scene
   );
 }
 
+function resolveAdornmentDragReferenceWorld(element: SceneElement | null): Point | null {
+  if (!element?.adornment) {
+    return null;
+  }
+  const referenceFromAdornment = resolveAdornmentReferenceWorld(element.adornment);
+  if (referenceFromAdornment) {
+    return referenceFromAdornment;
+  }
+  if (element.kind === "Text") {
+    return element.position;
+  }
+  if (element.kind === "Circle" || element.kind === "Ellipse") {
+    return element.center;
+  }
+  return null;
+}
+
+function resolveAdornmentReferenceWorld(adornment: NonNullable<SceneElement["adornment"]>): Point | null {
+  const ownerCenter = adornment.ownerGeometry?.center ?? adornment.ownerPoint;
+  if (!ownerCenter) {
+    return null;
+  }
+  const parsedAngle = parseAdornmentAngleDegrees(adornment.angleRaw);
+  if (parsedAngle == null) {
+    return null;
+  }
+  if (parsedAngle.kind === "center") {
+    return { ...ownerCenter };
+  }
+  const radians = (parsedAngle.degrees * Math.PI) / 180;
+  const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+  const borderDistance = resolveAdornmentOwnerBorderDistance(adornment.ownerGeometry, direction);
+  const distancePt = Math.max(0, adornment.distancePt ?? 0);
+  return {
+    x: ownerCenter.x + direction.x * (borderDistance + distancePt),
+    y: ownerCenter.y + direction.y * (borderDistance + distancePt)
+  };
+}
+
+function parseAdornmentAngleDegrees(raw: string | undefined): { kind: "center" } | { kind: "angle"; degrees: number } | null {
+  const normalized = raw?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
+  if (normalized.length === 0) {
+    return null;
+  }
+  if (normalized === "center" || normalized === "centered") {
+    return { kind: "center" };
+  }
+  const namedDegrees: Record<string, number> = {
+    right: 0,
+    "above right": 45,
+    above: 90,
+    "above left": 135,
+    left: 180,
+    "below left": 225,
+    below: 270,
+    "below right": 315,
+    east: 0,
+    "north east": 45,
+    north: 90,
+    "north west": 135,
+    west: 180,
+    "south west": 225,
+    south: 270,
+    "south east": 315
+  };
+  if (normalized in namedDegrees) {
+    return { kind: "angle", degrees: namedDegrees[normalized]! };
+  }
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  let degrees = numeric % 360;
+  if (degrees < 0) {
+    degrees += 360;
+  }
+  return { kind: "angle", degrees };
+}
+
+export function applyAdornmentPointerOffset(pointerWorld: Point, pointerOffsetFromReference: Point): Point {
+  return {
+    x: pointerWorld.x - pointerOffsetFromReference.x,
+    y: pointerWorld.y - pointerOffsetFromReference.y
+  };
+}
+
 export function resolveAdornmentDragPlacement(
   point: Point,
   ownerPoint: Point,
   ownerGeometry: AdornmentOwnerGeometry | undefined,
-  options: { allowCenter: boolean; defaultDistancePt: number }
+  options: { allowCenter: boolean }
 ): { angleRaw: string; distancePt: number } {
   const center = ownerGeometry?.center ?? ownerPoint;
   const dx = point.x - center.x;
@@ -1146,25 +1231,13 @@ export function resolveAdornmentDragPlacement(
     return { angleRaw: "center", distancePt: 0 };
   }
 
-  let angleDeg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-  if (radius > 1e-6) {
-    const snappedDeg = Math.round(angleDeg / ADORNMENT_ANGLE_SNAP_STEP_DEG) * ADORNMENT_ANGLE_SNAP_STEP_DEG;
-    const deltaDeg = Math.abs((((angleDeg - snappedDeg) % 360) + 540) % 360 - 180);
-    if (deltaDeg <= ADORNMENT_ANGLE_SNAP_THRESHOLD_DEG) {
-      angleDeg = snappedDeg;
-    }
-  }
+  const angleDeg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
 
   const radians = (angleDeg * Math.PI) / 180;
   const direction = { x: Math.cos(radians), y: Math.sin(radians) };
   const radialDistanceFromCenter = Math.max(0, dx * direction.x + dy * direction.y);
   const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, direction);
-  let distancePt = Math.max(0, radialDistanceFromCenter - borderDistance);
-  if (Math.abs(distancePt - options.defaultDistancePt) <= ADORNMENT_DISTANCE_SNAP_THRESHOLD_PT) {
-    distancePt = options.defaultDistancePt;
-  } else {
-    distancePt = Math.round(distancePt / ADORNMENT_DISTANCE_STEP_PT) * ADORNMENT_DISTANCE_STEP_PT;
-  }
+  const distancePt = Math.max(0, radialDistanceFromCenter - borderDistance);
   if (options.allowCenter && radialDistanceFromCenter <= borderDistance + ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
     return { angleRaw: "center", distancePt: 0 };
   }
@@ -1204,25 +1277,9 @@ function resolveAdornmentOwnerBorderDistance(
 }
 
 function formatAdornmentAngle(rawDegrees: number): string {
-  let degrees = rawDegrees % 360;
-  if (degrees < 0) {
-    degrees += 360;
+  let normalized = rawDegrees % 360;
+  if (normalized < 0) {
+    normalized += 360;
   }
-  const keywords = [
-    { label: "right", degrees: 0 },
-    { label: "above right", degrees: 45 },
-    { label: "above", degrees: 90 },
-    { label: "above left", degrees: 135 },
-    { label: "left", degrees: 180 },
-    { label: "below left", degrees: 225 },
-    { label: "below", degrees: 270 },
-    { label: "below right", degrees: 315 }
-  ];
-  for (const keyword of keywords) {
-    const delta = Math.min(Math.abs(degrees - keyword.degrees), 360 - Math.abs(degrees - keyword.degrees));
-    if (delta <= 8) {
-      return keyword.label;
-    }
-  }
-  return String(Math.round(degrees));
+  return formatNumber(normalized);
 }

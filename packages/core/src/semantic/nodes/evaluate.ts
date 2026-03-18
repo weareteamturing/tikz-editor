@@ -352,10 +352,13 @@ export function evaluateNodeItem(
   const nodeStyle = nodeStyleTrace.style;
   const nodeStyleChain = nodeStyleTrace.chain;
   const anchor = resolveAutoNodeAnchor(expandedNodeOptions, segment) ?? resolveNodeAnchor(expandedNodeOptions);
+  const nodeHandleSourceId = item.adornment
+    ? makeNodeAdornmentTargetId(item.adornment.ownerNodeId, item.adornment.adornmentIndex, item.adornment.kind)
+    : statement.id;
   const target = resolveNodeTargetPoint(
     item,
     context,
-    statement.id,
+    nodeHandleSourceId,
     item.span,
     pushDiagnostic,
     expandedNodeOptions,

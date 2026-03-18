@@ -787,6 +787,7 @@ export function evaluatePathStatement(
             frontNodeElements.push(...resolvedAdornment.frontElements);
 
             if (spec.kind === "pin" && materialized.node.name && materialized.mainPoint) {
+              const pinAdornmentTargetId = makeNodeAdornmentTargetId(item.id, adornmentIndex, "pin");
               const pinEdgeItem: EdgeOperationItem = {
                 kind: "EdgeOperation",
                 id: `${item.id}:pin-edge:${adornmentIndex}`,
@@ -840,6 +841,7 @@ export function evaluatePathStatement(
                 pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
               }
 
+              const pinEdgeHandlesStart = context.editHandles.length;
               const pinEdge = applyEdgeOperation(
                 pinEdgeItem,
                 context,
@@ -851,11 +853,24 @@ export function evaluatePathStatement(
                 materialized.mainPoint,
                 `(${materialized.mainNameRaw})`
               );
+              for (let handleIndex = pinEdgeHandlesStart; handleIndex < context.editHandles.length; handleIndex += 1) {
+                const handle = context.editHandles[handleIndex];
+                if (!handle || handle.sourceRef.sourceId !== statement.id) {
+                  continue;
+                }
+                context.editHandles[handleIndex] = {
+                  ...handle,
+                  sourceRef: {
+                    ...handle.sourceRef,
+                    sourceId: pinAdornmentTargetId
+                  }
+                };
+              }
               if (pinEdge.activePath && hasDrawablePathSegments(pinEdge.activePath)) {
                 pinEdge.activePath = {
                   ...pinEdge.activePath,
                   adornment: {
-                    targetId: makeNodeAdornmentTargetId(item.id, adornmentIndex, "pin"),
+                    targetId: pinAdornmentTargetId,
                     kind: "pin",
                     ownerSourceId: item.id,
                     ownerNodeId: item.id,

@@ -58,7 +58,7 @@ export type DragState =
         ownerPoint: Point;
         ownerGeometry?: AdornmentOwnerGeometry;
         allowCenter: boolean;
-        defaultDistancePt: number;
+        pointerOffsetFromReference: Point;
       };
       snapContext: SnapContext | null;
       initialSelection: SelectionGeometry | null;

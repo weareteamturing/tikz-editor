@@ -1764,6 +1764,30 @@ describe("applyEditAction – resizeElement", () => {
     expect(adornedResult.newSource).toContain("pin=above:P");
   });
 
+  it("moves adorned nodes without rewriting label/pin option payloads", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw,label=right:L,pin=above:P] at (0,0) {A};
+\end{tikzpicture}`;
+
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+    const result = applyEditAction(source, semantic.editHandles, {
+      kind: "moveElements",
+      elementIds: ["path:0"],
+      delta: { x: 1, y: 0 }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      return;
+    }
+
+    expect(result.newSource).toContain("label=right:L");
+    expect(result.newSource).toContain("pin=above:P");
+    expect(result.newSource).toContain(" at (0.04,0) ");
+    expect(result.newSource).not.toContain("\\node[draw,(");
+  });
+
   it("resizes transform-rotated circle statements", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw[rotate=45] (0,0) circle (1cm);
