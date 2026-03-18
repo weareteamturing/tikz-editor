@@ -90,6 +90,9 @@ export function commandDefaultStyle(command: PathCommand, inheritedStyle: Resolv
     case "draw":
       return {
         stroke: inheritedStyle.stroke ?? "black",
+        fill: null,
+        fillPattern: null,
+        shadeEnabled: false,
         drawExplicit: true
       };
     case "path":

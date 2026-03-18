@@ -612,6 +612,22 @@ describe("semantic evaluator / styles and colors", () => {
       }
     });
 
+    it("does not inherit scope fill paint into draw command defaults", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \begin{scope}[fill=blue]
+      \draw[gray!65] (0,0) circle [radius=1cm];
+    \end{scope}
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const circle = firstElementOfKind(result.scene.elements, "Circle");
+      expect(circle?.kind).toBe("Circle");
+      if (circle?.kind === "Circle") {
+        expect(circle.style.stroke).toBe("#acacac");
+        expect(circle.style.fill).toBeNull();
+      }
+    });
+
     it("applies custom styles defined via \\tikzset, \\tikzstyle, and \\pgfkeys", () => {
       const source = String.raw`\begin{tikzpicture}
     \tikzset{
