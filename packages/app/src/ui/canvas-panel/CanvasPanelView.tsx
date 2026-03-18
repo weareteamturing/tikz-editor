@@ -37,7 +37,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onViewportPaste,
     onViewportDragOver,
     onViewportDrop,
+    onBackgroundClick,
     onViewportPointerDown,
+    onViewportPointerUp,
     svgResult,
     noActiveFigure,
     assistantLockReason,
@@ -48,6 +50,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onSvgPatchFallback,
     interactionSvgRef,
     onInteractionPointerDown,
+    onInteractionPointerUp,
     onInteractionPointerMove,
     onInteractionPointerEnter,
     onInteractionPointerLeave,
@@ -196,7 +199,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
           onPaste={onViewportPaste}
           onDragOver={onViewportDragOver}
           onDrop={onViewportDrop}
+          onClick={onBackgroundClick}
           onPointerDown={onViewportPointerDown}
+          onPointerUp={onViewportPointerUp}
           onContextMenu={(event) => {
             if (event.defaultPrevented) {
               return;
@@ -232,7 +237,9 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 ref={interactionSvgRef}
                 className={[css.interactionLayer, toolMode === "select" ? "" : css.interactionLayerTool].filter(Boolean).join(" ")}
                 viewBox={`${svgResult.viewBox.x} ${svgResult.viewBox.y} ${svgResult.viewBox.width} ${svgResult.viewBox.height}`}
+                onClick={onBackgroundClick}
                 onPointerDown={onInteractionPointerDown}
+                onPointerUp={onInteractionPointerUp}
                 onPointerMove={onInteractionPointerMove}
                 onPointerEnter={onInteractionPointerEnter}
                 onPointerLeave={onInteractionPointerLeave}

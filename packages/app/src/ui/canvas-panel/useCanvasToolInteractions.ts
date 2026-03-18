@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
 import { type NodeAnchorTarget, type Point } from "tikz-editor/semantic/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
@@ -7,7 +7,7 @@ import { createPathToolDraft, pathToolCloseRadiusWorld, pathToolCurrentPoint, pa
 import { resolvePathEndpointSnap } from "./path-endpoint-snap";
 import { createFreehandToolDraft } from "./freehand-tool";
 import { isToolCreateMode } from "../tool-config";
-import type { DragState } from "./types";
+import type { DragState, PendingTouchViewport } from "./types";
 
 export type UseCanvasToolInteractionsArgs = {
   [key: string]: any;
@@ -19,6 +19,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     toolMode,
     setTextEditingSession,
     startMarqueeSelection,
+    pendingTouchViewportRef,
     svgResult,
     setDragState,
     canvasTransform,
@@ -56,15 +57,19 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     freehandDraft
   } = args;
 
-  type PendingTouchViewport = {
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    additiveSelection: boolean;
-    startTransform: typeof canvasTransform;
-    timer: ReturnType<typeof setTimeout>;
-  };
-  const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
+  const finalizePendingTouchViewportTap = useCallback(
+    (pointerId: number) => {
+      const pending = pendingTouchViewportRef.current;
+      if (!pending || pending.pointerId !== pointerId) return false;
+      clearTimeout(pending.timer);
+      pendingTouchViewportRef.current = null;
+      if (!pending.additiveSelection) {
+        dispatch({ type: "CLEAR_SELECTION" });
+      }
+      return true;
+    },
+    [dispatch, pendingTouchViewportRef]
+  );
 
   useEffect(() => {
     function onPointerMove(event: PointerEvent) {
@@ -86,10 +91,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     }
 
     function onPointerUp(event: PointerEvent) {
-      const pending = pendingTouchViewportRef.current;
-      if (!pending || pending.pointerId !== event.pointerId) return;
-      clearTimeout(pending.timer);
-      pendingTouchViewportRef.current = null;
+      finalizePendingTouchViewportTap(event.pointerId);
     }
 
     window.addEventListener("pointermove", onPointerMove);
@@ -105,7 +107,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         pendingTouchViewportRef.current = null;
       }
     };
-  }, [setDragState]);
+  }, [finalizePendingTouchViewportTap, setDragState]);
 
   const onViewportPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -120,6 +122,19 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
     },
     [startMarqueeSelection, toolMode, setTextEditingSession, viewportRef]
+  );
+
+  const onBackgroundClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement | SVGSVGElement>) => {
+      if (toolMode !== "select" || event.target !== event.currentTarget) {
+        return;
+      }
+      if (event.shiftKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      dispatch({ type: "CLEAR_SELECTION" });
+    },
+    [dispatch, toolMode]
   );
 
   const onInteractionPointerDown = useCallback(
@@ -444,6 +459,18 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
 
       if (toolMode === "select" && event.button === 0 && event.target === event.currentTarget) {
         if (event.pointerType === "touch") {
+          const pending = pendingTouchViewportRef.current;
+          if (!event.isPrimary || (pending && pending.pointerId !== event.pointerId)) {
+            if (pending) {
+              clearTimeout(pending.timer);
+              pendingTouchViewportRef.current = null;
+            }
+            if (dragRef.current?.kind === "pan" || dragRef.current?.kind === "marquee") {
+              setDragState(null);
+            }
+            event.preventDefault();
+            return;
+          }
           // On touch: moving immediately pans the canvas; marquee only opens after a long press.
           const touchPointerId = event.pointerId;
           const touchClientX = event.clientX;
@@ -504,7 +531,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setToolDraft,
       setWarning,
       viewportRef,
-      pendingAddedSelectionRef
+      pendingAddedSelectionRef,
+      pendingTouchViewportRef
     ]
   );
 
@@ -800,9 +828,32 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     ]
   );
 
+  const onInteractionPointerUp = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      finalizePendingTouchViewportTap(event.pointerId);
+    },
+    [finalizePendingTouchViewportTap]
+  );
+
+  const onViewportPointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      finalizePendingTouchViewportTap(event.pointerId);
+    },
+    [finalizePendingTouchViewportTap]
+  );
+
   return {
+    onBackgroundClick,
     onViewportPointerDown,
+    onViewportPointerUp,
     onInteractionPointerDown,
+    onInteractionPointerUp,
     onInteractionPointerMove,
     onInteractionPointerLeave,
     onInteractionPointerEnter

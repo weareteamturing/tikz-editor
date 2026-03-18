@@ -38,6 +38,15 @@ export type DragTooltipState = {
   rows: DragTooltipRow[];
 };
 
+export type PendingTouchViewport = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  additiveSelection: boolean;
+  startTransform: CanvasTransform;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 export type DragState =
   | {
       kind: "element";

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { clamp, distanceSquared, viewportToSvgPoint } from "./geometry";
 import { resolveToolCreateCurrentWorld } from "./interaction-helpers";
+import type { PendingTouchViewport } from "./types";
 
 export type UseCanvasViewportEffectsArgs = {
   [key: string]: any;
@@ -9,6 +10,8 @@ export type UseCanvasViewportEffectsArgs = {
 export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
   const {
     dragRef,
+    pendingTouchViewportRef,
+    setDragState,
     setToolDraft,
     setToolCursorWorld,
     viewportRef,
@@ -159,6 +162,81 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
 
     let inGesture = false;
     let lastGestureScale = 1;
+    const activeTouchPointers = new Map<number, { clientX: number; clientY: number }>();
+    let pinchGesture:
+      | {
+          baseScale: number;
+          baseSvgPoint: { x: number; y: number };
+          baseDistance: number;
+        }
+      | null = null;
+
+    const clearPendingTouchViewport = () => {
+      const pending = pendingTouchViewportRef.current as PendingTouchViewport | null;
+      if (!pending) {
+        return;
+      }
+      clearTimeout(pending.timer);
+      pendingTouchViewportRef.current = null;
+    };
+
+    const touchPair = () => {
+      const [first, second] = [...activeTouchPointers.values()];
+      if (!first || !second) {
+        return null;
+      }
+      return { first, second };
+    };
+
+    const beginPinchGesture = () => {
+      const currentSvg = svgResultRef.current;
+      const pair = touchPair();
+      if (!currentSvg || !pair) {
+        pinchGesture = null;
+        return;
+      }
+      const center = midpointLocal(pair.first, pair.second, viewport);
+      const distance = touchDistance(pair.first, pair.second);
+      if (!Number.isFinite(distance) || distance <= 0) {
+        pinchGesture = null;
+        return;
+      }
+      const currentTransform = canvasTransformRef.current;
+      pinchGesture = {
+        baseScale: currentTransform.scale,
+        baseSvgPoint: viewportToSvgPoint(center.x, center.y, currentTransform, currentSvg.viewBox),
+        baseDistance: distance
+      };
+    };
+
+    const updatePinchGesture = () => {
+      const currentSvg = svgResultRef.current;
+      const pair = touchPair();
+      if (!currentSvg || !pair || !pinchGesture) {
+        return;
+      }
+      const distance = touchDistance(pair.first, pair.second);
+      if (!Number.isFinite(distance) || distance <= 0) {
+        return;
+      }
+      const center = midpointLocal(pair.first, pair.second, viewport);
+      const nextScale = clamp(
+        pinchGesture.baseScale * (distance / pinchGesture.baseDistance),
+        MIN_SCALE,
+        MAX_SCALE
+      );
+      const translateX = center.x - (pinchGesture.baseSvgPoint.x - currentSvg.viewBox.x) * nextScale;
+      const translateY = center.y - (pinchGesture.baseSvgPoint.y - currentSvg.viewBox.y) * nextScale;
+
+      if (fitToContentModeActiveRef.current) {
+        setFitToContentModeActive(false);
+      }
+
+      dispatch({
+        type: "SET_CANVAS_TRANSFORM",
+        transform: { translateX, translateY, scale: nextScale }
+      });
+    };
 
     const onWheel = (event: WheelEvent) => {
       if (inGesture) return;
@@ -243,16 +321,99 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       inGesture = false;
     };
 
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      activeTouchPointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+      if (activeTouchPointers.size < 2) {
+        return;
+      }
+      clearPendingTouchViewport();
+      if (dragRef.current?.kind === "pan" || dragRef.current?.kind === "marquee") {
+        setDragState(null);
+      }
+      beginPinchGesture();
+      updatePinchGesture();
+      event.preventDefault();
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !activeTouchPointers.has(event.pointerId)) {
+        return;
+      }
+      activeTouchPointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+      if (!pinchGesture) {
+        return;
+      }
+      updatePinchGesture();
+      event.preventDefault();
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !activeTouchPointers.has(event.pointerId)) {
+        return;
+      }
+      activeTouchPointers.delete(event.pointerId);
+      if (activeTouchPointers.size >= 2) {
+        beginPinchGesture();
+        return;
+      }
+      pinchGesture = null;
+    };
+
     viewport.addEventListener("wheel", onWheel, { passive: false });
     viewport.addEventListener("gesturestart", onGestureStart, { passive: false });
     viewport.addEventListener("gesturechange", onGestureChange, { passive: false });
     viewport.addEventListener("gestureend", onGestureEnd, { passive: false });
+    viewport.addEventListener("pointerdown", onPointerDown, { passive: false });
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", onPointerUp, { passive: false });
+    window.addEventListener("pointercancel", onPointerUp, { passive: false });
 
     return () => {
       viewport.removeEventListener("wheel", onWheel);
       viewport.removeEventListener("gesturestart", onGestureStart);
       viewport.removeEventListener("gesturechange", onGestureChange);
       viewport.removeEventListener("gestureend", onGestureEnd);
+      viewport.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      activeTouchPointers.clear();
+      pinchGesture = null;
     };
-  }, [MAX_SCALE, MIN_SCALE, canvasTransformRef, dispatch, fitToContentModeActiveRef, setFitToContentModeActive, svgResultRef, viewportRef, zoomSpeed]);
+  }, [
+    MAX_SCALE,
+    MIN_SCALE,
+    canvasTransformRef,
+    dispatch,
+    dragRef,
+    fitToContentModeActiveRef,
+    pendingTouchViewportRef,
+    setDragState,
+    setFitToContentModeActive,
+    svgResultRef,
+    viewportRef,
+    zoomSpeed
+  ]);
+}
+
+function midpointLocal(
+  first: { clientX: number; clientY: number },
+  second: { clientX: number; clientY: number },
+  viewport: HTMLDivElement
+): { x: number; y: number } {
+  const rect = viewport.getBoundingClientRect();
+  return {
+    x: (first.clientX + second.clientX) / 2 - rect.left,
+    y: (first.clientY + second.clientY) / 2 - rect.top
+  };
+}
+
+function touchDistance(
+  first: { clientX: number; clientY: number },
+  second: { clientX: number; clientY: number }
+): number {
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 }

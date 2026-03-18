@@ -76,6 +76,7 @@ import type {
   EditableTextTarget,
   FreehandToolDraft,
   NodeAnchorOverlayState,
+  PendingTouchViewport,
   PendingAddedSelection,
   PendingBezier,
   PathToolDraft,
@@ -700,6 +701,7 @@ export function CanvasPanel() {
   const snapDebugDragRef = useRef<SnapDebugOverlayDragState | null>(null);
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
+  const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1885,8 +1887,11 @@ export function CanvasPanel() {
   });
 
   const {
+    onBackgroundClick,
     onViewportPointerDown,
+    onViewportPointerUp,
     onInteractionPointerDown,
+    onInteractionPointerUp,
     onInteractionPointerMove,
     onInteractionPointerLeave,
     onInteractionPointerEnter
@@ -1895,6 +1900,7 @@ export function CanvasPanel() {
     toolMode,
     setTextEditingSession,
     startMarqueeSelection,
+    pendingTouchViewportRef,
     svgResult,
     setDragState,
     canvasTransform,
@@ -1973,6 +1979,8 @@ export function CanvasPanel() {
 
   useCanvasViewportEffects({
     dragRef,
+    pendingTouchViewportRef,
+    setDragState,
     setToolDraft,
     setToolCursorWorld,
     viewportRef,
@@ -2434,7 +2442,9 @@ export function CanvasPanel() {
       onViewportPaste={onViewportPaste}
       onViewportDragOver={onViewportDragOver}
       onViewportDrop={onViewportDrop}
+      onBackgroundClick={onBackgroundClick}
       onViewportPointerDown={onViewportPointerDown}
+      onViewportPointerUp={onViewportPointerUp}
       svgResult={svgResult}
       noActiveFigure={snapshot.figures.length > 0 && snapshot.activeFigureId == null}
       assistantLockReason={assistantLockReason}
@@ -2445,6 +2455,7 @@ export function CanvasPanel() {
       onSvgPatchFallback={onSvgPatchFallback}
       interactionSvgRef={interactionSvgRef}
       onInteractionPointerDown={onInteractionPointerDown}
+      onInteractionPointerUp={onInteractionPointerUp}
       onInteractionPointerMove={onInteractionPointerMove}
       onInteractionPointerEnter={onInteractionPointerEnter}
       onInteractionPointerLeave={onInteractionPointerLeave}
