@@ -203,12 +203,10 @@ function resolveGenericNodePathResizeFrame(
   sourceId: string,
   viewBox: SvgViewBox
 ): ResizeFrame | null {
-  const points = collectPathRepresentativePoints(path.commands);
-  if (points.length === 0) {
+  const localBounds = approximatePathBoundsInWorld(path);
+  if (!localBounds) {
     return null;
   }
-
-  const localBounds = boundsFromPoints(points);
   const width = localBounds.maxX - localBounds.minX;
   const height = localBounds.maxY - localBounds.minY;
   if (!(width > EPSILON) || !(height > EPSILON)) {
@@ -238,48 +236,58 @@ function resolveGenericNodePathResizeFrame(
   return buildResizeFrame(sourceId, centerWorld, roleWorld, viewBox);
 }
 
-function collectPathRepresentativePoints(commands: readonly ScenePath["commands"][number][]): Point[] {
-  const points: Point[] = [];
+function approximatePathBoundsInWorld(path: ScenePath): Bounds | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
   let current: Point | null = null;
-  let subpathStart: Point | null = null;
 
-  for (const command of commands) {
+  const includePoint = (point: Point): void => {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  };
+
+  for (const command of path.commands) {
     if (command.kind === "M") {
       current = command.to;
-      subpathStart = command.to;
-      points.push(command.to);
+      includePoint(command.to);
       continue;
     }
     if (command.kind === "L") {
       current = command.to;
-      points.push(command.to);
+      includePoint(command.to);
       continue;
     }
     if (command.kind === "C") {
-      if (current) {
-        points.push(current);
-      }
-      points.push(command.c1, command.c2, command.to);
+      includePoint(command.c1);
+      includePoint(command.c2);
+      includePoint(command.to);
       current = command.to;
       continue;
     }
     if (command.kind === "A") {
       if (current) {
-        points.push(current);
+        includePoint({ x: current.x - command.rx, y: current.y - command.ry });
+        includePoint({ x: current.x + command.rx, y: current.y + command.ry });
       }
-      points.push(command.to);
+      includePoint({ x: command.to.x - command.rx, y: command.to.y - command.ry });
+      includePoint({ x: command.to.x + command.rx, y: command.to.y + command.ry });
       current = command.to;
       continue;
     }
     if (command.kind === "Z") {
-      if (subpathStart) {
-        points.push(subpathStart);
-        current = subpathStart;
-      }
+      continue;
     }
   }
 
-  return points;
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+
+  return { minX, minY, maxX, maxY };
 }
 
 function resolvePathRectangleResizeFrame(

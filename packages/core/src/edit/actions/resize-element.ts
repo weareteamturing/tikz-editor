@@ -120,7 +120,7 @@ export function applyResizeElementAction(
   }
 
   const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
-  const currentBounds = boundsBySource.get(elementId);
+  const currentBounds = action.referenceBounds ?? resolveNodeResizeBounds(semantic.scene.elements, elementId);
   if (!currentBounds) {
     return { kind: "unsupported", reason: "No geometry bounds were found for the selected node." };
   }
@@ -139,8 +139,7 @@ export function applyResizeElementAction(
   const floorSource = floorRewrite ? floorRewrite.source : source;
   const floorParsed = parseTikzForEdit(floorSource, parseOptions);
   const floorSemantic = evaluateTikzFigure(floorParsed.figure, floorSource, evaluateOptions);
-  const floorBoundsBySource = collectSourceWorldBounds(floorSemantic.scene.elements);
-  const floorBounds = floorBoundsBySource.get(elementId);
+  const floorBounds = resolveNodeResizeBounds(floorSemantic.scene.elements, elementId);
   if (!floorBounds) {
     return { kind: "unsupported", reason: "Could not resolve intrinsic node bounds for resize." };
   }
@@ -167,6 +166,8 @@ export function applyResizeElementAction(
     : { width: intrinsicWorldWidth, height: intrinsicWorldHeight };
   const intrinsicWidth = intrinsicLocal.width;
   const intrinsicHeight = intrinsicLocal.height;
+  const preserveExplicitWidthFloor = targetHasOptionKey(resizeTarget, "minimum width");
+  const preserveExplicitHeightFloor = targetHasOptionKey(resizeTarget, "minimum height");
 
   const resizeCandidates = buildNodeResizeMutationCandidates({
     affectsWidth,
@@ -174,7 +175,9 @@ export function applyResizeElementAction(
     requestedWidth,
     requestedHeight,
     intrinsicWidth,
-    intrinsicHeight
+    intrinsicHeight,
+    preserveExplicitWidthFloor,
+    preserveExplicitHeightFloor
   });
   const rewritten = chooseBestNodeResizeMutationCandidate({
     source,
@@ -207,16 +210,31 @@ function buildNodeResizeMutationCandidates(args: {
   requestedHeight: number;
   intrinsicWidth: number;
   intrinsicHeight: number;
+  preserveExplicitWidthFloor: boolean;
+  preserveExplicitHeightFloor: boolean;
 }): Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> {
-  const { affectsWidth, affectsHeight, requestedWidth, requestedHeight, intrinsicWidth, intrinsicHeight } = args;
+  const {
+    affectsWidth,
+    affectsHeight,
+    requestedWidth,
+    requestedHeight,
+    intrinsicWidth,
+    intrinsicHeight,
+    preserveExplicitWidthFloor,
+    preserveExplicitHeightFloor
+  } = args;
   const widthMutation: OptionMutation =
     requestedWidth > intrinsicWidth + RESIZE_EPSILON
       ? { kind: "set", value: `${formatNumber(requestedWidth)}pt` }
-      : { kind: "remove" };
+      : preserveExplicitWidthFloor
+        ? { kind: "set", value: `${formatNumber(intrinsicWidth)}pt` }
+        : { kind: "remove" };
   const heightMutation: OptionMutation =
     requestedHeight > intrinsicHeight + RESIZE_EPSILON
       ? { kind: "set", value: `${formatNumber(requestedHeight)}pt` }
-      : { kind: "remove" };
+      : preserveExplicitHeightFloor
+        ? { kind: "set", value: `${formatNumber(intrinsicHeight)}pt` }
+        : { kind: "remove" };
 
   const candidates: Array<{ mutations: Map<string, OptionMutation>; explicitConstraintCount: number; removesOtherConstraint: boolean }> = [];
 
@@ -225,31 +243,39 @@ function buildNodeResizeMutationCandidates(args: {
       ["minimum width", widthMutation],
       ["minimum height", heightMutation]
     ]), false));
-    candidates.push(buildResizeCandidate(new Map([
-      ["minimum width", widthMutation],
-      ["minimum height", { kind: "remove" }]
-    ]), true));
-    candidates.push(buildResizeCandidate(new Map([
-      ["minimum width", { kind: "remove" }],
-      ["minimum height", heightMutation]
-    ]), true));
+    if (!preserveExplicitHeightFloor) {
+      candidates.push(buildResizeCandidate(new Map([
+        ["minimum width", widthMutation],
+        ["minimum height", { kind: "remove" }]
+      ]), true));
+    }
+    if (!preserveExplicitWidthFloor) {
+      candidates.push(buildResizeCandidate(new Map([
+        ["minimum width", { kind: "remove" }],
+        ["minimum height", heightMutation]
+      ]), true));
+    }
     return dedupeResizeCandidates(candidates);
   }
 
   if (affectsWidth) {
     candidates.push(buildResizeCandidate(new Map([["minimum width", widthMutation]]), false));
-    candidates.push(buildResizeCandidate(new Map([
-      ["minimum width", widthMutation],
-      ["minimum height", { kind: "remove" }]
-    ]), true));
+    if (!preserveExplicitHeightFloor) {
+      candidates.push(buildResizeCandidate(new Map([
+        ["minimum width", widthMutation],
+        ["minimum height", { kind: "remove" }]
+      ]), true));
+    }
   }
 
   if (affectsHeight) {
     candidates.push(buildResizeCandidate(new Map([["minimum height", heightMutation]]), false));
-    candidates.push(buildResizeCandidate(new Map([
-      ["minimum width", { kind: "remove" }],
-      ["minimum height", heightMutation]
-    ]), true));
+    if (!preserveExplicitWidthFloor) {
+      candidates.push(buildResizeCandidate(new Map([
+        ["minimum width", { kind: "remove" }],
+        ["minimum height", heightMutation]
+      ]), true));
+    }
   }
 
   return dedupeResizeCandidates(candidates);
@@ -1394,6 +1420,37 @@ function resolveNodeResizeLinearTransform(
     c: transformed.transform.c,
     d: transformed.transform.d
   };
+}
+
+function resolveNodeResizeBounds(
+  elements: readonly SceneElement[],
+  sourceId: string
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  const sourceElements = elements.filter(
+    (element) =>
+      element.sourceRef.sourceId === sourceId &&
+      !element.adornment
+  );
+  if (sourceElements.length === 0) {
+    return null;
+  }
+
+  const nonText = sourceElements.filter((element) => element.kind !== "Text");
+  const boundsBySource = collectSourceWorldBounds(nonText.length > 0 ? nonText : sourceElements);
+  return boundsBySource.get(sourceId) ?? null;
+}
+
+function targetHasOptionKey(target: PropertyTarget, key: string): boolean {
+  const normalized = normalizeOptionKey(key);
+  for (const entry of target.options?.entries ?? []) {
+    if (entry.kind !== "kv" && entry.kind !== "flag") {
+      continue;
+    }
+    if (normalizeOptionKey(entry.key) === normalized) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function worldVectorToLocal(

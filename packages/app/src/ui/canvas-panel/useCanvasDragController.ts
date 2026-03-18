@@ -536,14 +536,7 @@ export function useCanvasDragController(params: {
             newWorld: world,
             preserveAspect: event.shiftKey,
             preserveAspectRatio: drag.preserveAspectRatio ?? undefined,
-            referenceBounds: drag.elementId.startsWith("scope:")
-              ? {
-                  minX: drag.initialFrame.cornersByRole["bottom-left"].world.x,
-                  minY: drag.initialFrame.cornersByRole["bottom-left"].world.y,
-                  maxX: drag.initialFrame.cornersByRole["top-right"].world.x,
-                  maxY: drag.initialFrame.cornersByRole["top-right"].world.y
-                }
-              : undefined,
+            referenceBounds: resizeFrameWorldBounds(drag.initialFrame),
             referenceScopeTransform: drag.elementId.startsWith("scope:")
               ? drag.initialScopeTransform ?? undefined
               : undefined
@@ -1638,6 +1631,21 @@ function resolveSceneTextHeight(text: Extract<SceneElement, { kind: "Text" }>): 
     return Math.max(1, text.textBlockHeight);
   }
   return Math.max(1, text.text.split("\n").length) * text.style.fontSize * 1.15;
+}
+
+function resizeFrameWorldBounds(frame: ResizeFrame): { minX: number; minY: number; maxX: number; maxY: number } {
+  const worldCorners = [
+    frame.cornersByRole["top-left"].world,
+    frame.cornersByRole["top-right"].world,
+    frame.cornersByRole["bottom-right"].world,
+    frame.cornersByRole["bottom-left"].world
+  ];
+  return {
+    minX: Math.min(...worldCorners.map((corner) => corner.x)),
+    minY: Math.min(...worldCorners.map((corner) => corner.y)),
+    maxX: Math.max(...worldCorners.map((corner) => corner.x)),
+    maxY: Math.max(...worldCorners.map((corner) => corner.y))
+  };
 }
 
 function resolveAdornmentBodyDragBox(

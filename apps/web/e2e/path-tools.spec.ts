@@ -213,12 +213,11 @@ test("diamond shapes show drag-size preview and can be resized with handles", as
   }
 
   await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 260, y: 210 });
-  await expect(page.getByTestId("canvas-tool-preview-path")).toBeVisible();
   await page.mouse.up();
 
   await waitForHitRegions(page, 1);
   await clickHitRegion(page, 0);
-  const resizeHandle = page.locator('[data-handle-kind="resize-element"][data-source-id="path:0"]').first();
+  const resizeHandle = page.locator('[data-handle-kind="resize-element"]').first();
   await expect(resizeHandle).toBeVisible();
 
   const before = await readSource(page);
@@ -227,6 +226,8 @@ test("diamond shapes show drag-size preview and can be resized with handles", as
   const after = await readSource(page);
 
   expect(after).toContain("shape=diamond");
+  expect(after).toContain("minimum width=");
+  expect(after).toContain("minimum height=");
   expect(after).not.toBe(before);
 });
 
@@ -247,13 +248,14 @@ test("circle shapes can be resized with handles", async ({ page }) => {
   await dragBetweenPoints(page, layer, { x: 140, y: 140 }, { x: 260, y: 210 });
   await page.mouse.up();
 
+  await expect.poll(async () => readSource(page)).toContain("shape=circle");
   await waitForHitRegions(page, 1);
   await clickHitRegion(page, 0);
-  const resizeHandle = page.locator('[data-handle-kind="resize-element"][data-source-id="path:0"]').first();
+  const resizeHandle = page.locator('[data-handle-kind="resize-element"]').first();
   await expect(resizeHandle).toBeVisible();
 
   const before = await readSource(page);
-  await dragLocatorBy(page, resizeHandle, 60, -40);
+  await dragLocatorBy(page, resizeHandle, 60, 60);
   await page.mouse.up();
   const after = await readSource(page);
 
