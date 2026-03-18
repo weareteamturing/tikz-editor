@@ -338,33 +338,49 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       const width = Math.abs(end.x - start.x);
       const height = Math.abs(end.y - start.y);
       if (toolDraft.toolMode === "addShape") {
-        const centerX = (start.x + end.x) / 2;
-        const centerY = (start.y + end.y) / 2;
+        const dragCenterWorld = {
+          x: (toolDraft.startWorld.x + toolDraft.currentWorld.x) / 2,
+          y: (toolDraft.startWorld.y + toolDraft.currentWorld.y) / 2
+        };
         const draft = resolveAddShapeDraft(
           selectedAddShape,
           Math.abs(toolDraft.currentWorld.x - toolDraft.startWorld.x),
           Math.abs(toolDraft.currentWorld.y - toolDraft.startWorld.y)
         );
+        const boundsCenter = {
+          x: (draft.preview.bounds.minX + draft.preview.bounds.maxX) / 2,
+          y: (draft.preview.bounds.minY + draft.preview.bounds.maxY) / 2
+        };
+        const nodeCenterWorld = {
+          x: dragCenterWorld.x - boundsCenter.x,
+          y: dragCenterWorld.y - boundsCenter.y
+        };
+        const nodeCenter = worldToSvgPoint(nodeCenterWorld, svgResult.viewBox);
         if (draft.preview.kind === "circle") {
           return {
             kind: "circle",
-            cx: centerX,
-            cy: centerY,
+            cx: nodeCenter.x,
+            cy: nodeCenter.y,
             r: draft.preview.radius > 1e-4 ? draft.preview.radius : TOOL_PREVIEW_CIRCLE_RADIUS_PT
           };
         }
         if (draft.preview.kind === "ellipse") {
           return {
             kind: "ellipse",
-            cx: centerX,
-            cy: centerY,
+            cx: nodeCenter.x,
+            cy: nodeCenter.y,
             rx: draft.preview.rx,
             ry: draft.preview.ry
           };
         }
         return {
           kind: "path",
-          d: encodeTranslatedPathPreview(draft.preview.commands, centerX, centerY, svgResult.viewBox)
+          d: encodeTranslatedPathPreview(
+            draft.preview.commands,
+            nodeCenterWorld.x,
+            nodeCenterWorld.y,
+            svgResult.viewBox
+          )
         };
       }
       if (toolDraft.toolMode === "addRect") {
@@ -404,26 +420,26 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
 
 function encodeTranslatedPathPreview(
   commands: readonly ScenePathCommand[],
-  centerX: number,
-  centerY: number,
+  centerWorldX: number,
+  centerWorldY: number,
   viewBox: SvgViewBox
 ): string {
   const parts: string[] = [];
   for (const command of commands) {
     if (command.kind === "M" || command.kind === "L") {
-      const point = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      const point = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
       parts.push(`${command.kind} ${fmt(point.x)},${fmt(point.y)}`);
       continue;
     }
     if (command.kind === "C") {
-      const c1 = worldToSvgPoint({ x: command.c1.x + centerX, y: command.c1.y + centerY }, viewBox);
-      const c2 = worldToSvgPoint({ x: command.c2.x + centerX, y: command.c2.y + centerY }, viewBox);
-      const to = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      const c1 = worldToSvgPoint({ x: command.c1.x + centerWorldX, y: command.c1.y + centerWorldY }, viewBox);
+      const c2 = worldToSvgPoint({ x: command.c2.x + centerWorldX, y: command.c2.y + centerWorldY }, viewBox);
+      const to = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
       parts.push(`C ${fmt(c1.x)},${fmt(c1.y)} ${fmt(c2.x)},${fmt(c2.y)} ${fmt(to.x)},${fmt(to.y)}`);
       continue;
     }
     if (command.kind === "A") {
-      const to = worldToSvgPoint({ x: command.to.x + centerX, y: command.to.y + centerY }, viewBox);
+      const to = worldToSvgPoint({ x: command.to.x + centerWorldX, y: command.to.y + centerWorldY }, viewBox);
       parts.push(
         `A ${fmt(command.rx)} ${fmt(command.ry)} ${fmt(command.xAxisRotation)} ${command.largeArc ? 1 : 0} ${command.sweep ? 1 : 0} ${fmt(to.x)},${fmt(to.y)}`
       );

@@ -64,6 +64,8 @@ export function createTemplateForToolDrag(
   const dy = endWorld.y - startWorld.y;
   const dragDistance = Math.hypot(dx, dy);
   const hasDrag = dragDistance >= 1e-3;
+  const hasShapeDrag =
+    Math.max(Math.abs(dx), Math.abs(dy)) >= MIN_SHAPE_DRAG_DIMENSION_PT;
 
   if (mode === "addPath") {
     return hasDrag
@@ -117,7 +119,7 @@ export function createTemplateForToolDrag(
       Math.max(Math.abs(dx), MIN_SHAPE_DRAG_DIMENSION_PT),
       Math.max(Math.abs(dy), MIN_SHAPE_DRAG_DIMENSION_PT)
     );
-    return hasDrag
+    return hasShapeDrag
       ? {
           kind: "node",
           shape: options?.selectedAddShape ?? "rectangle",
