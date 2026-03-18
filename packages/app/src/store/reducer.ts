@@ -100,6 +100,7 @@ function initialUiState(): WorkspaceEphemeralState {
     activeCanvasDragKind: null,
     activeSourceScrubSourceId: null,
     showGrid: true,
+    showTransparencyGrid: false,
     snapModes: {
       grid: true,
       guides: true,
@@ -108,6 +109,7 @@ function initialUiState(): WorkspaceEphemeralState {
     },
     showRulers: true,
     showGuides: true,
+    showDocumentBounds: true,
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     bucketFillColor: DEFAULT_BUCKET_FILL_COLOR,
     selectedAddShape: DEFAULT_ADD_SHAPE_PRESET,
@@ -235,9 +237,11 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     activeCanvasDragKind: ui.activeCanvasDragKind,
     activeSourceScrubSourceId: ui.activeSourceScrubSourceId,
     showGrid: ui.showGrid,
+    showTransparencyGrid: ui.showTransparencyGrid,
     snapModes: ui.snapModes,
     showRulers: ui.showRulers,
     showGuides: ui.showGuides,
+    showDocumentBounds: ui.showDocumentBounds,
     freehandSmoothingPx: ui.freehandSmoothingPx,
     bucketFillColor: ui.bucketFillColor,
     selectedAddShape: ui.selectedAddShape,
@@ -1035,8 +1039,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ui = { ...ui, showGrid: !ui.showGrid };
       } else if (action.aid === "rulers") {
         ui = { ...ui, showRulers: !ui.showRulers };
-      } else {
+      } else if (action.aid === "guides") {
         ui = { ...ui, showGuides: !ui.showGuides };
+      } else if (action.aid === "transparencyGrid") {
+        ui = { ...ui, showTransparencyGrid: !ui.showTransparencyGrid };
+      } else {
+        ui = { ...ui, showDocumentBounds: !ui.showDocumentBounds };
       }
       break;
 

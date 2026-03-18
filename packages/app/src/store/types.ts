@@ -23,7 +23,7 @@ export type ToolMode =
   | "addArrow"
   | "addBezier";
 export type CanvasDragKind = "element" | "resize" | "rotate" | "handle" | "pan" | "marquee" | "tool-create" | "text-select";
-export type CanvasAid = "grid" | "rulers" | "guides";
+export type CanvasAid = "grid" | "rulers" | "guides" | "transparencyGrid" | "documentBounds";
 export type SnapMode = "grid" | "guides" | "points" | "gaps";
 
 export type SnapModes = {
@@ -115,9 +115,11 @@ export type WorkspaceEphemeralState = {
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
   showGrid: boolean;
+  showTransparencyGrid: boolean;
   snapModes: SnapModes;
   showRulers: boolean;
   showGuides: boolean;
+  showDocumentBounds: boolean;
   freehandSmoothingPx: number;
   bucketFillColor: string;
   selectedAddShape: Exclude<NodeShapePresetId, "custom">;
@@ -179,9 +181,11 @@ export type EditorState = {
   /** Source id currently being edited via source-number scrubbing. */
   activeSourceScrubSourceId: string | null;
   showGrid: boolean;
+  showTransparencyGrid: boolean;
   snapModes: SnapModes;
   showRulers: boolean;
   showGuides: boolean;
+  showDocumentBounds: boolean;
   freehandSmoothingPx: number;
   bucketFillColor: string;
   selectedAddShape: Exclude<NodeShapePresetId, "custom">;

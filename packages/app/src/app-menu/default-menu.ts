@@ -443,6 +443,16 @@ export const APP_MENU_DEFINITION = [
         label: "Guide Lines"
       },
       {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID,
+        label: "Transparency Grid"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS,
+        label: "Infinite Canvas"
+      },
+      {
         kind: "submenu",
         label: "Snapping",
         items: [

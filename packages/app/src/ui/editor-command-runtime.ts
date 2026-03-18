@@ -63,10 +63,12 @@ type RuntimeInput = {
   dirty: boolean;
   fileRef: DocumentFileRef | null;
   showGrid: boolean;
+  showTransparencyGrid: boolean;
   snapModes: SnapModes;
   snapHapticsEnabled: boolean;
   showRulers: boolean;
   showGuides: boolean;
+  showDocumentBounds: boolean;
   showSourcePanel: boolean;
   showInspectorPanel: boolean;
   rightSidebarTab: "inspector" | "objects" | "styles" | "assistant";
@@ -109,10 +111,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     dirty,
     fileRef,
     showGrid,
+    showTransparencyGrid,
     snapModes,
     snapHapticsEnabled,
     showRulers,
     showGuides,
+    showDocumentBounds,
     showSourcePanel,
     showInspectorPanel,
     rightSidebarTab,
@@ -601,6 +605,16 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       checked: showGrid,
       run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "grid" })
     },
+    [APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID]: {
+      enabled: true,
+      checked: showTransparencyGrid,
+      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "transparencyGrid" })
+    },
+    [APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS]: {
+      enabled: true,
+      checked: !showDocumentBounds,
+      run: () => dispatch({ type: "TOGGLE_CANVAS_AID", aid: "documentBounds" })
+    },
     [APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID]: {
       enabled: true,
       checked: snapModes.grid,
@@ -719,10 +733,12 @@ export function useEditorCommandRuntime(
   const dirty = useEditorStore((s) => s.documents[s.activeDocumentId]?.dirty ?? false);
   const fileRef = useEditorStore((s) => s.documents[s.activeDocumentId]?.fileRef ?? null);
   const showGrid = useEditorStore((s) => s.showGrid);
+  const showTransparencyGrid = useEditorStore((s) => s.showTransparencyGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
   const snapHapticsEnabled = useSettingsStore((s) => s.settings.canvas.snapHapticsEnabled);
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
+  const showDocumentBounds = useEditorStore((s) => s.showDocumentBounds);
   const showSourcePanel = useEditorStore((s) => s.showSourcePanel);
   const showInspectorPanel = useEditorStore((s) => s.showInspectorPanel);
   const rightSidebarTab = useEditorStore((s) => s.rightSidebarTab);
@@ -791,10 +807,12 @@ export function useEditorCommandRuntime(
         dirty,
         fileRef,
         showGrid,
+        showTransparencyGrid,
         snapModes,
         snapHapticsEnabled,
         showRulers,
         showGuides,
+        showDocumentBounds,
         showSourcePanel,
         showInspectorPanel,
         rightSidebarTab,
@@ -826,10 +844,12 @@ export function useEditorCommandRuntime(
       dirty,
       fileRef,
       showGrid,
+      showTransparencyGrid,
       snapModes,
       snapHapticsEnabled,
       showRulers,
       showGuides,
+      showDocumentBounds,
       showSourcePanel,
       showInspectorPanel,
       activeCanvasDragKind,

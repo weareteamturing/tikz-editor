@@ -67,6 +67,7 @@ const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
   dispatch: (action: any) => void;
+  dispatchCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
   logSnapDebug: (input: SnapDebugLogInput) => void;
   queueSelectionForAddedElement: (preferredWorld: Point) => void;
   snapshotSource: string;
@@ -110,6 +111,7 @@ export function useCanvasDragController(params: {
   const {
     applyActionWithFeedback,
     dispatch,
+    dispatchCanvasTransform,
     logSnapDebug,
     queueSelectionForAddedElement,
     snapshotSource,
@@ -218,13 +220,10 @@ export function useCanvasDragController(params: {
           lines: []
         });
 
-        dispatch({
-          type: "SET_CANVAS_TRANSFORM",
-          transform: {
-            ...drag.startTransform,
-            translateX: drag.startTransform.translateX + deltaX,
-            translateY: drag.startTransform.translateY + deltaY
-          }
+        dispatchCanvasTransform({
+          ...drag.startTransform,
+          translateX: drag.startTransform.translateX + deltaX,
+          translateY: drag.startTransform.translateY + deltaY
         });
         maybeTriggerSnapFeedback(false);
         return;

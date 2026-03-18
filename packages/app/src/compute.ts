@@ -163,13 +163,15 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     }
 
     const { renderTikzToSvgAsync } = await import("tikz-editor/render/index");
+    const textEngine = await getOptionalTextEngine();
     const result = await renderTikzToSvgAsync(request.source, {
       parse: {
         recover: true,
         activeFigureId: request.activeFigureId,
         includeContextDefinitions: true
       },
-      svg: { padding: 18 }
+      svg: { padding: 18 },
+      textEngine
     });
     // Non-drag requests currently bypass the incremental session.
     // Reset to avoid reusing stale cached prefixes on the next drag.
@@ -184,7 +186,7 @@ export async function computeSnapshot(request: ComputeRequest): Promise<ComputeR
     semanticSession.evaluate({
       figure: result.parse.figure,
       source: request.source,
-      options: { textEngine: await getOptionalTextEngine() },
+      options: { textEngine },
       hints: { trigger: "other" }
     });
     previousSvgModel = result.svg.model;

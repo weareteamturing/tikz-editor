@@ -50,7 +50,7 @@ import type {
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
 import { useEditorStore } from "../store/store";
-import type { CanvasDragKind } from "../store/types";
+import type { CanvasDragKind, CanvasTransform } from "../store/types";
 import { getActiveEditorPlatform } from "../platform/current";
 import {
   requestSourceSelection,
@@ -66,7 +66,6 @@ import {
   pickClosestSourceId,
   resolveBezierControlsFromBend
 } from "./canvas-panel/interaction-helpers";
-import { CanvasSVGLayer } from "./canvas-panel/CanvasSVGLayer";
 import { useCanvasDragController } from "./canvas-panel/useCanvasDragController";
 import type {
   ApplyActionFeedback,
@@ -425,6 +424,23 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
   "com.tikzeditor.tikz-json"
 ] as const;
 const DENSE_PATH_SEGMENT_THRESHOLD = 7;
+const DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD = 200;
+
+function expandSvgViewBox(
+  viewBox: SvgViewBox,
+  viewportSize: { width: number; height: number },
+  scale: number
+): SvgViewBox {
+  const safeScale = Math.max(scale, 1e-3);
+  const viewportWorldExtent = Math.max(viewportSize.width, viewportSize.height) / safeScale;
+  const padding = Math.max(DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD, viewportWorldExtent * 2);
+  return {
+    x: viewBox.x - padding,
+    y: viewBox.y - padding,
+    width: viewBox.width + padding * 2,
+    height: viewBox.height + padding * 2
+  };
+}
 
 function mergeBoundsList(boundsList: readonly Bounds[]): Bounds | null {
   if (boundsList.length === 0) {
@@ -518,6 +534,7 @@ export function CanvasPanel() {
   const zoomRequestToken = useEditorStore((s) => s.zoomRequestToken);
   const zoomRequestDirection = useEditorStore((s) => s.zoomRequestDirection);
   const showGrid = useEditorStore((s) => s.showGrid);
+  const showTransparencyGrid = useEditorStore((s) => s.showTransparencyGrid);
   const snapModes = useEditorStore((s) => s.snapModes);
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
@@ -526,13 +543,16 @@ export function CanvasPanel() {
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
   const snapHapticsEnabled = useSettingsStore((s) => s.settings.canvas.snapHapticsEnabled);
+  const mathJaxFont = useSettingsStore((s) => s.settings.rendering.mathJaxFont);
   const gridMinorTargetPx = GRID_SIZE_MINOR_TARGET_PX[gridSize];
   const showRulers = useEditorStore((s) => s.showRulers);
   const showGuides = useEditorStore((s) => s.showGuides);
+  const showDocumentBounds = useEditorStore((s) => s.showDocumentBounds);
   const showDevPanel = useEditorStore((s) => s.showDevPanel);
   const dispatch = useEditorStore((s) => s.dispatch);
 
-  const svgResult = snapshot.svg;
+  const baseSvgResult = snapshot.svg;
+  const baseSvgModel = snapshot.svgModel;
   const parseDiags = snapshot.parseResult?.diagnostics;
   const semanticDiags = snapshot.semanticResult?.diagnostics;
 
@@ -551,6 +571,27 @@ export function CanvasPanel() {
   const [guides, setGuides] = useState<GuidesState>({ vertical: [], horizontal: [] });
   const [guidePreview, setGuidePreview] = useState<GuidePreview | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const svgResult = useMemo(() => {
+    if (!baseSvgResult || showDocumentBounds) {
+      return baseSvgResult;
+    }
+    return {
+      ...baseSvgResult,
+      viewBox: expandSvgViewBox(baseSvgResult.viewBox, viewportSize, canvasTransform.scale)
+    };
+  }, [baseSvgResult, canvasTransform.scale, showDocumentBounds, viewportSize]);
+  const svgModel = useMemo(() => {
+    if (!baseSvgModel || !svgResult) {
+      return baseSvgModel;
+    }
+    if (baseSvgModel.viewBox === svgResult.viewBox) {
+      return baseSvgModel;
+    }
+    return {
+      ...baseSvgModel,
+      viewBox: svgResult.viewBox
+    };
+  }, [baseSvgModel, svgResult]);
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
   const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
@@ -603,6 +644,20 @@ export function CanvasPanel() {
     },
     activeHandleIdOverride: contextMenuHandleIdOverride
   });
+
+  const dispatchCanvasTransform = useCallback(
+    (transform: CanvasTransform) => {
+      if (
+        Math.abs(transform.translateX - canvasTransform.translateX) < 1e-9 &&
+        Math.abs(transform.translateY - canvasTransform.translateY) < 1e-9 &&
+        Math.abs(transform.scale - canvasTransform.scale) < 1e-9
+      ) {
+        return;
+      }
+      dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
+    },
+    [canvasTransform.scale, canvasTransform.translateX, canvasTransform.translateY, dispatch]
+  );
 
   const showNativeContextMenu = useCallback(
     (target: CanvasContextMenuTarget) => {
@@ -835,21 +890,23 @@ export function CanvasPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    void createMathJaxNodeTextEngine()
+    void createMathJaxNodeTextEngine({ font: mathJaxFont })
       .then((engine) => {
         if (!cancelled) {
           textEngineRef.current = engine;
+          prefixTableCacheRef.current.clear();
         }
       })
       .catch(() => {
         if (!cancelled) {
           textEngineRef.current = null;
+          prefixTableCacheRef.current.clear();
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [mathJaxFont]);
 
   useEffect(() => {
     function onPointerMove(event: PointerEvent) {
@@ -1057,7 +1114,8 @@ export function CanvasPanel() {
   });
 
   const fitToContent = useCallback(() => {
-    if (!svgResult || !viewportRef.current) return;
+    const fitViewBox = baseSvgResult?.viewBox ?? svgResult?.viewBox;
+    if (!fitViewBox || !viewportRef.current) return;
 
     const viewportWidth = viewportRef.current.clientWidth;
     const viewportHeight = viewportRef.current.clientHeight;
@@ -1065,8 +1123,8 @@ export function CanvasPanel() {
     if (
       viewportWidth <= 0 ||
       viewportHeight <= 0 ||
-      svgResult.viewBox.width <= 0 ||
-      svgResult.viewBox.height <= 0
+      fitViewBox.width <= 0 ||
+      fitViewBox.height <= 0
     ) {
       return;
     }
@@ -1075,19 +1133,16 @@ export function CanvasPanel() {
     const availableHeight = Math.max(1, viewportHeight - FIT_PADDING * 2);
 
     const scale = clamp(
-      Math.min(availableWidth / svgResult.viewBox.width, availableHeight / svgResult.viewBox.height),
+      Math.min(availableWidth / fitViewBox.width, availableHeight / fitViewBox.height),
       MIN_SCALE,
       MAX_SCALE
     );
 
-    const translateX = (viewportWidth - svgResult.viewBox.width * scale) / 2;
-    const translateY = (viewportHeight - svgResult.viewBox.height * scale) / 2;
+    const translateX = (viewportWidth - fitViewBox.width * scale) / 2;
+    const translateY = (viewportHeight - fitViewBox.height * scale) / 2;
 
-    dispatch({
-      type: "SET_CANVAS_TRANSFORM",
-      transform: { translateX, translateY, scale }
-    });
-  }, [dispatch, svgResult]);
+    dispatchCanvasTransform({ translateX, translateY, scale });
+  }, [baseSvgResult, dispatchCanvasTransform, svgResult]);
 
   const handledFitRequestRef = useRef(0);
   useEffect(() => {
@@ -1131,15 +1186,12 @@ export function CanvasPanel() {
     if (fitToContentModeActiveRef.current) {
       setFitToContentModeActive(false);
     }
-    dispatch({
-      type: "SET_CANVAS_TRANSFORM",
-      transform: { translateX, translateY, scale: nextScale }
-    });
+    dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
   }, [
     MAX_SCALE,
     MIN_SCALE,
     canvasTransformRef,
-    dispatch,
+    dispatchCanvasTransform,
     fitToContentModeActiveRef,
     setFitToContentModeActive,
     svgResult,
@@ -1926,6 +1978,7 @@ export function CanvasPanel() {
     applyActionWithFeedback,
     pendingAddedSelectionRef,
     dispatch,
+    dispatchCanvasTransform,
     selectedAddShape,
     pathDraft,
     pathSegmentDraft,
@@ -1997,7 +2050,7 @@ export function CanvasPanel() {
     previousViewBoxRef,
     activeCanvasDragKind,
     setDragPatchMode,
-    dispatch,
+    dispatchCanvasTransform,
     zoomSpeed,
     MIN_SCALE,
     MAX_SCALE,
@@ -2304,6 +2357,7 @@ export function CanvasPanel() {
   useCanvasDragController({
     applyActionWithFeedback,
     dispatch,
+    dispatchCanvasTransform,
     logSnapDebug,
     queueSelectionForAddedElement,
     snapshotSource: snapshot.source,
@@ -2443,7 +2497,10 @@ export function CanvasPanel() {
       noActiveFigure={snapshot.figures.length > 0 && snapshot.activeFigureId == null}
       assistantLockReason={assistantLockReason}
       snapshot={snapshot}
+      svgModel={svgModel}
       canvasTransform={canvasTransform}
+      showTransparencyGrid={showTransparencyGrid}
+      showDocumentBounds={showDocumentBounds}
       svgDiffHints={svgDiffHints}
       forceSvgReplaceAll={forceSvgReplaceAll}
       onSvgPatchFallback={onSvgPatchFallback}

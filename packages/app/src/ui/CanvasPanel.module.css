@@ -148,9 +148,27 @@
   pointer-events: none;
 }
 
+.svgLayerTransparencyGrid {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.08) 75%, rgba(0, 0, 0, 0.08)),
+    linear-gradient(45deg, rgba(0, 0, 0, 0.08) 25%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.08) 75%, rgba(0, 0, 0, 0.08));
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+.svgLayerNoDocumentBounds {
+  background-color: #fff;
+  box-shadow: none;
+}
+
 :global([data-canvas-invert]) .svgLayer {
   background: #e8e8e8;
   filter: invert(1) hue-rotate(180deg);
+}
+
+:global([data-canvas-invert]) .svgLayerNoDocumentBounds {
+  background-color: #e8e8e8;
 }
 
 :global([data-color-scheme="dark"]) .viewport {

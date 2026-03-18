@@ -77,3 +77,64 @@ test("developer panel toggles from shortcut and menu checked state", async ({ pa
   await openMenuSection(page, "view");
   await expect(page.getByTestId("menu-cmd-view.toggle-dev-panel")).toHaveAttribute("aria-checked", "false");
 });
+
+test("view menu toggles transparency grid and infinite canvas, then marquee starts from viewport background", async ({ page }) => {
+  await gotoApp(page);
+  await expect(page.getByTestId("canvas-svg-layer")).toBeVisible();
+
+  await openMenuCommand(page, "view", "view.toggle-transparency-grid");
+  await openMenuCommand(page, "view", "view.toggle-infinite-canvas");
+  await openMenuSection(page, "view");
+  await expect(page.getByTestId("menu-cmd-view.toggle-transparency-grid")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("menu-cmd-view.toggle-infinite-canvas")).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+
+  await expect(page.getByTestId("canvas-svg-layer")).toHaveAttribute("data-show-transparency-grid", "true");
+  await expect(page.getByTestId("canvas-svg-layer")).toHaveAttribute("data-show-document-bounds", "false");
+
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        clearSelection?: () => void;
+        getSelectedSourceIds?: () => string[];
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    api?.clearSelection?.();
+  });
+
+  const viewport = page.getByTestId("canvas-viewport");
+  const worldStage = page.getByTestId("canvas-world-stage");
+  const viewportBox = await viewport.boundingBox();
+  const worldStageBox = await worldStage.boundingBox();
+  if (!viewportBox || !worldStageBox) {
+    throw new Error("Missing canvas bounds for marquee test.");
+  }
+
+  const startX = viewportBox.x + 8;
+  const startY = viewportBox.y + 8;
+  const endX = worldStageBox.x + worldStageBox.width * 0.5;
+  const endY = worldStageBox.y + worldStageBox.height * 0.5;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const api = (globalThis as unknown as {
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          getActiveCanvasDragKind?: () => string | null;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      return api?.getActiveCanvasDragKind?.() ?? null;
+    });
+  }).toBe("marquee");
+  await page.mouse.move(endX, endY, { steps: 10 });
+  const dragKindAfterMove = await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getActiveCanvasDragKind?: () => string | null;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getActiveCanvasDragKind?.() ?? null;
+  });
+  expect(dragKindAfterMove).toBe("marquee");
+  await page.mouse.up();
+});

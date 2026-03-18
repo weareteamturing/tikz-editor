@@ -38,7 +38,9 @@ describe("editor-command-runtime", () => {
         selectedElementIds: new Set(["path:0"]),
         historyIndex: 0,
         historyLength: 2,
-        showGrid: true
+        showGrid: true,
+        showTransparencyGrid: false,
+        showDocumentBounds: true
       })
     );
 
@@ -49,6 +51,8 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.FLIP_HORIZONTAL].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.PATH_REVERSE].enabled).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_GRID].checked).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID].checked).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS].checked).toBe(false);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID].checked).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES].checked).toBe(true);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS].checked).toBe(true);
@@ -75,6 +79,10 @@ describe("editor-command-runtime", () => {
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID].checked).toBe(false);
     expect(runtime.bindings[APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS].checked).toBe(false);
 
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_CANVAS_AID", aid: "transparencyGrid" });
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS, "menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_CANVAS_AID", aid: "documentBounds" });
     expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES, "menu")).toBe(true);
     expect(dispatch).toHaveBeenCalledWith({ type: "TOGGLE_SNAP_MODE", mode: "guides" });
   });
@@ -508,9 +516,11 @@ function makeInput({
   historyIndex,
   historyLength,
   showGrid = false,
+  showTransparencyGrid = false,
   snapModes = { grid: true, guides: true, points: true, gaps: true },
   showRulers = true,
   showGuides = true,
+  showDocumentBounds = true,
   showSourcePanel = true,
   showInspectorPanel = true,
   showDevPanel = false,
@@ -529,6 +539,7 @@ function makeInput({
   historyIndex?: number;
   historyLength?: number;
   showGrid?: boolean;
+  showTransparencyGrid?: boolean;
   snapModes?: {
     grid: boolean;
     guides: boolean;
@@ -537,6 +548,7 @@ function makeInput({
   };
   showRulers?: boolean;
   showGuides?: boolean;
+  showDocumentBounds?: boolean;
   showSourcePanel?: boolean;
   showInspectorPanel?: boolean;
   showDevPanel?: boolean;
@@ -567,10 +579,12 @@ function makeInput({
     assistantAvailable: true,
     assistantRunning: false,
     showGrid,
+    showTransparencyGrid,
     snapModes,
     snapHapticsEnabled,
     showRulers,
     showGuides,
+    showDocumentBounds,
     showSourcePanel,
     showInspectorPanel,
     showDevPanel,

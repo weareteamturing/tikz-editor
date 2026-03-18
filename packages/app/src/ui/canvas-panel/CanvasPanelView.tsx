@@ -44,7 +44,10 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     noActiveFigure,
     assistantLockReason,
     snapshot,
+    svgModel,
     canvasTransform,
+    showTransparencyGrid,
+    showDocumentBounds,
     svgDiffHints,
     forceSvgReplaceAll,
     onSvgPatchFallback,
@@ -220,6 +223,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
           ) : (
             <div
               className={css.worldStage}
+              data-testid="canvas-world-stage"
               style={{
                 width: svgResult.viewBox.width * canvasTransform.scale,
                 height: svgResult.viewBox.height * canvasTransform.scale,
@@ -227,9 +231,11 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               }}
             >
               <CanvasSVGLayer
-                model={snapshot.svgModel}
+                model={svgModel}
                 diffHints={svgDiffHints}
                 forceReplaceAll={forceSvgReplaceAll}
+                showTransparencyGrid={showTransparencyGrid}
+                showDocumentBounds={showDocumentBounds}
                 onFallback={onSvgPatchFallback}
               />
 

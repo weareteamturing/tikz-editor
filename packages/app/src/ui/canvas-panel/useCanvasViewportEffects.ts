@@ -31,7 +31,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     previousViewBoxRef,
     activeCanvasDragKind,
     setDragPatchMode,
-    dispatch,
+    dispatchCanvasTransform,
     zoomSpeed,
     MIN_SCALE,
     MAX_SCALE,
@@ -144,18 +144,13 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
       currentTransform.translateY +
       ((previous.y + previous.height) - (svgResult.viewBox.y + svgResult.viewBox.height)) * scale;
 
-    dispatch({
-      type: "SET_CANVAS_TRANSFORM",
-      transform: { translateX, translateY, scale }
-    });
-  }, [activeCanvasDragKind, canvasTransformRef, dispatch, previousViewBoxRef, setDragPatchMode, svgResult]);
+    dispatchCanvasTransform({ translateX, translateY, scale });
+  }, [activeCanvasDragKind, canvasTransformRef, dispatchCanvasTransform, previousViewBoxRef, setDragPatchMode, svgResult]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    let inGesture = false;
-    let lastGestureScale = 1;
     const activeTouchPointers = new Map<number, { clientX: number; clientY: number }>();
     let pinchGesture:
       | {
@@ -226,14 +221,10 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
         setFitToContentModeActive(false);
       }
 
-      dispatch({
-        type: "SET_CANVAS_TRANSFORM",
-        transform: { translateX, translateY, scale: nextScale }
-      });
+      dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
     };
 
     const onWheel = (event: WheelEvent) => {
-      if (inGesture) return;
       const currentSvg = svgResultRef.current;
       if (!currentSvg) return;
       const currentTransform = canvasTransformRef.current;
@@ -263,56 +254,15 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
         const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
         const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
 
-        dispatch({
-          type: "SET_CANVAS_TRANSFORM",
-          transform: { translateX, translateY, scale: nextScale }
-        });
+        dispatchCanvasTransform({ translateX, translateY, scale: nextScale });
         return;
       }
 
-      dispatch({
-        type: "SET_CANVAS_TRANSFORM",
-        transform: {
-          translateX: currentTransform.translateX - event.deltaX,
-          translateY: currentTransform.translateY - event.deltaY,
-          scale: currentTransform.scale
-        }
+      dispatchCanvasTransform({
+        translateX: currentTransform.translateX - event.deltaX,
+        translateY: currentTransform.translateY - event.deltaY,
+        scale: currentTransform.scale
       });
-    };
-
-    const onGestureStart = (event: Event) => {
-      event.preventDefault();
-      inGesture = true;
-      lastGestureScale = 1;
-    };
-
-    const onGestureChange = (event: Event) => {
-      event.preventDefault();
-      const currentSvg = svgResultRef.current;
-      if (!currentSvg) return;
-      const currentTransform = canvasTransformRef.current;
-      const ge = event as Event & { scale: number; clientX: number; clientY: number };
-      const deltaScale = ge.scale / lastGestureScale;
-      lastGestureScale = ge.scale;
-      const nextScale = clamp(currentTransform.scale * deltaScale, MIN_SCALE, MAX_SCALE);
-      const rect = viewport.getBoundingClientRect();
-      const localX = ge.clientX - rect.left;
-      const localY = ge.clientY - rect.top;
-      const svgPoint = viewportToSvgPoint(localX, localY, currentTransform, currentSvg.viewBox);
-      const translateX = localX - (svgPoint.x - currentSvg.viewBox.x) * nextScale;
-      const translateY = localY - (svgPoint.y - currentSvg.viewBox.y) * nextScale;
-      if (fitToContentModeActiveRef.current) {
-        setFitToContentModeActive(false);
-      }
-      dispatch({
-        type: "SET_CANVAS_TRANSFORM",
-        transform: { translateX, translateY, scale: nextScale }
-      });
-    };
-
-    const onGestureEnd = (event: Event) => {
-      event.preventDefault();
-      inGesture = false;
     };
 
     const onPointerDown = (event: PointerEvent) => {
@@ -357,9 +307,6 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     };
 
     viewport.addEventListener("wheel", onWheel, { passive: false });
-    viewport.addEventListener("gesturestart", onGestureStart, { passive: false });
-    viewport.addEventListener("gesturechange", onGestureChange, { passive: false });
-    viewport.addEventListener("gestureend", onGestureEnd, { passive: false });
     viewport.addEventListener("pointerdown", onPointerDown, { passive: false });
     window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("pointerup", onPointerUp, { passive: false });
@@ -367,9 +314,6 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
 
     return () => {
       viewport.removeEventListener("wheel", onWheel);
-      viewport.removeEventListener("gesturestart", onGestureStart);
-      viewport.removeEventListener("gesturechange", onGestureChange);
-      viewport.removeEventListener("gestureend", onGestureEnd);
       viewport.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
@@ -381,7 +325,7 @@ export function useCanvasViewportEffects(args: UseCanvasViewportEffectsArgs) {
     MAX_SCALE,
     MIN_SCALE,
     canvasTransformRef,
-    dispatch,
+    dispatchCanvasTransform,
     dragRef,
     fitToContentModeActiveRef,
     pendingTouchViewportRef,

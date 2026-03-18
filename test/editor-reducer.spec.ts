@@ -799,28 +799,44 @@ describe("editorReducer – layout", () => {
     expect(after.showInspectorPanel).toBe(true);
   });
 
-  it("TOGGLE_CANVAS_AID toggles grid/rulers/guides visibility", () => {
+  it("TOGGLE_CANVAS_AID toggles canvas aid visibility", () => {
     const initial = makeInitialState();
     expect(initial.showGrid).toBe(true);
+    expect(initial.showTransparencyGrid).toBe(false);
     expect(initial.snapModes).toEqual({ grid: true, guides: true, points: true, gaps: true });
     expect(initial.showRulers).toBe(true);
     expect(initial.showGuides).toBe(true);
+    expect(initial.showDocumentBounds).toBe(true);
 
     const afterGrid = editorReducer(initial, { type: "TOGGLE_CANVAS_AID", aid: "grid" });
     expect(afterGrid.showGrid).toBe(false);
+    expect(afterGrid.showTransparencyGrid).toBe(false);
     expect(afterGrid.showRulers).toBe(true);
     expect(afterGrid.showGuides).toBe(true);
+    expect(afterGrid.showDocumentBounds).toBe(true);
 
     const afterRulers = editorReducer(afterGrid, { type: "TOGGLE_CANVAS_AID", aid: "rulers" });
     expect(afterRulers.showGrid).toBe(false);
+    expect(afterRulers.showTransparencyGrid).toBe(false);
     expect(afterRulers.showRulers).toBe(false);
     expect(afterRulers.showGuides).toBe(true);
+    expect(afterRulers.showDocumentBounds).toBe(true);
 
     const afterGuides = editorReducer(afterRulers, { type: "TOGGLE_CANVAS_AID", aid: "guides" });
     expect(afterGuides.showGrid).toBe(false);
+    expect(afterGuides.showTransparencyGrid).toBe(false);
     expect(afterGuides.showRulers).toBe(false);
     expect(afterGuides.showGuides).toBe(false);
+    expect(afterGuides.showDocumentBounds).toBe(true);
     expect(afterGuides.snapModes).toEqual({ grid: true, guides: true, points: true, gaps: true });
+
+    const afterTransparencyGrid = editorReducer(afterGuides, { type: "TOGGLE_CANVAS_AID", aid: "transparencyGrid" });
+    expect(afterTransparencyGrid.showTransparencyGrid).toBe(true);
+    expect(afterTransparencyGrid.showDocumentBounds).toBe(true);
+
+    const afterDocumentBounds = editorReducer(afterTransparencyGrid, { type: "TOGGLE_CANVAS_AID", aid: "documentBounds" });
+    expect(afterDocumentBounds.showTransparencyGrid).toBe(true);
+    expect(afterDocumentBounds.showDocumentBounds).toBe(false);
   });
 
   it("TOGGLE_SNAP_MODE toggles each snapping mode independently", () => {

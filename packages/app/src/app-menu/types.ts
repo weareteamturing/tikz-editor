@@ -63,6 +63,8 @@ export const APP_MENU_COMMAND_IDS = {
   ZOOM_IN: "view.zoom-in",
   ZOOM_OUT: "view.zoom-out",
   TOGGLE_GRID: "view.toggle-grid",
+  TOGGLE_TRANSPARENCY_GRID: "view.toggle-transparency-grid",
+  TOGGLE_INFINITE_CANVAS: "view.toggle-infinite-canvas",
   TOGGLE_SNAP_GRID: "view.toggle-snap-grid",
   TOGGLE_SNAP_GUIDES: "view.toggle-snap-guides",
   TOGGLE_SNAP_OBJECT_POINTS: "view.toggle-snap-object-points",

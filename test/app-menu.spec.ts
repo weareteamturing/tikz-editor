@@ -25,6 +25,8 @@ describe("app menu definition", () => {
   });
 
   it("defines snapping command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID).toBe("view.toggle-transparency-grid");
+    expect(APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS).toBe("view.toggle-infinite-canvas");
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GRID).toBe("view.toggle-snap-grid");
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_GUIDES).toBe("view.toggle-snap-guides");
     expect(APP_MENU_COMMAND_IDS.TOGGLE_SNAP_OBJECT_POINTS).toBe("view.toggle-snap-object-points");
@@ -223,6 +225,21 @@ describe("app menu definition", () => {
     expect(snapGuides).toBeDefined();
     expect(snapPoints).toBeDefined();
     expect(snapGaps).toBeDefined();
+  });
+
+  it("exposes transparency and document bounds toggles in the View menu", () => {
+    const viewSection = APP_MENU_DEFINITION.find((section) => section.id === "view");
+    expect(viewSection).toBeDefined();
+    const items = viewSection?.items ?? [];
+    const transparency = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_TRANSPARENCY_GRID
+    );
+    const infiniteCanvas = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.TOGGLE_INFINITE_CANVAS
+    );
+
+    expect(transparency).toBeDefined();
+    expect(infiniteCanvas).toBeDefined();
   });
 
   it("exposes Bezier in the Insert menu", () => {

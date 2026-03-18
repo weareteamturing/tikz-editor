@@ -716,6 +716,7 @@ export function App() {
         getSelectedSourceIds: () => string[];
         getActiveFigureId: () => string | null;
         getFigureCount: () => number;
+        getActiveCanvasDragKind: () => string | null;
       };
     };
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
@@ -751,6 +752,9 @@ export function App() {
       },
       getFigureCount: () => {
         return useEditorStore.getState().snapshot.figures.length;
+      },
+      getActiveCanvasDragKind: () => {
+        return useEditorStore.getState().activeCanvasDragKind;
       }
     };
     return () => {
