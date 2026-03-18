@@ -98,6 +98,159 @@ test("cmd/ctrl+a selects all canvas elements for delete", async ({ page }) => {
   await expect.poll(async () => readSource(page)).not.toContain("\\draw (3,0) rectangle (4,1);");
 });
 
+test("canvas supports two-finger pinch zoom on touch devices", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\draw[line width=1.2pt] (-2,-1.5) rectangle (2,1.5);
+\draw[fill=black] (0,0) circle (0.35);
+\end{tikzpicture}`);
+
+  const readStageMetrics = async () => {
+    return await page.evaluate(() => {
+      const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+      if (!viewport) {
+        return null;
+      }
+      const stage = Array.from(viewport.children).find(
+        (child): child is HTMLDivElement =>
+          child instanceof HTMLDivElement && child.querySelector("svg[viewBox]") != null
+      );
+      if (!stage) {
+        return null;
+      }
+      const rect = stage.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        transform: stage.style.transform
+      };
+    });
+  };
+
+  await expect.poll(readStageMetrics, {
+    timeout: 30_000,
+    intervals: [250, 500, 1000]
+  }).not.toBeNull();
+
+  const before = await readStageMetrics();
+
+  expect(before).not.toBeNull();
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const interactionSvg = Array.from(viewport.querySelectorAll("svg[viewBox]")).at(-1) as SVGSVGElement | null;
+    if (!interactionSvg) {
+      throw new Error("Canvas interaction layer not found.");
+    }
+
+    const rect = viewport.getBoundingClientRect();
+    const y = rect.top + rect.height * 0.5;
+    const leftStart = rect.left + rect.width * 0.4;
+    const rightStart = rect.left + rect.width * 0.6;
+    const leftEnd = leftStart - rect.width * 0.08;
+    const rightEnd = rightStart + rect.width * 0.08;
+
+    const dispatchPointer = (target: EventTarget, type: string, init: PointerEventInit) => {
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          ...init
+        })
+      );
+    };
+
+    dispatchPointer(interactionSvg, "pointerdown", {
+      pointerId: 101,
+      pointerType: "touch",
+      isPrimary: true,
+      button: 0,
+      buttons: 1,
+      clientX: leftStart,
+      clientY: y
+    });
+    dispatchPointer(interactionSvg, "pointerdown", {
+      pointerId: 202,
+      pointerType: "touch",
+      isPrimary: false,
+      button: 0,
+      buttons: 1,
+      clientX: rightStart,
+      clientY: y
+    });
+    dispatchPointer(window, "pointermove", {
+      pointerId: 101,
+      pointerType: "touch",
+      isPrimary: true,
+      buttons: 1,
+      clientX: leftEnd,
+      clientY: y
+    });
+    dispatchPointer(window, "pointermove", {
+      pointerId: 202,
+      pointerType: "touch",
+      isPrimary: false,
+      buttons: 1,
+      clientX: rightEnd,
+      clientY: y
+    });
+    dispatchPointer(window, "pointerup", {
+      pointerId: 101,
+      pointerType: "touch",
+      isPrimary: true,
+      clientX: leftEnd,
+      clientY: y
+    });
+    dispatchPointer(window, "pointerup", {
+      pointerId: 202,
+      pointerType: "touch",
+      isPrimary: false,
+      clientX: rightEnd,
+      clientY: y
+    });
+  });
+
+  await expect.poll(async () => (await readStageMetrics())?.width ?? 0).toBeGreaterThan((before?.width ?? 0) * 1.1);
+});
+
+test("short background touch tap clears the current selection", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\draw (0,0) rectangle (2,1);
+\draw (3,0) rectangle (4,1);
+\end{tikzpicture}`);
+
+  await selectAllSceneElements(page);
+  await expect.poll(async () => (await readSelectedSourceIds(page)).length).toBeGreaterThan(0);
+
+  const viewport = canvasViewport(page);
+  const box = await viewport.boundingBox();
+  if (!box) {
+    throw new Error("Missing canvas viewport bounds.");
+  }
+
+  const x = box.x + box.width * 0.8;
+  const y = box.y + box.height * 0.8;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x, y, radiusX: 1, radiusY: 1, force: 1, id: 1 }],
+    modifiers: 0
+  });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+    modifiers: 0
+  });
+
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+});
+
 test("selection-sensitive edit menu commands enable only after selecting element", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
