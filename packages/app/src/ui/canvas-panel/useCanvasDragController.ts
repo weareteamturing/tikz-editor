@@ -13,7 +13,7 @@ import {
   type SnapLine
 } from "tikz-editor/edit/snapping";
 import type { EditHandle, NodeAnchorTarget, Point, SceneElement } from "tikz-editor/semantic/types";
-import { applyMatrix } from "tikz-editor/semantic/transform";
+import { applyMatrix, applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { SvgViewBox } from "tikz-editor/svg/index";
 
 import {
@@ -62,6 +62,7 @@ const ROTATE_SOFT_SNAP_THRESHOLD_DEG = 7;
 const ADORNMENT_CENTER_SNAP_THRESHOLD_PT = 1;
 const GRID_RESIZE_STEP_EPSILON = 1e-9;
 const SNAP_FEEDBACK_EPSILON = 1e-6;
+const ADORNMENT_OWNER_CENTER_EPSILON = 1e-6;
 
 export function useCanvasDragController(params: {
   applyActionWithFeedback: (action: EditAction, mergeKey?: string) => ApplyActionFeedback;
@@ -609,33 +610,60 @@ export function useCanvasDragController(params: {
           const parsedTarget = parseEditableTargetId(drag.elementIds[0]!);
           if (parsedTarget.kind === "node-adornment") {
             const rawWorld = world;
+            const dragStartWorld = drag.startWorld;
             let adornmentDrag = drag.adornmentDrag;
             if (!adornmentDrag) {
               const adornmentElements =
                 snapshotScene?.elements.filter((element) => element.adornment?.targetId === parsedTarget.id) ?? [];
               const adornmentElement = selectPrimaryAdornmentElement(adornmentElements);
+              const adornmentTextElement = adornmentElements.find((element): element is Extract<SceneElement, { kind: "Text" }> => element.kind === "Text");
               const ownerPoint = adornmentElement?.adornment?.ownerPoint;
               if (!ownerPoint) {
                 setSnapLines([]);
                 maybeTriggerSnapFeedback(false);
                 return;
               }
-              const referenceWorld = resolveAdornmentDragReferenceWorld(adornmentElement) ?? ownerPoint;
+              const referenceWorld = resolveAdornmentDragReferenceWorld(adornmentElement);
+              if (!referenceWorld) {
+                setSnapLines([]);
+                maybeTriggerSnapFeedback(false);
+                return;
+              }
+              const bodyDragBox = resolveAdornmentBodyDragBox(adornmentElements);
+              const textDrag = bodyDragBox
+                ? {
+                    pointerOffsetFromCenter: {
+                      x: dragStartWorld.x - bodyDragBox.center.x,
+                      y: dragStartWorld.y - bodyDragBox.center.y
+                    },
+                    halfWidth: Math.max(0.5, bodyDragBox.width / 2),
+                    halfHeight: Math.max(0.5, bodyDragBox.height / 2)
+                  }
+                : undefined;
               adornmentDrag = {
                 ownerPoint,
                 ownerGeometry: adornmentElement?.adornment?.ownerGeometry,
                 allowCenter: adornmentElement?.adornment?.kind === "label",
                 pointerOffsetFromReference: {
-                  x: rawWorld.x - referenceWorld.x,
-                  y: rawWorld.y - referenceWorld.y
-                }
+                  x: dragStartWorld.x - referenceWorld.x,
+                  y: dragStartWorld.y - referenceWorld.y
+                },
+                textDrag
               };
               drag.adornmentDrag = adornmentDrag;
             }
-            const referenceWorld = applyAdornmentPointerOffset(rawWorld, adornmentDrag.pointerOffsetFromReference);
-            const placement = resolveAdornmentDragPlacement(referenceWorld, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
-              allowCenter: adornmentDrag.allowCenter
+            const placementPoint = adornmentDrag.textDrag
+              ? rawWorld
+              : applyAdornmentPointerOffset(rawWorld, adornmentDrag.pointerOffsetFromReference);
+            const placement = resolveAdornmentDragPlacement(placementPoint, adornmentDrag.ownerPoint, adornmentDrag.ownerGeometry, {
+              allowCenter: adornmentDrag.allowCenter,
+              textDrag: adornmentDrag.textDrag
             });
+            if (!placement) {
+              setSnapLines([]);
+              maybeTriggerSnapFeedback(false);
+              return;
+            }
             setSnapLines([]);
             maybeTriggerSnapFeedback(false);
             applyActionWithFeedback(
@@ -643,7 +671,7 @@ export function useCanvasDragController(params: {
                 kind: "moveAdornment",
                 targetId: parsedTarget.id,
                 ownerPoint: adornmentDrag.ownerPoint,
-                newWorld: referenceWorld,
+                newWorld: placementPoint,
                 angleRaw: placement.angleRaw,
                 distancePt: placement.distancePt
               },
@@ -1135,17 +1163,7 @@ function resolveAdornmentDragReferenceWorld(element: SceneElement | null): Point
   if (!element?.adornment) {
     return null;
   }
-  const referenceFromAdornment = resolveAdornmentReferenceWorld(element.adornment);
-  if (referenceFromAdornment) {
-    return referenceFromAdornment;
-  }
-  if (element.kind === "Text") {
-    return element.position;
-  }
-  if (element.kind === "Circle" || element.kind === "Ellipse") {
-    return element.center;
-  }
-  return null;
+  return resolveAdornmentReferenceWorld(element.adornment);
 }
 
 function resolveAdornmentReferenceWorld(adornment: NonNullable<SceneElement["adornment"]>): Point | null {
@@ -1221,30 +1239,259 @@ export function resolveAdornmentDragPlacement(
   point: Point,
   ownerPoint: Point,
   ownerGeometry: AdornmentOwnerGeometry | undefined,
-  options: { allowCenter: boolean }
-): { angleRaw: string; distancePt: number } {
+  options: {
+    allowCenter: boolean;
+    textDrag?: {
+      pointerOffsetFromCenter: Point;
+      halfWidth: number;
+      halfHeight: number;
+    };
+  }
+): { angleRaw: string; distancePt: number } | null {
+  if (options.textDrag) {
+    const desiredCenter = {
+      x: point.x - options.textDrag.pointerOffsetFromCenter.x,
+      y: point.y - options.textDrag.pointerOffsetFromCenter.y
+    };
+    const bodyPlacement = resolvePlacementFromDesiredCenter({
+      desiredCenter,
+      ownerPoint,
+      ownerGeometry,
+      halfWidth: options.textDrag.halfWidth,
+      halfHeight: options.textDrag.halfHeight
+    });
+    if (!bodyPlacement) {
+      return null;
+    }
+    if (
+      options.allowCenter &&
+      bodyPlacement.radialDistanceFromCenter <= bodyPlacement.borderDistance + ADORNMENT_CENTER_SNAP_THRESHOLD_PT
+    ) {
+      return { angleRaw: "center", distancePt: 0 };
+    }
+    return {
+      angleRaw: formatAdornmentAngle(bodyPlacement.angleDeg),
+      distancePt: bodyPlacement.distancePt
+    };
+  }
+
+  const resolvedReferencePoint = point;
   const center = ownerGeometry?.center ?? ownerPoint;
-  const dx = point.x - center.x;
-  const dy = point.y - center.y;
+  const dx = resolvedReferencePoint.x - center.x;
+  const dy = resolvedReferencePoint.y - center.y;
   const radius = Math.sqrt(dx * dx + dy * dy);
   if (options.allowCenter && radius <= ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
     return { angleRaw: "center", distancePt: 0 };
   }
 
-  const angleDeg = ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-
-  const radians = (angleDeg * Math.PI) / 180;
-  const direction = { x: Math.cos(radians), y: Math.sin(radians) };
-  const radialDistanceFromCenter = Math.max(0, dx * direction.x + dy * direction.y);
-  const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, direction);
-  const distancePt = Math.max(0, radialDistanceFromCenter - borderDistance);
-  if (options.allowCenter && radialDistanceFromCenter <= borderDistance + ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
+  const placement = derivePlacementFromReferencePoint(resolvedReferencePoint, ownerPoint, ownerGeometry);
+  if (options.allowCenter && placement.radialDistanceFromCenter <= placement.borderDistance + ADORNMENT_CENTER_SNAP_THRESHOLD_PT) {
     return { angleRaw: "center", distancePt: 0 };
   }
   return {
-    angleRaw: formatAdornmentAngle(angleDeg),
-    distancePt
+    angleRaw: formatAdornmentAngle(placement.angleDeg),
+    distancePt: placement.distancePt
   };
+}
+
+function resolvePlacementFromDesiredCenter(input: {
+  desiredCenter: Point;
+  ownerPoint: Point;
+  ownerGeometry: AdornmentOwnerGeometry | undefined;
+  halfWidth: number;
+  halfHeight: number;
+}): {
+  angleDeg: number;
+  distancePt: number;
+  anchor: string;
+  borderDistance: number;
+  radialDistanceFromCenter: number;
+} | null {
+  type PlacementSearchResult = {
+    angleDeg: number;
+    distancePt: number;
+    anchor: string;
+    borderDistance: number;
+    radialDistanceFromCenter: number;
+    errorSq: number;
+  };
+  let best: PlacementSearchResult | null = null;
+
+  const tryAngle = (angleDeg: number) => {
+    const geometry = derivePlacementGeometryForAngle(angleDeg, input.ownerPoint, input.ownerGeometry);
+    const anchor = geometry.anchor;
+    const anchorOffset = anchorOffsetFromCenter(anchor, input.halfWidth, input.halfHeight);
+    const desiredReference = {
+      x: input.desiredCenter.x + anchorOffset.x,
+      y: input.desiredCenter.y + anchorOffset.y
+    };
+    const projectedDistance =
+      (desiredReference.x - geometry.borderPoint.x) * geometry.shiftDirection.x +
+      (desiredReference.y - geometry.borderPoint.y) * geometry.shiftDirection.y;
+    const distancePt = Math.max(0, projectedDistance);
+    const referencePoint = {
+      x: geometry.borderPoint.x + geometry.shiftDirection.x * distancePt,
+      y: geometry.borderPoint.y + geometry.shiftDirection.y * distancePt
+    };
+    const resolvedCenter = {
+      x: referencePoint.x - anchorOffset.x,
+      y: referencePoint.y - anchorOffset.y
+    };
+    const errorSq = distanceSquared(resolvedCenter, input.desiredCenter);
+    if (!best || errorSq < best.errorSq) {
+      best = {
+        angleDeg: normalizeDegrees(angleDeg),
+        distancePt,
+        anchor,
+        borderDistance: geometry.borderDistance,
+        radialDistanceFromCenter: Math.max(
+          0,
+          (referencePoint.x - geometry.ownerCenter.x) * geometry.polarDirection.x +
+            (referencePoint.y - geometry.ownerCenter.y) * geometry.polarDirection.y
+        ),
+        errorSq
+      };
+    }
+  };
+
+  for (let angle = 0; angle < 360; angle += 1) {
+    tryAngle(angle);
+  }
+  if (!best) {
+    return null;
+  }
+  const coarseBest = (best as PlacementSearchResult).angleDeg;
+  for (let angle = coarseBest - 1; angle <= coarseBest + 1; angle += 0.1) {
+    tryAngle(angle);
+  }
+  const refinedBest = best as PlacementSearchResult;
+  return {
+    angleDeg: refinedBest.angleDeg,
+    distancePt: refinedBest.distancePt,
+    anchor: refinedBest.anchor,
+    borderDistance: refinedBest.borderDistance,
+    radialDistanceFromCenter: refinedBest.radialDistanceFromCenter
+  };
+}
+
+function derivePlacementGeometryForAngle(
+  angleDeg: number,
+  ownerPoint: Point,
+  ownerGeometry: AdornmentOwnerGeometry | undefined
+): {
+  ownerCenter: Point;
+  polarDirection: Point;
+  borderDistance: number;
+  borderPoint: Point;
+  shiftDirection: Point;
+  anchor: string;
+} {
+  const ownerCenter = ownerGeometry?.center ?? ownerPoint;
+  const normalizedAngle = normalizeDegrees(angleDeg);
+  const polarDirection = pointOnUnitCircle(normalizedAngle);
+  const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, polarDirection);
+  const borderPoint = {
+    x: ownerCenter.x + polarDirection.x * borderDistance,
+    y: ownerCenter.y + polarDirection.y * borderDistance
+  };
+  const centerToBorder = {
+    x: borderPoint.x - ownerCenter.x,
+    y: borderPoint.y - ownerCenter.y
+  };
+  const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
+  const shiftDirection = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON
+    ? polarDirection
+    : {
+        x: centerToBorder.x / centerToBorderLength,
+        y: centerToBorder.y / centerToBorderLength
+      };
+  const anchor = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON
+    ? anchorFacingAway(normalizedAngle)
+    : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
+  return {
+    ownerCenter,
+    polarDirection,
+    borderDistance,
+    borderPoint,
+    shiftDirection,
+    anchor
+  };
+}
+
+function derivePlacementFromReferencePoint(
+  referencePoint: Point,
+  ownerPoint: Point,
+  ownerGeometry: AdornmentOwnerGeometry | undefined
+): {
+  angleDeg: number;
+  distancePt: number;
+  anchor: string;
+  borderDistance: number;
+  radialDistanceFromCenter: number;
+  referencePoint: Point;
+} {
+  const ownerCenter = ownerGeometry?.center ?? ownerPoint;
+  const angleDeg = normalizeDegrees((Math.atan2(referencePoint.y - ownerCenter.y, referencePoint.x - ownerCenter.x) * 180) / Math.PI);
+  const polarDirection = pointOnUnitCircle(angleDeg);
+  const borderDistance = resolveAdornmentOwnerBorderDistance(ownerGeometry, polarDirection);
+  const borderPoint = {
+    x: ownerCenter.x + polarDirection.x * borderDistance,
+    y: ownerCenter.y + polarDirection.y * borderDistance
+  };
+  const centerToBorder = {
+    x: borderPoint.x - ownerCenter.x,
+    y: borderPoint.y - ownerCenter.y
+  };
+  const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
+  const simple = centerToBorderLength <= ADORNMENT_OWNER_CENTER_EPSILON;
+  const shiftDirection = simple
+    ? polarDirection
+    : {
+        x: centerToBorder.x / centerToBorderLength,
+        y: centerToBorder.y / centerToBorderLength
+      };
+  const radialDistanceFromCenter = Math.max(0, (referencePoint.x - ownerCenter.x) * polarDirection.x + (referencePoint.y - ownerCenter.y) * polarDirection.y);
+  const distancePt = Math.max(
+    0,
+    (referencePoint.x - borderPoint.x) * shiftDirection.x +
+      (referencePoint.y - borderPoint.y) * shiftDirection.y
+  );
+  const anchor = simple
+    ? anchorFacingAway(angleDeg)
+    : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
+  const resolvedReferencePoint = {
+    x: borderPoint.x + shiftDirection.x * distancePt,
+    y: borderPoint.y + shiftDirection.y * distancePt
+  };
+  return {
+    angleDeg,
+    distancePt,
+    anchor,
+    borderDistance,
+    radialDistanceFromCenter,
+    referencePoint: resolvedReferencePoint
+  };
+}
+
+function pointOnUnitCircle(angleDeg: number): Point {
+  const radians = (angleDeg * Math.PI) / 180;
+  return { x: Math.cos(radians), y: Math.sin(radians) };
+}
+
+function autoAnchorFromVector(vector: Point): string {
+  const x = vector.x;
+  const y = vector.y;
+  if (x > 0.05) {
+    if (y > 0.05) return "south east";
+    if (y < -0.05) return "south west";
+    return "south";
+  }
+  if (x < -0.05) {
+    if (y > 0.05) return "north east";
+    if (y < -0.05) return "north west";
+    return "north";
+  }
+  return y > 0 ? "east" : "west";
 }
 
 function resolveAdornmentOwnerBorderDistance(
@@ -1259,27 +1506,314 @@ function resolveAdornmentOwnerBorderDistance(
     return hit ? Math.sqrt(hit.x * hit.x + hit.y * hit.y) : 0;
   }
   if (ownerGeometry.shape === "circle") {
-    return Math.max(0, ownerGeometry.anchorRadius);
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
+    const localLen = Math.hypot(localDirection.x, localDirection.y);
+    if (!Number.isFinite(localLen) || localLen <= 1e-9) {
+      return 0;
+    }
+    const radius = Math.max(0, ownerGeometry.anchorRadius);
+    const localPoint = {
+      x: (localDirection.x / localLen) * radius,
+      y: (localDirection.y / localLen) * radius
+    };
+    const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+    return Math.hypot(mapped.x, mapped.y);
   }
   if (ownerGeometry.shape === "rectangle") {
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
     const hw = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
     const hh = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
-    const scale = 1 / Math.max(Math.abs(direction.x) / hw, Math.abs(direction.y) / hh);
-    return Number.isFinite(scale) ? scale : 0;
+    const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
+    if (!Number.isFinite(scale)) {
+      return 0;
+    }
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+    return Math.hypot(mapped.x, mapped.y);
   }
   if (ownerGeometry.shape === "ellipse") {
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
     const rx = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
     const ry = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
-    const scale = 1 / Math.sqrt((direction.x * direction.x) / (rx * rx) + (direction.y * direction.y) / (ry * ry));
-    return Number.isFinite(scale) ? scale : 0;
+    const scale = 1 / Math.sqrt((localDirection.x * localDirection.x) / (rx * rx) + (localDirection.y * localDirection.y) / (ry * ry));
+    if (!Number.isFinite(scale)) {
+      return 0;
+    }
+    const localPoint = {
+      x: localDirection.x * scale,
+      y: localDirection.y * scale
+    };
+    const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+    return Math.hypot(mapped.x, mapped.y);
   }
   return 0;
 }
 
 function formatAdornmentAngle(rawDegrees: number): string {
-  let normalized = rawDegrees % 360;
+  return formatNumber(normalizeDegrees(rawDegrees));
+}
+
+function normalizeDegrees(value: number): number {
+  let normalized = value % 360;
   if (normalized < 0) {
     normalized += 360;
   }
-  return formatNumber(normalized);
+  return normalized;
+}
+
+function anchorFacingAway(degrees: number): string {
+  const normalized = normalizeDegrees(degrees);
+  if (normalized < 4 || normalized >= 356) {
+    return "west";
+  }
+  if (normalized < 87) {
+    return "south west";
+  }
+  if (normalized < 94) {
+    return "south";
+  }
+  if (normalized < 177) {
+    return "south east";
+  }
+  if (normalized < 184) {
+    return "east";
+  }
+  if (normalized < 267) {
+    return "north east";
+  }
+  if (normalized < 274) {
+    return "north";
+  }
+  return "north west";
+}
+
+function anchorOffsetFromCenter(anchor: string, halfWidth: number, halfHeight: number): Point {
+  switch (anchor) {
+    case "west":
+      return { x: -halfWidth, y: 0 };
+    case "east":
+      return { x: halfWidth, y: 0 };
+    case "north":
+      return { x: 0, y: halfHeight };
+    case "south":
+      return { x: 0, y: -halfHeight };
+    case "north west":
+      return { x: -halfWidth, y: halfHeight };
+    case "north east":
+      return { x: halfWidth, y: halfHeight };
+    case "south west":
+      return { x: -halfWidth, y: -halfHeight };
+    case "south east":
+      return { x: halfWidth, y: -halfHeight };
+    default:
+      return { x: 0, y: 0 };
+  }
+}
+
+function resolveSceneTextWidth(text: Extract<SceneElement, { kind: "Text" }>): number {
+  if (text.textBlockWidth != null && Number.isFinite(text.textBlockWidth)) {
+    return Math.max(1, text.textBlockWidth);
+  }
+  const maxChars = text.text.split("\n").reduce((max, line) => Math.max(max, line.length), 0);
+  return Math.max(1, maxChars * text.style.fontSize * 0.7);
+}
+
+function resolveSceneTextHeight(text: Extract<SceneElement, { kind: "Text" }>): number {
+  if (text.textBlockHeight != null && Number.isFinite(text.textBlockHeight)) {
+    return Math.max(1, text.textBlockHeight);
+  }
+  return Math.max(1, text.text.split("\n").length) * text.style.fontSize * 1.15;
+}
+
+function resolveAdornmentBodyDragBox(
+  elements: readonly SceneElement[]
+): { center: Point; width: number; height: number } | null {
+  let bounds: Bounds | null = null;
+  for (const element of elements) {
+    if (element.kind === "Path" && element.id.includes(":pin-edge:")) {
+      continue;
+    }
+    const next = elementBoundsInWorld(element);
+    if (!next) {
+      continue;
+    }
+    bounds = bounds ? mergeWorldBounds(bounds, next) : next;
+  }
+  if (!bounds) {
+    return null;
+  }
+  return {
+    center: {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2
+    },
+    width: Math.max(1, bounds.maxX - bounds.minX),
+    height: Math.max(1, bounds.maxY - bounds.minY)
+  };
+}
+
+function elementBoundsInWorld(element: SceneElement): Bounds | null {
+  if (element.kind === "Path") {
+    const bounds = pathBoundsInWorld(element);
+    return bounds ? applyTransformToBounds(bounds, element.transform) : null;
+  }
+  if (element.kind === "Circle") {
+    return applyTransformToBounds({
+      minX: element.center.x - element.radius,
+      minY: element.center.y - element.radius,
+      maxX: element.center.x + element.radius,
+      maxY: element.center.y + element.radius
+    }, element.transform);
+  }
+  if (element.kind === "Ellipse") {
+    return applyTransformToBounds(
+      computeRotatedRectLikeEllipseBounds(element.center.x, element.center.y, element.rx, element.ry, element.rotation ?? 0),
+      element.transform
+    );
+  }
+  return applyTransformToBounds(
+    computeRotatedRectBoundsLocal(
+      element.position.x,
+      element.position.y,
+      resolveSceneTextWidth(element),
+      resolveSceneTextHeight(element),
+      element.rotation ?? 0
+    ),
+    element.transform
+  );
+}
+
+function pathBoundsInWorld(path: Extract<SceneElement, { kind: "Path" }>): Bounds | null {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let previous: Point | null = null;
+
+  const includePoint = (point: Point) => {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  };
+
+  for (const command of path.commands) {
+    if (command.kind === "Z") continue;
+    if (command.kind === "C") {
+      includePoint(command.c1);
+      includePoint(command.c2);
+    }
+    if (command.kind === "A") {
+      if (previous) {
+        includePoint({ x: previous.x - command.rx, y: previous.y - command.ry });
+        includePoint({ x: previous.x + command.rx, y: previous.y + command.ry });
+      }
+      includePoint({ x: command.to.x - command.rx, y: command.to.y - command.ry });
+      includePoint({ x: command.to.x + command.rx, y: command.to.y + command.ry });
+      previous = command.to;
+      continue;
+    }
+    includePoint(command.to);
+    previous = command.to;
+  }
+
+  if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function computeRotatedRectLikeEllipseBounds(cx: number, cy: number, rx: number, ry: number, rotation: number): Bounds {
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  const extentX = Math.sqrt(rx * rx * cos * cos + ry * ry * sin * sin);
+  const extentY = Math.sqrt(rx * rx * sin * sin + ry * ry * cos * cos);
+  return {
+    minX: cx - extentX,
+    maxX: cx + extentX,
+    minY: cy - extentY,
+    maxY: cy + extentY
+  };
+}
+
+function computeRotatedRectBoundsLocal(cx: number, cy: number, width: number, height: number, rotation: number): Bounds {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  if (Math.abs(rotation) <= 1e-6) {
+    return {
+      minX: cx - halfWidth,
+      maxX: cx + halfWidth,
+      minY: cy - halfHeight,
+      maxY: cy + halfHeight
+    };
+  }
+  const theta = (rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(theta));
+  const sin = Math.abs(Math.sin(theta));
+  const extentX = halfWidth * cos + halfHeight * sin;
+  const extentY = halfWidth * sin + halfHeight * cos;
+  return {
+    minX: cx - extentX,
+    maxX: cx + extentX,
+    minY: cy - extentY,
+    maxY: cy + extentY
+  };
+}
+
+function applyTransformToBounds(bounds: Bounds, transform: SceneElement["transform"]): Bounds {
+  if (!transform) {
+    return bounds;
+  }
+  const corners = [
+    applyMatrix(transform, { x: bounds.minX, y: bounds.minY }),
+    applyMatrix(transform, { x: bounds.minX, y: bounds.maxY }),
+    applyMatrix(transform, { x: bounds.maxX, y: bounds.minY }),
+    applyMatrix(transform, { x: bounds.maxX, y: bounds.maxY })
+  ];
+  let next = {
+    minX: corners[0]!.x,
+    minY: corners[0]!.y,
+    maxX: corners[0]!.x,
+    maxY: corners[0]!.y
+  };
+  for (const corner of corners.slice(1)) {
+    next = mergeWorldBounds(next, {
+      minX: corner!.x,
+      minY: corner!.y,
+      maxX: corner!.x,
+      maxY: corner!.y
+    });
+  }
+  return next;
+}
+
+function mergeWorldBounds(a: Bounds, b: Bounds): Bounds {
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY)
+  };
 }

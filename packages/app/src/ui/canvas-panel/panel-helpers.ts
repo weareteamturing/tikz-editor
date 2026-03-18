@@ -13,6 +13,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { intersectRayWithPolygon } from "tikz-editor/semantic/nodes/shape-geometry";
 import type { SvgViewBox } from "tikz-editor/svg/index";
+import { applyMatrixToVector, inverseMatrix } from "tikz-editor/semantic/transform";
 import type { CanvasDragKind } from "../../store/types";
 import type { HitRegion } from "./hit-regions";
 import type {
@@ -145,17 +146,60 @@ export function resolveAdornmentOwnerBoundaryPoint(
 
   let borderDistance = 0;
   if (ownerGeometry.shape === "circle") {
-    borderDistance = Math.max(0, ownerGeometry.anchorRadius);
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
+    const localLen = Math.hypot(localDirection.x, localDirection.y);
+    if (Number.isFinite(localLen) && localLen > 1e-9) {
+      const localPoint = {
+        x: (localDirection.x / localLen) * Math.max(0, ownerGeometry.anchorRadius),
+        y: (localDirection.y / localLen) * Math.max(0, ownerGeometry.anchorRadius)
+      };
+      const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+      borderDistance = Math.hypot(mapped.x, mapped.y);
+    }
   } else if (ownerGeometry.shape === "rectangle") {
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
     const hw = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
     const hh = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
-    const scale = 1 / Math.max(Math.abs(direction.x) / hw, Math.abs(direction.y) / hh);
-    borderDistance = Number.isFinite(scale) ? scale : 0;
+    const scale = 1 / Math.max(Math.abs(localDirection.x) / hw, Math.abs(localDirection.y) / hh);
+    if (Number.isFinite(scale)) {
+      const localPoint = {
+        x: localDirection.x * scale,
+        y: localDirection.y * scale
+      };
+      const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+      borderDistance = Math.hypot(mapped.x, mapped.y);
+    }
   } else if (ownerGeometry.shape === "ellipse") {
+    const transform = ownerGeometry.anchorTransform;
+    const localDirection = (() => {
+      if (!transform) return direction;
+      const inverse = inverseMatrix(transform);
+      if (!inverse) return direction;
+      return applyMatrixToVector(inverse, direction);
+    })();
     const rx = Math.max(ownerGeometry.anchorHalfWidth, 1e-6);
     const ry = Math.max(ownerGeometry.anchorHalfHeight, 1e-6);
-    const scale = 1 / Math.sqrt((direction.x * direction.x) / (rx * rx) + (direction.y * direction.y) / (ry * ry));
-    borderDistance = Number.isFinite(scale) ? scale : 0;
+    const scale = 1 / Math.sqrt((localDirection.x * localDirection.x) / (rx * rx) + (localDirection.y * localDirection.y) / (ry * ry));
+    if (Number.isFinite(scale)) {
+      const localPoint = {
+        x: localDirection.x * scale,
+        y: localDirection.y * scale
+      };
+      const mapped = transform ? applyMatrixToVector(transform, localPoint) : localPoint;
+      borderDistance = Math.hypot(mapped.x, mapped.y);
+    }
   }
 
   return {

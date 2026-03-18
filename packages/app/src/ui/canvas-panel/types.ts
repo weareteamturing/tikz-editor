@@ -53,12 +53,18 @@ export type DragState =
       pointerId: number;
       elementIds: string[];
       startWorld: Point;
+      adornmentDragFromText?: boolean;
       lastAppliedTotalDelta: Point;
       adornmentDrag?: {
         ownerPoint: Point;
         ownerGeometry?: AdornmentOwnerGeometry;
         allowCenter: boolean;
         pointerOffsetFromReference: Point;
+        textDrag?: {
+          pointerOffsetFromCenter: Point;
+          halfWidth: number;
+          halfHeight: number;
+        };
       };
       snapContext: SnapContext | null;
       initialSelection: SelectionGeometry | null;

@@ -66,7 +66,12 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
   } | null>(null);
 
   const startElementDrag = useCallback(
-    (pointerId: number, world: { x: number; y: number }, draggedIds: string[]) => {
+    (
+      pointerId: number,
+      world: { x: number; y: number },
+      draggedIds: string[],
+      options: { adornmentDragFromText?: boolean } = {}
+    ) => {
       if (draggedIds.some((id) => !draggableSourceIds.has(id))) {
         setSnapLines([]);
         return;
@@ -158,6 +163,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         pointerId,
         elementIds: draggedIds,
         startWorld: world,
+        adornmentDragFromText:
+          draggedIds.length === 1 && draggedIds[0]?.startsWith("node-adornment:")
+            ? options.adornmentDragFromText === true
+            : undefined,
         lastAppliedTotalDelta: { x: 0, y: 0 },
         snapContext,
         initialSelection,
@@ -360,7 +369,11 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         });
       }
 
-      startElementDrag(event.pointerId, world, draggedIds);
+      const adornmentDragFromText =
+        isAdornmentTarget &&
+        region?.shape === "rect" &&
+        typeof region.sceneTextKey === "string";
+      startElementDrag(event.pointerId, world, draggedIds, { adornmentDragFromText });
     },
     [
       beginTextSelectionDrag,

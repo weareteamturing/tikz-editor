@@ -348,18 +348,30 @@ export function materializeNodeAdornment(params: {
   let anchor = "center";
 
   if (parsedAngle.kind !== "center") {
-    const radians = (parsedAngle.degrees * Math.PI) / 180;
-    const direction = { x: Math.cos(radians), y: Math.sin(radians) };
+    const direction = pointOnUnitCircle(parsedAngle.degrees);
     const borderPoint =
       parsedAngle.borderPoint ??
-      resolveNamedBorderPointByAngle(mainNodeNameRaw, parsedAngle.degrees, context) ??
       intersectNodeBorder(mainGeometry, direction) ??
       center;
-    target = {
-      x: borderPoint.x + direction.x * spec.distancePt,
-      y: borderPoint.y + direction.y * spec.distancePt
+    const centerToBorder = {
+      x: borderPoint.x - center.x,
+      y: borderPoint.y - center.y
     };
-    anchor = anchorFacingAway(parsedAngle.degrees);
+    const centerToBorderLength = Math.hypot(centerToBorder.x, centerToBorder.y);
+    const isSimple = centerToBorderLength <= 1e-6;
+    const shiftDirection = isSimple
+      ? direction
+      : {
+          x: centerToBorder.x / centerToBorderLength,
+          y: centerToBorder.y / centerToBorderLength
+        };
+    target = {
+      x: borderPoint.x + shiftDirection.x * spec.distancePt,
+      y: borderPoint.y + shiftDirection.y * spec.distancePt
+    };
+    anchor = isSimple
+      ? anchorFacingAway(parsedAngle.degrees)
+      : autoAnchorFromVector({ x: shiftDirection.y, y: -shiftDirection.x });
   }
 
   const filteredBase = sanitizeAdornmentOptions(spec.options);
@@ -429,6 +441,7 @@ export function cloneAdornmentOwnerGeometry(
   return {
     shape: geometry.shape,
     center: { ...geometry.center },
+    anchorTransform: geometry.anchorTransform ? { ...geometry.anchorTransform } : undefined,
     anchorHalfWidth: geometry.anchorHalfWidth,
     anchorHalfHeight: geometry.anchorHalfHeight,
     anchorRadius: geometry.anchorRadius,
@@ -1164,6 +1177,36 @@ function anchorFacingAway(degrees: number): string {
     return "north";
   }
   return "north west";
+}
+
+function autoAnchorFromVector(vector: Point): string {
+  if (vector.x > 0.05) {
+    if (vector.y > 0.05) {
+      return "south east";
+    }
+    if (vector.y < -0.05) {
+      return "south west";
+    }
+    return "south";
+  }
+  if (vector.x < -0.05) {
+    if (vector.y > 0.05) {
+      return "north east";
+    }
+    if (vector.y < -0.05) {
+      return "north west";
+    }
+    return "north";
+  }
+  return vector.y > 0 ? "east" : "west";
+}
+
+function pointOnUnitCircle(degrees: number): Point {
+  const radians = (degrees * Math.PI) / 180;
+  return {
+    x: Math.cos(radians),
+    y: Math.sin(radians)
+  };
 }
 
 function normalizeDegrees(value: number): number {

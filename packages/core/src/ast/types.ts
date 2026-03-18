@@ -28,6 +28,14 @@ export type AdornmentOwnerGeometry = {
     | "double arrow"
     | "coordinate";
   center: { x: number; y: number };
+  anchorTransform?: {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+  };
   anchorHalfWidth: number;
   anchorHalfHeight: number;
   anchorRadius: number;

@@ -61,3 +61,7 @@ node scripts/analyze-cpuprofile.mjs apps/web/profiling/traces/paper-drag-visible
 ## Tauri
 
 Tauri docs for the desktop app are available in `tauri-docs/` for local search.
+
+# My approach to git
+
+I sometimes keep "dirty" files in the work tree, especially when they are draft changes, before committing them. Typically the request I make will not touch the same files. So you don't have to worry about changes already in the repo, and certainly there is no need to stop your work once you see such files, because the presence of these files is expected.
