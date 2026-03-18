@@ -1,0 +1,1214 @@
+{
+  "shapes.geometric": {
+    "signature": "TikZ Library shapes.geometric",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.geometric} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.geometric] % ConTeXt and pure pgf \\usetikzlibrary{shapes.geometric} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.geometric] % ConTeXt when using TikZ This library defines different shapes that correspond to basic geometric objects like ellipses or polygons.",
+    "type": "key"
+  },
+  "diamond": {
+    "signature": "Shape diamond",
+    "default": "",
+    "description": "This shape is a diamond tightly fitting the text box. The ratio between width and height is 1 by default, but can be changed by setting the shape aspect ratio using the following pgf key (to use this key in TikZ simply remove the /pgf/ path).",
+    "type": "key"
+  },
+  "/pgf/aspect": {
+    "signature": "/pgf/aspect=⟨value⟩",
+    "default": "no default, initially 1.0",
+    "description": "The aspect is a recommendation for the quotient of the width and the height of a shape. This key calls the macro \\pgfsetshapeaspect.\n\nThe following figure shows the anchors this shape defines; the anchors 10 and 130 are example of border anchors.",
+    "type": "key"
+  },
+  "trapezium": {
+    "signature": "Shape trapezium",
+    "default": "",
+    "description": "This shape is a trapezium, that is, a quadrilateral with a single pair of parallel lines (this can sometimes be known as a trapezoid). The trapezium shape supports the rotation of the shape border, as described in Section 17.2.3.\n\nThe lower internal angles at the lower corners of the trapezium can be specified independently, and the resulting extensions are in addition to the natural dimensions of the node contents (which includes any inner sep.",
+    "type": "key"
+  },
+  "/pgf/trapezium left angle": {
+    "signature": "/pgf/trapezium left angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the left side.",
+    "type": "key"
+  },
+  "trapezium left angle": {
+    "signature": "/pgf/trapezium left angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the left side.",
+    "type": "key"
+  },
+  "/pgf/trapezium right angle": {
+    "signature": "/pgf/trapezium right angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the right side.",
+    "type": "key"
+  },
+  "trapezium right angle": {
+    "signature": "/pgf/trapezium right angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the right side.",
+    "type": "key"
+  },
+  "/pgf/trapezium angle": {
+    "signature": "/pgf/trapezium angle=⟨angle⟩",
+    "default": "style, no default",
+    "description": "This key stores no value itself, but sets the value of the previous two keys to ⟨angle⟩.\n\nRegardless of the rotation of the shape border, the width and height of the trapezium are as follows:",
+    "type": "style"
+  },
+  "trapezium angle": {
+    "signature": "/pgf/trapezium angle=⟨angle⟩",
+    "default": "style, no default",
+    "description": "This key stores no value itself, but sets the value of the previous two keys to ⟨angle⟩.\n\nRegardless of the rotation of the shape border, the width and height of the trapezium are as follows:",
+    "type": "style"
+  },
+  "/pgf/trapezium stretches": {
+    "signature": "/pgf/trapezium stretches=⟨boolean⟩",
+    "default": "default true",
+    "description": "This key controls whether pgf allows the width and the height of the trapezium to be enlarged independently, when considering any minimum size specification. This is initially false, ensuring that the shape “looks the same but bigger” when enlarged.",
+    "type": "key"
+  },
+  "trapezium stretches": {
+    "signature": "/pgf/trapezium stretches=⟨boolean⟩",
+    "default": "default true",
+    "description": "This key controls whether pgf allows the width and the height of the trapezium to be enlarged independently, when considering any minimum size specification. This is initially false, ensuring that the shape “looks the same but bigger” when enlarged.",
+    "type": "key"
+  },
+  "/pgf/trapezium stretches body": {
+    "signature": "/pgf/trapezium stretches body=⟨boolean⟩",
+    "default": "default true",
+    "description": "This is similar to the trapezium stretches key except that when ⟨boolean⟩ is true, pgf enlarges only the body of the trapezium when applying minimum width.",
+    "type": "key"
+  },
+  "trapezium stretches body": {
+    "signature": "/pgf/trapezium stretches body=⟨boolean⟩",
+    "default": "default true",
+    "description": "This is similar to the trapezium stretches key except that when ⟨boolean⟩ is true, pgf enlarges only the body of the trapezium when applying minimum width.",
+    "type": "key"
+  },
+  "semicircle": {
+    "signature": "Shape semicircle",
+    "default": "",
+    "description": "This shape is a semicircle, which tightly fits the node contents. This shape supports the rotation of the shape border, as described in Section 17.2.3. The anchors for the semicircle shape are shown below. Anchor 30 is an example of a border anchor.",
+    "type": "key"
+  },
+  "regular polygon": {
+    "signature": "Shape regular polygon",
+    "default": "",
+    "description": "This shape is a regular polygon, which, by default, is drawn so that a side (rather than a corner) is always at the bottom. This shape supports the rotation as described in Section 17.2.3, but the border of the polygon is always constructed using the incircle, whose radius is calculated to tightly fit the node contents (including any inner sep).",
+    "type": "key"
+  },
+  "/pgf/regular polygon sides": {
+    "signature": "/pgf/regular polygon sides=⟨integer⟩",
+    "default": "no default, initially 5",
+    "description": "The anchors for a regular polygon shape are shown below. The anchor 75 is an example of a border anchor.",
+    "type": "key"
+  },
+  "regular polygon sides": {
+    "signature": "/pgf/regular polygon sides=⟨integer⟩",
+    "default": "no default, initially 5",
+    "description": "The anchors for a regular polygon shape are shown below. The anchor 75 is an example of a border anchor.",
+    "type": "key"
+  },
+  "star": {
+    "signature": "Shape star",
+    "default": "",
+    "description": "This shape is a star, which by default (minus any transformations) is drawn with the first point pointing upwards. This shape supports the rotation as described in Section 17.2.3, but the border of the star is always constructed using the incircle.\n\nA star should be thought of as having a set of “inner points” and “outer points”. The inner points of the border are based on the radius of the circle which tightly fits the node contents, and the outer points are based on the circumcircle, the circle that passes through every outer point. Any specified minimum size, width or height, is interpreted as the diameter of the circumcircle.",
+    "type": "key"
+  },
+  "/pgf/star points": {
+    "signature": "/pgf/star points=⟨integer⟩",
+    "default": "no default, initially 5",
+    "description": "Sets the number of points for the star.",
+    "type": "key"
+  },
+  "star points": {
+    "signature": "/pgf/star points=⟨integer⟩",
+    "default": "no default, initially 5",
+    "description": "Sets the number of points for the star.",
+    "type": "key"
+  },
+  "/pgf/star point height": {
+    "signature": "/pgf/star point height=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the height of the star points. This is the distance between the inner point and outer point radii. If the star is enlarged to some specified minimum size, the inner radius is increased to maintain the point height.",
+    "type": "key"
+  },
+  "star point height": {
+    "signature": "/pgf/star point height=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the height of the star points. This is the distance between the inner point and outer point radii. If the star is enlarged to some specified minimum size, the inner radius is increased to maintain the point height.",
+    "type": "key"
+  },
+  "/pgf/star point ratio": {
+    "signature": "/pgf/star point ratio=⟨number⟩",
+    "default": "no default, initially 1.5",
+    "description": "Sets the ratio between the inner point and outer point radii. If the star is enlarged to some specified minimum size, the inner radius is increased to maintain the ratio.\n\nThe inner and outer points form the principal anchors for the star, as shown below (anchor 75 is an example of a border anchor).",
+    "type": "key"
+  },
+  "star point ratio": {
+    "signature": "/pgf/star point ratio=⟨number⟩",
+    "default": "no default, initially 1.5",
+    "description": "Sets the ratio between the inner point and outer point radii. If the star is enlarged to some specified minimum size, the inner radius is increased to maintain the ratio.\n\nThe inner and outer points form the principal anchors for the star, as shown below (anchor 75 is an example of a border anchor).",
+    "type": "key"
+  },
+  "isosceles triangle": {
+    "signature": "Shape isosceles triangle",
+    "default": "",
+    "description": "This shape is an isosceles triangle, which supports the rotation of the shape border, as described in Section 17.2.3. The angle of rotation determines the direction in which the apex of the triangle points (provided no other transformations are applied). However, regardless of the rotation of the shape border, the width and height are always considered as follows:",
+    "type": "key"
+  },
+  "/pgf/isosceles triangle apex angle": {
+    "signature": "/pgf/isosceles triangle apex angle=⟨angle⟩",
+    "default": "no default, initially 30",
+    "description": "Sets the angle of the apex of the isosceles triangle.",
+    "type": "key"
+  },
+  "isosceles triangle apex angle": {
+    "signature": "/pgf/isosceles triangle apex angle=⟨angle⟩",
+    "default": "no default, initially 30",
+    "description": "Sets the angle of the apex of the isosceles triangle.",
+    "type": "key"
+  },
+  "/pgf/isosceles triangle stretches": {
+    "signature": "/pgf/isosceles triangle stretches=⟨boolean⟩",
+    "default": "default false",
+    "description": "By default ⟨boolean⟩ is false. This means, that when applying any minimum width or minimum height requirements, increasing the height will increase the width (and vice versa), in order to keep the apex angle the same.",
+    "type": "key"
+  },
+  "isosceles triangle stretches": {
+    "signature": "/pgf/isosceles triangle stretches=⟨boolean⟩",
+    "default": "default false",
+    "description": "By default ⟨boolean⟩ is false. This means, that when applying any minimum width or minimum height requirements, increasing the height will increase the width (and vice versa), in order to keep the apex angle the same.",
+    "type": "key"
+  },
+  "kite": {
+    "signature": "Shape kite",
+    "default": "",
+    "description": "This shape is a kite, which supports the rotation of the shape border, as described in Section 17.2.3. There are pgf keys to specify the upper and lower vertex angles of the kite. To use these keys in TikZ, simply remove the /pgf/ path.",
+    "type": "key"
+  },
+  "/pgf/kite upper vertex angle": {
+    "signature": "/pgf/kite upper vertex angle=⟨angle⟩",
+    "default": "no default, initially 120",
+    "description": "Sets the upper internal angle of the kite.",
+    "type": "key"
+  },
+  "kite upper vertex angle": {
+    "signature": "/pgf/kite upper vertex angle=⟨angle⟩",
+    "default": "no default, initially 120",
+    "description": "Sets the upper internal angle of the kite.",
+    "type": "key"
+  },
+  "/pgf/kite lower vertex angle": {
+    "signature": "/pgf/kite lower vertex angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the kite.",
+    "type": "key"
+  },
+  "kite lower vertex angle": {
+    "signature": "/pgf/kite lower vertex angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the lower internal angle of the kite.",
+    "type": "key"
+  },
+  "/pgf/kite vertex angles": {
+    "signature": "/pgf/kite vertex angles=⟨angle specification⟩",
+    "default": "no default",
+    "description": "This key sets the keys for both the upper and lower vertex angles (it stores no value itself). ⟨angle specification⟩ can be pair of angles in the form ⟨upper angle⟩ and ⟨lower angle⟩, or a single angle. In this latter case, both the upper and lower vertex angles will be the same.",
+    "type": "key"
+  },
+  "kite vertex angles": {
+    "signature": "/pgf/kite vertex angles=⟨angle specification⟩",
+    "default": "no default",
+    "description": "This key sets the keys for both the upper and lower vertex angles (it stores no value itself). ⟨angle specification⟩ can be pair of angles in the form ⟨upper angle⟩ and ⟨lower angle⟩, or a single angle. In this latter case, both the upper and lower vertex angles will be the same.",
+    "type": "key"
+  },
+  "dart": {
+    "signature": "Shape dart",
+    "default": "",
+    "description": "This shape is a dart (which can also be known as an arrowhead or concave kite). This shape supports the rotation of the shape border, as described in Section 17.2.3. The angle of the border rotation determines the direction in which the dart points (unless other transformations have been applied).\n\nThere are pgf keys to set the angle for the ‘tip’ of the dart and the angle between the ‘tails’ of the dart. To use these keys in TikZ, simply remove the /pgf/ path.",
+    "type": "key"
+  },
+  "/pgf/dart tip angle": {
+    "signature": "/pgf/dart tip angle=⟨angle⟩",
+    "default": "no default, initially 45",
+    "description": "Sets the angle at the tip of the dart.",
+    "type": "key"
+  },
+  "dart tip angle": {
+    "signature": "/pgf/dart tip angle=⟨angle⟩",
+    "default": "no default, initially 45",
+    "description": "Sets the angle at the tip of the dart.",
+    "type": "key"
+  },
+  "/pgf/dart tail angle": {
+    "signature": "/pgf/dart tail angle=⟨angle⟩",
+    "default": "no default, initially 135",
+    "description": "Sets the angle between the tails of the dart.\n\nThe anchors for the dart shape are shown below (note that the shape is rotated 90 degrees anti-clockwise). Anchor 110 is an example of a border anchor.",
+    "type": "key"
+  },
+  "dart tail angle": {
+    "signature": "/pgf/dart tail angle=⟨angle⟩",
+    "default": "no default, initially 135",
+    "description": "Sets the angle between the tails of the dart.\n\nThe anchors for the dart shape are shown below (note that the shape is rotated 90 degrees anti-clockwise). Anchor 110 is an example of a border anchor.",
+    "type": "key"
+  },
+  "circular sector": {
+    "signature": "Shape circular sector",
+    "default": "",
+    "description": "This shape is a circular sector (which can also be known as a wedge). This shape supports the rotation of the shape border, as described in Section 17.2.3. The angle of the border rotation determines the direction in which the ‘apex’ of the sector points (unless other transformations have been applied).",
+    "type": "key"
+  },
+  "/pgf/circular sector angle": {
+    "signature": "/pgf/circular sector angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the central angle of the sector.\n\nThe anchors for the circular sector shape are shown below. Anchor 30 is an example of a border anchor.",
+    "type": "key"
+  },
+  "circular sector angle": {
+    "signature": "/pgf/circular sector angle=⟨angle⟩",
+    "default": "no default, initially 60",
+    "description": "Sets the central angle of the sector.\n\nThe anchors for the circular sector shape are shown below. Anchor 30 is an example of a border anchor.",
+    "type": "key"
+  },
+  "cylinder": {
+    "signature": "Shape cylinder",
+    "default": "",
+    "description": "This shape is a 2-dimensional representation of a cylinder, which supports the rotation of the shape border as described in Section 17.2.3.",
+    "type": "key"
+  },
+  "/pgf/cylinder uses custom fill": {
+    "signature": "/pgf/cylinder uses custom fill=⟨boolean⟩",
+    "default": "default true",
+    "description": "This enables the use of a custom fill for the body and the end of the cylinder. The background path for the shape should not be filled (e.g., in TikZ, the fill option for the node must be implicitly or explicitly set to none). Internally, this key sets the TeX-if \\ifpgfcylinderusescustomfill appropriately.",
+    "type": "key"
+  },
+  "cylinder uses custom fill": {
+    "signature": "/pgf/cylinder uses custom fill=⟨boolean⟩",
+    "default": "default true",
+    "description": "This enables the use of a custom fill for the body and the end of the cylinder. The background path for the shape should not be filled (e.g., in TikZ, the fill option for the node must be implicitly or explicitly set to none). Internally, this key sets the TeX-if \\ifpgfcylinderusescustomfill appropriately.",
+    "type": "key"
+  },
+  "/pgf/cylinder end fill": {
+    "signature": "/pgf/cylinder end fill=⟨color⟩",
+    "default": "no default, initially white",
+    "description": "Sets the color for the end of the cylinder.",
+    "type": "key"
+  },
+  "cylinder end fill": {
+    "signature": "/pgf/cylinder end fill=⟨color⟩",
+    "default": "no default, initially white",
+    "description": "Sets the color for the end of the cylinder.",
+    "type": "key"
+  },
+  "/pgf/cylinder body fill": {
+    "signature": "/pgf/cylinder body fill=⟨color⟩",
+    "default": "no default, initially white",
+    "description": "Sets the color for the body of the cylinder.\n\nThe anchors of this shape are shown below (anchor 160 is an example of a border anchor). Note that the cylinder shape does not distinguish between outer xsep and outer ysep. Only the larger of the two values is used for the shape. Note also the difference between the center and shape center anchors: center is the center of the cylinder body and also the center of rotation. The shape center is the center of the shape which includes the 2-dimensional representation of the cylinder top.",
+    "type": "key"
+  },
+  "cylinder body fill": {
+    "signature": "/pgf/cylinder body fill=⟨color⟩",
+    "default": "no default, initially white",
+    "description": "Sets the color for the body of the cylinder.\n\nThe anchors of this shape are shown below (anchor 160 is an example of a border anchor). Note that the cylinder shape does not distinguish between outer xsep and outer ysep. Only the larger of the two values is used for the shape. Note also the difference between the center and shape center anchors: center is the center of the cylinder body and also the center of rotation. The shape center is the center of the shape which includes the 2-dimensional representation of the cylinder top.",
+    "type": "key"
+  },
+  "shapes.symbols": {
+    "signature": "TikZ Library shapes.symbols",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.symbols} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.symbols] % ConTeXt and pure pgf \\usetikzlibrary{shapes.symbols} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.symbols] % ConTeXt when using TikZ This library defines shapes that can be used for drawing symbols like a forbidden sign or a cloud.",
+    "type": "key"
+  },
+  "correct forbidden sign": {
+    "signature": "Shape correct forbidden sign",
+    "default": "",
+    "description": "This shape places the node inside a circle with a diagonal from the upper left to the lower right added. The circle is part of the background, the diagonal line part of the foreground path; thus, the diagonal line is on top of the text.",
+    "type": "key"
+  },
+  "forbidden sign": {
+    "signature": "Shape forbidden sign",
+    "default": "",
+    "description": "This shape is like correct forbidden sign, only the line goes from the lower left to the upper right. The strange naming of these shapes is for historical reasons.",
+    "type": "key"
+  },
+  "magnifying glass": {
+    "signature": "Shape magnifying glass",
+    "default": "",
+    "description": "This shape places the node inside a circle with a handle attached to the node. The angle of the handle and its length can be adjusted using two keys:",
+    "type": "key"
+  },
+  "/pgf/magnifying glass handle angle": {
+    "signature": "/pgf/magnifying glass handle angle=⟨degree⟩",
+    "default": "default -45",
+    "description": "The angle of the handle.",
+    "type": "key"
+  },
+  "magnifying glass handle angle": {
+    "signature": "/pgf/magnifying glass handle angle=⟨degree⟩",
+    "default": "default -45",
+    "description": "The angle of the handle.",
+    "type": "key"
+  },
+  "/pgf/magnifying glass handle aspect": {
+    "signature": "/pgf/magnifying glass handle aspect=⟨factor⟩",
+    "default": "default 1.5",
+    "description": "The length of the handle as a multiple of the circle radius.",
+    "type": "key"
+  },
+  "magnifying glass handle aspect": {
+    "signature": "/pgf/magnifying glass handle aspect=⟨factor⟩",
+    "default": "default 1.5",
+    "description": "The length of the handle as a multiple of the circle radius.",
+    "type": "key"
+  },
+  "cloud": {
+    "signature": "Shape cloud",
+    "default": "",
+    "description": "This shape is a cloud, drawn to tightly fit the node contents (strictly speaking, using an ellipse which tightly fits the node contents – including any inner sep).",
+    "type": "key"
+  },
+  "/pgf/cloud puffs": {
+    "signature": "/pgf/cloud puffs=⟨integer⟩",
+    "default": "no default, initially 10",
+    "description": "Sets the number of puffs for the cloud.",
+    "type": "key"
+  },
+  "cloud puffs": {
+    "signature": "/pgf/cloud puffs=⟨integer⟩",
+    "default": "no default, initially 10",
+    "description": "Sets the number of puffs for the cloud.",
+    "type": "key"
+  },
+  "/pgf/cloud puff arc": {
+    "signature": "/pgf/cloud puff arc=⟨angle⟩",
+    "default": "no default, initially 135",
+    "description": "Sets the length of the puff arc (in degrees). A shorter arc can produce better looking joins between puffs for larger line widths.\n\nLike the diamond shape, the cloud shape also uses the aspect key to determine the ratio of the width and the height of the cloud. However, there may be circumstances where it may be undesirable to continually specify the aspect for the cloud. Therefore, the following key is implemented:",
+    "type": "key"
+  },
+  "cloud puff arc": {
+    "signature": "/pgf/cloud puff arc=⟨angle⟩",
+    "default": "no default, initially 135",
+    "description": "Sets the length of the puff arc (in degrees). A shorter arc can produce better looking joins between puffs for larger line widths.\n\nLike the diamond shape, the cloud shape also uses the aspect key to determine the ratio of the width and the height of the cloud. However, there may be circumstances where it may be undesirable to continually specify the aspect for the cloud. Therefore, the following key is implemented:",
+    "type": "key"
+  },
+  "/pgf/cloud ignores aspect": {
+    "signature": "/pgf/cloud ignores aspect=⟨boolean⟩",
+    "default": "default true",
+    "description": "Instruct pgf to ignore the aspect key. Internally, the TeX-if \\ifpgfcloudignoresaspect is set appropriately. The initial value is false.",
+    "type": "key"
+  },
+  "cloud ignores aspect": {
+    "signature": "/pgf/cloud ignores aspect=⟨boolean⟩",
+    "default": "default true",
+    "description": "Instruct pgf to ignore the aspect key. Internally, the TeX-if \\ifpgfcloudignoresaspect is set appropriately. The initial value is false.",
+    "type": "key"
+  },
+  "starburst": {
+    "signature": "Shape starburst",
+    "default": "",
+    "description": "This shape is a randomly generated elliptical star, which supports the rotation of the shape border as described in Section 17.2.3.",
+    "type": "key"
+  },
+  "/pgf/starburst points": {
+    "signature": "/pgf/starburst points=⟨integer⟩",
+    "default": "no default, initially 17",
+    "description": "Sets the number of outer points for the starburst.",
+    "type": "key"
+  },
+  "starburst points": {
+    "signature": "/pgf/starburst points=⟨integer⟩",
+    "default": "no default, initially 17",
+    "description": "Sets the number of outer points for the starburst.",
+    "type": "key"
+  },
+  "/pgf/starburst point height": {
+    "signature": "/pgf/starburst point height=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the maximum distance between the inner point radius and the outer point radius.",
+    "type": "key"
+  },
+  "starburst point height": {
+    "signature": "/pgf/starburst point height=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the maximum distance between the inner point radius and the outer point radius.",
+    "type": "key"
+  },
+  "/pgf/random starburst": {
+    "signature": "/pgf/random starburst=⟨integer⟩",
+    "default": "no default, initially 100",
+    "description": "Sets the seed for the random number generator for creating the starburst. The maximum value for ⟨integer⟩ is 16383. If ⟨integer⟩=0, the random number generator will not be used, and the maximum point height will be used for all outer points. If ⟨integer⟩ is omitted, a seed will be randomly chosen.\n\nThe basic anchors for a nine point starburst shape are shown below. Anchor 80 is an example of a border anchor.",
+    "type": "key"
+  },
+  "random starburst": {
+    "signature": "/pgf/random starburst=⟨integer⟩",
+    "default": "no default, initially 100",
+    "description": "Sets the seed for the random number generator for creating the starburst. The maximum value for ⟨integer⟩ is 16383. If ⟨integer⟩=0, the random number generator will not be used, and the maximum point height will be used for all outer points. If ⟨integer⟩ is omitted, a seed will be randomly chosen.\n\nThe basic anchors for a nine point starburst shape are shown below. Anchor 80 is an example of a border anchor.",
+    "type": "key"
+  },
+  "signal": {
+    "signature": "Shape signal",
+    "default": "",
+    "description": "This shape is a “signal” or sign shape, that is, a rectangle, with optionally pointed sides. A signal can point “to” somewhere, with outward points in that direction. It can also be “from” somewhere, with inward points from that direction. The resulting points extend the node contents (which include the inner sep).",
+    "type": "key"
+  },
+  "/pgf/signal pointer angle": {
+    "signature": "/pgf/signal pointer angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the pointed sides of the shape. This angle is maintained when enforcing any minimum size requirements, so any adjustment to the width will affect the height, and vice versa.",
+    "type": "key"
+  },
+  "signal pointer angle": {
+    "signature": "/pgf/signal pointer angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the pointed sides of the shape. This angle is maintained when enforcing any minimum size requirements, so any adjustment to the width will affect the height, and vice versa.",
+    "type": "key"
+  },
+  "/pgf/signal from": {
+    "signature": "/pgf/signal from=⟨direction⟩ and ⟨opposite direction⟩",
+    "default": "no default, initially nowhere",
+    "description": "Sets which sides take an inward pointer (i.e., that points towards the center of the shape). The possible values for ⟨direction⟩ and ⟨opposite direction⟩ are the compass point directions north, south, east and west (or above, below, right and left). An additional keyword nowhere can be used to reset the sides so they have no pointers. When used with signal from key, this only resets inward pointers; used with the signal to key, it only resets outward pointers.",
+    "type": "key"
+  },
+  "signal from": {
+    "signature": "/pgf/signal from=⟨direction⟩ and ⟨opposite direction⟩",
+    "default": "no default, initially nowhere",
+    "description": "Sets which sides take an inward pointer (i.e., that points towards the center of the shape). The possible values for ⟨direction⟩ and ⟨opposite direction⟩ are the compass point directions north, south, east and west (or above, below, right and left). An additional keyword nowhere can be used to reset the sides so they have no pointers. When used with signal from key, this only resets inward pointers; used with the signal to key, it only resets outward pointers.",
+    "type": "key"
+  },
+  "/pgf/signal to": {
+    "signature": "/pgf/signal to=⟨direction⟩ and ⟨opposite direction⟩",
+    "default": "no default, initially east",
+    "description": "Sets which sides take an outward pointer (i.e., that points away from the shape).\n\nNote that pgf will ignore any instruction to use directions that are not opposites (so using the value east and north, will result in only north being assigned a pointer). This is also the case if non-opposite values are used in the signal to and signal from keys at the same time. So, for example, it is not possible for a signal to have an outward point to the left, and also have an inward point from below.",
+    "type": "key"
+  },
+  "signal to": {
+    "signature": "/pgf/signal to=⟨direction⟩ and ⟨opposite direction⟩",
+    "default": "no default, initially east",
+    "description": "Sets which sides take an outward pointer (i.e., that points away from the shape).\n\nNote that pgf will ignore any instruction to use directions that are not opposites (so using the value east and north, will result in only north being assigned a pointer). This is also the case if non-opposite values are used in the signal to and signal from keys at the same time. So, for example, it is not possible for a signal to have an outward point to the left, and also have an inward point from below.",
+    "type": "key"
+  },
+  "tape": {
+    "signature": "Shape tape",
+    "default": "",
+    "description": "This shape is a rectangle with optional, “bendy” top and bottom sides, which tightly fits the node contents (including the inner sep).",
+    "type": "key"
+  },
+  "/pgf/tape bend top": {
+    "signature": "/pgf/tape bend top=⟨bend style⟩",
+    "default": "no default, initially in and out",
+    "description": "Specifies how the top side bends. The ⟨bend style⟩ is either in and out, out and in or none (i.e., a straight line). The bending sides are drawn in a clockwise direction, and using the bend style in and out will mean the side will first bend inwards and then bend outwards. The opposite holds true for out and in.",
+    "type": "key"
+  },
+  "tape bend top": {
+    "signature": "/pgf/tape bend top=⟨bend style⟩",
+    "default": "no default, initially in and out",
+    "description": "Specifies how the top side bends. The ⟨bend style⟩ is either in and out, out and in or none (i.e., a straight line). The bending sides are drawn in a clockwise direction, and using the bend style in and out will mean the side will first bend inwards and then bend outwards. The opposite holds true for out and in.",
+    "type": "key"
+  },
+  "/pgf/tape bend bottom": {
+    "signature": "/pgf/tape bend bottom=⟨bend style⟩",
+    "default": "no default, initially in and out",
+    "description": "Specifies how the bottom side bends.",
+    "type": "key"
+  },
+  "tape bend bottom": {
+    "signature": "/pgf/tape bend bottom=⟨bend style⟩",
+    "default": "no default, initially in and out",
+    "description": "Specifies how the bottom side bends.",
+    "type": "key"
+  },
+  "/pgf/tape bend height": {
+    "signature": "/pgf/tape bend height=⟨length⟩",
+    "default": "no default, initially 5pt",
+    "description": "Sets the total height for a side with a bend.",
+    "type": "key"
+  },
+  "tape bend height": {
+    "signature": "/pgf/tape bend height=⟨length⟩",
+    "default": "no default, initially 5pt",
+    "description": "Sets the total height for a side with a bend.",
+    "type": "key"
+  },
+  "magnetic tape": {
+    "signature": "Shape magnetic tape",
+    "default": "",
+    "description": "This shape represents a ‘magnetic tape’ or any sequential data store that is sometimes used in flowcharts. It is essentially a circle with a little tail:",
+    "type": "key"
+  },
+  "/pgf/magnetic tape tail extend": {
+    "signature": "/pgf/magnetic tape tail extend=⟨distance⟩",
+    "default": "no default, initially 0cm",
+    "description": "This key sets how far the tail extends beyond the radius of the tape. Negative values will be ignored.",
+    "type": "key"
+  },
+  "magnetic tape tail extend": {
+    "signature": "/pgf/magnetic tape tail extend=⟨distance⟩",
+    "default": "no default, initially 0cm",
+    "description": "This key sets how far the tail extends beyond the radius of the tape. Negative values will be ignored.",
+    "type": "key"
+  },
+  "/pgf/magnetic tape tail": {
+    "signature": "/pgf/magnetic tape tail=⟨proportion⟩",
+    "default": "no default, initially 0.15",
+    "description": "This key sets the thickness of the ‘tail’ to be ⟨proportion⟩ times the radius of the shape. The ⟨proportion⟩ should be between 0.0 and 1.0.",
+    "type": "key"
+  },
+  "magnetic tape tail": {
+    "signature": "/pgf/magnetic tape tail=⟨proportion⟩",
+    "default": "no default, initially 0.15",
+    "description": "This key sets the thickness of the ‘tail’ to be ⟨proportion⟩ times the radius of the shape. The ⟨proportion⟩ should be between 0.0 and 1.0.",
+    "type": "key"
+  },
+  "shapes.arrows": {
+    "signature": "TikZ Library shapes.arrows",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.arrows} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.arrows] % ConTeXt and pure pgf \\usetikzlibrary{shapes.arrows} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.arrows] % ConTeXt when using TikZ This library defines arrow shapes. Note that an arrow shape is something quite different from a (normal) arrow tip: It is a shape that just “happens” to “look like” an arrow. In particular, you cannot use these shapes as arrow tips.",
+    "type": "key"
+  },
+  "single arrow": {
+    "signature": "Shape single arrow",
+    "default": "",
+    "description": "This shape is an arrow, which tightly fits the node contents (including any inner sep). This shape supports the rotation of the shape border, as described in Section 17.2.3. The angle of rotation determines in which direction the arrow points (provided no other rotational transformations are applied).",
+    "type": "key"
+  },
+  "/pgf/single arrow tip angle": {
+    "signature": "/pgf/single arrow tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the arrow tip. Enlarging the arrow to some minimum width may increase the height of the shape to maintain this angle.",
+    "type": "key"
+  },
+  "single arrow tip angle": {
+    "signature": "/pgf/single arrow tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the arrow tip. Enlarging the arrow to some minimum width may increase the height of the shape to maintain this angle.",
+    "type": "key"
+  },
+  "/pgf/single arrow head extend": {
+    "signature": "/pgf/single arrow head extend=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "This sets the distance between the tail of the arrow and the outer end of the arrow head. This may change if the shape is enlarged to some minimum width.",
+    "type": "key"
+  },
+  "single arrow head extend": {
+    "signature": "/pgf/single arrow head extend=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "This sets the distance between the tail of the arrow and the outer end of the arrow head. This may change if the shape is enlarged to some minimum width.",
+    "type": "key"
+  },
+  "/pgf/single arrow head indent": {
+    "signature": "/pgf/single arrow head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "This moves the point where the arrow head joins the shaft of the arrow towards the arrow tip, by ⟨length⟩.",
+    "type": "key"
+  },
+  "single arrow head indent": {
+    "signature": "/pgf/single arrow head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "This moves the point where the arrow head joins the shaft of the arrow towards the arrow tip, by ⟨length⟩.",
+    "type": "key"
+  },
+  "double arrow": {
+    "signature": "Shape double arrow",
+    "default": "",
+    "description": "This shape is a double arrow, which tightly fits the node contents (including any inner sep), and supports the rotation of the shape border, as described in Section 17.2.3.",
+    "type": "key"
+  },
+  "/pgf/double arrow tip angle": {
+    "signature": "/pgf/double arrow tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the arrow tip. Enlarging the arrow to some minimum width may increase the height of the shape to maintain this angle.",
+    "type": "key"
+  },
+  "double arrow tip angle": {
+    "signature": "/pgf/double arrow tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle for the arrow tip. Enlarging the arrow to some minimum width may increase the height of the shape to maintain this angle.",
+    "type": "key"
+  },
+  "/pgf/double arrow head extend": {
+    "signature": "/pgf/double arrow head extend=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "This sets the distance between the shaft of the arrow and the outer end of the arrow heads. This may change if the shape is enlarged to some minimum width.",
+    "type": "key"
+  },
+  "double arrow head extend": {
+    "signature": "/pgf/double arrow head extend=⟨length⟩",
+    "default": "no default, initially .5cm",
+    "description": "This sets the distance between the shaft of the arrow and the outer end of the arrow heads. This may change if the shape is enlarged to some minimum width.",
+    "type": "key"
+  },
+  "/pgf/double arrow head indent": {
+    "signature": "/pgf/double arrow head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "This moves the point where the arrow heads join the shaft of the arrow towards the arrow tips, by ⟨length⟩.",
+    "type": "key"
+  },
+  "double arrow head indent": {
+    "signature": "/pgf/double arrow head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "This moves the point where the arrow heads join the shaft of the arrow towards the arrow tips, by ⟨length⟩.",
+    "type": "key"
+  },
+  "arrow box": {
+    "signature": "Shape arrow box",
+    "default": "",
+    "description": "This shape is a rectangle with optional arrows which extend from the four sides.",
+    "type": "key"
+  },
+  "/pgf/arrow box tip angle": {
+    "signature": "/pgf/arrow box tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle at the arrow tip for all four arrows.",
+    "type": "key"
+  },
+  "arrow box tip angle": {
+    "signature": "/pgf/arrow box tip angle=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "Sets the angle at the arrow tip for all four arrows.",
+    "type": "key"
+  },
+  "/pgf/arrow box head extend": {
+    "signature": "/pgf/arrow box head extend=⟨length⟩",
+    "default": "no default, initially .125cm",
+    "description": "Sets the distance the arrow head extends away from the shaft of the arrow. This applies to all arrows.",
+    "type": "key"
+  },
+  "arrow box head extend": {
+    "signature": "/pgf/arrow box head extend=⟨length⟩",
+    "default": "no default, initially .125cm",
+    "description": "Sets the distance the arrow head extends away from the shaft of the arrow. This applies to all arrows.",
+    "type": "key"
+  },
+  "/pgf/arrow box head indent": {
+    "signature": "/pgf/arrow box head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "Moves the point where the arrow head joins the shaft of the arrow towards the arrow tip. This applies to all arrows.",
+    "type": "key"
+  },
+  "arrow box head indent": {
+    "signature": "/pgf/arrow box head indent=⟨length⟩",
+    "default": "no default, initially 0cm",
+    "description": "Moves the point where the arrow head joins the shaft of the arrow towards the arrow tip. This applies to all arrows.",
+    "type": "key"
+  },
+  "/pgf/arrow box shaft width": {
+    "signature": "/pgf/arrow box shaft width=⟨length⟩",
+    "default": "no default, initially .125cm",
+    "description": "Sets the width of the shaft of all arrows.",
+    "type": "key"
+  },
+  "arrow box shaft width": {
+    "signature": "/pgf/arrow box shaft width=⟨length⟩",
+    "default": "no default, initially .125cm",
+    "description": "Sets the width of the shaft of all arrows.",
+    "type": "key"
+  },
+  "/pgf/arrow box north arrow": {
+    "signature": "/pgf/arrow box north arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the north arrow extends from the node. By default this is from the border of the shape, but by using the additional keyword from center, the distance will be measured from the center of the shape. If ⟨distance⟩ is 0pt or a negative distance, the arrow will not be drawn.",
+    "type": "key"
+  },
+  "arrow box north arrow": {
+    "signature": "/pgf/arrow box north arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the north arrow extends from the node. By default this is from the border of the shape, but by using the additional keyword from center, the distance will be measured from the center of the shape. If ⟨distance⟩ is 0pt or a negative distance, the arrow will not be drawn.",
+    "type": "key"
+  },
+  "/pgf/arrow box south arrow": {
+    "signature": "/pgf/arrow box south arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the south arrow extends from the node.",
+    "type": "key"
+  },
+  "arrow box south arrow": {
+    "signature": "/pgf/arrow box south arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the south arrow extends from the node.",
+    "type": "key"
+  },
+  "/pgf/arrow box east arrow": {
+    "signature": "/pgf/arrow box east arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the east arrow extends from the node.",
+    "type": "key"
+  },
+  "arrow box east arrow": {
+    "signature": "/pgf/arrow box east arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the east arrow extends from the node.",
+    "type": "key"
+  },
+  "/pgf/arrow box west arrow": {
+    "signature": "/pgf/arrow box west arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the west arrow extends from the node.",
+    "type": "key"
+  },
+  "arrow box west arrow": {
+    "signature": "/pgf/arrow box west arrow=⟨distance⟩",
+    "default": "no default, initially .5cm",
+    "description": "Sets the distance the west arrow extends from the node.",
+    "type": "key"
+  },
+  "/pgf/arrow box arrows": {
+    "signature": "/pgf/arrow box arrows={⟨list⟩}",
+    "default": "no default",
+    "description": "Sets the distance that all arrows extend from the node. The specification in ⟨list⟩ consists of the four compass points north, south, east or west, separated by commas (so the list must be contained within braces). The distances can be specified after each side separated by a colon (e.g., north:1cm, or west:5cm from center). If an item specifies no distance, the most recently specified distance will be used (at the start of the list this is 0cm, so the first item in the list should specify a distance). Any sides not specified will not be drawn with an arrow.\n\nThe anchors for this shape are shown below (unfortunately, due to its size, this example must be rotated). Anchor 75 is an example of a border anchor. If a side is drawn without an arrow, the anchors for that arrow should be considered unavailable. They are (unavoidably) defined, but default to the center of the appropriate side.",
+    "type": "key"
+  },
+  "arrow box arrows": {
+    "signature": "/pgf/arrow box arrows={⟨list⟩}",
+    "default": "no default",
+    "description": "Sets the distance that all arrows extend from the node. The specification in ⟨list⟩ consists of the four compass points north, south, east or west, separated by commas (so the list must be contained within braces). The distances can be specified after each side separated by a colon (e.g., north:1cm, or west:5cm from center). If an item specifies no distance, the most recently specified distance will be used (at the start of the list this is 0cm, so the first item in the list should specify a distance). Any sides not specified will not be drawn with an arrow.\n\nThe anchors for this shape are shown below (unfortunately, due to its size, this example must be rotated). Anchor 75 is an example of a border anchor. If a side is drawn without an arrow, the anchors for that arrow should be considered unavailable. They are (unavoidably) defined, but default to the center of the appropriate side.",
+    "type": "key"
+  },
+  "shapes.multipart": {
+    "signature": "TikZ Library shapes.multipart",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.multipart} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.multipart] % ConTeXt and pure pgf \\usetikzlibrary{shapes.multipart} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.multipart] % ConTeXt when using TikZ This library defines general-purpose shapes that are composed of multiple (text) parts.",
+    "type": "key"
+  },
+  "circle split": {
+    "signature": "Shape circle split",
+    "default": "",
+    "description": "This shape is a multi-part shape consisting of a circle with a line in the middle. The upper part is the main part (the text part), the lower part is the lower part.",
+    "type": "key"
+  },
+  "circle solidus": {
+    "signature": "Shape circle solidus",
+    "default": "",
+    "description": "This shape (due to Manuel Lacruz) is similar to the split circle, but the two text parts are arranged diagonally.",
+    "type": "key"
+  },
+  "ellipse split": {
+    "signature": "Shape ellipse split",
+    "default": "",
+    "description": "This shape is a multi-part shape consisting of an ellipse with a line in the middle. The upper part is the main part (the text part), the lower part is the lower part. The anchors for this shape are shown below. Anchor 60 is a border anchor.",
+    "type": "key"
+  },
+  "diamond split": {
+    "signature": "Shape diamond split",
+    "default": "",
+    "description": "This shape is a multi-part shape consisting of a diamond with a line in the middle. The upper part is the main part (the text part); the lower part is the lower part.",
+    "type": "key"
+  },
+  "rectangle split": {
+    "signature": "Shape rectangle split",
+    "default": "",
+    "description": "This shape is a rectangle, which can be split either horizontally or vertically into several parts.",
+    "type": "key"
+  },
+  "/pgf/rectangle split allocate boxes": {
+    "signature": "/pgf/rectangle split allocate boxes=⟨number⟩",
+    "default": "no default",
+    "description": "This key checks if ⟨number⟩ boxes have been allocated, and if not, it allocates the required boxes using \\newbox (some “magic” is performed to get around the fact that \\newbox is declared \\outer in plain TeX).\n\nWhen split vertically, the rectangle split will meet any minimum width requirements, but any minimum height will be ignored. Conversely when split horizontally, minimum height requirements will be met, but any minimum width will be ignored. In addition, inner sep is applied to every part that is used, so it cannot be specified independently for a particular part.",
+    "type": "key"
+  },
+  "rectangle split allocate boxes": {
+    "signature": "/pgf/rectangle split allocate boxes=⟨number⟩",
+    "default": "no default",
+    "description": "This key checks if ⟨number⟩ boxes have been allocated, and if not, it allocates the required boxes using \\newbox (some “magic” is performed to get around the fact that \\newbox is declared \\outer in plain TeX).\n\nWhen split vertically, the rectangle split will meet any minimum width requirements, but any minimum height will be ignored. Conversely when split horizontally, minimum height requirements will be met, but any minimum width will be ignored. In addition, inner sep is applied to every part that is used, so it cannot be specified independently for a particular part.",
+    "type": "key"
+  },
+  "/pgf/rectangle split parts": {
+    "signature": "/pgf/rectangle split parts=⟨number⟩",
+    "default": "no default, initially 4",
+    "description": "Split the rectangle into ⟨number⟩ parts, which should be in the range 1 to 20. If more than four parts are needed, the boxes should be allocated in advance as described above.",
+    "type": "key"
+  },
+  "rectangle split parts": {
+    "signature": "/pgf/rectangle split parts=⟨number⟩",
+    "default": "no default, initially 4",
+    "description": "Split the rectangle into ⟨number⟩ parts, which should be in the range 1 to 20. If more than four parts are needed, the boxes should be allocated in advance as described above.",
+    "type": "key"
+  },
+  "/pgf/rectangle split horizontal": {
+    "signature": "/pgf/rectangle split horizontal=⟨boolean⟩",
+    "default": "default true",
+    "description": "This key determines whether the rectangle is split horizontally or vertically",
+    "type": "key"
+  },
+  "rectangle split horizontal": {
+    "signature": "/pgf/rectangle split horizontal=⟨boolean⟩",
+    "default": "default true",
+    "description": "This key determines whether the rectangle is split horizontally or vertically",
+    "type": "key"
+  },
+  "/pgf/rectangle split ignore empty parts": {
+    "signature": "/pgf/rectangle split ignore empty parts=⟨boolean⟩",
+    "default": "default true",
+    "description": "When ⟨boolean⟩ is true, pgf will ignore any part that is empty except the text part. This effectively overrides the rectangle split parts key in that, if 3 parts (for example) are specified, but one is empty, only two will be shown.",
+    "type": "key"
+  },
+  "rectangle split ignore empty parts": {
+    "signature": "/pgf/rectangle split ignore empty parts=⟨boolean⟩",
+    "default": "default true",
+    "description": "When ⟨boolean⟩ is true, pgf will ignore any part that is empty except the text part. This effectively overrides the rectangle split parts key in that, if 3 parts (for example) are specified, but one is empty, only two will be shown.",
+    "type": "key"
+  },
+  "/pgf/rectangle split empty part width": {
+    "signature": "/pgf/rectangle split empty part width=⟨length⟩",
+    "default": "no default, initially 1ex",
+    "description": "Sets the default width for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "rectangle split empty part width": {
+    "signature": "/pgf/rectangle split empty part width=⟨length⟩",
+    "default": "no default, initially 1ex",
+    "description": "Sets the default width for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "/pgf/rectangle split empty part height": {
+    "signature": "/pgf/rectangle split empty part height=⟨length⟩",
+    "default": "no default, initially 1ex",
+    "description": "Sets the default height for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "rectangle split empty part height": {
+    "signature": "/pgf/rectangle split empty part height=⟨length⟩",
+    "default": "no default, initially 1ex",
+    "description": "Sets the default height for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "/pgf/rectangle split empty part depth": {
+    "signature": "/pgf/rectangle split empty part depth=⟨length⟩",
+    "default": "no default, initially 0ex",
+    "description": "Sets the default depth for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "rectangle split empty part depth": {
+    "signature": "/pgf/rectangle split empty part depth=⟨length⟩",
+    "default": "no default, initially 0ex",
+    "description": "Sets the default depth for a node part box if it is empty and empty parts are not ignored.",
+    "type": "key"
+  },
+  "/pgf/rectangle split part align": {
+    "signature": "/pgf/rectangle split part align={⟨list⟩}",
+    "default": "no default, initially center",
+    "description": "Sets the alignment of the boxes inside the node parts. Each item in ⟨list⟩ should be separated by commas (so if there is more than one item in ⟨list⟩, it must be surrounded by braces).\n\nWhen the rectangle is split vertically, the entries in ⟨list⟩ must be one of left, right, or center. If ⟨list⟩ has less entries than node parts then the remaining boxes are aligned according to the last entry in the list. Note that this only aligns the boxes in each part and does not affect the alignment of the contents of the boxes.",
+    "type": "key"
+  },
+  "rectangle split part align": {
+    "signature": "/pgf/rectangle split part align={⟨list⟩}",
+    "default": "no default, initially center",
+    "description": "Sets the alignment of the boxes inside the node parts. Each item in ⟨list⟩ should be separated by commas (so if there is more than one item in ⟨list⟩, it must be surrounded by braces).\n\nWhen the rectangle is split vertically, the entries in ⟨list⟩ must be one of left, right, or center. If ⟨list⟩ has less entries than node parts then the remaining boxes are aligned according to the last entry in the list. Note that this only aligns the boxes in each part and does not affect the alignment of the contents of the boxes.",
+    "type": "key"
+  },
+  "/pgf/rectangle split draw splits": {
+    "signature": "/pgf/rectangle split draw splits=⟨boolean⟩",
+    "default": "default true",
+    "description": "Sets whether the line or lines between node parts will be drawn. Internally, this sets the TeX-if \\ifpgfrectanglesplitdrawsplits appropriately.",
+    "type": "key"
+  },
+  "rectangle split draw splits": {
+    "signature": "/pgf/rectangle split draw splits=⟨boolean⟩",
+    "default": "default true",
+    "description": "Sets whether the line or lines between node parts will be drawn. Internally, this sets the TeX-if \\ifpgfrectanglesplitdrawsplits appropriately.",
+    "type": "key"
+  },
+  "/pgf/rectangle split use custom fill": {
+    "signature": "/pgf/rectangle split use custom fill=⟨boolean⟩",
+    "default": "default true",
+    "description": "This enables the use of a custom fill for each of the node parts (including the area covered by the inner sep). The background path for the shape should not be filled (e.g., in TikZ, the fill option for the node must be implicitly or explicitly set to none). Internally, this key sets the TeX-if \\ifpgfrectanglesplitusecustomfill appropriately.",
+    "type": "key"
+  },
+  "rectangle split use custom fill": {
+    "signature": "/pgf/rectangle split use custom fill=⟨boolean⟩",
+    "default": "default true",
+    "description": "This enables the use of a custom fill for each of the node parts (including the area covered by the inner sep). The background path for the shape should not be filled (e.g., in TikZ, the fill option for the node must be implicitly or explicitly set to none). Internally, this key sets the TeX-if \\ifpgfrectanglesplitusecustomfill appropriately.",
+    "type": "key"
+  },
+  "/pgf/rectangle split part fill": {
+    "signature": "/pgf/rectangle split part fill={⟨list⟩}",
+    "default": "no default, initially white",
+    "description": "Sets the custom fill color for each node part shape. The items in ⟨list⟩ should be separated by commas (so if there is more than one item in ⟨list⟩, it must be surrounded by braces). If ⟨list⟩ has less entries than node parts, then the remaining node parts use the color from the last entry in the list. This key will automatically set /pgf/rectangle split use custom fill.",
+    "type": "key"
+  },
+  "rectangle split part fill": {
+    "signature": "/pgf/rectangle split part fill={⟨list⟩}",
+    "default": "no default, initially white",
+    "description": "Sets the custom fill color for each node part shape. The items in ⟨list⟩ should be separated by commas (so if there is more than one item in ⟨list⟩, it must be surrounded by braces). If ⟨list⟩ has less entries than node parts, then the remaining node parts use the color from the last entry in the list. This key will automatically set /pgf/rectangle split use custom fill.",
+    "type": "key"
+  },
+  "shapes.callouts": {
+    "signature": "TikZ Library shapes.callouts",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.callouts} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.callouts] % ConTeXt and pure pgf \\usetikzlibrary{shapes.callouts} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.callouts] % ConTeXt when using TikZ Producing basic callouts can be done quite easily in pgf and TikZ by creating a node and then subsequently drawing a path from the border of the node to the required point. This library provides more fancy, ‘balloon’-style callouts.\n\nCallouts consist of a main shape and a pointer (which is part of the shape) which points to something in (or outside) the picture. The position on the border of the main shape to which the pointer is connected is determined automatically. However, the pointer is ignored when calculating the minimum size of the shape, and also when positioning anchors.",
+    "type": "key"
+  },
+  "/pgf/callout relative pointer": {
+    "signature": "/pgf/callout relative pointer=⟨coordinate⟩",
+    "default": "no default, initially \\pgfpointpolar{315}{.5cm}",
+    "description": "Sets the vector of the callout pointer ‘relative’ to the callout shape.",
+    "type": "key"
+  },
+  "callout relative pointer": {
+    "signature": "/pgf/callout relative pointer=⟨coordinate⟩",
+    "default": "no default, initially \\pgfpointpolar{315}{.5cm}",
+    "description": "Sets the vector of the callout pointer ‘relative’ to the callout shape.",
+    "type": "key"
+  },
+  "/pgf/callout absolute pointer": {
+    "signature": "/pgf/callout absolute pointer=⟨coordinate⟩",
+    "default": "no default",
+    "description": "Sets the vector of the callout pointer absolutely within the picture.",
+    "type": "key"
+  },
+  "callout absolute pointer": {
+    "signature": "/pgf/callout absolute pointer=⟨coordinate⟩",
+    "default": "no default",
+    "description": "Sets the vector of the callout pointer absolutely within the picture.",
+    "type": "key"
+  },
+  "/tikz/callout relative pointer": {
+    "signature": "/tikz/callout relative pointer=⟨coordinate⟩",
+    "default": "no default, initially (315:.5cm)",
+    "description": "The TikZ version of the callout relative pointer key. Here, ⟨coordinate⟩ can be specified using the TikZ format for coordinates.",
+    "type": "key"
+  },
+  "/tikz/callout absolute pointer": {
+    "signature": "/tikz/callout absolute pointer=⟨coordinate⟩",
+    "default": "no default",
+    "description": "The TikZ version of the callout absolute pointer key. Here, ⟨coordinate⟩ can be specified using the TikZ format for coordinates.\n\nIt is also possible to shorten the pointer by some distance, using the following key:",
+    "type": "key"
+  },
+  "/pgf/callout pointer shorten": {
+    "signature": "/pgf/callout pointer shorten=⟨distance⟩",
+    "default": "no default, initially 0cm",
+    "description": "Moves the callout pointer towards the center of the callout’s main shape by ⟨distance⟩.",
+    "type": "key"
+  },
+  "callout pointer shorten": {
+    "signature": "/pgf/callout pointer shorten=⟨distance⟩",
+    "default": "no default, initially 0cm",
+    "description": "Moves the callout pointer towards the center of the callout’s main shape by ⟨distance⟩.",
+    "type": "key"
+  },
+  "rectangle callout": {
+    "signature": "Shape rectangle callout",
+    "default": "",
+    "description": "This shape is a callout whose main shape is a rectangle, which tightly fits the node contents (including any inner sep). It supports the keys described above and also the following key:",
+    "type": "key"
+  },
+  "/pgf/callout pointer width": {
+    "signature": "/pgf/callout pointer width=⟨length⟩",
+    "default": "no default, initially .25cm",
+    "description": "Sets the width of the pointer at the border of the rectangle.\n\nThe anchors for this shape are shown below (anchor 60 is an example of a border anchor). The pointer direction is ignored when placing anchors. Additionally, when using an absolute pointer, the pointer anchor should not to be used to used to position the shape as it is calculated whilst the shape is being drawn.",
+    "type": "key"
+  },
+  "callout pointer width": {
+    "signature": "/pgf/callout pointer width=⟨length⟩",
+    "default": "no default, initially .25cm",
+    "description": "Sets the width of the pointer at the border of the rectangle.\n\nThe anchors for this shape are shown below (anchor 60 is an example of a border anchor). The pointer direction is ignored when placing anchors. Additionally, when using an absolute pointer, the pointer anchor should not to be used to used to position the shape as it is calculated whilst the shape is being drawn.",
+    "type": "key"
+  },
+  "ellipse callout": {
+    "signature": "Shape ellipse callout",
+    "default": "",
+    "description": "This shape is a callout whose main shape is an ellipse, which tightly fits the node contents (including any inner sep). It uses the absolute callout pointer, relative callout pointer and callout pointer shorten keys, and also the following key:",
+    "type": "key"
+  },
+  "/pgf/callout pointer arc": {
+    "signature": "/pgf/callout pointer arc=⟨angle⟩",
+    "default": "no default, initially 15",
+    "description": "Sets the width of the pointer at the border of the ellipse according to an arc of length ⟨angle⟩.\n\nThe anchors for this shape are shown below (anchor 60 is an example of a border anchor). The pointer direction is ignored when placing anchors and the pointer anchor can only be used to position the shape when the relative anchor is specified.",
+    "type": "key"
+  },
+  "callout pointer arc": {
+    "signature": "/pgf/callout pointer arc=⟨angle⟩",
+    "default": "no default, initially 15",
+    "description": "Sets the width of the pointer at the border of the ellipse according to an arc of length ⟨angle⟩.\n\nThe anchors for this shape are shown below (anchor 60 is an example of a border anchor). The pointer direction is ignored when placing anchors and the pointer anchor can only be used to position the shape when the relative anchor is specified.",
+    "type": "key"
+  },
+  "cloud callout": {
+    "signature": "Shape cloud callout",
+    "default": "",
+    "description": "This shape is a callout whose main shape is a cloud which fits the node contents. The pointer is segmented, consisting of a series of shrinking ellipses. This callout requires the shapes.callouts library (for the cloud shape). If this library is not loaded an error will result.",
+    "type": "key"
+  },
+  "/pgf/callout pointer start size": {
+    "signature": "/pgf/callout pointer start size=⟨value⟩",
+    "default": "no default, initially .2 of callout",
+    "description": "Sets the size of the first segment in the pointer (i.e., the segment nearest the main cloud shape). There are three possible forms for ⟨value⟩:\n\n• A single dimension (e.g., 5pt), in which case the first ellipse will have equal diameters of 5pt.",
+    "type": "key"
+  },
+  "callout pointer start size": {
+    "signature": "/pgf/callout pointer start size=⟨value⟩",
+    "default": "no default, initially .2 of callout",
+    "description": "Sets the size of the first segment in the pointer (i.e., the segment nearest the main cloud shape). There are three possible forms for ⟨value⟩:\n\n• A single dimension (e.g., 5pt), in which case the first ellipse will have equal diameters of 5pt.",
+    "type": "key"
+  },
+  "/pgf/callout pointer end size": {
+    "signature": "/pgf/callout pointer end size=⟨value⟩",
+    "default": "no default, initially .1 of callout",
+    "description": "Sets the size of the last ellipse in the pointer.",
+    "type": "key"
+  },
+  "callout pointer end size": {
+    "signature": "/pgf/callout pointer end size=⟨value⟩",
+    "default": "no default, initially .1 of callout",
+    "description": "Sets the size of the last ellipse in the pointer.",
+    "type": "key"
+  },
+  "/pgf/callout pointer segments": {
+    "signature": "/pgf/callout pointer segments=⟨number⟩",
+    "default": "no default, initially 2",
+    "description": "Sets the number of segments in the pointer. Note that pgf will happily overlap segments if too many are specified.\n\nThe anchors for this shape are shown below (anchor 70 is an example of a border anchor). The pointer direction is ignored when placing anchors and the pointer anchor can only be used to position the shape when the relative anchor is specified. Note that the center of the last segment is drawn at the pointer anchor.",
+    "type": "key"
+  },
+  "callout pointer segments": {
+    "signature": "/pgf/callout pointer segments=⟨number⟩",
+    "default": "no default, initially 2",
+    "description": "Sets the number of segments in the pointer. Note that pgf will happily overlap segments if too many are specified.\n\nThe anchors for this shape are shown below (anchor 70 is an example of a border anchor). The pointer direction is ignored when placing anchors and the pointer anchor can only be used to position the shape when the relative anchor is specified. Note that the center of the last segment is drawn at the pointer anchor.",
+    "type": "key"
+  },
+  "shapes.misc": {
+    "signature": "TikZ Library shapes.misc",
+    "default": "",
+    "description": "\\usepgflibrary{shapes.misc} % LaTeX and plain TeX and pure pgf \\usepgflibrary[shapes.misc] % ConTeXt and pure pgf \\usetikzlibrary{shapes.misc} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[shapes.misc] % ConTeXt when using TikZ This library defines general-purpose shapes that do not fit into the previous categories.",
+    "type": "key"
+  },
+  "cross out": {
+    "signature": "Shape cross out",
+    "default": "",
+    "description": "This shape “crosses out” the node. Its foreground path are simply two diagonal lines between the corners of the node’s bounding box. Here is an example:",
+    "type": "key"
+  },
+  "strike out": {
+    "signature": "Shape strike out",
+    "default": "",
+    "description": "This shape is identical to the cross out shape, only its foreground path consists of a single line from the lower left to the upper right.",
+    "type": "key"
+  },
+  "rounded rectangle": {
+    "signature": "Shape rounded rectangle",
+    "default": "",
+    "description": "This shape is a rectangle which can have optionally rounded sides.",
+    "type": "key"
+  },
+  "/pgf/rounded rectangle arc length": {
+    "signature": "/pgf/rounded rectangle arc length=⟨angle⟩",
+    "default": "no default, initially 180",
+    "description": "Sets the length of the arcs for the rounded ends. Recommended values for ⟨angle⟩ are between 90 and 180.",
+    "type": "key"
+  },
+  "rounded rectangle arc length": {
+    "signature": "/pgf/rounded rectangle arc length=⟨angle⟩",
+    "default": "no default, initially 180",
+    "description": "Sets the length of the arcs for the rounded ends. Recommended values for ⟨angle⟩ are between 90 and 180.",
+    "type": "key"
+  },
+  "/pgf/rounded rectangle west arc": {
+    "signature": "/pgf/rounded rectangle west arc=⟨arc type⟩",
+    "default": "no default, initially convex",
+    "description": "Sets the style of the rounding for the left side. The permitted values for ⟨arc type⟩ are concave, convex, or none.",
+    "type": "key"
+  },
+  "rounded rectangle west arc": {
+    "signature": "/pgf/rounded rectangle west arc=⟨arc type⟩",
+    "default": "no default, initially convex",
+    "description": "Sets the style of the rounding for the left side. The permitted values for ⟨arc type⟩ are concave, convex, or none.",
+    "type": "key"
+  },
+  "/pgf/rounded rectangle left arc": {
+    "signature": "/pgf/rounded rectangle left arc=⟨arc type⟩",
+    "default": "style, no default",
+    "description": "Alternative key for specifying the west arc.",
+    "type": "style"
+  },
+  "rounded rectangle left arc": {
+    "signature": "/pgf/rounded rectangle left arc=⟨arc type⟩",
+    "default": "style, no default",
+    "description": "Alternative key for specifying the west arc.",
+    "type": "style"
+  },
+  "/pgf/rounded rectangle east arc": {
+    "signature": "/pgf/rounded rectangle east arc=⟨arc type⟩",
+    "default": "no default, initially convex",
+    "description": "Sets the style of the rounding for the east side.",
+    "type": "key"
+  },
+  "rounded rectangle east arc": {
+    "signature": "/pgf/rounded rectangle east arc=⟨arc type⟩",
+    "default": "no default, initially convex",
+    "description": "Sets the style of the rounding for the east side.",
+    "type": "key"
+  },
+  "/pgf/rounded rectangle right arc": {
+    "signature": "/pgf/rounded rectangle right arc=⟨arc type⟩",
+    "default": "style, no default",
+    "description": "Alternative key for specifying the east arc.\n\nThe anchors for this shape are shown below (anchor 10 is an example of a border angle). Note that if only one side is rounded, the center anchor will not be the precise center of the shape.",
+    "type": "style"
+  },
+  "rounded rectangle right arc": {
+    "signature": "/pgf/rounded rectangle right arc=⟨arc type⟩",
+    "default": "style, no default",
+    "description": "Alternative key for specifying the east arc.\n\nThe anchors for this shape are shown below (anchor 10 is an example of a border angle). Note that if only one side is rounded, the center anchor will not be the precise center of the shape.",
+    "type": "style"
+  },
+  "chamfered rectangle": {
+    "signature": "Shape chamfered rectangle",
+    "default": "",
+    "description": "This shape is a rectangle with optionally chamfered corners.",
+    "type": "key"
+  },
+  "/pgf/chamfered rectangle angle": {
+    "signature": "/pgf/chamfered rectangle angle=⟨angle⟩",
+    "default": "no default, initially 45",
+    "description": "Sets the angle from the vertical for the chamfer.",
+    "type": "key"
+  },
+  "chamfered rectangle angle": {
+    "signature": "/pgf/chamfered rectangle angle=⟨angle⟩",
+    "default": "no default, initially 45",
+    "description": "Sets the angle from the vertical for the chamfer.",
+    "type": "key"
+  },
+  "/pgf/chamfered rectangle xsep": {
+    "signature": "/pgf/chamfered rectangle xsep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets the distance that the chamfer extends horizontally beyond the node contents (which includes the inner sep). If ⟨length⟩ is large, such that the top and bottom chamfered edges would cross, then ⟨length⟩ is ignored and the chamfered edges are drawn so that they meet in the middle.",
+    "type": "key"
+  },
+  "chamfered rectangle xsep": {
+    "signature": "/pgf/chamfered rectangle xsep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets the distance that the chamfer extends horizontally beyond the node contents (which includes the inner sep). If ⟨length⟩ is large, such that the top and bottom chamfered edges would cross, then ⟨length⟩ is ignored and the chamfered edges are drawn so that they meet in the middle.",
+    "type": "key"
+  },
+  "/pgf/chamfered rectangle ysep": {
+    "signature": "/pgf/chamfered rectangle ysep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets the distance that the chamfer extends vertically beyond the node contents. If ⟨length⟩ is large, such that the left and right chamfered edges would cross, then ⟨length⟩ is ignored and the chamfered edges are drawn so that they meet in the middle.",
+    "type": "key"
+  },
+  "chamfered rectangle ysep": {
+    "signature": "/pgf/chamfered rectangle ysep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets the distance that the chamfer extends vertically beyond the node contents. If ⟨length⟩ is large, such that the left and right chamfered edges would cross, then ⟨length⟩ is ignored and the chamfered edges are drawn so that they meet in the middle.",
+    "type": "key"
+  },
+  "/pgf/chamfered rectangle sep": {
+    "signature": "/pgf/chamfered rectangle sep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets both the xsep and ysep simultaneously.",
+    "type": "key"
+  },
+  "chamfered rectangle sep": {
+    "signature": "/pgf/chamfered rectangle sep=⟨length⟩",
+    "default": "no default, initially .666ex",
+    "description": "Sets both the xsep and ysep simultaneously.",
+    "type": "key"
+  },
+  "/pgf/chamfered rectangle corners": {
+    "signature": "/pgf/chamfered rectangle corners=⟨list⟩",
+    "default": "no default, initially chamfer all",
+    "description": "Specifies which corners are chamfered. The corners are identified by their “compass point” directions (i.e. north east, north west, south west, and south east), and must be separated by commas (so if there is more than one corner in the list, it must be surrounded by braces). Any corners not mentioned in ⟨list⟩ are automatically not chamfered. Two additional values chamfer all and chamfer none, are also permitted.",
+    "type": "key"
+  },
+  "chamfered rectangle corners": {
+    "signature": "/pgf/chamfered rectangle corners=⟨list⟩",
+    "default": "no default, initially chamfer all",
+    "description": "Specifies which corners are chamfered. The corners are identified by their “compass point” directions (i.e. north east, north west, south west, and south east), and must be separated by commas (so if there is more than one corner in the list, it must be surrounded by braces). Any corners not mentioned in ⟨list⟩ are automatically not chamfered. Two additional values chamfer all and chamfer none, are also permitted.",
+    "type": "key"
+  }
+}

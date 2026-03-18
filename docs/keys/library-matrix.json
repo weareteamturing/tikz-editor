@@ -1,0 +1,146 @@
+{
+  "/tikz/matrix of nodes": {
+    "signature": "/tikz/matrix of nodes",
+    "default": "no value",
+    "description": "Conceptually, this key adds \\node{ at the beginning and }; at the end of each cell and sets the anchor of the node to base. Furthermore, it adds the option name option to each node, where the name is set to ⟨matrix name⟩-⟨row number⟩-⟨column number⟩. For example, if the matrix has the name my matrix, then the node in the upper left cell will get the name my matrix-1-1.",
+    "type": "key"
+  },
+  "matrix of nodes": {
+    "signature": "/tikz/matrix of nodes",
+    "default": "no value",
+    "description": "Conceptually, this key adds \\node{ at the beginning and }; at the end of each cell and sets the anchor of the node to base. Furthermore, it adds the option name option to each node, where the name is set to ⟨matrix name⟩-⟨row number⟩-⟨column number⟩. For example, if the matrix has the name my matrix, then the node in the upper left cell will get the name my matrix-1-1.",
+    "type": "key"
+  },
+  "/tikz/matrix of math nodes": {
+    "signature": "/tikz/matrix of math nodes",
+    "default": "no value",
+    "description": "This style is almost the same as the previous style, only $ is added at the beginning and at the end of each node, so math mode will be switched on in all nodes.",
+    "type": "key"
+  },
+  "matrix of math nodes": {
+    "signature": "/tikz/matrix of math nodes",
+    "default": "no value",
+    "description": "This style is almost the same as the previous style, only $ is added at the beginning and at the end of each node, so math mode will be switched on in all nodes.",
+    "type": "key"
+  },
+  "/tikz/nodes in empty cells": {
+    "signature": "/tikz/nodes in empty cells=⟨true or false⟩",
+    "default": "default true",
+    "description": "When set to true, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a matrix of nodes and a matrix of math nodes.",
+    "type": "key"
+  },
+  "nodes in empty cells": {
+    "signature": "/tikz/nodes in empty cells=⟨true or false⟩",
+    "default": "default true",
+    "description": "When set to true, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a matrix of nodes and a matrix of math nodes.",
+    "type": "key"
+  },
+  "/tikz/left delimiter": {
+    "signature": "/tikz/left delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "This option can be given to a any node that has the standard anchors north, south and so on. The ⟨delimiter⟩ can be any delimiter that is acceptable to TeX’s \\left command.",
+    "type": "key"
+  },
+  "left delimiter": {
+    "signature": "/tikz/left delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "This option can be given to a any node that has the standard anchors north, south and so on. The ⟨delimiter⟩ can be any delimiter that is acceptable to TeX’s \\left command.",
+    "type": "key"
+  },
+  "/tikz/every delimiter": {
+    "signature": "/tikz/every delimiter",
+    "default": "style, initially empty",
+    "description": "This style is executed for every delimiter. You can use it to shift or color delimiters or do whatever.",
+    "type": "style"
+  },
+  "every delimiter": {
+    "signature": "/tikz/every delimiter",
+    "default": "style, initially empty",
+    "description": "This style is executed for every delimiter. You can use it to shift or color delimiters or do whatever.",
+    "type": "style"
+  },
+  "/tikz/every left delimiter": {
+    "signature": "/tikz/every left delimiter",
+    "default": "style, initially empty",
+    "description": "This style is additionally executed for every left delimiter.",
+    "type": "style"
+  },
+  "every left delimiter": {
+    "signature": "/tikz/every left delimiter",
+    "default": "style, initially empty",
+    "description": "This style is additionally executed for every left delimiter.",
+    "type": "style"
+  },
+  "/tikz/right delimiter": {
+    "signature": "/tikz/right delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "Works as above.",
+    "type": "key"
+  },
+  "right delimiter": {
+    "signature": "/tikz/right delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "Works as above.",
+    "type": "key"
+  },
+  "/tikz/every right delimiter": {
+    "signature": "/tikz/every right delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  },
+  "every right delimiter": {
+    "signature": "/tikz/every right delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  },
+  "/tikz/above delimiter": {
+    "signature": "/tikz/above delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "This option allows you to add a delimiter above the node. It is implemented by rotating a left delimiter.",
+    "type": "key"
+  },
+  "above delimiter": {
+    "signature": "/tikz/above delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "This option allows you to add a delimiter above the node. It is implemented by rotating a left delimiter.",
+    "type": "key"
+  },
+  "/tikz/every above delimiter": {
+    "signature": "/tikz/every above delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  },
+  "every above delimiter": {
+    "signature": "/tikz/every above delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  },
+  "/tikz/below delimiter": {
+    "signature": "/tikz/below delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "Works as above.",
+    "type": "key"
+  },
+  "below delimiter": {
+    "signature": "/tikz/below delimiter=⟨delimiter⟩",
+    "default": "no default",
+    "description": "Works as above.",
+    "type": "key"
+  },
+  "/tikz/every below delimiter": {
+    "signature": "/tikz/every below delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  },
+  "every below delimiter": {
+    "signature": "/tikz/every below delimiter",
+    "default": "style, initially empty",
+    "description": "Works as above.",
+    "type": "style"
+  }
+}

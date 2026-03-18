@@ -1,0 +1,182 @@
+{
+  "child": {
+    "signature": "\\path … child[⟨options⟩]foreach⟨variables⟩in{⟨values⟩}{⟨child path⟩} …;",
+    "default": "",
+    "description": "This operation should directly follow a completed node operation or another child operation, although it is permissible that the first child operation is preceded by options (we will come to that).\n\nWhen a node operation like node {X} is followed by child, TikZ starts counting the number of child nodes that follow the original node {X}. For this, it scans the input and stores away each child and its arguments until it reaches a path operation that is not a child. Note that this will fix the character codes of all text inside the child arguments, which means, in essence, that you cannot use verbatim text inside the nodes inside a child. Sorry.",
+    "type": "key"
+  },
+  "/tikz/every child": {
+    "signature": "/tikz/every child",
+    "default": "style, initially empty",
+    "description": "This style is used at the beginning of each child, as if you had given the style’s contents as options to the child operation.",
+    "type": "style"
+  },
+  "every child": {
+    "signature": "/tikz/every child",
+    "default": "style, initially empty",
+    "description": "This style is used at the beginning of each child, as if you had given the style’s contents as options to the child operation.",
+    "type": "style"
+  },
+  "/tikz/every child node": {
+    "signature": "/tikz/every child node",
+    "default": "style, initially empty",
+    "description": "This style is used at the beginning of each child node in addition to the every node style.",
+    "type": "style"
+  },
+  "every child node": {
+    "signature": "/tikz/every child node",
+    "default": "style, initially empty",
+    "description": "This style is used at the beginning of each child node in addition to the every node style.",
+    "type": "style"
+  },
+  "/tikz/level": {
+    "signature": "/tikz/level=⟨number⟩",
+    "default": "style, no default, initially empty",
+    "description": "This style is executed at the beginning of each set of children, where ⟨number⟩ is the current level in the current tree. For example, when you say \\node {x} child child;, then level=1 is used before the first child. The style or code of this key will be passed ⟨number⟩ as its first parameter. If this first child has children itself, then level=2 would be used for them.",
+    "type": "style"
+  },
+  "/tikz/level distance": {
+    "signature": "/tikz/level distance=⟨distance⟩",
+    "default": "no default, initially 15mm",
+    "description": "This key determines the distance between different levels of the tree, more precisely, between the parent and the line on which its children are arranged. When given to a single child, this will set the distance for this child only.",
+    "type": "key"
+  },
+  "level distance": {
+    "signature": "/tikz/level distance=⟨distance⟩",
+    "default": "no default, initially 15mm",
+    "description": "This key determines the distance between different levels of the tree, more precisely, between the parent and the line on which its children are arranged. When given to a single child, this will set the distance for this child only.",
+    "type": "key"
+  },
+  "/tikz/sibling distance": {
+    "signature": "/tikz/sibling distance=⟨distance⟩",
+    "default": "no default, initially 15mm",
+    "description": "This key specifies the distance between the anchors of the children of a parent node.",
+    "type": "key"
+  },
+  "sibling distance": {
+    "signature": "/tikz/sibling distance=⟨distance⟩",
+    "default": "no default, initially 15mm",
+    "description": "This key specifies the distance between the anchors of the children of a parent node.",
+    "type": "key"
+  },
+  "/tikz/grow": {
+    "signature": "/tikz/grow=⟨direction⟩",
+    "default": "no default",
+    "description": "This key is used to define the ⟨direction⟩ in which the tree will grow. The ⟨direction⟩ can either be an angle in degrees or one of the following special text strings: down, up, left, right, north, south, east, west, north east, north west, south east, and south west. All of these have “their obvious meaning”, so, say, south west is the same as the angle \\(-135^\\circ \\).\n\nAs a side effect, this option installs the default growth function.",
+    "type": "key"
+  },
+  "grow": {
+    "signature": "/tikz/grow=⟨direction⟩",
+    "default": "no default",
+    "description": "This key is used to define the ⟨direction⟩ in which the tree will grow. The ⟨direction⟩ can either be an angle in degrees or one of the following special text strings: down, up, left, right, north, south, east, west, north east, north west, south east, and south west. All of these have “their obvious meaning”, so, say, south west is the same as the angle \\(-135^\\circ \\).\n\nAs a side effect, this option installs the default growth function.",
+    "type": "key"
+  },
+  "/tikz/grow'": {
+    "signature": "/tikz/grow'=⟨direction⟩",
+    "default": "no default",
+    "description": "This key has the same effect as grow, only the children are arranged in the opposite order.\n\nSometimes one or more of the children of a node are “missing”. Such a missing child will count as a child with respect to the total number of children and also with respect to the current child count, but it will not be rendered.",
+    "type": "key"
+  },
+  "grow'": {
+    "signature": "/tikz/grow'=⟨direction⟩",
+    "default": "no default",
+    "description": "This key has the same effect as grow, only the children are arranged in the opposite order.\n\nSometimes one or more of the children of a node are “missing”. Such a missing child will count as a child with respect to the total number of children and also with respect to the current child count, but it will not be rendered.",
+    "type": "key"
+  },
+  "/tikz/missing": {
+    "signature": "/tikz/missing=⟨true or false⟩",
+    "default": "default true",
+    "description": "If this option is given to a child, the current child counter is increased, but the child is otherwise ignored. In particular, the normal contents of the child is completely ignored.",
+    "type": "key"
+  },
+  "missing": {
+    "signature": "/tikz/missing=⟨true or false⟩",
+    "default": "default true",
+    "description": "If this option is given to a child, the current child counter is increased, but the child is otherwise ignored. In particular, the normal contents of the child is completely ignored.",
+    "type": "key"
+  },
+  "/tikz/growth parent anchor": {
+    "signature": "/tikz/growth parent anchor=⟨anchor⟩",
+    "default": "no default, initially center",
+    "description": "This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the level distance is 2cm, then the child node will be placed two centimeters below the ⟨anchor⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the anchor= option in the node command of the child) is two centimeters below the parent node’s ⟨anchor⟩.\n\nIn the following example, the two red lines both have length 1cm.",
+    "type": "key"
+  },
+  "growth parent anchor": {
+    "signature": "/tikz/growth parent anchor=⟨anchor⟩",
+    "default": "no default, initially center",
+    "description": "This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the level distance is 2cm, then the child node will be placed two centimeters below the ⟨anchor⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the anchor= option in the node command of the child) is two centimeters below the parent node’s ⟨anchor⟩.\n\nIn the following example, the two red lines both have length 1cm.",
+    "type": "key"
+  },
+  "/tikz/growth function": {
+    "signature": "/tikz/growth function=⟨macro name⟩",
+    "default": "no default, initially an internal function",
+    "description": "This rather low-level option allows you to set a new growth function. The ⟨macro name⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth.\n\nThe effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨macro name⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter \\tikznumberofchildren will be set to the total number of children of the parent node and the counter \\tikznumberofcurrentchild will be set to the number of the current child.",
+    "type": "key"
+  },
+  "growth function": {
+    "signature": "/tikz/growth function=⟨macro name⟩",
+    "default": "no default, initially an internal function",
+    "description": "This rather low-level option allows you to set a new growth function. The ⟨macro name⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth.\n\nThe effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨macro name⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter \\tikznumberofchildren will be set to the total number of children of the parent node and the counter \\tikznumberofcurrentchild will be set to the number of the current child.",
+    "type": "key"
+  },
+  "edge from parent": {
+    "signature": "\\path … edge from parent[⟨options⟩] …;",
+    "default": "",
+    "description": "This path operation can only be used inside ⟨child paths⟩ and should be given at the end, possibly followed by ⟨node specifications⟩ like node {a}. If a ⟨child path⟩ does not contain this operation, it will be added at the end of the ⟨child path⟩ automatically.\n\nBy default, this operation does the following:",
+    "type": "key"
+  },
+  "/tikz/edge from parent": {
+    "signature": "/tikz/edge from parent",
+    "default": "style, initially draw",
+    "description": "This style is inserted right before the edge from parent path and before the ⟨options⟩ are inserted.",
+    "type": "style"
+  },
+  "/tikz/edge from parent path": {
+    "signature": "/tikz/edge from parent path=⟨path⟩",
+    "default": "no default, initially code shown below",
+    "description": "This option allows you to set the edge from parent path to a new path. Initially, this path is the following:",
+    "type": "key"
+  },
+  "edge from parent path": {
+    "signature": "/tikz/edge from parent path=⟨path⟩",
+    "default": "no default, initially code shown below",
+    "description": "This option allows you to set the edge from parent path to a new path. Initially, this path is the following:",
+    "type": "key"
+  },
+  "/tikz/child anchor": {
+    "signature": "/tikz/child anchor=⟨anchor⟩",
+    "default": "no default, initially border",
+    "description": "Specifies the anchor where the edge from parent meets the child node by setting the macro \\tikzchildanchor to .⟨anchor⟩.\n\nIf you specify border as the ⟨anchor⟩, then the macro \\tikzchildanchor is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position.",
+    "type": "key"
+  },
+  "child anchor": {
+    "signature": "/tikz/child anchor=⟨anchor⟩",
+    "default": "no default, initially border",
+    "description": "Specifies the anchor where the edge from parent meets the child node by setting the macro \\tikzchildanchor to .⟨anchor⟩.\n\nIf you specify border as the ⟨anchor⟩, then the macro \\tikzchildanchor is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position.",
+    "type": "key"
+  },
+  "/tikz/parent anchor": {
+    "signature": "/tikz/parent anchor=⟨anchor⟩",
+    "default": "no default, initially border",
+    "description": "This option works the same way as the child anchor, only for the parent.\n\nAll of the above describes the standard functioning of the edge from parent command. You may, however, sometimes need even more fine-grained control (the graph drawing engine needs it, for instance). In such cases the following key gives you complete control:",
+    "type": "key"
+  },
+  "parent anchor": {
+    "signature": "/tikz/parent anchor=⟨anchor⟩",
+    "default": "no default, initially border",
+    "description": "This option works the same way as the child anchor, only for the parent.\n\nAll of the above describes the standard functioning of the edge from parent command. You may, however, sometimes need even more fine-grained control (the graph drawing engine needs it, for instance). In such cases the following key gives you complete control:",
+    "type": "key"
+  },
+  "/tikz/edge from parent macro": {
+    "signature": "/tikz/edge from parent macro=⟨macro⟩",
+    "default": "no default",
+    "description": "The ⟨macro⟩ gets expanded each time the edge from parent path operation is used. This ⟨macro⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨options⟩ that where passed to the edge from parent command, the second parameter will be the ⟨node specifications⟩ that following the command.\n\nThe standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨macro⟩ to the following:",
+    "type": "key"
+  },
+  "edge from parent macro": {
+    "signature": "/tikz/edge from parent macro=⟨macro⟩",
+    "default": "no default",
+    "description": "The ⟨macro⟩ gets expanded each time the edge from parent path operation is used. This ⟨macro⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨options⟩ that where passed to the edge from parent command, the second parameter will be the ⟨node specifications⟩ that following the command.\n\nThe standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨macro⟩ to the following:",
+    "type": "key"
+  }
+}

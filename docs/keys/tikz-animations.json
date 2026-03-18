@@ -1,0 +1,476 @@
+{
+  "animations": {
+    "signature": "TikZ Library animations",
+    "default": "",
+    "description": "\\usetikzlibrary{animations} % LaTeX and plain TeX \\usetikzlibrary[animations] % ConTeXt This library must be loaded in order to use animations with TikZ.\n\nAn animation changes the appearance of some part of a graphic over time. The archetypical animation is, of course, a movement of some part of a picture, but a change of, say, the opacity of a path is also an animation. TikZ allows you to specify such animations using special keys and notations.",
+    "type": "key"
+  },
+  "/tikz/animate": {
+    "signature": "/tikz/animate=⟨animation specification⟩",
+    "default": "no default",
+    "description": "You must place all specifications of animations inside uses of animate. You can, and usually should, place the specification of all timelines of a single picture inside a single use of this key since it will reset the time and the fork time (explained in Section 26.2.6). You can, however, use this key several times, in principle. Note that if you animate the same attribute of the same object in two different uses of animate, two separate timelines will result (and complicated rules are used to determine which one “wins” in case they specify conflicting values for the attribute at different times).\n\nThe key can be used at all places where a TikZ key is used; typically you will use it with a {scope} environment, inside the options of a node, or directly with the \\tikz command:",
+    "type": "key"
+  },
+  "animate": {
+    "signature": "/tikz/animate=⟨animation specification⟩",
+    "default": "no default",
+    "description": "You must place all specifications of animations inside uses of animate. You can, and usually should, place the specification of all timelines of a single picture inside a single use of this key since it will reset the time and the fork time (explained in Section 26.2.6). You can, however, use this key several times, in principle. Note that if you animate the same attribute of the same object in two different uses of animate, two separate timelines will result (and complicated rules are used to determine which one “wins” in case they specify conflicting values for the attribute at different times).\n\nThe key can be used at all places where a TikZ key is used; typically you will use it with a {scope} environment, inside the options of a node, or directly with the \\tikz command:",
+    "type": "key"
+  },
+  "/tikz/animate/entry": {
+    "signature": "/tikz/animate/entry",
+    "default": "no value",
+    "description": "Each time this key is used in the options of animate, TikZ checks whether the five keys object, attribute, id, time, and value are set. If one of them is not set, nothing happens. (The id key is set to the value default by default, all other keys must be set explicitly.)\n\nIf all of these keys are set, a time–value pair is created and added to the timeline of attribute of the object. Additionally, all options starting with /tikz/animate/options/, which also influence the timeline like begin on, are also added to the timeline of the object–attribute pair.",
+    "type": "key"
+  },
+  "entry": {
+    "signature": "/tikz/animate/entry",
+    "default": "no value",
+    "description": "Each time this key is used in the options of animate, TikZ checks whether the five keys object, attribute, id, time, and value are set. If one of them is not set, nothing happens. (The id key is set to the value default by default, all other keys must be set explicitly.)\n\nIf all of these keys are set, a time–value pair is created and added to the timeline of attribute of the object. Additionally, all options starting with /tikz/animate/options/, which also influence the timeline like begin on, are also added to the timeline of the object–attribute pair.",
+    "type": "key"
+  },
+  "/tikz/animate/object": {
+    "signature": "/tikz/animate/object=⟨list of objects⟩",
+    "default": "no default",
+    "description": "The ⟨list of objects⟩ is a comma-separated list of strings of the form ⟨object⟩.⟨type⟩. All of the objects in the list are selected as to-be-animate object for the next use of the entry key. The objects referred to by ⟨object⟩ will be the next objects with the name key set to ⟨object⟩. You can apply the name key to nodes (where you can also use the special parentheses-syntax and put the name in parentheses, it has the same effect), but also to scopes and paths. (The name path key is not the same as name; it is an older key from the intersections package and not related.)",
+    "type": "key"
+  },
+  "object": {
+    "signature": "/tikz/animate/object=⟨list of objects⟩",
+    "default": "no default",
+    "description": "The ⟨list of objects⟩ is a comma-separated list of strings of the form ⟨object⟩.⟨type⟩. All of the objects in the list are selected as to-be-animate object for the next use of the entry key. The objects referred to by ⟨object⟩ will be the next objects with the name key set to ⟨object⟩. You can apply the name key to nodes (where you can also use the special parentheses-syntax and put the name in parentheses, it has the same effect), but also to scopes and paths. (The name path key is not the same as name; it is an older key from the intersections package and not related.)",
+    "type": "key"
+  },
+  "/tikz/animate/attribute": {
+    "signature": "/tikz/animate/attribute=⟨list of attributes⟩",
+    "default": "no default",
+    "description": "The list of attributes must be a comma-separated list of attribute names. The timelines specified later will apply to all of these attributes (and to all objects previously selected using object). Possible attributes include colors, positions, line width, but even the paths themselves. The exact list of possible attributes is documented in Section 26.4.",
+    "type": "key"
+  },
+  "attribute": {
+    "signature": "/tikz/animate/attribute=⟨list of attributes⟩",
+    "default": "no default",
+    "description": "The list of attributes must be a comma-separated list of attribute names. The timelines specified later will apply to all of these attributes (and to all objects previously selected using object). Possible attributes include colors, positions, line width, but even the paths themselves. The exact list of possible attributes is documented in Section 26.4.",
+    "type": "key"
+  },
+  "/tikz/animate/id": {
+    "signature": "/tikz/animate/id=⟨id⟩",
+    "default": "no default, initially default",
+    "description": "Timelines are use to defined how the values of an attribute of an object change over time. In many cases, you will have at most one timeline for each object–attribute pair, but, sometimes, you may wish to have more than one timeline for the same object and the same attribute. For instance, you might have a timeline that specifies a changing shift of a node in some direction and, at the same time, another timeline that specifies an additional shift in some other direction(s). The problem is that there is only one shift attribute and it would be difficult to compute the joint effect of the two timelines.\n\nFor this purpose, timelines are actually identified not only by the object–attribute pair but, in reality, by the triple consisting of the object, the attribute, and the value of this key. We can now specify two separate timelines:",
+    "type": "key"
+  },
+  "/tikz/animate/time": {
+    "signature": "/tikz/animate/time=⟨time⟩later",
+    "default": "no default",
+    "description": "Sets the time for the next time–value pair in a call of entry to ⟨time⟩ plus the current fork time. The text later is optional. Both “fork times” and the optional later will be explained in a moment.\n\nTime Parsing. The ⟨time⟩ is parsed using the command \\pgfparsetime, which is essentially the same as the usual math parser of TikZ, and the result is interpreted as a time in seconds. Thus, a ⟨time⟩ of 2+3 means “5 seconds” and a ⟨time⟩ of 2*(2.1) means “4.2 seconds”. (You could even specify silly times like 1in, which results in the time “72.27 seconds”. Please do not do that.) The “essentially” refers to the fact that some extras are installed when the time parser is running:",
+    "type": "key"
+  },
+  "time": {
+    "signature": "/tikz/animate/time=⟨time⟩later",
+    "default": "no default",
+    "description": "Sets the time for the next time–value pair in a call of entry to ⟨time⟩ plus the current fork time. The text later is optional. Both “fork times” and the optional later will be explained in a moment.\n\nTime Parsing. The ⟨time⟩ is parsed using the command \\pgfparsetime, which is essentially the same as the usual math parser of TikZ, and the result is interpreted as a time in seconds. Thus, a ⟨time⟩ of 2+3 means “5 seconds” and a ⟨time⟩ of 2*(2.1) means “4.2 seconds”. (You could even specify silly times like 1in, which results in the time “72.27 seconds”. Please do not do that.) The “essentially” refers to the fact that some extras are installed when the time parser is running:",
+    "type": "key"
+  },
+  "/tikz/animate/fork": {
+    "signature": "/tikz/animate/fork=⟨t⟩",
+    "default": "default 0s later",
+    "description": "Sets the fork time for the local scope to ⟨t⟩ and sets the current time to 0s. In this scope, when you use “absolute” times like 0s or 2s, you actually refer to later times that have started as ⟨t⟩.\n\nOne application of forks is in the definition of keys that add a certain part to a longer animation. Consider for instance the definition of a highlight key:",
+    "type": "key"
+  },
+  "fork": {
+    "signature": "/tikz/animate/fork=⟨t⟩",
+    "default": "default 0s later",
+    "description": "Sets the fork time for the local scope to ⟨t⟩ and sets the current time to 0s. In this scope, when you use “absolute” times like 0s or 2s, you actually refer to later times that have started as ⟨t⟩.\n\nOne application of forks is in the definition of keys that add a certain part to a longer animation. Consider for instance the definition of a highlight key:",
+    "type": "key"
+  },
+  "/tikz/animate/remember": {
+    "signature": "/tikz/animate/remember=⟨macroname⟩",
+    "default": "no default",
+    "description": "This key stores the current time (the time of the last use of the time key) globally in the macro ⟨macroname⟩. This time will include the offset of the fork time:",
+    "type": "key"
+  },
+  "remember": {
+    "signature": "/tikz/animate/remember=⟨macroname⟩",
+    "default": "no default",
+    "description": "This key stores the current time (the time of the last use of the time key) globally in the macro ⟨macroname⟩. This time will include the offset of the fork time:",
+    "type": "key"
+  },
+  "/tikz/animate/resume": {
+    "signature": "/tikz/animate/resume=⟨absolute time⟩",
+    "default": "no default",
+    "description": "The ⟨absolute time⟩ is evaluated using \\pgfparsetime and, then, the current time is set to the resulting time minus the fork time. When the ⟨absolute time⟩ is a macro previously set using remember, the net effect of this is that we return to the exact “moment” in the global time line when remember was used.",
+    "type": "key"
+  },
+  "resume": {
+    "signature": "/tikz/animate/resume=⟨absolute time⟩",
+    "default": "no default",
+    "description": "The ⟨absolute time⟩ is evaluated using \\pgfparsetime and, then, the current time is set to the resulting time minus the fork time. When the ⟨absolute time⟩ is a macro previously set using remember, the net effect of this is that we return to the exact “moment” in the global time line when remember was used.",
+    "type": "key"
+  },
+  "/tikz/animate/value": {
+    "signature": "/tikz/animate/value=⟨value⟩",
+    "default": "no default",
+    "description": "This key sets the value of the next time–value pair created by entry to ⟨value⟩. The syntax of the ⟨value⟩ is not fixed, it depends on the type of the attribute. For instance, for an attribute like opacity the ⟨value⟩ must be an expression that can be evaluated to a number between 0 and 1; for the attribute color the ⟨value⟩ must, instead, be a color; and so on. Take care that when a value contains a comma, you must surround it by braces as in \"{(1,1)}\".\n\nThe allowed texts for the ⟨value⟩ is always the same as the one you would pass to the TikZ option of the same name. For instance, since the TikZ option shift expects a coordinate, you use coordinates as ⟨value⟩ with the usual TikZ syntax (including all sorts of extensions, the animation system calls the standard TikZ parsing routines). The same is true of dimensions, scalar values, colors, and so on.",
+    "type": "key"
+  },
+  "value": {
+    "signature": "/tikz/animate/value=⟨value⟩",
+    "default": "no default",
+    "description": "This key sets the value of the next time–value pair created by entry to ⟨value⟩. The syntax of the ⟨value⟩ is not fixed, it depends on the type of the attribute. For instance, for an attribute like opacity the ⟨value⟩ must be an expression that can be evaluated to a number between 0 and 1; for the attribute color the ⟨value⟩ must, instead, be a color; and so on. Take care that when a value contains a comma, you must surround it by braces as in \"{(1,1)}\".\n\nThe allowed texts for the ⟨value⟩ is always the same as the one you would pass to the TikZ option of the same name. For instance, since the TikZ option shift expects a coordinate, you use coordinates as ⟨value⟩ with the usual TikZ syntax (including all sorts of extensions, the animation system calls the standard TikZ parsing routines). The same is true of dimensions, scalar values, colors, and so on.",
+    "type": "key"
+  },
+  "/tikz/animate/scope": {
+    "signature": "/tikz/animate/scope=⟨options⟩",
+    "default": "no default",
+    "description": "Executed the ⟨options⟩ inside a TeX scope. In particular, all settings made inside the scope have no effect after the end of the scope.",
+    "type": "key"
+  },
+  "/tikz/animate/sync": {
+    "signature": "/tikz/animate/sync=⟨options⟩",
+    "default": "no default",
+    "description": "A shorthand for scope={ ⟨options⟩ , remember=\\temp},resume=\\temp where \\temp is actually an internal name. The effect is that after a sync the local time just continues as if the scope where not present – but regarding everything else the effects are local to the sync scope.\n\nIn the previous subsection we saw how timelines can be created by specifying the individual entries of the timelines sequentially. However, most of the time you will wish to use a simpler syntax that makes it easier to specify animations. This syntax is only available inside the animate key (it is switched on at the beginning) and consists of three “parts”: The colon syntax, the time syntax, and the quote syntax.",
+    "type": "key"
+  },
+  "sync": {
+    "signature": "/tikz/animate/sync=⟨options⟩",
+    "default": "no default",
+    "description": "A shorthand for scope={ ⟨options⟩ , remember=\\temp},resume=\\temp where \\temp is actually an internal name. The effect is that after a sync the local time just continues as if the scope where not present – but regarding everything else the effects are local to the sync scope.\n\nIn the previous subsection we saw how timelines can be created by specifying the individual entries of the timelines sequentially. However, most of the time you will wish to use a simpler syntax that makes it easier to specify animations. This syntax is only available inside the animate key (it is switched on at the beginning) and consists of three “parts”: The colon syntax, the time syntax, and the quote syntax.",
+    "type": "key"
+  },
+  "stroke opacity": {
+    "signature": "Animation attribute :opacity, :fill opacity, :stroke opacity",
+    "default": "",
+    "description": "Similarly to the color, you can also set the opacity used for filling and for drawing using the attributes fill opacity and draw opacity, which are exactly the same as the usual TikZ keys of the same names.",
+    "type": "key"
+  },
+  "visible": {
+    "signature": "Animation attribute :visible, :stage",
+    "default": "",
+    "description": "The difference between the visible attribute and an opacity of 0 is that an invisible object cannot be clicked and does not need to be rendered. The (only) two possible values for this attribute are false and true.",
+    "type": "key"
+  },
+  "stage": {
+    "signature": "Animation attribute :visible, :stage",
+    "default": "",
+    "description": "The difference between the visible attribute and an opacity of 0 is that an invisible object cannot be clicked and does not need to be rendered. The (only) two possible values for this attribute are false and true.",
+    "type": "key"
+  },
+  "/tikz/animate/arrows": {
+    "signature": "/tikz/animate/arrows=⟨arrow spec⟩",
+    "default": "no default",
+    "description": "This key only has an effect on :path animations. It causes the arrow tips specified in ⟨arrow spec⟩ to be added to the path during the animation (the syntax is the same as for the normal arrows key). If you have several different animations for a paths, these may contain different arrow tips, but each animation must stick to one kind of arrow tips.\n\nWhat happens internally when this key is used is the following: The specified arrow tips are rendered internally as so-called markers, which are small graphics that can be placed at the beginning and ends of paths and which “rotate along” as a path changes. Note that these markers are used only in the context of animated paths, the arrow tips of normal, “static” paths are drawn without the use of markers. Normally, there is no visual difference between an arrow tip drawn using markers or those drawn for static paths, but in rare cases there may be differences. You should only add arrows to open path consisting of a single segment with sufficiently long first and last segments (so that TikZ can shorten these segments correctly when necessary).",
+    "type": "key"
+  },
+  "/tikz/animate/shorten < ": {
+    "signature": "/tikz/animate/shorten = ⟨dimension⟩",
+    "default": "no default",
+    "description": "",
+    "type": "key"
+  },
+  "shorten < ": {
+    "signature": "/tikz/animate/shorten = ⟨dimension⟩",
+    "default": "no default",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/animate/shorten > ": {
+    "signature": "/tikz/animate/shorten > = ⟨dimension⟩",
+    "default": "no default",
+    "description": "For animated paths, just as the key arrows has to be passed to the animation (to :path) instead of to the static path, the keys shorten > and shorten also have to be passed to the :path key.\n\nIn order to animate the canvas transformation matrix, you do not animate an attribute called “:transform”. Rather, there are several attributes that all manipulate the canvas transformation matrix in different ways. These keys, taken in appropriate combination, allow you to achieve any particular canvas transformation matrix. All keys that animate the transformation matrix always accumulate.",
+    "type": "key"
+  },
+  "shorten > ": {
+    "signature": "/tikz/animate/shorten > = ⟨dimension⟩",
+    "default": "no default",
+    "description": "For animated paths, just as the key arrows has to be passed to the animation (to :path) instead of to the static path, the keys shorten > and shorten also have to be passed to the :path key.\n\nIn order to animate the canvas transformation matrix, you do not animate an attribute called “:transform”. Rather, there are several attributes that all manipulate the canvas transformation matrix in different ways. These keys, taken in appropriate combination, allow you to achieve any particular canvas transformation matrix. All keys that animate the transformation matrix always accumulate.",
+    "type": "key"
+  },
+  "xskew": {
+    "signature": "Animation attribute :xskew, :yskew, :xslant, :yslant",
+    "default": "",
+    "description": "The keys add an animation of the skew (given in degrees) or slant (given as in the xslant and yslant key):",
+    "type": "key"
+  },
+  "yskew": {
+    "signature": "Animation attribute :xskew, :yskew, :xslant, :yslant",
+    "default": "",
+    "description": "The keys add an animation of the skew (given in degrees) or slant (given as in the xslant and yslant key):",
+    "type": "key"
+  },
+  "/tikz/animate/options/along": {
+    "signature": "/tikz/animate/options/along={⟨path⟩}⟨sloped or upright⟩ in⟨time⟩",
+    "default": "no default",
+    "description": "Use this key with a :shift (or a :position) to make TikZ shift the object by the coordinates along the ⟨path⟩. When this key is used, the values may no longer be coordinates, but must be fractions of the distance along the path. A value of \"0\" refers to the beginning of the path and \"1\" refers to the end:",
+    "type": "key"
+  },
+  "/tikz/animate/options/origin": {
+    "signature": "/tikz/animate/options/origin=⟨coordinate⟩",
+    "default": "no default",
+    "description": "Shifts the animation coordinate system by ⟨coordinate⟩. This has the effect that the “origin” for scalings and rotations gets shifted by this amount. In the following example, the point around which the rotation is done is the right border at (2,1) since the origin of the animation is at (1,1) relative to the picture’s origin and the origin key shifts it one centimeter to the right.",
+    "type": "key"
+  },
+  "/tikz/animate/options/transform": {
+    "signature": "/tikz/animate/options/transform=⟨transformation keys⟩",
+    "default": "no default",
+    "description": "While the origin key does only a shift, the transform key allows you to add an arbitrary transformation to the animation coordinate system using keys like shift, rotate or even reset cm and cm. In particular, origin=⟨c⟩ has the same effect as transform = {shift=⟨c⟩}. Note that the transformation only influences the animation, not the object itself.\n\nAs an example, when you say transform={scale=2}, an :xshift with a value of \"1cm\" will actually shift the object by 2cm. Similarly, after you say transform={rotate=90,scale=2}, the same :xshift of \"1cm\" will actually shift the object by 2cm upwards.",
+    "type": "key"
+  },
+  "position": {
+    "signature": "Animation attribute :position",
+    "default": "",
+    "description": "Compare the two animations, one with :position, one with :shift.",
+    "type": "key"
+  },
+  "view": {
+    "signature": "Animation attribute :view",
+    "default": "",
+    "description": "A view is a canvas transformation that shifts and scales the canvas in such a way that a certain rectangle “matches” another rectangle: The idea is that you “look through” a “window” (the view) and “see” a certain area of the canvas. View animation do not allow you to do anything that cannot also be done using the shift and scale keys in combination, but it often much more natural to animate which area of a graphic you wish to see than to compute and animate a scaling and shift explicitly.\n\nIn order to use a view, you first need to create a view, which is done using the meet or slice keys from the views library, see Section 78. You can then animate the view using the view attribute. The values passed to the entry key follow the same syntax as the views in the views library (though you only animate the to-be-viewed rectangle).",
+    "type": "key"
+  },
+  "/tikz/animate/base": {
+    "signature": "/tikz/animate/base=⟨options⟩",
+    "default": "no default",
+    "description": "A “base” value is a value that is used for the attribute whenever the timeline is not active:",
+    "type": "key"
+  },
+  "base": {
+    "signature": "/tikz/animate/base=⟨options⟩",
+    "default": "no default",
+    "description": "A “base” value is a value that is used for the attribute whenever the timeline is not active:",
+    "type": "key"
+  },
+  "/tikz/animate/options/forever": {
+    "signature": "/tikz/animate/options/forever",
+    "default": "no value",
+    "description": "This key causes the timeline to continue “forever” after the last time with the last value. You can also think of this as having the animation “freeze” at the end.",
+    "type": "key"
+  },
+  "/tikz/animate/options/freeze": {
+    "signature": "/tikz/animate/options/freeze",
+    "default": "no value",
+    "description": "An alias for forever.\n\nThe ⟨time⟩ used with the first use of the entry key in a timeline is the start time and the ⟨time⟩ in the last entry key is the stop time. However, this leaves open then question of when the whole timeline is to be started: The moment the document is opened? When the page is displayed? When the user scrolls to the to-be-animated object? When some other object is clicked? The key begin, and also the key end, allow you to specify answers to these questions.",
+    "type": "key"
+  },
+  "/tikz/animate/options/begin": {
+    "signature": "/tikz/animate/options/begin=⟨time⟩",
+    "default": "no default",
+    "description": "This key specifies when the “moment 0s” should be relative to the moment when the current graphic is first displayed. You can use this key multiple times, in this case the timeline is restarted for each of the times specified (if it is already running, it will be reset). If no begin key is given at all, the effect is the same as if begin=0s had been specified.\n\nIt is permissible to set ⟨time⟩ to a negative value.",
+    "type": "key"
+  },
+  "/tikz/animate/options/end": {
+    "signature": "/tikz/animate/options/end=⟨time⟩",
+    "default": "no default",
+    "description": "This key will truncate the timeline so that it ends ⟨time⟩ after the display of the graphic, provided the timeline begins before the specified end time. For instance, if you specify a timeline starting at 2&#x202f;s and ending at 5&#x202f;s and you set begin to 1&#x202f;s and end to 4&#x202f;s, the timeline will run, relative to the moment when the graphic is displayed from 3&#x202f;s to 4&#x202f;s.",
+    "type": "key"
+  },
+  "/tikz/animate/options/begin on": {
+    "signature": "/tikz/animate/options/begin on=⟨options⟩",
+    "default": "no default",
+    "description": "The ⟨options⟩ will be executed with the path /pgf/animation/events and will cause a new beginning to be added to the list of possible beginnings for the timeline (so the uses of this key accumulate). Each “beginning” is just another possible “moment 0s” for the timeline. For instance, when the ⟨options⟩ are set to click, then each time the graph is clicked a moment 0s starts for the timeline.\n\nMost events are “caused” or “happen to” some object. For instance, the click event happens when you click on a certain object. In order to specify this object, use the following two keys inside the ⟨options⟩: of and of next. If neither of these keys are given, the to-be-animated object is used.",
+    "type": "key"
+  },
+  "/pgf/animation/events/of": {
+    "signature": "/pgf/animation/events/of=⟨id⟩.⟨type⟩",
+    "default": "no default",
+    "description": "This specifies a graphic object id in the same way as the whom key, also with an optional ⟨type⟩. This is the object that “causes” the event to happen.\n\nUnlike the whom key, which always refers to a not-yet-existing object, this key always refers to an already existing object, namely to the most recent use of the ⟨id⟩. In the following example, the referenced object is the node with the label 2 since it is the most recently referenced node with ⟨id⟩ X.",
+    "type": "key"
+  },
+  "/pgf/animation/events/of next": {
+    "signature": "/pgf/animation/events/of next=⟨id⟩.⟨type⟩",
+    "default": "no default",
+    "description": "This key works like the of key, only it refers to a future (actually, the next) object with the given ⟨id⟩, not to a previous one. This, in the next example, the referenced node is the one with label 3.",
+    "type": "key"
+  },
+  "/pgf/animation/events/event": {
+    "signature": "/pgf/animation/events/event=⟨event name⟩",
+    "default": "no default",
+    "description": "Specifies the name of the event whose occurrence should start the timeline. Which events are supported depends on the device on which the animation is displayed, the output format (svg or some other format), and the setup of scripts, but here is a list of events supported by “plain svg”: click, focusin, focusout, mousedown, mouseup, mouseover, mousemove, mouseout, begin, end. However, the following keys make using these events simpler:",
+    "type": "key"
+  },
+  "/pgf/animate/events/click": {
+    "signature": "/pgf/animate/events/click",
+    "default": "no value",
+    "description": "This is a shorthand for event=click. This event gets triggered when the user clicks on the triggering object with a mouse (or something equivalent).",
+    "type": "key"
+  },
+  "/pgf/animation/events/mouse down": {
+    "signature": "/pgf/animation/events/mouse down",
+    "default": "no value",
+    "description": "Shorthand for event=mousedown. The event gets triggered when the user presses a mouse button down on the object.",
+    "type": "key"
+  },
+  "/pgf/animation/events/mouse up": {
+    "signature": "/pgf/animation/events/mouse up",
+    "default": "no value",
+    "description": "Shorthand for event=mouseup and gets triggered, of course, when a pressed button is released on the object.",
+    "type": "key"
+  },
+  "/pgf/animation/events/mouse over": {
+    "signature": "/pgf/animation/events/mouse over",
+    "default": "no value",
+    "description": "Shorthand for event=mouseover. The event gets triggered the moment the mouse cursor moves over the object.",
+    "type": "key"
+  },
+  "/pgf/animation/events/mouse move": {
+    "signature": "/pgf/animation/events/mouse move",
+    "default": "no value",
+    "description": "Shorthand for event=mousemove. The event gets triggered lots of times, namely each time the mouse moves while being “over” the object.",
+    "type": "key"
+  },
+  "/pgf/animation/events/mouse out": {
+    "signature": "/pgf/animation/events/mouse out",
+    "default": "no value",
+    "description": "Shorthand for event=mouseout. The opposite of mouse over: triggered when the mouse leaves the object.",
+    "type": "key"
+  },
+  "/pgf/animation/events/begin": {
+    "signature": "/pgf/animation/events/begin",
+    "default": "no value",
+    "description": "Shorthand for event=begin. The “begin” refers to the beginning of another animation, namely the one referenced by of or of whom. This means that the current animation will begin when some other animation begins.",
+    "type": "key"
+  },
+  "/pgf/animation/events/end": {
+    "signature": "/pgf/animation/events/end",
+    "default": "no value",
+    "description": "Shorthand for event=end. Again, the “end” refers to the end of another animation, namely the one referenced by of or of whom. This means that the current animation will begin when some other animation ends.",
+    "type": "key"
+  },
+  "/pgf/animation/events/focus in": {
+    "signature": "/pgf/animation/events/focus in",
+    "default": "no value",
+    "description": "This is a shorthand for event=focusin. This event gets triggered when the graphic object gets the focus (this usually makes sense only for text input fields).",
+    "type": "key"
+  },
+  "/pgf/animation/events/focus out": {
+    "signature": "/pgf/animation/events/focus out",
+    "default": "no value",
+    "description": "This is a shorthand for event=focusout.\n\nIn addition to the events specified using the generic event key, there are two further events that take a parameter:",
+    "type": "key"
+  },
+  "/pgf/animation/events/repeat": {
+    "signature": "/pgf/animation/events/repeat=⟨number⟩",
+    "default": "no default",
+    "description": "The event is triggered when a repeating animation has been repeated ⟨number⟩ times.",
+    "type": "key"
+  },
+  "/pgf/animation/events/key": {
+    "signature": "/pgf/animation/events/key=⟨key⟩",
+    "default": "no default",
+    "description": "The event is triggered when the keyboard key ⟨key⟩ has been pressed. For security reasons, a viewer may suppress this.\n\nHaving specified the event, you can also specify a delay relative to this event:",
+    "type": "key"
+  },
+  "/pgf/animation/events/delay": {
+    "signature": "/pgf/animation/events/delay=⟨time⟩",
+    "default": "no default",
+    "description": "Specifies that the timeline should not start with the event, but, rather, be delayed by ⟨time⟩.\n\nWhen you use begin on to start an animation when a certain event is triggered, it is not clear what should happen when the event is triggered again. Should this be ignored completely? Should it only be ignored while the animation is running? The following key allows you to specify when should happen:",
+    "type": "key"
+  },
+  "/tikz/animate/options/restart": {
+    "signature": "/tikz/animate/options/restart=⟨choice⟩",
+    "default": "default true",
+    "description": "You can set ⟨choice⟩ to one of the following:\n\n• true means that the animation will restart each time the event is triggered. If the animation is already running, it will be reset to its beginning.",
+    "type": "key"
+  },
+  "/tikz/animate/options/end on": {
+    "signature": "/tikz/animate/options/end on=⟨options⟩",
+    "default": "no default",
+    "description": "Works exactly like begin on, one possible end of the timeline is specified using the ⟨options⟩.",
+    "type": "key"
+  },
+  "/tikz/animate/options/repeats": {
+    "signature": "/tikz/animate/options/repeats=⟨specification⟩",
+    "default": "no default",
+    "description": "Use this key to specify that the timeline animation should repeat at the end. The ⟨specification⟩ must consist of two parts, each of which may be empty. The first part is one of the following:\n\n• Empty, in which case the timeline repeats forever.",
+    "type": "key"
+  },
+  "/tikz/animate/options/repeat": {
+    "signature": "/tikz/animate/options/repeat=⟨specification⟩",
+    "default": "no default",
+    "description": "An alias for repeats.\n\nYour specification of the timeline will consist of a sequence of times along with values that the attribute should have at these “key times”. Between these key times, the attribute’s value needs to be interpolated.",
+    "type": "key"
+  },
+  "/tikz/animate/options/exit control": {
+    "signature": "/tikz/animate/options/exit control={⟨time fraction⟩}{⟨value fraction⟩}",
+    "default": "no default",
+    "description": "Specifies an exit control using two values as above. The spline from above would be specified as follows:",
+    "type": "key"
+  },
+  "/tikz/animate/options/entry control": {
+    "signature": "/tikz/animate/options/entry control={⟨time fraction⟩}{⟨value fraction⟩}",
+    "default": "no default",
+    "description": "Works like exit control.",
+    "type": "key"
+  },
+  "/tikz/animate/options/ease in": {
+    "signature": "/tikz/animate/options/ease in={⟨fraction⟩}",
+    "default": "default 0.5",
+    "description": "A shorthand for entry control={1-⟨fraction⟩}{1}.",
+    "type": "key"
+  },
+  "/tikz/animate/options/ease out": {
+    "signature": "/tikz/animate/options/ease out={⟨fraction⟩}",
+    "default": "default 0.5",
+    "description": "A shorthand for exit control={⟨fraction⟩}{1}.",
+    "type": "key"
+  },
+  "/tikz/animate/options/ease": {
+    "signature": "/tikz/animate/options/ease={⟨fraction⟩}",
+    "default": "default 0.5",
+    "description": "A shorthand for ease in=⟨fraction⟩, ease out=⟨fraction⟩.\n\nNote that since for the first time the entry control is ignored and, similarly, for the last time the exit control is ignored, using the ease key with an animation having only two times is particularly easy, since we only need to set ease once:",
+    "type": "key"
+  },
+  "/tikz/animate/options/stay": {
+    "signature": "/tikz/animate/options/stay",
+    "default": "no value",
+    "description": "Specifies that inside the time interval the value “stays put” at the first value till the end of the interval, where it will jump to the second value. This is similar to an exit control where the curve is “infinitely flat”.",
+    "type": "key"
+  },
+  "/tikz/animate/options/jump": {
+    "signature": "/tikz/animate/options/jump",
+    "default": "no value",
+    "description": "Works like the stay key, but will cause the value to “jump to” the new value right at the beginning of the time interval. It is similar to an entry control specifying a “flat” curve.",
+    "type": "key"
+  },
+  "/tikz/make snapshot of": {
+    "signature": "/tikz/make snapshot of=⟨time⟩",
+    "default": "no default",
+    "description": "When this key is used in a TeX scope, animation commands given in the scope do not add animation code to the output. Instead, TikZ computes the values the attributes of the animation would have at the specified ⟨time⟩ and inserts the necessary system layer command to set the attribute to the computed values (some care has been taken to make this computation match the computations done by viewer applications as best as possible).",
+    "type": "key"
+  },
+  "make snapshot of": {
+    "signature": "/tikz/make snapshot of=⟨time⟩",
+    "default": "no default",
+    "description": "When this key is used in a TeX scope, animation commands given in the scope do not add animation code to the output. Instead, TikZ computes the values the attributes of the animation would have at the specified ⟨time⟩ and inserts the necessary system layer command to set the attribute to the computed values (some care has been taken to make this computation match the computations done by viewer applications as best as possible).",
+    "type": "key"
+  },
+  "/tikz/animate/options/begin snapshot": {
+    "signature": "/tikz/animate/options/begin snapshot=⟨start time⟩",
+    "default": "no default",
+    "description": "Use this key on a timeline to specify that, only for purposes of taking snapshots, the timeline starts at ⟨start time⟩ rather than at “moment zero”. (Think of this as saying that the animation starts when a virtual user clicks on the animation and this click occurs ⟨start time⟩ seconds after the general “moment zero”, causing the animation to “lag behind” by this amount of time.) Computationally, for the timeline the ⟨start time⟩ is subtracted from the snapshot’s ⟨time⟩ when the value needs to be determined:",
+    "type": "key"
+  },
+  "/tikz/make snapshot after": {
+    "signature": "/tikz/make snapshot after=⟨time⟩",
+    "default": "no default",
+    "description": "Works exactly like make snapshot of, only the ⟨time⟩ is interpreted as \\(\\meta {time} + \\epsilon \\). This only makes a difference at the end of a timeline and when there are two or more values specified for the same time: When there are several values specified for time \\(t\\), a normal snapshot for time \\(t\\) uses the first value given for the attribute. In contrast, this command would use the last one given. Similarly, when an animation timeline ends at time \\(t\\), a normal snapshot of time \\(t\\) would use the last value of the timeline, while this key would not apply the animation at all (it has already ended at time \\(t + \\epsilon \\)).",
+    "type": "key"
+  },
+  "make snapshot after": {
+    "signature": "/tikz/make snapshot after=⟨time⟩",
+    "default": "no default",
+    "description": "Works exactly like make snapshot of, only the ⟨time⟩ is interpreted as \\(\\meta {time} + \\epsilon \\). This only makes a difference at the end of a timeline and when there are two or more values specified for the same time: When there are several values specified for time \\(t\\), a normal snapshot for time \\(t\\) uses the first value given for the attribute. In contrast, this command would use the last one given. Similarly, when an animation timeline ends at time \\(t\\), a normal snapshot of time \\(t\\) would use the last value of the timeline, while this key would not apply the animation at all (it has already ended at time \\(t + \\epsilon \\)).",
+    "type": "key"
+  },
+  "/tikz/make snapshot if necessary": {
+    "signature": "/tikz/make snapshot if necessary=⟨time⟩",
+    "default": "default 0s",
+    "description": "This key makes a snapshot of ⟨time⟩ only when the output format does not provide support for animations; if the output format supports animations (like svg), then the command has no effect and animations are created normally.\n\nThis manual is typeset with the following being set once are for all in preamble:",
+    "type": "key"
+  },
+  "make snapshot if necessary": {
+    "signature": "/tikz/make snapshot if necessary=⟨time⟩",
+    "default": "default 0s",
+    "description": "This key makes a snapshot of ⟨time⟩ only when the output format does not provide support for animations; if the output format supports animations (like svg), then the command has no effect and animations are created normally.\n\nThis manual is typeset with the following being set once are for all in preamble:",
+    "type": "key"
+  }
+}

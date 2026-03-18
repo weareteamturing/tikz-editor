@@ -1,0 +1,266 @@
+{
+  "/tikz/draw opacity": {
+    "signature": "/tikz/draw opacity=⟨value⟩",
+    "default": "no default",
+    "description": "This option sets “how transparent” lines should be. A value of 1 means “fully opaque” or “not transparent at all”, a value of 0 means “fully transparent” or “invisible”. A value of 0.5 yields lines that are semitransparent.\n\nNote that when you use PostScript as your output format, this option works only with recent versions of Ghostscript.",
+    "type": "key"
+  },
+  "draw opacity": {
+    "signature": "/tikz/draw opacity=⟨value⟩",
+    "default": "no default",
+    "description": "This option sets “how transparent” lines should be. A value of 1 means “fully opaque” or “not transparent at all”, a value of 0 means “fully transparent” or “invisible”. A value of 0.5 yields lines that are semitransparent.\n\nNote that when you use PostScript as your output format, this option works only with recent versions of Ghostscript.",
+    "type": "key"
+  },
+  "/tikz/opacity": {
+    "signature": "/tikz/opacity=⟨value⟩",
+    "default": "no default",
+    "description": "Sets both the drawing and filling opacity to ⟨value⟩.\n\nThe following predefined styles make it easier to use this option:",
+    "type": "key"
+  },
+  "opacity": {
+    "signature": "/tikz/opacity=⟨value⟩",
+    "default": "no default",
+    "description": "Sets both the drawing and filling opacity to ⟨value⟩.\n\nThe following predefined styles make it easier to use this option:",
+    "type": "key"
+  },
+  "/tikz/transparent": {
+    "signature": "/tikz/transparent",
+    "default": "style, no value",
+    "description": "Makes everything totally transparent and, hence, invisible.",
+    "type": "style"
+  },
+  "transparent": {
+    "signature": "/tikz/transparent",
+    "default": "style, no value",
+    "description": "Makes everything totally transparent and, hence, invisible.",
+    "type": "style"
+  },
+  "/tikz/ultra nearly transparent": {
+    "signature": "/tikz/ultra nearly transparent",
+    "default": "style, no value",
+    "description": "Makes everything, well, ultra nearly transparent.",
+    "type": "style"
+  },
+  "ultra nearly transparent": {
+    "signature": "/tikz/ultra nearly transparent",
+    "default": "style, no value",
+    "description": "Makes everything, well, ultra nearly transparent.",
+    "type": "style"
+  },
+  "/tikz/very nearly transparent": {
+    "signature": "/tikz/very nearly transparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "very nearly transparent": {
+    "signature": "/tikz/very nearly transparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/nearly transparent": {
+    "signature": "/tikz/nearly transparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "nearly transparent": {
+    "signature": "/tikz/nearly transparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/semitransparent": {
+    "signature": "/tikz/semitransparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "semitransparent": {
+    "signature": "/tikz/semitransparent",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/nearly opaque": {
+    "signature": "/tikz/nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "nearly opaque": {
+    "signature": "/tikz/nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/very nearly opaque": {
+    "signature": "/tikz/very nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "very nearly opaque": {
+    "signature": "/tikz/very nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/ultra nearly opaque": {
+    "signature": "/tikz/ultra nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "ultra nearly opaque": {
+    "signature": "/tikz/ultra nearly opaque",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/opaque": {
+    "signature": "/tikz/opaque",
+    "default": "style, no value",
+    "description": "This yields completely opaque drawings, which is the default.",
+    "type": "style"
+  },
+  "opaque": {
+    "signature": "/tikz/opaque",
+    "default": "style, no value",
+    "description": "This yields completely opaque drawings, which is the default.",
+    "type": "style"
+  },
+  "/tikz/fill opacity": {
+    "signature": "/tikz/fill opacity=⟨value⟩",
+    "default": "no default",
+    "description": "This option sets the opacity of fillings. In addition to filling operations, this opacity also applies to text and images.\n\nNote, again, that when you use PostScript as your output format, this option works only with recent versions of Ghostscript.",
+    "type": "key"
+  },
+  "fill opacity": {
+    "signature": "/tikz/fill opacity=⟨value⟩",
+    "default": "no default",
+    "description": "This option sets the opacity of fillings. In addition to filling operations, this opacity also applies to text and images.\n\nNote, again, that when you use PostScript as your output format, this option works only with recent versions of Ghostscript.",
+    "type": "key"
+  },
+  "/tikz/text opacity": {
+    "signature": "/tikz/text opacity=⟨value⟩",
+    "default": "no default",
+    "description": "Sets the opacity of text labels, overriding the fill opacity setting.",
+    "type": "key"
+  },
+  "text opacity": {
+    "signature": "/tikz/text opacity=⟨value⟩",
+    "default": "no default",
+    "description": "Sets the opacity of text labels, overriding the fill opacity setting.",
+    "type": "key"
+  },
+  "/tikz/blend mode": {
+    "signature": "/tikz/blend mode=⟨mode⟩",
+    "default": "no default",
+    "description": "Sets the current blend mode to ⟨mode⟩. Here ⟨mode⟩ must be one of the modes listed below. More details on these modes can also be found in Section 7.2.4 of the pdf Specification, version 1.7.\n\nIn the following example, the blend mode is only used and set inside a transparency group (see also Section 23.5). This is because most renderers (viewing programs) have trouble rendering blending correctly otherwise. For instance, at the time of writing, the versions of Adobe’s Reader and Apple’s Preview render the following drawing very differently, if the transparency group is not used in the following example.",
+    "type": "key"
+  },
+  "blend mode": {
+    "signature": "/tikz/blend mode=⟨mode⟩",
+    "default": "no default",
+    "description": "Sets the current blend mode to ⟨mode⟩. Here ⟨mode⟩ must be one of the modes listed below. More details on these modes can also be found in Section 7.2.4 of the pdf Specification, version 1.7.\n\nIn the following example, the blend mode is only used and set inside a transparency group (see also Section 23.5). This is because most renderers (viewing programs) have trouble rendering blending correctly otherwise. For instance, at the time of writing, the versions of Adobe’s Reader and Apple’s Preview render the following drawing very differently, if the transparency group is not used in the following example.",
+    "type": "key"
+  },
+  "/tikz/blend group": {
+    "signature": "/tikz/blend group=⟨mode⟩",
+    "default": "no default",
+    "description": "This key can only be used with a scope (like transparency group). It will cause the current scope to become a transparency group and, inside this group, the blend mode will be set to ⟨mode⟩.",
+    "type": "key"
+  },
+  "blend group": {
+    "signature": "/tikz/blend group=⟨mode⟩",
+    "default": "no default",
+    "description": "This key can only be used with a scope (like transparency group). It will cause the current scope to become a transparency group and, inside this group, the blend mode will be set to ⟨mode⟩.",
+    "type": "key"
+  },
+  "tikzfadingfrompicture": {
+    "signature": "\\begin{tikzfadingfrompicture}[⟨options⟩]",
+    "default": "",
+    "description": "⟨environment contents⟩\n\n\\end{tikzfadingfrompicture}",
+    "type": "key"
+  },
+  "\\tikzfading": {
+    "signature": "\\tikzfading[⟨options⟩]",
+    "default": "",
+    "description": "This command is used to define a fading similarly to the way a shading is defined. In the ⟨options⟩ you should\n\n1. use the name=⟨name⟩ option to set a name for the fading,",
+    "type": "command"
+  },
+  "/tikz/path fading": {
+    "signature": "/tikz/path fading=⟨name⟩",
+    "default": "default scope’s setting",
+    "description": "This option tells TikZ that the current path should be faded with the fading ⟨name⟩. If no ⟨name⟩ is given, the ⟨name⟩ set for the whole scope is used. Similarly to options like draw or fill, this option is reset for each path, so you have to add it to each path that should be faded. You can also specify none as ⟨name⟩, in which case fading for the path will be switched off in case it has been switched on by previous options or styles.",
+    "type": "key"
+  },
+  "path fading": {
+    "signature": "/tikz/path fading=⟨name⟩",
+    "default": "default scope’s setting",
+    "description": "This option tells TikZ that the current path should be faded with the fading ⟨name⟩. If no ⟨name⟩ is given, the ⟨name⟩ set for the whole scope is used. Similarly to options like draw or fill, this option is reset for each path, so you have to add it to each path that should be faded. You can also specify none as ⟨name⟩, in which case fading for the path will be switched off in case it has been switched on by previous options or styles.",
+    "type": "key"
+  },
+  "/tikz/fit fading": {
+    "signature": "/tikz/fit fading=⟨boolean⟩",
+    "default": "default true, initially true",
+    "description": "When set to true, the fading is shifted and resized (in exactly the same way as a shading) so that it covers the current path. When set to false, the fading is only shifted so that it is centered on the path’s center, but it is not resized. This can be useful for special-purpose fadings, for instance when you use a fading to “punch out” something.",
+    "type": "key"
+  },
+  "fit fading": {
+    "signature": "/tikz/fit fading=⟨boolean⟩",
+    "default": "default true, initially true",
+    "description": "When set to true, the fading is shifted and resized (in exactly the same way as a shading) so that it covers the current path. When set to false, the fading is only shifted so that it is centered on the path’s center, but it is not resized. This can be useful for special-purpose fadings, for instance when you use a fading to “punch out” something.",
+    "type": "key"
+  },
+  "/tikz/fading transform": {
+    "signature": "/tikz/fading transform=⟨transformation options⟩",
+    "default": "no default",
+    "description": "The ⟨transformation options⟩ are applied to the fading before it is used. For instance, if ⟨transformation options⟩ is set to rotate=90, the fading is rotated by 90 degrees.",
+    "type": "key"
+  },
+  "fading transform": {
+    "signature": "/tikz/fading transform=⟨transformation options⟩",
+    "default": "no default",
+    "description": "The ⟨transformation options⟩ are applied to the fading before it is used. For instance, if ⟨transformation options⟩ is set to rotate=90, the fading is rotated by 90 degrees.",
+    "type": "key"
+  },
+  "/tikz/fading angle": {
+    "signature": "/tikz/fading angle=⟨degree⟩",
+    "default": "no default",
+    "description": "A shortcut for fading transform={rotate=⟨degree⟩}.\n\nNote that you can “fade just about anything”. In particular, you can fade a shading.",
+    "type": "key"
+  },
+  "fading angle": {
+    "signature": "/tikz/fading angle=⟨degree⟩",
+    "default": "no default",
+    "description": "A shortcut for fading transform={rotate=⟨degree⟩}.\n\nNote that you can “fade just about anything”. In particular, you can fade a shading.",
+    "type": "key"
+  },
+  "/tikz/scope fading": {
+    "signature": "/tikz/scope fading=⟨fading⟩",
+    "default": "no default",
+    "description": "In principle, this key works in exactly the same way as the path fading key. The only difference is, that the effect of the fading will persist after the current path till the end of the scope. Thus, the ⟨fading⟩ is applied to all subsequent drawings in the current scope, not just to the current path. In this regard, the option works very much like the clip option. (Note, however, that, unlike the clip option, fadings to not accumulate unless a transparency group is used.)\n\nThe keys fit fading and fading transform have the same effect as for path fading. Also that, just as for path fading, providing the scope fading option with a {scope} only sets the name of the fading to be used. You have to explicitly provide the scope fading with a path to actually install a fading.",
+    "type": "key"
+  },
+  "scope fading": {
+    "signature": "/tikz/scope fading=⟨fading⟩",
+    "default": "no default",
+    "description": "In principle, this key works in exactly the same way as the path fading key. The only difference is, that the effect of the fading will persist after the current path till the end of the scope. Thus, the ⟨fading⟩ is applied to all subsequent drawings in the current scope, not just to the current path. In this regard, the option works very much like the clip option. (Note, however, that, unlike the clip option, fadings to not accumulate unless a transparency group is used.)\n\nThe keys fit fading and fading transform have the same effect as for path fading. Also that, just as for path fading, providing the scope fading option with a {scope} only sets the name of the fading to be used. You have to explicitly provide the scope fading with a path to actually install a fading.",
+    "type": "key"
+  },
+  "/tikz/transparency group": {
+    "signature": "/tikz/transparency group=[⟨options⟩]",
+    "default": "no default",
+    "description": "This option can be given to a scope. It will have the following effect: The scope’s contents is stroked&#x202f;/&#x202f;filled “ignoring any outside transparency”. This means, all previous transparency settings are ignored (you can still set transparency inside the group, but never mind). For instance, in the forbidden sign example, the whole sign is first painted (conceptually) like the image on the left hand side. Note that some pixels of the sign are painted multiple times (up to three times), but only the last color “wins”.\n\nThen, when the scope is finished, it is painted as a whole. The fill transparency settings are now applied to the resulting picture. For instance, the pixel that has been painted three times is just red at the end, so this red color will be blended with whatever is “behind” the group on the page.",
+    "type": "key"
+  },
+  "transparency group": {
+    "signature": "/tikz/transparency group=[⟨options⟩]",
+    "default": "no default",
+    "description": "This option can be given to a scope. It will have the following effect: The scope’s contents is stroked&#x202f;/&#x202f;filled “ignoring any outside transparency”. This means, all previous transparency settings are ignored (you can still set transparency inside the group, but never mind). For instance, in the forbidden sign example, the whole sign is first painted (conceptually) like the image on the left hand side. Note that some pixels of the sign are painted multiple times (up to three times), but only the last color “wins”.\n\nThen, when the scope is finished, it is painted as a whole. The fill transparency settings are now applied to the resulting picture. For instance, the pixel that has been painted three times is just red at the end, so this red color will be blended with whatever is “behind” the group on the page.",
+    "type": "key"
+  }
+}

@@ -1,0 +1,1400 @@
+{
+  "graphs": {
+    "signature": "TikZ Library graphs",
+    "default": "",
+    "description": "\\usetikzlibrary{graphs} % LaTeX and plain TeX \\usetikzlibrary[graphs] % ConTeXt The package must be loaded to use the graph path command.\n\nIn this section, by graph we refer to a set of nodes together with some edges (sometimes also called arcs, in case they are directed) such as the following:",
+    "type": "key"
+  },
+  "\\graph": {
+    "signature": "\\graph",
+    "default": "",
+    "description": "Inside a {tikzpicture} this is an abbreviation for \\path graph.",
+    "type": "command"
+  },
+  "graph": {
+    "signature": "\\path … graph[⟨options⟩]⟨group specification⟩ …;",
+    "default": "",
+    "description": "When this command is encountered on a path, the construction of the current path is suspended (similarly to an edge command or a node command). In a local scope, the ⟨options⟩ are first executed with the key path /tikz/graphs using the following command:",
+    "type": "key"
+  },
+  "\\tikzgraphsset": {
+    "signature": "\\tikzgraphsset{⟨options⟩}",
+    "default": "",
+    "description": "Executes the ⟨options⟩ with the path prefix /tikz/graphs.\n\nApart from the keys explained in the following, further permissible keys will be listed during the course of the rest of this section.",
+    "type": "command"
+  },
+  "/tikz/graphs/every graph": {
+    "signature": "/tikz/graphs/every graph",
+    "default": "style, no value",
+    "description": "This style is executed at the beginning of every graph path command prior to the ⟨options⟩.\n\nOnce the scope has been set up and once the ⟨options⟩ have been executed, a parser starts to parse the ⟨group specification⟩. The exact syntax of such a group specification in explained in detail in Section 19.3.2. Basically, a group specification is a list of chain specifications, separated by commas or semicolons.",
+    "type": "style"
+  },
+  "every graph": {
+    "signature": "/tikz/graphs/every graph",
+    "default": "style, no value",
+    "description": "This style is executed at the beginning of every graph path command prior to the ⟨options⟩.\n\nOnce the scope has been set up and once the ⟨options⟩ have been executed, a parser starts to parse the ⟨group specification⟩. The exact syntax of such a group specification in explained in detail in Section 19.3.2. Basically, a group specification is a list of chain specifications, separated by commas or semicolons.",
+    "type": "style"
+  },
+  "/tikz/graphs/nodes": {
+    "signature": "/tikz/graphs/nodes=⟨options⟩",
+    "default": "no default",
+    "description": "This option causes the ⟨options⟩ to be applied to each newly created node inside the ⟨group specification⟩.",
+    "type": "key"
+  },
+  "nodes": {
+    "signature": "/tikz/graphs/nodes=⟨options⟩",
+    "default": "no default",
+    "description": "This option causes the ⟨options⟩ to be applied to each newly created node inside the ⟨group specification⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/edges": {
+    "signature": "/tikz/graphs/edges=⟨options⟩",
+    "default": "no default",
+    "description": "This option causes the ⟨options⟩ to be applied to each newly created edge inside the ⟨group specification⟩.",
+    "type": "key"
+  },
+  "edges": {
+    "signature": "/tikz/graphs/edges=⟨options⟩",
+    "default": "no default",
+    "description": "This option causes the ⟨options⟩ to be applied to each newly created edge inside the ⟨group specification⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge": {
+    "signature": "/tikz/graphs/edge=⟨options⟩",
+    "default": "no default",
+    "description": "This is an alias for edges.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge node": {
+    "signature": "/tikz/graphs/edge node=⟨node specification⟩",
+    "default": "no default",
+    "description": "This key specifies that the ⟨node specification⟩ should be added to each newly created edge as an implicitly placed node.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge label": {
+    "signature": "/tikz/graphs/edge label=⟨text⟩",
+    "default": "no default",
+    "description": "This key is an abbreviation for edge node=node[auto]{⟨text⟩}. The net effect is that the text is placed next to the newly created edges.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge label'": {
+    "signature": "/tikz/graphs/edge label'=⟨text⟩",
+    "default": "no default",
+    "description": "This key is an abbreviation for edge node=node[auto,swap]{⟨text⟩}.",
+    "type": "key"
+  },
+  "/tikz/graph/parse": {
+    "signature": "/tikz/graph/parse=⟨text⟩",
+    "default": "no default",
+    "description": "This key can only be used inside the ⟨options⟩ of a ⟨group specification⟩. Its effect is that the ⟨text⟩ is inserted at the beginning of the current group as if you had entered it there. Naturally, it makes little sense to just write down some static ⟨text⟩ since you could just as well directly place it at the beginning of the group. The real power of this command stems from the fact that the keys mechanism allows you to say, for instance, parse/.expand once to insert the text stored in some macro into the group.",
+    "type": "key"
+  },
+  "parse": {
+    "signature": "/tikz/graph/parse=⟨text⟩",
+    "default": "no default",
+    "description": "This key can only be used inside the ⟨options⟩ of a ⟨group specification⟩. Its effect is that the ⟨text⟩ is inserted at the beginning of the current group as if you had entered it there. Naturally, it makes little sense to just write down some static ⟨text⟩ since you could just as well directly place it at the beginning of the group. The real power of this command stems from the fact that the keys mechanism allows you to say, for instance, parse/.expand once to insert the text stored in some macro into the group.",
+    "type": "key"
+  },
+  "/tikz/graphs/new ->": {
+    "signature": "/tikz/graphs/new ->={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "This key will be called for a -> edge specification with the following four parameters:\n\n(a) ⟨left node⟩ is the name of the “left” node, that is, the name of \\(l_i\\).",
+    "type": "key"
+  },
+  "new ->": {
+    "signature": "/tikz/graphs/new ->={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "This key will be called for a -> edge specification with the following four parameters:\n\n(a) ⟨left node⟩ is the name of the “left” node, that is, the name of \\(l_i\\).",
+    "type": "key"
+  },
+  "/tikz/every new ->": {
+    "signature": "/tikz/every new ->",
+    "default": "style, no value",
+    "description": "This key gets executed by default for a new ->.",
+    "type": "style"
+  },
+  "every new ->": {
+    "signature": "/tikz/every new ->",
+    "default": "style, no value",
+    "description": "This key gets executed by default for a new ->.",
+    "type": "style"
+  },
+  "/tikz/graphs/left anchor": {
+    "signature": "/tikz/graphs/left anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "This anchor is used for the node that is to the left of an edge specification. Setting this anchor to the empty string means that no special anchor is used (which is the default). The ⟨anchor⟩ is stored in the macro \\tikzgraphleftanchor with a leading dot.",
+    "type": "key"
+  },
+  "left anchor": {
+    "signature": "/tikz/graphs/left anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "This anchor is used for the node that is to the left of an edge specification. Setting this anchor to the empty string means that no special anchor is used (which is the default). The ⟨anchor⟩ is stored in the macro \\tikzgraphleftanchor with a leading dot.",
+    "type": "key"
+  },
+  "/tikz/graphs/right anchor": {
+    "signature": "/tikz/graphs/right anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "Works like left anchor, only for \\tikzgraphrightanchor.\n\nFor the other three kinds of edge specifications, the following keys will be called:",
+    "type": "key"
+  },
+  "right anchor": {
+    "signature": "/tikz/graphs/right anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "Works like left anchor, only for \\tikzgraphrightanchor.\n\nFor the other three kinds of edge specifications, the following keys will be called:",
+    "type": "key"
+  },
+  "/tikz/graphs/new --": {
+    "signature": "/tikz/graphs/new --={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "This key is called for -- with the same parameters as above. The only difference in the definition is that in the \\path command the -> gets replaced by -.",
+    "type": "key"
+  },
+  "new --": {
+    "signature": "/tikz/graphs/new --={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "This key is called for -- with the same parameters as above. The only difference in the definition is that in the \\path command the -> gets replaced by -.",
+    "type": "key"
+  },
+  "/tikz/every new --": {
+    "signature": "/tikz/every new --",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "every new --": {
+    "signature": "/tikz/every new --",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/graphs/new <->": {
+    "signature": "/tikz/graphs/new ={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for with the same parameters as above. The -> is replaced by",
+    "type": "key"
+  },
+  "new <->": {
+    "signature": "/tikz/graphs/new ={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for with the same parameters as above. The -> is replaced by",
+    "type": "key"
+  },
+  "/tikz/every new <->": {
+    "signature": "/tikz/every new",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "every new <->": {
+    "signature": "/tikz/every new",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/graphs/new <-": {
+    "signature": "/tikz/graphs/new ={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for with the same parameters as above.4",
+    "type": "key"
+  },
+  "new <-": {
+    "signature": "/tikz/graphs/new ={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for with the same parameters as above.4",
+    "type": "key"
+  },
+  "/tikz/every new <-": {
+    "signature": "/tikz/every new",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "every new <-": {
+    "signature": "/tikz/every new",
+    "default": "style, no value",
+    "description": "",
+    "type": "style"
+  },
+  "/tikz/graphs/new -!-": {
+    "signature": "/tikz/graphs/new -!-={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for -!- with the same parameters as above. Does nothing by default.\n\nHere is an example that shows the default rendering of the different edge specifications:",
+    "type": "key"
+  },
+  "new -!-": {
+    "signature": "/tikz/graphs/new -!-={⟨left node⟩}{⟨right node⟩}{⟨edge options⟩}{⟨edge nodes⟩}",
+    "default": "no default",
+    "description": "Called for -!- with the same parameters as above. Does nothing by default.\n\nHere is an example that shows the default rendering of the different edge specifications:",
+    "type": "key"
+  },
+  "/tikz/graphs/use existing nodes": {
+    "signature": "/tikz/graphs/use existing nodes=⟨true or false⟩",
+    "default": "default true",
+    "description": "When this key is set to true, all nodes will be considered to the referenced, no node will be fresh. This option is useful if you have already created all the nodes of a graph prior to using the graph command and you now only wish to connect the nodes. It also implies that an error is raised if you reference a node which has not been defined previously.",
+    "type": "key"
+  },
+  "use existing nodes": {
+    "signature": "/tikz/graphs/use existing nodes=⟨true or false⟩",
+    "default": "default true",
+    "description": "When this key is set to true, all nodes will be considered to the referenced, no node will be fresh. This option is useful if you have already created all the nodes of a graph prior to using the graph command and you now only wish to connect the nodes. It also implies that an error is raised if you reference a node which has not been defined previously.",
+    "type": "key"
+  },
+  "/tikz/graphs/fresh nodes": {
+    "signature": "/tikz/graphs/fresh nodes=⟨true or false⟩",
+    "default": "default true",
+    "description": "When this key is set to true, all nodes will be considered to be fresh. This option is useful when you create for instance a tree with many identical nodes.\n\nWhen a node name is encountered that was already used previously, a new name is chosen is follows: An apostrophe (') is appended repeatedly until a node name is found that has not yet been used:",
+    "type": "key"
+  },
+  "fresh nodes": {
+    "signature": "/tikz/graphs/fresh nodes=⟨true or false⟩",
+    "default": "default true",
+    "description": "When this key is set to true, all nodes will be considered to be fresh. This option is useful when you create for instance a tree with many identical nodes.\n\nWhen a node name is encountered that was already used previously, a new name is chosen is follows: An apostrophe (') is appended repeatedly until a node name is found that has not yet been used:",
+    "type": "key"
+  },
+  "/tikz/graphs/number nodes": {
+    "signature": "/tikz/graphs/number nodes=⟨start number⟩",
+    "default": "default 1",
+    "description": "When this key is used in a scope, each encountered node name will get appended a new number, starting with ⟨start⟩. Typically, this ensures that all node names are different. Between the original node name and the appended number, the setting of the following will be inserted:",
+    "type": "key"
+  },
+  "number nodes": {
+    "signature": "/tikz/graphs/number nodes=⟨start number⟩",
+    "default": "default 1",
+    "description": "When this key is used in a scope, each encountered node name will get appended a new number, starting with ⟨start⟩. Typically, this ensures that all node names are different. Between the original node name and the appended number, the setting of the following will be inserted:",
+    "type": "key"
+  },
+  "/tikz/graphs/number nodes sep": {
+    "signature": "/tikz/graphs/number nodes sep=⟨text⟩",
+    "default": "no default, initially space",
+    "description": "",
+    "type": "key"
+  },
+  "number nodes sep": {
+    "signature": "/tikz/graphs/number nodes sep=⟨text⟩",
+    "default": "no default, initially space",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/name": {
+    "signature": "/tikz/graphs/name=⟨text⟩",
+    "default": "no default",
+    "description": "This key prepends the ⟨text⟩, followed by a separating symbol (a space by default), to all ⟨node name⟩s inside a ⟨full node name⟩. Repeated calls of this key accumulate, leading to ever-longer “name paths”:",
+    "type": "key"
+  },
+  "/tikz/graphs/name separator": {
+    "signature": "/tikz/graphs/name separator=⟨symbols⟩",
+    "default": "no default, initially \\space",
+    "description": "Changes the symbol that is used to separate the ⟨text⟩ from the ⟨node name⟩. The default is \\space, resulting in a space.",
+    "type": "key"
+  },
+  "name separator": {
+    "signature": "/tikz/graphs/name separator=⟨symbols⟩",
+    "default": "no default, initially \\space",
+    "description": "Changes the symbol that is used to separate the ⟨text⟩ from the ⟨node name⟩. The default is \\space, resulting in a space.",
+    "type": "key"
+  },
+  "/tikz/graphs/as": {
+    "signature": "/tikz/graphs/as=⟨text⟩",
+    "default": "no default",
+    "description": "The ⟨text⟩ is used as the text of the node. This allows you to provide a text for the node that differs arbitrarily from the name of the node.",
+    "type": "key"
+  },
+  "as": {
+    "signature": "/tikz/graphs/as=⟨text⟩",
+    "default": "no default",
+    "description": "The ⟨text⟩ is used as the text of the node. This allows you to provide a text for the node that differs arbitrarily from the name of the node.",
+    "type": "key"
+  },
+  "/tikz/graphs/typeset": {
+    "signature": "/tikz/graphs/typeset=⟨code⟩",
+    "default": "no default",
+    "description": "The macro or code stored in this key is used as the ⟨text⟩ of the node. Inside the ⟨code⟩, the following macros are available:",
+    "type": "key"
+  },
+  "typeset": {
+    "signature": "/tikz/graphs/typeset=⟨code⟩",
+    "default": "no default",
+    "description": "The macro or code stored in this key is used as the ⟨text⟩ of the node. Inside the ⟨code⟩, the following macros are available:",
+    "type": "key"
+  },
+  "\\tikzgraphnodetext": {
+    "signature": "\\tikzgraphnodetext",
+    "default": "",
+    "description": "This macro expands to the ⟨text⟩ to the right of the double underscore or slash in a direct node specification or, if there is no slash, to the ⟨node name⟩.",
+    "type": "command"
+  },
+  "\\tikzgraphnodename": {
+    "signature": "\\tikzgraphnodename",
+    "default": "",
+    "description": "This macro expands to the name of the current node without the path.",
+    "type": "command"
+  },
+  "\\tikzgraphnodepath": {
+    "signature": "\\tikzgraphnodepath",
+    "default": "",
+    "description": "This macro expands to the current path of the node. These paths result from the use of the name key as described above.",
+    "type": "command"
+  },
+  "\\tikzgraphnodefullname": {
+    "signature": "\\tikzgraphnodefullname",
+    "default": "",
+    "description": "This macro contains the concatenation of the above two.\n\nBy default, the typesetter is just set to \\tikzgraphnodetext, which means that the default text of a node is its name. However, it may be useful to change this: For instance, you might wish that the text of all graph nodes is, say, surrounded by parentheses:",
+    "type": "command"
+  },
+  "/tikz/graphs/empty nodes": {
+    "signature": "/tikz/graphs/empty nodes",
+    "default": "no value",
+    "description": "Just sets typeset to nothing, which causes all nodes to have an empty text (unless, of course, the as option is used):",
+    "type": "key"
+  },
+  "empty nodes": {
+    "signature": "/tikz/graphs/empty nodes",
+    "default": "no value",
+    "description": "Just sets typeset to nothing, which causes all nodes to have an empty text (unless, of course, the as option is used):",
+    "type": "key"
+  },
+  "/tikz/graphs/math nodes": {
+    "signature": "/tikz/graphs/math nodes",
+    "default": "no value",
+    "description": "Sets typeset to $\\tikzgraphnodetext$, which causes all nodes names to be typeset in math mode:",
+    "type": "key"
+  },
+  "math nodes": {
+    "signature": "/tikz/graphs/math nodes",
+    "default": "no value",
+    "description": "Sets typeset to $\\tikzgraphnodetext$, which causes all nodes names to be typeset in math mode:",
+    "type": "key"
+  },
+  "/tikz/new set": {
+    "signature": "/tikz/new set=⟨set name⟩",
+    "default": "no default",
+    "description": "This will setup a node set named ⟨set name⟩ within the current scope. Inside the scope, you can add nodes to the node set using the set key. If a node set of the same name already exists in the current scope, it will be reset and made empty for the current scope.\n\nNote that this command has the path /tikz and is normally used outside the graph command.",
+    "type": "key"
+  },
+  "new set": {
+    "signature": "/tikz/new set=⟨set name⟩",
+    "default": "no default",
+    "description": "This will setup a node set named ⟨set name⟩ within the current scope. Inside the scope, you can add nodes to the node set using the set key. If a node set of the same name already exists in the current scope, it will be reset and made empty for the current scope.\n\nNote that this command has the path /tikz and is normally used outside the graph command.",
+    "type": "key"
+  },
+  "/tikz/set": {
+    "signature": "/tikz/set=⟨set name⟩",
+    "default": "no default",
+    "description": "This key can be used as an option with a node command. The ⟨set name⟩ must be the name of a node set that has previously been created inside some enclosing scope via the new set key. The effect is that the current node is added to the node set.\n\nWhen you use a graph command inside a scope where some node set called ⟨set name⟩ is defined, then inside this graph command you use (⟨set name⟩) to reference all of the nodes in the node set. The effect is the same as if instead of the reference to the set name you had created a group specification containing a list of references to all the nodes that are part of the node set.",
+    "type": "key"
+  },
+  "set": {
+    "signature": "/tikz/set=⟨set name⟩",
+    "default": "no default",
+    "description": "This key can be used as an option with a node command. The ⟨set name⟩ must be the name of a node set that has previously been created inside some enclosing scope via the new set key. The effect is that the current node is added to the node set.\n\nWhen you use a graph command inside a scope where some node set called ⟨set name⟩ is defined, then inside this graph command you use (⟨set name⟩) to reference all of the nodes in the node set. The effect is the same as if instead of the reference to the set name you had created a group specification containing a list of references to all the nodes that are part of the node set.",
+    "type": "key"
+  },
+  "/tikz/graphs/trie": {
+    "signature": "/tikz/graphs/trie=⟨true or false⟩",
+    "default": "default true, initially false",
+    "description": "If this key is set to true, after a node has been created on a chain, the name key is executed with the node’s ⟨node name⟩. Thus, all nodes later on this chain have the “path” of nodes leading to this node as their name. This means, in particular, that\n\n1. two nodes of the same name but in different parts of a chain will be different,",
+    "type": "key"
+  },
+  "trie": {
+    "signature": "/tikz/graphs/trie=⟨true or false⟩",
+    "default": "default true, initially false",
+    "description": "If this key is set to true, after a node has been created on a chain, the name key is executed with the node’s ⟨node name⟩. Thus, all nodes later on this chain have the “path” of nodes leading to this node as their name. This means, in particular, that\n\n1. two nodes of the same name but in different parts of a chain will be different,",
+    "type": "key"
+  },
+  "/tikz/graphs/quick": {
+    "signature": "/tikz/graphs/quick",
+    "default": "no value",
+    "description": "When you provide this key with a graph, the syntax of graph specifications gets restricted. You are no longer allowed to use certain features of the graph syntax; but all features that are still allowed are also allowed in the same way when you do not provide the quick option. Thus, leaving out the quick option will never hurt.\n\nSince the syntax is so severely restricted, it is easier to explain which aspects of the graph syntax will still work:",
+    "type": "key"
+  },
+  "/tikz/graphs/multi": {
+    "signature": "/tikz/graphs/multi",
+    "default": "no value",
+    "description": "When this edge is set for a whole graph (which is the default) or just for a group (which is useful if the whole graph is simple in general, but a part is a multi-graph), then when you specify an edge between two nodes several times, several such edges get created:",
+    "type": "key"
+  },
+  "multi": {
+    "signature": "/tikz/graphs/multi",
+    "default": "no value",
+    "description": "When this edge is set for a whole graph (which is the default) or just for a group (which is useful if the whole graph is simple in general, but a part is a multi-graph), then when you specify an edge between two nodes several times, several such edges get created:",
+    "type": "key"
+  },
+  "/tikz/graphs/simple": {
+    "signature": "/tikz/graphs/simple",
+    "default": "no value",
+    "description": "In contrast a multi-graph, in a simple graph, at most one edge gets created for every pair of vertices:",
+    "type": "key"
+  },
+  "simple": {
+    "signature": "/tikz/graphs/simple",
+    "default": "no value",
+    "description": "In contrast a multi-graph, in a simple graph, at most one edge gets created for every pair of vertices:",
+    "type": "key"
+  },
+  "/tikz/graphs/edge quotes": {
+    "signature": "/tikz/graphs/edge quotes=⟨options⟩",
+    "default": "no default",
+    "description": "A shorthand for setting the style every edge quotes to ⟨options⟩.",
+    "type": "key"
+  },
+  "edge quotes": {
+    "signature": "/tikz/graphs/edge quotes=⟨options⟩",
+    "default": "no default",
+    "description": "A shorthand for setting the style every edge quotes to ⟨options⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge quotes center": {
+    "signature": "/tikz/graphs/edge quotes center",
+    "default": "no value",
+    "description": "A shorthand for edge quotes to anchor=center.",
+    "type": "key"
+  },
+  "edge quotes center": {
+    "signature": "/tikz/graphs/edge quotes center",
+    "default": "no value",
+    "description": "A shorthand for edge quotes to anchor=center.",
+    "type": "key"
+  },
+  "/tikz/graphs/edge quotes mid": {
+    "signature": "/tikz/graphs/edge quotes mid",
+    "default": "no value",
+    "description": "A shorthand for edge quotes to anchor=mid.",
+    "type": "key"
+  },
+  "edge quotes mid": {
+    "signature": "/tikz/graphs/edge quotes mid",
+    "default": "no value",
+    "description": "A shorthand for edge quotes to anchor=mid.",
+    "type": "key"
+  },
+  "/tikz/graphs/target edge style": {
+    "signature": "/tikz/graphs/target edge style=⟨options⟩",
+    "default": "no default",
+    "description": "This key can (only) be used with a node inside a graph specification. When used, the ⟨options⟩ will be added to every edge that is created by a connector like -> in which the node is a target. Consider the following example:",
+    "type": "key"
+  },
+  "target edge style": {
+    "signature": "/tikz/graphs/target edge style=⟨options⟩",
+    "default": "no default",
+    "description": "This key can (only) be used with a node inside a graph specification. When used, the ⟨options⟩ will be added to every edge that is created by a connector like -> in which the node is a target. Consider the following example:",
+    "type": "key"
+  },
+  "/tikz/graphs/target edge clear": {
+    "signature": "/tikz/graphs/target edge clear",
+    "default": "no value",
+    "description": "Clears all ⟨options⟩ for edges with the node as a target and also edge labels (see below) for this node.",
+    "type": "key"
+  },
+  "target edge clear": {
+    "signature": "/tikz/graphs/target edge clear",
+    "default": "no value",
+    "description": "Clears all ⟨options⟩ for edges with the node as a target and also edge labels (see below) for this node.",
+    "type": "key"
+  },
+  "/tikz/graphs/target edge node": {
+    "signature": "/tikz/graphs/target edge node=⟨node specification⟩",
+    "default": "no default",
+    "description": "This key works like target edge style, only the ⟨node specification⟩ will not be added as options to any newly created edges with the current node as their target, but rather it will be added as a node specification.",
+    "type": "key"
+  },
+  "target edge node": {
+    "signature": "/tikz/graphs/target edge node=⟨node specification⟩",
+    "default": "no default",
+    "description": "This key works like target edge style, only the ⟨node specification⟩ will not be added as options to any newly created edges with the current node as their target, but rather it will be added as a node specification.",
+    "type": "key"
+  },
+  "/tikz/graphs/source edge style": {
+    "signature": "/tikz/graphs/source edge style=⟨options⟩",
+    "default": "no default",
+    "description": "Works exactly like target edge style, only now the ⟨options⟩ are only added when the node is a source of a newly created edge:",
+    "type": "key"
+  },
+  "source edge style": {
+    "signature": "/tikz/graphs/source edge style=⟨options⟩",
+    "default": "no default",
+    "description": "Works exactly like target edge style, only now the ⟨options⟩ are only added when the node is a source of a newly created edge:",
+    "type": "key"
+  },
+  "/tikz/graphs/source edge node": {
+    "signature": "/tikz/graphs/source edge node=⟨node specification⟩",
+    "default": "no default",
+    "description": "Works like source edge style and target edge node.",
+    "type": "key"
+  },
+  "source edge node": {
+    "signature": "/tikz/graphs/source edge node=⟨node specification⟩",
+    "default": "no default",
+    "description": "Works like source edge style and target edge node.",
+    "type": "key"
+  },
+  "/tikz/graphs/source edge clear": {
+    "signature": "/tikz/graphs/source edge clear=⟨node specification⟩",
+    "default": "no default",
+    "description": "Works like target edge clear.\n\nThe keys target node style and its friends are powerful, but a bit cumbersome to write down. For this reason, the graphs library introduces a special syntax that is based on what I call the “first-char syntax” of keys. Inside the options of a node inside a graph, the following special rules apply:",
+    "type": "key"
+  },
+  "source edge clear": {
+    "signature": "/tikz/graphs/source edge clear=⟨node specification⟩",
+    "default": "no default",
+    "description": "Works like target edge clear.\n\nThe keys target node style and its friends are powerful, but a bit cumbersome to write down. For this reason, the graphs library introduces a special syntax that is based on what I call the “first-char syntax” of keys. Inside the options of a node inside a graph, the following special rules apply:",
+    "type": "key"
+  },
+  "/tikz/graphs/clear >": {
+    "signature": "/tikz/graphs/clear >",
+    "default": "no value",
+    "description": "A more easy-to-remember shorthand for target edge clear.",
+    "type": "key"
+  },
+  "clear >": {
+    "signature": "/tikz/graphs/clear >",
+    "default": "no value",
+    "description": "A more easy-to-remember shorthand for target edge clear.",
+    "type": "key"
+  },
+  "/tikz/graphs/clear <": {
+    "signature": "/tikz/graphs/clear",
+    "default": "no value",
+    "description": "A more easy-to-remember shorthand for source edge clear.\n\nThese mechanisms make it especially easy to create trees in which the edges are labeled in some special way:",
+    "type": "key"
+  },
+  "clear <": {
+    "signature": "/tikz/graphs/clear",
+    "default": "no value",
+    "description": "A more easy-to-remember shorthand for source edge clear.\n\nThese mechanisms make it especially easy to create trees in which the edges are labeled in some special way:",
+    "type": "key"
+  },
+  "/tikz/graphs/put node text on incoming edges": {
+    "signature": "/tikz/graphs/put node text on incoming edges=⟨options⟩",
+    "default": "no default",
+    "description": "When this key is used with a node or a group, the following happens:\n\n1. The command target edge node={node[⟨options⟩]{\\tikzgraphnodetext}} is executed. This means that all incoming edges of the node get a label with the text that would usually be displayed in the node. You can use keys like math nodes normally.",
+    "type": "key"
+  },
+  "put node text on incoming edges": {
+    "signature": "/tikz/graphs/put node text on incoming edges=⟨options⟩",
+    "default": "no default",
+    "description": "When this key is used with a node or a group, the following happens:\n\n1. The command target edge node={node[⟨options⟩]{\\tikzgraphnodetext}} is executed. This means that all incoming edges of the node get a label with the text that would usually be displayed in the node. You can use keys like math nodes normally.",
+    "type": "key"
+  },
+  "/tikz/graphs/put node text on outgoing edges": {
+    "signature": "/tikz/graphs/put node text on outgoing edges=⟨options⟩",
+    "default": "no default",
+    "description": "Works like the previous key, only with target replaced by source.\n\nTikZ’s graph command employs a powerful mechanism for adding edges between nodes and sets of nodes. To a graph theorist, this mechanism may be known as a graph expression: A graph is specified by starting with small graphs and then applying operators to them that form larger graphs and that connect and recolor colored subsets of the graph’s node in different ways.",
+    "type": "key"
+  },
+  "put node text on outgoing edges": {
+    "signature": "/tikz/graphs/put node text on outgoing edges=⟨options⟩",
+    "default": "no default",
+    "description": "Works like the previous key, only with target replaced by source.\n\nTikZ’s graph command employs a powerful mechanism for adding edges between nodes and sets of nodes. To a graph theorist, this mechanism may be known as a graph expression: A graph is specified by starting with small graphs and then applying operators to them that form larger graphs and that connect and recolor colored subsets of the graph’s node in different ways.",
+    "type": "key"
+  },
+  "/tikz/graphs/color class": {
+    "signature": "/tikz/graphs/color class=⟨color class name⟩",
+    "default": "no default",
+    "description": "This sets up a new color class called ⟨color class name⟩. Nodes and whole groups of nodes can now be colored with ⟨color class name⟩. This is done using the following keys, which become available inside the current scope:",
+    "type": "key"
+  },
+  "color class": {
+    "signature": "/tikz/graphs/color class=⟨color class name⟩",
+    "default": "no default",
+    "description": "This sets up a new color class called ⟨color class name⟩. Nodes and whole groups of nodes can now be colored with ⟨color class name⟩. This is done using the following keys, which become available inside the current scope:",
+    "type": "key"
+  },
+  "/tikz/graphs/operator": {
+    "signature": "/tikz/graphs/operator=⟨code⟩",
+    "default": "no default",
+    "description": "This key has an effect in three places:\n\n1. It can be used in the ⟨options⟩ of a ⟨direct node specification⟩.",
+    "type": "key"
+  },
+  "operator": {
+    "signature": "/tikz/graphs/operator=⟨code⟩",
+    "default": "no default",
+    "description": "This key has an effect in three places:\n\n1. It can be used in the ⟨options⟩ of a ⟨direct node specification⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/default edge kind": {
+    "signature": "/tikz/graphs/default edge kind=⟨value⟩",
+    "default": "no default, initially --",
+    "description": "This key stores one of the five edge kinds --, , ->, , and -!-. When an operator wishes to create a new edge, it should typically set",
+    "type": "key"
+  },
+  "default edge kind": {
+    "signature": "/tikz/graphs/default edge kind=⟨value⟩",
+    "default": "no default, initially --",
+    "description": "This key stores one of the five edge kinds --, , ->, , and -!-. When an operator wishes to create a new edge, it should typically set",
+    "type": "key"
+  },
+  "/tikz/graphs/--": {
+    "signature": "/tikz/graphs/--",
+    "default": "no value",
+    "description": "Sets the default edge kind to --.",
+    "type": "key"
+  },
+  "/tikz/graphs/->": {
+    "signature": "/tikz/graphs/->",
+    "default": "no value",
+    "description": "Sets the default edge kind to ->.",
+    "type": "key"
+  },
+  "->": {
+    "signature": "/tikz/graphs/->",
+    "default": "no value",
+    "description": "Sets the default edge kind to ->.",
+    "type": "key"
+  },
+  "/tikz/graphs/<-": {
+    "signature": "/tikz/graphs/",
+    "default": "no value",
+    "description": "Sets the default edge kind to .",
+    "type": "key"
+  },
+  "<-": {
+    "signature": "/tikz/graphs/",
+    "default": "no value",
+    "description": "Sets the default edge kind to .",
+    "type": "key"
+  },
+  "/tikz/graphs/<->": {
+    "signature": "/tikz/graphs/",
+    "default": "no value",
+    "description": "Sets the default edge kind to .",
+    "type": "key"
+  },
+  "<->": {
+    "signature": "/tikz/graphs/",
+    "default": "no value",
+    "description": "Sets the default edge kind to .",
+    "type": "key"
+  },
+  "/tikz/graphs/-!-": {
+    "signature": "/tikz/graphs/-!-",
+    "default": "no value",
+    "description": "Sets the default edge kind to -!-.\n\nWhen the ⟨code⟩ of an operator is executed, the following commands can be used to find the nodes that should be connected:",
+    "type": "key"
+  },
+  "-!-": {
+    "signature": "/tikz/graphs/-!-",
+    "default": "no value",
+    "description": "Sets the default edge kind to -!-.\n\nWhen the ⟨code⟩ of an operator is executed, the following commands can be used to find the nodes that should be connected:",
+    "type": "key"
+  },
+  "\\tikzgraphforeachcolorednode": {
+    "signature": "\\tikzgraphforeachcolorednode{⟨color name⟩}{⟨macro⟩}",
+    "default": "",
+    "description": "When this command is called inside ⟨code⟩, the following will happen: TikZ will iterate over all nodes inside the just-specified group that have the color ⟨color name⟩. The order in which they are iterated over is the order in which they appear inside the group specification (if a node is encountered several times inside the specification, only the first occurrence counts). Then, for each node the ⟨macro⟩ is executed with the node’s name as the only argument.\n\nIn the following example we use an operator to connect every node colored all inside the subgroup to he node root.",
+    "type": "command"
+  },
+  "\\tikzgraphpreparecolor": {
+    "signature": "\\tikzgraphpreparecolor{⟨color name⟩}{⟨counter⟩}{⟨prefix⟩}",
+    "default": "",
+    "description": "This command is used to “prepare” the nodes of a certain color for random access. The effect is the following: It is counted how many nodes there are having color ⟨color name⟩ in the current group and the result is stored in ⟨counter⟩. Next, macros named ⟨prefix⟩1, ⟨prefix⟩2, and so on are defined, that store the names of the first, second, third, and so on node having the color ⟨color name⟩.\n\nThe net effect is that after you have prepared a color, you can quickly iterate over them. This is especially useful when you iterate over several color at the same time.",
+    "type": "command"
+  },
+  "/tikz/graphs/default edge operator": {
+    "signature": "/tikz/graphs/default edge operator=⟨key⟩",
+    "default": "no default, initially matching and star",
+    "description": "This key stores the name of a ⟨key⟩ that is executed for every ⟨edge specification⟩ whose ⟨options⟩ do not contain the operator key.",
+    "type": "key"
+  },
+  "default edge operator": {
+    "signature": "/tikz/graphs/default edge operator=⟨key⟩",
+    "default": "no default, initially matching and star",
+    "description": "This key stores the name of a ⟨key⟩ that is executed for every ⟨edge specification⟩ whose ⟨options⟩ do not contain the operator key.",
+    "type": "key"
+  },
+  "/tikz/graphs/declare": {
+    "signature": "/tikz/graphs/declare={⟨graph name⟩}{⟨specification⟩}(no default)",
+    "default": "",
+    "description": "This key declares that ⟨graph name⟩ can subsequently be used as a replacement for a ⟨node name⟩. Whenever the ⟨graph name⟩ is used in the following, a graph group will be inserted instead whose content is exactly ⟨specification⟩. In case ⟨graph name⟩ is used together with some ⟨options⟩, they are executed prior to inserting the ⟨specification⟩.",
+    "type": "key"
+  },
+  "declare": {
+    "signature": "/tikz/graphs/declare={⟨graph name⟩}{⟨specification⟩}(no default)",
+    "default": "",
+    "description": "This key declares that ⟨graph name⟩ can subsequently be used as a replacement for a ⟨node name⟩. Whenever the ⟨graph name⟩ is used in the following, a graph group will be inserted instead whose content is exactly ⟨specification⟩. In case ⟨graph name⟩ is used together with some ⟨options⟩, they are executed prior to inserting the ⟨specification⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/no placement": {
+    "signature": "/tikz/graphs/no placement",
+    "default": "no value",
+    "description": "This strategy simply “switches off” the whole placement mechanism, causing all nodes to be placed at the origin by default. You need to use this strategy if you position nodes “by hand”. For this, you can use the at key, the shift keys:",
+    "type": "key"
+  },
+  "no placement": {
+    "signature": "/tikz/graphs/no placement",
+    "default": "no value",
+    "description": "This strategy simply “switches off” the whole placement mechanism, causing all nodes to be placed at the origin by default. You need to use this strategy if you position nodes “by hand”. For this, you can use the at key, the shift keys:",
+    "type": "key"
+  },
+  "/tikz/graphs/x": {
+    "signature": "/tikz/graphs/x=⟨x dimension⟩",
+    "default": "no default",
+    "description": "When you use this key, it will have the same effect as if you had written at={(⟨x dimension⟩,⟨y dimension⟩)}, where ⟨y dimension⟩ is a value set using the y key:",
+    "type": "key"
+  },
+  "/tikz/graphs/y": {
+    "signature": "/tikz/graphs/y=⟨y dimension⟩",
+    "default": "no default",
+    "description": "See above.",
+    "type": "key"
+  },
+  "/tikz/graphs/Cartesian placement": {
+    "signature": "/tikz/graphs/Cartesian placement",
+    "default": "no value",
+    "description": "This strategy is the default strategy. It works, roughly, as follows: For each new node on a chain, advance a “logical width” counter and for each new node in a group, advance a “logical depth” counter. When a chain contains a whole group, then the “logical width” taken up by the group is the maximum over the logical widths taken up by the chains inside the group; and symmetrically the logical depth of a chain is the maximum of the depths of the groups inside it.\n\nThis slightly confusing explanation is perhaps best exemplified. In the below example, the two numbers indicate the two logical width and depth of each node as computed by the graphs library. Just ignore the arcane code that is used to print these numbers.",
+    "type": "key"
+  },
+  "Cartesian placement": {
+    "signature": "/tikz/graphs/Cartesian placement",
+    "default": "no value",
+    "description": "This strategy is the default strategy. It works, roughly, as follows: For each new node on a chain, advance a “logical width” counter and for each new node in a group, advance a “logical depth” counter. When a chain contains a whole group, then the “logical width” taken up by the group is the maximum over the logical widths taken up by the chains inside the group; and symmetrically the logical depth of a chain is the maximum of the depths of the groups inside it.\n\nThis slightly confusing explanation is perhaps best exemplified. In the below example, the two numbers indicate the two logical width and depth of each node as computed by the graphs library. Just ignore the arcane code that is used to print these numbers.",
+    "type": "key"
+  },
+  "/tikz/graphs/chain shift": {
+    "signature": "/tikz/graphs/chain shift=⟨coordinate⟩",
+    "default": "no default, initially (1,0)",
+    "description": "Under the regime of the Cartesian placement strategy, each node is shifted by the current logical width times this ⟨coordinate⟩.",
+    "type": "key"
+  },
+  "chain shift": {
+    "signature": "/tikz/graphs/chain shift=⟨coordinate⟩",
+    "default": "no default, initially (1,0)",
+    "description": "Under the regime of the Cartesian placement strategy, each node is shifted by the current logical width times this ⟨coordinate⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/group shift": {
+    "signature": "/tikz/graphs/group shift=⟨coordinate⟩",
+    "default": "no default, initially (0,-1)",
+    "description": "Like for chain shift, each node is shifted by the current logical depth times this ⟨coordinate⟩.",
+    "type": "key"
+  },
+  "group shift": {
+    "signature": "/tikz/graphs/group shift=⟨coordinate⟩",
+    "default": "no default, initially (0,-1)",
+    "description": "Like for chain shift, each node is shifted by the current logical depth times this ⟨coordinate⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/grow up": {
+    "signature": "/tikz/graphs/grow up=⟨distance⟩",
+    "default": "default 1",
+    "description": "Sets the chain shift to (0,⟨distance⟩), so that chains “grow upward”. The distance by which the center of each new element is removed from the center of the previous one is ⟨distance⟩.",
+    "type": "key"
+  },
+  "grow up": {
+    "signature": "/tikz/graphs/grow up=⟨distance⟩",
+    "default": "default 1",
+    "description": "Sets the chain shift to (0,⟨distance⟩), so that chains “grow upward”. The distance by which the center of each new element is removed from the center of the previous one is ⟨distance⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/grow down": {
+    "signature": "/tikz/graphs/grow down=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "grow down": {
+    "signature": "/tikz/graphs/grow down=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "/tikz/graphs/grow left": {
+    "signature": "/tikz/graphs/grow left=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "grow left": {
+    "signature": "/tikz/graphs/grow left=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "/tikz/graphs/grow right": {
+    "signature": "/tikz/graphs/grow right=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "grow right": {
+    "signature": "/tikz/graphs/grow right=⟨distance⟩",
+    "default": "default 1",
+    "description": "Like grow up.",
+    "type": "key"
+  },
+  "/tikz/graphs/branch up": {
+    "signature": "/tikz/graphs/branch up=⟨distance⟩",
+    "default": "default 1",
+    "description": "Sets the group shift so that groups “branch upward”. The distance by which the center of each new element is removed from the center of the previous one is ⟨distance⟩.",
+    "type": "key"
+  },
+  "branch up": {
+    "signature": "/tikz/graphs/branch up=⟨distance⟩",
+    "default": "default 1",
+    "description": "Sets the group shift so that groups “branch upward”. The distance by which the center of each new element is removed from the center of the previous one is ⟨distance⟩.",
+    "type": "key"
+  },
+  "/tikz/graphs/branch down": {
+    "signature": "/tikz/graphs/branch down=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "branch down": {
+    "signature": "/tikz/graphs/branch down=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/branch left": {
+    "signature": "/tikz/graphs/branch left=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "branch left": {
+    "signature": "/tikz/graphs/branch left=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/branch right": {
+    "signature": "/tikz/graphs/branch right=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "branch right": {
+    "signature": "/tikz/graphs/branch right=⟨distance⟩",
+    "default": "default 1",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/grid placement": {
+    "signature": "/tikz/graphs/grid placement",
+    "default": "no value",
+    "description": "This key works similar to Cartesian placement. As for that placement strategy, a node has logical width and depth 1. However, the computed total width and depth are mapped to a \\(N\\times M\\) grid. The values of \\(N\\) and \\(M\\) depend on the size of the graph and the value of wrap after. The number of columns \\(M\\) is either set to wrap after explicitly or computed automatically as \\(\\sqrt {|\\texttt {V}|}\\). \\(N\\) is the number of rows needed to lay out the graph in a grid with \\(M\\) columns.",
+    "type": "key"
+  },
+  "grid placement": {
+    "signature": "/tikz/graphs/grid placement",
+    "default": "no value",
+    "description": "This key works similar to Cartesian placement. As for that placement strategy, a node has logical width and depth 1. However, the computed total width and depth are mapped to a \\(N\\times M\\) grid. The values of \\(N\\) and \\(M\\) depend on the size of the graph and the value of wrap after. The number of columns \\(M\\) is either set to wrap after explicitly or computed automatically as \\(\\sqrt {|\\texttt {V}|}\\). \\(N\\) is the number of rows needed to lay out the graph in a grid with \\(M\\) columns.",
+    "type": "key"
+  },
+  "/tikz/graphs/grow right sep": {
+    "signature": "/tikz/graphs/grow right sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "This key has several effects, but let us start with the bottom line: Nodes along a chain are placed in such a way that the left end of a new node is ⟨distance⟩ from the right end of the previous node:",
+    "type": "key"
+  },
+  "grow right sep": {
+    "signature": "/tikz/graphs/grow right sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "This key has several effects, but let us start with the bottom line: Nodes along a chain are placed in such a way that the left end of a new node is ⟨distance⟩ from the right end of the previous node:",
+    "type": "key"
+  },
+  "/tikz/graphs/grow left sep": {
+    "signature": "/tikz/graphs/grow left sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "grow left sep": {
+    "signature": "/tikz/graphs/grow left sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/grow up sep": {
+    "signature": "/tikz/graphs/grow up sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "grow up sep": {
+    "signature": "/tikz/graphs/grow up sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/grow down sep": {
+    "signature": "/tikz/graphs/grow down sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "As above.",
+    "type": "key"
+  },
+  "grow down sep": {
+    "signature": "/tikz/graphs/grow down sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "As above.",
+    "type": "key"
+  },
+  "/tikz/graphs/branch right sep": {
+    "signature": "/tikz/graphs/branch right sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "This key works like grow right sep, only it affects groups rather than chains.",
+    "type": "key"
+  },
+  "branch right sep": {
+    "signature": "/tikz/graphs/branch right sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "This key works like grow right sep, only it affects groups rather than chains.",
+    "type": "key"
+  },
+  "/tikz/graphs/branch left sep": {
+    "signature": "/tikz/graphs/branch left sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "branch left sep": {
+    "signature": "/tikz/graphs/branch left sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/branch up sep": {
+    "signature": "/tikz/graphs/branch up sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "branch up sep": {
+    "signature": "/tikz/graphs/branch up sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "",
+    "type": "key"
+  },
+  "/tikz/graphs/branch down sep": {
+    "signature": "/tikz/graphs/branch down sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "The following keys place nodes on circles. Note that, typically, you do not use circular placement directly, but rather use one of the two keys clockwise or counterclockwise.",
+    "type": "key"
+  },
+  "branch down sep": {
+    "signature": "/tikz/graphs/branch down sep=⟨distance⟩",
+    "default": "default 1em",
+    "description": "The following keys place nodes on circles. Note that, typically, you do not use circular placement directly, but rather use one of the two keys clockwise or counterclockwise.",
+    "type": "key"
+  },
+  "/tikz/graphs/circular placement": {
+    "signature": "/tikz/graphs/circular placement",
+    "default": "no value",
+    "description": "This key works quite similar to Cartesian placement. As for that placement strategy, a node has logical width and depth 1. However, the computed total width and depth are mapped to polar coordinates rather than Cartesian coordinates.",
+    "type": "key"
+  },
+  "circular placement": {
+    "signature": "/tikz/graphs/circular placement",
+    "default": "no value",
+    "description": "This key works quite similar to Cartesian placement. As for that placement strategy, a node has logical width and depth 1. However, the computed total width and depth are mapped to polar coordinates rather than Cartesian coordinates.",
+    "type": "key"
+  },
+  "/tikz/graphs/chain polar shift": {
+    "signature": "/tikz/graphs/chain polar shift=(⟨angle⟩:⟨radius⟩)",
+    "default": "no default, initially (0:1)",
+    "description": "Under the regime of the circular placement strategy, each node on a chain is shifted by (⟨logical width⟩⟨angle⟩:⟨logical width⟩⟨angle⟩).",
+    "type": "key"
+  },
+  "chain polar shift": {
+    "signature": "/tikz/graphs/chain polar shift=(⟨angle⟩:⟨radius⟩)",
+    "default": "no default, initially (0:1)",
+    "description": "Under the regime of the circular placement strategy, each node on a chain is shifted by (⟨logical width⟩⟨angle⟩:⟨logical width⟩⟨angle⟩).",
+    "type": "key"
+  },
+  "/tikz/graphs/group polar shift": {
+    "signature": "/tikz/graphs/group polar shift=(⟨angle⟩:⟨radius⟩)",
+    "default": "no default, initially (45:0)",
+    "description": "Like for group shift, each node on a chain is shifted by (⟨logical depth⟩⟨angle⟩:⟨logical depth⟩⟨angle⟩).",
+    "type": "key"
+  },
+  "group polar shift": {
+    "signature": "/tikz/graphs/group polar shift=(⟨angle⟩:⟨radius⟩)",
+    "default": "no default, initially (45:0)",
+    "description": "Like for group shift, each node on a chain is shifted by (⟨logical depth⟩⟨angle⟩:⟨logical depth⟩⟨angle⟩).",
+    "type": "key"
+  },
+  "/tikz/graphs/radius": {
+    "signature": "/tikz/graphs/radius=⟨dimension⟩",
+    "default": "no default, initially 1cm",
+    "description": "This is an initial value that is added to the total computed radius when the polar shift of a node has been calculated. Essentially, this key allows you to set the ⟨radius⟩ of the innermost circle.",
+    "type": "key"
+  },
+  "/tikz/graphs/phase": {
+    "signature": "/tikz/graphs/phase=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "This is an initial value that is added to the total computed angle when the polar shift of a node has been calculated.",
+    "type": "key"
+  },
+  "phase": {
+    "signature": "/tikz/graphs/phase=⟨angle⟩",
+    "default": "no default, initially 90",
+    "description": "This is an initial value that is added to the total computed angle when the polar shift of a node has been calculated.",
+    "type": "key"
+  },
+  "/tikz/graphs/clockwise": {
+    "signature": "/tikz/graphs/clockwise=⟨number⟩",
+    "default": "default \\tikzgraphVnum",
+    "description": "This key sets the group shift so that if there are exactly ⟨number⟩ many nodes in a group, they will form a complete circle. If you do not provide a ⟨number⟩, the current value of \\tikzgraphVnum is used, which is exactly what you want when you use predefined graph macros like subgraph K_n.",
+    "type": "key"
+  },
+  "clockwise": {
+    "signature": "/tikz/graphs/clockwise=⟨number⟩",
+    "default": "default \\tikzgraphVnum",
+    "description": "This key sets the group shift so that if there are exactly ⟨number⟩ many nodes in a group, they will form a complete circle. If you do not provide a ⟨number⟩, the current value of \\tikzgraphVnum is used, which is exactly what you want when you use predefined graph macros like subgraph K_n.",
+    "type": "key"
+  },
+  "/tikz/graphs/counterclockwise": {
+    "signature": "/tikz/graphs/counterclockwise=⟨number⟩",
+    "default": "default \\tikzgraphVnum",
+    "description": "Works like clockwise, only the direction is inverted.\n\nAs a graph is being parsed, the graph command keeps track of a parameter called the level of a node. Provided that the graph is actually constructed in a tree-like manner, the level is exactly equal to the level of the node inside this tree.",
+    "type": "key"
+  },
+  "counterclockwise": {
+    "signature": "/tikz/graphs/counterclockwise=⟨number⟩",
+    "default": "default \\tikzgraphVnum",
+    "description": "Works like clockwise, only the direction is inverted.\n\nAs a graph is being parsed, the graph command keeps track of a parameter called the level of a node. Provided that the graph is actually constructed in a tree-like manner, the level is exactly equal to the level of the node inside this tree.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/level": {
+    "signature": "/tikz/graphs/placement/level",
+    "default": "no value",
+    "description": "This key stores a number that is increased for each element on a chain, but gets reset at the end of a group:",
+    "type": "key"
+  },
+  "/tikz/graph/level": {
+    "signature": "/tikz/graph/level=⟨level⟩",
+    "default": "style, no default",
+    "description": "This key gets executed for each newly created node with ⟨level⟩ set to the current level of the node. You can use this key to, say, reconfigure the node distance or the node color.",
+    "type": "style"
+  },
+  "level": {
+    "signature": "/tikz/graph/level=⟨level⟩",
+    "default": "style, no default",
+    "description": "This key gets executed for each newly created node with ⟨level⟩ set to the current level of the node. You can use this key to, say, reconfigure the node distance or the node color.",
+    "type": "style"
+  },
+  "/tikz/graphs/placement/element count": {
+    "signature": "/tikz/graphs/placement/element count",
+    "default": "no value",
+    "description": "This key stores a number that tells us the position of the node on the current chain. However, you only have access to this value inside the code passed to the macro compute position, explained later on.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/width": {
+    "signature": "/tikz/graphs/placement/width",
+    "default": "no value",
+    "description": "This key stores the “logical width” of the nodes parsed up to now in the current group or chain (more precisely, parsed since the last call of place in an enclosing group). This is not necessarily the “total physical width” of the nodes, but rather a number representing how “big” the elements prior to the current element were. This may be their width, but it may also be their height or even their number (which, incidentally, is the default). You can use the width to perform shifts or rotations of to-be-created nodes (to be explained later).\n\nThe logical width is defined recursively as follows. First, the width of a single node is computed by calling the following key:",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/logical node width": {
+    "signature": "/tikz/graphs/placement/logical node width=⟨full node name⟩",
+    "default": "no default",
+    "description": "This key is called to compute a physical or logical width of the node ⟨full node name⟩. You can change the code of this key. The code should return the computed value in the macro \\pgfmathresult. By default, this key returns 1.\n\nThe width of a chain is the sum of the widths of its elements. The width of a group is the maximum of the widths of its elements.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/chain count": {
+    "signature": "/tikz/graphs/placement/chain count",
+    "default": "no value",
+    "description": "This key stores a number that tells us the sequence number of the chain in the current group.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/depth": {
+    "signature": "/tikz/graphs/placement/depth",
+    "default": "no value",
+    "description": "Similarly to the width key, this key stores the “logical depth” of the nodes parsed up to now in the current group or chain and, also similarly, this key may or may not be related to the actual depth/height of the current node. As for the width, the exact definition is as follows: For a single node, the depth is computed by the following key:",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/logical node depth": {
+    "signature": "/tikz/graphs/placement/logical node depth=⟨full node name⟩",
+    "default": "no default",
+    "description": "The code behind this key should return the “logical height” of the node ⟨full node name⟩ in the macro \\pgfmathresult.\n\nSecond, the depth of a group is the sum of the depths of its elements. Third, the depth of a chain is the maximum of the depth of its elements.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/compute position": {
+    "signature": "/tikz/graphs/placement/compute position=⟨code⟩",
+    "default": "no default",
+    "description": "The ⟨code⟩ is called by the graph command just prior to creating a new node (the exact moment when this key is called is detailed in the description of the place key). When the ⟨code⟩ is called, all of the keys described above will hold numbers computed in the way described above.\n\nThe job of the ⟨code⟩ is to setup node options appropriately so that the to-be-created node will be placed correctly. Thus, the ⟨code⟩ should typically set the key nodes={shift=⟨coordinate⟩} where ⟨coordinate⟩ is the computed position for the node. The ⟨code⟩ could also set other options like, say, the color of a node depending on its depth.",
+    "type": "key"
+  },
+  "/tikz/graphs/placement/place": {
+    "signature": "/tikz/graphs/placement/place",
+    "default": "no value",
+    "description": "Executing this key has two effects: First, the key compute position is called to compute a good position for future nodes (usually, these “future nodes” are just a single node that is created immediately). Second, all of the above counters like depth or width are reset (but not level).\n\nThere are two places where this key is sensibly called: First, just prior to creating a node, which happens automatically. Second, when you change the online strategy. In this case, the computed width and depth values from one strategy typically make no sense in the other strategy, which is why the new strategy should proceed “from a fresh start”. In this case, the implicit call of compute position ensures that the new strategy gets the last place the old strategy would have used as its starting point, while the computation of its positions is now relative to this new starting point.",
+    "type": "key"
+  },
+  "graphs.standard": {
+    "signature": "TikZ Library graphs.standard",
+    "default": "",
+    "description": "\\usetikzlibrary{graphs.standard} % LaTeX and plain TeX \\usetikzlibrary[graphs.standard] % ConTeXt This library defines a number of graph macros that are often used in the literature. When new graphs are added to this collection, they will follow the definitions in the Mathematica program, see SimpleGraphs on mathworld.wolfram.com.",
+    "type": "key"
+  },
+  "subgraph I_n": {
+    "signature": "Graph subgraph I_n",
+    "default": "",
+    "description": "This graph consists just of \\(n\\) unconnected vertices. The following key is used to specify the set of these vertices:",
+    "type": "key"
+  },
+  "/tikz/graphs/V": {
+    "signature": "/tikz/graphs/V={⟨list of vertices⟩}",
+    "default": "no default",
+    "description": "Sets a list of vertex names for use with graphs like subgraph I_n and also other graphs. This list is available in the macro \\tikzgraphV. The number of elements of this list is available in \\tikzgraphVnum.",
+    "type": "key"
+  },
+  "V": {
+    "signature": "/tikz/graphs/V={⟨list of vertices⟩}",
+    "default": "no default",
+    "description": "Sets a list of vertex names for use with graphs like subgraph I_n and also other graphs. This list is available in the macro \\tikzgraphV. The number of elements of this list is available in \\tikzgraphVnum.",
+    "type": "key"
+  },
+  "/tikz/graphs/n": {
+    "signature": "/tikz/graphs/n=⟨number⟩",
+    "default": "no default",
+    "description": "This is an abbreviation for V={1,...,⟨number⟩}, name shore V/.style={name=V}.",
+    "type": "key"
+  },
+  "subgraph I_nm": {
+    "signature": "Graph subgraph I_nm",
+    "default": "",
+    "description": "This graph consists of two sets of once \\(n\\) unconnected vertices and then \\(m\\) unconnected vertices. The first set consists of the vertices set by the key V, the other set consists of the vertices set by the key W.",
+    "type": "key"
+  },
+  "/tikz/graphs/name shore V": {
+    "signature": "/tikz/graphs/name shore V",
+    "default": "style, initially empty",
+    "description": "Set this style to, say, name=my V set in order to set a name for the V set.",
+    "type": "style"
+  },
+  "name shore V": {
+    "signature": "/tikz/graphs/name shore V",
+    "default": "style, initially empty",
+    "description": "Set this style to, say, name=my V set in order to set a name for the V set.",
+    "type": "style"
+  },
+  "/tikz/graphs/name shore W": {
+    "signature": "/tikz/graphs/name shore W",
+    "default": "style, initially empty",
+    "description": "Same as for name shore V.",
+    "type": "style"
+  },
+  "name shore W": {
+    "signature": "/tikz/graphs/name shore W",
+    "default": "style, initially empty",
+    "description": "Same as for name shore V.",
+    "type": "style"
+  },
+  "/tikz/graphs/W": {
+    "signature": "/tikz/graphs/W={⟨list of vertices⟩}",
+    "default": "no default",
+    "description": "Sets the list of vertices for the W set. The elements and their number are available in the macros \\tikzgraphW and \\tikzgraphWnum, respectively.",
+    "type": "key"
+  },
+  "W": {
+    "signature": "/tikz/graphs/W={⟨list of vertices⟩}",
+    "default": "no default",
+    "description": "Sets the list of vertices for the W set. The elements and their number are available in the macros \\tikzgraphW and \\tikzgraphWnum, respectively.",
+    "type": "key"
+  },
+  "/tikz/graphs/m": {
+    "signature": "/tikz/graphs/m=⟨number⟩",
+    "default": "no default",
+    "description": "This is an abbreviation for W={1,...,⟨number⟩}, name shore W/.style={name=W}.\n\nThe main purpose of this subgraph is to setup the nodes in a bipartite graph:",
+    "type": "key"
+  },
+  "m": {
+    "signature": "/tikz/graphs/m=⟨number⟩",
+    "default": "no default",
+    "description": "This is an abbreviation for W={1,...,⟨number⟩}, name shore W/.style={name=W}.\n\nThe main purpose of this subgraph is to setup the nodes in a bipartite graph:",
+    "type": "key"
+  },
+  "subgraph K_n": {
+    "signature": "Graph subgraph K_n",
+    "default": "",
+    "description": "This graph is the complete clique on the vertices from the V key.",
+    "type": "key"
+  },
+  "subgraph K_nm": {
+    "signature": "Graph subgraph K_nm",
+    "default": "",
+    "description": "This graph is the complete bipartite graph with the two shores V and W as in subgraph I_nm.",
+    "type": "key"
+  },
+  "subgraph P_n": {
+    "signature": "Graph subgraph P_n",
+    "default": "",
+    "description": "This graph is the path on the vertices in V.",
+    "type": "key"
+  },
+  "subgraph C_n": {
+    "signature": "Graph subgraph C_n",
+    "default": "",
+    "description": "This graph is the cycle on the vertices in V.",
+    "type": "key"
+  },
+  "subgraph Grid_n": {
+    "signature": "Graph subgraph Grid_n",
+    "default": "",
+    "description": "This graph is a grid of the vertices in V.",
+    "type": "key"
+  },
+  "/tikz/graphs/wrap after": {
+    "signature": "/tikz/graphs/wrap after=⟨number⟩",
+    "default": "no default",
+    "description": "Defines the number of nodes placed in a single row of the grid. This value implicitly defines the number of grid columns as well. In the following example a grid placement is used to visualize the edges created between the nodes of a Grid_n subgraph using different values for wrap after.",
+    "type": "key"
+  },
+  "wrap after": {
+    "signature": "/tikz/graphs/wrap after=⟨number⟩",
+    "default": "no default",
+    "description": "Defines the number of nodes placed in a single row of the grid. This value implicitly defines the number of grid columns as well. In the following example a grid placement is used to visualize the edges created between the nodes of a Grid_n subgraph using different values for wrap after.",
+    "type": "key"
+  },
+  "/tikz/graphs/clique": {
+    "signature": "/tikz/graphs/clique=⟨color⟩",
+    "default": "default all",
+    "description": "Adds an edge between all vertices of the current group having the (logical) color ⟨color⟩. Since, by default, this color is set to all, which is a color that all nodes get by default, when you do not specify anything, all nodes will be connected.",
+    "type": "key"
+  },
+  "clique": {
+    "signature": "/tikz/graphs/clique=⟨color⟩",
+    "default": "default all",
+    "description": "Adds an edge between all vertices of the current group having the (logical) color ⟨color⟩. Since, by default, this color is set to all, which is a color that all nodes get by default, when you do not specify anything, all nodes will be connected.",
+    "type": "key"
+  },
+  "/tikz/graphs/induced independent set": {
+    "signature": "/tikz/graphs/induced independent set=⟨color⟩",
+    "default": "default all",
+    "description": "This key is the “opposite” of a clique: It removes all edges in the current group having belonging to color class ⟨color⟩. More precisely, an edge of kind -!- is added for each pair of vertices. This means that edge only get removed if you specify the simple option.",
+    "type": "key"
+  },
+  "induced independent set": {
+    "signature": "/tikz/graphs/induced independent set=⟨color⟩",
+    "default": "default all",
+    "description": "This key is the “opposite” of a clique: It removes all edges in the current group having belonging to color class ⟨color⟩. More precisely, an edge of kind -!- is added for each pair of vertices. This means that edge only get removed if you specify the simple option.",
+    "type": "key"
+  },
+  "/tikz/graphs/cycle": {
+    "signature": "/tikz/graphs/cycle=⟨color⟩",
+    "default": "default all",
+    "description": "Connects the nodes colored ⟨color⟩ is a cyclic fashion. The ordering is the ordering in which they appear in the whole graph specification.",
+    "type": "key"
+  },
+  "cycle": {
+    "signature": "/tikz/graphs/cycle=⟨color⟩",
+    "default": "default all",
+    "description": "Connects the nodes colored ⟨color⟩ is a cyclic fashion. The ordering is the ordering in which they appear in the whole graph specification.",
+    "type": "key"
+  },
+  "/tikz/graphs/induced cycle": {
+    "signature": "/tikz/graphs/induced cycle=⟨color⟩",
+    "default": "default all",
+    "description": "While the cycle command will only add edges, this key will also remove all other edges between the nodes of the cycle, provided we are constructing a simple graph.",
+    "type": "key"
+  },
+  "induced cycle": {
+    "signature": "/tikz/graphs/induced cycle=⟨color⟩",
+    "default": "default all",
+    "description": "While the cycle command will only add edges, this key will also remove all other edges between the nodes of the cycle, provided we are constructing a simple graph.",
+    "type": "key"
+  },
+  "/tikz/graphs/path": {
+    "signature": "/tikz/graphs/path=⟨color⟩",
+    "default": "default all",
+    "description": "Works like cycle, only there is no edge from the last to the first vertex.",
+    "type": "key"
+  },
+  "path": {
+    "signature": "/tikz/graphs/path=⟨color⟩",
+    "default": "default all",
+    "description": "Works like cycle, only there is no edge from the last to the first vertex.",
+    "type": "key"
+  },
+  "/tikz/graphs/induced path": {
+    "signature": "/tikz/graphs/induced path=⟨color⟩",
+    "default": "default all",
+    "description": "Works like induced cycle, only there is no edge from the last to the first vertex.",
+    "type": "key"
+  },
+  "induced path": {
+    "signature": "/tikz/graphs/induced path=⟨color⟩",
+    "default": "default all",
+    "description": "Works like induced cycle, only there is no edge from the last to the first vertex.",
+    "type": "key"
+  },
+  "/tikz/graphs/complete bipartite": {
+    "signature": "/tikz/graphs/complete bipartite=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "Adds all possible edges from every node having color ⟨from color⟩ to every node having color ⟨to color⟩:",
+    "type": "key"
+  },
+  "complete bipartite": {
+    "signature": "/tikz/graphs/complete bipartite=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "Adds all possible edges from every node having color ⟨from color⟩ to every node having color ⟨to color⟩:",
+    "type": "key"
+  },
+  "/tikz/graphs/induced complete bipartite": {
+    "signature": "/tikz/graphs/induced complete bipartite",
+    "default": "no value",
+    "description": "Works like the complete bipartite operator, but in a simple graph any edges between the vertices in either shore are removed (more precisely, they get replaced by -!- edges).",
+    "type": "key"
+  },
+  "induced complete bipartite": {
+    "signature": "/tikz/graphs/induced complete bipartite",
+    "default": "no value",
+    "description": "Works like the complete bipartite operator, but in a simple graph any edges between the vertices in either shore are removed (more precisely, they get replaced by -!- edges).",
+    "type": "key"
+  },
+  "/tikz/graphs/matching": {
+    "signature": "/tikz/graphs/matching=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "This joining operator forms a maximum matching between the nodes of the two sets of nodes having colors ⟨from color⟩ and ⟨to color⟩, respectively. The first node of the from set is connected to the first node of to set, the second node of the from set is connected to the second node of the to set, and so on. If the sets have the same size, what results is what graph theoreticians call a perfect matching, otherwise only a maximum, but not perfect matching results.",
+    "type": "key"
+  },
+  "matching": {
+    "signature": "/tikz/graphs/matching=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "This joining operator forms a maximum matching between the nodes of the two sets of nodes having colors ⟨from color⟩ and ⟨to color⟩, respectively. The first node of the from set is connected to the first node of to set, the second node of the from set is connected to the second node of the to set, and so on. If the sets have the same size, what results is what graph theoreticians call a perfect matching, otherwise only a maximum, but not perfect matching results.",
+    "type": "key"
+  },
+  "/tikz/graphs/matching and star": {
+    "signature": "/tikz/graphs/matching and star=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "The matching and star connector works like the matching connector, only it behaves differently when the two to-be-connected sets have different size. In this case, all the surplus nodes get connected to the last node of the other set, resulting in what is known as a star in graph theory. This simple rule allows for some powerful effects (since this connector is the one initially set, there is no need to add it here):",
+    "type": "key"
+  },
+  "matching and star": {
+    "signature": "/tikz/graphs/matching and star=⟨from color⟩⟨to color⟩",
+    "default": "default {source'}{target'}",
+    "description": "The matching and star connector works like the matching connector, only it behaves differently when the two to-be-connected sets have different size. In this case, all the surplus nodes get connected to the last node of the other set, resulting in what is known as a star in graph theory. This simple rule allows for some powerful effects (since this connector is the one initially set, there is no need to add it here):",
+    "type": "key"
+  },
+  "/tikz/graphs/butterfly": {
+    "signature": "/tikz/graphs/butterfly=⟨options⟩",
+    "default": "no default",
+    "description": "The butterfly connector is used to create the kind of connections present between layers of a so-called butterfly network. As for other connectors, two sets of nodes are connected, which are the nodes having color target' and source' by default. In a level \\(l\\) connection, the first \\(l\\) nodes of the first set are connected to the second \\(l\\) nodes of the second set, while the second \\(l\\) nodes of the first set get connected to the first \\(l\\) nodes of the second set. Then, for next \\(2l\\) nodes of both sets a similar kind of connection is installed. Additionally, each node gets connected to the corresponding node in the other set with the same index (as in a matching):",
+    "type": "key"
+  },
+  "butterfly": {
+    "signature": "/tikz/graphs/butterfly=⟨options⟩",
+    "default": "no default",
+    "description": "The butterfly connector is used to create the kind of connections present between layers of a so-called butterfly network. As for other connectors, two sets of nodes are connected, which are the nodes having color target' and source' by default. In a level \\(l\\) connection, the first \\(l\\) nodes of the first set are connected to the second \\(l\\) nodes of the second set, while the second \\(l\\) nodes of the first set get connected to the first \\(l\\) nodes of the second set. Then, for next \\(2l\\) nodes of both sets a similar kind of connection is installed. Additionally, each node gets connected to the corresponding node in the other set with the same index (as in a matching):",
+    "type": "key"
+  },
+  "/tikz/graphs/butterfly/level": {
+    "signature": "/tikz/graphs/butterfly/level=⟨level⟩",
+    "default": "no default, initially 1",
+    "description": "Sets the level \\(l\\) for the connections.",
+    "type": "key"
+  },
+  "/tikz/graphs/butterfly/from": {
+    "signature": "/tikz/graphs/butterfly/from=⟨color⟩",
+    "default": "no default, initially target'",
+    "description": "Sets the color class of the from nodes.",
+    "type": "key"
+  },
+  "/tikz/graphs/butterfly/to": {
+    "signature": "/tikz/graphs/butterfly/to=⟨color⟩",
+    "default": "no default, initially source'",
+    "description": "Sets the color class of the to nodes.",
+    "type": "key"
+  }
+}

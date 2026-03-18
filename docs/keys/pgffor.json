@@ -1,0 +1,74 @@
+{
+  "pgffor": {
+    "signature": "\\usepackage{pgffor} % LaTeX",
+    "default": "",
+    "description": "\\input pgffor.tex % plain TeX\n\n\\usemodule[pgffor] % ConTeXt",
+    "type": "key"
+  },
+  "\\foreach": {
+    "signature": "\\foreach ⟨variables⟩ [⟨options⟩] in ⟨list⟩ ⟨commands⟩",
+    "default": "",
+    "description": "The syntax of this command is a bit complicated, so let us go through it step-by-step.\n\nIn the easiest case, ⟨variables⟩ is a single TeX-command like \\x or \\point. (If you want to have some fun, you can also use active characters. If you do not know what active characters are, you are blessed.)",
+    "type": "command"
+  },
+  "/pgf/foreach/var": {
+    "signature": "/pgf/foreach/var=⟨variable⟩",
+    "default": "no default",
+    "description": "This key provides an alternative way to specify variables: \\foreach [var=\\x,var=\\y] is the same as \\foreach \\x/\\y. If used, this key should be used before the other keys.",
+    "type": "key"
+  },
+  "var": {
+    "signature": "/pgf/foreach/var=⟨variable⟩",
+    "default": "no default",
+    "description": "This key provides an alternative way to specify variables: \\foreach [var=\\x,var=\\y] is the same as \\foreach \\x/\\y. If used, this key should be used before the other keys.",
+    "type": "key"
+  },
+  "/pgf/foreach/evaluate": {
+    "signature": "/pgf/foreach/evaluate=⟨variable⟩ as ⟨macro⟩ using ⟨formula⟩",
+    "default": "no default",
+    "description": "By default, list items are not evaluated: 1+2, yields 1+2, not 3. This key allows a variable to be evaluated using the mathematical engine. The variable must have been specified either using the var key or in the ⟨variables⟩ argument of the foreach command. By default, the result of the evaluation will be stored in ⟨variable⟩. However, the optional as ⟨macro⟩ statement can be used to store the result in ⟨macro⟩.",
+    "type": "key"
+  },
+  "/pgf/foreach/remember": {
+    "signature": "/pgf/foreach/remember=⟨variable⟩ as ⟨macro⟩ (initially ⟨value⟩)",
+    "default": "no default",
+    "description": "This key allows the item value stored in ⟨variable⟩ to be remembered during the next iteration, stored in ⟨macro⟩. If a variable is evaluated, the result of this evaluation is remembered. By default the value of ⟨variable⟩ is zero for the first iteration, however, the optional (initially ⟨value⟩) statement, allows the ⟨macro⟩ to be initially defined as ⟨value⟩.",
+    "type": "key"
+  },
+  "/pgf/foreach/count": {
+    "signature": "/pgf/foreach/count=⟨macro⟩ from ⟨value⟩",
+    "default": "no default",
+    "description": "This key allows ⟨macro⟩ to hold the position in the list of the current item. The optional from ⟨value⟩ statement allows the counting to begin from ⟨value⟩.",
+    "type": "key"
+  },
+  "count": {
+    "signature": "/pgf/foreach/count=⟨macro⟩ from ⟨value⟩",
+    "default": "no default",
+    "description": "This key allows ⟨macro⟩ to hold the position in the list of the current item. The optional from ⟨value⟩ statement allows the counting to begin from ⟨value⟩.",
+    "type": "key"
+  },
+  "/pgf/foreach/parse": {
+    "signature": "/pgf/foreach/parse={⟨boolean⟩}",
+    "default": "default false",
+    "description": "If this key is set to true the upper bound in the loop will be fed into \\pgfmathparse. This allows to use complex expressions as the upper bound. However, the expression must be safe for evaluation in \\pgfmathparse. It is known that internal TeX registers can cause trouble.",
+    "type": "key"
+  },
+  "/pgf/foreach/expand list": {
+    "signature": "/pgf/foreach/expand list={⟨boolean⟩}",
+    "default": "default false",
+    "description": "If this key is set to true the contents of the list are fully expanded with \\edef before further processing. This allows using complex macros which generate a list upon expansion without having to use an intermediate macro.",
+    "type": "key"
+  },
+  "expand list": {
+    "signature": "/pgf/foreach/expand list={⟨boolean⟩}",
+    "default": "default false",
+    "description": "If this key is set to true the contents of the list are fully expanded with \\edef before further processing. This allows using complex macros which generate a list upon expansion without having to use an intermediate macro.",
+    "type": "key"
+  },
+  "\\breakforeach": {
+    "signature": "\\breakforeach",
+    "default": "",
+    "description": "If this command is given inside a \\foreach command, no further executions of the ⟨commands⟩ will occur. However, the current execution of the ⟨commands⟩ is continued normally, so it is probably best to use this command only at the end of a \\foreach command.",
+    "type": "command"
+  }
+}

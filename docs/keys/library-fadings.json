@@ -1,0 +1,8 @@
+{
+  "fadings": {
+    "signature": "TikZ Library fadings",
+    "default": "",
+    "description": "\\usepgflibrary{fadings} % LaTeX and plain TeX and pure pgf \\usepgflibrary[fadings] % ConTeXt and pure pgf \\usetikzlibrary{fadings} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[fadings] % ConTeXt when using TikZ The package defines a number of fadings, see Section 23 for an introduction. The TikZ version defines special TikZ commands for creating fadings. These commands are explained in Section 23.",
+    "type": "key"
+  }
+}

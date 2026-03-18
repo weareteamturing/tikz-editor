@@ -1,0 +1,434 @@
+{
+  "/tikz/arrows": {
+    "signature": "/tikz/arrows=⟨start arrow specification⟩-⟨end arrow specification⟩",
+    "default": "no default",
+    "description": "This option sets the arrow tip(s) to be used at the start and end of lines. An empty value as in -> for the start indicates that no arrow tip should be drawn at the start.\n\nNote: Since the arrow option is so often used, you can leave out the text arrows=. What happens is that every (otherwise unknown) option that contains a - is interpreted as an arrow specification.",
+    "type": "key"
+  },
+  "arrows": {
+    "signature": "/tikz/arrows=⟨start arrow specification⟩-⟨end arrow specification⟩",
+    "default": "no default",
+    "description": "This option sets the arrow tip(s) to be used at the start and end of lines. An empty value as in -> for the start indicates that no arrow tip should be drawn at the start.\n\nNote: Since the arrow option is so often used, you can leave out the text arrows=. What happens is that every (otherwise unknown) option that contains a - is interpreted as an arrow specification.",
+    "type": "key"
+  },
+  "/pgf/tips": {
+    "signature": "/pgf/tips=⟨value⟩",
+    "default": "default true, initially on draw",
+    "description": "This key governs in what situations arrow tips are added to a path. The following ⟨values⟩ are permissible:\n\n• true (the value used when no ⟨value⟩ is specified)",
+    "type": "key"
+  },
+  "tips": {
+    "signature": "/pgf/tips=⟨value⟩",
+    "default": "default true, initially on draw",
+    "description": "This key governs in what situations arrow tips are added to a path. The following ⟨values⟩ are permissible:\n\n• true (the value used when no ⟨value⟩ is specified)",
+    "type": "key"
+  },
+  "/tikz/tips": {
+    "signature": "",
+    "default": "",
+    "description": "",
+    "type": "key"
+  },
+  "/pgf/arrow keys/length": {
+    "signature": "/pgf/arrow keys/length=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This parameter is usually the most important parameter that governs the size of an arrow tip: The ⟨dimension⟩ that you provide dictates the distance from the “very tip” of the arrow to its “back end” along the line:",
+    "type": "key"
+  },
+  "length": {
+    "signature": "/pgf/arrow keys/length=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This parameter is usually the most important parameter that governs the size of an arrow tip: The ⟨dimension⟩ that you provide dictates the distance from the “very tip” of the arrow to its “back end” along the line:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/width": {
+    "signature": "/pgf/arrow keys/width=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This key works like the length key, only it specifies the “width” of the arrow tip; so if width and length are identical, the arrow will just touch the borders of a square. (An exception to this rule are “halved” arrow tips, see Section 16.3.5.) The meaning of the two optional factor numbers following the ⟨dimension⟩ is the same as for the length key.",
+    "type": "key"
+  },
+  "width": {
+    "signature": "/pgf/arrow keys/width=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This key works like the length key, only it specifies the “width” of the arrow tip; so if width and length are identical, the arrow will just touch the borders of a square. (An exception to this rule are “halved” arrow tips, see Section 16.3.5.) The meaning of the two optional factor numbers following the ⟨dimension⟩ is the same as for the length key.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/width'": {
+    "signature": "/pgf/arrow keys/width'=⟨dimension⟩ ⟨length factor⟩ ⟨line width factor⟩",
+    "default": "no default",
+    "description": "The key (note the prime) has a similar effect as the width key. The difference is that the second, still optional parameter ⟨length factor⟩ specifies the width of the key not as a multiple of the line width, but as a multiple of the arrow length.\n\nThe idea is that if you write, say, width'=0pt 0.5, the width of the arrow will be half its length. Indeed, for standard arrow tips like Stealth the default width is specified in this way so that if you change the length of an arrow tip, you also change the width in such a way that the aspect ratio of the arrow tip is kept. The other way round, if you modify the factor in width' without changing the length, you change the aspect ratio of the arrow tip.",
+    "type": "key"
+  },
+  "width'": {
+    "signature": "/pgf/arrow keys/width'=⟨dimension⟩ ⟨length factor⟩ ⟨line width factor⟩",
+    "default": "no default",
+    "description": "The key (note the prime) has a similar effect as the width key. The difference is that the second, still optional parameter ⟨length factor⟩ specifies the width of the key not as a multiple of the line width, but as a multiple of the arrow length.\n\nThe idea is that if you write, say, width'=0pt 0.5, the width of the arrow will be half its length. Indeed, for standard arrow tips like Stealth the default width is specified in this way so that if you change the length of an arrow tip, you also change the width in such a way that the aspect ratio of the arrow tip is kept. The other way round, if you modify the factor in width' without changing the length, you change the aspect ratio of the arrow tip.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/inset": {
+    "signature": "/pgf/arrow keys/inset=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "The key is relevant only for some arrow tips such as the Stealth arrow tip. It specifies a distance by which something inside the arrow tip is set inwards; for the Stealth arrow tip it is the distance by which the back angle is moved inwards.\n\nThe computation of the distance works in the same way as for length and width: To the ⟨dimension⟩ we add ⟨line width factor⟩ times that line width, where the line width is computed based on the ⟨outer factor⟩ as described for the length key.",
+    "type": "key"
+  },
+  "inset": {
+    "signature": "/pgf/arrow keys/inset=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "The key is relevant only for some arrow tips such as the Stealth arrow tip. It specifies a distance by which something inside the arrow tip is set inwards; for the Stealth arrow tip it is the distance by which the back angle is moved inwards.\n\nThe computation of the distance works in the same way as for length and width: To the ⟨dimension⟩ we add ⟨line width factor⟩ times that line width, where the line width is computed based on the ⟨outer factor⟩ as described for the length key.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/inset'": {
+    "signature": "/pgf/arrow keys/inset'=⟨dimension⟩ ⟨length factor⟩ ⟨line width factor⟩",
+    "default": "no default",
+    "description": "This key works like inset, only like width' the second parameter is a factor of the arrow length rather than of the line width. For instance, the Stealth arrow sets inset' to 0pt 0.325 to ensure that the inset is always at \\(13/40\\)th of the arrow length if nothing else is specified.",
+    "type": "key"
+  },
+  "inset'": {
+    "signature": "/pgf/arrow keys/inset'=⟨dimension⟩ ⟨length factor⟩ ⟨line width factor⟩",
+    "default": "no default",
+    "description": "This key works like inset, only like width' the second parameter is a factor of the arrow length rather than of the line width. For instance, the Stealth arrow sets inset' to 0pt 0.325 to ensure that the inset is always at \\(13/40\\)th of the arrow length if nothing else is specified.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/angle": {
+    "signature": "/pgf/arrow keys/angle=⟨angle⟩:⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This key sets the length and the width of an arrow tip at the same time. The length will be the cosine of ⟨angle⟩, while the width will be twice the sine of half the ⟨angle⟩ (this slightly awkward rule ensures that a Stealth arrow will have an opening angle of ⟨angle⟩ at its tip if this option is used). As for the length key, if the optional factors are given, they add a certain multiple of the line width to the ⟨dimension⟩ before the sine and cosines are computed.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/angle'": {
+    "signature": "/pgf/arrow keys/angle'=⟨angle⟩",
+    "default": "no default",
+    "description": "Sets the width of the arrow to twice the tangent of \\(\\meta {angle}/2\\) times the arrow length. This results in an arrow tip with an opening angle of ⟨angle⟩ at its tip and with the specified length unchanged.",
+    "type": "key"
+  },
+  "angle'": {
+    "signature": "/pgf/arrow keys/angle'=⟨angle⟩",
+    "default": "no default",
+    "description": "Sets the width of the arrow to twice the tangent of \\(\\meta {angle}/2\\) times the arrow length. This results in an arrow tip with an opening angle of ⟨angle⟩ at its tip and with the specified length unchanged.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/scale": {
+    "signature": "/pgf/arrow keys/scale=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "After all the other options listed in the previous (and also the following sections) have been processed, TikZ applies a scaling to the computed length, inset, and width of the arrow tip (and, possibly, to other size parameters defined by special-purpose arrow tip kinds). Everything is simply scaled by the given ⟨factor⟩.",
+    "type": "key"
+  },
+  "scale": {
+    "signature": "/pgf/arrow keys/scale=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "After all the other options listed in the previous (and also the following sections) have been processed, TikZ applies a scaling to the computed length, inset, and width of the arrow tip (and, possibly, to other size parameters defined by special-purpose arrow tip kinds). Everything is simply scaled by the given ⟨factor⟩.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/scale length": {
+    "signature": "/pgf/arrow keys/scale length=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "This factor works like scale, only it is applied only to dimensions “along the axis of the arrow”, that is, to the length and to the inset, but not to the width.",
+    "type": "key"
+  },
+  "scale length": {
+    "signature": "/pgf/arrow keys/scale length=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "This factor works like scale, only it is applied only to dimensions “along the axis of the arrow”, that is, to the length and to the inset, but not to the width.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/scale width": {
+    "signature": "/pgf/arrow keys/scale width=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "Like scale length, but for dimensions related to the width.",
+    "type": "key"
+  },
+  "scale width": {
+    "signature": "/pgf/arrow keys/scale width=⟨factor⟩",
+    "default": "no default, initially 1",
+    "description": "Like scale length, but for dimensions related to the width.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/arc": {
+    "signature": "/pgf/arrow keys/arc=⟨degrees⟩",
+    "default": "no default, initially 180",
+    "description": "Sets the angle of arcs in arrows to ⟨degrees⟩. Note that this key is quite different from the angle key, which is “just a fancy way of setting the length and width”. In contrast, the arc key is used to set the degrees of arcs that are part of an arrow tip:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/slant": {
+    "signature": "/pgf/arrow keys/slant=⟨factor⟩",
+    "default": "no default, initially 0",
+    "description": "Slanting is used to create an “italics” effect for arrow tips: All arrow tips get “slanted” a little bit relative to the axis of the arrow:",
+    "type": "key"
+  },
+  "slant": {
+    "signature": "/pgf/arrow keys/slant=⟨factor⟩",
+    "default": "no default, initially 0",
+    "description": "Slanting is used to create an “italics” effect for arrow tips: All arrow tips get “slanted” a little bit relative to the axis of the arrow:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/reversed": {
+    "signature": "/pgf/arrow keys/reversed",
+    "default": "no value",
+    "description": "Adding this key to an arrow tip will “reverse its direction” so that is points in the opposite direction (but is still at that end of the line where the non-reversed arrow tip would have been drawn; so only the tip is reversed). For most arrow tips, this just results in an internal flip of a coordinate system, but some arrow tips actually use a slightly different version of the tip for reversed arrow tips (namely when the joining of the tip with the line would look strange). All of this happens automatically, so you do not need to worry about this.\n\nIf you apply this key twice, the effect cancels, which is useful for the definition of shorthands (which will be discussed later).",
+    "type": "key"
+  },
+  "reversed": {
+    "signature": "/pgf/arrow keys/reversed",
+    "default": "no value",
+    "description": "Adding this key to an arrow tip will “reverse its direction” so that is points in the opposite direction (but is still at that end of the line where the non-reversed arrow tip would have been drawn; so only the tip is reversed). For most arrow tips, this just results in an internal flip of a coordinate system, but some arrow tips actually use a slightly different version of the tip for reversed arrow tips (namely when the joining of the tip with the line would look strange). All of this happens automatically, so you do not need to worry about this.\n\nIf you apply this key twice, the effect cancels, which is useful for the definition of shorthands (which will be discussed later).",
+    "type": "key"
+  },
+  "/pgf/arrow keys/harpoon": {
+    "signature": "/pgf/arrow keys/harpoon",
+    "default": "no value",
+    "description": "The key requests that only the “left half” of the arrow tip should drawn:",
+    "type": "key"
+  },
+  "harpoon": {
+    "signature": "/pgf/arrow keys/harpoon",
+    "default": "no value",
+    "description": "The key requests that only the “left half” of the arrow tip should drawn:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/swap": {
+    "signature": "/pgf/arrow keys/swap",
+    "default": "no value",
+    "description": "This key flips that arrow tip along the axis of the line. It makes sense only for asymmetric arrow tips like the harpoons created using the harpoon option.",
+    "type": "key"
+  },
+  "swap": {
+    "signature": "/pgf/arrow keys/swap",
+    "default": "no value",
+    "description": "This key flips that arrow tip along the axis of the line. It makes sense only for asymmetric arrow tips like the harpoons created using the harpoon option.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/left": {
+    "signature": "/pgf/arrow keys/left",
+    "default": "no value",
+    "description": "A shorthand for harpoon.",
+    "type": "key"
+  },
+  "left": {
+    "signature": "/pgf/arrow keys/left",
+    "default": "no value",
+    "description": "A shorthand for harpoon.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/right": {
+    "signature": "/pgf/arrow keys/right",
+    "default": "no value",
+    "description": "A shorthand for harpoon, swap.",
+    "type": "key"
+  },
+  "right": {
+    "signature": "/pgf/arrow keys/right",
+    "default": "no value",
+    "description": "A shorthand for harpoon, swap.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/color": {
+    "signature": "/pgf/arrow keys/color=⟨color or empty⟩",
+    "default": "no default, initially empty",
+    "description": "Normally, an arrow tip gets the same color as the path to which it is attached. More precisely, it will get the current “draw color”, also known as “stroke color”, which you can set using draw=⟨some color⟩. By adding the option color= to an arrow tip (note that an “empty” color is specified in this way), you ask that the arrow tip gets this default draw color of the path. Since this is the default behavior, you usually do not need to specify anything:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/fill": {
+    "signature": "/pgf/arrow keys/fill=⟨color⟩",
+    "default": "default is scope’s color setting",
+    "description": "Use this key to explicitly set the color used for filling the arrow tips. This color can be different from the color used to draw (stroke) the arrow tip:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/open": {
+    "signature": "/pgf/arrow keys/open",
+    "default": "no value",
+    "description": "A shorthand for fill=none.\n\nWhen you use both the color and fill options, the color option must come first since it will reset the filling to the color specified for drawing.",
+    "type": "key"
+  },
+  "open": {
+    "signature": "/pgf/arrow keys/open",
+    "default": "no value",
+    "description": "A shorthand for fill=none.\n\nWhen you use both the color and fill options, the color option must come first since it will reset the filling to the color specified for drawing.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/line cap": {
+    "signature": "/pgf/arrow keys/line cap=⟨round or butt⟩",
+    "default": "no default",
+    "description": "Sets the line cap of all lines that are drawn in the arrow to a round cap or a butt cap. (Unlike for normal lines, the rect cap is not allowed.) Naturally, this key has no effect for arrows whose paths are closed.\n\nEach arrow tip has a default value for the line cap, which can be overruled using this option.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/line join": {
+    "signature": "/pgf/arrow keys/line join=⟨round or miter⟩",
+    "default": "no default",
+    "description": "Sets the line join to round or miter (bevel is not allowed). This time, the key only has an effect on paths that have “corners” in them. The same rules as for line cap apply: the size is not affects, but the tip end is:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/round": {
+    "signature": "/pgf/arrow keys/round",
+    "default": "no value",
+    "description": "A shorthand for line cap=round, line join=round, resulting in “rounded” arrow heads.",
+    "type": "key"
+  },
+  "round": {
+    "signature": "/pgf/arrow keys/round",
+    "default": "no value",
+    "description": "A shorthand for line cap=round, line join=round, resulting in “rounded” arrow heads.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/sharp": {
+    "signature": "/pgf/arrow keys/sharp",
+    "default": "no value",
+    "description": "A shorthand for line cap=butt, line join=miter, resulting in “sharp” or “pointed” arrow heads.",
+    "type": "key"
+  },
+  "sharp": {
+    "signature": "/pgf/arrow keys/sharp",
+    "default": "no value",
+    "description": "A shorthand for line cap=butt, line join=miter, resulting in “sharp” or “pointed” arrow heads.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/line width": {
+    "signature": "/pgf/arrow keys/line width=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "no default",
+    "description": "This key sets the line width inside an arrow tip for drawing (out)lines of the arrow tip. When you set this width to 0pt, which makes sense only for closed tips, the arrow tip is only filled. This can result in better rendering of some small arrow tips and in case of bend arrow tips (because the line joins will also be bend and not “mitered”.)\n\nThe meaning of the factors is as usual the same as for length or width.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/line width'": {
+    "signature": "/pgf/arrow keys/line width'=⟨dimension⟩ ⟨length factor⟩",
+    "default": "no default",
+    "description": "Works like line width only the factor is with respect to the length.\n\nUp to now, we have only added arrow tip to the end of straight lines, which is in some sense “easy”. Things get far more difficult, if the line to which we wish to end an arrow tip is curved. In the following, we have a look at the different actions that can be taken and how they can be configured.",
+    "type": "key"
+  },
+  "line width'": {
+    "signature": "/pgf/arrow keys/line width'=⟨dimension⟩ ⟨length factor⟩",
+    "default": "no default",
+    "description": "Works like line width only the factor is with respect to the length.\n\nUp to now, we have only added arrow tip to the end of straight lines, which is in some sense “easy”. Things get far more difficult, if the line to which we wish to end an arrow tip is curved. In the following, we have a look at the different actions that can be taken and how they can be configured.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/quick": {
+    "signature": "/pgf/arrow keys/quick",
+    "default": "no value",
+    "description": "Recall that curves in TikZ are actually Bézier curves, which means that they start and end at certain points and we specify two vectors, one for the start and one for the end, that provide tangents to the curve at these points. In particular, for the end of the curve, there is a point called the second support point of the curve such that a tangent to the curve at the end goes through this point. In our above example, the second support point is at the middle of the light red line and, indeed, a tangent to the red line at the point touching the wall is perfectly horizontal.\n\nIn order to add our arrow tip to the curved path, our first objective is to “shorten” the path by 6.25mm. Unfortunately, this is now much more difficult than for a straight path. When the quick option is added to an arrow tip (it is also the default if no special libraries are loaded), we cheat somewhat: Instead of really moving along 6.25mm along the path, we simply shift the end of the curve by 6.25mm along the tangent (which is easy to compute). We also have to shift the second support point by the same amount to ensure that the line still has the same tangent at the end. This will result in the following:",
+    "type": "key"
+  },
+  "quick": {
+    "signature": "/pgf/arrow keys/quick",
+    "default": "no value",
+    "description": "Recall that curves in TikZ are actually Bézier curves, which means that they start and end at certain points and we specify two vectors, one for the start and one for the end, that provide tangents to the curve at these points. In particular, for the end of the curve, there is a point called the second support point of the curve such that a tangent to the curve at the end goes through this point. In our above example, the second support point is at the middle of the light red line and, indeed, a tangent to the red line at the point touching the wall is perfectly horizontal.\n\nIn order to add our arrow tip to the curved path, our first objective is to “shorten” the path by 6.25mm. Unfortunately, this is now much more difficult than for a straight path. When the quick option is added to an arrow tip (it is also the default if no special libraries are loaded), we cheat somewhat: Instead of really moving along 6.25mm along the path, we simply shift the end of the curve by 6.25mm along the tangent (which is easy to compute). We also have to shift the second support point by the same amount to ensure that the line still has the same tangent at the end. This will result in the following:",
+    "type": "key"
+  },
+  "bending": {
+    "signature": "TikZ Library bending",
+    "default": "",
+    "description": "\\usetikzlibrary{bending} % LaTeX and plain TeX \\usetikzlibrary[bending] % ConTeXt Load this library to use the flex, flex', or bending arrow keys. When this library is loaded, flex becomes the default mode that is used with all paths, unless quick is explicitly selected for the arrow tip.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/flex": {
+    "signature": "/pgf/arrow keys/flex=⟨factor⟩",
+    "default": "default 1",
+    "description": "When the bending library is loaded, this key is applied to all arrow tips by default. It has the following effect:\n\n1. Instead of simply shifting the visual end of the arrow along the tangent of the curve’s end, we really move it along the curve by the necessary distance. This operation is more expensive than the quick operation – but not that expensive, only expensive enough so that it is not selected by default for all arrow tips. Indeed, some compromises are made in the implementation where accuracy was traded for speed, so the distance by which the line end is shifted is not necessarily exactly 6.25mm; only something reasonably close.",
+    "type": "key"
+  },
+  "flex": {
+    "signature": "/pgf/arrow keys/flex=⟨factor⟩",
+    "default": "default 1",
+    "description": "When the bending library is loaded, this key is applied to all arrow tips by default. It has the following effect:\n\n1. Instead of simply shifting the visual end of the arrow along the tangent of the curve’s end, we really move it along the curve by the necessary distance. This operation is more expensive than the quick operation – but not that expensive, only expensive enough so that it is not selected by default for all arrow tips. Indeed, some compromises are made in the implementation where accuracy was traded for speed, so the distance by which the line end is shifted is not necessarily exactly 6.25mm; only something reasonably close.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/flex'": {
+    "signature": "/pgf/arrow keys/flex'=⟨factor⟩",
+    "default": "default 1",
+    "description": "The flex' key is almost identical to the flex key. The only difference is that a factor of 1 corresponds to rotating the arrow tip so that the instead of the visual end, the “ultimate back end” of the arrow tip lies on the red path. In the example instead of having the arrow tip at a distance of 6.25mm from the tip lie on the path, we have the point at a distance of 1cm from the tip lie on the path:",
+    "type": "key"
+  },
+  "flex'": {
+    "signature": "/pgf/arrow keys/flex'=⟨factor⟩",
+    "default": "default 1",
+    "description": "The flex' key is almost identical to the flex key. The only difference is that a factor of 1 corresponds to rotating the arrow tip so that the instead of the visual end, the “ultimate back end” of the arrow tip lies on the red path. In the example instead of having the arrow tip at a distance of 6.25mm from the tip lie on the path, we have the point at a distance of 1cm from the tip lie on the path:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/bend": {
+    "signature": "/pgf/arrow keys/bend",
+    "default": "no value",
+    "description": "Bending an arrow tip is a radical solution to the problem of positioning arrow tips on a curved line: The arrow tip is no longer “rigid” but the drawing itself will now bend along the curve. This has the advantage that all the problems of flexing with wrong tangents and overflexing disappear. The downsides are longer computation times (bending an arrow is much more expensive that flexing it, let alone than quick mode) and also the fact that excessive bending can lead to ugly arrow tips. On the other hand, for most arrow tips their bend version are visually quite pleasing and create a sophisticated look:",
+    "type": "key"
+  },
+  "/pgf/arrow keys/sep": {
+    "signature": "/pgf/arrow keys/sep=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "default 0.88pt .3 1",
+    "description": "When a sequence of arrow tips is specified in an arrow tip specification for the end of the line, the arrow tips are normally arranged in such a way that the tip of each arrow ends exactly at the “back end” of the next arrow tip (for start specifications, the ordering is inverted, of course). Now, when the sep option is set, instead of exactly touching the back end of the next arrow, the specified ⟨dimension⟩ is added as additional space (the distance may also be negative, resulting in an overlap of the arrow tips). The optional factors have the same meaning as for the length key, see that key for details.\n\nLet us now have a look at some examples. First, we use two arrow tips with different separations between them:",
+    "type": "key"
+  },
+  "sep": {
+    "signature": "/pgf/arrow keys/sep=⟨dimension⟩ ⟨line width factor⟩ ⟨outer factor⟩",
+    "default": "default 0.88pt .3 1",
+    "description": "When a sequence of arrow tips is specified in an arrow tip specification for the end of the line, the arrow tips are normally arranged in such a way that the tip of each arrow ends exactly at the “back end” of the next arrow tip (for start specifications, the ordering is inverted, of course). Now, when the sep option is set, instead of exactly touching the back end of the next arrow, the specified ⟨dimension⟩ is added as additional space (the distance may also be negative, resulting in an overlap of the arrow tips). The optional factors have the same meaning as for the length key, see that key for details.\n\nLet us now have a look at some examples. First, we use two arrow tips with different separations between them:",
+    "type": "key"
+  },
+  "/handlers/.tip": {
+    "signature": "Key handler ⟨key⟩/.tip=⟨end specification⟩",
+    "default": "",
+    "description": "Defined the ⟨key⟩ as a name that can be used inside arrow tip specifications. If the ⟨key⟩ has a path before it, this path is ignored (so there is only one “namespace” for arrow tips). Whenever it is used, it will be replaced by the ⟨end specification⟩. Note that you must always provide (only) an end specification; when the ⟨key⟩ is used inside a start specification, the ordering and the meaning of the keys inside the ⟨end specification⟩ are translated automatically.",
+    "type": "key"
+  },
+  "/tikz/>": {
+    "signature": "/tikz/>=⟨end arrow specification⟩",
+    "default": "no default",
+    "description": "This is a short way of saying /.tip=⟨end arrow specification⟩.",
+    "type": "key"
+  },
+  ">": {
+    "signature": "/tikz/>=⟨end arrow specification⟩",
+    "default": "no default",
+    "description": "This is a short way of saying /.tip=⟨end arrow specification⟩.",
+    "type": "key"
+  },
+  "/tikz/shorten <": {
+    "signature": "/tikz/shorten =⟨length⟩",
+    "default": "no default",
+    "description": "Shorten the path by ⟨length⟩ in the direction of the starting point.",
+    "type": "key"
+  },
+  "shorten <": {
+    "signature": "/tikz/shorten =⟨length⟩",
+    "default": "no default",
+    "description": "Shorten the path by ⟨length⟩ in the direction of the starting point.",
+    "type": "key"
+  },
+  "/tikz/shorten >": {
+    "signature": "/tikz/shorten >=⟨length⟩",
+    "default": "no default",
+    "description": "Shorten the path by ⟨length⟩ in the direction of the end point.\n\nThere are numerous places where you can specify keys for an arrow tip. There is, however, one final place that we have not yet mentioned:",
+    "type": "key"
+  },
+  "shorten >": {
+    "signature": "/tikz/shorten >=⟨length⟩",
+    "default": "no default",
+    "description": "Shorten the path by ⟨length⟩ in the direction of the end point.\n\nThere are numerous places where you can specify keys for an arrow tip. There is, however, one final place that we have not yet mentioned:",
+    "type": "key"
+  },
+  "arrows.meta": {
+    "signature": "TikZ Library arrows.meta",
+    "default": "",
+    "description": "\\usepgflibrary{arrows.meta} % LaTeX and plain TeX and pure pgf \\usepgflibrary[arrows.meta] % ConTeXt and pure pgf \\usetikzlibrary{arrows.meta} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[arrows.meta] % ConTeXt when using TikZ This library defines a large number of standard “meta” arrow tips. “Meta” means that you can configure these arrow tips in many different ways like changing their size or their line caps and joins and many other details.\n\nThe only reason this library is not loaded by default is for compatibility with older versions of TikZ. You can, however, safely load and use this library alongside the older libraries arrows and arrows.spaced.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/cap angle": {
+    "signature": "/pgf/arrow keys/cap angle=⟨angle⟩",
+    "default": "no default",
+    "description": "Sets length to an appropriate multiple of the line width so that the angle of a Triangle Cap is exactly ⟨angle⟩ at the tip.",
+    "type": "key"
+  },
+  "cap angle": {
+    "signature": "/pgf/arrow keys/cap angle=⟨angle⟩",
+    "default": "no default",
+    "description": "Sets length to an appropriate multiple of the line width so that the angle of a Triangle Cap is exactly ⟨angle⟩ at the tip.",
+    "type": "key"
+  },
+  "/pgf/arrow keys/n": {
+    "signature": "/pgf/arrow keys/n=⟨number⟩",
+    "default": "no default, initially 4",
+    "description": "Sets the number of rays in a Rays arrow tip.",
+    "type": "key"
+  },
+  "n": {
+    "signature": "/pgf/arrow keys/n=⟨number⟩",
+    "default": "no default, initially 4",
+    "description": "Sets the number of rays in a Rays arrow tip.",
+    "type": "key"
+  }
+}

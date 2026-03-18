@@ -1,0 +1,254 @@
+{
+  "/tikz/matrix": {
+    "signature": "/tikz/matrix=⟨true or false⟩",
+    "default": "default true",
+    "description": "This option can be passed to a node path command. It signals that the node will contain a matrix.",
+    "type": "key"
+  },
+  "matrix": {
+    "signature": "/tikz/matrix=⟨true or false⟩",
+    "default": "default true",
+    "description": "This option can be passed to a node path command. It signals that the node will contain a matrix.",
+    "type": "key"
+  },
+  "/tikz/every matrix": {
+    "signature": "/tikz/every matrix",
+    "default": "style, initially empty",
+    "description": "This style is used in every matrix.",
+    "type": "style"
+  },
+  "every matrix": {
+    "signature": "/tikz/every matrix",
+    "default": "style, initially empty",
+    "description": "This style is used in every matrix.",
+    "type": "style"
+  },
+  "/tikz/every outer matrix": {
+    "signature": "/tikz/every outer matrix",
+    "default": "style, initially empty",
+    "description": "While the every matrix key also applies to the matrix contents, this only applies to the outer node which holds the matrix.\n\nEven more so than nodes, matrices will often be the only object on a path. Because of this, there is a special abbreviation for creating matrices:",
+    "type": "style"
+  },
+  "every outer matrix": {
+    "signature": "/tikz/every outer matrix",
+    "default": "style, initially empty",
+    "description": "While the every matrix key also applies to the matrix contents, this only applies to the outer node which holds the matrix.\n\nEven more so than nodes, matrices will often be the only object on a path. Because of this, there is a special abbreviation for creating matrices:",
+    "type": "style"
+  },
+  "\\matrix": {
+    "signature": "\\matrix",
+    "default": "",
+    "description": "Inside {tikzpicture} this is an abbreviation for \\path node[matrix].\n\nEven though matrices are nodes, some options do not have the same effect as for normal nodes:",
+    "type": "command"
+  },
+  "/tikz/column sep": {
+    "signature": "/tikz/column sep=⟨spacing list⟩",
+    "default": "no default",
+    "description": "This option sets a default space that is added between every two columns. This space can be positive or negative and is zero by default. The ⟨spacing list⟩ normally contains a single dimension like 2pt.",
+    "type": "key"
+  },
+  "column sep": {
+    "signature": "/tikz/column sep=⟨spacing list⟩",
+    "default": "no default",
+    "description": "This option sets a default space that is added between every two columns. This space can be positive or negative and is zero by default. The ⟨spacing list⟩ normally contains a single dimension like 2pt.",
+    "type": "key"
+  },
+  "/tikz/row sep": {
+    "signature": "/tikz/row sep=⟨spacing list⟩",
+    "default": "no default",
+    "description": "This option works like column sep, only for rows. Here, too, you can specify whether the space is added between the lower end of the first row and the upper end of the second row, or whether the space is computed between the origins of the two rows.",
+    "type": "key"
+  },
+  "row sep": {
+    "signature": "/tikz/row sep=⟨spacing list⟩",
+    "default": "no default",
+    "description": "This option works like column sep, only for rows. Here, too, you can specify whether the space is added between the lower end of the first row and the upper end of the second row, or whether the space is computed between the origins of the two rows.",
+    "type": "key"
+  },
+  "/tikz/every cell": {
+    "signature": "/tikz/every cell={⟨row⟩}{⟨column⟩} (style, no default, initially empty)",
+    "default": "",
+    "description": "This style is installed at the beginning of each cell picture with the two parameters being the current ⟨row⟩ and ⟨column⟩ of the cell. Note that setting this style to draw will not cause all nodes to be drawn since the draw option has to be passed to each node individually.\n\nInside this style (and inside all cells), the current ⟨row⟩ and ⟨column⟩ number are also accessible via the counters \\pgfmatrixcurrentrow and \\pgfmatrixcurrentcolumn.",
+    "type": "key"
+  },
+  "every cell": {
+    "signature": "/tikz/every cell={⟨row⟩}{⟨column⟩} (style, no default, initially empty)",
+    "default": "",
+    "description": "This style is installed at the beginning of each cell picture with the two parameters being the current ⟨row⟩ and ⟨column⟩ of the cell. Note that setting this style to draw will not cause all nodes to be drawn since the draw option has to be passed to each node individually.\n\nInside this style (and inside all cells), the current ⟨row⟩ and ⟨column⟩ number are also accessible via the counters \\pgfmatrixcurrentrow and \\pgfmatrixcurrentcolumn.",
+    "type": "key"
+  },
+  "/tikz/cells": {
+    "signature": "/tikz/cells=⟨options⟩",
+    "default": "no default",
+    "description": "This key adds the ⟨options⟩ to the style every cell. It is mainly just a shorthand for the code every cell/.append style=⟨options⟩.",
+    "type": "key"
+  },
+  "cells": {
+    "signature": "/tikz/cells=⟨options⟩",
+    "default": "no default",
+    "description": "This key adds the ⟨options⟩ to the style every cell. It is mainly just a shorthand for the code every cell/.append style=⟨options⟩.",
+    "type": "key"
+  },
+  "/tikz/nodes": {
+    "signature": "/tikz/nodes=⟨options⟩",
+    "default": "no default",
+    "description": "This key adds the ⟨options⟩ to the style every node. It is mainly just a shorthand for the code every node/.append style=⟨options⟩.\n\nThe main use of this option is the install some options for the nodes inside the matrix that should not apply to the matrix itself.",
+    "type": "key"
+  },
+  "/tikz/every odd column": {
+    "signature": "/tikz/every odd column",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an odd column.",
+    "type": "style"
+  },
+  "every odd column": {
+    "signature": "/tikz/every odd column",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an odd column.",
+    "type": "style"
+  },
+  "/tikz/every even column": {
+    "signature": "/tikz/every even column",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an even column.",
+    "type": "style"
+  },
+  "every even column": {
+    "signature": "/tikz/every even column",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an even column.",
+    "type": "style"
+  },
+  "/tikz/every odd row": {
+    "signature": "/tikz/every odd row",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an odd row.",
+    "type": "style"
+  },
+  "every odd row": {
+    "signature": "/tikz/every odd row",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an odd row.",
+    "type": "style"
+  },
+  "/tikz/every even row": {
+    "signature": "/tikz/every even row",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an even row.",
+    "type": "style"
+  },
+  "every even row": {
+    "signature": "/tikz/every even row",
+    "default": "style, no value",
+    "description": "This style is used for every cell in an even row.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/every cell": {
+    "signature": "/tikz/matrix/inner style/every cell",
+    "default": "style, no value",
+    "description": "Wraps /tikz/every cell.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/column": {
+    "signature": "/tikz/matrix/inner style/column",
+    "default": "style, no value",
+    "description": "Wraps /tikz/column ⟨number⟩.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/even odd column": {
+    "signature": "/tikz/matrix/inner style/even odd column",
+    "default": "style, no value",
+    "description": "Wraps /tikz/every even column and /tikz/every odd column.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/row": {
+    "signature": "/tikz/matrix/inner style/row",
+    "default": "style, no value",
+    "description": "Wraps /tikz/row ⟨number⟩.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/even odd row": {
+    "signature": "/tikz/matrix/inner style/even odd row",
+    "default": "style, no value",
+    "description": "Wraps /tikz/every even row and /tikz/every odd row.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style/cell": {
+    "signature": "/tikz/matrix/inner style/cell",
+    "default": "style, no value",
+    "description": "Wraps /tikz/row ⟨number⟩ column ⟨number⟩.",
+    "type": "style"
+  },
+  "/tikz/matrix/inner style order": {
+    "signature": "/tikz/matrix/inner style order",
+    "default": "style, no value",
+    "description": "The order in which these styles are applied to the matrix cells is specified by this key. By default it is",
+    "type": "style"
+  },
+  "inner style order": {
+    "signature": "/tikz/matrix/inner style order",
+    "default": "style, no value",
+    "description": "The order in which these styles are applied to the matrix cells is specified by this key. By default it is",
+    "type": "style"
+  },
+  "/tikz/execute at begin cell": {
+    "signature": "/tikz/execute at begin cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed at the beginning of each nonempty cell.",
+    "type": "key"
+  },
+  "execute at begin cell": {
+    "signature": "/tikz/execute at begin cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed at the beginning of each nonempty cell.",
+    "type": "key"
+  },
+  "/tikz/execute at end cell": {
+    "signature": "/tikz/execute at end cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed at the end of each nonempty cell.",
+    "type": "key"
+  },
+  "execute at end cell": {
+    "signature": "/tikz/execute at end cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed at the end of each nonempty cell.",
+    "type": "key"
+  },
+  "/tikz/execute at empty cell": {
+    "signature": "/tikz/execute at empty cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed inside each empty cell.",
+    "type": "key"
+  },
+  "execute at empty cell": {
+    "signature": "/tikz/execute at empty cell=⟨code⟩",
+    "default": "no default",
+    "description": "The code will be executed inside each empty cell.",
+    "type": "key"
+  },
+  "/tikz/matrix anchor": {
+    "signature": "/tikz/matrix anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "This option has the same effect as anchor, but the option applies only to the matrix itself, not to the cells inside. If you just say anchor=north as an option to the matrix node, all nodes inside matrix will also have this anchor, unless it is explicitly set differently for each node. By comparison, matrix anchor sets the anchor for the matrix, but for the nodes inside the value of anchor remain unchanged.",
+    "type": "key"
+  },
+  "matrix anchor": {
+    "signature": "/tikz/matrix anchor=⟨anchor⟩",
+    "default": "no default",
+    "description": "This option has the same effect as anchor, but the option applies only to the matrix itself, not to the cells inside. If you just say anchor=north as an option to the matrix node, all nodes inside matrix will also have this anchor, unless it is explicitly set differently for each node. By comparison, matrix anchor sets the anchor for the matrix, but for the nodes inside the value of anchor remain unchanged.",
+    "type": "key"
+  },
+  "/tikz/ampersand replacement": {
+    "signature": "/tikz/ampersand replacement=⟨macro name or empty⟩",
+    "default": "no default",
+    "description": "If a macro name is provided, this macro will be defined to be equal to \\pgfmatrixnextcell inside matrices and & will not be made active. For instance, you could say ampersand replacement=\\& and then use \\& to separate columns as in the following example:",
+    "type": "key"
+  },
+  "ampersand replacement": {
+    "signature": "/tikz/ampersand replacement=⟨macro name or empty⟩",
+    "default": "no default",
+    "description": "If a macro name is provided, this macro will be defined to be equal to \\pgfmatrixnextcell inside matrices and & will not be made active. For instance, you could say ampersand replacement=\\& and then use \\& to separate columns as in the following example:",
+    "type": "key"
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "decorations": {
+    "signature": "TikZ Library decorations",
+    "default": "",
+    "description": "\\usetikzlibrary{decorations} % LaTeX and plain TeX \\usetikzlibrary[decorations] % ConTeXt In order to use decorations, you first have to load a decorations library. This decorations library defines the basic options described in the following, but it does not define any new decorations. This is done by libraries like decorations.text. Since these more specialized libraries include the decorations library automatically, you usually do not have to bother about it.\n\nThe most general way to decorate a (sub)path is the following path command.",
+    "type": "key"
+  },
+  "decorate": {
+    "signature": "\\path … decorate[⟨options⟩]{⟨subpath⟩} …;",
+    "default": "",
+    "description": "This path operation causes the ⟨subpath⟩ to be decorated using the current decoration. Depending on the decoration, this may or may not extend the current path.",
+    "type": "key"
+  },
+  "/pgf/decoration": {
+    "signature": "/pgf/decoration=⟨decoration options⟩",
+    "default": "no default",
+    "description": "This option is used to specify which decoration is used and how it will look like. Note that this key will not cause any decorations to be applied, immediately. It takes the decorate path command or the decorate option to actually decorate a path. The decoration option is only used to specify which decoration should be used, in principle. You can also use this option at the beginning of a picture or a scope to specify the decoration to be used with each invocation of the decorate path command. Naturally, any local options of the decorate path command override these “global” options.",
+    "type": "key"
+  },
+  "decoration": {
+    "signature": "/pgf/decoration=⟨decoration options⟩",
+    "default": "no default",
+    "description": "This option is used to specify which decoration is used and how it will look like. Note that this key will not cause any decorations to be applied, immediately. It takes the decorate path command or the decorate option to actually decorate a path. The decoration option is only used to specify which decoration should be used, in principle. You can also use this option at the beginning of a picture or a scope to specify the decoration to be used with each invocation of the decorate path command. Naturally, any local options of the decorate path command override these “global” options.",
+    "type": "key"
+  },
+  "/tikz/decoration": {
+    "signature": "",
+    "default": "",
+    "description": "\\usetikzlibrary { decorations.pathmorphing, decorations.shapes, } \\begin{ tikzpicture}[ decoration=zigzag] \\draw decorate {(0,0) -- (3,2)}; \\draw [red] decorate [ decoration=crosses] {(0,2) -- (3,0)}; \\end{ tikzpicture}\n\nThe ⟨decoration options⟩ are special options (which have the path prefix /pgf/decoration/) that determine the properties of the decoration. Which options are appropriate for a decoration strongly depend on the decoration, you will have to look up the appropriate options in the documentation of the decoration, see Section 50.",
+    "type": "key"
+  },
+  "/pgf/decoration/name": {
+    "signature": "/pgf/decoration/name=⟨name⟩",
+    "default": "no default, initially none",
+    "description": "Use this key to set which decoration is to be used. The ⟨name⟩ can both be a decoration or a meta-decoration (you need to worry about the difference only if you wish to define your own decorations).\n\nIf you set ⟨name⟩ to none, no decorations are added.",
+    "type": "key"
+  },
+  "/tikz/decorate": {
+    "signature": "/tikz/decorate=⟨boolean⟩",
+    "default": "default true",
+    "description": "When this key is set, the whole path is decorated after it has been finished. The decoration used for decorating the path is set via the decoration way, in exactly the same way as for the decorate path command. Indeed, the following two commands have the same effect:\n\n1. \\path decorate[⟨options⟩] {⟨path⟩};",
+    "type": "key"
+  },
+  "/pgf/decoration/raise": {
+    "signature": "/pgf/decoration/raise=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "The segments of the decoration are raised by ⟨dimension⟩ relative to the to-be-decorated path. More precisely, the segments of the path are offset by this much “to the left” of the path as we travel along the path. This raising is done after and in addition to any transformations set using the transform option (see below).\n\nA negative ⟨dimension⟩ will offset the decoration “to the right” of the to-be-decorated path.",
+    "type": "key"
+  },
+  "raise": {
+    "signature": "/pgf/decoration/raise=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "The segments of the decoration are raised by ⟨dimension⟩ relative to the to-be-decorated path. More precisely, the segments of the path are offset by this much “to the left” of the path as we travel along the path. This raising is done after and in addition to any transformations set using the transform option (see below).\n\nA negative ⟨dimension⟩ will offset the decoration “to the right” of the to-be-decorated path.",
+    "type": "key"
+  },
+  "/pgf/decoration/mirror": {
+    "signature": "/pgf/decoration/mirror=⟨boolean⟩",
+    "default": "no default",
+    "description": "Causes the segments of the decoration to be mirrored along the to-be-decorated path. This is done after and in addition to any transformations set using the transform and/or raise options.",
+    "type": "key"
+  },
+  "mirror": {
+    "signature": "/pgf/decoration/mirror=⟨boolean⟩",
+    "default": "no default",
+    "description": "Causes the segments of the decoration to be mirrored along the to-be-decorated path. This is done after and in addition to any transformations set using the transform and/or raise options.",
+    "type": "key"
+  },
+  "/pgf/decoration/transform": {
+    "signature": "/pgf/decoration/transform=⟨transformations⟩",
+    "default": "no default",
+    "description": "This key allows you to specify general ⟨transformations⟩ to be applied to the segments of a decoration. These transformations are applied before and independently of raise and mirror transformations. The ⟨transformations⟩ should be normal TikZ transformations like shift or rotate.\n\nIn the following example the shift only transformation is used to make sure that the crosses are not sloped along the path.",
+    "type": "key"
+  },
+  "transform": {
+    "signature": "/pgf/decoration/transform=⟨transformations⟩",
+    "default": "no default",
+    "description": "This key allows you to specify general ⟨transformations⟩ to be applied to the segments of a decoration. These transformations are applied before and independently of raise and mirror transformations. The ⟨transformations⟩ should be normal TikZ transformations like shift or rotate.\n\nIn the following example the shift only transformation is used to make sure that the crosses are not sloped along the path.",
+    "type": "key"
+  },
+  "/pgf/decoration/pre": {
+    "signature": "/pgf/decoration/pre=⟨decoration⟩",
+    "default": "no default, initially lineto",
+    "description": "This key sets a decoration that should be used before the main decoration starts. The ⟨decoration⟩ will be used for a length of pre length, which 0pt by default. Thus, for the pre option to have any effect, you also need to set the pre length option.",
+    "type": "key"
+  },
+  "pre": {
+    "signature": "/pgf/decoration/pre=⟨decoration⟩",
+    "default": "no default, initially lineto",
+    "description": "This key sets a decoration that should be used before the main decoration starts. The ⟨decoration⟩ will be used for a length of pre length, which 0pt by default. Thus, for the pre option to have any effect, you also need to set the pre length option.",
+    "type": "key"
+  },
+  "/pgf/decoration/pre length": {
+    "signature": "/pgf/decoration/pre length=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "This key sets the distance along which the pre-decoration should be used. If you do not need/wish a pre-decoration, set this key to 0pt (exactly this string, not just to something that evaluates to the same things such as 0cm).",
+    "type": "key"
+  },
+  "pre length": {
+    "signature": "/pgf/decoration/pre length=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "This key sets the distance along which the pre-decoration should be used. If you do not need/wish a pre-decoration, set this key to 0pt (exactly this string, not just to something that evaluates to the same things such as 0cm).",
+    "type": "key"
+  },
+  "/pgf/decorations/post": {
+    "signature": "/pgf/decorations/post=⟨decoration⟩",
+    "default": "no default, initially lineto",
+    "description": "Works like pre, only for the end of the decoration.",
+    "type": "key"
+  },
+  "post": {
+    "signature": "/pgf/decorations/post=⟨decoration⟩",
+    "default": "no default, initially lineto",
+    "description": "Works like pre, only for the end of the decoration.",
+    "type": "key"
+  },
+  "/pgf/decorations/post length": {
+    "signature": "/pgf/decorations/post length=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "Works like pre length, only for the end of the decoration.\n\nHere is a typical example that shows how these keys can be used:",
+    "type": "key"
+  },
+  "post length": {
+    "signature": "/pgf/decorations/post length=⟨dimension⟩",
+    "default": "no default, initially 0pt",
+    "description": "Works like pre length, only for the end of the decoration.\n\nHere is a typical example that shows how these keys can be used:",
+    "type": "key"
+  }
+}

@@ -1,0 +1,488 @@
+{
+  "--plot": {
+    "signature": "\\path … --plot⟨further arguments⟩ …;",
+    "default": "",
+    "description": "This operation plots the curve through the coordinates specified in the ⟨further arguments⟩. The current (sub)path is simply continued, that is, a line-to operation to the first point of the curve is implicitly added. The details of the ⟨further arguments⟩ will be explained in a moment.",
+    "type": "key"
+  },
+  "plot": {
+    "signature": "\\path … plot⟨further arguments⟩ …;",
+    "default": "",
+    "description": "This operation plots the curve through the coordinates specified in the ⟨further arguments⟩ by first “moving” to the first coordinate of the curve.\n\nThe ⟨further arguments⟩ are used in different ways to specifying the coordinates of the points to be plotted:",
+    "type": "key"
+  },
+  "/tikz/variable": {
+    "signature": "/tikz/variable=⟨macro⟩",
+    "default": "no default, initially \\x",
+    "description": "Sets the macro whose value is set to the different values when ⟨coordinate expression⟩ is evaluated.",
+    "type": "key"
+  },
+  "variable": {
+    "signature": "/tikz/variable=⟨macro⟩",
+    "default": "no default, initially \\x",
+    "description": "Sets the macro whose value is set to the different values when ⟨coordinate expression⟩ is evaluated.",
+    "type": "key"
+  },
+  "/tikz/samples": {
+    "signature": "/tikz/samples=⟨number⟩",
+    "default": "no default, initially 25",
+    "description": "Sets the number of samples used in the plot.",
+    "type": "key"
+  },
+  "samples": {
+    "signature": "/tikz/samples=⟨number⟩",
+    "default": "no default, initially 25",
+    "description": "Sets the number of samples used in the plot.",
+    "type": "key"
+  },
+  "/tikz/domain": {
+    "signature": "/tikz/domain=⟨start⟩:⟨end⟩ (no default, initially -5:5)",
+    "default": "",
+    "description": "Sets the domain from which the samples are taken.",
+    "type": "key"
+  },
+  "domain": {
+    "signature": "/tikz/domain=⟨start⟩:⟨end⟩ (no default, initially -5:5)",
+    "default": "",
+    "description": "Sets the domain from which the samples are taken.",
+    "type": "key"
+  },
+  "/tikz/samples at": {
+    "signature": "/tikz/samples at=⟨sample list⟩",
+    "default": "no default",
+    "description": "This option specifies a list of positions for which the variable should be evaluated. For instance, you can say samples at={1,2,8,9,10} to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the \\foreach syntax, so you can use ... inside the ⟨sample list⟩.\n\nWhen this option is used, the samples and domain option are overruled. The other way round, setting either samples or domain will overrule this option.",
+    "type": "key"
+  },
+  "samples at": {
+    "signature": "/tikz/samples at=⟨sample list⟩",
+    "default": "no default",
+    "description": "This option specifies a list of positions for which the variable should be evaluated. For instance, you can say samples at={1,2,8,9,10} to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the \\foreach syntax, so you can use ... inside the ⟨sample list⟩.\n\nWhen this option is used, the samples and domain option are overruled. The other way round, setting either samples or domain will overrule this option.",
+    "type": "key"
+  },
+  "/tikz/parametric": {
+    "signature": "/tikz/parametric=⟨boolean⟩",
+    "default": "default true",
+    "description": "Sets whether the plot is a parametric plot. If true, then t must be used instead of x as the parameter and two comma-separated functions must be given in the ⟨gnuplot formula⟩. An example is the following:",
+    "type": "key"
+  },
+  "parametric": {
+    "signature": "/tikz/parametric=⟨boolean⟩",
+    "default": "default true",
+    "description": "Sets whether the plot is a parametric plot. If true, then t must be used instead of x as the parameter and two comma-separated functions must be given in the ⟨gnuplot formula⟩. An example is the following:",
+    "type": "key"
+  },
+  "/tikz/range": {
+    "signature": "/tikz/range=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "This key sets the range of the plot. If set, all points whose \\(y\\)-coordinates lie outside this range will be considered to be outliers and will cause jumps in the plot, by default:",
+    "type": "key"
+  },
+  "range": {
+    "signature": "/tikz/range=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "This key sets the range of the plot. If set, all points whose \\(y\\)-coordinates lie outside this range will be considered to be outliers and will cause jumps in the plot, by default:",
+    "type": "key"
+  },
+  "/tikz/yrange": {
+    "signature": "/tikz/yrange=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "Same as range.",
+    "type": "key"
+  },
+  "yrange": {
+    "signature": "/tikz/yrange=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "Same as range.",
+    "type": "key"
+  },
+  "/tikz/xrange": {
+    "signature": "/tikz/xrange=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "Set the \\(x\\)-range. This makes sense only for parametric plots.",
+    "type": "key"
+  },
+  "xrange": {
+    "signature": "/tikz/xrange=⟨start⟩:⟨end⟩(no default)",
+    "default": "",
+    "description": "Set the \\(x\\)-range. This makes sense only for parametric plots.",
+    "type": "key"
+  },
+  "/tikz/id": {
+    "signature": "/tikz/id=⟨id⟩",
+    "default": "no default",
+    "description": "Sets the identifier of the current plot. This should be a unique identifier for each plot (though things will also work if it is not, but not as well, see the explanations above). The ⟨id⟩ will be part of a filename, so it should not contain anything fancy like * or $.",
+    "type": "key"
+  },
+  "/tikz/prefix": {
+    "signature": "/tikz/prefix=⟨prefix⟩",
+    "default": "no default",
+    "description": "The ⟨prefix⟩ is put before each plot file name. The default is \\jobname., but if you have many plots, it might be better to use, say plots/ and have all plots placed in a directory. You have to create the directory yourself.",
+    "type": "key"
+  },
+  "prefix": {
+    "signature": "/tikz/prefix=⟨prefix⟩",
+    "default": "no default",
+    "description": "The ⟨prefix⟩ is put before each plot file name. The default is \\jobname., but if you have many plots, it might be better to use, say plots/ and have all plots placed in a directory. You have to create the directory yourself.",
+    "type": "key"
+  },
+  "/tikz/raw gnuplot": {
+    "signature": "/tikz/raw gnuplot",
+    "default": "no value",
+    "description": "This key causes the ⟨gnuplot formula⟩ to be passed on to gnuplot without setting up the samples or the plot operation. Thus, you could write",
+    "type": "key"
+  },
+  "raw gnuplot": {
+    "signature": "/tikz/raw gnuplot",
+    "default": "no value",
+    "description": "This key causes the ⟨gnuplot formula⟩ to be passed on to gnuplot without setting up the samples or the plot operation. Thus, you could write",
+    "type": "key"
+  },
+  "/tikz/every plot": {
+    "signature": "/tikz/every plot",
+    "default": "style, initially empty",
+    "description": "This style is installed in each plot, that is, as if you always said",
+    "type": "style"
+  },
+  "every plot": {
+    "signature": "/tikz/every plot",
+    "default": "style, initially empty",
+    "description": "This style is installed in each plot, that is, as if you always said",
+    "type": "style"
+  },
+  "/tikz/mark": {
+    "signature": "/tikz/mark=⟨mark mnemonic⟩",
+    "default": "no default",
+    "description": "Sets the mark to a mnemonic that has previously been defined using the \\pgfdeclareplotmark. By default, *, +, and x are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library plotmarks is loaded. Section 65.6 lists the available plot marks.\n\nOne plot mark is special: the ball plot mark is available only in TikZ. The ball color option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript.",
+    "type": "key"
+  },
+  "mark": {
+    "signature": "/tikz/mark=⟨mark mnemonic⟩",
+    "default": "no default",
+    "description": "Sets the mark to a mnemonic that has previously been defined using the \\pgfdeclareplotmark. By default, *, +, and x are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library plotmarks is loaded. Section 65.6 lists the available plot marks.\n\nOne plot mark is special: the ball plot mark is available only in TikZ. The ball color option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript.",
+    "type": "key"
+  },
+  "/tikz/mark repeat": {
+    "signature": "/tikz/mark repeat=⟨r⟩",
+    "default": "no default",
+    "description": "This option tells TikZ that only every \\(r\\)th mark should be drawn.",
+    "type": "key"
+  },
+  "mark repeat": {
+    "signature": "/tikz/mark repeat=⟨r⟩",
+    "default": "no default",
+    "description": "This option tells TikZ that only every \\(r\\)th mark should be drawn.",
+    "type": "key"
+  },
+  "/tikz/mark phase": {
+    "signature": "/tikz/mark phase=⟨p⟩",
+    "default": "no default",
+    "description": "This option tells TikZ that the first mark to be draw should be the \\(p\\)th, followed by the \\((p+r)\\)th, then the \\((p+2r)\\)th, and so on.",
+    "type": "key"
+  },
+  "mark phase": {
+    "signature": "/tikz/mark phase=⟨p⟩",
+    "default": "no default",
+    "description": "This option tells TikZ that the first mark to be draw should be the \\(p\\)th, followed by the \\((p+r)\\)th, then the \\((p+2r)\\)th, and so on.",
+    "type": "key"
+  },
+  "/tikz/mark indices": {
+    "signature": "/tikz/mark indices=⟨list⟩",
+    "default": "no default",
+    "description": "This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the \\foreach syntax, that is, ... can be used.",
+    "type": "key"
+  },
+  "mark indices": {
+    "signature": "/tikz/mark indices=⟨list⟩",
+    "default": "no default",
+    "description": "This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the \\foreach syntax, that is, ... can be used.",
+    "type": "key"
+  },
+  "/tikz/mark size": {
+    "signature": "/tikz/mark size=⟨dimension⟩",
+    "default": "no default",
+    "description": "Sets the size of the plot marks. For circular plot marks, ⟨dimension⟩ is the radius, for other plot marks ⟨dimension⟩ should be about half the width and height.\n\nThis option is not really necessary, since you achieve the same effect by specifying scale=⟨factor⟩ as a local option, where ⟨factor⟩ is the quotient of the desired size and the default size. However, using mark size is a bit faster and more natural.",
+    "type": "key"
+  },
+  "mark size": {
+    "signature": "/tikz/mark size=⟨dimension⟩",
+    "default": "no default",
+    "description": "Sets the size of the plot marks. For circular plot marks, ⟨dimension⟩ is the radius, for other plot marks ⟨dimension⟩ should be about half the width and height.\n\nThis option is not really necessary, since you achieve the same effect by specifying scale=⟨factor⟩ as a local option, where ⟨factor⟩ is the quotient of the desired size and the default size. However, using mark size is a bit faster and more natural.",
+    "type": "key"
+  },
+  "/tikz/every mark": {
+    "signature": "/tikz/every mark",
+    "default": "style, no value",
+    "description": "This style is installed before drawing plot marks. For example, you can scale (or otherwise transform) the plot mark or set its color.",
+    "type": "style"
+  },
+  "every mark": {
+    "signature": "/tikz/every mark",
+    "default": "style, no value",
+    "description": "This style is installed before drawing plot marks. For example, you can scale (or otherwise transform) the plot mark or set its color.",
+    "type": "style"
+  },
+  "/tikz/mark options": {
+    "signature": "/tikz/mark options=⟨options⟩",
+    "default": "no default",
+    "description": "Redefines every mark such that it sets {⟨options⟩}.",
+    "type": "key"
+  },
+  "mark options": {
+    "signature": "/tikz/mark options=⟨options⟩",
+    "default": "no default",
+    "description": "Redefines every mark such that it sets {⟨options⟩}.",
+    "type": "key"
+  },
+  "/tikz/no marks": {
+    "signature": "/tikz/no marks",
+    "default": "style, no value",
+    "description": "Disables markers (the same as mark=none).",
+    "type": "style"
+  },
+  "no marks": {
+    "signature": "/tikz/no marks",
+    "default": "style, no value",
+    "description": "Disables markers (the same as mark=none).",
+    "type": "style"
+  },
+  "/tikz/no markers": {
+    "signature": "/tikz/no markers",
+    "default": "style, no value",
+    "description": "Disables markers (the same as mark=none).\n\nThere are different things the plot operation can do with the points it reads from a file or from the inlined list of points. By default, it will connect these points by straight lines. However, you can also use options to change the behavior of plot.",
+    "type": "style"
+  },
+  "no markers": {
+    "signature": "/tikz/no markers",
+    "default": "style, no value",
+    "description": "Disables markers (the same as mark=none).\n\nThere are different things the plot operation can do with the points it reads from a file or from the inlined list of points. By default, it will connect these points by straight lines. However, you can also use options to change the behavior of plot.",
+    "type": "style"
+  },
+  "/tikz/sharp plot": {
+    "signature": "/tikz/sharp plot",
+    "default": "no value",
+    "description": "This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, smooth.",
+    "type": "key"
+  },
+  "sharp plot": {
+    "signature": "/tikz/sharp plot",
+    "default": "no value",
+    "description": "This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, smooth.",
+    "type": "key"
+  },
+  "/tikz/smooth": {
+    "signature": "/tikz/smooth",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using a smooth curve:",
+    "type": "key"
+  },
+  "smooth": {
+    "signature": "/tikz/smooth",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using a smooth curve:",
+    "type": "key"
+  },
+  "/tikz/tension": {
+    "signature": "/tikz/tension=⟨value⟩",
+    "default": "no default",
+    "description": "This option influences how “tight” the smoothing is. A lower value will result in sharper corners, a higher value in more “round” curves. A value of \\(1\\) results in a circle if four points at quarter-positions on a circle are given. The default is \\(0.55\\). The “correct” value depends on the details of plot.",
+    "type": "key"
+  },
+  "tension": {
+    "signature": "/tikz/tension=⟨value⟩",
+    "default": "no default",
+    "description": "This option influences how “tight” the smoothing is. A lower value will result in sharper corners, a higher value in more “round” curves. A value of \\(1\\) results in a circle if four points at quarter-positions on a circle are given. The default is \\(0.55\\). The “correct” value depends on the details of plot.",
+    "type": "key"
+  },
+  "/tikz/smooth cycle": {
+    "signature": "/tikz/smooth cycle",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using a closed smooth curve.",
+    "type": "key"
+  },
+  "smooth cycle": {
+    "signature": "/tikz/smooth cycle",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using a closed smooth curve.",
+    "type": "key"
+  },
+  "/tikz/const plot": {
+    "signature": "/tikz/const plot",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using piecewise constant series of lines:",
+    "type": "key"
+  },
+  "const plot": {
+    "signature": "/tikz/const plot",
+    "default": "no value",
+    "description": "This option causes the points on the path to be connected using piecewise constant series of lines:",
+    "type": "key"
+  },
+  "/tikz/const plot mark left": {
+    "signature": "/tikz/const plot mark left",
+    "default": "no value",
+    "description": "Just an alias for /tikz/const plot.",
+    "type": "key"
+  },
+  "const plot mark left": {
+    "signature": "/tikz/const plot mark left",
+    "default": "no value",
+    "description": "Just an alias for /tikz/const plot.",
+    "type": "key"
+  },
+  "/tikz/const plot mark right": {
+    "signature": "/tikz/const plot mark right",
+    "default": "no value",
+    "description": "A variant of /tikz/const plot which places its mark on the right ends:",
+    "type": "key"
+  },
+  "const plot mark right": {
+    "signature": "/tikz/const plot mark right",
+    "default": "no value",
+    "description": "A variant of /tikz/const plot which places its mark on the right ends:",
+    "type": "key"
+  },
+  "/tikz/const plot mark mid": {
+    "signature": "/tikz/const plot mark mid",
+    "default": "no value",
+    "description": "A variant of /tikz/const plot which places its mark in the middle of the horizontal lines:",
+    "type": "key"
+  },
+  "const plot mark mid": {
+    "signature": "/tikz/const plot mark mid",
+    "default": "no value",
+    "description": "A variant of /tikz/const plot which places its mark in the middle of the horizontal lines:",
+    "type": "key"
+  },
+  "/tikz/jump mark left": {
+    "signature": "/tikz/jump mark left",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed on left open ends:",
+    "type": "key"
+  },
+  "jump mark left": {
+    "signature": "/tikz/jump mark left",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed on left open ends:",
+    "type": "key"
+  },
+  "/tikz/jump mark right": {
+    "signature": "/tikz/jump mark right",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed on right open ends:",
+    "type": "key"
+  },
+  "jump mark right": {
+    "signature": "/tikz/jump mark right",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed on right open ends:",
+    "type": "key"
+  },
+  "/tikz/jump mark mid": {
+    "signature": "/tikz/jump mark mid",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed in the middle of the horizontal line segments:",
+    "type": "key"
+  },
+  "jump mark mid": {
+    "signature": "/tikz/jump mark mid",
+    "default": "no value",
+    "description": "This option causes the points on the path to be drawn using piecewise constant, non-connected series of lines. If there are any marks, they will be placed in the middle of the horizontal line segments:",
+    "type": "key"
+  },
+  "/tikz/ycomb": {
+    "signature": "/tikz/ycomb",
+    "default": "no value",
+    "description": "This option causes the plot operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”.",
+    "type": "key"
+  },
+  "ycomb": {
+    "signature": "/tikz/ycomb",
+    "default": "no value",
+    "description": "This option causes the plot operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”.",
+    "type": "key"
+  },
+  "/tikz/xcomb": {
+    "signature": "/tikz/xcomb",
+    "default": "no value",
+    "description": "This option works like ycomb except that the bars are horizontal.",
+    "type": "key"
+  },
+  "xcomb": {
+    "signature": "/tikz/xcomb",
+    "default": "no value",
+    "description": "This option works like ycomb except that the bars are horizontal.",
+    "type": "key"
+  },
+  "/tikz/polar comb": {
+    "signature": "/tikz/polar comb",
+    "default": "no value",
+    "description": "This option causes a line from the origin to the point to be added to the path for each plot point.",
+    "type": "key"
+  },
+  "polar comb": {
+    "signature": "/tikz/polar comb",
+    "default": "no value",
+    "description": "This option causes a line from the origin to the point to be added to the path for each plot point.",
+    "type": "key"
+  },
+  "/tikz/ybar": {
+    "signature": "/tikz/ybar",
+    "default": "no value",
+    "description": "This option produces fillable bar plots. It is thus very similar to ycomb, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style.",
+    "type": "key"
+  },
+  "ybar": {
+    "signature": "/tikz/ybar",
+    "default": "no value",
+    "description": "This option produces fillable bar plots. It is thus very similar to ycomb, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style.",
+    "type": "key"
+  },
+  "/tikz/xbar": {
+    "signature": "/tikz/xbar",
+    "default": "no value",
+    "description": "This option works like ybar except that the bars are horizontal.",
+    "type": "key"
+  },
+  "xbar": {
+    "signature": "/tikz/xbar",
+    "default": "no value",
+    "description": "This option works like ybar except that the bars are horizontal.",
+    "type": "key"
+  },
+  "/tikz/ybar interval": {
+    "signature": "/tikz/ybar interval",
+    "default": "no value",
+    "description": "As /tikz/ybar, this options produces vertical bars. However, bars are centered at coordinate intervals instead of interval edges, and the bar’s width is also determined relatively to the interval’s length:",
+    "type": "key"
+  },
+  "ybar interval": {
+    "signature": "/tikz/ybar interval",
+    "default": "no value",
+    "description": "As /tikz/ybar, this options produces vertical bars. However, bars are centered at coordinate intervals instead of interval edges, and the bar’s width is also determined relatively to the interval’s length:",
+    "type": "key"
+  },
+  "/tikz/xbar interval": {
+    "signature": "/tikz/xbar interval",
+    "default": "no value",
+    "description": "Works like ybar interval, but for horizontal bar plots.",
+    "type": "key"
+  },
+  "xbar interval": {
+    "signature": "/tikz/xbar interval",
+    "default": "no value",
+    "description": "Works like ybar interval, but for horizontal bar plots.",
+    "type": "key"
+  },
+  "/tikz/only marks": {
+    "signature": "/tikz/only marks",
+    "default": "no value",
+    "description": "This option causes only marks to be shown; no path segments are added to the actual path. This can be useful for quickly adding some marks to a path.",
+    "type": "key"
+  },
+  "only marks": {
+    "signature": "/tikz/only marks",
+    "default": "no value",
+    "description": "This option causes only marks to be shown; no path segments are added to the actual path. This can be useful for quickly adding some marks to a path.",
+    "type": "key"
+  }
+}

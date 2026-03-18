@@ -1,0 +1,782 @@
+{
+  "/pgf/decoration/amplitude": {
+    "signature": "/pgf/decoration/amplitude=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of 2.5pt means that deforming decorations should deform a path by up to 2.5pt away from the original path.\n\nThis key sets the TeX-dimension \\pgfdecorationsegmentamplitude.",
+    "type": "key"
+  },
+  "amplitude": {
+    "signature": "/pgf/decoration/amplitude=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of 2.5pt means that deforming decorations should deform a path by up to 2.5pt away from the original path.\n\nThis key sets the TeX-dimension \\pgfdecorationsegmentamplitude.",
+    "type": "key"
+  },
+  "/pgf/decoration/meta-amplitude": {
+    "signature": "/pgf/decoration/meta-amplitude=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "This key determines the amplitude for a meta-decoration.\n\nThe key sets the TeX-macro (!) \\pgfmetadecorationsegmentamplitude.",
+    "type": "key"
+  },
+  "meta-amplitude": {
+    "signature": "/pgf/decoration/meta-amplitude=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "This key determines the amplitude for a meta-decoration.\n\nThe key sets the TeX-macro (!) \\pgfmetadecorationsegmentamplitude.",
+    "type": "key"
+  },
+  "/pgf/decoration/segment length": {
+    "signature": "/pgf/decoration/segment length=⟨dimension⟩",
+    "default": "no default, initially 10pt",
+    "description": "Many decorations are made up of small segments. This key determines the desired length of such segments.\n\nThis key sets the TeX-dimension \\pgfdecorationsegmentlength.",
+    "type": "key"
+  },
+  "segment length": {
+    "signature": "/pgf/decoration/segment length=⟨dimension⟩",
+    "default": "no default, initially 10pt",
+    "description": "Many decorations are made up of small segments. This key determines the desired length of such segments.\n\nThis key sets the TeX-dimension \\pgfdecorationsegmentlength.",
+    "type": "key"
+  },
+  "/pgf/decoration/meta-segment length": {
+    "signature": "/pgf/decoration/meta-segment length=⟨dimension⟩",
+    "default": "no default, initially 1cm",
+    "description": "This determined the length of the meta-segments from which a meta-decoration is made up.\n\nThis key sets the TeX-macro (!) \\pgfmetadecorationsegmentlength.",
+    "type": "key"
+  },
+  "meta-segment length": {
+    "signature": "/pgf/decoration/meta-segment length=⟨dimension⟩",
+    "default": "no default, initially 1cm",
+    "description": "This determined the length of the meta-segments from which a meta-decoration is made up.\n\nThis key sets the TeX-macro (!) \\pgfmetadecorationsegmentlength.",
+    "type": "key"
+  },
+  "/pgf/decoration/angle": {
+    "signature": "/pgf/decoration/angle=⟨degree⟩",
+    "default": "no default, initially 45",
+    "description": "The way some decorations look like depends on a configurable angle. For instance, a wave decoration consists of arcs and the opening angle of these arcs is given by the angle.\n\nThis key sets the TeX-macro \\pgfdecorationsegmentangle.",
+    "type": "key"
+  },
+  "/pgf/decoration/aspect": {
+    "signature": "/pgf/decoration/aspect=⟨factor⟩",
+    "default": "no default, initially 0.5",
+    "description": "For some decorations there is a natural aspect ratio. For instance, for a brace decoration the aspect ratio determines where the brace point will be.\n\nThis key sets the TeX-macro \\pgfdecorationsegmentaspect.",
+    "type": "key"
+  },
+  "aspect": {
+    "signature": "/pgf/decoration/aspect=⟨factor⟩",
+    "default": "no default, initially 0.5",
+    "description": "For some decorations there is a natural aspect ratio. For instance, for a brace decoration the aspect ratio determines where the brace point will be.\n\nThis key sets the TeX-macro \\pgfdecorationsegmentaspect.",
+    "type": "key"
+  },
+  "/pgf/decoration/start radius": {
+    "signature": "/pgf/decoration/start radius=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "For some decorations there is a natural start radius (of some circle, presumably).\n\nThis key stores the value directly inside the key.",
+    "type": "key"
+  },
+  "start radius": {
+    "signature": "/pgf/decoration/start radius=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "For some decorations there is a natural start radius (of some circle, presumably).\n\nThis key stores the value directly inside the key.",
+    "type": "key"
+  },
+  "/pgf/decoration/end radius": {
+    "signature": "/pgf/decoration/end radius=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "For some decorations there is a natural end radius (of some circle, presumably).\n\nThis key stores the value directly inside the key.",
+    "type": "key"
+  },
+  "end radius": {
+    "signature": "/pgf/decoration/end radius=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "For some decorations there is a natural end radius (of some circle, presumably).\n\nThis key stores the value directly inside the key.",
+    "type": "key"
+  },
+  "/pgf/decoration/radius": {
+    "signature": "/pgf/decoration/radius=⟨dimension⟩",
+    "default": "style, no default",
+    "description": "Sets the start and end radius simultaneously.",
+    "type": "style"
+  },
+  "/pgf/decoration/path has corners": {
+    "signature": "/pgf/decoration/path has corners=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to true may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to true will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if \\ifpgfdecoratepathhascorners.\n\nIn case you should run into a “Dimension too large error” when using the decorations libraries, there is a pretty high chance that you can resolve this by using the fpu library in combination with /pgf/fpu/install only={reciprocal}. Please note that this key should only be applied locally to avoid other errors (see also at the definition of this key in section 56.2).",
+    "type": "key"
+  },
+  "path has corners": {
+    "signature": "/pgf/decoration/path has corners=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to true may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to true will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if \\ifpgfdecoratepathhascorners.\n\nIn case you should run into a “Dimension too large error” when using the decorations libraries, there is a pretty high chance that you can resolve this by using the fpu library in combination with /pgf/fpu/install only={reciprocal}. Please note that this key should only be applied locally to avoid other errors (see also at the definition of this key in section 56.2).",
+    "type": "key"
+  },
+  "decorations.pathmorphing": {
+    "signature": "TikZ Library decorations.pathmorphing",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.pathmorphing} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.pathmorphing] % ConTeXt and pure pgf \\usetikzlibrary{decorations.pathmorphing} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.pathmorphing] % ConTeXt when using TikZ A path morphing decoration “morphs” or “deforms” the to-be-decorated path. This means that what used to be a straight line might afterwards be a snaking curve and have bumps. However, a line is still a line and path deforming decorations do not change the number of subpaths. For instance, if the path used to consist of two circles and an open arc, the path will, after the decoration process, still consist of two closed subpaths and one open subpath.\n\nThe following deformations use only straight lines in order to morph the paths.",
+    "type": "key"
+  },
+  "decorations.pathreplacing": {
+    "signature": "TikZ Library decorations.pathreplacing",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.pathreplacing} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.pathreplacing] % ConTeXt and pure pgf \\usetikzlibrary{decorations.pathreplacing} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.pathreplacing] % ConTeXt when using TikZ This library defines decorations that replace the to-be-decorated path by another path. Unlike morphing decorations, the replaced path might be quite different, for instance a straight line might be replaced by a set of circles. Note that filling a path that has been replaced using one of the decorations in this library typically does not fill the original area but, rather, the smaller area of the newly-created path segments.",
+    "type": "key"
+  },
+  "/pgf/decoration/moveto code": {
+    "signature": "/pgf/decoration/moveto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every moveto input segment. It is important to remember that the transformations applied by the decoration automaton are turned off when ⟨code⟩ is executed.",
+    "type": "key"
+  },
+  "moveto code": {
+    "signature": "/pgf/decoration/moveto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every moveto input segment. It is important to remember that the transformations applied by the decoration automaton are turned off when ⟨code⟩ is executed.",
+    "type": "key"
+  },
+  "/pgf/decoration/lineto code": {
+    "signature": "/pgf/decoration/lineto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every lineto input segment.",
+    "type": "key"
+  },
+  "lineto code": {
+    "signature": "/pgf/decoration/lineto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every lineto input segment.",
+    "type": "key"
+  },
+  "/pgf/decoration/curveto code": {
+    "signature": "/pgf/decoration/curveto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every curveto input segment.",
+    "type": "key"
+  },
+  "curveto code": {
+    "signature": "/pgf/decoration/curveto code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every curveto input segment.",
+    "type": "key"
+  },
+  "/pgf/decoration/closepath code": {
+    "signature": "/pgf/decoration/closepath code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every closepath input segment.\n\nWithin ⟨code⟩ the first and last points on the current input segment can be accessed using \\pgfpointdecoratedinputsegmentfirst and \\pgfpointdecoratedinputsegmentlast. For curves, the control (support) points can be accessed using \\pgfpointdecoratedinputsegmentsupporta and \\pgfpointdecoratedinputsegmentsupportb.",
+    "type": "key"
+  },
+  "closepath code": {
+    "signature": "/pgf/decoration/closepath code=⟨code⟩",
+    "default": "no default, initially {}",
+    "description": "Set the code to be executed for every closepath input segment.\n\nWithin ⟨code⟩ the first and last points on the current input segment can be accessed using \\pgfpointdecoratedinputsegmentfirst and \\pgfpointdecoratedinputsegmentlast. For curves, the control (support) points can be accessed using \\pgfpointdecoratedinputsegmentsupporta and \\pgfpointdecoratedinputsegmentsupportb.",
+    "type": "key"
+  },
+  "\\tikzinputsegmentfirst": {
+    "signature": "\\tikzinputsegmentfirst",
+    "default": "",
+    "description": "The first point on the current input segment path.",
+    "type": "command"
+  },
+  "\\tikzinputsegmentlast": {
+    "signature": "\\tikzinputsegmentlast",
+    "default": "",
+    "description": "The last point on the current input segment path.",
+    "type": "command"
+  },
+  "\\tikzinputsegmentsupporta": {
+    "signature": "\\tikzinputsegmentsupporta",
+    "default": "",
+    "description": "The first support on the curveto input segment path.",
+    "type": "command"
+  },
+  "\\tikzinputsegmentsupportb": {
+    "signature": "\\tikzinputsegmentsupportb",
+    "default": "",
+    "description": "The second support on the curveto input segment path.",
+    "type": "command"
+  },
+  "decorations.markings": {
+    "signature": "TikZ Library decorations.markings",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.markings} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.markings] % ConTeXt and pure pgf \\usetikzlibrary{decorations.markings} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.markings] % ConTeXt when using TikZ Markings are arbitrary “marks” that can be put on a path. Marks can be arrow tips or nodes or even whole pictures.",
+    "type": "key"
+  },
+  "/pgf/decoration/mark": {
+    "signature": "/pgf/decoration/mark=at position ⟨pos⟩ with ⟨code⟩",
+    "default": "no default",
+    "description": "The options specifies that when a marking decoration is applied, there should be a marking at position ⟨pos⟩ on the path whose code is given by ⟨code⟩.\n\nThe ⟨pos⟩ can have four different forms:",
+    "type": "key"
+  },
+  "/pgf/decoration/mark info/sequence number": {
+    "signature": "/pgf/decoration/mark info/sequence number",
+    "default": "no value",
+    "description": "This key can only be read. Its value (which can be obtained using the \\pgfkeysvalueof command) is a “sequence number” of the mark. The first mark that is added to a path has number 1, the second number 2, and so on. This key is mainly useful in conjunction with repeated markings (see below).",
+    "type": "key"
+  },
+  "/pgf/decoration/mark info/distance from start": {
+    "signature": "/pgf/decoration/mark info/distance from start",
+    "default": "no value",
+    "description": "This key can only be read. Its value is the distance of the marking from the start of the path in points. For instance, if the path length is 100pt and the marking is in the middle of the path, the value of this key would be 50.0pt.\n\nA second way to use the mark key is the following:",
+    "type": "key"
+  },
+  "/pgf/decoration/reset marks": {
+    "signature": "/pgf/decoration/reset marks",
+    "default": "no value",
+    "description": "Since mark options accumulate, there needs to be a way to “reset” things, so that any mark options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨code⟩ of a marking is executed, the markings are automatically reset.\n\nAs mentioned earlier, the decoration usually destroys the path. However, this is no longer the case when the following key is set:",
+    "type": "key"
+  },
+  "reset marks": {
+    "signature": "/pgf/decoration/reset marks",
+    "default": "no value",
+    "description": "Since mark options accumulate, there needs to be a way to “reset” things, so that any mark options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨code⟩ of a marking is executed, the markings are automatically reset.\n\nAs mentioned earlier, the decoration usually destroys the path. However, this is no longer the case when the following key is set:",
+    "type": "key"
+  },
+  "/pgf/decoration/mark connection node": {
+    "signature": "/pgf/decoration/mark connection node=⟨node name⟩",
+    "default": "no default, initially empty",
+    "description": "When this key is set to a non-empty ⟨node name⟩ while the decoration is being processed, the following happens: The marking code should, among possibly other things, define a node named ⟨node name⟩. Then, the output path of this decoration will contain a line-to to “one end” of this node, followed by a moveto to the “other end” of the node. More precisely, the first end is given by the position on the border of ⟨node name⟩ that lies in the direction “from which the path heads toward the node” while the other end lies on the border “where the path heads away from the node”. Furthermore, this option causes the decoration to end with a line-to to the end instead of a move-to.\n\nThe net effect of all this is that when you decorate a straight line with one or more markings that contain just a node, the line will effectively connect these nodes.",
+    "type": "key"
+  },
+  "mark connection node": {
+    "signature": "/pgf/decoration/mark connection node=⟨node name⟩",
+    "default": "no default, initially empty",
+    "description": "When this key is set to a non-empty ⟨node name⟩ while the decoration is being processed, the following happens: The marking code should, among possibly other things, define a node named ⟨node name⟩. Then, the output path of this decoration will contain a line-to to “one end” of this node, followed by a moveto to the “other end” of the node. More precisely, the first end is given by the position on the border of ⟨node name⟩ that lies in the direction “from which the path heads toward the node” while the other end lies on the border “where the path heads away from the node”. Furthermore, this option causes the decoration to end with a line-to to the end instead of a move-to.\n\nThe net effect of all this is that when you decorate a straight line with one or more markings that contain just a node, the line will effectively connect these nodes.",
+    "type": "key"
+  },
+  "\\arrow": {
+    "signature": "\\arrow[⟨options⟩]{⟨arrow end tip⟩}",
+    "default": "",
+    "description": "This command simply draws the ⟨arrow end tip⟩ at the origin, pointing right. This is exactly what you need when you want to draw an arrow tip as a marking.\n\nThe ⟨options⟩ can only be given when TikZ is used. In this case, they are executed in a scope that contains the arrow tip.",
+    "type": "command"
+  },
+  "\\arrowreversed": {
+    "signature": "\\arrowreversed[⟨options⟩]{⟨arrow end tip⟩}",
+    "default": "",
+    "description": "As above, only the arrow end tip is flipped and points in the other direction.",
+    "type": "command"
+  },
+  "decorations.footprints": {
+    "signature": "TikZ Library decorations.footprints",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.footprints} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.footprints] % ConTeXt and pure pgf \\usetikzlibrary{decorations.footprints} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.footprints] % ConTeXt when using TikZ The decorations of this library can be used to decorate a path with little footprints, as if someone had “walked” along the path.",
+    "type": "key"
+  },
+  "/pgf/decoration/foot length": {
+    "signature": "/pgf/decoration/foot length",
+    "default": "initially 10pt",
+    "description": "The length or size of the footprint itself. A larger value makes the footprint larger, but does not change the stride length.",
+    "type": "key"
+  },
+  "foot length": {
+    "signature": "/pgf/decoration/foot length",
+    "default": "initially 10pt",
+    "description": "The length or size of the footprint itself. A larger value makes the footprint larger, but does not change the stride length.",
+    "type": "key"
+  },
+  "/pgf/decoration/stride length": {
+    "signature": "/pgf/decoration/stride length",
+    "default": "initially 30pt",
+    "description": "The length of strides. This is the distance between the beginnings of left footprints along the path.",
+    "type": "key"
+  },
+  "stride length": {
+    "signature": "/pgf/decoration/stride length",
+    "default": "initially 30pt",
+    "description": "The length of strides. This is the distance between the beginnings of left footprints along the path.",
+    "type": "key"
+  },
+  "/pgf/decoration/foot sep": {
+    "signature": "/pgf/decoration/foot sep",
+    "default": "initially 4pt",
+    "description": "The separation in the middle between the footprints. The footprints are moved away from the path by half this amount.",
+    "type": "key"
+  },
+  "foot sep": {
+    "signature": "/pgf/decoration/foot sep",
+    "default": "initially 4pt",
+    "description": "The separation in the middle between the footprints. The footprints are moved away from the path by half this amount.",
+    "type": "key"
+  },
+  "/pgf/decoration/foot angle": {
+    "signature": "/pgf/decoration/foot angle",
+    "default": "initially 10",
+    "description": "Footprints are rotated by this much.",
+    "type": "key"
+  },
+  "foot angle": {
+    "signature": "/pgf/decoration/foot angle",
+    "default": "initially 10",
+    "description": "Footprints are rotated by this much.",
+    "type": "key"
+  },
+  "/pgf/decoration/foot of": {
+    "signature": "/pgf/decoration/foot of",
+    "default": "initially human",
+    "description": "The species whose footprints are shown. Possible values are:\n\nThe third library for adding markings uses the background paths of certain shapes. This library is included mostly for historical reasons, using the markings library is usually preferable.",
+    "type": "key"
+  },
+  "foot of": {
+    "signature": "/pgf/decoration/foot of",
+    "default": "initially human",
+    "description": "The species whose footprints are shown. Possible values are:\n\nThe third library for adding markings uses the background paths of certain shapes. This library is included mostly for historical reasons, using the markings library is usually preferable.",
+    "type": "key"
+  },
+  "decorations.shapes": {
+    "signature": "TikZ Library decorations.shapes",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.shapes} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.shapes] % ConTeXt and pure pgf \\usetikzlibrary{decorations.shapes} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.shapes] % ConTeXt when using TikZ This library defines decorations that use shapes or shape-like drawings to decorate a path. The following options are common options used by the decorations in this library:",
+    "type": "key"
+  },
+  "/pgf/decoration/shape width": {
+    "signature": "/pgf/decoration/shape width=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like shape start width).",
+    "type": "key"
+  },
+  "shape width": {
+    "signature": "/pgf/decoration/shape width=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like shape start width).",
+    "type": "key"
+  },
+  "/pgf/decoration/shape height": {
+    "signature": "/pgf/decoration/shape height=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "Works like the previous key, only for the height.",
+    "type": "key"
+  },
+  "shape height": {
+    "signature": "/pgf/decoration/shape height=⟨dimension⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "Works like the previous key, only for the height.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape size": {
+    "signature": "/pgf/decoration/shape size=⟨dimension⟩",
+    "default": "no default",
+    "description": "Sets the desired width and height simultaneously.\n\nFor the exact places and macros where these keys store the values, please consult the beginning of the code of the library.",
+    "type": "key"
+  },
+  "shape size": {
+    "signature": "/pgf/decoration/shape size=⟨dimension⟩",
+    "default": "no default",
+    "description": "Sets the desired width and height simultaneously.\n\nFor the exact places and macros where these keys store the values, please consult the beginning of the code of the library.",
+    "type": "key"
+  },
+  "/pgf/decoration/anchor": {
+    "signature": "/pgf/decoration/anchor=⟨anchor⟩",
+    "default": "no default, initially center",
+    "description": "The anchor used to position the shape backgrounds.\n\nA shape background path is added at the start point of the path and, if the distance between the shapes is appropriate, at the end point of the path.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape": {
+    "signature": "/pgf/decoration/shape=⟨shape name⟩",
+    "default": "no default, initially circle",
+    "description": "The shape whose background path is used.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape sep": {
+    "signature": "/pgf/decoration/shape sep=⟨spacing⟩",
+    "default": "no default, initially .25cm, between centers",
+    "description": "Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords between centers, and between borders (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the boundaries of the shape borders.",
+    "type": "key"
+  },
+  "shape sep": {
+    "signature": "/pgf/decoration/shape sep=⟨spacing⟩",
+    "default": "no default, initially .25cm, between centers",
+    "description": "Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords between centers, and between borders (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the boundaries of the shape borders.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape evenly spread": {
+    "signature": "/pgf/decoration/shape evenly spread=⟨number⟩",
+    "default": "no default",
+    "description": "This key overrides the shape sep key and forces the decoration to fit ⟨number⟩ shapes evenly across the path. If ⟨number⟩ is less than 1, then no shapes will be used. If ⟨number⟩ equals 1, then one shape is put in the middle of the path. The additional keywords by centers (the default, if no keyword is specified) and by borders can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time.",
+    "type": "key"
+  },
+  "shape evenly spread": {
+    "signature": "/pgf/decoration/shape evenly spread=⟨number⟩",
+    "default": "no default",
+    "description": "This key overrides the shape sep key and forces the decoration to fit ⟨number⟩ shapes evenly across the path. If ⟨number⟩ is less than 1, then no shapes will be used. If ⟨number⟩ equals 1, then one shape is put in the middle of the path. The additional keywords by centers (the default, if no keyword is specified) and by borders can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape sloped": {
+    "signature": "/pgf/decoration/shape sloped=⟨boolean⟩",
+    "default": "no default, initially true",
+    "description": "By default, shapes are rotated to the slope of the decorations path. If ⟨boolean⟩ is the value false, then this rotation is turned off. Internally this sets the TeX-if \\ifpgfshapedecorationsloped accordingly.",
+    "type": "key"
+  },
+  "shape sloped": {
+    "signature": "/pgf/decoration/shape sloped=⟨boolean⟩",
+    "default": "no default, initially true",
+    "description": "By default, shapes are rotated to the slope of the decorations path. If ⟨boolean⟩ is the value false, then this rotation is turned off. Internally this sets the TeX-if \\ifpgfshapedecorationsloped accordingly.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape scaled": {
+    "signature": "/pgf/decoration/shape scaled=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "",
+    "type": "key"
+  },
+  "shape scaled": {
+    "signature": "/pgf/decoration/shape scaled=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "",
+    "type": "key"
+  },
+  "/pgf/decoration/shape start width": {
+    "signature": "/pgf/decoration/shape start width=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The starting width of the shape.",
+    "type": "key"
+  },
+  "shape start width": {
+    "signature": "/pgf/decoration/shape start width=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The starting width of the shape.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape start height": {
+    "signature": "/pgf/decoration/shape start height=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The starting height of the shape.",
+    "type": "key"
+  },
+  "shape start height": {
+    "signature": "/pgf/decoration/shape start height=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The starting height of the shape.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape start size": {
+    "signature": "/pgf/decoration/shape start size=⟨length⟩",
+    "default": "style, no default",
+    "description": "Sets both the start height and start width simultaneously.",
+    "type": "style"
+  },
+  "shape start size": {
+    "signature": "/pgf/decoration/shape start size=⟨length⟩",
+    "default": "style, no default",
+    "description": "Sets both the start height and start width simultaneously.",
+    "type": "style"
+  },
+  "/pgf/decoration/shape end width": {
+    "signature": "/pgf/decoration/shape end width=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The recommended ending width of the shape. Note that this is the width that a shape will take only if it is drawn exactly at the end of the path.",
+    "type": "key"
+  },
+  "shape end width": {
+    "signature": "/pgf/decoration/shape end width=⟨length⟩",
+    "default": "no default, initially 2.5pt",
+    "description": "The recommended ending width of the shape. Note that this is the width that a shape will take only if it is drawn exactly at the end of the path.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape end height": {
+    "signature": "/pgf/decoration/shape end height=⟨length⟩",
+    "default": "no default",
+    "description": "The recommended ending height of the shape.",
+    "type": "key"
+  },
+  "shape end height": {
+    "signature": "/pgf/decoration/shape end height=⟨length⟩",
+    "default": "no default",
+    "description": "The recommended ending height of the shape.",
+    "type": "key"
+  },
+  "/pgf/decoration/shape end size": {
+    "signature": "/pgf/decoration/shape end size=⟨length⟩",
+    "default": "style, no default",
+    "description": "Set both the end height and end width simultaneously.",
+    "type": "style"
+  },
+  "shape end size": {
+    "signature": "/pgf/decoration/shape end size=⟨length⟩",
+    "default": "style, no default",
+    "description": "Set both the end height and end width simultaneously.",
+    "type": "style"
+  },
+  "decorations.text": {
+    "signature": "TikZ Library decorations.text",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.text} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.text] % ConTeXt and pure pgf \\usetikzlibrary{decorations.text} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.text] % ConTeXt when using TikZ The decoration in this library decorates the path with some text. This can be used to draw text that follows a curve.",
+    "type": "key"
+  },
+  "/pgf/decoration/text": {
+    "signature": "/pgf/decoration/text=⟨text⟩",
+    "default": "no default, initially empty",
+    "description": "Sets the text to typeset along the curve. Consecutive spaces are ignored, so \\ (or \\space in LaTeX) should be used to insert multiple spaces. It is possible to format the text using normal formatting commands, such as \\it, \\bf and \\color, within customizable delimiters. Initially these delimiters are both | (however, care will be needed regarding the category codes of delimiters – see below).",
+    "type": "key"
+  },
+  "/pgf/decoration/text format delimiters": {
+    "signature": "/pgf/decoration/text format delimiters={⟨before⟩}{⟨after⟩}",
+    "default": "no default, initially {|}{}",
+    "description": "Set the characters that the text decoration will use to parse formatting commands. If ⟨after⟩ is empty, then ⟨before⟩ will be used for both delimiters. In general you should stick to characters whose category codes are 11 or 12. As + is used to indicate that the specified format commands are added to any existing ones, you should avoid using + as a delimiter.",
+    "type": "key"
+  },
+  "text format delimiters": {
+    "signature": "/pgf/decoration/text format delimiters={⟨before⟩}{⟨after⟩}",
+    "default": "no default, initially {|}{}",
+    "description": "Set the characters that the text decoration will use to parse formatting commands. If ⟨after⟩ is empty, then ⟨before⟩ will be used for both delimiters. In general you should stick to characters whose category codes are 11 or 12. As + is used to indicate that the specified format commands are added to any existing ones, you should avoid using + as a delimiter.",
+    "type": "key"
+  },
+  "/pgf/decoration/text color": {
+    "signature": "/pgf/decoration/text color=⟨color⟩",
+    "default": "no default, initially black",
+    "description": "The color of the text.",
+    "type": "key"
+  },
+  "text color": {
+    "signature": "/pgf/decoration/text color=⟨color⟩",
+    "default": "no default, initially black",
+    "description": "The color of the text.",
+    "type": "key"
+  },
+  "/pgf/decoration/reverse path": {
+    "signature": "/pgf/decoration/reverse path=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This key reverses the path. This is especially useful for typesetting text along different sides of curves.",
+    "type": "key"
+  },
+  "reverse path": {
+    "signature": "/pgf/decoration/reverse path=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This key reverses the path. This is especially useful for typesetting text along different sides of curves.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align": {
+    "signature": "/pgf/decoration/text align={⟨alignment options⟩}",
+    "default": "no default",
+    "description": "This changes the key path to /pgf/decoration/text align and executes ⟨alignment options⟩.",
+    "type": "key"
+  },
+  "text align": {
+    "signature": "/pgf/decoration/text align={⟨alignment options⟩}",
+    "default": "no default",
+    "description": "This changes the key path to /pgf/decoration/text align and executes ⟨alignment options⟩.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align/align": {
+    "signature": "/pgf/decoration/text align/align=⟨alignment⟩",
+    "default": "no default, initially left",
+    "description": "Aligns the text according to ⟨alignment⟩, which should be one of left, right, or center.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align/left": {
+    "signature": "/pgf/decoration/text align/left",
+    "default": "style, no value",
+    "description": "Aligns the text to the left end of the path.",
+    "type": "style"
+  },
+  "/pgf/decoration/text align/right": {
+    "signature": "/pgf/decoration/text align/right",
+    "default": "style, no value",
+    "description": "Aligns the text to the right end of the path.",
+    "type": "style"
+  },
+  "/pgf/decoration/text align/center": {
+    "signature": "/pgf/decoration/text align/center",
+    "default": "style, no value",
+    "description": "Aligns the text to the center of the path.",
+    "type": "style"
+  },
+  "/pgf/decoration/text align/left indent": {
+    "signature": "/pgf/decoration/text align/left indent=⟨length⟩",
+    "default": "no default, initially 0pt",
+    "description": "Specifies a distance which the automaton should move along before it starts typesetting the text.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align/right indent": {
+    "signature": "/pgf/decoration/text align/right indent=⟨length⟩",
+    "default": "no default, initially 0pt",
+    "description": "Specifies a distance before the end of the path, where the automaton should stop typesetting the text.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align/fit to path": {
+    "signature": "/pgf/decoration/text align/fit to path=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This key makes the decoration automaton try to fit the text to the length of the path. The automaton shifts forward by a small amount between each character in order to fit the text to the path. If, however, the length of the text is longer than the length of the path (i.e., the automaton would have to shift backwards between characters) this key will have no effect.",
+    "type": "key"
+  },
+  "/pgf/decoration/text align/fit to path stretching spaces": {
+    "signature": "/pgf/decoration/text align/fit to path stretching spaces=⟨boolean⟩",
+    "default": "no default, initially false",
+    "description": "This key works like the previous key except the automaton shifts forward only for space characters (including \\space, but excluding \\ ).",
+    "type": "key"
+  },
+  "/tikz/text effects": {
+    "signature": "/tikz/text effects={⟨options⟩}",
+    "default": "no default",
+    "description": "Execute every option in {⟨options⟩} with the key path for each option temporarily set to /pgf/decoration/text effects/.\n\nThe following keys can be used to customise the appearance of text in the text effects along path decoration.",
+    "type": "key"
+  },
+  "text effects": {
+    "signature": "/tikz/text effects={⟨options⟩}",
+    "default": "no default",
+    "description": "Execute every option in {⟨options⟩} with the key path for each option temporarily set to /pgf/decoration/text effects/.\n\nThe following keys can be used to customise the appearance of text in the text effects along path decoration.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/every character": {
+    "signature": "/pgf/decoration/text effects/every character",
+    "default": "style, no value",
+    "description": "Set the effects that will be applied to every character in the decoration text. The effects will typically be TikZ node options. Initially, this style is empty so the decoration simply positions nodes at the appropriate position along the path. In order to make the text ‘follow the path’ like the text along path decoration the following key can be added to the every character style.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/text along path": {
+    "signature": "/pgf/decoration/text effects/text along path",
+    "default": "style, no value",
+    "description": "This style automatically sets the TikZ keys transform shape (to make the character slope with the path), anchor=baseline (to make the baseline of the characters ‘sit’ on the path) and inner xsep=0pt (to horizontally fit each node to the character it contains, reducing the spacing between characters).",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/characters": {
+    "signature": "/pgf/decoration/text effects/characters={⟨effects⟩}",
+    "default": "no default",
+    "description": "Shorthand for the every character.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/every letter": {
+    "signature": "/pgf/decoration/text effects/every letter",
+    "default": "style, no value",
+    "description": "Specify additional effects for every letter (i.e., every character that isn’t the word separator) in the decoration text.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/every first letter": {
+    "signature": "/pgf/decoration/text effects/every first letter",
+    "default": "style, no value",
+    "description": "Specify additional effects for the first letter in every word.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/every last letter": {
+    "signature": "/pgf/decoration/text effects/every last letter",
+    "default": "style, no value",
+    "description": "Specify additional effects for the last letter in every word.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/every word": {
+    "signature": "/pgf/decoration/text effects/every word",
+    "default": "style, no value",
+    "description": "Specify additional effects for every word in the decoration text.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/every word separator": {
+    "signature": "/pgf/decoration/text effects/every word separator",
+    "default": "style, no value",
+    "description": "Specify additional effects for every character that is a word separator.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/word separator": {
+    "signature": "/pgf/decoration/text effects/word separator=⟨character⟩",
+    "default": "no default, initially space",
+    "description": "Specify the character that is to be used as the word separator. This must be a single character such as a or - or the special value space (which should be used to indicate that spaces should be used as the separator).\n\nBy default, the width for each character is calculated according to the bounding box of the node in which it is contained. However, if the node is rotated or slanted, or has a substantial inner sep, this bounding box will be quite big. The following key enables different effects to be applied to the node that is used to calculate the width.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/every character width": {
+    "signature": "/pgf/decoration/text effects/every character width",
+    "default": "style, no value",
+    "description": "This style is applied to the (invisible) nodes used for calculating the width of a character node.",
+    "type": "style"
+  },
+  "/pgf/decoration/text effects/character widths": {
+    "signature": "/pgf/decoration/text effects/character widths={⟨effects⟩}",
+    "default": "no default",
+    "description": "Shorthand for the every character width style.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/character count": {
+    "signature": "/pgf/decoration/text effects/character count=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the number of the character being typeset in ⟨macro⟩.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/character total": {
+    "signature": "/pgf/decoration/text effects/character total=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the total number of the characters in the decoration text in ⟨macro⟩. This key can be used with the character count key to produce some quite pleasing effects:",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/letter count": {
+    "signature": "/pgf/decoration/text effects/letter count=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the number of letter being typeset (i.e., the position of the character in the word) in ⟨macro⟩. Numbering starts at 1 and the character acting as a word separator is numbered 0.",
+    "type": "key"
+  },
+  "/pgf/decoration/text/effetcs/letter total": {
+    "signature": "/pgf/decoration/text/effetcs/letter total=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the number of letters in the current word in ⟨macro⟩. When the character is the word separator, this value is 0.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/word count": {
+    "signature": "/pgf/decoration/text effects/word count=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the number of words in the decoration text in ⟨macro⟩. Numbering starts at 1. When the character is the word separator, ⟨macro⟩ takes the number of the previous word. If the decoration text starts with a word separator ⟨macro⟩ will be 0.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/word total": {
+    "signature": "/pgf/decoration/text effects/word total=⟨macro⟩",
+    "default": "no default",
+    "description": "Store the total number of words in the decoration text in ⟨macro⟩.\n\nIt is also possible to apply effects to specific characters such as coloring every instance of the character a, or changing the font of every T in the decoration text:",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/style characters": {
+    "signature": "/pgf/decoration/text effects/style characters={⟨characters⟩} with {⟨effects⟩}",
+    "default": "no default",
+    "description": "This key enables ⟨effects⟩ to be applied to every character in the decoration text that is specified in ⟨characters⟩.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/path from text": {
+    "signature": "/pgf/decoration/text effects/path from text={⟨true or false⟩}",
+    "default": "default true",
+    "description": "When this key is set to true and the decorated path consists only of a single point, the decoration will calculate the width of the decoration text using all the specified parameters as if the decorated path was actually a straight line starting from the given point. This ‘virtual’ straight line is then decorated with the text.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/path from text angle": {
+    "signature": "/pgf/decoration/text effects/path from text angle=⟨angle⟩",
+    "default": "no default",
+    "description": "When used in conjunction with the path from text key, the straight line that is used as the decorated path is rotated by ⟨angle⟩ around the starting point.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/fit text to path": {
+    "signature": "/pgf/decoration/text effects/fit text to path=⟨true or false⟩",
+    "default": "default true",
+    "description": "This key will make the decoration increase the space between characters so that the entire path is used by the decoration.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/scale text to path": {
+    "signature": "/pgf/decoration/text effects/scale text to path=⟨true or false⟩",
+    "default": "default true",
+    "description": "This key will make the decoration scale the text so that the entire path is used by the decoration.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/reverse text": {
+    "signature": "/pgf/decoration/text effects/reverse text",
+    "default": "no value",
+    "description": "Reverse the order of the characters in the decoration text. This may be useful if using ‘right-to-left‘ languages. Unfortunately, any leading ‘soft’ spaces in the original text will be lost.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/group letters": {
+    "signature": "/pgf/decoration/text effects/group letters",
+    "default": "no value",
+    "description": "Group sequences of letters together so they are treated as a single ‘character’.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/repeat text": {
+    "signature": "/pgf/decoration/text effects/repeat text=⟨times⟩",
+    "default": "no default",
+    "description": "Usually, when the decoration runs out of text, it simply stops. This key will make the decoration repeat the decoration text for the specified number of ⟨times⟩. If no value is given the text will be repeated until the path is finished. There are two points to remember however. Firstly the numbering of characters, letters and words will be restarted each time the text is repeated. Secondly, the options for alignment, scaling or fitting the text to the path, fitting the path to the text, and so on, are computed using the decoration text before the decoration starts. If any of these options are given the behavior of the repeat text key is undefined, but typically it will be ignored.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/character command": {
+    "signature": "/pgf/decoration/text effects/character command=⟨macro⟩",
+    "default": "no default",
+    "description": "This key specifies a command that is executed when each character is placed in the node. The ⟨macro⟩ should be an ordinary TeX macro which takes one argument. The argument will be a macro which when expanded will contain the current character.",
+    "type": "key"
+  },
+  "/pgf/decoration/text effects/replace characters": {
+    "signature": "/pgf/decoration/text effects/replace characters=⟨characters⟩ with {⟨code⟩}",
+    "default": "no default",
+    "description": "Replace the node for each character in ⟨characters⟩ with ⟨code⟩. The ⟨code⟩ can be thought of as describing a little picture or marking which will be used instead of the character node. The origin will be the current point along the decoration path. Any transformations associated with the ⟨characters⟩ (e.g., applied with the every character or every letter styles) will also be applied to ⟨code⟩.",
+    "type": "key"
+  },
+  "decorations.fractals": {
+    "signature": "TikZ Library decorations.fractals",
+    "default": "",
+    "description": "\\usepgflibrary{decorations.fractals} % LaTeX and plain TeX and pure pgf \\usepgflibrary[decorations.fractals] % ConTeXt and pure pgf \\usetikzlibrary{decorations.fractals} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[decorations.fractals] % ConTeXt when using TikZ The decorations of this library can be used to create fractal lines. To use them, you typically have to apply the decoration repeatedly to an originally straight path.",
+    "type": "key"
+  }
+}
