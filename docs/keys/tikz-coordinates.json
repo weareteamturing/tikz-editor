@@ -1,348 +1,348 @@
 {
   "canvas": {
-    "signature": "Coordinate system canvas",
+    "signature": "",
     "default": "",
     "description": "The simplest way of specifying a coordinate is to use the canvas coordinate system. You provide a dimension \\(d_x\\) using the x= option and another dimension \\(d_y\\) using the y= option. The position on the canvas is located at the position that is \\(d_x\\) to the right and \\(d_y\\) above the origin.",
     "type": "key"
   },
   "/tikz/cs/x": {
-    "signature": "/tikz/cs/x=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Distance by which the coordinate is to the right of the origin. You can also write things like 1cm+2pt since the mathematical engine is used to evaluate the ⟨dimension⟩.",
     "type": "key"
   },
   "x": {
-    "signature": "/tikz/cs/x=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Distance by which the coordinate is to the right of the origin. You can also write things like 1cm+2pt since the mathematical engine is used to evaluate the ⟨dimension⟩.",
     "type": "key"
   },
   "/tikz/cs/y": {
-    "signature": "/tikz/cs/y=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
-    "description": "Distance by which the coordinate is above the origin.",
+    "description": "Distance by which the coordinate is above the origin.\n\nTo specify a coordinate in the coordinate system implicitly, you use two dimensions that are separated by a comma as in (0cm,3pt) or (2cm,\\textheight).",
     "type": "key"
   },
   "y": {
-    "signature": "/tikz/cs/y=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
-    "description": "Distance by which the coordinate is above the origin.",
+    "description": "Distance by which the coordinate is above the origin.\n\nTo specify a coordinate in the coordinate system implicitly, you use two dimensions that are separated by a comma as in (0cm,3pt) or (2cm,\\textheight).",
     "type": "key"
   },
   "xyz": {
-    "signature": "Coordinate system xyz",
+    "signature": "",
     "default": "",
     "description": "The xyz coordinate system allows you to specify a point as a multiple of three vectors called the \\(x\\)-, \\(y\\)-, and \\(z\\)-vectors. By default, the \\(x\\)-vector points 1cm to the right, the \\(y\\)-vector points 1cm upwards, but this can be changed arbitrarily as explained in Section 25.2. The default \\(z\\)-vector points to (-3.85mm,-3.85mm).\n\nTo specify the factors by which the vectors should be multiplied before being added, you use the following three options:",
     "type": "key"
   },
   "/tikz/cs/z": {
-    "signature": "/tikz/cs/z=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "Works like x.",
+    "description": "Works like x.\n\nThis coordinate system can also be selected implicitly. To do so, you just provide two or three comma-separated factors (not dimensions).",
     "type": "key"
   },
   "z": {
-    "signature": "/tikz/cs/z=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "Works like x.",
+    "description": "Works like x.\n\nThis coordinate system can also be selected implicitly. To do so, you just provide two or three comma-separated factors (not dimensions).",
     "type": "key"
   },
   "canvas polar": {
-    "signature": "Coordinate system canvas polar",
+    "signature": "",
     "default": "",
     "description": "The canvas polar coordinate system allows you to specify polar coordinates. You provide an angle using the angle= option and a radius using the radius= option. This yields the point on the canvas that is at the given radius distance from the origin at the given degree. An angle of zero degrees to the right, a degree of 90 upward.",
     "type": "key"
   },
   "/tikz/cs/angle": {
-    "signature": "/tikz/cs/angle=⟨degrees⟩",
+    "signature": "",
     "default": "no default",
     "description": "The angle of the coordinate. The angle must always be given in degrees.",
     "type": "key"
   },
   "angle": {
-    "signature": "/tikz/cs/angle=⟨degrees⟩",
+    "signature": "",
     "default": "no default",
     "description": "The angle of the coordinate. The angle must always be given in degrees.",
     "type": "key"
   },
   "/tikz/cs/radius": {
-    "signature": "/tikz/cs/radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "The distance from the origin.",
     "type": "key"
   },
   "radius": {
-    "signature": "/tikz/cs/radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "The distance from the origin.",
     "type": "key"
   },
   "/tikz/cs/x radius": {
-    "signature": "/tikz/cs/x radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "A polar coordinate is, after all, just a point on a circle of the given ⟨radius⟩. When you provide an \\(x\\)-radius and also a \\(y\\)-radius, you specify an ellipse instead of a circle. The radius option has the same effect as specifying identical x radius and y radius options.",
     "type": "key"
   },
   "x radius": {
-    "signature": "/tikz/cs/x radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "A polar coordinate is, after all, just a point on a circle of the given ⟨radius⟩. When you provide an \\(x\\)-radius and also a \\(y\\)-radius, you specify an ellipse instead of a circle. The radius option has the same effect as specifying identical x radius and y radius options.",
     "type": "key"
   },
   "/tikz/cs/y radius": {
-    "signature": "/tikz/cs/y radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Works like x radius.",
+    "description": "Works like x radius.\n\nThe implicit form for canvas polar coordinates is the following: you specify the angle and the distance, separated by a colon as in (30:1cm).",
     "type": "key"
   },
   "y radius": {
-    "signature": "/tikz/cs/y radius=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Works like x radius.",
+    "description": "Works like x radius.\n\nThe implicit form for canvas polar coordinates is the following: you specify the angle and the distance, separated by a colon as in (30:1cm).",
     "type": "key"
   },
   "xyz polar": {
-    "signature": "Coordinate system xyz polar",
+    "signature": "",
     "default": "",
-    "description": "This coordinate system work similarly to the canvas polar system. However, the radius and the angle are interpreted in the \\(xy\\)-coordinate system, not in the canvas system. More detailed, consider the circle or ellipse whose half axes are given by the current \\(x\\)-vector and the current \\(y\\)-vector. Then, consider the point that lies at a given angle on this ellipse, where an angle of zero is the same as the \\(x\\)-vector and an angle of 90 is the \\(y\\)-vector. Finally, multiply the resulting vector by the given radius factor. Voilà.",
+    "description": "This coordinate system work similarly to the canvas polar system. However, the radius and the angle are interpreted in the \\(xy\\)-coordinate system, not in the canvas system. More detailed, consider the circle or ellipse whose half axes are given by the current \\(x\\)-vector and the current \\(y\\)-vector. Then, consider the point that lies at a given angle on this ellipse, where an angle of zero is the same as the \\(x\\)-vector and an angle of 90 is the \\(y\\)-vector. Finally, multiply the resulting vector by the given radius factor. Voil&agrave;.",
     "type": "key"
   },
   "xy polar": {
-    "signature": "Coordinate system xy polar",
+    "signature": "",
     "default": "",
-    "description": "This is just an alias for xyz polar, which some people might prefer as there is no z-coordinate involved in the xyz polar coordinates.\n\nIn the barycentric coordinate system a point is expressed as the linear combination of multiple vectors. The idea is that you specify vectors \\(v_1\\), \\(v_2\\), …, \\(v_n\\) and numbers \\(\\alpha _1\\), \\(\\alpha _2\\), …, \\(\\alpha _n\\). Then the barycentric coordinate specified by these vectors and numbers is",
+    "description": "This is just an alias for xyz polar, which some people might prefer as there is no z-coordinate involved in the xyz polar coordinates.\n\nIn the barycentric coordinate system a point is expressed as the linear combination of multiple vectors. The idea is that you specify vectors \\(v_1\\), \\(v_2\\), &hellip;, \\(v_n\\) and numbers \\(\\alpha _1\\), \\(\\alpha _2\\), &hellip;, \\(\\alpha _n\\). Then the barycentric coordinate specified by these vectors and numbers is",
     "type": "key"
   },
   "barycentric": {
-    "signature": "Coordinate system barycentric",
+    "signature": "",
     "default": "",
-    "description": "For this coordinate system, the ⟨coordinate specification⟩ should be a comma-separated list of expressions of the form ⟨node name⟩=⟨number⟩. Note that (currently) the list should not contain any spaces before or after the ⟨node name⟩ (unlike normal key–value pairs).\n\nThe specified coordinate is now computed as follows: Each pair provides one vector and a number. The vector is the center anchor of the ⟨node name⟩. The number is the ⟨number⟩. Note that (currently) you cannot specify a different anchor, so that in order to use, say, the north anchor of a node you first have to create a new coordinate at this north anchor. (Using for instance \\coordinate(mynorth) at (mynode.north);.)",
+    "description": "For this coordinate system, the ⟨coordinate specification⟩ should be a comma-separated list of expressions of the form ⟨node name⟩=⟨number⟩. Note that (currently) the list should not contain any spaces before or after the ⟨node name⟩ (unlike normal key&ndash;value pairs).\n\nThe specified coordinate is now computed as follows: Each pair provides one vector and a number. The vector is the center anchor of the ⟨node name⟩. The number is the ⟨number⟩. Note that (currently) you cannot specify a different anchor, so that in order to use, say, the north anchor of a node you first have to create a new coordinate at this north anchor. (Using for instance \\coordinate(mynorth) at (mynode.north);.)",
     "type": "key"
   },
   "node": {
-    "signature": "Coordinate system node",
+    "signature": "",
     "default": "",
     "description": "This coordinate system is used to reference a specific point inside or on the border of a previously defined node. It can be used in different ways, so let us go over them one by one.\n\nYou can use three options to specify which coordinate you mean:",
     "type": "key"
   },
   "/tikz/cs/name": {
-    "signature": "/tikz/cs/name=⟨node name⟩",
+    "signature": "",
     "default": "no default",
     "description": "Specifies the node that you wish to use to specify a coordinate. The ⟨node name⟩ is the name that was previously used to name the node using the name=⟨node name⟩ option or the special node name syntax.",
     "type": "key"
   },
   "/tikz/anchor": {
-    "signature": "/tikz/anchor=⟨anchor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Specifies an anchor of the node. Here is an example:",
     "type": "key"
   },
   "anchor": {
-    "signature": "/tikz/anchor=⟨anchor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Specifies an anchor of the node. Here is an example:",
     "type": "key"
   },
   "tangent": {
-    "signature": "Coordinate system tangent",
+    "signature": "",
     "default": "",
-    "description": "This coordinate system, which is available only when the TikZ library calc is loaded, allows you to compute the point that lies tangent to a shape. In detail, consider a ⟨node⟩ and a ⟨point⟩. Now, draw a straight line from the ⟨point⟩ so that it “touches” the ⟨node⟩ (more formally, so that it is tangent to this ⟨node⟩). The point where the line touches the shape is the point referred to by the tangent coordinate system.\n\nThe following options may be given:",
+    "description": "This coordinate system, which is available only when the TikZ library calc is loaded, allows you to compute the point that lies tangent to a shape. In detail, consider a ⟨node⟩ and a ⟨point⟩. Now, draw a straight line from the ⟨point⟩ so that it &ldquo;touches&rdquo; the ⟨node⟩ (more formally, so that it is tangent to this ⟨node⟩). The point where the line touches the shape is the point referred to by the tangent coordinate system.\n\nThe following options may be given:",
     "type": "key"
   },
   "/tikz/cs/node": {
-    "signature": "/tikz/cs/node=⟨node⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key specifies the node on whose border the tangent should lie.",
     "type": "key"
   },
   "/tikz/cs/point": {
-    "signature": "/tikz/cs/point=⟨point⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key specifies the point through which the tangent should go.",
     "type": "key"
   },
   "point": {
-    "signature": "/tikz/cs/point=⟨point⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key specifies the point through which the tangent should go.",
     "type": "key"
   },
   "/tikz/cs/solution": {
-    "signature": "/tikz/cs/solution=⟨number⟩",
+    "signature": "",
     "default": "no default",
     "description": "Specifies which solution should be used if there are more than one.\n\nA special algorithm is needed in order to compute the tangent for a given shape. Currently, tangents can be computed for nodes whose shape is one of the following:",
     "type": "key"
   },
   "solution": {
-    "signature": "/tikz/cs/solution=⟨number⟩",
+    "signature": "",
     "default": "no default",
     "description": "Specifies which solution should be used if there are more than one.\n\nA special algorithm is needed in order to compute the tangent for a given shape. Currently, tangents can be computed for nodes whose shape is one of the following:",
     "type": "key"
   },
   "\\tikzdeclarecoordinatesystem": {
-    "signature": "\\tikzdeclarecoordinatesystem{⟨name⟩}{⟨code⟩}",
+    "signature": "",
     "default": "",
     "description": "This command declares a new coordinate system named ⟨name⟩ that can later on be used by writing (⟨name⟩ cs:⟨arguments⟩). When TikZ encounters a coordinate specified in this way, the ⟨arguments⟩ are passed to ⟨code⟩ as argument #1.\n\nIt is now the job of ⟨code⟩ to make sense of the ⟨arguments⟩. At the end of ⟨code⟩, the two TeX dimensions \\pgf@x and \\pgf@y should be have the \\(x\\)- and \\(y\\)-canvas coordinate of the coordinate.",
     "type": "command"
   },
   "\\tikzaliascoordinatesystem": {
-    "signature": "\\tikzaliascoordinatesystem{⟨new name⟩}{⟨old name⟩}",
+    "signature": "",
     "default": "",
     "description": "Creates an alias of ⟨old name⟩.\n\nYou will wish to compute the intersection of two paths. For the special and frequent case of two perpendicular lines, a special coordinate system called perpendicular is available. For more general cases, the intersections library can be used.",
     "type": "command"
   },
   "perpendicular": {
-    "signature": "Coordinate system perpendicular",
+    "signature": "",
     "default": "",
     "description": "You can specify the two lines using the following keys:",
     "type": "key"
   },
   "/tikz/cs/horizontal line through": {
-    "signature": "/tikz/cs/horizontal line through={(⟨coordinate⟩)}",
+    "signature": "",
     "default": "no default",
     "description": "Specifies that one line is a horizontal line that goes through the given coordinate.",
     "type": "key"
   },
   "horizontal line through": {
-    "signature": "/tikz/cs/horizontal line through={(⟨coordinate⟩)}",
+    "signature": "",
     "default": "no default",
     "description": "Specifies that one line is a horizontal line that goes through the given coordinate.",
     "type": "key"
   },
   "/tikz/cs/vertical line through": {
-    "signature": "/tikz/cs/vertical line through={(⟨coordinate⟩)}",
+    "signature": "",
     "default": "no default",
     "description": "Specifies that the other line is vertical and goes through the given coordinate.\n\nHowever, in almost all cases you should, instead, use the implicit syntax. Here, you write (⟨p⟩ |- ⟨q⟩) or (⟨q⟩ -| ⟨p⟩).",
     "type": "key"
   },
   "vertical line through": {
-    "signature": "/tikz/cs/vertical line through={(⟨coordinate⟩)}",
+    "signature": "",
     "default": "no default",
     "description": "Specifies that the other line is vertical and goes through the given coordinate.\n\nHowever, in almost all cases you should, instead, use the implicit syntax. Here, you write (⟨p⟩ |- ⟨q⟩) or (⟨q⟩ -| ⟨p⟩).",
     "type": "key"
   },
   "intersections": {
-    "signature": "TikZ Library intersections",
+    "signature": "",
     "default": "",
-    "description": "\\usetikzlibrary{intersections} % LaTeX and plain TeX \\usetikzlibrary[intersections] % ConTeXt This library enables the calculation of intersections of two arbitrary paths. However, due to the low accuracy of TeX, the paths should not be “too complicated”. In particular, you should not try to intersect paths consisting of lots of very small segments such as plots or decorated paths.\n\nTo find the intersections of two paths in TikZ, they must be “named”. A “named path” is, quite simply, a path that has been named using the following key (note that this is a different key from the name key, which only attaches a hyperlink target to a path, but does not store the path in a way that is useful for the intersection computation):",
+    "description": "\\usetikzlibrary{intersections} % LaTeX and plain TeX \\usetikzlibrary[intersections] % ConTeXt This library enables the calculation of intersections of two arbitrary paths. However, due to the low accuracy of TeX, the paths should not be &ldquo;too complicated&rdquo;. In particular, you should not try to intersect paths consisting of lots of very small segments such as plots or decorated paths.\n\nTo find the intersections of two paths in TikZ, they must be &ldquo;named&rdquo;. A &ldquo;named path&rdquo; is, quite simply, a path that has been named using the following key (note that this is a different key from the name key, which only attaches a hyperlink target to a path, but does not store the path in a way that is useful for the intersection computation):",
     "type": "key"
   },
   "/tikz/name path": {
-    "signature": "/tikz/name path=⟨name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "/tikz/name path global=⟨name⟩(no default)\n\nThe effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.",
+    "description": "/tikz/name path global=⟨name⟩(no default) &para;\n\nThe effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.",
     "type": "key"
   },
   "name path": {
-    "signature": "/tikz/name path=⟨name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "/tikz/name path global=⟨name⟩(no default)\n\nThe effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.",
+    "description": "/tikz/name path global=⟨name⟩(no default) &para;\n\nThe effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.",
     "type": "key"
   },
   "/tikz/name path global": {
-    "signature": "/tikz/name path global=⟨name⟩",
+    "signature": "",
     "default": "no default",
     "description": "The effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.\n\nAny paths created by nodes on the (main) path are ignored, unless this key is explicitly used. If the same ⟨name⟩ is used for the main path and the node path(s), then the paths will be added together and then associated with ⟨name⟩.",
     "type": "key"
   },
   "name path global": {
-    "signature": "/tikz/name path global=⟨name⟩",
+    "signature": "",
     "default": "no default",
     "description": "The effect of this key is that, after the path has been constructed, just before it is used, it is associated with ⟨name⟩. For name path, this association survives beyond the final semi-colon of the path but not the end of the surrounding scope. For name path global, the association will survive beyond any scope as well. Handle with care.\n\nAny paths created by nodes on the (main) path are ignored, unless this key is explicitly used. If the same ⟨name⟩ is used for the main path and the node path(s), then the paths will be added together and then associated with ⟨name⟩.",
     "type": "key"
   },
   "/tikz/name intersections": {
-    "signature": "/tikz/name intersections={⟨options⟩}",
+    "signature": "",
     "default": "no default",
-    "description": "This key changes the key path to /tikz/intersection and processes ⟨options⟩. These options determine, among other things, which paths to use for the intersection. Having processed the options, any intersections are then found. A coordinate is created at each intersection, which by default, will be named intersection-1, intersection-2, and so on. Optionally, the prefix intersection can be changed, and the total number of intersections stored in a TeX-macro.",
+    "description": "This key changes the key path to /tikz/intersection and processes ⟨options⟩. These options determine, among other things, which paths to use for the intersection. Having processed the options, any intersections are then found. A coordinate is created at each intersection, which by default, will be named intersection-1, intersection-2, and so on. Optionally, the prefix intersection can be changed, and the total number of intersections stored in a TeX-macro.\n\nThe following keys can be used in ⟨options⟩:",
     "type": "key"
   },
   "name intersections": {
-    "signature": "/tikz/name intersections={⟨options⟩}",
+    "signature": "",
     "default": "no default",
-    "description": "This key changes the key path to /tikz/intersection and processes ⟨options⟩. These options determine, among other things, which paths to use for the intersection. Having processed the options, any intersections are then found. A coordinate is created at each intersection, which by default, will be named intersection-1, intersection-2, and so on. Optionally, the prefix intersection can be changed, and the total number of intersections stored in a TeX-macro.",
+    "description": "This key changes the key path to /tikz/intersection and processes ⟨options⟩. These options determine, among other things, which paths to use for the intersection. Having processed the options, any intersections are then found. A coordinate is created at each intersection, which by default, will be named intersection-1, intersection-2, and so on. Optionally, the prefix intersection can be changed, and the total number of intersections stored in a TeX-macro.\n\nThe following keys can be used in ⟨options⟩:",
     "type": "key"
   },
   "/tikz/intersection/of": {
-    "signature": "/tikz/intersection/of=⟨name path 1⟩ and ⟨name path 2⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key is used to specify the names of the paths to use for the intersection.",
     "type": "key"
   },
   "of": {
-    "signature": "/tikz/intersection/of=⟨name path 1⟩ and ⟨name path 2⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key is used to specify the names of the paths to use for the intersection.",
     "type": "key"
   },
   "/tikz/intersection/name": {
-    "signature": "/tikz/intersection/name=⟨prefix⟩",
+    "signature": "",
     "default": "no default, initially intersection",
     "description": "This key specifies the prefix name for the coordinate nodes placed at each intersection.",
     "type": "key"
   },
   "/tikz/intersection/total": {
-    "signature": "/tikz/intersection/total=⟨macro⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key means that the total number of intersections found will be stored in ⟨macro⟩.",
     "type": "key"
   },
   "total": {
-    "signature": "/tikz/intersection/total=⟨macro⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key means that the total number of intersections found will be stored in ⟨macro⟩.",
     "type": "key"
   },
   "/tikz/intersection/by": {
-    "signature": "/tikz/intersection/by=⟨comma-separated list⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key allows you to specify a list of names for the intersection coordinates. The intersection coordinates will still be named ⟨prefix⟩-⟨number⟩, but additionally the first coordinate will also be named by the first element of the ⟨comma-separated list⟩. What happens is that the ⟨comma-separated list⟩ is passed to the \\foreach statement and for ⟨list member⟩ a coordinate is created at the already-named intersection.",
+    "description": "This key allows you to specify a list of names for the intersection coordinates. The intersection coordinates will still be named ⟨prefix⟩-⟨number⟩, but additionally the first coordinate will also be named by the first element of the ⟨comma-separated list⟩. What happens is that the ⟨comma-separated list⟩ is passed to the \\foreach statement and for ⟨list member⟩ a coordinate is created at the already-named intersection.\n\nYou can also use the ... notation of the \\foreach statement inside the ⟨comma-separated list⟩.",
     "type": "key"
   },
   "by": {
-    "signature": "/tikz/intersection/by=⟨comma-separated list⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key allows you to specify a list of names for the intersection coordinates. The intersection coordinates will still be named ⟨prefix⟩-⟨number⟩, but additionally the first coordinate will also be named by the first element of the ⟨comma-separated list⟩. What happens is that the ⟨comma-separated list⟩ is passed to the \\foreach statement and for ⟨list member⟩ a coordinate is created at the already-named intersection.",
+    "description": "This key allows you to specify a list of names for the intersection coordinates. The intersection coordinates will still be named ⟨prefix⟩-⟨number⟩, but additionally the first coordinate will also be named by the first element of the ⟨comma-separated list⟩. What happens is that the ⟨comma-separated list⟩ is passed to the \\foreach statement and for ⟨list member⟩ a coordinate is created at the already-named intersection.\n\nYou can also use the ... notation of the \\foreach statement inside the ⟨comma-separated list⟩.",
     "type": "key"
   },
   "/tikz/intersection/sort by": {
-    "signature": "/tikz/intersection/sort by=⟨path name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "By default, the intersections are simply returned in the order that the intersection algorithm finds them. Unfortunately, this is not necessarily a “helpful” ordering. This key can be used to sort the intersections along the path specified by ⟨path name⟩, which should be one of the paths mentioned in the /tikz/intersection/of key.",
+    "description": "By default, the intersections are simply returned in the order that the intersection algorithm finds them. Unfortunately, this is not necessarily a &ldquo;helpful&rdquo; ordering. This key can be used to sort the intersections along the path specified by ⟨path name⟩, which should be one of the paths mentioned in the /tikz/intersection/of key.\n\nYou can prefix coordinates by ++ to make them &ldquo;relative&rdquo;. A coordinate such as ++(1cm,0pt) means &ldquo;1cm to the right of the previous position, making this the new current position&rdquo;. Relative coordinates are often useful in &ldquo;local&rdquo; contexts:",
     "type": "key"
   },
   "sort by": {
-    "signature": "/tikz/intersection/sort by=⟨path name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "By default, the intersections are simply returned in the order that the intersection algorithm finds them. Unfortunately, this is not necessarily a “helpful” ordering. This key can be used to sort the intersections along the path specified by ⟨path name⟩, which should be one of the paths mentioned in the /tikz/intersection/of key.",
+    "description": "By default, the intersections are simply returned in the order that the intersection algorithm finds them. Unfortunately, this is not necessarily a &ldquo;helpful&rdquo; ordering. This key can be used to sort the intersections along the path specified by ⟨path name⟩, which should be one of the paths mentioned in the /tikz/intersection/of key.\n\nYou can prefix coordinates by ++ to make them &ldquo;relative&rdquo;. A coordinate such as ++(1cm,0pt) means &ldquo;1cm to the right of the previous position, making this the new current position&rdquo;. Relative coordinates are often useful in &ldquo;local&rdquo; contexts:",
     "type": "key"
   },
   "/tikz/turn": {
-    "signature": "/tikz/turn",
+    "signature": "",
     "default": "no value",
-    "description": "This key can be given as an option to a ⟨coordinate⟩ as in the following example:",
+    "description": "This key can be given as an option to a ⟨coordinate⟩ as in the following example:\n\nThe effect of this key is to locally shift the coordinate system so that the last point reached is at the origin and the coordinate system is &ldquo;turned&rdquo; so that the \\(x\\)-axis points in the direction of a tangent entering the last point. This means, in effect, that when you use polar coordinates of the form ⟨relative angle⟩:⟨distance⟩ together with the turn option, you specify a point that lies at ⟨distance⟩ from the last point in the direction of the last tangent entering the last point, but with a rotation of ⟨relative angle⟩.",
     "type": "key"
   },
   "turn": {
-    "signature": "/tikz/turn",
+    "signature": "",
     "default": "no value",
-    "description": "This key can be given as an option to a ⟨coordinate⟩ as in the following example:",
+    "description": "This key can be given as an option to a ⟨coordinate⟩ as in the following example:\n\nThe effect of this key is to locally shift the coordinate system so that the last point reached is at the origin and the coordinate system is &ldquo;turned&rdquo; so that the \\(x\\)-axis points in the direction of a tangent entering the last point. This means, in effect, that when you use polar coordinates of the form ⟨relative angle⟩:⟨distance⟩ together with the turn option, you specify a point that lies at ⟨distance⟩ from the last point in the direction of the last tangent entering the last point, but with a rotation of ⟨relative angle⟩.",
     "type": "key"
   },
   "/tikz/current point is local": {
-    "signature": "/tikz/current point is local=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "Normally, the scope path operation has no effect on the current point. That is, curly braces on a path have no effect on the current position:",
+    "description": "Normally, the scope path operation has no effect on the current point. That is, curly braces on a path have no effect on the current position:\n\nIf you set this key to true, this behavior changes. In this case, at the end of a group created on a path, the last current position reverts to whatever value it had at the beginning of the scope. More precisely, when TikZ encounters } on a path, it checks whether at this particular moment the key is set to true. If so, the current position reverts to the value it had when the matching { was read.",
     "type": "key"
   },
   "current point is local": {
-    "signature": "/tikz/current point is local=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "Normally, the scope path operation has no effect on the current point. That is, curly braces on a path have no effect on the current position:",
+    "description": "Normally, the scope path operation has no effect on the current point. That is, curly braces on a path have no effect on the current position:\n\nIf you set this key to true, this behavior changes. In this case, at the end of a group created on a path, the last current position reverts to whatever value it had at the beginning of the scope. More precisely, when TikZ encounters } on a path, it checks whether at this particular moment the key is set to true. If so, the current position reverts to the value it had when the matching { was read.",
     "type": "key"
   },
   "calc": {
-    "signature": "TikZ Library calc",
+    "signature": "",
     "default": "",
     "description": "\\usetikzlibrary{calc} % LaTeX and plain TeX \\usetikzlibrary[calc] % ConTeXt You need to load this library in order to use the coordinate calculation functions described in the present section.\n\nIt is possible to do some basic calculations that involve coordinates. In essence, you can add and subtract coordinates, scale them, compute midpoints, and do projections. For instance, ($(a) + 1/3*(1cm,0)$) is the coordinate that is \\(1/3 \\text {cm}\\) to the right of the point a:",
     "type": "key"

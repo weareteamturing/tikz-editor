@@ -1,307 +1,408 @@
 #!/usr/bin/env node
 /**
- * Extract TikZ key documentation from tikz-dev HTML files.
+ * Extract TikZ documentation snippets from tikz-dev HTML files.
  *
- * Outputs:
- *   - docs/keys/index.json          — maps key names to chunk filenames
- *   - docs/keys/<chunk>.json        — per-source-file documentation entries
+ * Output (lazy-loadable in web/desktop app):
+ *   packages/app/public/docs/keys/index.json
+ *   packages/app/public/docs/keys/<chunk>.json
  *
- * Each entry: { signature, default, description, type }
- *   type: "key" | "command" | "style"
+ * Entry schema:
+ *   {
+ *     type: "key" | "command" | "style",
+ *     signatureHtml: string,
+ *     defaultHtml: string,
+ *     snippetHtml: string,
+ *     page: string,
+ *     anchor: string,
+ *     href: string
+ *   }
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "fs";
-import { join, basename } from "path";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { parse } from "parse5";
 
 const TIKZDEV_DIR = join(import.meta.dirname, "..", "tikz-dev");
-const OUT_DIR = join(import.meta.dirname, "..", "docs", "keys");
+const OUT_DIR = join(import.meta.dirname, "..", "packages", "app", "public", "docs", "keys");
+const DOCS_BASE_URL = "https://tikz.dev";
 
-// ─── HTML helpers ──────────────────────────────────────────────────────────
+const INCLUDE_PREFIXES = ["tikz-"];
+const INCLUDE_FILES = new Set([
+  "library-shapes",
+  "library-decorations",
+  "library-patterns",
+  "library-shadows",
+  "library-fadings",
+  "library-matrix",
+  "pgffor"
+]);
 
-/** Strip HTML tags, collapse whitespace, decode common entities. */
-function stripHtml(html) {
-  return html
-    .replace(/<span class="angle">&langle;<\/span>/g, "⟨")
-    .replace(/<span class="angle">&rangle;<\/span>/g, "⟩")
-    .replace(/<br\s*\/?>/g, " ")
-    .replace(/<img[^>]*>/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&langle;/g, "⟨")
-    .replace(/&rangle;/g, "⟩")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#x2007;/g, " ")
-    .replace(/&#x2003;/g, " ")
-    .replace(/&#x2026;/g, "…")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+const INLINE_ALLOWED_TAGS = new Set(["code", "kbd", "i", "em", "strong", "b", "sub", "sup", "br"]);
 
-/** Extract text content of the first match of a regex in html. */
-function extractSpan(html, className) {
-  const re = new RegExp(`<span class="${className}">(.*?)</span>`, "s");
-  const m = html.match(re);
-  return m ? m[1] : null;
-}
-
-// ─── Anchor ID → key name mapping ──────────────────────────────────────────
-
-/**
- * Convert an anchor id like "pgf./tikz/line:width" or "pgf.line:width"
- * to the user-facing key name "line width".
- * Returns null for anchors we want to skip.
- */
-function anchorIdToKeyName(id) {
-  // Skip metavariable template keys
-  if (id.includes("meta(")) return null;
-
-  // Remove pgf. prefix
-  let key = id.replace(/^pgf\./, "");
-
-  // Handle back/ prefix (commands like \draw, \fill)
-  if (key.startsWith("back/")) {
-    key = key.slice(5); // e.g. "back/draw" → "draw"
-    // Prefix with backslash for commands
-    if (!key.startsWith("\\")) key = "\\" + key;
-    return key;
-  }
-
-  // Remove leading path like /tikz/ or /pgf/ or /pgf/decoration/
-  key = key.replace(/^\.\/[^=]*?\//, ""); // e.g. "./tikz/" or "./pgf/decoration/"
-  // But the short form won't have that — it's already just "line:width"
-
-  // Colons back to spaces
-  key = key.replace(/:/g, " ");
-
-  return key;
-}
-
-// ─── Parse a single manualentry div ────────────────────────────────────────
-
-/**
- * Given the innerHTML of a <div class="manualentry">,
- * extract all documented keys/commands from it.
- * Returns an array of { keyNames: string[], signature, default, description, type }.
- */
-function parseManualEntry(entryHtml) {
-  const results = [];
-
-  // Find all anchor IDs in this entry
-  const anchorRe = /<a id="(pgf\.[^"]+)">/g;
-  const anchors = [];
-  let m;
-  while ((m = anchorRe.exec(entryHtml)) !== null) {
-    anchors.push({ id: m[1], pos: m.index });
-  }
-  if (anchors.length === 0) return results;
-
-  // Group consecutive anchors (dual anchors for the same key)
-  // They appear right next to each other before the hl-def span
-  const anchorGroups = [];
-  let currentGroup = [anchors[0]];
-  for (let i = 1; i < anchors.length; i++) {
-    const gap = entryHtml.slice(anchors[i - 1].pos + anchors[i - 1].id.length + 15, anchors[i].pos);
-    // If there's only whitespace between them, they're a group
-    if (gap.replace(/<\/a>/g, "").trim().length < 5) {
-      currentGroup.push(anchors[i]);
-    } else {
-      anchorGroups.push(currentGroup);
-      currentGroup = [anchors[i]];
-    }
-  }
-  anchorGroups.push(currentGroup);
-
-  // For each anchor group, extract the surrounding definition
-  for (const group of anchorGroups) {
-    const keyNames = [];
-    for (const a of group) {
-      const name = anchorIdToKeyName(a.id);
-      if (name && !keyNames.includes(name)) keyNames.push(name);
-    }
-    if (keyNames.length === 0) continue;
-
-    // Determine type
-    const isCommand = group.some((a) => a.id.includes("back/"));
-
-    // Find hl-def after this anchor group
-    const afterAnchors = entryHtml.slice(group[group.length - 1].pos);
-
-    // Extract signature from hl-def
-    const hlDefMatch = afterAnchors.match(/<span class="hl-def">([\s\S]*?)<\/span>\s*(?:<\/span>)?\s*(?:<span class="hl-default">|<\/p>)/);
-    let signature = "";
-    if (hlDefMatch) {
-      signature = stripHtml(hlDefMatch[1]);
-    } else {
-      // Try a simpler match — sometimes hl-def is closed differently
-      const simpleMatch = afterAnchors.match(/<span class="hl-def">([\s\S]*?)<\/span>/);
-      if (simpleMatch) signature = stripHtml(simpleMatch[1]);
-    }
-
-    // Extract default from hl-default
-    const hlDefaultMatch = afterAnchors.match(/<span class="hl-default">\(([\s\S]*?)\)<\/span>/);
-    const defaultValue = hlDefaultMatch ? stripHtml(hlDefaultMatch[1]) : "";
-
-    // Determine type from default text
-    let type = isCommand ? "command" : "key";
-    if (defaultValue.includes("style")) type = "style";
-
-    // Extract description: <p> tags after the entryheadline div, before <div class="example">
-    // We look for </div> closing entryheadline, then grab <p> tags
-    const headlineEnd = afterAnchors.indexOf("</div>");
-    if (headlineEnd === -1) continue;
-
-    const afterHeadline = afterAnchors.slice(headlineEnd + 6);
-    // Collect <p> content until we hit an example div, another manualentry, or end
-    const descParts = [];
-    const pRe = /<p>([\s\S]*?)<\/p>/g;
-    let pm;
-    let searchText = afterHeadline;
-    // Cut at first example or nested manualentry
-    const cutPoints = [
-      searchText.indexOf('<div class="example">'),
-      searchText.indexOf('<div class="manualentry">'),
-    ].filter((i) => i >= 0);
-    if (cutPoints.length > 0) {
-      searchText = searchText.slice(0, Math.min(...cutPoints));
-    }
-
-    while ((pm = pRe.exec(searchText)) !== null) {
-      const text = stripHtml(pm[1]);
-      if (text.length > 5 && !text.startsWith("alias ")) {
-        descParts.push(text);
-        // Only take the first 2 paragraphs for the tooltip
-        if (descParts.length >= 2) break;
-      }
-    }
-
-    const description = descParts.join("\n\n");
-
-    // Deduplicate key names — prefer the short form
-    // e.g. if we have both "line width" from pgf./tikz/line:width and pgf.line:width,
-    // they'll be the same after anchorIdToKeyName
-    const uniqueNames = [...new Set(keyNames)];
-
-    results.push({
-      keyNames: uniqueNames,
-      signature,
-      default: defaultValue,
-      description,
-      type,
-    });
-  }
-
-  return results;
-}
-
-// ─── Process a single HTML file ────────────────────────────────────────────
-
-function processFile(filePath) {
-  const html = readFileSync(filePath, "utf-8");
-  const fileName = basename(filePath, ".html");
-
-  // Split by manualentry divs
-  const entries = [];
-  const entryRe = /<div class="manualentry">([\s\S]*?)(?=<\/div>\s*(?:<div class="manualentry">|<h[1-6]|<p>|$))/g;
-
-  // Split by manualentry openings — take content from one opening to the next
-  const tag = '<div class="manualentry">';
-  const positions = [];
-  let pos = 0;
-  while ((pos = html.indexOf(tag, pos)) !== -1) {
-    positions.push(pos + tag.length);
-    pos += tag.length;
-  }
-  for (let i = 0; i < positions.length; i++) {
-    const start = positions[i];
-    const end = i + 1 < positions.length ? positions[i + 1] - tag.length : html.length;
-    entries.push(html.slice(start, end));
-  }
-
-  const results = [];
-  for (const entry of entries) {
-    const parsed = parseManualEntry(entry);
-    results.push(...parsed);
-  }
-
-  return { fileName, results };
-}
-
-// ─── Main ──────────────────────────────────────────────────────────────────
-
-function main() {
-  mkdirSync(OUT_DIR, { recursive: true });
-
-  // Only include files relevant to daily TikZ use
-  const INCLUDE_PREFIXES = ["tikz-"];
-  const INCLUDE_FILES = new Set([
-    "library-shapes",
-    "library-decorations",
-    "library-patterns",
-    "library-shadows",
-    "library-fadings",
-    "library-matrix",
-    "pgffor",
-  ]);
-
-  const htmlFiles = readdirSync(TIKZDEV_DIR)
-    .filter((f) => {
-      if (!f.endsWith(".html") || f === "pgfmanual_html.html") return false;
-      const name = f.replace(".html", "");
-      return INCLUDE_PREFIXES.some((p) => name.startsWith(p)) || INCLUDE_FILES.has(name);
+export function main() {
+  const files = readdirSync(TIKZDEV_DIR)
+    .filter((name) => {
+      if (!name.endsWith(".html") || name === "pgfmanual_html.html") return false;
+      const page = basename(name, ".html");
+      return INCLUDE_PREFIXES.some((prefix) => page.startsWith(prefix)) || INCLUDE_FILES.has(page);
     })
     .sort();
 
-  const index = {}; // keyName → chunkFile
-  let totalKeys = 0;
-  let filesWithKeys = 0;
+  prepareOutDir(OUT_DIR);
 
-  for (const file of htmlFiles) {
-    const filePath = join(TIKZDEV_DIR, file);
-    const { fileName, results } = processFile(filePath);
+  const index = {};
+  let entryCount = 0;
+  let fileCount = 0;
 
-    if (results.length === 0) continue;
-    filesWithKeys++;
+  for (const file of files) {
+    const page = basename(file, ".html");
+    const html = readFileSync(join(TIKZDEV_DIR, file), "utf8");
+    const chunk = extractEntriesFromHtml(page, html);
 
-    const chunk = {};
-    for (const r of results) {
-      const entry = {
-        signature: r.signature,
-        default: r.default,
-        description: r.description,
-        type: r.type,
-      };
-
-      for (const name of r.keyNames) {
-        chunk[name] = entry;
-        index[name] = fileName;
-        totalKeys++;
-      }
+    for (const keyName of Object.keys(chunk)) {
+      index[keyName] = page;
+      entryCount += 1;
     }
 
-    writeFileSync(join(OUT_DIR, `${fileName}.json`), JSON.stringify(chunk, null, 2));
+    if (Object.keys(chunk).length > 0) {
+      fileCount += 1;
+      writeFileSync(join(OUT_DIR, `${page}.json`), JSON.stringify(chunk, null, 2));
+    }
   }
 
   writeFileSync(join(OUT_DIR, "index.json"), JSON.stringify(index, null, 2));
 
-  console.log(`Extracted ${totalKeys} keys from ${filesWithKeys} files into ${OUT_DIR}`);
+  console.log(`Extracted ${entryCount} docs keys from ${fileCount} files into ${OUT_DIR}`);
+}
 
-  // Print some sample entries for verification
-  const sampleKeys = ["line width", "draw", "fill", "thick", "inner sep", "\\draw", "\\fill"];
-  console.log("\nSample entries:");
-  for (const key of sampleKeys) {
-    if (index[key]) {
-      const chunkData = JSON.parse(readFileSync(join(OUT_DIR, `${index[key]}.json`), "utf-8"));
-      const entry = chunkData[key];
-      if (entry) {
-        console.log(`\n  ${key} (in ${index[key]}):`);
-        console.log(`    signature: ${entry.signature}`);
-        console.log(`    default: ${entry.default}`);
-        console.log(`    description: ${entry.description.slice(0, 120)}...`);
-      }
+export function extractEntriesFromHtml(page, html) {
+  const doc = parse(html);
+  const manualEntries = findElementsByClass(doc, "manualentry");
+
+  const chunk = {};
+  for (const manualEntry of manualEntries) {
+    const entry = extractManualEntry(page, manualEntry);
+    if (!entry || entry.keyNames.length === 0) continue;
+
+    for (const keyName of entry.keyNames) {
+      chunk[keyName] = {
+        type: entry.type,
+        signatureHtml: entry.signatureHtml,
+        defaultHtml: entry.defaultHtml,
+        snippetHtml: entry.snippetHtml,
+        page: entry.page,
+        anchor: entry.anchor,
+        href: entry.href
+      };
+    }
+  }
+
+  return chunk;
+}
+
+function prepareOutDir(outDir) {
+  mkdirSync(outDir, { recursive: true });
+  for (const file of readdirSync(outDir)) {
+    if (file.endsWith(".json")) {
+      rmSync(join(outDir, file), { force: true });
     }
   }
 }
 
-main();
+function extractManualEntry(page, manualEntryNode) {
+  const headline = findFirstByClass(manualEntryNode, "entryheadline");
+  if (!headline) return null;
+  const flowContainer = getEntryFlowContainer(manualEntryNode, headline);
+
+  const headlineAnchors = findAnchorsWithPgfId(headline);
+  const fallbackAnchors = headlineAnchors.length > 0 ? [] : findEarlyParagraphAnchors(flowContainer);
+  const anchors = headlineAnchors.length > 0 ? headlineAnchors : fallbackAnchors;
+  if (anchors.length === 0) return null;
+
+  const keyNames = dedupe(
+    anchors
+      .flatMap((id) => anchorIdToKeyNames(id))
+      .filter((value) => value.length > 0)
+  );
+  if (keyNames.length === 0) return null;
+
+  const signatureNode = findFirstByClass(headline, "hl-def");
+  const defaultNode = findFirstByClass(headline, "hl-default");
+  const signatureHtml = sanitizeInlineContainer(signatureNode);
+  const defaultHtml = sanitizeInlineContainer(defaultNode);
+  const snippetHtml = extractSnippetHtml(flowContainer, headline);
+
+  const type = inferEntryType(keyNames, defaultHtml);
+  const anchor = anchors[0];
+  const href = `${DOCS_BASE_URL}/${page}#${encodeHashAnchor(anchor)}`;
+
+  return {
+    keyNames,
+    type,
+    signatureHtml,
+    defaultHtml,
+    snippetHtml,
+    page,
+    anchor,
+    href
+  };
+}
+
+function extractSnippetHtml(flowContainerNode, headlineNode) {
+  const paragraphNodes = [];
+  let afterHeadline = false;
+
+  for (const child of flowContainerNode.childNodes ?? []) {
+    if (!afterHeadline) {
+      if (child === headlineNode) {
+        afterHeadline = true;
+      }
+      continue;
+    }
+
+    if (isElement(child, "figure")) {
+      break;
+    }
+    if (isElement(child, "div") && hasClass(child, "manualentry")) {
+      break;
+    }
+    if (isElement(child, "p")) {
+      paragraphNodes.push(child);
+      if (paragraphNodes.length >= 2) break;
+    }
+  }
+
+  const paragraphs = paragraphNodes
+    .map((node) => sanitizeParagraph(node))
+    .filter((html) => stripTags(html).trim().length > 0)
+    .filter((html) => !stripTags(html).trim().toLowerCase().startsWith("alias "));
+
+  return paragraphs.join("");
+}
+
+function inferEntryType(keyNames, defaultHtml) {
+  if (keyNames.some((name) => name.startsWith("\\"))) return "command";
+  const defaultText = stripTags(defaultHtml).toLowerCase();
+  if (defaultText.includes("style")) return "style";
+  return "key";
+}
+
+export function anchorIdToKeyNames(anchorId) {
+  if (!anchorId.startsWith("pgf.")) return [];
+  if (anchorId.includes("meta(")) return [];
+
+  if (anchorId === "pgf.--") return ["--"];
+  if (anchorId === "pgf.-bar/") return ["-|"];
+  if (anchorId === "pgf.bar/-") return ["|-"];
+  if (anchorId === "pgf...") return [".."];
+
+  let rest = anchorId.slice("pgf.".length);
+
+  if (rest.startsWith("back/")) {
+    const command = rest.slice("back/".length).trim();
+    if (!command) return [];
+    return [`\\${command.toLowerCase()}`];
+  }
+
+  rest = rest.replace(/:/g, " ").trim();
+
+  if (rest.startsWith("./")) {
+    const canonical = normalizeCanonicalPath(rest.slice(1));
+    return canonicalPathAliases(canonical);
+  }
+
+  if (rest.startsWith("/")) {
+    const canonical = normalizeCanonicalPath(rest);
+    return canonicalPathAliases(canonical);
+  }
+
+  const short = normalizeInlineKey(rest);
+  return short ? [short] : [];
+}
+
+function canonicalPathAliases(canonical) {
+  if (!canonical) return [];
+  const aliases = [canonical];
+  const tail = canonical.split("/").filter(Boolean).pop() ?? "";
+  if (tail.length > 0) aliases.push(tail);
+  return dedupe(aliases);
+}
+
+function normalizeCanonicalPath(pathValue) {
+  const normalized = `/${pathValue.replace(/^\/+/, "")}`.replace(/\s+/g, " ").trim();
+  if (!normalized.startsWith("/")) return null;
+  return normalized;
+}
+
+function normalizeInlineKey(value) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function findEarlyParagraphAnchors(flowContainerNode) {
+  const anchors = [];
+  for (const child of flowContainerNode.childNodes ?? []) {
+    if (isElement(child, "figure")) break;
+    if (!isElement(child, "p")) continue;
+    anchors.push(...findAnchorsWithPgfId(child));
+    if (anchors.length > 0) break;
+  }
+  return dedupe(anchors);
+}
+
+function getEntryFlowContainer(manualEntryNode, headlineNode) {
+  if (headlineNode?.parentNode && headlineNode.parentNode !== manualEntryNode) {
+    return headlineNode.parentNode;
+  }
+  return manualEntryNode;
+}
+
+function findAnchorsWithPgfId(node) {
+  const anchors = [];
+  walk(node, (candidate) => {
+    if (!isElement(candidate, "a")) return;
+    const id = getAttr(candidate, "id");
+    if (!id || !id.startsWith("pgf.")) return;
+    anchors.push(id);
+  });
+  return dedupe(anchors);
+}
+
+function findElementsByClass(root, className) {
+  const result = [];
+  walk(root, (node) => {
+    if (isElement(node, "div") && hasClass(node, className)) {
+      result.push(node);
+    }
+  });
+  return result;
+}
+
+function findFirstByClass(root, className) {
+  let found = null;
+  walk(root, (node) => {
+    if (found) return;
+    if (isElement(node) && hasClass(node, className)) {
+      found = node;
+    }
+  });
+  return found;
+}
+
+function walk(node, visitor) {
+  visitor(node);
+  const children = node?.childNodes ?? [];
+  for (const child of children) {
+    walk(child, visitor);
+  }
+}
+
+function hasClass(node, className) {
+  const value = getAttr(node, "class");
+  if (!value) return false;
+  return value.split(/\s+/).includes(className);
+}
+
+function getAttr(node, name) {
+  const attrs = node?.attrs ?? [];
+  const attr = attrs.find((item) => item.name === name);
+  return attr?.value ?? null;
+}
+
+function isElement(node, tagName = null) {
+  if (!node || node.nodeName === "#text" || node.nodeName === "#comment") return false;
+  if (!tagName) return Boolean(node.tagName);
+  return node.tagName === tagName;
+}
+
+function sanitizeParagraph(node) {
+  return `<p>${sanitizeChildrenInline(node)}</p>`;
+}
+
+function sanitizeInlineContainer(node) {
+  if (!node) return "";
+  return sanitizeChildrenInline(node).trim();
+}
+
+function sanitizeChildrenInline(node) {
+  let html = "";
+  for (const child of node.childNodes ?? []) {
+    html += sanitizeInlineNode(child);
+  }
+  return html;
+}
+
+function sanitizeInlineNode(node) {
+  if (!node) return "";
+  if (node.nodeName === "#text") {
+    return escapeHtml(normalizeText(node.value ?? ""));
+  }
+  if (node.nodeName === "br") {
+    return "<br>";
+  }
+  if (!isElement(node)) {
+    return "";
+  }
+
+  const tag = node.tagName;
+  if (tag === "a") {
+    return sanitizeChildrenInline(node);
+  }
+  if (tag === "span" && hasClass(node, "angle")) {
+    return escapeHtml(normalizeText(extractText(node)));
+  }
+  if (tag === "img" || tag === "figure" || tag === "button" || tag === "script" || tag === "style") {
+    return "";
+  }
+
+  if (INLINE_ALLOWED_TAGS.has(tag)) {
+    return `<${tag}>${sanitizeChildrenInline(node)}</${tag}>`;
+  }
+
+  return sanitizeChildrenInline(node);
+}
+
+function extractText(node) {
+  let text = "";
+  walk(node, (candidate) => {
+    if (candidate.nodeName === "#text") {
+      text += candidate.value ?? "";
+    }
+  });
+  return normalizeText(text);
+}
+
+function normalizeText(value) {
+  return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
+}
+
+function stripTags(html) {
+  return html.replace(/<[^>]+>/g, "");
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function dedupe(values) {
+  const result = [];
+  const seen = new Set();
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
+}
+
+export function encodeHashAnchor(anchor) {
+  return encodeURIComponent(anchor).replace(/%2F/g, "/");
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main();
+}

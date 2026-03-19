@@ -14,7 +14,7 @@ export { renderTikzToSvg, renderTikzToSvgAsync } from "./render/index.js";
 export { capabilityMatrix, FEATURE_IDS } from "./capabilities/index.js";
 export { createMathJaxNodeTextEngine, setWorkerFontLoader } from "./text/mathjax-engine.js";
 export type { MathJaxFont } from "./text/mathjax-engine.js";
-export { collectSymbols } from "./completion/index.js";
+export { collectSymbols, resolveDocHoverTarget } from "./completion/index.js";
 export {
   createPdfExportArtifact,
   normalizePdfExportFileName,
@@ -68,7 +68,7 @@ export type {
 } from "./svg/index.js";
 export type { RenderTikzOptions, RenderTikzToSvgResult } from "./render/index.js";
 export type { CapabilityMatrix, CapabilityRow, LayerStatus, FeatureId } from "./capabilities/index.js";
-export type { DocumentSymbols } from "./completion/index.js";
+export type { DocumentSymbols, DocHoverTarget, DocHoverTargetKind, ResolveDocHoverTargetInput } from "./completion/index.js";
 export type {
   PdfExportArtifact,
   CreatePdfExportArtifactOptions,

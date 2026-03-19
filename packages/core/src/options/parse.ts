@@ -10,10 +10,24 @@ export function parseOptionListRaw(raw: string, absoluteFrom = 0): OptionListAst
   const inner = normalized.slice(innerFrom, innerTo);
   const maskedInner = maskLineComments(inner);
 
-  const entries = splitTopLevel(maskedInner, ",")
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0)
-    .map((token) => classifyOptionToken(token, maskedInner, absoluteFrom + innerFrom));
+  const entries = splitTopLevelWithRanges(maskedInner, ",")
+    .map((part) => {
+      const bounds = trimLocalBounds(part.value);
+      if (!bounds) {
+        return null;
+      }
+      return {
+        token: part.value.slice(bounds.from, bounds.to),
+        from: part.from + bounds.from,
+        to: part.from + bounds.to
+      };
+    })
+    .filter((part): part is { token: string; from: number; to: number } => part !== null)
+    .map((part) =>
+      classifyOptionToken(part.token, {
+        tokenFrom: absoluteFrom + innerFrom + part.from
+      })
+    );
 
   return {
     span: {
@@ -54,26 +68,49 @@ function maskLineComments(input: string): string {
   return masked;
 }
 
-function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: number): OptionEntry {
-  const tokenIndex = fullRaw.indexOf(token);
+function classifyOptionToken(
+  token: string,
+  spanInput: { tokenFrom: number }
+): OptionEntry {
   const span = {
-    from: absoluteFrom + Math.max(0, tokenIndex),
-    to: absoluteFrom + Math.max(0, tokenIndex) + token.length
+    from: spanInput.tokenFrom,
+    to: spanInput.tokenFrom + token.length
   };
 
   const separator = findTopLevelSeparator(token, "=");
   if (separator >= 0) {
-    const key = token.slice(0, separator).trim().toLowerCase();
-    const valueRaw = token.slice(separator + 1).trim();
+    const keyRaw = token.slice(0, separator);
+    const valueRawUntrimmed = token.slice(separator + 1);
+    const key = keyRaw.trim().toLowerCase();
+    const valueRaw = valueRawUntrimmed.trim();
     if (key.length === 0) {
       return { kind: "unknown", span, raw: token };
     }
+
+    const keyBounds = trimLocalBounds(keyRaw);
+    if (!keyBounds) {
+      return { kind: "unknown", span, raw: token };
+    }
+    const valueBounds = trimLocalBounds(valueRawUntrimmed);
+    const keySpan = {
+      from: spanInput.tokenFrom + keyBounds.from,
+      to: spanInput.tokenFrom + keyBounds.to
+    };
+    const valueSpan =
+      valueBounds === null
+        ? null
+        : {
+            from: spanInput.tokenFrom + separator + 1 + valueBounds.from,
+            to: spanInput.tokenFrom + separator + 1 + valueBounds.to
+          };
 
     return {
       kind: "kv",
       key,
       valueRaw,
       span,
+      keySpan,
+      valueSpan,
       raw: token
     };
   }
@@ -87,6 +124,10 @@ function classifyOptionToken(token: string, fullRaw: string, absoluteFrom: numbe
       kind: "flag",
       key: token.trim().toLowerCase(),
       span,
+      keySpan: {
+        from: spanInput.tokenFrom,
+        to: spanInput.tokenFrom + token.length
+      },
       raw: token
     };
   }
@@ -211,7 +252,11 @@ function findTopLevelSeparator(input: string, separator: string): number {
 }
 
 export function splitTopLevel(input: string, separator: string): string[] {
-  const parts: string[] = [];
+  return splitTopLevelWithRanges(input, separator).map((part) => part.value);
+}
+
+function splitTopLevelWithRanges(input: string, separator: string): Array<{ value: string; from: number; to: number }> {
+  const ranges: Array<{ value: string; from: number; to: number }> = [];
   let cursor = 0;
   let parenDepth = 0;
   let braceDepth = 0;
@@ -250,11 +295,26 @@ export function splitTopLevel(input: string, separator: string): string[] {
     }
 
     if (char === separator && parenDepth === 0 && braceDepth === 0 && bracketDepth === 0) {
-      parts.push(input.slice(cursor, i));
+      ranges.push({ value: input.slice(cursor, i), from: cursor, to: i });
       cursor = i + 1;
     }
   }
 
-  parts.push(input.slice(cursor));
-  return parts;
+  ranges.push({ value: input.slice(cursor), from: cursor, to: input.length });
+  return ranges;
+}
+
+function trimLocalBounds(value: string): { from: number; to: number } | null {
+  let from = 0;
+  while (from < value.length && /\s/.test(value[from] ?? "")) {
+    from += 1;
+  }
+  let to = value.length;
+  while (to > from && /\s/.test(value[to - 1] ?? "")) {
+    to -= 1;
+  }
+  if (to <= from) {
+    return null;
+  }
+  return { from, to };
 }

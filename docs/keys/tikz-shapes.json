@@ -1,168 +1,168 @@
 {
   "/tikz/node contents": {
-    "signature": "/tikz/node contents=⟨node contents⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key sets the contents of the node to the given text as if you had given it at the end in curly braces. When the option is used inside the options of a node, the parsing of the node stops immediately after the end of the option block. In particular, the option block cannot be followed by further option blocks or curly braces (or, rather, these do not count as part of the node specification.) Also note that the ⟨node contents⟩ may not contain fragile stuff since the catcodes get fixed upon reading the options. Here is an example:",
+    "description": "This key sets the contents of the node to the given text as if you had given it at the end in curly braces. When the option is used inside the options of a node, the parsing of the node stops immediately after the end of the option block. In particular, the option block cannot be followed by further option blocks or curly braces (or, rather, these do not count as part of the node specification.) Also note that the ⟨node contents⟩ may not contain fragile stuff since the catcodes get fixed upon reading the options. Here is an example:\n\nSpecifying the location of the node. Nodes are placed at the last position mentioned on the path. The effect of adding &ldquo;at&rdquo; to a node specification is that the coordinate given after at is used instead. The at syntax is not available when a node is given inside a path operation (it would not make any sense there).",
     "type": "key"
   },
   "node contents": {
-    "signature": "/tikz/node contents=⟨node contents⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key sets the contents of the node to the given text as if you had given it at the end in curly braces. When the option is used inside the options of a node, the parsing of the node stops immediately after the end of the option block. In particular, the option block cannot be followed by further option blocks or curly braces (or, rather, these do not count as part of the node specification.) Also note that the ⟨node contents⟩ may not contain fragile stuff since the catcodes get fixed upon reading the options. Here is an example:",
+    "description": "This key sets the contents of the node to the given text as if you had given it at the end in curly braces. When the option is used inside the options of a node, the parsing of the node stops immediately after the end of the option block. In particular, the option block cannot be followed by further option blocks or curly braces (or, rather, these do not count as part of the node specification.) Also note that the ⟨node contents⟩ may not contain fragile stuff since the catcodes get fixed upon reading the options. Here is an example:\n\nSpecifying the location of the node. Nodes are placed at the last position mentioned on the path. The effect of adding &ldquo;at&rdquo; to a node specification is that the coordinate given after at is used instead. The at syntax is not available when a node is given inside a path operation (it would not make any sense there).",
     "type": "key"
   },
   "/tikz/behind path": {
-    "signature": "/tikz/behind path",
+    "signature": "",
     "default": "no value",
-    "description": "When this key is set, either as a local option for the node or some surrounding scope, the node will be drawn behind the current path. For this, TikZ collects all nodes defined on the current path with this option set and then inserts all of them, in the order they appear, just before it draws the path. Thus, several nodes with this option set may obscure one another, but never the path itself. “Just before it draws the path” actually means that the nodes are inserted into the page output just before any pre-actions are applied to the path (see below for what pre-actions are).",
+    "description": "When this key is set, either as a local option for the node or some surrounding scope, the node will be drawn behind the current path. For this, TikZ collects all nodes defined on the current path with this option set and then inserts all of them, in the order they appear, just before it draws the path. Thus, several nodes with this option set may obscure one another, but never the path itself. &ldquo;Just before it draws the path&rdquo; actually means that the nodes are inserted into the page output just before any pre-actions are applied to the path (see below for what pre-actions are).\n\nNote that behind path only applies to the current path; not to the current scope or picture. To put a node &ldquo;behind everything&rdquo; you need to use layers and options like on background layer, see the backgrounds library in Section 45.",
     "type": "key"
   },
   "behind path": {
-    "signature": "/tikz/behind path",
+    "signature": "",
     "default": "no value",
-    "description": "When this key is set, either as a local option for the node or some surrounding scope, the node will be drawn behind the current path. For this, TikZ collects all nodes defined on the current path with this option set and then inserts all of them, in the order they appear, just before it draws the path. Thus, several nodes with this option set may obscure one another, but never the path itself. “Just before it draws the path” actually means that the nodes are inserted into the page output just before any pre-actions are applied to the path (see below for what pre-actions are).",
+    "description": "When this key is set, either as a local option for the node or some surrounding scope, the node will be drawn behind the current path. For this, TikZ collects all nodes defined on the current path with this option set and then inserts all of them, in the order they appear, just before it draws the path. Thus, several nodes with this option set may obscure one another, but never the path itself. &ldquo;Just before it draws the path&rdquo; actually means that the nodes are inserted into the page output just before any pre-actions are applied to the path (see below for what pre-actions are).\n\nNote that behind path only applies to the current path; not to the current scope or picture. To put a node &ldquo;behind everything&rdquo; you need to use layers and options like on background layer, see the backgrounds library in Section 45.",
     "type": "key"
   },
   "/tikz/in front of path": {
-    "signature": "/tikz/in front of path",
+    "signature": "",
     "default": "no value",
-    "description": "This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to “switch back” to the normal behavior.\n\nThe name of a node. The (⟨name⟩) is a name for later reference and it is optional. You may also add the option name=⟨name⟩ to the ⟨option⟩ list; it has the same effect.",
+    "description": "This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to &ldquo;switch back&rdquo; to the normal behavior.\n\nThe name of a node. The (⟨name⟩) is a name for later reference and it is optional. You may also add the option name=⟨name⟩ to the ⟨option⟩ list; it has the same effect.",
     "type": "key"
   },
   "in front of path": {
-    "signature": "/tikz/in front of path",
+    "signature": "",
     "default": "no value",
-    "description": "This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to “switch back” to the normal behavior.\n\nThe name of a node. The (⟨name⟩) is a name for later reference and it is optional. You may also add the option name=⟨name⟩ to the ⟨option⟩ list; it has the same effect.",
+    "description": "This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to &ldquo;switch back&rdquo; to the normal behavior.\n\nThe name of a node. The (⟨name⟩) is a name for later reference and it is optional. You may also add the option name=⟨name⟩ to the ⟨option⟩ list; it has the same effect.",
     "type": "key"
   },
   "/tikz/alias": {
-    "signature": "/tikz/alias=⟨another node name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14.\n\nThe options of a node. The ⟨options⟩ is an optional list of options that apply only to the node and have no effect outside. The other way round, most “outside” options also apply to the node, but not all. For example, the “outside” rotation does not apply to nodes (unless some special options are used, sigh). Also, the outside path action, like draw or fill, never applies to the node and must be given in the node (unless some special other options are used, deep sigh).",
+    "description": "This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14.\n\nThe options of a node. The ⟨options⟩ is an optional list of options that apply only to the node and have no effect outside. The other way round, most &ldquo;outside&rdquo; options also apply to the node, but not all. For example, the &ldquo;outside&rdquo; rotation does not apply to nodes (unless some special options are used, sigh). Also, the outside path action, like draw or fill, never applies to the node and must be given in the node (unless some special other options are used, deep sigh).",
     "type": "key"
   },
   "alias": {
-    "signature": "/tikz/alias=⟨another node name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14.\n\nThe options of a node. The ⟨options⟩ is an optional list of options that apply only to the node and have no effect outside. The other way round, most “outside” options also apply to the node, but not all. For example, the “outside” rotation does not apply to nodes (unless some special options are used, sigh). Also, the outside path action, like draw or fill, never applies to the node and must be given in the node (unless some special other options are used, deep sigh).",
+    "description": "This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14.\n\nThe options of a node. The ⟨options⟩ is an optional list of options that apply only to the node and have no effect outside. The other way round, most &ldquo;outside&rdquo; options also apply to the node, but not all. For example, the &ldquo;outside&rdquo; rotation does not apply to nodes (unless some special options are used, sigh). Also, the outside path action, like draw or fill, never applies to the node and must be given in the node (unless some special other options are used, deep sigh).",
     "type": "key"
   },
   "/tikz/shape": {
-    "signature": "/tikz/shape=⟨shape name⟩",
+    "signature": "",
     "default": "no default, initially rectangle",
     "description": "Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope.\n\nSince this option is used often, you can leave out the shape=. When TikZ encounters an option like circle that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said shape=⟨shape name⟩.",
     "type": "key"
   },
   "shape": {
-    "signature": "/tikz/shape=⟨shape name⟩",
+    "signature": "",
     "default": "no default, initially rectangle",
     "description": "Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope.\n\nSince this option is used often, you can leave out the shape=. When TikZ encounters an option like circle that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said shape=⟨shape name⟩.",
     "type": "key"
   },
   "/tikz/every node": {
-    "signature": "/tikz/every node",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is installed at the beginning of every node.",
     "type": "style"
   },
   "every node": {
-    "signature": "/tikz/every node",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is installed at the beginning of every node.",
     "type": "style"
   },
   "/tikz/execute at begin node": {
-    "signature": "/tikz/execute at begin node=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option causes ⟨code⟩ to be executed at the beginning of a node. Using this option multiple times will cause the code to accumulate.",
     "type": "key"
   },
   "execute at begin node": {
-    "signature": "/tikz/execute at begin node=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option causes ⟨code⟩ to be executed at the beginning of a node. Using this option multiple times will cause the code to accumulate.",
     "type": "key"
   },
   "/tikz/execute at end node": {
-    "signature": "/tikz/execute at end node=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option installs ⟨code⟩ that will be executed at the end of the node. Using this option multiple times will cause the code to accumulate.",
+    "description": "This option installs ⟨code⟩ that will be executed at the end of the node. Using this option multiple times will cause the code to accumulate.\n\nName scopes. It turns out that the name of a node can further be influenced using two keys:",
     "type": "key"
   },
   "execute at end node": {
-    "signature": "/tikz/execute at end node=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option installs ⟨code⟩ that will be executed at the end of the node. Using this option multiple times will cause the code to accumulate.",
+    "description": "This option installs ⟨code⟩ that will be executed at the end of the node. Using this option multiple times will cause the code to accumulate.\n\nName scopes. It turns out that the name of a node can further be influenced using two keys:",
     "type": "key"
   },
   "/tikz/name prefix": {
-    "signature": "/tikz/name prefix=⟨text⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨name⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name.\n\nThe net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name:",
+    "description": "The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨name⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using &ldquo;full name&rdquo; consisting of the prefix and the node name.\n\nThe net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name:",
     "type": "key"
   },
   "name prefix": {
-    "signature": "/tikz/name prefix=⟨text⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨name⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name.\n\nThe net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name:",
+    "description": "The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨name⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using &ldquo;full name&rdquo; consisting of the prefix and the node name.\n\nThe net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name:",
     "type": "key"
   },
   "/tikz/name suffix": {
-    "signature": "/tikz/name suffix=⟨text⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "Works as name prefix, only the ⟨text⟩ is appended to every node name in the current scope.\n\nThere is a special syntax for specifying “light-weight” nodes:",
+    "description": "Works as name prefix, only the ⟨text⟩ is appended to every node name in the current scope.\n\nThere is a special syntax for specifying &ldquo;light-weight&rdquo; nodes:",
     "type": "key"
   },
   "name suffix": {
-    "signature": "/tikz/name suffix=⟨text⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "Works as name prefix, only the ⟨text⟩ is appended to every node name in the current scope.\n\nThere is a special syntax for specifying “light-weight” nodes:",
+    "description": "Works as name prefix, only the ⟨text⟩ is appended to every node name in the current scope.\n\nThere is a special syntax for specifying &ldquo;light-weight&rdquo; nodes:",
     "type": "key"
   },
   "coordinate": {
-    "signature": "\\path … coordinate[⟨options⟩](⟨name⟩)at(⟨coordinate⟩) …;",
+    "signature": "",
     "default": "",
     "description": "This has the same effect as\n\n\\node[shape=coordinate][⟨options⟩](⟨name⟩)at(⟨coordinate⟩){},",
     "type": "key"
   },
   "\\node": {
-    "signature": "\\node",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path node.",
     "type": "command"
   },
   "\\coordinate": {
-    "signature": "\\coordinate",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path coordinate.\n\npgf and TikZ define three shapes, by default:",
     "type": "command"
   },
   "/pgf/inner sep": {
-    "signature": "/pgf/inner sep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
-    "description": "An additional (invisible) separation space of ⟨dimension⟩ will be added inside the shape, between the text and the shape’s background path. The effect is as if you had added appropriate horizontal and vertical skips at the beginning and end of the text to make it a bit “larger”.\n\nFor those familiar with css, this is the same as padding.",
+    "description": "An additional (invisible) separation space of ⟨dimension⟩ will be added inside the shape, between the text and the shape&rsquo;s background path. The effect is as if you had added appropriate horizontal and vertical skips at the beginning and end of the text to make it a bit &ldquo;larger&rdquo;.\n\nFor those familiar with css, this is the same as padding.",
     "type": "key"
   },
   "inner sep": {
-    "signature": "/pgf/inner sep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
-    "description": "An additional (invisible) separation space of ⟨dimension⟩ will be added inside the shape, between the text and the shape’s background path. The effect is as if you had added appropriate horizontal and vertical skips at the beginning and end of the text to make it a bit “larger”.\n\nFor those familiar with css, this is the same as padding.",
+    "description": "An additional (invisible) separation space of ⟨dimension⟩ will be added inside the shape, between the text and the shape&rsquo;s background path. The effect is as if you had added appropriate horizontal and vertical skips at the beginning and end of the text to make it a bit &ldquo;larger&rdquo;.\n\nFor those familiar with css, this is the same as padding.",
     "type": "key"
   },
   "/tikz/inner sep": {
     "signature": "",
     "default": "",
-    "description": "\\begin{ tikzpicture} \\draw (0,0) node[ inner sep=0pt, draw] {tight} (0cm,2em) node[ inner sep=5pt, draw] {loose} (0cm,4em) node[ fill=yellow!80!black] {default}; \\end{ tikzpicture}",
+    "description": "",
     "type": "key"
   },
   "/pgf/inner xsep": {
-    "signature": "/pgf/inner xsep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
     "description": "Specifies the inner separation in the \\(x\\)-direction, only.",
     "type": "key"
   },
   "inner xsep": {
-    "signature": "/pgf/inner xsep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
     "description": "Specifies the inner separation in the \\(x\\)-direction, only.",
     "type": "key"
@@ -174,13 +174,13 @@
     "type": "key"
   },
   "/pgf/inner ysep": {
-    "signature": "/pgf/inner ysep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
     "description": "Specifies the inner separation in the \\(y\\)-direction, only.",
     "type": "key"
   },
   "inner ysep": {
-    "signature": "/pgf/inner ysep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .3333em",
     "description": "Specifies the inner separation in the \\(y\\)-direction, only.",
     "type": "key"
@@ -192,31 +192,31 @@
     "type": "key"
   },
   "/pgf/outer sep": {
-    "signature": "/pgf/outer sep=⟨dimension or “auto”⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option adds an additional (invisible) separation space of ⟨dimension⟩ outside the background path. The main effect of this option is that all anchors will move a little “to the outside”.\n\nFor those familiar with css, this is same as margin.",
+    "description": "This option adds an additional (invisible) separation space of ⟨dimension⟩ outside the background path. The main effect of this option is that all anchors will move a little &ldquo;to the outside&rdquo;.\n\nFor those familiar with css, this is same as margin.",
     "type": "key"
   },
   "outer sep": {
-    "signature": "/pgf/outer sep=⟨dimension or “auto”⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option adds an additional (invisible) separation space of ⟨dimension⟩ outside the background path. The main effect of this option is that all anchors will move a little “to the outside”.\n\nFor those familiar with css, this is same as margin.",
+    "description": "This option adds an additional (invisible) separation space of ⟨dimension⟩ outside the background path. The main effect of this option is that all anchors will move a little &ldquo;to the outside&rdquo;.\n\nFor those familiar with css, this is same as margin.",
     "type": "key"
   },
   "/tikz/outer sep": {
     "signature": "",
     "default": "",
-    "description": "\\begin{ tikzpicture} \\draw[ line width=5pt] (0,0) node[ fill=yellow!80!black] (f) {filled} (2,0) node[ draw] (d) {drawn} (1,-2) node[ draw, scale=2] (s) {scaled}; \\draw[\"> ->] (1,-1) -- (f); \\draw[\"> ->] (1,-1) -- (d); \\draw[\"> ->] (1,-1) -- (s); \\end{ tikzpicture}\n\nAs the above example demonstrates, the standard settings for the outer sep are not always “correct”. First, when a shape is filled, but not drawn, the outer sep should actually be 0. Second, when a node is scaled, for instance by a factor of 5, the outer separation also gets scaled by a factor of 5, while the line width stays at its original width; again causing problems.",
+    "description": "As the above example demonstrates, the standard settings for the outer sep are not always &ldquo;correct&rdquo;. First, when a shape is filled, but not drawn, the outer sep should actually be 0. Second, when a node is scaled, for instance by a factor of 5, the outer separation also gets scaled by a factor of 5, while the line width stays at its original width; again causing problems.\n\nIn such cases, you can say outer sep=auto to make TikZ try to compensate for the effects described above. This is done by, firstly, setting the outer sep to 0 when no drawing is done and, secondly, setting the outer separations to half the line width (as before) times two adjustment factors, one for the horizontal separations and one for the vertical separations (see Section 108.2.6 for details on these factors). Note, however, that these factors can compensate only for transformations that are either scalings plus rotations or scalings with different magnitudes in the horizontal and the vertical direction. If you apply slanting, the factors will only approximate the correct values.",
     "type": "key"
   },
   "/pgf/outer xsep": {
-    "signature": "/pgf/outer xsep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .5\\pgflinewidth",
     "description": "Specifies the outer separation in the \\(x\\)-direction, only. This value will be overwritten when outer sep is set, either to the value given there or a computed value in case of auto.",
     "type": "key"
   },
   "outer xsep": {
-    "signature": "/pgf/outer xsep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .5\\pgflinewidth",
     "description": "Specifies the outer separation in the \\(x\\)-direction, only. This value will be overwritten when outer sep is set, either to the value given there or a computed value in case of auto.",
     "type": "key"
@@ -228,13 +228,13 @@
     "type": "key"
   },
   "/pgf/outer ysep": {
-    "signature": "/pgf/outer ysep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .5\\pgflinewidth",
     "description": "Specifies the outer separation in the \\(y\\)-direction, only.",
     "type": "key"
   },
   "outer ysep": {
-    "signature": "/pgf/outer ysep=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially .5\\pgflinewidth",
     "description": "Specifies the outer separation in the \\(y\\)-direction, only.",
     "type": "key"
@@ -246,13 +246,13 @@
     "type": "key"
   },
   "/pgf/minimum height": {
-    "signature": "/pgf/minimum height=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 1pt",
     "description": "This option ensures that the height of the shape (including the inner, but ignoring the outer separation) will be at least ⟨dimension⟩. Thus, if the text plus the inner separation is not at least as large as ⟨dimension⟩, the shape will be enlarged appropriately. However, if the text is already larger than ⟨dimension⟩, the shape will not be shrunk.",
     "type": "key"
   },
   "minimum height": {
-    "signature": "/pgf/minimum height=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 1pt",
     "description": "This option ensures that the height of the shape (including the inner, but ignoring the outer separation) will be at least ⟨dimension⟩. Thus, if the text plus the inner separation is not at least as large as ⟨dimension⟩, the shape will be enlarged appropriately. However, if the text is already larger than ⟨dimension⟩, the shape will not be shrunk.",
     "type": "key"
@@ -260,17 +260,17 @@
   "/tikz/minimum height": {
     "signature": "",
     "default": "",
-    "description": "\\begin{ tikzpicture} \\draw (0,0) node[ minimum height=1cm, draw] {1cm} (2,0) node[ minimum height=0cm, draw] {0cm}; \\end{ tikzpicture}",
+    "description": "",
     "type": "key"
   },
   "/pgf/minimum width": {
-    "signature": "/pgf/minimum width=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 1pt",
     "description": "Same as minimum height, only for the width.",
     "type": "key"
   },
   "minimum width": {
-    "signature": "/pgf/minimum width=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 1pt",
     "description": "Same as minimum height, only for the width.",
     "type": "key"
@@ -278,17 +278,17 @@
   "/tikz/minimum width": {
     "signature": "",
     "default": "",
-    "description": "\\begin{ tikzpicture} \\draw (0,0) node[ minimum height=2cm, minimum width=3cm, draw] {$3 \\times 2$}; \\end{ tikzpicture}",
+    "description": "",
     "type": "key"
   },
   "/pgf/minimum size": {
-    "signature": "/pgf/minimum size=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Sets both the minimum height and width at the same time.",
     "type": "key"
   },
   "minimum size": {
-    "signature": "/pgf/minimum size=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Sets both the minimum height and width at the same time.",
     "type": "key"
@@ -296,35 +296,35 @@
   "/tikz/minimum size": {
     "signature": "",
     "default": "",
-    "description": "\\begin{ tikzpicture} \\draw (0,0) node[ minimum size=2cm, draw] {square}; \\draw (0,-2) node[ minimum size=2cm, draw, circle] { circle}; \\end{ tikzpicture}",
+    "description": "",
     "type": "key"
   },
   "/pgf/shape aspect": {
-    "signature": "/pgf/shape aspect=⟨aspect ratio⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets a desired aspect ratio for the shape. For the diamond shape, this option sets the ratio between width and height of the shape.",
+    "description": "Sets a desired aspect ratio for the shape. For the diamond shape, this option sets the ratio between width and height of the shape.\n\nSome shapes (but not all), support a special kind of rotation. This rotation affects only the border of a shape and is independent of the node contents, but in addition to any other transformations.",
     "type": "key"
   },
   "shape aspect": {
-    "signature": "/pgf/shape aspect=⟨aspect ratio⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets a desired aspect ratio for the shape. For the diamond shape, this option sets the ratio between width and height of the shape.",
+    "description": "Sets a desired aspect ratio for the shape. For the diamond shape, this option sets the ratio between width and height of the shape.\n\nSome shapes (but not all), support a special kind of rotation. This rotation affects only the border of a shape and is independent of the node contents, but in addition to any other transformations.",
     "type": "key"
   },
   "/tikz/shape aspect": {
     "signature": "",
     "default": "",
-    "description": "\\usetikzlibrary {shapes.geometric} \\begin{ tikzpicture} \\draw (0,0) node[ shape aspect=1, diamond, draw] { aspect 1}; \\draw (0,-2) node[ shape aspect=2, diamond, draw] { aspect 2}; \\end{ tikzpicture}\n\nSome shapes (but not all), support a special kind of rotation. This rotation affects only the border of a shape and is independent of the node contents, but in addition to any other transformations.",
+    "description": "Some shapes (but not all), support a special kind of rotation. This rotation affects only the border of a shape and is independent of the node contents, but in addition to any other transformations.\n\nThere are two types of rotation: restricted and unrestricted. Which type of rotation is applied is determined by on how the shape border is constructed. If the shape border is constructed using an incircle, that is, a circle that tightly fits the node contents (including the inner sep), then the rotation can be unrestricted. If, however, the border is constructed using the natural dimensions of the node contents, the rotation is restricted to integer multiples of 90 degrees.",
     "type": "key"
   },
   "/pgf/shape border uses incircle": {
-    "signature": "/pgf/shape border uses incircle=⟨boolean⟩",
+    "signature": "",
     "default": "default true",
     "description": "Determines if the border of a shape is constructed using the incircle. If no value is given ⟨boolean⟩ will take the default value true.",
     "type": "key"
   },
   "shape border uses incircle": {
-    "signature": "/pgf/shape border uses incircle=⟨boolean⟩",
+    "signature": "",
     "default": "default true",
     "description": "Determines if the border of a shape is constructed using the incircle. If no value is given ⟨boolean⟩ will take the default value true.",
     "type": "key"
@@ -336,757 +336,757 @@
     "type": "key"
   },
   "/pgf/shape border rotate": {
-    "signature": "/pgf/shape border rotate=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "Rotates the border of a shape independently of the node contents, but in addition to any other transformations. If the shape border is not constructed using the incircle, the rotation will be rounded to the nearest integer multiple of 90 degrees when the shape is drawn.\n\nNote that if the border of the shape is rotated, the compass point anchors, and ‘text box’ anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:",
+    "description": "Rotates the border of a shape independently of the node contents, but in addition to any other transformations. If the shape border is not constructed using the incircle, the rotation will be rounded to the nearest integer multiple of 90 degrees when the shape is drawn.\n\nNote that if the border of the shape is rotated, the compass point anchors, and &lsquo;text box&rsquo; anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:",
     "type": "key"
   },
   "shape border rotate": {
-    "signature": "/pgf/shape border rotate=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "Rotates the border of a shape independently of the node contents, but in addition to any other transformations. If the shape border is not constructed using the incircle, the rotation will be rounded to the nearest integer multiple of 90 degrees when the shape is drawn.\n\nNote that if the border of the shape is rotated, the compass point anchors, and ‘text box’ anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:",
+    "description": "Rotates the border of a shape independently of the node contents, but in addition to any other transformations. If the shape border is not constructed using the incircle, the rotation will be rounded to the nearest integer multiple of 90 degrees when the shape is drawn.\n\nNote that if the border of the shape is rotated, the compass point anchors, and &lsquo;text box&rsquo; anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:",
     "type": "key"
   },
   "/tikz/shape border rotate": {
     "signature": "",
     "default": "",
-    "description": "Note that if the border of the shape is rotated, the compass point anchors, and ‘text box’ anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:",
+    "description": "Note that if the border of the shape is rotated, the compass point anchors, and &lsquo;text box&rsquo; anchors (including mid east, base west, and so on), do not rotate, but the other anchors do:\n\nFinally, a somewhat unfortunate side-effect of rotating shape borders is that the supporting shapes do not distinguish between outer xsep and outer ysep, and typically, the larger of the two values will be used.",
     "type": "key"
   },
   "\\nodepart": {
-    "signature": "\\nodepart[⟨options⟩]{⟨part name⟩}",
+    "signature": "",
     "default": "",
-    "description": "This command can only be used inside the ⟨text⟩ argument of a node path operation. It works a little bit like a \\part command in LaTeX. It will stop the typesetting of whatever node part was typeset until now and then start putting all following text into the node part named ⟨part name⟩ – until another \\nodepart is encountered or until the node ⟨text⟩ ends. The ⟨options⟩ will be local to this part.",
+    "description": "This command can only be used inside the ⟨text⟩ argument of a node path operation. It works a little bit like a \\part command in LaTeX. It will stop the typesetting of whatever node part was typeset until now and then start putting all following text into the node part named ⟨part name⟩ &ndash; until another \\nodepart is encountered or until the node ⟨text⟩ ends. The ⟨options⟩ will be local to this part.\n\nYou will have to lookup which parts are defined by a shape.",
     "type": "command"
   },
   "/tikz/text": {
-    "signature": "/tikz/text=⟨color⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the color to be used for text labels. A color= option will immediately override this option.",
+    "description": "Sets the color to be used for text labels. A color= option will immediately override this option.\n\nJust like the color itself, you may also wish to set the opacity of the text only. For this, use the text opacity option, which is detailed in Section 23.",
     "type": "key"
   },
   "text": {
-    "signature": "/tikz/text=⟨color⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the color to be used for text labels. A color= option will immediately override this option.",
+    "description": "Sets the color to be used for text labels. A color= option will immediately override this option.\n\nJust like the color itself, you may also wish to set the opacity of the text only. For this, use the text opacity option, which is detailed in Section 23.",
     "type": "key"
   },
   "/tikz/node font": {
-    "signature": "/tikz/node font=⟨font commands⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option sets the font used for all text used in a node.",
+    "description": "This option sets the font used for all text used in a node.\n\nSince the ⟨font commands⟩ are executed at a very early stage in the construction of the node, the font selected using this command will also dictate the values of dimensions defined in terms of em or ex. For instance, when the minimum height of a node is 3em, the actual height will be (at least) three times the line distance selected by the ⟨font commands⟩:",
     "type": "key"
   },
   "node font": {
-    "signature": "/tikz/node font=⟨font commands⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option sets the font used for all text used in a node.",
+    "description": "This option sets the font used for all text used in a node.\n\nSince the ⟨font commands⟩ are executed at a very early stage in the construction of the node, the font selected using this command will also dictate the values of dimensions defined in terms of em or ex. For instance, when the minimum height of a node is 3em, the actual height will be (at least) three times the line distance selected by the ⟨font commands⟩:",
     "type": "key"
   },
   "/tikz/font": {
-    "signature": "/tikz/font=⟨font commands⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the font used for the text inside nodes. However, this font will not (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started).",
+    "description": "Sets the font used for the text inside nodes. However, this font will not (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started).\n\nA useful example of how the font option can be used is the following:",
     "type": "key"
   },
   "font": {
-    "signature": "/tikz/font=⟨font commands⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the font used for the text inside nodes. However, this font will not (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started).",
+    "description": "Sets the font used for the text inside nodes. However, this font will not (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started).\n\nA useful example of how the font option can be used is the following:",
     "type": "key"
   },
   "/tikz/text width": {
-    "signature": "/tikz/text width=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option will put the text of a node in a box of the given width (something akin to a {minipage} of this width, only portable across formats). If the node text is not as wide as ⟨dimension⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done.\n\nBy default, when this option is given, a ragged right border will be used (align=left). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using align or directly using commands line \\centering.",
     "type": "key"
   },
   "text width": {
-    "signature": "/tikz/text width=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option will put the text of a node in a box of the given width (something akin to a {minipage} of this width, only portable across formats). If the node text is not as wide as ⟨dimension⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done.\n\nBy default, when this option is given, a ragged right border will be used (align=left). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using align or directly using commands line \\centering.",
     "type": "key"
   },
   "/tikz/align": {
-    "signature": "/tikz/align=⟨alignment option⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this alignment with line breaking), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨alignment option⟩. If text width is not set (that is, set to the empty string; let us call this alignment without line breaking), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨alignment option⟩ and the resulting node’s width will be minimal to encompass the resulting lines.\n\nIn detail, you can set ⟨alignment option⟩ to one of the following values:",
+    "description": "This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this alignment with line breaking), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨alignment option⟩. If text width is not set (that is, set to the empty string; let us call this alignment without line breaking), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨alignment option⟩ and the resulting node&rsquo;s width will be minimal to encompass the resulting lines.\n\nIn detail, you can set ⟨alignment option⟩ to one of the following values:",
     "type": "key"
   },
   "align": {
-    "signature": "/tikz/align=⟨alignment option⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this alignment with line breaking), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨alignment option⟩. If text width is not set (that is, set to the empty string; let us call this alignment without line breaking), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨alignment option⟩ and the resulting node’s width will be minimal to encompass the resulting lines.\n\nIn detail, you can set ⟨alignment option⟩ to one of the following values:",
+    "description": "This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this alignment with line breaking), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨alignment option⟩. If text width is not set (that is, set to the empty string; let us call this alignment without line breaking), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨alignment option⟩ and the resulting node&rsquo;s width will be minimal to encompass the resulting lines.\n\nIn detail, you can set ⟨alignment option⟩ to one of the following values:",
     "type": "key"
   },
   "/tikz/badness warnings for centered text": {
-    "signature": "/tikz/badness warnings for centered text=⟨true or false⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "If set to true, normal badness warnings will be issued for centered boxes. Note that you may get annoying warnings for perfectly normal boxes, namely whenever the box is very large and the contents is not long enough to fill the box sufficiently.\n\n• align=flush center Works like flush left or flush right, only for center alignment. Because of all the trouble that results from the center option in conjunction with narrow lines, I suggest picking this option rather than center unless you have longer text, in which case center will give the typographically better results.",
+    "description": "If set to true, normal badness warnings will be issued for centered boxes. Note that you may get annoying warnings for perfectly normal boxes, namely whenever the box is very large and the contents is not long enough to fill the box sufficiently.\n\n&bull; align=flush center Works like flush left or flush right, only for center alignment. Because of all the trouble that results from the center option in conjunction with narrow lines, I suggest picking this option rather than center unless you have longer text, in which case center will give the typographically better results.",
     "type": "key"
   },
   "badness warnings for centered text": {
-    "signature": "/tikz/badness warnings for centered text=⟨true or false⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "If set to true, normal badness warnings will be issued for centered boxes. Note that you may get annoying warnings for perfectly normal boxes, namely whenever the box is very large and the contents is not long enough to fill the box sufficiently.\n\n• align=flush center Works like flush left or flush right, only for center alignment. Because of all the trouble that results from the center option in conjunction with narrow lines, I suggest picking this option rather than center unless you have longer text, in which case center will give the typographically better results.",
+    "description": "If set to true, normal badness warnings will be issued for centered boxes. Note that you may get annoying warnings for perfectly normal boxes, namely whenever the box is very large and the contents is not long enough to fill the box sufficiently.\n\n&bull; align=flush center Works like flush left or flush right, only for center alignment. Because of all the trouble that results from the center option in conjunction with narrow lines, I suggest picking this option rather than center unless you have longer text, in which case center will give the typographically better results.",
     "type": "key"
   },
   "/tikz/node halign header": {
-    "signature": "/tikz/node halign header=⟨macro storing a header⟩",
+    "signature": "",
     "default": "no default, initially empty",
     "description": "This is the key that is used by align internally for alignment without line breaking. Read the following only if you are familiar with the \\halign command.\n\nThis key only has an effect if text width is empty, otherwise it is ignored. Furthermore, if ⟨macro storing a header⟩ is empty, then this key also has no effect. So, suppose text width is empty, but ⟨header⟩ is not. In this case the following happens:",
     "type": "key"
   },
   "node halign header": {
-    "signature": "/tikz/node halign header=⟨macro storing a header⟩",
+    "signature": "",
     "default": "no default, initially empty",
     "description": "This is the key that is used by align internally for alignment without line breaking. Read the following only if you are familiar with the \\halign command.\n\nThis key only has an effect if text width is empty, otherwise it is ignored. Furthermore, if ⟨macro storing a header⟩ is empty, then this key also has no effect. So, suppose text width is empty, but ⟨header⟩ is not. In this case the following happens:",
     "type": "key"
   },
   "/tikz/text height": {
-    "signature": "/tikz/text height=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the “natural” size of the text box remains unchanged.",
+    "description": "Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the &ldquo;natural&rdquo; size of the text box remains unchanged.",
     "type": "key"
   },
   "text height": {
-    "signature": "/tikz/text height=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the “natural” size of the text box remains unchanged.",
+    "description": "Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the &ldquo;natural&rdquo; size of the text box remains unchanged.",
     "type": "key"
   },
   "/tikz/text depth": {
-    "signature": "/tikz/text depth=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option works like text height, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned.\n\nWhen you place a node at some coordinate, the node is centered on this coordinate by default. This is often undesirable and it would be better to have the node to the right or above the actual coordinate.",
     "type": "key"
   },
   "text depth": {
-    "signature": "/tikz/text depth=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option works like text height, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned.\n\nWhen you place a node at some coordinate, the node is centered on this coordinate by default. This is often undesirable and it would be better to have the node to the right or above the actual coordinate.",
     "type": "key"
   },
   "/tikz/above": {
-    "signature": "/tikz/above=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Does the same as anchor=south. If the ⟨offset⟩ is specified, the node is additionally shifted upwards by the given ⟨offset⟩.",
     "type": "key"
   },
   "above": {
-    "signature": "/tikz/above=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Does the same as anchor=south. If the ⟨offset⟩ is specified, the node is additionally shifted upwards by the given ⟨offset⟩.",
     "type": "key"
   },
   "/tikz/below": {
-    "signature": "/tikz/below=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Similar to above.",
     "type": "key"
   },
   "below": {
-    "signature": "/tikz/below=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Similar to above.",
     "type": "key"
   },
   "/tikz/left": {
-    "signature": "/tikz/left=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Similar to above.",
     "type": "key"
   },
   "/tikz/right": {
-    "signature": "/tikz/right=⟨offset⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Similar to above.",
     "type": "key"
   },
   "/tikz/above left": {
-    "signature": "/tikz/above left",
+    "signature": "",
     "default": "no value",
-    "description": "Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left “wins”. Actually, this option also takes an ⟨offset⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.)",
+    "description": "Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left &ldquo;wins&rdquo;. Actually, this option also takes an ⟨offset⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.)",
     "type": "key"
   },
   "above left": {
-    "signature": "/tikz/above left",
+    "signature": "",
     "default": "no value",
-    "description": "Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left “wins”. Actually, this option also takes an ⟨offset⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.)",
+    "description": "Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left &ldquo;wins&rdquo;. Actually, this option also takes an ⟨offset⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.)",
     "type": "key"
   },
   "/tikz/above right": {
-    "signature": "/tikz/above right",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "above right": {
-    "signature": "/tikz/above right",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "/tikz/below left": {
-    "signature": "/tikz/below left",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "below left": {
-    "signature": "/tikz/below left",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "/tikz/below right": {
-    "signature": "/tikz/below right",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "below right": {
-    "signature": "/tikz/below right",
+    "signature": "",
     "default": "no value",
     "description": "Similar to above left.",
     "type": "key"
   },
   "/tikz/centered": {
-    "signature": "/tikz/centered",
+    "signature": "",
     "default": "no value",
     "description": "A shorthand for anchor=center.\n\nWhile the standard placement options suffice for simple cases, the positioning library offers more convenient placement options.",
     "type": "key"
   },
   "centered": {
-    "signature": "/tikz/centered",
+    "signature": "",
     "default": "no value",
     "description": "A shorthand for anchor=center.\n\nWhile the standard placement options suffice for simple cases, the positioning library offers more convenient placement options.",
     "type": "key"
   },
   "positioning": {
-    "signature": "TikZ Library positioning",
+    "signature": "",
     "default": "",
     "description": "\\usetikzlibrary{positioning} % LaTeX and plain TeX \\usetikzlibrary[positioning] % ConTeXt The library defines additional options for placing nodes conveniently. It also redefines the standard options like above so that they give you better control of node placement.\n\nWhen this library is loaded, the options like above or above left behave differently.",
     "type": "key"
   },
   "/tikz/on grid": {
-    "signature": "/tikz/on grid=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "When this key is set to true, an ⟨of-part⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨node name⟩ are set to center.\n\nThis has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option.",
+    "description": "When this key is set to true, an ⟨of-part⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨node name⟩ are set to center.\n\nThis has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on &ldquo;grid coordinate&rdquo;, hence the name of the option.",
     "type": "key"
   },
   "on grid": {
-    "signature": "/tikz/on grid=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "When this key is set to true, an ⟨of-part⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨node name⟩ are set to center.\n\nThis has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option.",
+    "description": "When this key is set to true, an ⟨of-part⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨node name⟩ are set to center.\n\nThis has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on &ldquo;grid coordinate&rdquo;, hence the name of the option.",
     "type": "key"
   },
   "/tikz/node distance": {
-    "signature": "/tikz/node distance=⟨shifting part⟩",
+    "signature": "",
     "default": "no default, initially 1cm and 1cm",
     "description": "The value of this key is used as ⟨shifting part⟩ is used if and only if a ⟨of-part⟩ is present, but no ⟨shifting part⟩.",
     "type": "key"
   },
   "node distance": {
-    "signature": "/tikz/node distance=⟨shifting part⟩",
+    "signature": "",
     "default": "no default, initially 1cm and 1cm",
     "description": "The value of this key is used as ⟨shifting part⟩ is used if and only if a ⟨of-part⟩ is present, but no ⟨shifting part⟩.",
     "type": "key"
   },
   "/tikz/base left": {
-    "signature": "/tikz/base left=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key works like the left key, only instead of the east anchor, the base east anchor is used and, when the second form of an ⟨of-part⟩ is used, the corresponding base west anchor.\n\nThis key is useful for chaining together nodes so that their base lines are aligned.",
     "type": "key"
   },
   "base left": {
-    "signature": "/tikz/base left=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key works like the left key, only instead of the east anchor, the base east anchor is used and, when the second form of an ⟨of-part⟩ is used, the corresponding base west anchor.\n\nThis key is useful for chaining together nodes so that their base lines are aligned.",
     "type": "key"
   },
   "/tikz/base right": {
-    "signature": "/tikz/base right=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like base left.",
     "type": "key"
   },
   "base right": {
-    "signature": "/tikz/base right=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like base left.",
     "type": "key"
   },
   "/tikz/mid left": {
-    "signature": "/tikz/mid left=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like base left, but with mid east and mid west anchors instead of base east and base west.",
     "type": "key"
   },
   "mid left": {
-    "signature": "/tikz/mid left=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like base left, but with mid east and mid west anchors instead of base east and base west.",
     "type": "key"
   },
   "/tikz/mid right": {
-    "signature": "/tikz/mid right=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like mid left.\n\nThe simple above and right options may not always suffice for arranging a large number of nodes. For such situations TikZ offers libraries that make positioning easier: The matrix library and the graphdrawing library. These libraries for positioning nodes are described in two separate Sections 20 and 27.",
     "type": "key"
   },
   "mid right": {
-    "signature": "/tikz/mid right=⟨specification⟩",
+    "signature": "",
     "default": "no default",
     "description": "Works like mid left.\n\nThe simple above and right options may not always suffice for arranging a large number of nodes. For such situations TikZ offers libraries that make positioning easier: The matrix library and the graphdrawing library. These libraries for positioning nodes are described in two separate Sections 20 and 27.",
     "type": "key"
   },
   "/tikz/transform shape": {
-    "signature": "/tikz/transform shape",
+    "signature": "",
     "default": "no value",
-    "description": "Causes the current “external” transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a “huge” X in your graphic.\n\n2. You can give transformation options inside the option list of the node. These transformations always apply to the node.",
+    "description": "Causes the current &ldquo;external&rdquo; transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a &ldquo;huge&rdquo; X in your graphic.\n\n2. You can give transformation options inside the option list of the node. These transformations always apply to the node.",
     "type": "key"
   },
   "transform shape": {
-    "signature": "/tikz/transform shape",
+    "signature": "",
     "default": "no value",
-    "description": "Causes the current “external” transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a “huge” X in your graphic.\n\n2. You can give transformation options inside the option list of the node. These transformations always apply to the node.",
+    "description": "Causes the current &ldquo;external&rdquo; transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a &ldquo;huge&rdquo; X in your graphic.\n\n2. You can give transformation options inside the option list of the node. These transformations always apply to the node.",
     "type": "key"
   },
   "/tikz/transform shape nonlinear": {
-    "signature": "/tikz/transform shape nonlinear=⟨true or false⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "When set to true, TikZ will try to apply any current nonlinear transformation also to nodes. Typically, for the text in nodes this is not possible in general, in such cases a linear approximation of the nonlinear transformation is used. For more details, see Section 108.4.",
+    "description": "When set to true, TikZ will try to apply any current nonlinear transformation also to nodes. Typically, for the text in nodes this is not possible in general, in such cases a linear approximation of the nonlinear transformation is used. For more details, see Section 108.4.\n\nUntil now, we always placed nodes on a coordinate that is mentioned in the path. Often, however, we wish to place nodes on &ldquo;the middle&rdquo; of a line and we do not wish to compute these coordinates &ldquo;by hand&rdquo;. To facilitate such placements, TikZ allows you to specify that a certain node should be somewhere &ldquo;on&rdquo; a line. There are two ways of specifying this: Either explicitly by using the pos option or implicitly by placing the node &ldquo;inside&rdquo; a path operation. These two ways are described in the following.",
     "type": "key"
   },
   "transform shape nonlinear": {
-    "signature": "/tikz/transform shape nonlinear=⟨true or false⟩",
+    "signature": "",
     "default": "no default, initially false",
-    "description": "When set to true, TikZ will try to apply any current nonlinear transformation also to nodes. Typically, for the text in nodes this is not possible in general, in such cases a linear approximation of the nonlinear transformation is used. For more details, see Section 108.4.",
+    "description": "When set to true, TikZ will try to apply any current nonlinear transformation also to nodes. Typically, for the text in nodes this is not possible in general, in such cases a linear approximation of the nonlinear transformation is used. For more details, see Section 108.4.\n\nUntil now, we always placed nodes on a coordinate that is mentioned in the path. Often, however, we wish to place nodes on &ldquo;the middle&rdquo; of a line and we do not wish to compute these coordinates &ldquo;by hand&rdquo;. To facilitate such placements, TikZ allows you to specify that a certain node should be somewhere &ldquo;on&rdquo; a line. There are two ways of specifying this: Either explicitly by using the pos option or implicitly by placing the node &ldquo;inside&rdquo; a path operation. These two ways are described in the following.",
     "type": "key"
   },
   "/tikz/pos": {
-    "signature": "/tikz/pos=⟨fraction⟩",
+    "signature": "",
     "default": "no default",
-    "description": "When this option is given, the node is not anchored on the last coordinate. Rather, it is anchored on some point on the line from the previous coordinate to the current point. The ⟨fraction⟩ dictates how “far” on the line the point should be. A ⟨fraction⟩ of 0 is the previous coordinate, 1 is the current one, everything else is in between. In particular, 0.5 is the middle.\n\nNow, what is “the previous line”? This depends on the previous path construction operation.",
+    "description": "When this option is given, the node is not anchored on the last coordinate. Rather, it is anchored on some point on the line from the previous coordinate to the current point. The ⟨fraction⟩ dictates how &ldquo;far&rdquo; on the line the point should be. A ⟨fraction⟩ of 0 is the previous coordinate, 1 is the current one, everything else is in between. In particular, 0.5 is the middle.\n\nNow, what is &ldquo;the previous line&rdquo;? This depends on the previous path construction operation.",
     "type": "key"
   },
   "pos": {
-    "signature": "/tikz/pos=⟨fraction⟩",
+    "signature": "",
     "default": "no default",
-    "description": "When this option is given, the node is not anchored on the last coordinate. Rather, it is anchored on some point on the line from the previous coordinate to the current point. The ⟨fraction⟩ dictates how “far” on the line the point should be. A ⟨fraction⟩ of 0 is the previous coordinate, 1 is the current one, everything else is in between. In particular, 0.5 is the middle.\n\nNow, what is “the previous line”? This depends on the previous path construction operation.",
+    "description": "When this option is given, the node is not anchored on the last coordinate. Rather, it is anchored on some point on the line from the previous coordinate to the current point. The ⟨fraction⟩ dictates how &ldquo;far&rdquo; on the line the point should be. A ⟨fraction⟩ of 0 is the previous coordinate, 1 is the current one, everything else is in between. In particular, 0.5 is the middle.\n\nNow, what is &ldquo;the previous line&rdquo;? This depends on the previous path construction operation.",
     "type": "key"
   },
   "/tikz/auto": {
-    "signature": "/tikz/auto=⟨direction⟩",
-    "default": "default is scope’s setting",
+    "signature": "",
+    "default": "default is scope&rsquo;s setting",
     "description": "This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨direction⟩ is left, then the anchor is chosen such that the node is to the left of this line. If the ⟨direction⟩ is right, then the node is to the right of this line. Leaving out ⟨direction⟩ causes automatic placement to be enabled with the last value of left or right used. A ⟨direction⟩ of false disables automatic placement. This happens also whenever an anchor is given explicitly by the anchor option or by one of the above, below, etc. options.\n\nThis option only has an effect for nodes that are placed on lines or curves.",
     "type": "key"
   },
   "auto": {
-    "signature": "/tikz/auto=⟨direction⟩",
-    "default": "default is scope’s setting",
+    "signature": "",
+    "default": "default is scope&rsquo;s setting",
     "description": "This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨direction⟩ is left, then the anchor is chosen such that the node is to the left of this line. If the ⟨direction⟩ is right, then the node is to the right of this line. Leaving out ⟨direction⟩ causes automatic placement to be enabled with the last value of left or right used. A ⟨direction⟩ of false disables automatic placement. This happens also whenever an anchor is given explicitly by the anchor option or by one of the above, below, etc. options.\n\nThis option only has an effect for nodes that are placed on lines or curves.",
     "type": "key"
   },
   "/tikz/swap": {
-    "signature": "/tikz/swap",
+    "signature": "",
     "default": "no value",
     "description": "This option exchanges the roles of left and right in automatic placement. That is, if left is the current auto placement, right is set instead and the other way round.",
     "type": "key"
   },
   "/tikz/'": {
-    "signature": "/tikz/'",
+    "signature": "",
     "default": "no value",
     "description": "This is a very short alias for swap.",
     "type": "key"
   },
   "'": {
-    "signature": "/tikz/'",
+    "signature": "",
     "default": "no value",
     "description": "This is a very short alias for swap.",
     "type": "key"
   },
   "/tikz/sloped": {
-    "signature": "/tikz/sloped",
+    "signature": "",
     "default": "no value",
-    "description": "This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use [rotate=180] or [allow upside down], see below.",
+    "description": "This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never &ldquo;upside down&rdquo;. To get upside-down text, use can use [rotate=180] or [allow upside down], see below.",
     "type": "key"
   },
   "sloped": {
-    "signature": "/tikz/sloped",
+    "signature": "",
     "default": "no value",
-    "description": "This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use [rotate=180] or [allow upside down], see below.",
+    "description": "This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never &ldquo;upside down&rdquo;. To get upside-down text, use can use [rotate=180] or [allow upside down], see below.",
     "type": "key"
   },
   "/tikz/allow upside down": {
-    "signature": "/tikz/allow upside down=⟨boolean⟩",
+    "signature": "",
     "default": "default true, initially false",
-    "description": "If set to true, TikZ will not “righten” upside down text.",
+    "description": "If set to true, TikZ will not &ldquo;righten&rdquo; upside down text.\n\nThere exist styles for specifying positions a bit less &ldquo;technically&rdquo;:",
     "type": "key"
   },
   "allow upside down": {
-    "signature": "/tikz/allow upside down=⟨boolean⟩",
+    "signature": "",
     "default": "default true, initially false",
-    "description": "If set to true, TikZ will not “righten” upside down text.",
+    "description": "If set to true, TikZ will not &ldquo;righten&rdquo; upside down text.\n\nThere exist styles for specifying positions a bit less &ldquo;technically&rdquo;:",
     "type": "key"
   },
   "/tikz/midway": {
-    "signature": "/tikz/midway",
+    "signature": "",
     "default": "style, no value",
     "description": "This has the same effect as pos=0.5.",
     "type": "style"
   },
   "midway": {
-    "signature": "/tikz/midway",
+    "signature": "",
     "default": "style, no value",
     "description": "This has the same effect as pos=0.5.",
     "type": "style"
   },
   "/tikz/near start": {
-    "signature": "/tikz/near start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.25.",
     "type": "style"
   },
   "near start": {
-    "signature": "/tikz/near start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.25.",
     "type": "style"
   },
   "/tikz/near end": {
-    "signature": "/tikz/near end",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.75.",
     "type": "style"
   },
   "near end": {
-    "signature": "/tikz/near end",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.75.",
     "type": "style"
   },
   "/tikz/very near start": {
-    "signature": "/tikz/very near start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.125.",
     "type": "style"
   },
   "very near start": {
-    "signature": "/tikz/very near start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.125.",
     "type": "style"
   },
   "/tikz/very near end": {
-    "signature": "/tikz/very near end",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.875.",
     "type": "style"
   },
   "very near end": {
-    "signature": "/tikz/very near end",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.875.",
     "type": "style"
   },
   "/tikz/at start": {
-    "signature": "/tikz/at start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.",
     "type": "style"
   },
   "at start": {
-    "signature": "/tikz/at start",
+    "signature": "",
     "default": "style, no value",
     "description": "Set to pos=0.",
     "type": "style"
   },
   "/tikz/at end": {
-    "signature": "/tikz/at end",
+    "signature": "",
     "default": "style, no value",
-    "description": "Set to pos=1.\n\nWhen you wish to place a node on the line (0,0) -- (1,1), it is natural to specify the node not following the (1,1), but “somewhere in the middle”. This is, indeed, possible and you can write (0,0) -- node{a} (1,1) to place a node midway between (0,0) and (1,1).",
+    "description": "Set to pos=1.\n\nWhen you wish to place a node on the line (0,0) -- (1,1), it is natural to specify the node not following the (1,1), but &ldquo;somewhere in the middle&rdquo;. This is, indeed, possible and you can write (0,0) -- node{a} (1,1) to place a node midway between (0,0) and (1,1).",
     "type": "style"
   },
   "at end": {
-    "signature": "/tikz/at end",
+    "signature": "",
     "default": "style, no value",
-    "description": "Set to pos=1.\n\nWhen you wish to place a node on the line (0,0) -- (1,1), it is natural to specify the node not following the (1,1), but “somewhere in the middle”. This is, indeed, possible and you can write (0,0) -- node{a} (1,1) to place a node midway between (0,0) and (1,1).",
+    "description": "Set to pos=1.\n\nWhen you wish to place a node on the line (0,0) -- (1,1), it is natural to specify the node not following the (1,1), but &ldquo;somewhere in the middle&rdquo;. This is, indeed, possible and you can write (0,0) -- node{a} (1,1) to place a node midway between (0,0) and (1,1).",
     "type": "style"
   },
   "/tikz/label": {
-    "signature": "/tikz/label=[⟨options⟩]⟨angle⟩:⟨text⟩",
+    "signature": "",
     "default": "no default",
     "description": "When this option is given to a node operation, it causes another node to be added to the path after the current node has been finished. This extra node will have the text ⟨text⟩. It is placed, in principle, in the direction ⟨angle⟩ relative to the main node, but the exact rules are a bit complex. Suppose the node currently under construction is called main node and let us call the label node label node. Then the following happens:\n\n1. The ⟨angle⟩ is used to determine a position on the border of the main node. If the ⟨angle⟩ is missing, the value of the following key is used instead:",
     "type": "key"
   },
   "label": {
-    "signature": "/tikz/label=[⟨options⟩]⟨angle⟩:⟨text⟩",
+    "signature": "",
     "default": "no default",
     "description": "When this option is given to a node operation, it causes another node to be added to the path after the current node has been finished. This extra node will have the text ⟨text⟩. It is placed, in principle, in the direction ⟨angle⟩ relative to the main node, but the exact rules are a bit complex. Suppose the node currently under construction is called main node and let us call the label node label node. Then the following happens:\n\n1. The ⟨angle⟩ is used to determine a position on the border of the main node. If the ⟨angle⟩ is missing, the value of the following key is used instead:",
     "type": "key"
   },
   "/tikz/label position": {
-    "signature": "/tikz/label position=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially above",
     "description": "Sets the default position for labels.\n\nThe ⟨angle⟩ determines the position on the border of the shape in two different ways. Normally, the border position is given by main node.⟨angle⟩. This means that the ⟨angle⟩ can either be a number like 0 or -340, but it can also be an anchor like north. Additionally, the special angles above, below, left, right, above left, and so on are automatically replaced by the corresponding angles 90, 270, 180, 0, 135, and so on.",
     "type": "key"
   },
   "label position": {
-    "signature": "/tikz/label position=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially above",
     "description": "Sets the default position for labels.\n\nThe ⟨angle⟩ determines the position on the border of the shape in two different ways. Normally, the border position is given by main node.⟨angle⟩. This means that the ⟨angle⟩ can either be a number like 0 or -340, but it can also be an anchor like north. Additionally, the special angles above, below, left, right, above left, and so on are automatically replaced by the corresponding angles 90, 270, 180, 0, 135, and so on.",
     "type": "key"
   },
   "/tikz/absolute": {
-    "signature": "/tikz/absolute=⟨true or false⟩",
+    "signature": "",
     "default": "default true",
-    "description": "When this key is set, the ⟨angle⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured “absolutely”, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope).\n\nThe difference can be seen in the following example:",
+    "description": "When this key is set, the ⟨angle⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured &ldquo;absolutely&rdquo;, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node&rsquo;s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope).\n\nThe difference can be seen in the following example:",
     "type": "key"
   },
   "absolute": {
-    "signature": "/tikz/absolute=⟨true or false⟩",
+    "signature": "",
     "default": "default true",
-    "description": "When this key is set, the ⟨angle⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured “absolutely”, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope).\n\nThe difference can be seen in the following example:",
+    "description": "When this key is set, the ⟨angle⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured &ldquo;absolutely&rdquo;, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node&rsquo;s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope).\n\nThe difference can be seen in the following example:",
     "type": "key"
   },
   "/tikz/label distance": {
-    "signature": "/tikz/label distance=⟨distance⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "The ⟨distance⟩ is additionally inserted between the main node and the label node.",
     "type": "key"
   },
   "label distance": {
-    "signature": "/tikz/label distance=⟨distance⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "The ⟨distance⟩ is additionally inserted between the main node and the label node.",
     "type": "key"
   },
   "/tikz/every label": {
-    "signature": "/tikz/every label",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is used in every node created by the label option. The default is draw=none,fill=none.\n\nSee Section 17.10.4 for an easier syntax for specifying nodes.",
     "type": "style"
   },
   "every label": {
-    "signature": "/tikz/every label",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is used in every node created by the label option. The default is draw=none,fill=none.\n\nSee Section 17.10.4 for an easier syntax for specifying nodes.",
     "type": "style"
   },
   "/tikz/pin": {
-    "signature": "/tikz/pin=[⟨options⟩]⟨angle⟩:⟨text⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node:",
+    "description": "This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node:\n\nThe meaning of the ⟨options⟩ and the ⟨angle⟩ and the ⟨text⟩ is exactly the same as for the node option. Only, the options and styles the influence the way pins look are different:",
     "type": "key"
   },
   "pin": {
-    "signature": "/tikz/pin=[⟨options⟩]⟨angle⟩:⟨text⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node:",
+    "description": "This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node:\n\nThe meaning of the ⟨options⟩ and the ⟨angle⟩ and the ⟨text⟩ is exactly the same as for the node option. Only, the options and styles the influence the way pins look are different:",
     "type": "key"
   },
   "/tikz/pin distance": {
-    "signature": "/tikz/pin distance=⟨distance⟩",
+    "signature": "",
     "default": "no default, initially 3ex",
     "description": "This ⟨distance⟩ is used instead of the label distance for the distance between the main node and the label node.",
     "type": "key"
   },
   "pin distance": {
-    "signature": "/tikz/pin distance=⟨distance⟩",
+    "signature": "",
     "default": "no default, initially 3ex",
     "description": "This ⟨distance⟩ is used instead of the label distance for the distance between the main node and the label node.",
     "type": "key"
   },
   "/tikz/every pin": {
-    "signature": "/tikz/every pin",
+    "signature": "",
     "default": "style, initially draw=none,fill=none",
     "description": "This style is used in every node created by the pin option.",
     "type": "style"
   },
   "every pin": {
-    "signature": "/tikz/every pin",
+    "signature": "",
     "default": "style, initially draw=none,fill=none",
     "description": "This style is used in every node created by the pin option.",
     "type": "style"
   },
   "/tikz/pin position": {
-    "signature": "/tikz/pin position=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially above",
     "description": "The default pin position. Works like label position.",
     "type": "key"
   },
   "pin position": {
-    "signature": "/tikz/pin position=⟨angle⟩",
+    "signature": "",
     "default": "no default, initially above",
     "description": "The default pin position. Works like label position.",
     "type": "key"
   },
   "/tikz/every pin edge": {
-    "signature": "/tikz/every pin edge",
+    "signature": "",
     "default": "style, initially help lines",
     "description": "This style is used in every edge created by the pin options.",
     "type": "style"
   },
   "every pin edge": {
-    "signature": "/tikz/every pin edge",
+    "signature": "",
     "default": "style, initially help lines",
     "description": "This style is used in every edge created by the pin options.",
     "type": "style"
   },
   "/tikz/pin edge": {
-    "signature": "/tikz/pin edge=⟨options⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "This option can be used to set the options that are to be used in the edge created by the pin option.",
+    "description": "This option can be used to set the options that are to be used in the edge created by the pin option.\n\nThe label and pin options provide a syntax for creating nodes next to existing nodes, but this syntax is often a bit too verbose. By including the following library, you get access to an even more concise syntax:",
     "type": "key"
   },
   "pin edge": {
-    "signature": "/tikz/pin edge=⟨options⟩",
+    "signature": "",
     "default": "no default, initially empty",
-    "description": "This option can be used to set the options that are to be used in the edge created by the pin option.",
+    "description": "This option can be used to set the options that are to be used in the edge created by the pin option.\n\nThe label and pin options provide a syntax for creating nodes next to existing nodes, but this syntax is often a bit too verbose. By including the following library, you get access to an even more concise syntax:",
     "type": "key"
   },
   "quotes": {
-    "signature": "TikZ Library quotes",
+    "signature": "",
     "default": "",
     "description": "\\usetikzlibrary{quotes} % LaTeX and plain TeX \\usetikzlibrary[quotes] % ConTeXt Enables the quotes syntax for labels, pins, edge nodes, and pic texts.\n\nLet us start with the basics of what this library does: Once loaded, inside the options of a node command, instead of the usual ⟨key⟩=⟨value⟩ pairs, you may also provide strings of the following form (the actual syntax is slightly more general, see the detailed descriptions later on):",
     "type": "key"
   },
   "/tikz/quotes mean label": {
-    "signature": "/tikz/quotes mean label",
+    "signature": "",
     "default": "no value",
-    "description": "When this option is used (which is the default when this library is loaded), then, as described above, inside the options of a node a special syntax check is done.\n\nThe syntax. For each string in the list of options it is tested whether it starts with a quotation mark (note that this will never happen for normal keys since the normal keys of TikZ do not start with quotation marks). When this happens, the ⟨string⟩ should not be a key–value pair, but, rather, must have the form:",
+    "description": "When this option is used (which is the default when this library is loaded), then, as described above, inside the options of a node a special syntax check is done.\n\nThe syntax. For each string in the list of options it is tested whether it starts with a quotation mark (note that this will never happen for normal keys since the normal keys of TikZ do not start with quotation marks). When this happens, the ⟨string⟩ should not be a key&ndash;value pair, but, rather, must have the form:",
     "type": "key"
   },
   "quotes mean label": {
-    "signature": "/tikz/quotes mean label",
+    "signature": "",
     "default": "no value",
-    "description": "When this option is used (which is the default when this library is loaded), then, as described above, inside the options of a node a special syntax check is done.\n\nThe syntax. For each string in the list of options it is tested whether it starts with a quotation mark (note that this will never happen for normal keys since the normal keys of TikZ do not start with quotation marks). When this happens, the ⟨string⟩ should not be a key–value pair, but, rather, must have the form:",
+    "description": "When this option is used (which is the default when this library is loaded), then, as described above, inside the options of a node a special syntax check is done.\n\nThe syntax. For each string in the list of options it is tested whether it starts with a quotation mark (note that this will never happen for normal keys since the normal keys of TikZ do not start with quotation marks). When this happens, the ⟨string⟩ should not be a key&ndash;value pair, but, rather, must have the form:",
     "type": "key"
   },
   "/tikz/every label quotes": {
-    "signature": "/tikz/every label quotes",
+    "signature": "",
     "default": "style, no value",
-    "description": "",
+    "description": "Handling commas and colons inside the text. The ⟨text⟩ may not contain a comma, unless it is inside curly braces. The reason is that the key handler separates the total options of a node along the commas it finds. So, in order to have text containing a comma, just add curly braces around either the comma or just around the whole ⟨text⟩:\n\nThe same is true for a colon, only in this case you may need to surround specifically the colon by curly braces to stop the label option from interpreting everything before the colon as a direction:",
     "type": "style"
   },
   "every label quotes": {
-    "signature": "/tikz/every label quotes",
+    "signature": "",
     "default": "style, no value",
-    "description": "",
+    "description": "Handling commas and colons inside the text. The ⟨text⟩ may not contain a comma, unless it is inside curly braces. The reason is that the key handler separates the total options of a node along the commas it finds. So, in order to have text containing a comma, just add curly braces around either the comma or just around the whole ⟨text⟩:\n\nThe same is true for a colon, only in this case you may need to surround specifically the colon by curly braces to stop the label option from interpreting everything before the colon as a direction:",
     "type": "style"
   },
   "/tikz/quotes mean pin": {
-    "signature": "/tikz/quotes mean pin",
+    "signature": "",
     "default": "no value",
-    "description": "This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option:",
+    "description": "This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option:\n\nInstead of every label quotes, the following style is executed with each such pin:",
     "type": "key"
   },
   "quotes mean pin": {
-    "signature": "/tikz/quotes mean pin",
+    "signature": "",
     "default": "no value",
-    "description": "This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option:",
+    "description": "This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option:\n\nInstead of every label quotes, the following style is executed with each such pin:",
     "type": "key"
   },
   "/tikz/every pin quotes": {
-    "signature": "/tikz/every pin quotes",
+    "signature": "",
     "default": "style, no value",
     "description": "If instead of labels or pins you would like quoted strings to be interpreted in a different manner, you can also define your own handlers:",
     "type": "style"
   },
   "every pin quotes": {
-    "signature": "/tikz/every pin quotes",
+    "signature": "",
     "default": "style, no value",
     "description": "If instead of labels or pins you would like quoted strings to be interpreted in a different manner, you can also define your own handlers:",
     "type": "style"
   },
   "/tikz/node quotes mean": {
-    "signature": "/tikz/node quotes mean=⟨replacement⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key–value pair with the syntax\n\n\"⟨text⟩\"'⟨options⟩",
+    "description": "This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key&ndash;value pair with the syntax\n\n\"⟨text⟩\"'⟨options⟩",
     "type": "key"
   },
   "node quotes mean": {
-    "signature": "/tikz/node quotes mean=⟨replacement⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key–value pair with the syntax\n\n\"⟨text⟩\"'⟨options⟩",
+    "description": "This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key&ndash;value pair with the syntax\n\n\"⟨text⟩\"'⟨options⟩",
     "type": "key"
   },
   "edge": {
-    "signature": "\\path … edge[⟨options⟩] ⟨nodes⟩ (⟨coordinate⟩) …;",
+    "signature": "",
     "default": "",
     "description": "The effect of the edge operation is that after the main path the following path is added to the picture:\n\n\\path[every edge,⟨options⟩] (\\tikztostart) ⟨path⟩;",
     "type": "key"
   },
   "/tikz/every edge": {
-    "signature": "/tikz/every edge",
+    "signature": "",
     "default": "style, initially draw",
-    "description": "Executed for each edge.",
+    "description": "Executed for each edge.\n\nThe standard way of specifying nodes that are placed &ldquo;on&rdquo; an edge (or on a to-path; all of the following is also true for to&ndash;paths) is to put node specifications after the edge keyword, but before the target coordinate. Another way is to use the edge node option and its friends. Yet another way is to use the quotes syntax.",
     "type": "style"
   },
   "every edge": {
-    "signature": "/tikz/every edge",
+    "signature": "",
     "default": "style, initially draw",
-    "description": "Executed for each edge.",
+    "description": "Executed for each edge.\n\nThe standard way of specifying nodes that are placed &ldquo;on&rdquo; an edge (or on a to-path; all of the following is also true for to&ndash;paths) is to put node specifications after the edge keyword, but before the target coordinate. Another way is to use the edge node option and its friends. Yet another way is to use the quotes syntax.",
     "type": "style"
   },
   "/tikz/every edge quotes": {
-    "signature": "/tikz/every edge quotes",
+    "signature": "",
     "default": "style, initially auto",
-    "description": "This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left.",
+    "description": "This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left.\n\nIn order to place all labels to the right by default, change this style to auto=right:",
     "type": "style"
   },
   "every edge quotes": {
-    "signature": "/tikz/every edge quotes",
+    "signature": "",
     "default": "style, initially auto",
-    "description": "This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left.",
+    "description": "This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left.\n\nIn order to place all labels to the right by default, change this style to auto=right:",
     "type": "style"
   },
   "/tikz/remember picture": {
-    "signature": "/tikz/remember picture=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
     "description": "This option tells TikZ that it should attempt to remember the position of the current picture on the page. This attempt may fail depending on which backend driver is used. Also, even if remembering works, the position may only be available on a second run of TeX.\n\nProvided that remembering works, you may consider saying",
     "type": "key"
   },
   "remember picture": {
-    "signature": "/tikz/remember picture=⟨boolean⟩",
+    "signature": "",
     "default": "no default, initially false",
     "description": "This option tells TikZ that it should attempt to remember the position of the current picture on the page. This attempt may fail depending on which backend driver is used. Also, even if remembering works, the position may only be available on a second run of TeX.\n\nProvided that remembering works, you may consider saying",
     "type": "key"
   },
   "/tikz/overlay": {
-    "signature": "/tikz/overlay=⟨boolean⟩",
+    "signature": "",
     "default": "default true",
     "description": "This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed.\n\nYou need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass the node in the other picture. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the overlay option with all pictures that contain references to other pictures.",
     "type": "key"
   },
   "overlay": {
-    "signature": "/tikz/overlay=⟨boolean⟩",
+    "signature": "",
     "default": "default true",
     "description": "This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed.\n\nYou need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass the node in the other picture. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the overlay option with all pictures that contain references to other pictures.",
     "type": "key"
   },
   "node also": {
-    "signature": "\\path … node also[⟨late options⟩](⟨name⟩) …;",
+    "signature": "",
     "default": "",
-    "description": "Note that the ⟨name⟩ is compulsory and that no text may be given. Also, the ordering of options and node label must be as above.\n\nThe effect of the above is the following effect: The node ⟨name⟩ must already be existing. Now, the ⟨late options⟩ are executed in a local scope. Most of these options will have no effect since you cannot change the appearance of the node, that is, you cannot change a red node into a green node using these “late” options. However, giving the append after command and prefix after command options inside the ⟨late options⟩ (directly or indirectly) does have the desired effect: The given path gets executed with the \\tikzlastnode set to the determined node.",
+    "description": "Note that the ⟨name⟩ is compulsory and that no text may be given. Also, the ordering of options and node label must be as above.\n\nThe effect of the above is the following effect: The node ⟨name⟩ must already be existing. Now, the ⟨late options⟩ are executed in a local scope. Most of these options will have no effect since you cannot change the appearance of the node, that is, you cannot change a red node into a green node using these &ldquo;late&rdquo; options. However, giving the append after command and prefix after command options inside the ⟨late options⟩ (directly or indirectly) does have the desired effect: The given path gets executed with the \\tikzlastnode set to the determined node.",
     "type": "key"
   },
   "\\tikzlastnode": {
-    "signature": "\\tikzlastnode",
+    "signature": "",
     "default": "",
     "description": "Expands to the last node on the path.\n\nInstead of the node also syntax, you can also use the following option:",
     "type": "command"
   },
   "/tikz/late options": {
-    "signature": "/tikz/late options=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option can be given on a path (but not as an argument to a node path command) and has the same effect as the node also path command. Inside the ⟨options⟩, you should use the name option to specify the node for which you wish to add late options:",
     "type": "key"
   },
   "late options": {
-    "signature": "/tikz/late options=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option can be given on a path (but not as an argument to a node path command) and has the same effect as the node also path command. Inside the ⟨options⟩, you should use the name option to specify the node for which you wish to add late options:",
     "type": "key"

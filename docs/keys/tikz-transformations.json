@@ -1,228 +1,228 @@
 {
   "/tikz/x": {
-    "signature": "/tikz/x=⟨value⟩",
+    "signature": "",
     "default": "no default, initially 1cm",
-    "description": "If ⟨value⟩ is a dimension, the \\(x\\)-vector of pgf’s \\(xyz\\)-coordinate system is set up to point ⟨value⟩ to the right, that is, to (⟨value⟩,0pt).",
+    "description": "If ⟨value⟩ is a dimension, the \\(x\\)-vector of pgf&rsquo;s \\(xyz\\)-coordinate system is set up to point ⟨value⟩ to the right, that is, to (⟨value⟩,0pt).\n\nThe last example shows that the size of steppings in grids, just like all other dimensions, are not affected by the \\(x\\)-vector. After all, the \\(x\\)-vector is only used to determine the coordinate of the upper right corner of the grid.",
     "type": "key"
   },
   "/tikz/y": {
-    "signature": "/tikz/y=⟨value⟩",
+    "signature": "",
     "default": "no default, initially 1cm",
     "description": "Works like the x= option, only if ⟨value⟩ is a dimension, the resulting vector points to (0,⟨value⟩).",
     "type": "key"
   },
   "/tikz/z": {
-    "signature": "/tikz/z=⟨value⟩",
+    "signature": "",
     "default": "no default, initially \\(-3.85\\)mm",
-    "description": "Works like the y= option, but now a dimension is the point (⟨value⟩,⟨value⟩).",
+    "description": "Works like the y= option, but now a dimension is the point (⟨value⟩,⟨value⟩).\n\npgf and TikZ allow you to specify coordinate transformations. Whenever you specify a coordinate as in (1,0) or (1cm,1pt) or (30:2cm), this coordinate is first &ldquo;reduced&rdquo; to a position of the form &ldquo;\\(x\\) points to the right and \\(y\\) points upwards&rdquo;. For example, (1in,5pt) is reduced to &ldquo;\\(72\\frac {27}{100}\\) points to the right and 5 points upwards&rdquo; and (90:100pt) means &ldquo;0pt to the right and 100 points upwards&rdquo;.",
     "type": "key"
   },
   "/tikz/shift": {
-    "signature": "/tikz/shift={⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "Adds the ⟨coordinate⟩ to all coordinates.",
     "type": "key"
   },
   "shift": {
-    "signature": "/tikz/shift={⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "Adds the ⟨coordinate⟩ to all coordinates.",
     "type": "key"
   },
   "/tikz/shift only": {
-    "signature": "/tikz/shift only",
+    "signature": "",
     "default": "no value",
-    "description": "This option does not take any parameter. Its effect is to cancel all current transformations except for the shifting. This means that the origin will remain where it is, but any rotation around the origin or scaling relative to the origin or skewing will no longer have an effect.\n\nThis option is useful in situations where a complicated transformation is used to “get to a position”, but you then wish to draw something “normal” at this position.",
+    "description": "This option does not take any parameter. Its effect is to cancel all current transformations except for the shifting. This means that the origin will remain where it is, but any rotation around the origin or scaling relative to the origin or skewing will no longer have an effect.\n\nThis option is useful in situations where a complicated transformation is used to &ldquo;get to a position&rdquo;, but you then wish to draw something &ldquo;normal&rdquo; at this position.",
     "type": "key"
   },
   "shift only": {
-    "signature": "/tikz/shift only",
+    "signature": "",
     "default": "no value",
-    "description": "This option does not take any parameter. Its effect is to cancel all current transformations except for the shifting. This means that the origin will remain where it is, but any rotation around the origin or scaling relative to the origin or skewing will no longer have an effect.\n\nThis option is useful in situations where a complicated transformation is used to “get to a position”, but you then wish to draw something “normal” at this position.",
+    "description": "This option does not take any parameter. Its effect is to cancel all current transformations except for the shifting. This means that the origin will remain where it is, but any rotation around the origin or scaling relative to the origin or skewing will no longer have an effect.\n\nThis option is useful in situations where a complicated transformation is used to &ldquo;get to a position&rdquo;, but you then wish to draw something &ldquo;normal&rdquo; at this position.",
     "type": "key"
   },
   "/tikz/xshift": {
-    "signature": "/tikz/xshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Adds ⟨dimension⟩ to the \\(x\\) value of all coordinates.",
     "type": "key"
   },
   "xshift": {
-    "signature": "/tikz/xshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Adds ⟨dimension⟩ to the \\(x\\) value of all coordinates.",
     "type": "key"
   },
   "/tikz/yshift": {
-    "signature": "/tikz/yshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Adds ⟨dimension⟩ to the \\(y\\) value of all coordinates.",
     "type": "key"
   },
   "yshift": {
-    "signature": "/tikz/yshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
     "description": "Adds ⟨dimension⟩ to the \\(y\\) value of all coordinates.",
     "type": "key"
   },
   "/tikz/scale": {
-    "signature": "/tikz/scale=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Multiplies all coordinates by the given ⟨factor⟩. The ⟨factor⟩ should not be excessively large in absolute terms or very close to zero.",
     "type": "key"
   },
   "/tikz/scale around": {
-    "signature": "/tikz/scale around={⟨factor⟩:⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
-    "description": "Scales the coordinate system by ⟨factor⟩, with the “origin of scaling” centered on ⟨coordinate⟩ rather than the origin.",
+    "description": "Scales the coordinate system by ⟨factor⟩, with the &ldquo;origin of scaling&rdquo; centered on ⟨coordinate⟩ rather than the origin.",
     "type": "key"
   },
   "scale around": {
-    "signature": "/tikz/scale around={⟨factor⟩:⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
-    "description": "Scales the coordinate system by ⟨factor⟩, with the “origin of scaling” centered on ⟨coordinate⟩ rather than the origin.",
+    "description": "Scales the coordinate system by ⟨factor⟩, with the &ldquo;origin of scaling&rdquo; centered on ⟨coordinate⟩ rather than the origin.",
     "type": "key"
   },
   "/tikz/xscale": {
-    "signature": "/tikz/xscale=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Multiplies only the \\(x\\)-value of all coordinates by the given ⟨factor⟩.",
     "type": "key"
   },
   "xscale": {
-    "signature": "/tikz/xscale=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Multiplies only the \\(x\\)-value of all coordinates by the given ⟨factor⟩.",
     "type": "key"
   },
   "/tikz/yscale": {
-    "signature": "/tikz/yscale=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Multiplies only the \\(y\\)-value of all coordinates by ⟨factor⟩.",
     "type": "key"
   },
   "yscale": {
-    "signature": "/tikz/yscale=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Multiplies only the \\(y\\)-value of all coordinates by ⟨factor⟩.",
     "type": "key"
   },
   "/tikz/xslant": {
-    "signature": "/tikz/xslant=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Slants the coordinate horizontally by the given ⟨factor⟩:",
     "type": "key"
   },
   "xslant": {
-    "signature": "/tikz/xslant=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Slants the coordinate horizontally by the given ⟨factor⟩:",
     "type": "key"
   },
   "/tikz/yslant": {
-    "signature": "/tikz/yslant=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Slants the coordinate vertically by the given ⟨factor⟩:",
     "type": "key"
   },
   "yslant": {
-    "signature": "/tikz/yslant=⟨factor⟩",
+    "signature": "",
     "default": "no default",
     "description": "Slants the coordinate vertically by the given ⟨factor⟩:",
     "type": "key"
   },
   "/tikz/rotate": {
-    "signature": "/tikz/rotate=⟨degree⟩",
+    "signature": "",
     "default": "no default",
     "description": "Rotates the coordinate system by ⟨degree⟩:",
     "type": "key"
   },
   "rotate": {
-    "signature": "/tikz/rotate=⟨degree⟩",
+    "signature": "",
     "default": "no default",
     "description": "Rotates the coordinate system by ⟨degree⟩:",
     "type": "key"
   },
   "/tikz/rotate around": {
-    "signature": "/tikz/rotate around={⟨degree⟩:⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "Rotates the coordinate system by ⟨degree⟩ around the point ⟨coordinate⟩.",
     "type": "key"
   },
   "rotate around": {
-    "signature": "/tikz/rotate around={⟨degree⟩:⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "Rotates the coordinate system by ⟨degree⟩ around the point ⟨coordinate⟩.",
     "type": "key"
   },
   "/tikz/rotate around x": {
-    "signature": "/tikz/rotate around x=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(x\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "rotate around x": {
-    "signature": "/tikz/rotate around x=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(x\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "/tikz/rotate around y": {
-    "signature": "/tikz/rotate around y=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(y\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "rotate around y": {
-    "signature": "/tikz/rotate around y=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(y\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "/tikz/rotate around z": {
-    "signature": "/tikz/rotate around z=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(z\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "rotate around z": {
-    "signature": "/tikz/rotate around z=⟨angle⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key sets the \\(x\\), \\(y\\) and \\(z\\) vectors of the pgf \\(xyz\\)-coordinate system so that they are rotated by ⟨angle⟩ around the axis corresponding to the \\(z\\)-vector. The rotation is applied so that when looking towards the origin along this axis, positive angles result in an anticlockwise rotation.",
     "type": "key"
   },
   "/tikz/cm": {
-    "signature": "/tikz/cm={⟨\\(a\\)⟩,⟨\\(b\\)⟩,⟨\\(c\\)⟩,⟨\\(d\\)⟩,⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "applies the following transformation to all coordinates: Let \\((x,y)\\) be the coordinate to be transformed and let ⟨coordinate⟩ specify the point \\((t_x,t_y)\\). Then the new coordinate is given by \\(\\left (\\begin {smallmatrix} a & c \\\\ b & d\\end {smallmatrix}\\right ) \\left (\\begin {smallmatrix} x \\\\ y \\end {smallmatrix}\\right ) + \\left (\\begin {smallmatrix} t_x \\\\ t_y \\end {smallmatrix}\\right )\\). Usually, you do not use this option directly.",
     "type": "key"
   },
   "cm": {
-    "signature": "/tikz/cm={⟨\\(a\\)⟩,⟨\\(b\\)⟩,⟨\\(c\\)⟩,⟨\\(d\\)⟩,⟨coordinate⟩}",
+    "signature": "",
     "default": "no default",
     "description": "applies the following transformation to all coordinates: Let \\((x,y)\\) be the coordinate to be transformed and let ⟨coordinate⟩ specify the point \\((t_x,t_y)\\). Then the new coordinate is given by \\(\\left (\\begin {smallmatrix} a & c \\\\ b & d\\end {smallmatrix}\\right ) \\left (\\begin {smallmatrix} x \\\\ y \\end {smallmatrix}\\right ) + \\left (\\begin {smallmatrix} t_x \\\\ t_y \\end {smallmatrix}\\right )\\). Usually, you do not use this option directly.",
     "type": "key"
   },
   "/tikz/reset cm": {
-    "signature": "/tikz/reset cm",
+    "signature": "",
     "default": "no value",
     "description": "Completely resets the coordinate transformation matrix to the identity matrix. This will destroy not only the transformations applied in the current scope, but also all transformations inherited from surrounding scopes. Do not use this option, unless you really, really know what you are doing.\n\nA canvas transformation, see Section 99.4 for details, is best thought of as a transformation in which the drawing canvas is stretched or rotated. Imaging writing something on a balloon (the canvas) and then blowing air into the balloon: Not only does the text become larger, the thin lines also become larger. In particular, if you scale the canvas by a factor of two, all lines are twice as thick.",
     "type": "key"
   },
   "reset cm": {
-    "signature": "/tikz/reset cm",
+    "signature": "",
     "default": "no value",
     "description": "Completely resets the coordinate transformation matrix to the identity matrix. This will destroy not only the transformations applied in the current scope, but also all transformations inherited from surrounding scopes. Do not use this option, unless you really, really know what you are doing.\n\nA canvas transformation, see Section 99.4 for details, is best thought of as a transformation in which the drawing canvas is stretched or rotated. Imaging writing something on a balloon (the canvas) and then blowing air into the balloon: Not only does the text become larger, the thin lines also become larger. In particular, if you scale the canvas by a factor of two, all lines are twice as thick.",
     "type": "key"
   },
   "/tikz/transform canvas": {
-    "signature": "/tikz/transform canvas=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "The ⟨options⟩ should contain coordinate transformations options like scale or xshift. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨options⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct.",
     "type": "key"
   },
   "transform canvas": {
-    "signature": "/tikz/transform canvas=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "The ⟨options⟩ should contain coordinate transformations options like scale or xshift. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨options⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct.",
     "type": "key"

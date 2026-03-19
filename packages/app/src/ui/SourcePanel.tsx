@@ -26,6 +26,7 @@ import {
   foldKeymap,
   HighlightStyle,
   indentOnInput,
+  syntaxTree,
   syntaxHighlighting
 } from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
@@ -48,11 +49,14 @@ import {
 import { tags as t } from "@lezer/highlight";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
+import { resolveDocHoverTarget } from "tikz-editor/completion/doc-hover";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { NAMED_COLORS } from "tikz-editor/semantic/style/constants";
 import { patchesMatchSourceTransition } from "tikz-editor/edit/source-patches";
 import { tikzLanguage } from "../codemirror-tikz";
 import { tikzCompletion } from "../tikz-autocomplete";
+import { lookupTikzDocEntry } from "../tikz-docs";
+import { getActiveEditorPlatform } from "../platform/current";
 import { colorSwatches } from "../color-swatches";
 import { numberScrubber } from "../number-scrubber";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
@@ -155,6 +159,7 @@ const EMPTY_SYMBOLS: DocumentSymbols = {
 const MAX_DIAGNOSTICS = 300;
 const MAX_DECORATED_SPAN = 160;
 const DIAGNOSTIC_DEBOUNCE_MS = 120;
+const DOCS_TOOLTIP_HOVER_TIME_MS = 650;
 const MIN_FORMATTER_MAX_LINE_LENGTH = 40;
 const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 
@@ -236,6 +241,90 @@ const diagnosticTooltip = hoverTooltip((view, pos) => {
       return { dom };
     }
   };
+});
+
+const docsTooltip = hoverTooltip(async (view, pos, side) => {
+  const diagnostics = view.state.field(diagnosticsField, false);
+  if (diagnostics && bestDiagnosticAt(diagnostics.list, pos)) {
+    return null;
+  }
+
+  const source = view.state.doc.toString();
+  const tree = syntaxTree(view.state);
+  const probePos = side < 0 ? Math.max(0, pos - 1) : pos;
+  const target = resolveDocHoverTarget({
+    source,
+    tree,
+    pos: probePos
+  });
+  if (!target) {
+    return null;
+  }
+
+  const entry = await lookupTikzDocEntry(target.candidates);
+  if (!entry) {
+    return null;
+  }
+
+  return {
+    pos: target.from,
+    end: target.to,
+    create() {
+      const dom = document.createElement("div");
+      dom.className = "cm-editor-docs-tooltip";
+
+      if (entry.signatureHtml || entry.defaultHtml) {
+        const meta = document.createElement("div");
+        meta.className = "cm-editor-docs-tooltip-meta";
+
+        if (entry.signatureHtml) {
+          const signature = document.createElement("div");
+          signature.className = "cm-editor-docs-tooltip-signature";
+          signature.innerHTML = entry.signatureHtml;
+          meta.appendChild(signature);
+        }
+
+        if (entry.defaultHtml) {
+          const defaultValue = document.createElement("div");
+          defaultValue.className = "cm-editor-docs-tooltip-default";
+          defaultValue.innerHTML = entry.defaultHtml;
+          meta.appendChild(defaultValue);
+        }
+
+        dom.appendChild(meta);
+      }
+
+      if (entry.snippetHtml) {
+        const snippet = document.createElement("div");
+        snippet.className = "cm-editor-docs-tooltip-snippet";
+        snippet.innerHTML = entry.snippetHtml;
+        dom.appendChild(snippet);
+      }
+
+      const linkRow = document.createElement("div");
+      linkRow.className = "cm-editor-docs-tooltip-link-row";
+      const link = document.createElement("a");
+      link.className = "cm-editor-docs-tooltip-link";
+      link.href = entry.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open docs";
+      link.addEventListener("click", (event) => {
+        const openExternalUrl = getActiveEditorPlatform().window?.openExternalUrl;
+        if (typeof openExternalUrl !== "function") {
+          return;
+        }
+        event.preventDefault();
+        void openExternalUrl(entry.href);
+      });
+      linkRow.appendChild(link);
+      dom.appendChild(linkRow);
+
+      return { dom };
+    }
+  };
+}, {
+  hoverTime: DOCS_TOOLTIP_HOVER_TIME_MS
 });
 
 const editorKeymap = Prec.highest(
@@ -472,6 +561,7 @@ export function SourcePanel() {
         diagnosticsField,
         figureOverlayField,
         diagnosticTooltip,
+        docsTooltip,
         sourceHoverBridge,
         updateListener
       ]

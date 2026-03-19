@@ -1,654 +1,654 @@
 {
   "\\draw": {
-    "signature": "\\draw",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[draw].",
     "type": "command"
   },
   "\\fill": {
-    "signature": "\\fill",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[fill].",
     "type": "command"
   },
   "\\filldraw": {
-    "signature": "\\filldraw",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[fill,draw].",
     "type": "command"
   },
   "\\pattern": {
-    "signature": "\\pattern",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[pattern].",
     "type": "command"
   },
   "\\shade": {
-    "signature": "\\shade",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[shade].",
     "type": "command"
   },
   "\\shadedraw": {
-    "signature": "\\shadedraw",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[shade,draw].",
     "type": "command"
   },
   "\\clip": {
-    "signature": "\\clip",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[clip].",
     "type": "command"
   },
   "\\useasboundingbox": {
-    "signature": "\\useasboundingbox",
+    "signature": "",
     "default": "",
     "description": "Inside {tikzpicture} this is an abbreviation for \\path[use as bounding box].\n\nThe most unspecific option for setting colors is the following:",
     "type": "command"
   },
   "/tikz/color": {
-    "signature": "/tikz/color=⟨color name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option.\n\nThe ⟨color name⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the xcolor extensions are allowed. Here is an example:",
+    "description": "This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately &ldquo;overruled&rdquo; by this option.\n\nThe ⟨color name⟩ is the name of a previously defined color. For LaTeX users, this is just a normal &ldquo;LaTeX-color&rdquo; and the xcolor extensions are allowed. Here is an example:",
     "type": "key"
   },
   "color": {
-    "signature": "/tikz/color=⟨color name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option.\n\nThe ⟨color name⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the xcolor extensions are allowed. Here is an example:",
+    "description": "This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately &ldquo;overruled&rdquo; by this option.\n\nThe ⟨color name⟩ is the name of a previously defined color. For LaTeX users, this is just a normal &ldquo;LaTeX-color&rdquo; and the xcolor extensions are allowed. Here is an example:",
     "type": "key"
   },
   "/tikz/draw": {
-    "signature": "/tikz/draw=⟨color⟩",
-    "default": "default is scope’s color setting",
-    "description": "Causes the path to be drawn. “Drawing” (also known as “stroking”) can be thought of as picking up a pen and moving it along the path, thereby leaving “ink” on the canvas.\n\nThere are numerous parameters that influence how a line is drawn, like the thickness or the dash pattern. These options are explained below.",
+    "signature": "",
+    "default": "default is scope&rsquo;s color setting",
+    "description": "Causes the path to be drawn. &ldquo;Drawing&rdquo; (also known as &ldquo;stroking&rdquo;) can be thought of as picking up a pen and moving it along the path, thereby leaving &ldquo;ink&rdquo; on the canvas.\n\nThere are numerous parameters that influence how a line is drawn, like the thickness or the dash pattern. These options are explained below.",
     "type": "key"
   },
   "draw": {
-    "signature": "/tikz/draw=⟨color⟩",
-    "default": "default is scope’s color setting",
-    "description": "Causes the path to be drawn. “Drawing” (also known as “stroking”) can be thought of as picking up a pen and moving it along the path, thereby leaving “ink” on the canvas.\n\nThere are numerous parameters that influence how a line is drawn, like the thickness or the dash pattern. These options are explained below.",
+    "signature": "",
+    "default": "default is scope&rsquo;s color setting",
+    "description": "Causes the path to be drawn. &ldquo;Drawing&rdquo; (also known as &ldquo;stroking&rdquo;) can be thought of as picking up a pen and moving it along the path, thereby leaving &ldquo;ink&rdquo; on the canvas.\n\nThere are numerous parameters that influence how a line is drawn, like the thickness or the dash pattern. These options are explained below.",
     "type": "key"
   },
   "/tikz/line width": {
-    "signature": "/tikz/line width=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0.4pt",
-    "description": "Specifies the line width. Note the space.",
+    "description": "Specifies the line width. Note the space.\n\nThere are a number of predefined styles that provide more &ldquo;natural&rdquo; ways of setting the line width. You can also redefine these styles.",
     "type": "key"
   },
   "line width": {
-    "signature": "/tikz/line width=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0.4pt",
-    "description": "Specifies the line width. Note the space.",
+    "description": "Specifies the line width. Note the space.\n\nThere are a number of predefined styles that provide more &ldquo;natural&rdquo; ways of setting the line width. You can also redefine these styles.",
     "type": "key"
   },
   "/tikz/ultra thin": {
-    "signature": "/tikz/ultra thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.1pt.",
     "type": "style"
   },
   "ultra thin": {
-    "signature": "/tikz/ultra thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.1pt.",
     "type": "style"
   },
   "/tikz/very thin": {
-    "signature": "/tikz/very thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.2pt.",
     "type": "style"
   },
   "very thin": {
-    "signature": "/tikz/very thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.2pt.",
     "type": "style"
   },
   "/tikz/thin": {
-    "signature": "/tikz/thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.4pt.",
     "type": "style"
   },
   "thin": {
-    "signature": "/tikz/thin",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.4pt.",
     "type": "style"
   },
   "/tikz/semithick": {
-    "signature": "/tikz/semithick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.6pt.",
     "type": "style"
   },
   "semithick": {
-    "signature": "/tikz/semithick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.6pt.",
     "type": "style"
   },
   "/tikz/thick": {
-    "signature": "/tikz/thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.8pt.",
     "type": "style"
   },
   "thick": {
-    "signature": "/tikz/thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 0.8pt.",
     "type": "style"
   },
   "/tikz/very thick": {
-    "signature": "/tikz/very thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 1.2pt.",
     "type": "style"
   },
   "very thick": {
-    "signature": "/tikz/very thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 1.2pt.",
     "type": "style"
   },
   "/tikz/ultra thick": {
-    "signature": "/tikz/ultra thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 1.6pt.",
     "type": "style"
   },
   "ultra thick": {
-    "signature": "/tikz/ultra thick",
+    "signature": "",
     "default": "style, no value",
     "description": "Sets the line width to 1.6pt.",
     "type": "style"
   },
   "/tikz/line cap": {
-    "signature": "/tikz/line cap=⟨type⟩",
+    "signature": "",
     "default": "no default, initially butt",
-    "description": "Specifies how lines “end”. Permissible ⟨type⟩ are round, rect, and butt. They have the following effects:",
+    "description": "Specifies how lines &ldquo;end&rdquo;. Permissible ⟨type⟩ are round, rect, and butt. They have the following effects:",
     "type": "key"
   },
   "line cap": {
-    "signature": "/tikz/line cap=⟨type⟩",
+    "signature": "",
     "default": "no default, initially butt",
-    "description": "Specifies how lines “end”. Permissible ⟨type⟩ are round, rect, and butt. They have the following effects:",
+    "description": "Specifies how lines &ldquo;end&rdquo;. Permissible ⟨type⟩ are round, rect, and butt. They have the following effects:",
     "type": "key"
   },
   "/tikz/line join": {
-    "signature": "/tikz/line join=⟨type⟩",
+    "signature": "",
     "default": "no default, initially miter",
-    "description": "Specifies how lines “join”. Permissible ⟨type⟩ are round, bevel, and miter. They have the following effects:",
+    "description": "Specifies how lines &ldquo;join&rdquo;. Permissible ⟨type⟩ are round, bevel, and miter. They have the following effects:",
     "type": "key"
   },
   "line join": {
-    "signature": "/tikz/line join=⟨type⟩",
+    "signature": "",
     "default": "no default, initially miter",
-    "description": "Specifies how lines “join”. Permissible ⟨type⟩ are round, bevel, and miter. They have the following effects:",
+    "description": "Specifies how lines &ldquo;join&rdquo;. Permissible ⟨type⟩ are round, bevel, and miter. They have the following effects:",
     "type": "key"
   },
   "/tikz/miter limit": {
-    "signature": "/tikz/miter limit=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 10",
     "description": "When you use the miter join and there is a very sharp corner (a small angle), the miter join may protrude very far over the actual joining point. In this case, if it were to protrude by more than ⟨factor⟩ times the line width, the miter join is replaced by a bevel join.",
     "type": "key"
   },
   "miter limit": {
-    "signature": "/tikz/miter limit=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 10",
     "description": "When you use the miter join and there is a very sharp corner (a small angle), the miter join may protrude very far over the actual joining point. In this case, if it were to protrude by more than ⟨factor⟩ times the line width, the miter join is replaced by a bevel join.",
     "type": "key"
   },
   "/tikz/dash pattern": {
-    "signature": "/tikz/dash pattern=⟨dash pattern⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”.",
+    "description": "Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means &ldquo;draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat&rdquo;.",
     "type": "key"
   },
   "dash pattern": {
-    "signature": "/tikz/dash pattern=⟨dash pattern⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”.",
+    "description": "Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means &ldquo;draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat&rdquo;.",
     "type": "key"
   },
   "/tikz/dash phase": {
-    "signature": "/tikz/dash phase=⟨dash phase⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shifts the start of the dash pattern by ⟨phase⟩.",
     "type": "key"
   },
   "dash phase": {
-    "signature": "/tikz/dash phase=⟨dash phase⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shifts the start of the dash pattern by ⟨phase⟩.",
     "type": "key"
   },
   "/tikz/dash": {
-    "signature": "/tikz/dash=⟨dash pattern⟩phase⟨dash phase⟩",
+    "signature": "",
     "default": "no default",
     "description": "Sets the dashing pattern and phase at the same time.",
     "type": "key"
   },
   "dash": {
-    "signature": "/tikz/dash=⟨dash pattern⟩phase⟨dash phase⟩",
+    "signature": "",
     "default": "no default",
     "description": "Sets the dashing pattern and phase at the same time.",
     "type": "key"
   },
   "/tikz/dash expand off": {
-    "signature": "/tikz/dash expand off",
+    "signature": "",
     "default": "no value",
-    "description": "Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied.",
+    "description": "Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied.\n\nAs for the line thickness, some predefined styles allow you to set the dashing conveniently.",
     "type": "key"
   },
   "dash expand off": {
-    "signature": "/tikz/dash expand off",
+    "signature": "",
     "default": "no value",
-    "description": "Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied.",
+    "description": "Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied.\n\nAs for the line thickness, some predefined styles allow you to set the dashing conveniently.",
     "type": "key"
   },
   "/tikz/solid": {
-    "signature": "/tikz/solid",
+    "signature": "",
     "default": "style, no value",
-    "description": "Shorthand for setting a solid line as “dash pattern”. This is the default.",
+    "description": "Shorthand for setting a solid line as &ldquo;dash pattern&rdquo;. This is the default.",
     "type": "style"
   },
   "solid": {
-    "signature": "/tikz/solid",
+    "signature": "",
     "default": "style, no value",
-    "description": "Shorthand for setting a solid line as “dash pattern”. This is the default.",
+    "description": "Shorthand for setting a solid line as &ldquo;dash pattern&rdquo;. This is the default.",
     "type": "style"
   },
   "/tikz/dotted": {
-    "signature": "/tikz/dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dotted dash pattern.",
     "type": "style"
   },
   "dotted": {
-    "signature": "/tikz/dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dotted dash pattern.",
     "type": "style"
   },
   "/tikz/densely dotted": {
-    "signature": "/tikz/densely dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dotted dash pattern.",
     "type": "style"
   },
   "densely dotted": {
-    "signature": "/tikz/densely dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dotted dash pattern.",
     "type": "style"
   },
   "/tikz/loosely dotted": {
-    "signature": "/tikz/loosely dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dotted dash pattern.",
     "type": "style"
   },
   "loosely dotted": {
-    "signature": "/tikz/loosely dotted",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dotted dash pattern.",
     "type": "style"
   },
   "/tikz/dashed": {
-    "signature": "/tikz/dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed dash pattern.",
     "type": "style"
   },
   "dashed": {
-    "signature": "/tikz/dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed dash pattern.",
     "type": "style"
   },
   "/tikz/densely dashed": {
-    "signature": "/tikz/densely dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed dash pattern.",
     "type": "style"
   },
   "densely dashed": {
-    "signature": "/tikz/densely dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed dash pattern.",
     "type": "style"
   },
   "/tikz/loosely dashed": {
-    "signature": "/tikz/loosely dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dashed dash pattern.",
     "type": "style"
   },
   "loosely dashed": {
-    "signature": "/tikz/loosely dashed",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dashed dash pattern.",
     "type": "style"
   },
   "/tikz/dash dot": {
-    "signature": "/tikz/dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed and dotted dash pattern.",
     "type": "style"
   },
   "dash dot": {
-    "signature": "/tikz/dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed and dotted dash pattern.",
     "type": "style"
   },
   "/tikz/densely dash dot": {
-    "signature": "/tikz/densely dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed and dotted dash pattern.",
     "type": "style"
   },
   "densely dash dot": {
-    "signature": "/tikz/densely dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed and dotted dash pattern.",
     "type": "style"
   },
   "/tikz/loosely dash dot": {
-    "signature": "/tikz/loosely dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dashed and dotted dash pattern.",
     "type": "style"
   },
   "loosely dash dot": {
-    "signature": "/tikz/loosely dash dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a loosely dashed and dotted dash pattern.",
     "type": "style"
   },
   "/tikz/dash dot dot": {
-    "signature": "/tikz/dash dot dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed and dotted dash pattern with more dots.",
     "type": "style"
   },
   "dash dot dot": {
-    "signature": "/tikz/dash dot dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a dashed and dotted dash pattern with more dots.",
     "type": "style"
   },
   "/tikz/densely dash dot dot": {
-    "signature": "/tikz/densely dash dot dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed and dotted dash pattern with more dots.",
     "type": "style"
   },
   "densely dash dot dot": {
-    "signature": "/tikz/densely dash dot dot",
+    "signature": "",
     "default": "style, no value",
     "description": "Shorthand for setting a densely dashed and dotted dash pattern with more dots.",
     "type": "style"
   },
   "/tikz/loosely dash dot dot": {
-    "signature": "/tikz/loosely dash dot dot",
+    "signature": "",
     "default": "style, no value",
-    "description": "Shorthand for setting a loosely dashed and dotted dash pattern with more dots.",
+    "description": "Shorthand for setting a loosely dashed and dotted dash pattern with more dots.\n\nWhen a line is drawn, it will normally &ldquo;obscure&rdquo; everything behind it as if you had used perfectly opaque ink. It is also possible to ask TikZ to use an ink that is a little bit (or a big bit) transparent using the draw opacity option. This is explained in Section 23 on transparency in more detail.",
     "type": "style"
   },
   "loosely dash dot dot": {
-    "signature": "/tikz/loosely dash dot dot",
+    "signature": "",
     "default": "style, no value",
-    "description": "Shorthand for setting a loosely dashed and dotted dash pattern with more dots.",
+    "description": "Shorthand for setting a loosely dashed and dotted dash pattern with more dots.\n\nWhen a line is drawn, it will normally &ldquo;obscure&rdquo; everything behind it as if you had used perfectly opaque ink. It is also possible to ask TikZ to use an ink that is a little bit (or a big bit) transparent using the draw opacity option. This is explained in Section 23 on transparency in more detail.",
     "type": "style"
   },
   "/tikz/double": {
-    "signature": "/tikz/double=⟨core color⟩",
+    "signature": "",
     "default": "default white",
-    "description": "This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨core color⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths:",
+    "description": "This option causes &ldquo;two&rdquo; lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨core color⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths:\n\nYou can also use the doubling option to create an effect in which a line seems to have a certain &ldquo;border&rdquo;:",
     "type": "key"
   },
   "double": {
-    "signature": "/tikz/double=⟨core color⟩",
+    "signature": "",
     "default": "default white",
-    "description": "This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨core color⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths:",
+    "description": "This option causes &ldquo;two&rdquo; lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨core color⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths:\n\nYou can also use the doubling option to create an effect in which a line seems to have a certain &ldquo;border&rdquo;:",
     "type": "key"
   },
   "/tikz/double distance": {
-    "signature": "/tikz/double distance=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0.6pt",
-    "description": "Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the first time the path is drawn is twice the normal line width plus the given ⟨dimension⟩. As a side-effect, this option “selects” the double option.",
+    "description": "Sets the distance the &ldquo;two&rdquo; lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the first time the path is drawn is twice the normal line width plus the given ⟨dimension⟩. As a side-effect, this option &ldquo;selects&rdquo; the double option.",
     "type": "key"
   },
   "double distance": {
-    "signature": "/tikz/double distance=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0.6pt",
-    "description": "Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the first time the path is drawn is twice the normal line width plus the given ⟨dimension⟩. As a side-effect, this option “selects” the double option.",
+    "description": "Sets the distance the &ldquo;two&rdquo; lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the first time the path is drawn is twice the normal line width plus the given ⟨dimension⟩. As a side-effect, this option &ldquo;selects&rdquo; the double option.",
     "type": "key"
   },
   "/tikz/double distance between line centers": {
-    "signature": "/tikz/double distance between line centers=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the first time the path is drawn is the normal line width plus the given ⟨dimension⟩, while the line width of the second line that is drawn is ⟨dimension⟩ minus the normal line width. As a side-effect, this option “selects” the double option.",
+    "description": "This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the first time the path is drawn is the normal line width plus the given ⟨dimension⟩, while the line width of the second line that is drawn is ⟨dimension⟩ minus the normal line width. As a side-effect, this option &ldquo;selects&rdquo; the double option.",
     "type": "key"
   },
   "double distance between line centers": {
-    "signature": "/tikz/double distance between line centers=⟨dimension⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the first time the path is drawn is the normal line width plus the given ⟨dimension⟩, while the line width of the second line that is drawn is ⟨dimension⟩ minus the normal line width. As a side-effect, this option “selects” the double option.",
+    "description": "This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the first time the path is drawn is the normal line width plus the given ⟨dimension⟩, while the line width of the second line that is drawn is ⟨dimension⟩ minus the normal line width. As a side-effect, this option &ldquo;selects&rdquo; the double option.",
     "type": "key"
   },
   "/tikz/double equal sign distance": {
-    "signature": "/tikz/double equal sign distance",
+    "signature": "",
     "default": "style, no value",
-    "description": "This style selects a double line distance such that it corresponds to the distance of the two lines in an equal sign.",
+    "description": "This style selects a double line distance such that it corresponds to the distance of the two lines in an equal sign.\n\nIn different situations, TikZ will add arrow tips to the end of a path. For this to happen, a number of different things need to be specified:",
     "type": "style"
   },
   "double equal sign distance": {
-    "signature": "/tikz/double equal sign distance",
+    "signature": "",
     "default": "style, no value",
-    "description": "This style selects a double line distance such that it corresponds to the distance of the two lines in an equal sign.",
+    "description": "This style selects a double line distance such that it corresponds to the distance of the two lines in an equal sign.\n\nIn different situations, TikZ will add arrow tips to the end of a path. For this to happen, a number of different things need to be specified:",
     "type": "style"
   },
   "/tikz/fill": {
-    "signature": "/tikz/fill=⟨color⟩",
-    "default": "default is scope’s color setting",
-    "description": "This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨color⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below.\n\nJust as for the draw option, setting ⟨color⟩ to none disables filling locally.",
+    "signature": "",
+    "default": "default is scope&rsquo;s color setting",
+    "description": "This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨color⟩. For self-intersection paths and for paths consisting of several closed areas, the &ldquo;enclosed area&rdquo; is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below.\n\nJust as for the draw option, setting ⟨color⟩ to none disables filling locally.",
     "type": "key"
   },
   "fill": {
-    "signature": "/tikz/fill=⟨color⟩",
-    "default": "default is scope’s color setting",
-    "description": "This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨color⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below.\n\nJust as for the draw option, setting ⟨color⟩ to none disables filling locally.",
+    "signature": "",
+    "default": "default is scope&rsquo;s color setting",
+    "description": "This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨color⟩. For self-intersection paths and for paths consisting of several closed areas, the &ldquo;enclosed area&rdquo; is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below.\n\nJust as for the draw option, setting ⟨color⟩ to none disables filling locally.",
     "type": "key"
   },
   "/tikz/pattern": {
-    "signature": "/tikz/pattern=⟨name⟩",
-    "default": "default is scope’s pattern",
+    "signature": "",
+    "default": "default is scope&rsquo;s pattern",
     "description": "This option causes the path to be filled with a pattern. If the ⟨name⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the draw and fill options, setting ⟨name⟩ to none disables filling locally.\n\nThe pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more.",
     "type": "key"
   },
   "pattern": {
-    "signature": "/tikz/pattern=⟨name⟩",
-    "default": "default is scope’s pattern",
+    "signature": "",
+    "default": "default is scope&rsquo;s pattern",
     "description": "This option causes the path to be filled with a pattern. If the ⟨name⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the draw and fill options, setting ⟨name⟩ to none disables filling locally.\n\nThe pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more.",
     "type": "key"
   },
   "/tikz/pattern color": {
-    "signature": "/tikz/pattern color=⟨color⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option is used to set the color to be used for form-only patterns. This option has no effect on inherently colored patterns.",
+    "description": "This option is used to set the color to be used for form-only patterns. This option has no effect on inherently colored patterns.\n\nThe following two options can be used to decide how interior points should be determined:",
     "type": "key"
   },
   "pattern color": {
-    "signature": "/tikz/pattern color=⟨color⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option is used to set the color to be used for form-only patterns. This option has no effect on inherently colored patterns.",
+    "description": "This option is used to set the color to be used for form-only patterns. This option has no effect on inherently colored patterns.\n\nThe following two options can be used to decide how interior points should be determined:",
     "type": "key"
   },
   "/tikz/nonzero rule": {
-    "signature": "/tikz/nonzero rule",
+    "signature": "",
     "default": "no value",
-    "description": "If this rule is used (which is the default), the following method is used to determine whether a given point is “inside” the path: From the point, shoot a ray in some direction towards infinity (the direction is chosen such that no strange borderline cases occur). Then the ray may hit the path. Whenever it hits the path, we increase or decrease a counter, which is initially zero. If the ray hits the path as the path goes “from left to right” (relative to the ray), the counter is increased, otherwise it is decreased. Then, at the end, we check whether the counter is nonzero (hence the name). If so, the point is deemed to lie “inside”, otherwise it is “outside”. Sounds complicated? It is.",
+    "description": "If this rule is used (which is the default), the following method is used to determine whether a given point is &ldquo;inside&rdquo; the path: From the point, shoot a ray in some direction towards infinity (the direction is chosen such that no strange borderline cases occur). Then the ray may hit the path. Whenever it hits the path, we increase or decrease a counter, which is initially zero. If the ray hits the path as the path goes &ldquo;from left to right&rdquo; (relative to the ray), the counter is increased, otherwise it is decreased. Then, at the end, we check whether the counter is nonzero (hence the name). If so, the point is deemed to lie &ldquo;inside&rdquo;, otherwise it is &ldquo;outside&rdquo;. Sounds complicated? It is.",
     "type": "key"
   },
   "nonzero rule": {
-    "signature": "/tikz/nonzero rule",
+    "signature": "",
     "default": "no value",
-    "description": "If this rule is used (which is the default), the following method is used to determine whether a given point is “inside” the path: From the point, shoot a ray in some direction towards infinity (the direction is chosen such that no strange borderline cases occur). Then the ray may hit the path. Whenever it hits the path, we increase or decrease a counter, which is initially zero. If the ray hits the path as the path goes “from left to right” (relative to the ray), the counter is increased, otherwise it is decreased. Then, at the end, we check whether the counter is nonzero (hence the name). If so, the point is deemed to lie “inside”, otherwise it is “outside”. Sounds complicated? It is.",
+    "description": "If this rule is used (which is the default), the following method is used to determine whether a given point is &ldquo;inside&rdquo; the path: From the point, shoot a ray in some direction towards infinity (the direction is chosen such that no strange borderline cases occur). Then the ray may hit the path. Whenever it hits the path, we increase or decrease a counter, which is initially zero. If the ray hits the path as the path goes &ldquo;from left to right&rdquo; (relative to the ray), the counter is increased, otherwise it is decreased. Then, at the end, we check whether the counter is nonzero (hence the name). If so, the point is deemed to lie &ldquo;inside&rdquo;, otherwise it is &ldquo;outside&rdquo;. Sounds complicated? It is.",
     "type": "key"
   },
   "/tikz/even odd rule": {
-    "signature": "/tikz/even odd rule",
+    "signature": "",
     "default": "no value",
-    "description": "This option causes a different method to be used for determining the inside and outside of paths. While it is less flexible, it turns out to be more intuitive.\n\nWith this method, we also shoot rays from the point for which we wish to determine whether it is inside or outside the filling area. However, this time we only count how often we “hit” the path and declare the point to be “inside” if the number of hits is odd.",
+    "description": "This option causes a different method to be used for determining the inside and outside of paths. While it is less flexible, it turns out to be more intuitive.\n\nWith this method, we also shoot rays from the point for which we wish to determine whether it is inside or outside the filling area. However, this time we only count how often we &ldquo;hit&rdquo; the path and declare the point to be &ldquo;inside&rdquo; if the number of hits is odd.",
     "type": "key"
   },
   "even odd rule": {
-    "signature": "/tikz/even odd rule",
+    "signature": "",
     "default": "no value",
-    "description": "This option causes a different method to be used for determining the inside and outside of paths. While it is less flexible, it turns out to be more intuitive.\n\nWith this method, we also shoot rays from the point for which we wish to determine whether it is inside or outside the filling area. However, this time we only count how often we “hit” the path and declare the point to be “inside” if the number of hits is odd.",
+    "description": "This option causes a different method to be used for determining the inside and outside of paths. While it is less flexible, it turns out to be more intuitive.\n\nWith this method, we also shoot rays from the point for which we wish to determine whether it is inside or outside the filling area. However, this time we only count how often we &ldquo;hit&rdquo; the path and declare the point to be &ldquo;inside&rdquo; if the number of hits is odd.",
     "type": "key"
   },
   "/tikz/path picture": {
-    "signature": "/tikz/path picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "When this option is given on a path and when the ⟨code⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨code⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given.\n\nAs with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path).",
+    "description": "When this option is given on a path and when the ⟨code⟩ is not empty, the following happens: After all other &ldquo;filling&rdquo; operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨code⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given.\n\nAs with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path).",
     "type": "key"
   },
   "path picture": {
-    "signature": "/tikz/path picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "When this option is given on a path and when the ⟨code⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨code⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given.\n\nAs with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path).",
+    "description": "When this option is given on a path and when the ⟨code⟩ is not empty, the following happens: After all other &ldquo;filling&rdquo; operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨code⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given.\n\nAs with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path).",
     "type": "key"
   },
   "path picture bounding box": {
-    "signature": "Predefined node path picture bounding box",
+    "signature": "",
     "default": "",
-    "description": "This node is of shape rectangle. Its size and position are those of current path bounding box just before the ⟨code⟩ of the path picture started to be executed. The ⟨code⟩ can construct its own paths, so accessing the current path bounding box inside the ⟨code⟩ yields the bounding box of any path that is currently being constructed inside the ⟨code⟩.",
+    "description": "This node is of shape rectangle. Its size and position are those of current path bounding box just before the ⟨code⟩ of the path picture started to be executed. The ⟨code⟩ can construct its own paths, so accessing the current path bounding box inside the ⟨code⟩ yields the bounding box of any path that is currently being constructed inside the ⟨code⟩.\n\nYou can shade a path using the shade option. A shading is like a filling, only the shading changes its color smoothly from one color to another.",
     "type": "key"
   },
   "/tikz/shade": {
-    "signature": "/tikz/shade",
+    "signature": "",
     "default": "no value",
     "description": "Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the draw option, then the path is first shaded, then drawn.\n\nIt is not an error to use this option together with the fill option, but it makes no sense.",
     "type": "key"
   },
   "shade": {
-    "signature": "/tikz/shade",
+    "signature": "",
     "default": "no value",
     "description": "Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the draw option, then the path is first shaded, then drawn.\n\nIt is not an error to use this option together with the fill option, but it makes no sense.",
     "type": "key"
   },
   "/tikz/shading": {
-    "signature": "/tikz/shading=⟨name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This selects a shading named ⟨name⟩. The following shadings are predefined: axis, radial, and ball.",
+    "description": "This selects a shading named ⟨name⟩. The following shadings are predefined: axis, radial, and ball.\n\nThe shadings as well as additional shadings are described in more detail in Section 69.",
     "type": "key"
   },
   "shading": {
-    "signature": "/tikz/shading=⟨name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This selects a shading named ⟨name⟩. The following shadings are predefined: axis, radial, and ball.",
+    "description": "This selects a shading named ⟨name⟩. The following shadings are predefined: axis, radial, and ball.\n\nThe shadings as well as additional shadings are described in more detail in Section 69.",
     "type": "key"
   },
   "/tikz/shading angle": {
-    "signature": "/tikz/shading angle=⟨degrees⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "This option rotates the shading (not the path!) by the given angle. For example, we can turn a top-to-bottom axis shading into a left-to-right shading by rotating it by \\(90^\\circ \\).",
+    "description": "This option rotates the shading (not the path!) by the given angle. For example, we can turn a top-to-bottom axis shading into a left-to-right shading by rotating it by \\(90^\\circ \\).\n\nYou can also define new shading types yourself. However, for this, you need to use the basic layer directly, which is, well, more basic and harder to use. Details on how to create a shading appropriate for filling paths are given in Section 114.3.",
     "type": "key"
   },
   "shading angle": {
-    "signature": "/tikz/shading angle=⟨degrees⟩",
+    "signature": "",
     "default": "no default, initially 0",
-    "description": "This option rotates the shading (not the path!) by the given angle. For example, we can turn a top-to-bottom axis shading into a left-to-right shading by rotating it by \\(90^\\circ \\).",
+    "description": "This option rotates the shading (not the path!) by the given angle. For example, we can turn a top-to-bottom axis shading into a left-to-right shading by rotating it by \\(90^\\circ \\).\n\nYou can also define new shading types yourself. However, for this, you need to use the basic layer directly, which is, well, more basic and harder to use. Details on how to create a shading appropriate for filling paths are given in Section 114.3.",
     "type": "key"
   },
   "/tikz/use as bounding box": {
-    "signature": "/tikz/use as bounding box",
+    "signature": "",
     "default": "no value",
-    "description": "Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all subsequent paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box).\n\nIn a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped.",
+    "description": "Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all subsequent paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box).\n\nIn a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path &ndash; without actually doing the clipping, only making pgf treat everything as if it were clipped.",
     "type": "key"
   },
   "use as bounding box": {
-    "signature": "/tikz/use as bounding box",
+    "signature": "",
     "default": "no value",
-    "description": "Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all subsequent paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box).\n\nIn a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped.",
+    "description": "Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all subsequent paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box).\n\nIn a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path &ndash; without actually doing the clipping, only making pgf treat everything as if it were clipped.",
     "type": "key"
   },
   "/tikz/trim left": {
-    "signature": "/tikz/trim left=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "default 0pt",
-    "description": "The trim left key tells pgf to discard everything which is left of the provided ⟨dimension or coordinate⟩. Here, ⟨dimension⟩ is a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨dimension or coordinate⟩:",
+    "description": "The trim left key tells pgf to discard everything which is left of the provided ⟨dimension or coordinate⟩. Here, ⟨dimension⟩ is a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture&rsquo;s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨dimension or coordinate⟩:\n\nSince trim left uses the default trim left=0pt, everything left of \\(x=0\\) is removed from the bounding box.",
     "type": "key"
   },
   "trim left": {
-    "signature": "/tikz/trim left=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "default 0pt",
-    "description": "The trim left key tells pgf to discard everything which is left of the provided ⟨dimension or coordinate⟩. Here, ⟨dimension⟩ is a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨dimension or coordinate⟩:",
+    "description": "The trim left key tells pgf to discard everything which is left of the provided ⟨dimension or coordinate⟩. Here, ⟨dimension⟩ is a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture&rsquo;s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨dimension or coordinate⟩:\n\nSince trim left uses the default trim left=0pt, everything left of \\(x=0\\) is removed from the bounding box.",
     "type": "key"
   },
   "/tikz/trim right": {
-    "signature": "/tikz/trim right=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key is similar to trim left: it discards everything which is right of the provided ⟨dimension or coordinate⟩. As for trim left, ⟨dimension⟩ denotes a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used).\n\nWe use the same example from above and add trim right:",
     "type": "key"
   },
   "trim right": {
-    "signature": "/tikz/trim right=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "no default",
     "description": "This key is similar to trim left: it discards everything which is right of the provided ⟨dimension or coordinate⟩. As for trim left, ⟨dimension⟩ denotes a single \\(x\\) coordinate of the picture and ⟨coordinate⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used).\n\nWe use the same example from above and add trim right:",
     "type": "key"
   },
   "/pgf/trim lowlevel": {
-    "signature": "/pgf/trim lowlevel=true|false",
+    "signature": "",
     "default": "no default, initially false",
     "description": "This affects only the basic level image externalization: the initial configuration trim lowlevel=false stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The trim lowlevel=true information causes the image externalization to store the trimmed image, possibly resulting in clipping.\n\nClipping path means that all painting on the page is restricted to a certain area. This area need not be rectangular, rather an arbitrary path can be used to specify this area. The clip option, explained below, is used to specify the region that is to be used for clipping.",
     "type": "key"
   },
   "trim lowlevel": {
-    "signature": "/pgf/trim lowlevel=true|false",
+    "signature": "",
     "default": "no default, initially false",
     "description": "This affects only the basic level image externalization: the initial configuration trim lowlevel=false stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The trim lowlevel=true information causes the image externalization to store the trimmed image, possibly resulting in clipping.\n\nClipping path means that all painting on the page is restricted to a certain area. This area need not be rectangular, rather an arbitrary path can be used to specify this area. The clip option, explained below, is used to specify the region that is to be used for clipping.",
     "type": "key"
   },
   "/tikz/clip": {
-    "signature": "/tikz/clip",
+    "signature": "",
     "default": "no value",
     "description": "This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region.\n\nThe clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a {scope}.",
     "type": "key"
   },
   "clip": {
-    "signature": "/tikz/clip",
+    "signature": "",
     "default": "no value",
     "description": "This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region.\n\nThe clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a {scope}.",
     "type": "key"
   },
   "/tikz/preaction": {
-    "signature": "/tikz/preaction=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option can be given to a \\path command (or to derived commands like \\draw which internally call \\path). Similarly to options like draw, this option only has an effect when given to a \\path or as part of the options of a node; as an option to a {scope} it has no effect.\n\nWhen this option is used on a \\path, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨options⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨options⟩ in force and then again with the normal path options in force.",
     "type": "key"
   },
   "preaction": {
-    "signature": "/tikz/preaction=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option can be given to a \\path command (or to derived commands like \\draw which internally call \\path). Similarly to options like draw, this option only has an effect when given to a \\path or as part of the options of a node; as an option to a {scope} it has no effect.\n\nWhen this option is used on a \\path, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨options⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨options⟩ in force and then again with the normal path options in force.",
     "type": "key"
   },
   "/tikz/postaction": {
-    "signature": "/tikz/postaction=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "The postactions work in the same way as the preactions, only they are applied after the main action has been taken. Like preactions, multiple postaction options may be given to a \\path command, in which case the path is reused several times, each time with a different set of options in force.\n\nIf both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions.",
     "type": "key"
   },
   "postaction": {
-    "signature": "/tikz/postaction=⟨options⟩",
+    "signature": "",
     "default": "no default",
     "description": "The postactions work in the same way as the preactions, only they are applied after the main action has been taken. Like preactions, multiple postaction options may be given to a \\path command, in which case the path is reused several times, each time with a different set of options in force.\n\nIf both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions.",
     "type": "key"

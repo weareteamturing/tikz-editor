@@ -6,12 +6,15 @@ export type OptionEntry =
       key: string;
       valueRaw: string;
       span: Span;
+      keySpan?: Span;
+      valueSpan?: Span | null;
       raw: string;
     }
   | {
       kind: "flag";
       key: string;
       span: Span;
+      keySpan?: Span;
       raw: string;
     }
   | {
@@ -25,4 +28,3 @@ export type OptionListAst = {
   raw: string;
   entries: OptionEntry[];
 };
-

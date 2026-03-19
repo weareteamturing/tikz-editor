@@ -204,6 +204,61 @@
   color: var(--color-warning);
 }
 
+.editorWrap :global(.cm-editor-docs-tooltip) {
+  max-width: 420px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-pane);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+  padding: 8px 10px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  line-height: 1.45;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-meta) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-signature code),
+.editorWrap :global(.cm-editor-docs-tooltip-signature kbd) {
+  font-weight: 700;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-default) {
+  color: var(--text-muted);
+  font-size: 0.95em;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-snippet) {
+  color: var(--text);
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-snippet p) {
+  margin: 0 0 6px;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-snippet p:last-child) {
+  margin-bottom: 0;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-link-row) {
+  margin-top: 8px;
+  border-top: 1px solid var(--border-light);
+  padding-top: 6px;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-link) {
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+
+.editorWrap :global(.cm-editor-docs-tooltip-link:hover) {
+  text-decoration: underline;
+}
+
 .inlineColorPickerPopover {
   position: fixed;
   z-index: 150;

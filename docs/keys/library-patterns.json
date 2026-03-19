@@ -1,248 +1,248 @@
 {
   "patterns": {
-    "signature": "TikZ Library patterns",
+    "signature": "",
     "default": "",
     "description": "\\usepgflibrary{patterns} % LaTeX and plain TeX and pure pgf \\usepgflibrary[patterns] % ConTeXt and pure pgf \\usetikzlibrary{patterns} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[patterns] % ConTeXt when using TikZ The package defines patterns for filling areas.\n\nby Mark Wibrow",
     "type": "key"
   },
   "patterns.meta": {
-    "signature": "TikZ Library patterns.meta",
+    "signature": "",
     "default": "",
     "description": "\\usepgflibrary{patterns.meta} % LaTeX and plain TeX and pure pgf \\usepgflibrary[patterns.meta] % ConTeXt and pure pgf \\usetikzlibrary{patterns.meta} % LaTeX and plain TeX when using TikZ \\usetikzlibrary[patterns.meta] % ConTeXt when using TikZ Define your own patterns with a syntax similar to arrows.meta.\n\nCaveat: This library is currently experimental and might change without notice. There are some known shortcomings that will hopefully be fixed in the future.",
     "type": "key"
   },
   "\\pgfdeclarepattern": {
-    "signature": "\\pgfdeclarepattern{⟨config⟩}",
+    "signature": "",
     "default": "",
     "description": "This command is used to declare a new pattern. In contrast to the normal patterns and in the spirit of arrows.meta this command takes a list of keys and values to define the pattern. The following keys are available:",
     "type": "command"
   },
   "/pgf/patterns/name": {
-    "signature": "/pgf/patterns/name=⟨name⟩",
+    "signature": "",
     "default": "no default",
     "description": "The name of the pattern by which it can be used later on.",
     "type": "key"
   },
   "/pgf/patterns/type": {
-    "signature": "/pgf/patterns/type=⟨type⟩",
+    "signature": "",
     "default": "default uncolored",
-    "description": "The type of the pattern maps to what was called “form only” and “inherently colored” in the language of the normal patterns. The available choices are:\n\n• uncolored the pattern will obey the surrounding color.",
+    "description": "The type of the pattern maps to what was called &ldquo;form only&rdquo; and &ldquo;inherently colored&rdquo; in the language of the normal patterns. The available choices are:\n\n&bull; uncolored the pattern will obey the surrounding color.",
     "type": "key"
   },
   "type": {
-    "signature": "/pgf/patterns/type=⟨type⟩",
+    "signature": "",
     "default": "default uncolored",
-    "description": "The type of the pattern maps to what was called “form only” and “inherently colored” in the language of the normal patterns. The available choices are:\n\n• uncolored the pattern will obey the surrounding color.",
+    "description": "The type of the pattern maps to what was called &ldquo;form only&rdquo; and &ldquo;inherently colored&rdquo; in the language of the normal patterns. The available choices are:\n\n&bull; uncolored the pattern will obey the surrounding color.",
     "type": "key"
   },
   "/pgf/patterns/x": {
-    "signature": "/pgf/patterns/x=⟨dimension⟩",
+    "signature": "",
     "default": "default 1cm",
     "description": "Unit vector of the coordinate system in the \\(x\\)-direction.",
     "type": "key"
   },
   "/pgf/patterns/y": {
-    "signature": "/pgf/patterns/y=⟨dimension⟩",
+    "signature": "",
     "default": "default 1cm",
     "description": "Unit vector of the coordinate system in the \\(y\\)-direction.",
     "type": "key"
   },
   "/pgf/patterns/parameters": {
-    "signature": "/pgf/patterns/parameters=⟨comma separated list⟩",
+    "signature": "",
     "default": "default empty",
     "description": "A list of parameters that are passed to the pattern. This is usually a list of TeX macros. It is very important that these macros are fully expandable because the values they hold are being used for deduplication in the PDF file.",
     "type": "key"
   },
   "parameters": {
-    "signature": "/pgf/patterns/parameters=⟨comma separated list⟩",
+    "signature": "",
     "default": "default empty",
     "description": "A list of parameters that are passed to the pattern. This is usually a list of TeX macros. It is very important that these macros are fully expandable because the values they hold are being used for deduplication in the PDF file.",
     "type": "key"
   },
   "/pgf/patterns/defaults": {
-    "signature": "/pgf/patterns/defaults=⟨comma separated list⟩",
+    "signature": "",
     "default": "default empty",
     "description": "This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the /pgf/pattern keys/ prefix.",
     "type": "key"
   },
   "defaults": {
-    "signature": "/pgf/patterns/defaults=⟨comma separated list⟩",
+    "signature": "",
     "default": "default empty",
     "description": "This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the /pgf/pattern keys/ prefix.",
     "type": "key"
   },
   "/pgf/patterns/bottom left": {
-    "signature": "/pgf/patterns/bottom left=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Bottom left corner of the pattern’s bounding box, e.g. \\pgfqpoint{-.1pt}{-.1pt}.",
+    "description": "Bottom left corner of the pattern&rsquo;s bounding box, e.g. \\pgfqpoint{-.1pt}{-.1pt}.",
     "type": "key"
   },
   "bottom left": {
-    "signature": "/pgf/patterns/bottom left=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Bottom left corner of the pattern’s bounding box, e.g. \\pgfqpoint{-.1pt}{-.1pt}.",
+    "description": "Bottom left corner of the pattern&rsquo;s bounding box, e.g. \\pgfqpoint{-.1pt}{-.1pt}.",
     "type": "key"
   },
   "/pgf/patterns/top right": {
-    "signature": "/pgf/patterns/top right=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Top right corner of the pattern’s bounding box, e.g. \\pgfqpoint{3.1pt}{3.1pt}.",
+    "description": "Top right corner of the pattern&rsquo;s bounding box, e.g. \\pgfqpoint{3.1pt}{3.1pt}.",
     "type": "key"
   },
   "top right": {
-    "signature": "/pgf/patterns/top right=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Top right corner of the pattern’s bounding box, e.g. \\pgfqpoint{3.1pt}{3.1pt}.",
+    "description": "Top right corner of the pattern&rsquo;s bounding box, e.g. \\pgfqpoint{3.1pt}{3.1pt}.",
     "type": "key"
   },
   "/pgf/patterns/tile size": {
-    "signature": "/pgf/patterns/tile size=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
     "description": "Width and height of a single of the pattern as a pgf point specification, i.e. the \\(x\\) coordinate is the width and the \\(y\\) coordinate is the height, e.g. \\pgfqpoint{3pt}{3pt}.",
     "type": "key"
   },
   "tile size": {
-    "signature": "/pgf/patterns/tile size=⟨pgfpoint⟩",
+    "signature": "",
     "default": "no default",
     "description": "Width and height of a single of the pattern as a pgf point specification, i.e. the \\(x\\) coordinate is the width and the \\(y\\) coordinate is the height, e.g. \\pgfqpoint{3pt}{3pt}.",
     "type": "key"
   },
   "/pgf/patterns/tile transformation": {
-    "signature": "/pgf/patterns/tile transformation=⟨pgftransformation⟩",
+    "signature": "",
     "default": "default empty",
     "description": "A pgf transformation, e.g. \\pgftransformrotate{30}.",
     "type": "key"
   },
   "tile transformation": {
-    "signature": "/pgf/patterns/tile transformation=⟨pgftransformation⟩",
+    "signature": "",
     "default": "default empty",
     "description": "A pgf transformation, e.g. \\pgftransformrotate{30}.",
     "type": "key"
   },
   "/pgf/patterns/code": {
-    "signature": "/pgf/patterns/code=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "The code should be pgf code that can be protocolled. It should not contain any color code or nodes.",
     "type": "key"
   },
   "/pgf/patterns/set up code": {
-    "signature": "/pgf/patterns/set up code=⟨code⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This code can be set if parameters have to be preprocessed before the actual pattern code can be run.",
+    "description": "This code can be set if parameters have to be preprocessed before the actual pattern code can be run.\n\nThere are a couple of predefined pgf patterns which are similar to their normal counterparts. For all of these the xshift and yshift are applied before the rotation. If you want to rotate before shifting, just rotate in the drawing code.",
     "type": "key"
   },
   "set up code": {
-    "signature": "/pgf/patterns/set up code=⟨code⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This code can be set if parameters have to be preprocessed before the actual pattern code can be run.",
+    "description": "This code can be set if parameters have to be preprocessed before the actual pattern code can be run.\n\nThere are a couple of predefined pgf patterns which are similar to their normal counterparts. For all of these the xshift and yshift are applied before the rotation. If you want to rotate before shifting, just rotate in the drawing code.",
     "type": "key"
   },
   "/pgf/pattern keys/distance": {
-    "signature": "/pgf/pattern keys/distance",
+    "signature": "",
     "default": "initially 3pt",
     "description": "Distance between lines.",
     "type": "key"
   },
   "distance": {
-    "signature": "/pgf/pattern keys/distance",
+    "signature": "",
     "default": "initially 3pt",
     "description": "Distance between lines.",
     "type": "key"
   },
   "/pgf/pattern keys/angle": {
-    "signature": "/pgf/pattern keys/angle",
+    "signature": "",
     "default": "initially 0",
     "description": "By default the lines are horizontal. The whole pattern is rotated by this angle. The rotation angle is measured in the mathematically positive sense.",
     "type": "key"
   },
   "/pgf/pattern keys/xshift": {
-    "signature": "/pgf/pattern keys/xshift",
+    "signature": "",
     "default": "initially 0pt",
     "description": "Shifts the whole pattern in \\(x\\)-direction (before applying the rotation).",
     "type": "key"
   },
   "/pgf/pattern keys/yshift": {
-    "signature": "/pgf/pattern keys/yshift",
+    "signature": "",
     "default": "initially 0pt",
     "description": "Shifts the whole pattern in \\(y\\)-direction (before applying the rotation).",
     "type": "key"
   },
   "/pgf/pattern keys/line width": {
-    "signature": "/pgf/pattern keys/line width",
+    "signature": "",
     "default": "initially \\the\\pgflinewidth",
     "description": "Thickness of the lines.\n\nThe following settings can be used to reproduce the other ... lines patterns.",
     "type": "key"
   },
   "/pgf/pattern keys/radius": {
-    "signature": "/pgf/pattern keys/radius",
+    "signature": "",
     "default": "initially 0.5pt",
     "description": "Radius of the dots.\n\nThe following settings can be used to reproduce the dots and crosshatch dots patterns.",
     "type": "key"
   },
   "/pgf/pattern keys/points": {
-    "signature": "/pgf/pattern keys/points",
+    "signature": "",
     "default": "initially 5",
     "description": "Number of pointy ends of the stars.",
     "type": "key"
   },
   "points": {
-    "signature": "/pgf/pattern keys/points",
+    "signature": "",
     "default": "initially 5",
     "description": "Number of pointy ends of the stars.",
     "type": "key"
   },
   "\\tikzdeclarepattern": {
-    "signature": "\\tikzdeclarepattern{⟨config⟩}",
+    "signature": "",
     "default": "",
     "description": "A pattern declared with \\pgfdeclarepattern can only execute pgf code. This command extends the functionality to also allow TikZ code. All the same keys of \\pgfdeclarepattern are valid, but some of them have been overloaded to give a more natural TikZ syntax.",
     "type": "command"
   },
   "/tikz/patterns/bottom left": {
-    "signature": "/tikz/patterns/bottom left=⟨point⟩",
+    "signature": "",
     "default": "no default",
     "description": "Instead of a pgf name point, this key takes a TikZ point, e.g. (-.1,-.1).",
     "type": "key"
   },
   "/tikz/patterns/top right": {
-    "signature": "/tikz/patterns/top right=⟨point⟩",
+    "signature": "",
     "default": "no default",
     "description": "Instead of a pgf name point, this key takes a TikZ point, e.g. (3.1,3.1).",
     "type": "key"
   },
   "/tikz/patterns/tile size": {
-    "signature": "/tikz/patterns/tile size=⟨point⟩",
+    "signature": "",
     "default": "no default",
     "description": "Instead of a pgf name point, this key takes a TikZ point, e.g. (3,3).",
     "type": "key"
   },
   "/tikz/patterns/tile transformation": {
-    "signature": "/tikz/patterns/tile transformation=⟨transformation⟩",
+    "signature": "",
     "default": "no default",
     "description": "Instead of a pgf transformation, this key takes a list of keys and value and extracts the resulting transformation from them, e.g. rotate=30.\n\nIn addition to the overloaded keys, some new keys have been added.",
     "type": "key"
   },
   "/tikz/patterns/bounding box": {
-    "signature": "/tikz/patterns/bounding box=⟨point⟩ and ⟨point⟩(no default)",
-    "default": "",
+    "signature": "",
+    "default": "no default",
     "description": "This is a shorthand to set the bounding box. It will assign the first point to bottom left and the second point to top right.",
     "type": "key"
   },
   "bounding box": {
-    "signature": "/tikz/patterns/bounding box=⟨point⟩ and ⟨point⟩(no default)",
-    "default": "",
+    "signature": "",
+    "default": "no default",
     "description": "This is a shorthand to set the bounding box. It will assign the first point to bottom left and the second point to top right.",
     "type": "key"
   },
   "/tikz/patterns/infer tile bounding box": {
-    "signature": "/tikz/patterns/infer tile bounding box=⟨dimension⟩",
+    "signature": "",
     "default": "default 0pt",
-    "description": "Instead of specifying the bounding box by hand, you can ask TikZ to infer the size of the bounding box for you. The ⟨dimension⟩ parameter is padding that is added around the bounding box.",
+    "description": "Instead of specifying the bounding box by hand, you can ask TikZ to infer the size of the bounding box for you. The ⟨dimension⟩ parameter is padding that is added around the bounding box.\n\nInstead of macros you can also use pgf keys as parameters, if that is what you prefer.",
     "type": "key"
   },
   "infer tile bounding box": {
-    "signature": "/tikz/patterns/infer tile bounding box=⟨dimension⟩",
+    "signature": "",
     "default": "default 0pt",
-    "description": "Instead of specifying the bounding box by hand, you can ask TikZ to infer the size of the bounding box for you. The ⟨dimension⟩ parameter is padding that is added around the bounding box.",
+    "description": "Instead of specifying the bounding box by hand, you can ask TikZ to infer the size of the bounding box for you. The ⟨dimension⟩ parameter is padding that is added around the bounding box.\n\nInstead of macros you can also use pgf keys as parameters, if that is what you prefer.",
     "type": "key"
   }
 }

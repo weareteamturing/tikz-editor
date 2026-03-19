@@ -211,3 +211,6 @@ function skipWhitespace(input: string, index: number): number {
 function compareSymbolName(left: string, right: string): number {
   return left.localeCompare(right, "en", { sensitivity: "base" });
 }
+
+export { resolveDocHoverTarget } from "./doc-hover.js";
+export type { DocHoverTarget, DocHoverTargetKind, ResolveDocHoverTargetInput } from "./doc-hover.js";

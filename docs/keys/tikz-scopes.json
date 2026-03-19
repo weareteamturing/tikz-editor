@@ -1,144 +1,144 @@
 {
   "tikz": {
-    "signature": "\\usepackage{tikz} % LaTeX",
+    "signature": "",
     "default": "",
     "description": "\\input tikz.tex % plain TeX\n\n\\usemodule[tikz] % ConTeXt",
     "type": "key"
   },
   "\\usetikzlibrary": {
-    "signature": "\\usetikzlibrary{⟨list of libraries⟩}",
+    "signature": "",
     "default": "",
     "description": "Once TikZ has been loaded, you can use this command to load further libraries. The list of libraries should contain the names of libraries separated by commas. Instead of curly braces, you can also use square brackets, which is something ConTeXt users will like. If you try to load a library a second time, nothing will happen.\n\nExample: \\usetikzlibrary{arrows.meta}",
     "type": "command"
   },
   "tikzpicture": {
-    "signature": "\\begin{tikzpicture}⟨animations spec⟩[⟨options⟩]",
+    "signature": "",
     "default": "",
     "description": "⟨environment contents⟩\n\n\\end{tikzpicture}",
     "type": "key"
   },
   "/tikz/baseline": {
-    "signature": "/tikz/baseline=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Normally, the lower end of the picture is put on the baseline of the surrounding text. For example, when you give the code \\tikz\\draw(0,0)circle(.5ex);, pgf will find out that the lower end of the picture is at \\(-.5\\mathrm {ex} - 0.2\\mathrm {pt}\\) (the 0.2pt are half the line width, which is 0.4pt) and that the upper end is at \\(.5\\mathrm {ex}+.2\\mathrm {pt}\\). Then, the lower end will be put on the baseline, resulting in the following: .\n\nUsing this option, you can specify that the picture should be raised or lowered such that the height ⟨dimension⟩ is on the baseline. For example, \\tikz[baseline=0pt]\\draw(0,0)circle(.5ex); yields since, now, the baseline is on the height of the \\(x\\)-axis.",
     "type": "key"
   },
   "baseline": {
-    "signature": "/tikz/baseline=⟨dimension or coordinate or default⟩",
+    "signature": "",
     "default": "default 0pt",
     "description": "Normally, the lower end of the picture is put on the baseline of the surrounding text. For example, when you give the code \\tikz\\draw(0,0)circle(.5ex);, pgf will find out that the lower end of the picture is at \\(-.5\\mathrm {ex} - 0.2\\mathrm {pt}\\) (the 0.2pt are half the line width, which is 0.4pt) and that the upper end is at \\(.5\\mathrm {ex}+.2\\mathrm {pt}\\). Then, the lower end will be put on the baseline, resulting in the following: .\n\nUsing this option, you can specify that the picture should be raised or lowered such that the height ⟨dimension⟩ is on the baseline. For example, \\tikz[baseline=0pt]\\draw(0,0)circle(.5ex); yields since, now, the baseline is on the height of the \\(x\\)-axis.",
     "type": "key"
   },
   "/tikz/execute at begin picture": {
-    "signature": "/tikz/execute at begin picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option causes ⟨code⟩ to be executed at the beginning of the picture. This option must be given in the argument of the {tikzpicture} environment itself since this option will not have an effect otherwise. After all, the picture has already “started” later on. The effect of multiply setting this option accumulates.\n\nThis option is mainly used in styles like the every picture style to execute certain code at the start of a picture.",
+    "description": "This option causes ⟨code⟩ to be executed at the beginning of the picture. This option must be given in the argument of the {tikzpicture} environment itself since this option will not have an effect otherwise. After all, the picture has already &ldquo;started&rdquo; later on. The effect of multiply setting this option accumulates.\n\nThis option is mainly used in styles like the every picture style to execute certain code at the start of a picture.",
     "type": "key"
   },
   "execute at begin picture": {
-    "signature": "/tikz/execute at begin picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option causes ⟨code⟩ to be executed at the beginning of the picture. This option must be given in the argument of the {tikzpicture} environment itself since this option will not have an effect otherwise. After all, the picture has already “started” later on. The effect of multiply setting this option accumulates.\n\nThis option is mainly used in styles like the every picture style to execute certain code at the start of a picture.",
+    "description": "This option causes ⟨code⟩ to be executed at the beginning of the picture. This option must be given in the argument of the {tikzpicture} environment itself since this option will not have an effect otherwise. After all, the picture has already &ldquo;started&rdquo; later on. The effect of multiply setting this option accumulates.\n\nThis option is mainly used in styles like the every picture style to execute certain code at the start of a picture.",
     "type": "key"
   },
   "/tikz/execute at end picture": {
-    "signature": "/tikz/execute at end picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option installs ⟨code⟩ that will be executed at the end of the picture. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {tikzpicture} environment.",
+    "description": "This option installs ⟨code⟩ that will be executed at the end of the picture. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {tikzpicture} environment.\n\nAll options &ldquo;end&rdquo; at the end of the picture. To set an option &ldquo;globally&rdquo; change the following style:",
     "type": "key"
   },
   "execute at end picture": {
-    "signature": "/tikz/execute at end picture=⟨code⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This option installs ⟨code⟩ that will be executed at the end of the picture. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {tikzpicture} environment.",
+    "description": "This option installs ⟨code⟩ that will be executed at the end of the picture. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {tikzpicture} environment.\n\nAll options &ldquo;end&rdquo; at the end of the picture. To set an option &ldquo;globally&rdquo; change the following style:",
     "type": "key"
   },
   "/tikz/every picture": {
-    "signature": "/tikz/every picture",
+    "signature": "",
     "default": "style, initially empty",
-    "description": "This style is installed at the beginning of each picture.",
+    "description": "This style is installed at the beginning of each picture.\n\nNote that you should not use \\tikzset to set options directly. For instance, if you want to use a line width of 1pt by default, do not try to say \\tikzset{line width=1pt} at the beginning of your document. This will not work since the line width is changed in many places. Instead, say",
     "type": "style"
   },
   "every picture": {
-    "signature": "/tikz/every picture",
+    "signature": "",
     "default": "style, initially empty",
-    "description": "This style is installed at the beginning of each picture.",
+    "description": "This style is installed at the beginning of each picture.\n\nNote that you should not use \\tikzset to set options directly. For instance, if you want to use a line width of 1pt by default, do not try to say \\tikzset{line width=1pt} at the beginning of your document. This will not work since the line width is changed in many places. Instead, say",
     "type": "style"
   },
   "\\tikz": {
-    "signature": "\\tikz⟨animations spec⟩[⟨options⟩]{⟨path commands⟩}",
+    "signature": "",
     "default": "",
     "description": "This command places the ⟨path commands⟩ inside a {tikzpicture} environment. The ⟨path commands⟩ may contain paragraphs and fragile material (like verbatim text).\n\nIf there is only one path command, it need not be surrounded by curly braces, if there are several, you need to add them (this is similar to the \\foreach statement and also to the rules in programming languages like Java or C concerning the placement of curly braces).",
     "type": "command"
   },
   "scope": {
-    "signature": "\\begin{scope}⟨animations spec⟩[⟨options⟩]",
+    "signature": "",
     "default": "",
     "description": "⟨environment contents⟩\n\n\\end{scope}",
     "type": "key"
   },
   "/tikz/name": {
-    "signature": "/tikz/name=⟨scope name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Assigns a name to a scope reference in animations. The name is a “high-level” name that drivers do not see, so you can use spaces, number, letters, in a name, but you should not use any punctuation like a dot, a comma, or a colon.\n\nThe following style influences scopes:",
+    "description": "Assigns a name to a scope reference in animations. The name is a &ldquo;high-level&rdquo; name that drivers do not see, so you can use spaces, number, letters, in a name, but you should not use any punctuation like a dot, a comma, or a colon.\n\nThe following style influences scopes:",
     "type": "key"
   },
   "name": {
-    "signature": "/tikz/name=⟨scope name⟩",
+    "signature": "",
     "default": "no default",
-    "description": "Assigns a name to a scope reference in animations. The name is a “high-level” name that drivers do not see, so you can use spaces, number, letters, in a name, but you should not use any punctuation like a dot, a comma, or a colon.\n\nThe following style influences scopes:",
+    "description": "Assigns a name to a scope reference in animations. The name is a &ldquo;high-level&rdquo; name that drivers do not see, so you can use spaces, number, letters, in a name, but you should not use any punctuation like a dot, a comma, or a colon.\n\nThe following style influences scopes:",
     "type": "key"
   },
   "/tikz/every scope": {
-    "signature": "/tikz/every scope",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is installed at the beginning of every scope.\n\nThe following options are useful for scopes:",
     "type": "style"
   },
   "every scope": {
-    "signature": "/tikz/every scope",
+    "signature": "",
     "default": "style, initially empty",
     "description": "This style is installed at the beginning of every scope.\n\nThe following options are useful for scopes:",
     "type": "style"
   },
   "/tikz/execute at begin scope": {
-    "signature": "/tikz/execute at begin scope=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option install some code that will be executed at the beginning of the scope. This option must be given in the argument of the {scope} environment.\n\nThe effect applies only to the current scope, not to subscopes.",
     "type": "key"
   },
   "execute at begin scope": {
-    "signature": "/tikz/execute at begin scope=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option install some code that will be executed at the beginning of the scope. This option must be given in the argument of the {scope} environment.\n\nThe effect applies only to the current scope, not to subscopes.",
     "type": "key"
   },
   "/tikz/execute at end scope": {
-    "signature": "/tikz/execute at end scope=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option installs some code that will be executed at the end of the current scope. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {scope} environment.\n\nAgain, the effect applies only to the current scope, not to subscopes.",
     "type": "key"
   },
   "execute at end scope": {
-    "signature": "/tikz/execute at end scope=⟨code⟩",
+    "signature": "",
     "default": "no default",
     "description": "This option installs some code that will be executed at the end of the current scope. Using this option multiple times will cause the code to accumulate. This option must also be given in the optional argument of the {scope} environment.\n\nAgain, the effect applies only to the current scope, not to subscopes.",
     "type": "key"
   },
   "scopes": {
-    "signature": "TikZ Library scopes",
+    "signature": "",
     "default": "",
     "description": "\\usetikzlibrary{scopes} % LaTeX and plain TeX \\usetikzlibrary[scopes] % ConTeXt This library defines a shorthand for starting and ending {scope} environments.\n\nWhen this library is loaded, the following happens: At certain places inside a TikZ picture, it is allowed to start a scope just using a single brace, provided the single brace is followed by options in square brackets:",
     "type": "key"
   },
   "\\scoped": {
-    "signature": "\\scoped⟨animations spec⟩[⟨options⟩]⟨path command⟩",
+    "signature": "",
     "default": "",
-    "description": "This command works like \\tikz, only you can use it inside a {tikzpicture}. It will take the following ⟨path command⟩ and put it inside a {scope} with the ⟨options⟩ set. The ⟨path command⟩ may either be a single command ended by a semicolon or it may contain multiple commands, but then they must be surrounded by curly braces.",
+    "description": "This command works like \\tikz, only you can use it inside a {tikzpicture}. It will take the following ⟨path command⟩ and put it inside a {scope} with the ⟨options⟩ set. The ⟨path command⟩ may either be a single command ended by a semicolon or it may contain multiple commands, but then they must be surrounded by curly braces.\n\nThe \\path command, which is described in much more detail in later sections, also takes graphic options. These options are local to the path. Furthermore, it is possible to create local scopes within a path simply by using curly braces as in",
     "type": "command"
   },
   "\\tikzset": {
-    "signature": "\\tikzset{⟨options⟩}",
+    "signature": "",
     "default": "",
     "description": "This command will process the ⟨options⟩ using the \\pgfkeys command, documented in detail in Section 87, with the default path set to /tikz. Under normal circumstances, the ⟨options⟩ will be lists of comma-separated pairs of the form ⟨key⟩=⟨value⟩, but more fancy things can happen when you use the power of the pgfkeys mechanism, see Section 87 once more.\n\nWhen a pair ⟨key⟩=⟨value⟩ is processed, the following happens:",
     "type": "command"

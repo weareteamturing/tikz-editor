@@ -18,6 +18,14 @@ describe("options parser", () => {
     expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "line width")).toBe(true);
     expect(parsed.entries.some((entry) => entry.kind === "kv" && entry.key === "fill")).toBe(true);
     expect(parsed.entries.every((entry) => entry.span.from >= 10)).toBe(true);
+
+    const lineWidth = parsed.entries.find((entry) => entry.kind === "kv" && entry.key === "line width");
+    expect(lineWidth?.kind).toBe("kv");
+    if (lineWidth?.kind === "kv") {
+      expect(lineWidth.keySpan).toBeDefined();
+      expect(lineWidth.keySpan!.to).toBeLessThan(lineWidth.valueSpan?.from ?? Number.POSITIVE_INFINITY);
+      expect(lineWidth.valueSpan).not.toBeNull();
+    }
   });
 
   it("parses symbolic marker flags like |-|", () => {

@@ -1,128 +1,128 @@
 {
   "shadows": {
-    "signature": "TikZ Library shadows",
+    "signature": "",
     "default": "",
     "description": "\\usetikzlibrary{shadows} % LaTeX and plain TeX \\usetikzlibrary[shadows] % ConTeXt This library defines styles that help adding a (partly) transparent shadow to a path or node.\n\nA shadow is usually a black or gray area that is drawn behind a path or a node, thereby adding visual depth to a picture. The shadows library defines options that make it easy to add shadows to paths. Internally, these options are based on using the preaction option to use a path twice: Once for drawing the shadow (slightly shifted) and once for actually using the path.",
     "type": "key"
   },
   "/tikz/general shadow": {
-    "signature": "/tikz/general shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This option should be given to a \\path or a node. It has the following effect: Before the path is used normally, it is used once with the ⟨shadow options⟩ in force. Furthermore, when the path is “preused” in this way, it is shifted and scaled a little bit.\n\nIn detail, the following happens: A preaction is used to paint the path in a special manner before it is actually painted. This “special” manner is as follows: The options in ⟨shadow options⟩ are used for painting this path. Typically, the ⟨shadow options⟩ will contain options like fill=black to create, say, a black shadow. Furthermore, after the ⟨shadow options⟩ have been set up, the following extra canvas transformations are applied to the path: It is scaled by shadow scale (with the origin of scaling at the path’s center) and it is shifted by shadow xshift and shadow yshift.",
+    "description": "This option should be given to a \\path or a node. It has the following effect: Before the path is used normally, it is used once with the ⟨shadow options⟩ in force. Furthermore, when the path is &ldquo;preused&rdquo; in this way, it is shifted and scaled a little bit.\n\nIn detail, the following happens: A preaction is used to paint the path in a special manner before it is actually painted. This &ldquo;special&rdquo; manner is as follows: The options in ⟨shadow options⟩ are used for painting this path. Typically, the ⟨shadow options⟩ will contain options like fill=black to create, say, a black shadow. Furthermore, after the ⟨shadow options⟩ have been set up, the following extra canvas transformations are applied to the path: It is scaled by shadow scale (with the origin of scaling at the path&rsquo;s center) and it is shifted by shadow xshift and shadow yshift.",
     "type": "key"
   },
   "general shadow": {
-    "signature": "/tikz/general shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This option should be given to a \\path or a node. It has the following effect: Before the path is used normally, it is used once with the ⟨shadow options⟩ in force. Furthermore, when the path is “preused” in this way, it is shifted and scaled a little bit.\n\nIn detail, the following happens: A preaction is used to paint the path in a special manner before it is actually painted. This “special” manner is as follows: The options in ⟨shadow options⟩ are used for painting this path. Typically, the ⟨shadow options⟩ will contain options like fill=black to create, say, a black shadow. Furthermore, after the ⟨shadow options⟩ have been set up, the following extra canvas transformations are applied to the path: It is scaled by shadow scale (with the origin of scaling at the path’s center) and it is shifted by shadow xshift and shadow yshift.",
+    "description": "This option should be given to a \\path or a node. It has the following effect: Before the path is used normally, it is used once with the ⟨shadow options⟩ in force. Furthermore, when the path is &ldquo;preused&rdquo; in this way, it is shifted and scaled a little bit.\n\nIn detail, the following happens: A preaction is used to paint the path in a special manner before it is actually painted. This &ldquo;special&rdquo; manner is as follows: The options in ⟨shadow options⟩ are used for painting this path. Typically, the ⟨shadow options⟩ will contain options like fill=black to create, say, a black shadow. Furthermore, after the ⟨shadow options⟩ have been set up, the following extra canvas transformations are applied to the path: It is scaled by shadow scale (with the origin of scaling at the path&rsquo;s center) and it is shifted by shadow xshift and shadow yshift.",
     "type": "key"
   },
   "/tikz/shadow scale": {
-    "signature": "/tikz/shadow scale=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 1",
     "description": "Shadows are scaled by ⟨factor⟩.",
     "type": "key"
   },
   "shadow scale": {
-    "signature": "/tikz/shadow scale=⟨factor⟩",
+    "signature": "",
     "default": "no default, initially 1",
     "description": "Shadows are scaled by ⟨factor⟩.",
     "type": "key"
   },
   "/tikz/shadow xshift": {
-    "signature": "/tikz/shadow xshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shadows are shifted horizontally by ⟨dimension⟩.",
     "type": "key"
   },
   "shadow xshift": {
-    "signature": "/tikz/shadow xshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shadows are shifted horizontally by ⟨dimension⟩.",
     "type": "key"
   },
   "/tikz/shadow yshift": {
-    "signature": "/tikz/shadow yshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shadows are shifted vertically by ⟨dimension⟩.",
     "type": "key"
   },
   "shadow yshift": {
-    "signature": "/tikz/shadow yshift=⟨dimension⟩",
+    "signature": "",
     "default": "no default, initially 0pt",
     "description": "Shadows are shifted vertically by ⟨dimension⟩.",
     "type": "key"
   },
   "/tikz/drop shadow": {
-    "signature": "/tikz/drop shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
     "description": "This option adds a drop shadow to a \\path or a node. It uses the general shadow and passes the ⟨shadow options⟩ to it, plus, before them, the following extra options:",
     "type": "key"
   },
   "drop shadow": {
-    "signature": "/tikz/drop shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
     "description": "This option adds a drop shadow to a \\path or a node. It uses the general shadow and passes the ⟨shadow options⟩ to it, plus, before them, the following extra options:",
     "type": "key"
   },
   "/tikz/every shadow": {
-    "signature": "/tikz/every shadow",
+    "signature": "",
     "default": "style, initially empty",
-    "description": "This style is executed in addition to any ⟨shadow options⟩ for each shadow. Use this style to reconfigure the way shadows are drawn.",
+    "description": "This style is executed in addition to any ⟨shadow options⟩ for each shadow. Use this style to reconfigure the way shadows are drawn.\n\nA copy shadow is not really a shadow. Rather, it looks like another copy of the path drawn behind the path and a little bit offset. This creates the visual impression of having multiple copies of the path/object present.",
     "type": "style"
   },
   "every shadow": {
-    "signature": "/tikz/every shadow",
+    "signature": "",
     "default": "style, initially empty",
-    "description": "This style is executed in addition to any ⟨shadow options⟩ for each shadow. Use this style to reconfigure the way shadows are drawn.",
+    "description": "This style is executed in addition to any ⟨shadow options⟩ for each shadow. Use this style to reconfigure the way shadows are drawn.\n\nA copy shadow is not really a shadow. Rather, it looks like another copy of the path drawn behind the path and a little bit offset. This creates the visual impression of having multiple copies of the path/object present.",
     "type": "style"
   },
   "/tikz/copy shadow": {
-    "signature": "/tikz/copy shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This shadow installs the following default options:",
+    "description": "This shadow installs the following default options:\n\nFurthermore, the options fill=⟨fill color⟩ and draw=⟨draw color⟩ are also set, where the ⟨fill color⟩ and ⟨draw color⟩ are the fill and draw colors used for the main path.",
     "type": "key"
   },
   "copy shadow": {
-    "signature": "/tikz/copy shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This shadow installs the following default options:",
+    "description": "This shadow installs the following default options:\n\nFurthermore, the options fill=⟨fill color⟩ and draw=⟨draw color⟩ are also set, where the ⟨fill color⟩ and ⟨draw color⟩ are the fill and draw colors used for the main path.",
     "type": "key"
   },
   "/tikz/double copy shadow": {
-    "signature": "/tikz/double copy shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This shadow works like a copy shadow, only the shadow is added twice, the second time with the double xshift and yshift.",
+    "description": "This shadow works like a copy shadow, only the shadow is added twice, the second time with the double xshift and yshift.\n\nThe shadows in this section should normally be added only to paths that have a special shape. They will look strange with other shapes.",
     "type": "key"
   },
   "double copy shadow": {
-    "signature": "/tikz/double copy shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "default empty",
-    "description": "This shadow works like a copy shadow, only the shadow is added twice, the second time with the double xshift and yshift.",
+    "description": "This shadow works like a copy shadow, only the shadow is added twice, the second time with the double xshift and yshift.\n\nThe shadows in this section should normally be added only to paths that have a special shape. They will look strange with other shapes.",
     "type": "key"
   },
   "/tikz/circular drop shadow": {
-    "signature": "/tikz/circular drop shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This shadow works like a drop shadow, only it adds a circular fading to the shadow. This means that the shadow will fade out at the border. The following options are preset for this shadow:",
     "type": "key"
   },
   "circular drop shadow": {
-    "signature": "/tikz/circular drop shadow=⟨shadow options⟩",
+    "signature": "",
     "default": "no default",
     "description": "This shadow works like a drop shadow, only it adds a circular fading to the shadow. This means that the shadow will fade out at the border. The following options are preset for this shadow:",
     "type": "key"
   },
   "/tikz/circular glow": {
-    "signature": "/tikz/circular glow=⟨shadow options⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This shadow works much like the circular shadow, only it is not shifted. This creates a visual effect of a “glow” behind the circle. The following options are preset for this shadow:",
+    "description": "This shadow works much like the circular shadow, only it is not shifted. This creates a visual effect of a &ldquo;glow&rdquo; behind the circle. The following options are preset for this shadow:\n\nAn especially interesting effect can be achieved by only using the glow and not filling the path:",
     "type": "key"
   },
   "circular glow": {
-    "signature": "/tikz/circular glow=⟨shadow options⟩",
+    "signature": "",
     "default": "no default",
-    "description": "This shadow works much like the circular shadow, only it is not shifted. This creates a visual effect of a “glow” behind the circle. The following options are preset for this shadow:",
+    "description": "This shadow works much like the circular shadow, only it is not shifted. This creates a visual effect of a &ldquo;glow&rdquo; behind the circle. The following options are preset for this shadow:\n\nAn especially interesting effect can be achieved by only using the glow and not filling the path:",
     "type": "key"
   }
 }
