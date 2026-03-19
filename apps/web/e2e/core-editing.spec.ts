@@ -480,6 +480,60 @@ test("nested scope drill is outermost-first and dragging does not advance drill 
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["path:2"]);
 });
 
+test("keyboard delete clears a selected scope atomically without crashing the source panel", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const relevantConsoleErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    pageErrors.push(String(error));
+  });
+  page.on("console", (message) => {
+    if (message.type() !== "error" && message.type() !== "warning") {
+      return;
+    }
+    const text = message.text();
+    if (
+      text.includes("RangeError: Position") ||
+      text.includes("An error occurred in the <SourcePanel> component")
+    ) {
+      relevantConsoleErrors.push(text);
+    }
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \fill (0,0) rectangle (1,1);
+  \end{scope}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        selectSourceIds?: (sourceIds: string[]) => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    api?.selectSourceIds?.(["scope:0"]);
+
+    const viewport = document.querySelector("[data-testid='canvas-viewport']");
+    if (viewport instanceof HTMLElement) {
+      viewport.focus();
+    }
+  });
+
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
+  await expect(canvasViewport(page)).toBeFocused();
+
+  await page.keyboard.press("Delete");
+
+  await expect.poll(async () => readStoreSource(page)).toEqual(String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+  await expect.poll(async () => readSelectedSourceIds(page)).toEqual([]);
+  await expect(page.locator(".cm-content").first()).toContainText(String.raw`\begin{tikzpicture}`);
+  await expect(page.locator(".cm-content").first()).toContainText(String.raw`\end{tikzpicture}`);
+  expect(pageErrors).toEqual([]);
+  expect(relevantConsoleErrors).toEqual([]);
+});
+
 test("selected scope drag tracks cursor displacement without runaway shifts", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

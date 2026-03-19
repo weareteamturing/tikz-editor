@@ -119,7 +119,6 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
         targetId: ids[0]!
       }
     });
-    context.dispatch({ type: "CLEAR_SELECTION" });
     return true;
   }
   context.dispatch({
@@ -134,7 +133,6 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
           elementIds: ids
         }
   });
-  context.dispatch({ type: "CLEAR_SELECTION" });
   return true;
 }
 

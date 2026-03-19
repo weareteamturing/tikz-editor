@@ -5,7 +5,7 @@ import type { SourcePatch } from "../types.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 
 type EditActionResultLike =
-  | { kind: "success"; newSource: string; patches: SourcePatch[]; changedSourceIds?: string[] }
+  | { kind: "success"; newSource: string; patches: SourcePatch[]; selectedSourceIds?: string[]; changedSourceIds?: string[] }
   | { kind: "unsupported"; reason: string };
 
 type DeleteTarget = {
@@ -61,7 +61,8 @@ export function applyDeleteElementsAction(
   return {
     kind: "success",
     newSource: currentSource,
-    patches
+    patches,
+    selectedSourceIds: []
   };
 }
 
@@ -80,6 +81,7 @@ export function applyDeleteAdornmentAction(
   return {
     kind: "success",
     newSource: updated.source,
+    selectedSourceIds: [],
     patches: [
       {
         oldSpan: deleteSpan,

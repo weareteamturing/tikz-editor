@@ -145,14 +145,11 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
 
       if ((event.key === "Delete" || event.key === "Backspace") && selectedElementIds.size > 0) {
         const selectedIds = [...selectedElementIds];
-        const ok = applyActionWithFeedback(
+        applyActionWithFeedback(
           selectedIds.length === 1
             ? { kind: "deleteElement", elementId: selectedIds[0]! }
             : { kind: "deleteElements", elementIds: selectedIds }
         );
-        if (ok.sourceChanged) {
-          dispatch({ type: "CLEAR_SELECTION" });
-        }
         event.preventDefault();
         return;
       }

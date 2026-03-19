@@ -211,6 +211,9 @@ const highlightField = StateField.define<DecorationSet>({
       const [from, to] = effect.value;
       return Decoration.set([Decoration.mark({ class: "cm-highlight-range" }).range(from, to)]);
     }
+    if (tr.docChanged) {
+      return value.map(tr.changes);
+    }
     return value;
   },
   provide: (f) => EditorView.decorations.from(f)
@@ -696,9 +699,14 @@ export function SourcePanel() {
       if (currentSelection.empty) {
         return;
       }
+      const normalizedSelection = normalizeSelectionAnchorHead(
+        currentSelection.head,
+        currentSelection.head,
+        view.state.doc.length
+      );
       ignoreNextSelectionSyncRef.current = true;
       dispatchSelectionWithStableHorizontalScroll(view, {
-        selection: { anchor: currentSelection.head, head: currentSelection.head },
+        selection: normalizedSelection,
         annotations: [Transaction.addToHistory.of(false)],
         scrollIntoView: false
       });

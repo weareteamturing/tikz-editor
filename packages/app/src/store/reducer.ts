@@ -767,6 +767,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const nextSelection = result.selectedSourceIds
         ? new Set(result.selectedSourceIds)
         : activeDoc.selectedElementIds;
+      const nextFocusedScopeId =
+        result.selectedSourceIds && result.selectedSourceIds.length === 0 &&
+        (action.action.kind === "deleteElement" ||
+          action.action.kind === "deleteElements" ||
+          action.action.kind === "deleteAdornment")
+          ? null
+          : activeDoc.focusedScopeId;
       const recordInHistory = action.recordInHistory ?? true;
 
       if (!recordInHistory) {
@@ -778,6 +785,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
           selectedElementIds: nextSelection,
+          focusedScopeId: nextFocusedScopeId,
           activeHandleId: null,
           dirty: result.newSource !== doc.savedSource
         }));
@@ -826,6 +834,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
           selectedElementIds: nextSelection,
+          focusedScopeId: nextFocusedScopeId,
           activeHandleId: null,
           history: nextHistory,
           historyIndex: lastIndex,
@@ -852,6 +861,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         lastEditPatches: result.patches,
         selectedElementIds: nextSelection,
+        focusedScopeId: nextFocusedScopeId,
         activeHandleId: null,
         history: [...truncated, entry],
         historyIndex: truncated.length,
