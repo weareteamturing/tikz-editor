@@ -1066,9 +1066,9 @@ export function CanvasPanel() {
 
   const pathSelectionHint = useMemo(() => {
     if (warning || toolMode !== "select") return null;
-    if (collapsedDensePathSourceIds.size > 0) return "Double-click path to edit points.";
     if (selectedElementIds.size !== 1) return null;
     const sourceId = [...selectedElementIds][0]!;
+    if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
     // dense paths that are expanded are also eligible for add-point hint
     const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
     if (!element || element.kind !== "Path") return null;
@@ -1770,6 +1770,7 @@ export function CanvasPanel() {
     sceneTextByRegionKey,
     findWordRangeAtIndex,
     densePathSourceIds,
+    expandedDensePathSourceId,
     setExpandedDensePathSourceId,
     scopeOverlay,
     focusedScopeId,

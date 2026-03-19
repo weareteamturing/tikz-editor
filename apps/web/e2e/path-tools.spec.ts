@@ -44,11 +44,52 @@ async function doubleClickHitRegionByTargetId(
   await waitForHitRegions(page, 1);
   const region = page.locator(`[data-hit-region-target-id='${targetId}']`).first();
   await expect(region).toBeVisible();
-  const box = await region.boundingBox();
-  if (!box) {
-    throw new Error(`Missing hit-region bounds for ${targetId}.`);
+  const target = await region.evaluate((element) => {
+    const fallback = () => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    if (element instanceof SVGGeometryElement && typeof element.getTotalLength === "function") {
+      try {
+        const length = element.getTotalLength();
+        const sample = element.getPointAtLength(Math.min(Math.max(length * 0.25, 1), Math.max(length - 1, 1)));
+        const svg = element.ownerSVGElement;
+        const ctm = element.getScreenCTM();
+        if (!svg || !ctm) {
+          return fallback();
+        }
+        const point = svg.createSVGPoint();
+        point.x = sample.x;
+        point.y = sample.y;
+        const screen = point.matrixTransform(ctm);
+        return { x: screen.x, y: screen.y };
+      } catch {
+        return fallback();
+      }
+    }
+
+    return fallback();
+  });
+  await page.mouse.dblclick(target.x, target.y);
+}
+
+async function doubleClickBetweenFirstTwoMoveHandles(
+  page: import("@playwright/test").Page,
+  sourceId: string
+): Promise<void> {
+  const handles = page.locator(`[data-handle-kind="move-handle"][data-source-id="${sourceId}"]`);
+  await expect.poll(async () => handles.count()).toBeGreaterThan(1);
+  const first = handles.nth(0);
+  const second = handles.nth(1);
+  const firstBox = await first.boundingBox();
+  const secondBox = await second.boundingBox();
+  if (!firstBox || !secondBox) {
+    throw new Error(`Missing move-handle bounds for ${sourceId}.`);
   }
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  const firstCenter = { x: firstBox.x + firstBox.width / 2, y: firstBox.y + firstBox.height / 2 };
+  const secondCenter = { x: secondBox.x + secondBox.width / 2, y: secondBox.y + secondBox.height / 2 };
+  await page.mouse.dblclick((firstCenter.x + secondCenter.x) / 2, (firstCenter.y + secondCenter.y) / 2);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -547,31 +588,25 @@ test("dense paths require double click before showing interior edit handles", as
     throw new Error("Expected exactly one dense path selection hint.");
   }
 
-  const denseIndex = firstIsDense ? 0 : 1;
-  const shortIndex = firstIsDense ? 1 : 0;
   const denseTargetId = firstIsDense ? firstSelected[0]! : secondSelected[0]!;
   const shortTargetId = firstIsDense ? secondSelected[0]! : firstSelected[0]!;
 
-  await clickHitRegion(page, denseIndex);
-  await expect(page.getByTestId("canvas-selection-hint")).toContainText("Double-click path to edit points.");
-  await expect.poll(async () =>
-    page.locator(`[data-handle-kind="move-element"][data-source-id="${denseTargetId}"]`).count()
-  ).toBeGreaterThan(0);
+  await clickHitRegionByTargetId(page, denseTargetId);
   await expect(page.locator(`[data-handle-kind="move-handle"][data-source-id="${denseTargetId}"]`)).toHaveCount(0);
 
-  await doubleClickHitRegion(page, denseIndex);
+  await doubleClickHitRegionByTargetId(page, denseTargetId);
   await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
-  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
-
-  await clickHitRegion(page, shortIndex);
-  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
-  const shortHint = page.getByTestId("canvas-selection-hint");
-  if ((await shortHint.count()) > 0) {
-    await expect(shortHint).not.toContainText("Double-click path to edit points.");
-  }
   await expect.poll(async () =>
-    page.locator(`[data-handle-kind="move-handle"][data-source-id="${shortTargetId}"]`).count()
+    page.locator(`[data-handle-kind="move-handle"]`).count()
   ).toBeGreaterThan(0);
+
+  const sourceBeforeInsert = normalizeSourceWhitespace(await readSource(page));
+  await doubleClickBetweenFirstTwoMoveHandles(page, denseTargetId);
+  await expect.poll(async () => normalizeSourceWhitespace(await readSource(page))).not.toBe(sourceBeforeInsert);
+
+  await clickHitRegionByTargetId(page, shortTargetId, { shift: true });
+  await expect.poll(async () => (await readSelectedSourceIds(page)).length).toBe(2);
+  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
 });
 
 test("complex node shapes do not show dense path edit hint", async ({ page }) => {

@@ -47,6 +47,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     sceneTextByRegionKey,
     findWordRangeAtIndex,
     densePathSourceIds,
+    expandedDensePathSourceId,
     setExpandedDensePathSourceId,
     scopeOverlay,
     focusedScopeId,
@@ -309,7 +310,11 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       const isAdornmentTarget = resolvedTargetId.startsWith("node-adornment:");
       setTextEditingSession(null);
 
-      if (!additiveSelection) {
+      // Keep dense-path expansion when re-clicking the same selected dense path.
+      if (
+        !additiveSelection &&
+        !(expandedDensePathSourceId != null && resolvedTargetId === expandedDensePathSourceId)
+      ) {
         setExpandedDensePathSourceId(null);
       }
 
@@ -467,6 +472,14 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       }
 
       if (densePathSourceIds.has(sourceId)) {
+        if (expandedDensePathSourceId === sourceId) {
+          // Expanded dense paths should use double-click for point insertion first.
+          if (tryInsertPathPoint(event, sourceId)) {
+            return;
+          }
+          // Missed insertion is a no-op; keep dense path expanded.
+          return;
+        }
         dispatch({ type: "SELECT", id: sourceId, additive: false });
         dispatch({
           type: "SET_FOCUSED_SCOPE",
@@ -518,7 +531,8 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       toolMode,
       viewportRef,
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      source, snapshot, svgResult, interactionSvgRef, canvasTransform, applyActionWithFeedback, activeFigureId
+      source, snapshot, svgResult, interactionSvgRef, canvasTransform, applyActionWithFeedback, activeFigureId,
+      expandedDensePathSourceId
     ]
   );
 
