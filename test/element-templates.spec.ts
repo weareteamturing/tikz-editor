@@ -20,6 +20,14 @@ describe("element templates", () => {
     expect(snippet).toBe("\\node at (1.5,-2) {Hello};");
   });
 
+  it("preserves TeX braces in node text", () => {
+    const snippet = generateElementSource(
+      { kind: "node", text: "$\\frac{a}{b}=x$" },
+      { x: cm(0), y: cm(0) }
+    );
+    expect(snippet).toBe("\\node at (0,0) {$\\frac{a}{b}=x$};");
+  });
+
   it("generates a shaped node snippet with explicit dragged minimum dimensions", () => {
     const snippet = generateElementSource(
       {

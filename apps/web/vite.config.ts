@@ -9,6 +9,9 @@ export default defineConfig({
   worker: {
     format: "es"
   },
+  optimizeDeps: {
+    exclude: ["mathlive"]
+  },
   resolve: {
     alias: {
       "tikz-editor": path.resolve(__dirname, "../../packages/core/src"),

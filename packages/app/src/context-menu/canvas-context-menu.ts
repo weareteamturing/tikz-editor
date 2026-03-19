@@ -172,7 +172,110 @@ const SNAP_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
-export const CANVAS_CONTEXT_MENU_DEFINITION = {
+const EDIT_EQUATION_ITEM: AppMenuItem = {
+  kind: "command",
+  commandId: APP_MENU_COMMAND_IDS.EDIT_EQUATION,
+  label: "Edit Equation",
+  accelerator: "CmdOrCtrl+Shift+E"
+};
+
+const SINGLE_NODE_TOP_ACTIONS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.ADD_LABEL,
+    label: "Add Label"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.ADD_PIN,
+    label: "Add Pin"
+  }
+];
+
+const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
+  ...SINGLE_NODE_TOP_ACTIONS,
+  { kind: "separator" },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.UNDO,
+    label: "Undo",
+    accelerator: "CmdOrCtrl+Z"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.REDO,
+    label: "Redo",
+    accelerator: "CmdOrCtrl+Shift+Z"
+  },
+  { kind: "separator" },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.CUT,
+    label: "Cut",
+    accelerator: "CmdOrCtrl+X"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.COPY,
+    label: "Copy",
+    accelerator: "CmdOrCtrl+C"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.PASTE,
+    label: "Paste",
+    accelerator: "CmdOrCtrl+V"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.DELETE,
+    label: "Delete",
+    accelerator: "Delete"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+    label: "Duplicate",
+    accelerator: "CmdOrCtrl+D"
+  },
+  { kind: "separator" },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.GROUP,
+    label: "Group",
+    accelerator: "CmdOrCtrl+G"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+    label: "Ungroup",
+    accelerator: "CmdOrCtrl+Shift+G"
+  },
+  { kind: "separator" },
+  {
+    kind: "submenu",
+    label: "Transform",
+    items: TRANSFORM_ITEMS
+  },
+  { kind: "separator" },
+  {
+    kind: "submenu",
+    label: "Reorder",
+    items: REORDER_ITEMS
+  }
+];
+
+export function buildCanvasContextMenuDefinition(
+  options: { includeEditEquationForSingleNode?: boolean } = {}
+) {
+  const selectionSingleNodeItems = options.includeEditEquationForSingleNode
+    ? [
+        EDIT_EQUATION_ITEM,
+        ...SINGLE_NODE_TOP_ACTIONS,
+        ...BASE_SELECTION_SINGLE_NODE_ITEMS.slice(2)
+      ]
+    : BASE_SELECTION_SINGLE_NODE_ITEMS;
+  return {
   "canvas-empty": [
     {
       kind: "command",
@@ -356,85 +459,7 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
     }
   ],
   "selection-single-node": [
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNDO,
-      label: "Undo",
-      accelerator: "CmdOrCtrl+Z"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REDO,
-      label: "Redo",
-      accelerator: "CmdOrCtrl+Shift+Z"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.CUT,
-      label: "Cut",
-      accelerator: "CmdOrCtrl+X"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.COPY,
-      label: "Copy",
-      accelerator: "CmdOrCtrl+C"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.PASTE,
-      label: "Paste",
-      accelerator: "CmdOrCtrl+V"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DELETE,
-      label: "Delete",
-      accelerator: "Delete"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-      label: "Duplicate",
-      accelerator: "CmdOrCtrl+D"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.GROUP,
-      label: "Group",
-      accelerator: "CmdOrCtrl+G"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-      label: "Ungroup",
-      accelerator: "CmdOrCtrl+Shift+G"
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Transform",
-      items: TRANSFORM_ITEMS
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.ADD_LABEL,
-      label: "Add Label"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.ADD_PIN,
-      label: "Add Pin"
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Reorder",
-      items: REORDER_ITEMS
-    }
+    ...selectionSingleNodeItems
   ],
   "selection-multi": [
     {
@@ -516,3 +541,6 @@ export const CANVAS_CONTEXT_MENU_DEFINITION = {
     }
   ]
 } as const satisfies CanvasContextMenuDefinition;
+}
+
+export const CANVAS_CONTEXT_MENU_DEFINITION = buildCanvasContextMenuDefinition();

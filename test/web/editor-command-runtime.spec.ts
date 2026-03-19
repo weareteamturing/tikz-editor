@@ -261,6 +261,50 @@ describe("editor-command-runtime", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "SET_TOOL_MODE", mode: "addFreehand" });
   });
 
+  it("routes the insert equation command to modal callback", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenInsertEquation = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(),
+        onOpenInsertEquation
+      })
+    );
+
+    const ran = runtime.runCommand(APP_MENU_COMMAND_IDS.INSERT_EQUATION, "menu");
+
+    expect(ran).toBe(true);
+    expect(onOpenInsertEquation).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables edit equation only for single selected math-only node", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node at (0,0) {$x+y$};
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenEditEquation = vi.fn();
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(["path:0"]),
+        onOpenEditEquation
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.EDIT_EQUATION].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.EDIT_EQUATION, "context-menu")).toBe(true);
+    expect(onOpenEditEquation).toHaveBeenCalledWith(expect.objectContaining({
+      sourceId: "path:0",
+      latex: "x+y"
+    }));
+  });
+
   it("routes zoom commands to zoom requests", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -529,7 +573,9 @@ function makeInput({
   onOpenExample,
   onOpenSvgExport,
   onOpenPngExport,
-  onOpenSettings
+  onOpenSettings,
+  onOpenInsertEquation,
+  onOpenEditEquation
 }: {
   dispatch: (action: EditorAction) => void;
   source?: string;
@@ -558,6 +604,8 @@ function makeInput({
   onOpenSvgExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
   onOpenPngExport?: (svgResult: ReturnType<typeof renderTikzToSvg>["svg"]) => void;
   onOpenSettings?: () => void;
+  onOpenInsertEquation?: () => void;
+  onOpenEditEquation?: (target: any) => void;
 }) {
   const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
 
@@ -593,6 +641,8 @@ function makeInput({
     onOpenExample,
     onOpenSvgExport,
     onOpenPngExport,
-    onOpenSettings
+    onOpenSettings,
+    onOpenInsertEquation,
+    onOpenEditEquation
   };
 }

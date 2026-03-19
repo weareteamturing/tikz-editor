@@ -2656,3 +2656,26 @@ describe("applyEditAction – adornment placement", () => {
     expect(secondRewrite.newSource).not.toContain("every pin");
   });
 });
+
+describe("applyEditAction – updateNodeText", () => {
+  it("replaces only node text span for node path statement ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {$x+y$};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: "path:0",
+      text: "$x-y$"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected node text update to succeed");
+    }
+    expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
+  \node[draw] at (0,0) {$x-y$};
+\end{tikzpicture}`);
+    expect(result.patches).toHaveLength(1);
+  });
+});

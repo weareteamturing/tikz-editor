@@ -323,7 +323,14 @@ function ellipseFromCorner(anchor: Point, corner: Point | undefined): { center: 
 }
 
 function sanitizeNodeText(raw: string): string {
-  return raw.replace(/[{}]/g, "").trim();
+  const trimmed = raw.trim();
+  if (trimmed.length < 2 || !trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+    return trimmed;
+  }
+
+  const inner = trimmed.slice(1, -1).trim();
+  // If users pass `{...}` explicitly, avoid generating `{{...}}` while preserving inner TeX braces.
+  return inner;
 }
 
 function resolveBezierControls(

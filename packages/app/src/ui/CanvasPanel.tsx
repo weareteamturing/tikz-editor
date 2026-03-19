@@ -1,4 +1,6 @@
 import {
+  Suspense,
+  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +13,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from "react";
 import type { AppMenuCommandId } from "../app-menu";
-import { CANVAS_CONTEXT_MENU_DEFINITION, type CanvasContextMenuTarget } from "../context-menu";
+import { buildCanvasContextMenuDefinition, type CanvasContextMenuTarget } from "../context-menu";
 import { collectGeometryInvalidation } from "tikz-editor/semantic/index";
 import {
   ADORNMENT_EDIT_NOOP_REASON,
@@ -184,6 +186,11 @@ import {
   pasteSelectionFromClipboardData,
   pasteSnippetsWithOffset
 } from "./editor-commands";
+import {
+  formatEquationText,
+  resolveEquationNodeTarget,
+  type EquationNodeTarget
+} from "./equation-utils";
 import { parseClipboardPayloadJson } from "./editor-clipboard";
 import {
   buildScopeWrappedSnippet,
@@ -349,6 +356,7 @@ type CanvasContextMenuState = {
   anchorX: number;
   anchorY: number;
   handleIdOverride?: string | null;
+  includeEditEquationForSingleNode?: boolean;
 };
 
 type PendingNativeContextMenuRequest = {
@@ -359,6 +367,11 @@ type PendingNativeContextMenuRequest = {
 };
 
 const NATIVE_CONTEXT_MENU_SELECT_DELAY_MS = 75;
+
+const EquationModal = lazy(async () => {
+  const mod = await import("./EquationModal");
+  return { default: mod.EquationModal };
+});
 
 type SnapDebugOverlayState = {
   atIso: string;
@@ -607,6 +620,7 @@ export function CanvasPanel() {
   const [dragPatchMode, setDragPatchMode] = useState<"partial" | "full">("partial");
   const [dragAffectedSourceIds, setDragAffectedSourceIds] = useState<string[] | null>(null);
   const [contextMenuState, setContextMenuState] = useState<CanvasContextMenuState | null>(null);
+  const [equationModalTarget, setEquationModalTarget] = useState<EquationNodeTarget | null>(null);
   const [pendingNativeContextMenuRequest, setPendingNativeContextMenuRequest] =
     useState<PendingNativeContextMenuRequest | null>(null);
   const [fitToContentModeActive, setFitToContentModeActive] = useState(true);
@@ -620,6 +634,15 @@ export function CanvasPanel() {
 
   const contextMenuHandleIdOverride =
     pendingNativeContextMenuRequest?.clickedHandleId ?? contextMenuState?.handleIdOverride;
+  const editParseOptions = useMemo(
+    () => ({
+      activeFigureId:
+        activeFigureId == null
+          ? (snapshot.figures.length > 1 ? null : undefined)
+          : activeFigureId
+    }),
+    [activeFigureId, snapshot.figures.length]
+  );
 
   const commandRuntime = useEditorCommandRuntime({
     onAddNodeAdornment: (kind) => {
@@ -642,6 +665,9 @@ export function CanvasPanel() {
       });
       setPendingAdornmentTextEditTargetId(result.pendingTextTargetId);
     },
+    onOpenEditEquation: (target) => {
+      setEquationModalTarget(target);
+    },
     activeHandleIdOverride: contextMenuHandleIdOverride
   });
 
@@ -660,13 +686,24 @@ export function CanvasPanel() {
   );
 
   const showNativeContextMenu = useCallback(
-    (target: CanvasContextMenuTarget) => {
+    (target: CanvasContextMenuTarget, includeEditEquationForSingleNode = false) => {
+      const definition = buildCanvasContextMenuDefinition({ includeEditEquationForSingleNode });
       void platform.menu?.showNativeContextMenu?.({
-        items: CANVAS_CONTEXT_MENU_DEFINITION[target],
+        items: definition[target],
         commandStates: commandRuntime.bindings
       });
     },
     [commandRuntime.bindings, platform.menu]
+  );
+
+  const resolveIncludeEditEquationForSingleNode = useCallback(
+    (target: CanvasContextMenuTarget, sourceId: string | null): boolean => {
+      if (target !== "selection-single-node" || !sourceId) {
+        return false;
+      }
+      return resolveEquationNodeTarget(source, sourceId, editParseOptions) != null;
+    },
+    [editParseOptions, source]
   );
 
   useEffect(() => {
@@ -712,10 +749,14 @@ export function CanvasPanel() {
       pendingNativeContextMenuRequest.clickedHandleId && resolution.target === "selection-single"
         ? "selection-single-path-point" as CanvasContextMenuTarget
         : resolution.target;
+    const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(
+      nativeEffectiveTarget,
+      pendingNativeContextMenuRequest.clickedSourceId
+    );
 
     pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
       pendingNativeContextMenuTimeoutRef.current = null;
-      showNativeContextMenu(nativeEffectiveTarget);
+      showNativeContextMenu(nativeEffectiveTarget, includeEditEquationForSingleNode);
       setPendingNativeContextMenuRequest(null);
       viewport.focus({ preventScroll: true });
     }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
@@ -730,6 +771,7 @@ export function CanvasPanel() {
     canvasTransform,
     pendingNativeContextMenuRequest,
     selectedElementIds,
+    resolveIncludeEditEquationForSingleNode,
     showNativeContextMenu,
     source,
     svgResult,
@@ -1882,12 +1924,17 @@ export function CanvasPanel() {
         clickedHandleId && resolution.target === "selection-single"
           ? "selection-single-path-point" as CanvasContextMenuTarget
           : resolution.target;
+      const equationSourceId = resolution.selectionAction.kind === "select-only"
+        ? resolution.selectionAction.sourceId
+        : clickedSourceId ?? (selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null);
+      const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(effectiveTarget, equationSourceId);
 
       const nextContextMenuState: CanvasContextMenuState = {
         target: effectiveTarget,
         anchorX: clientX - rect.left,
         anchorY: clientY - rect.top,
-        handleIdOverride: clickedHandleId
+        handleIdOverride: clickedHandleId,
+        includeEditEquationForSingleNode
       };
 
       if (platform.menu?.usesNativeContextMenus) {
@@ -1901,7 +1948,7 @@ export function CanvasPanel() {
           viewport.focus({ preventScroll: true });
           return;
         }
-        showNativeContextMenu(effectiveTarget);
+        showNativeContextMenu(effectiveTarget, includeEditEquationForSingleNode);
         viewport.focus({ preventScroll: true });
         return;
       }
@@ -1916,6 +1963,7 @@ export function CanvasPanel() {
       platform.menu?.usesNativeContextMenus,
       scopeOverlay,
       selectedElementIds,
+      resolveIncludeEditEquationForSingleNode,
       showNativeContextMenu,
       source,
       svgResult,
@@ -2471,9 +2519,18 @@ export function CanvasPanel() {
     };
   }, [textSelectionOverlay]);
 
+  const contextMenuDefinition = useMemo(
+    () =>
+      buildCanvasContextMenuDefinition({
+        includeEditEquationForSingleNode: contextMenuState?.includeEditEquationForSingleNode ?? false
+      }),
+    [contextMenuState?.includeEditEquationForSingleNode]
+  );
+
   return (
-    <CanvasPanelView
-      showRulers={showRulers}
+    <>
+      <CanvasPanelView
+        showRulers={showRulers}
       viewportSize={viewportSize}
       topRulerRef={topRulerRef}
       leftRulerRef={leftRulerRef}
@@ -2549,14 +2606,15 @@ export function CanvasPanel() {
       onHandlePointerDown={onHandlePointerDown}
       onResizeHandlePointerDown={onResizeHandlePointerDown}
       onRotateHandlePointerDown={onRotateHandlePointerDown}
-      platform={platform}
-      contextMenuState={contextMenuState}
-      commandRuntimeBindings={commandRuntime.bindings}
-      onContextMenuClose={() => setContextMenuState(null)}
-      onContextMenuCommandRun={(commandId: AppMenuCommandId, origin: any) => {
-        commandRuntime.runCommand(commandId, origin);
-        setContextMenuState(null);
-      }}
+        platform={platform}
+        contextMenuState={contextMenuState}
+        commandRuntimeBindings={commandRuntime.bindings}
+        contextMenuDefinition={contextMenuDefinition}
+        onContextMenuClose={() => setContextMenuState(null)}
+        onContextMenuCommandRun={(commandId: AppMenuCommandId, origin: any) => {
+          commandRuntime.runCommand(commandId, origin);
+          setContextMenuState(null);
+        }}
       dragTooltip={dragTooltip}
       dragTooltipBoundary={dragTooltipBoundaryRef.current}
       warning={warning}
@@ -2568,7 +2626,28 @@ export function CanvasPanel() {
       onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}
       snapDebug={snapDebug}
       onSnapDebugResizePointerDown={onSnapDebugResizePointerDown}
-      RULER_SIZE={RULER_SIZE}
-    />
+        RULER_SIZE={RULER_SIZE}
+      />
+      {equationModalTarget ? (
+        <Suspense fallback={null}>
+          <EquationModal
+            mode="edit"
+            initialLatex={equationModalTarget.latex}
+            onClose={() => setEquationModalTarget(null)}
+            onConfirm={(latex) => {
+              dispatch({
+                type: "APPLY_EDIT_ACTION",
+                action: {
+                  kind: "updateNodeText",
+                  elementId: equationModalTarget.sourceId,
+                  text: formatEquationText(latex, equationModalTarget.delimiter)
+                }
+              });
+              setEquationModalTarget(null);
+            }}
+          />
+        </Suspense>
+      ) : null}
+    </>
   );
 }

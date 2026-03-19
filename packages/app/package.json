@@ -19,6 +19,7 @@
     "codemirror": "^6.0.2",
     "jspdf": "^4.2.0",
     "keynote-clipboard": "^1.2.0",
+    "mathlive": "^0.107.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

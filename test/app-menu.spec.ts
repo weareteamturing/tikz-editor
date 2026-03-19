@@ -43,6 +43,14 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_BEZIER).toBe("insert.bezier");
   });
 
+  it("defines an equation insert command id", () => {
+    expect(APP_MENU_COMMAND_IDS.INSERT_EQUATION).toBe("insert.equation");
+  });
+
+  it("defines an equation edit command id", () => {
+    expect(APP_MENU_COMMAND_IDS.EDIT_EQUATION).toBe("edit.equation");
+  });
+
   it("defines a path insert command id", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_PATH).toBe("insert.path");
   });
@@ -269,6 +277,21 @@ describe("app menu definition", () => {
     }
     expect(commandItem.label).toBe("Path");
     expect((commandItem as any).accelerator).toBe("P");
+  });
+
+  it("exposes Equation in the Insert menu", () => {
+    const insertSection = APP_MENU_DEFINITION.find((section) => section.id === "insert");
+    expect(insertSection).toBeDefined();
+    const items = insertSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.INSERT_EQUATION
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected insert.equation command item in Insert menu.");
+    }
+    expect(commandItem.label).toBe("Equation");
+    expect((commandItem as any).accelerator).toBe("CmdOrCtrl+Shift+E");
   });
 
   it("exposes Freehand in the Insert menu", () => {

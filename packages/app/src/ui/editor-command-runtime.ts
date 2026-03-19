@@ -11,6 +11,7 @@ import { useSettingsStore } from "../settings/useSettingsStore";
 import { useEditorStore } from "../store/store";
 import type { DocumentFileRef, EditorAction, SnapModes, ToolMode } from "../store/types";
 import { getToolCapabilityStatus } from "./capabilities";
+import { resolveEquationNodeTargetFromSelection, type EquationNodeTarget } from "./equation-utils";
 import {
   actionAvailability,
   alignSelection,
@@ -88,6 +89,8 @@ type RuntimeInput = {
   onOpenSettings?: () => void;
   onFocusAssistant?: () => void;
   onInterruptAssistant?: () => void;
+  onOpenInsertEquation?: () => void;
+  onOpenEditEquation?: (target: EquationNodeTarget) => void;
 };
 
 export type EditorCommandRuntime = {
@@ -135,7 +138,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onShowCompiledPicture,
     onOpenSettings,
     onFocusAssistant,
-    onInterruptAssistant
+    onInterruptAssistant,
+    onOpenInsertEquation,
+    onOpenEditEquation
   } = input;
   const parseOptions = {
     activeFigureId,
@@ -247,6 +252,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
           (resolved.target.kind === "path-statement" && resolved.target.pathCommand === "node"))
       );
     })();
+  const equationTarget = resolveEquationNodeTargetFromSelection(source, selectedElementIds, parseOptions);
 
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
@@ -580,6 +586,19 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.INSERT_RECT]: insertBinding("addRect"),
     [APP_MENU_COMMAND_IDS.INSERT_ELLIPSE]: insertBinding("addEllipse"),
     [APP_MENU_COMMAND_IDS.INSERT_CIRCLE]: insertBinding("addCircle"),
+    [APP_MENU_COMMAND_IDS.INSERT_EQUATION]: {
+      enabled: onOpenInsertEquation != null,
+      run: () => onOpenInsertEquation?.()
+    },
+    [APP_MENU_COMMAND_IDS.EDIT_EQUATION]: {
+      enabled: equationTarget != null && onOpenEditEquation != null,
+      run: () => {
+        if (!equationTarget) {
+          return;
+        }
+        onOpenEditEquation?.(equationTarget);
+      }
+    },
     [APP_MENU_COMMAND_IDS.ADD_LABEL]: {
       enabled: canAddAdornment && onAddNodeAdornment != null,
       run: () => onAddNodeAdornment?.("label")
@@ -715,6 +734,8 @@ export function useEditorCommandRuntime(
     onOpenSettings?: () => void;
     onFocusAssistant?: () => void;
     onInterruptAssistant?: () => void;
+    onOpenInsertEquation?: () => void;
+    onOpenEditEquation?: (target: EquationNodeTarget) => void;
     activeHandleIdOverride?: string | null;
   } = {}
 ): EditorCommandRuntime {
@@ -829,10 +850,12 @@ export function useEditorCommandRuntime(
         onRequestCloseAllDocuments: options.onRequestCloseAllDocuments,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
-        onOpenSettings: options.onOpenSettings,
-        onFocusAssistant: options.onFocusAssistant,
-        onInterruptAssistant: options.onInterruptAssistant
-      }),
+      onOpenSettings: options.onOpenSettings,
+      onFocusAssistant: options.onFocusAssistant,
+      onInterruptAssistant: options.onInterruptAssistant,
+      onOpenInsertEquation: options.onOpenInsertEquation,
+      onOpenEditEquation: options.onOpenEditEquation
+    }),
     [
       editAnalysisView,
       effectiveCommandInputs,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { APP_MENU_COMMAND_IDS } from "../packages/app/src/app-menu/index.js";
-import { CANVAS_CONTEXT_MENU_DEFINITION } from "../packages/app/src/context-menu/index.js";
+import { CANVAS_CONTEXT_MENU_DEFINITION, buildCanvasContextMenuDefinition } from "../packages/app/src/context-menu/index.js";
 import type { AppMenuItem } from "../packages/app/src/app-menu/types.js";
 
 describe("canvas context menu definition", () => {
@@ -60,10 +60,30 @@ describe("canvas context menu definition", () => {
   });
 
   it("defines selection-single-node with label and pin insertion commands", () => {
-    const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]);
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"];
+    const commandIds = collectCommandIds(items);
 
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_LABEL);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_PIN);
+    expect(commandIds).not.toContain(APP_MENU_COMMAND_IDS.EDIT_EQUATION);
+    expect(items.slice(0, 2).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.ADD_LABEL,
+      APP_MENU_COMMAND_IDS.ADD_PIN
+    ]);
+    expect(items[2]).toEqual({ kind: "separator" });
+  });
+
+  it("adds Edit Equation for selection-single-node when opted in", () => {
+    const withEdit = buildCanvasContextMenuDefinition({ includeEditEquationForSingleNode: true });
+    const items = withEdit["selection-single-node"];
+    const commandIds = collectCommandIds(items);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.EDIT_EQUATION);
+    expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.EDIT_EQUATION,
+      APP_MENU_COMMAND_IDS.ADD_LABEL,
+      APP_MENU_COMMAND_IDS.ADD_PIN
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
   });
 
   it("defines selection-single-path-point with point-editing commands up front", () => {

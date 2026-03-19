@@ -401,6 +401,12 @@ export const APP_MENU_DEFINITION = [
         commandId: APP_MENU_COMMAND_IDS.INSERT_CIRCLE,
         label: "Circle",
         accelerator: "C"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_EQUATION,
+        label: "Equation",
+        accelerator: "CmdOrCtrl+Shift+E"
       }
     ]
   },

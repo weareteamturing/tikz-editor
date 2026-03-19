@@ -84,7 +84,7 @@ import { applyReorderElementsAction, buildParentReorderReplacement } from "./act
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
 import { applyGroupElementsAction, applyUngroupElementsAction } from "./actions/group-ungroup-actions.js";
-import type { EditParseOptions } from "./parse-options.js";
+import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 
 export type ResizeRole =
@@ -125,6 +125,7 @@ export type EditAction =
       value: string;
       clearKeys?: string[];
     }
+  | { kind: "updateNodeText"; elementId: string; text: string }
   | { kind: "addElement"; template: ElementTemplate; at: Point }
   | { kind: "deleteElement"; elementId: string }
   | { kind: "deleteElements"; elementIds: string[] }
@@ -221,6 +222,8 @@ export function applyEditAction(
         return applyDistributeElements(source, action, parseOptions);
       case "setProperty":
         return applySetProperty(source, action, parseOptions);
+      case "updateNodeText":
+        return applyUpdateNodeText(source, action, parseOptions);
       case "addElement":
         return applyAddElement(source, action.template, action.at);
       case "deleteElement":
@@ -648,6 +651,8 @@ function inferChangedSourceIds(
       return [];
     case "setProperty":
       return [];
+    case "updateNodeText":
+      return normalizeElementIds([action.elementId]);
     case "resizeElement":
       return normalizeElementIds([action.elementId]);
     case "appendToPath":
@@ -655,6 +660,55 @@ function inferChangedSourceIds(
     case "insertPathPoint":
       return normalizeElementIds([action.elementId]);
   }
+}
+
+function resolveNodeTextSpanForElementId(
+  source: string,
+  elementId: string,
+  parseOptions: EditParseOptions
+): Span | null {
+  const normalizedId = elementId.trim();
+  if (normalizedId.length === 0) {
+    return null;
+  }
+
+  const statementSnapshot = parseStatementSnapshot(source, parseOptions);
+  const statementRef = statementSnapshot.byId.get(normalizedId);
+  if (statementRef?.statement.kind === "Path" && statementRef.statement.command === "node") {
+    const nodeItem = statementRef.statement.items.find((item) => item.kind === "Node");
+    if (nodeItem?.kind === "Node") {
+      return nodeItem.textSpan;
+    }
+  }
+
+  const parsed = parseTikzForEdit(source, parseOptions);
+  const stack: Statement[] = [...parsed.figure.body];
+  while (stack.length > 0) {
+    const statement = stack.shift();
+    if (!statement) {
+      continue;
+    }
+    if (statement.kind === "Scope") {
+      stack.unshift(...statement.body);
+      continue;
+    }
+    if (statement.kind !== "Path") {
+      continue;
+    }
+    if (statement.command === "node" && statement.id === normalizedId) {
+      const nodeItem = statement.items.find((item) => item.kind === "Node");
+      if (nodeItem?.kind === "Node") {
+        return nodeItem.textSpan;
+      }
+    }
+    for (const item of statement.items) {
+      if (item.kind === "Node" && item.id === normalizedId) {
+        return item.textSpan;
+      }
+    }
+  }
+
+  return null;
 }
 
 function isSharedExpandedHandleSpan(
@@ -818,6 +872,32 @@ function applySetProperty(
   parseOptions: EditParseOptions
 ): EditActionResult {
   return applySetPropertyAction(source, action, parseOptions);
+}
+
+function applyUpdateNodeText(
+  source: string,
+  action: Extract<EditAction, { kind: "updateNodeText" }>,
+  parseOptions: EditParseOptions
+): EditActionResult {
+  const textSpan = resolveNodeTextSpanForElementId(source, action.elementId, parseOptions);
+  if (!textSpan) {
+    return { kind: "unsupported", reason: `No editable node text target found for ${action.elementId}` };
+  }
+  const updated = replaceSpan(source, textSpan, action.text);
+  if (updated.source === source) {
+    return { kind: "unsupported", reason: "Node text update would not change the source." };
+  }
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [
+      {
+        oldSpan: textSpan,
+        newSpan: updated.changedSpan,
+        replacement: action.text
+      }
+    ]
+  };
 }
 
 function applyResizeElement(

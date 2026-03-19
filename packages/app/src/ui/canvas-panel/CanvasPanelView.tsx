@@ -99,6 +99,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     platform,
     contextMenuState,
     commandRuntimeBindings,
+    contextMenuDefinition,
     onContextMenuClose,
     onContextMenuCommandRun,
     dragTooltip,
@@ -433,6 +434,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               }}
               target={contextMenuState?.target ?? "canvas-empty"}
               bindings={commandRuntimeBindings}
+              definition={contextMenuDefinition}
               containerRef={viewportRef}
               onClose={onContextMenuClose}
               onCommandRun={onContextMenuCommandRun}

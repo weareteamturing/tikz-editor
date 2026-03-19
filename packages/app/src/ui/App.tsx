@@ -28,6 +28,7 @@ import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { AssistantEvent } from "../platform/types";
 import { resolveOpenedFileForDocument } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
+import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
 
 const SourcePanel = lazy(async () => {
   const mod = await import("./SourcePanel");
@@ -82,6 +83,11 @@ const TikzJaxModal = lazy(async () => {
 const UnsavedChangesModal = lazy(async () => {
   const mod = await import("./UnsavedChangesModal");
   return { default: mod.UnsavedChangesModal };
+});
+
+const EquationModal = lazy(async () => {
+  const mod = await import("./EquationModal");
+  return { default: mod.EquationModal };
 });
 
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
@@ -146,6 +152,12 @@ export function App() {
   const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [equationModalState, setEquationModalState] = useState<
+    | { mode: "insert" }
+    | { mode: "edit"; target: EquationNodeTarget }
+    | null
+  >(null);
+  const [insertEquationDraft, setInsertEquationDraft] = useState("");
   const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
   const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
@@ -209,6 +221,12 @@ export function App() {
     },
     onOpenSettings: () => {
       setShowSettingsModal(true);
+    },
+    onOpenInsertEquation: () => {
+      setEquationModalState({ mode: "insert" });
+    },
+    onOpenEditEquation: (target) => {
+      setEquationModalState({ mode: "edit", target });
     },
     onFocusAssistant: () => {
       dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
@@ -894,6 +912,16 @@ export function App() {
         return;
       }
 
+      // Ctrl/Cmd+Shift+E: edit equation when possible, otherwise insert equation.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && key === "e") {
+        const edited = commandRuntime.runCommand(APP_MENU_COMMAND_IDS.EDIT_EQUATION, "shortcut");
+        if (!edited) {
+          commandRuntime.runCommand(APP_MENU_COMMAND_IDS.INSERT_EQUATION, "shortcut");
+        }
+        e.preventDefault();
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       const inCodeMirror = isCodeMirrorEventTarget(target);
       if (inCodeMirror) return;
@@ -1138,6 +1166,49 @@ export function App() {
       {showSettingsModal ? (
         <Suspense fallback={null}>
           <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        </Suspense>
+      ) : null}
+      {equationModalState ? (
+        <Suspense fallback={null}>
+          <EquationModal
+            mode={equationModalState.mode}
+            initialLatex={equationModalState.mode === "edit" ? equationModalState.target.latex : insertEquationDraft}
+            onValueChange={(latex) => {
+              if (equationModalState.mode === "insert") {
+                setInsertEquationDraft(latex);
+              }
+            }}
+            onClose={() => setEquationModalState(null)}
+            onConfirm={(latex) => {
+              if (equationModalState.mode === "insert") {
+                const text = formatEquationText(latex, "inline-dollar");
+                dispatch({
+                  type: "APPLY_EDIT_ACTION",
+                  action: {
+                    kind: "addElement",
+                    template: {
+                      kind: "node",
+                      text
+                    },
+                    at: { x: 0, y: 0 }
+                  }
+                });
+                setInsertEquationDraft("");
+                setEquationModalState(null);
+                return;
+              }
+
+              dispatch({
+                type: "APPLY_EDIT_ACTION",
+                action: {
+                  kind: "updateNodeText",
+                  elementId: equationModalState.target.sourceId,
+                  text: formatEquationText(latex, equationModalState.target.delimiter)
+                }
+              });
+              setEquationModalState(null);
+            }}
+          />
         </Suspense>
       ) : null}
       {svgExportSvgResult ? (
