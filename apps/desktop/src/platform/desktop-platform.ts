@@ -56,6 +56,9 @@ type DesktopBridge = {
   readCustomClipboardText: (
     formats: readonly string[]
   ) => Promise<{ format: string; text: string } | null>;
+  readCustomClipboardBytes: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; bytesBase64: string } | null>;
   writeClipboardBundle: (payload: {
     plainText: string;
     tikzJson?: string | null;
@@ -562,6 +565,12 @@ function createDefaultBridge(): DesktopBridge {
         formats
       });
     },
+    readCustomClipboardBytes: async (formats) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<{ format: string; bytesBase64: string } | null>("desktop_read_custom_clipboard_bytes", {
+        formats
+      });
+    },
     writeClipboardBundle: async (payload) => {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_write_clipboard_bundle", {
@@ -845,6 +854,9 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       readCustomText: async (formats) => {
         return await getBridge().readCustomClipboardText(formats);
+      },
+      readCustomBytes: async (formats) => {
+        return await getBridge().readCustomClipboardBytes(formats);
       },
       writeBundle: async (payload) => {
         await getBridge().writeClipboardBundle(payload);

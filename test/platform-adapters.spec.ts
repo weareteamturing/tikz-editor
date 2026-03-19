@@ -14,6 +14,7 @@ function makeDesktopBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridg
     readClipboard: async () => "",
     writeClipboard: async () => undefined,
     readCustomClipboardText: async () => null,
+    readCustomClipboardBytes: async () => null,
     writeClipboardBundle: async () => undefined,
     setWindowTitle: async () => undefined,
     closeWindow: async () => undefined,
@@ -109,6 +110,7 @@ describe("platform adapter contracts", () => {
   it("desktop adapter clipboard round-trips text", async () => {
     let clipboardText = "";
     let customReadFormats: readonly string[] | null = null;
+    let customReadByteFormats: readonly string[] | null = null;
     let bundleWrite: { plainText: string; tikzJson?: string | null; svgText?: string | null } | null = null;
     const platform = createDesktopPlatformAdapter({
       storage: {
@@ -124,6 +126,10 @@ describe("platform adapter contracts", () => {
           customReadFormats = formats;
           return { format: "com.microsoft.image-svg-xml", text: "<svg></svg>" };
         },
+        readCustomClipboardBytes: async (formats: readonly string[]) => {
+          customReadByteFormats = formats;
+          return { format: "com.microsoft.Art--GVML-ClipFormat", bytesBase64: "AAECAw==" };
+        },
         writeClipboardBundle: async (payload: { plainText: string; tikzJson?: string | null; svgText?: string | null }) => {
           bundleWrite = payload;
         }
@@ -132,6 +138,7 @@ describe("platform adapter contracts", () => {
     await platform.clipboard?.writeText?.("desktop-hello");
     const read = await platform.clipboard?.readText?.();
     const custom = await platform.clipboard?.readCustomText?.(["com.microsoft.image-svg-xml"]);
+    const customBytes = await platform.clipboard?.readCustomBytes?.(["com.microsoft.Art--GVML-ClipFormat"]);
     await platform.clipboard?.writeBundle?.({
       plainText: "hello",
       tikzJson: "{\"ok\":true}",
@@ -139,7 +146,9 @@ describe("platform adapter contracts", () => {
     });
     expect(read).toBe("desktop-hello");
     expect(custom).toEqual({ format: "com.microsoft.image-svg-xml", text: "<svg></svg>" });
+    expect(customBytes).toEqual({ format: "com.microsoft.Art--GVML-ClipFormat", bytesBase64: "AAECAw==" });
     expect(customReadFormats).toEqual(["com.microsoft.image-svg-xml"]);
+    expect(customReadByteFormats).toEqual(["com.microsoft.Art--GVML-ClipFormat"]);
     expect(bundleWrite).toEqual({
       plainText: "hello",
       tikzJson: "{\"ok\":true}",

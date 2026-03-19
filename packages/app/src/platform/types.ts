@@ -16,6 +16,9 @@ export type PlatformClipboard = {
   readCustomText?: (
     formats: readonly string[]
   ) => Promise<{ format: string; text: string } | null>;
+  readCustomBytes?: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; bytesBase64: string } | null>;
   writeBundle?: (payload: {
     plainText: string;
     tikzJson?: string | null;

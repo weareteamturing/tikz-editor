@@ -173,6 +173,7 @@ async function installDeterministicBridge(browserInstance) {
       readClipboard: async () => "",
       writeClipboard: async () => undefined,
       readCustomClipboardText: async () => null,
+      readCustomClipboardBytes: async () => null,
       writeClipboardBundle: async () => undefined,
       setWindowTitle: async (title) => {
         window.__DESKTOP_E2E_TITLE__ = title;

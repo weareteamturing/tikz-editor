@@ -11,6 +11,9 @@ type ClipboardLike = {
   readCustomText?: (
     formats: readonly string[]
   ) => Promise<{ format: string; text: string } | null>;
+  readCustomBytes?: (
+    formats: readonly string[]
+  ) => Promise<{ format: string; bytesBase64: string } | null>;
   writeBundle?: (payload: {
     plainText: string;
     tikzJson?: string | null;
@@ -387,6 +390,7 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       readText: clipboard?.readText ? async () => clipboard.readText!() : undefined,
       writeText: clipboard?.writeText ? async (text) => clipboard.writeText!(text) : undefined,
       readCustomText: clipboard?.readCustomText ? async (formats) => clipboard.readCustomText!(formats) : undefined,
+      readCustomBytes: clipboard?.readCustomBytes ? async (formats) => clipboard.readCustomBytes!(formats) : undefined,
       writeBundle: clipboard?.writeBundle ? async (payload) => clipboard.writeBundle!(payload) : undefined
     },
     menu: {

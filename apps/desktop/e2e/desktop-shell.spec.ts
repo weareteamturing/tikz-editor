@@ -40,6 +40,7 @@ function makeMockBridge() {
       readClipboard: async () => "mock-clipboard",
       writeClipboard: async () => undefined,
       readCustomClipboardText: async () => null,
+      readCustomClipboardBytes: async () => null,
       writeClipboardBundle: async () => undefined,
       setWindowTitle: async () => undefined,
       closeWindow: async () => undefined,

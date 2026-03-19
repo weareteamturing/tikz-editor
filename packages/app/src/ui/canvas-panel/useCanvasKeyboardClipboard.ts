@@ -19,6 +19,7 @@ import { parseClipboardPayloadJson } from "../editor-clipboard";
 import {
   buildScopeWrappedSnippet,
   convertKeynoteClipboardToScopeSnippet,
+  convertPowerPointClipboardToScopeSnippet,
   convertSvgToScopeSnippet,
   dataTransferHasFilePayload,
   findSvgFileInDataTransfer
@@ -28,6 +29,21 @@ import { selectNudgeAnchorHandle } from "./panel-helpers";
 export type UseCanvasKeyboardClipboardArgs = {
   [key: string]: any;
 };
+
+function decodeBase64Bytes(base64: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(base64, "base64"));
+  }
+  if (typeof atob !== "function") {
+    throw new Error("No base64 decoder available in this environment.");
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs) {
   const {
@@ -59,6 +75,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
     DESKTOP_TIKZ_CLIPBOARD_FORMATS,
     DESKTOP_SVG_CLIPBOARD_FORMATS,
     DESKTOP_KEYNOTE_CLIPBOARD_FORMATS,
+    DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS,
     computeAutoScaleForImportedTikz
   } = args;
 
@@ -319,6 +336,46 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           return;
         }
 
+        const readCustomBytes = platform.clipboard?.readCustomBytes;
+        if (typeof readCustomBytes === "function") {
+          try {
+            const custom = await readCustomBytes(DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS);
+            if (custom?.bytesBase64?.trim()) {
+              let decoded: Uint8Array;
+              try {
+                decoded = decodeBase64Bytes(custom.bytesBase64);
+              } catch (error) {
+                setWarning(`PowerPoint import failed: ${error instanceof Error ? error.message : String(error)}`);
+                return;
+              }
+              const converted = await convertPowerPointClipboardToScopeSnippet(decoded);
+              if (converted.kind === "failure") {
+                setWarning(converted.message);
+                return;
+              }
+              const scale = computeAutoScaleForImportedTikz(converted.tikzSource, snapshot.scene, snapshot.svg?.viewBox ?? null);
+              const snippet = scale == null ? converted.snippet : buildScopeWrappedSnippet(converted.body, { scale });
+              const pasted = pasteSnippetsWithOffset(
+                {
+                  source,
+                  snapshotSource: snapshot.source,
+                  scene: snapshot.scene,
+                  editHandles: snapshot.editHandles,
+                  selectedElementIds,
+                  dispatch
+                },
+                [snippet]
+              );
+              if (!pasted) {
+                setWarning("PowerPoint import paste failed.");
+              }
+              return;
+            }
+          } catch {
+            // Fall through to existing warning behavior.
+          }
+        }
+
         if (typeof readCustomText === "function") {
           try {
             const custom = await readCustomText(DESKTOP_SVG_CLIPBOARD_FORMATS);
@@ -395,6 +452,7 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
     [
       DESKTOP_SVG_CLIPBOARD_FORMATS,
       DESKTOP_KEYNOTE_CLIPBOARD_FORMATS,
+      DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS,
       DESKTOP_TIKZ_CLIPBOARD_FORMATS,
       computeAutoScaleForImportedTikz,
       dispatch,

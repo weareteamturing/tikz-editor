@@ -431,6 +431,9 @@ const DESKTOP_SVG_CLIPBOARD_FORMATS = [
 const DESKTOP_KEYNOTE_CLIPBOARD_FORMATS = [
   "com.apple.apps.content-language.canvas-object-1.0"
 ] as const;
+const DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS = [
+  "com.microsoft.Art--GVML-ClipFormat"
+] as const;
 const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
   "web application/x-tikz-editor+json",
   "application/x-tikz-editor+json",
@@ -2079,6 +2082,7 @@ export function CanvasPanel() {
     DESKTOP_TIKZ_CLIPBOARD_FORMATS,
     DESKTOP_SVG_CLIPBOARD_FORMATS,
     DESKTOP_KEYNOTE_CLIPBOARD_FORMATS,
+    DESKTOP_POWERPOINT_GVML_CLIPBOARD_FORMATS,
     computeAutoScaleForImportedTikz
   });
 

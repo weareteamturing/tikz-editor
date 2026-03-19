@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   canvasViewport,
   clickHitRegionByTargetId,
@@ -36,6 +39,11 @@ function readScaleValue(source: string, axis: "x" | "y"): number | null {
   const match = source.match(new RegExp(`${axis}scale=([-0-9.]+)(?![a-zA-Z])`));
   return match ? Number(match[1]) : null;
 }
+
+const THIS_DIR = fileURLToPath(new URL(".", import.meta.url));
+const POWERPOINT_GVML_SAMPLE_BASE64 = readFileSync(
+  join(THIS_DIR, "../../../test/fixtures/powerpoint-gvml-clipboard.zip")
+).toString("base64");
 
 test("tool keyboard shortcut creates shape and escape returns to select", async ({ page }) => {
   await gotoApp(page);
@@ -1112,6 +1120,90 @@ test("canvas paste custom keynote fallback inserts a scope-wrapped import", asyn
 
   await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
   await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+});
+
+test("canvas paste custom powerpoint gvml fallback inserts a scope-wrapped import", async ({ page }) => {
+  await page.addInitScript((gvmlBase64) => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomBytes?: (formats: readonly string[]) => Promise<{ format: string; bytesBase64: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomBytes: async (formats) => {
+          if (!formats.includes("com.microsoft.Art--GVML-ClipFormat")) {
+            return null;
+          }
+          return {
+            format: "com.microsoft.Art--GVML-ClipFormat",
+            bytesBase64: gvmlBase64
+          };
+        }
+      }
+    };
+  }, POWERPOINT_GVML_SAMPLE_BASE64);
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{scope}");
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0);
+});
+
+test("canvas paste custom powerpoint gvml fallback shows warning for invalid gvml data", async ({ page }) => {
+  await page.addInitScript(() => {
+    const globalLike = globalThis as unknown as {
+      __TIKZ_EDITOR_BROWSER_PLATFORM_ENV__?: {
+        clipboard?: {
+          readCustomBytes?: (formats: readonly string[]) => Promise<{ format: string; bytesBase64: string } | null>;
+        };
+      };
+    };
+    globalLike.__TIKZ_EDITOR_BROWSER_PLATFORM_ENV__ = {
+      clipboard: {
+        readCustomBytes: async (formats) => {
+          if (!formats.includes("com.microsoft.Art--GVML-ClipFormat")) {
+            return null;
+          }
+          return {
+            format: "com.microsoft.Art--GVML-ClipFormat",
+            bytesBase64: "AAECAwQ="
+          };
+        }
+      }
+    };
+  });
+
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector("[data-canvas-viewport='true']") as HTMLDivElement | null;
+    if (!viewport) {
+      throw new Error("Canvas viewport not found.");
+    }
+    const dataTransfer = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dataTransfer });
+    viewport.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
+  await expect(page.getByTestId("canvas-warning-message")).toContainText("PowerPoint import failed:");
 });
 
 test("canvas paste prefers custom desktop tikz payload over plain text fallback", async ({ page }) => {

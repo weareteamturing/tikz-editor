@@ -89,6 +89,13 @@ struct DesktopCustomClipboardTextPayload {
     text: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct DesktopCustomClipboardBytesPayload {
+    format: String,
+    #[serde(rename = "bytesBase64")]
+    bytes_base64: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopClipboardWriteBundlePayload {
@@ -679,6 +686,38 @@ fn desktop_read_custom_clipboard_text(
 }
 
 #[tauri::command]
+fn desktop_read_custom_clipboard_bytes(
+    formats: Vec<String>,
+) -> Result<Option<DesktopCustomClipboardBytesPayload>, String> {
+    catch_unwind(AssertUnwindSafe(|| {
+        if formats.is_empty() {
+            return Ok(None);
+        }
+        let ctx = ClipboardContext::new().map_err(|error| error.to_string())?;
+        for format in formats {
+            let trimmed = format.trim().to_string();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(buffer) = ctx.get_buffer(&trimmed) else {
+                continue;
+            };
+            if buffer.is_empty() {
+                continue;
+            }
+            return Ok(Some(DesktopCustomClipboardBytesPayload {
+                format: trimmed,
+                bytes_base64: base64::engine::general_purpose::STANDARD.encode(buffer),
+            }));
+        }
+        Ok(None)
+    }))
+    .map_err(|panic_payload| {
+        format!("Clipboard native panic: {}", panic_to_string(panic_payload))
+    })?
+}
+
+#[tauri::command]
 fn desktop_write_clipboard_bundle(
     payload: DesktopClipboardWriteBundlePayload,
 ) -> Result<(), String> {
@@ -908,6 +947,7 @@ pub fn run() {
             desktop_open_external,
             desktop_perform_snap_haptic,
             desktop_read_custom_clipboard_text,
+            desktop_read_custom_clipboard_bytes,
             desktop_write_clipboard_bundle,
             desktop_show_context_menu,
             desktop_assistant_ensure_document_thread,

@@ -18,6 +18,7 @@ export type SvgScopeSnippetResult =
   | { kind: "failure"; message: string };
 
 export type KeynoteScopeSnippetResult = SvgScopeSnippetResult;
+export type PowerPointScopeSnippetResult = SvgScopeSnippetResult;
 
 const SVG_XML_RE = /<svg[\s>]/i;
 
@@ -125,16 +126,20 @@ export function buildScopeWrappedSnippet(body: string, options: { scale?: number
     : `\\begin{scope}${scaleOption}\n\\end{scope}`;
 }
 
+function toScopeSnippetResult(tikzSource: string): { kind: "success"; snippet: string; body: string; tikzSource: string } {
+  const body = extractTikzPictureBody(tikzSource);
+  return {
+    kind: "success",
+    snippet: buildScopeWrappedSnippet(body),
+    body,
+    tikzSource
+  };
+}
+
 export async function convertSvgToScopeSnippet(svgSource: string): Promise<SvgScopeSnippetResult> {
   try {
     const converted = await convertSvgToTikzSource(svgSource);
-    const body = extractTikzPictureBody(converted);
-    return {
-      kind: "success",
-      snippet: buildScopeWrappedSnippet(body),
-      body,
-      tikzSource: converted
-    };
+    return toScopeSnippetResult(converted);
   } catch (error) {
     return {
       kind: "failure",
@@ -147,18 +152,38 @@ export async function convertKeynoteClipboardToScopeSnippet(rawClipboardText: st
   try {
     const { toTikzFromClipboard } = await import("keynote-clipboard");
     const converted = await Promise.resolve(toTikzFromClipboard(rawClipboardText));
-    const tikzSource = converted.tikz;
-    const body = extractTikzPictureBody(tikzSource);
-    return {
-      kind: "success",
-      snippet: buildScopeWrappedSnippet(body),
-      body,
-      tikzSource
-    };
+    return toScopeSnippetResult(converted.tikz);
   } catch (error) {
     return {
       kind: "failure",
       message: `Keynote import failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
+function normalizeBytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+  return arrayBuffer;
+}
+
+export async function convertPowerPointClipboardToScopeSnippet(
+  rawClipboardBytes: ArrayBuffer | Uint8Array
+): Promise<PowerPointScopeSnippetResult> {
+  try {
+    const { parseClipboardGVML, convertSlideToTikZ } = await import("pptx2tikz");
+    const inputBytes = rawClipboardBytes instanceof Uint8Array ? rawClipboardBytes : new Uint8Array(rawClipboardBytes);
+    const parsed = await parseClipboardGVML(normalizeBytesToArrayBuffer(inputBytes));
+    const slide = parsed.slides?.[0];
+    if (!slide) {
+      throw new Error("GVML clipboard payload did not contain a slide.");
+    }
+    const converted = convertSlideToTikZ(slide, parsed.size, { xcolorRgbConvert: true });
+    return toScopeSnippetResult(converted.tex);
+  } catch (error) {
+    return {
+      kind: "failure",
+      message: `PowerPoint import failed: ${error instanceof Error ? error.message : String(error)}`
     };
   }
 }
