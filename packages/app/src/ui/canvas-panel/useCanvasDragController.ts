@@ -78,6 +78,7 @@ export function useCanvasDragController(params: {
   source: string;
   svgResult: { viewBox: SvgViewBox } | null;
   dragRef: { current: DragState | null };
+  suppressNextBackgroundClickRef: { current: boolean };
   svgResultRef: { current: { viewBox: SvgViewBox } | null };
   interactionSvgRef: { current: SVGSVGElement | null };
   liveResizeFramesRef: { current: ReadonlyMap<string, ResizeFrame | null> };
@@ -122,6 +123,7 @@ export function useCanvasDragController(params: {
     source,
     svgResult,
     dragRef,
+    suppressNextBackgroundClickRef,
     svgResultRef,
     interactionSvgRef,
     liveResizeFramesRef,
@@ -820,6 +822,7 @@ export function useCanvasDragController(params: {
           }
         } else if (currentSvg) {
           commitMarqueeSelection(drag, finalWorld, currentSvg);
+          suppressNextBackgroundClickRef.current = true;
         }
 
         setMarqueeDraft(null);

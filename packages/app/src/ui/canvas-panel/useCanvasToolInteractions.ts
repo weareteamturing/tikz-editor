@@ -20,6 +20,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     setTextEditingSession,
     startMarqueeSelection,
     pendingTouchViewportRef,
+    suppressNextBackgroundClickRef,
     svgResult,
     setDragState,
     canvasTransform,
@@ -126,6 +127,10 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
 
   const onBackgroundClick = useCallback(
     (event: ReactMouseEvent<HTMLDivElement | SVGSVGElement>) => {
+      if (suppressNextBackgroundClickRef.current) {
+        suppressNextBackgroundClickRef.current = false;
+        return;
+      }
       if (toolMode !== "select" || event.target !== event.currentTarget) {
         return;
       }
@@ -134,7 +139,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       }
       dispatch({ type: "CLEAR_SELECTION" });
     },
-    [dispatch, toolMode]
+    [dispatch, suppressNextBackgroundClickRef, toolMode]
   );
 
   const onInteractionPointerDown = useCallback(

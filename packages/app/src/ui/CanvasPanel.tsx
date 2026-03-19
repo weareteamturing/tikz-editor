@@ -786,6 +786,7 @@ export function CanvasPanel() {
   const leftRulerRef = useRef<SVGSVGElement | null>(null);
   const interactionSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const suppressNextBackgroundClickRef = useRef(false);
   const pathDraftRef = useRef<PathToolDraft | null>(null);
   const freehandDraftRef = useRef<FreehandToolDraft | null>(null);
   const pendingAddedSelectionRef = useRef<PendingAddedSelection | null>(null);
@@ -2008,6 +2009,7 @@ export function CanvasPanel() {
     setTextEditingSession,
     startMarqueeSelection,
     pendingTouchViewportRef,
+    suppressNextBackgroundClickRef,
     svgResult,
     setDragState,
     canvasTransform,
@@ -2426,6 +2428,7 @@ export function CanvasPanel() {
     source,
     svgResult,
     dragRef,
+    suppressNextBackgroundClickRef,
     svgResultRef,
     interactionSvgRef,
     liveResizeFramesRef,
