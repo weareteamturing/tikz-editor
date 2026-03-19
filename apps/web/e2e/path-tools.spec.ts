@@ -9,6 +9,7 @@ import {
   interactionLayer,
   openMenuCommand,
   openMenuSection,
+  readSelectedSourceIds,
   readSource,
   resetStorageBeforeNavigation,
   setSource,
@@ -34,6 +35,20 @@ async function doubleClickHitRegion(
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   });
   await page.mouse.dblclick(target.x, target.y);
+}
+
+async function doubleClickHitRegionByTargetId(
+  page: import("@playwright/test").Page,
+  targetId: string
+): Promise<void> {
+  await waitForHitRegions(page, 1);
+  const region = page.locator(`[data-hit-region-target-id='${targetId}']`).first();
+  await expect(region).toBeVisible();
+  const box = await region.boundingBox();
+  if (!box) {
+    throw new Error(`Missing hit-region bounds for ${targetId}.`);
+  }
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -386,7 +401,7 @@ test("multi-segment path tool keeps named anchors when clicking anchor dots", as
   await page.mouse.click(box.x + 120, box.y + 120);
 
   await waitForHitRegions(page, 1);
-  const nodeRegion = page.locator("[data-hit-region-target-id]").first();
+  const nodeRegion = page.locator("[data-hit-region-target-id='path:0']").first();
   const nodeTarget = await nodeRegion.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -504,31 +519,71 @@ test("dense paths require double click before showing interior edit handles", as
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
 \draw (0,0) -- (1,0.2) -- (2,-0.1) -- (3,0.3) -- (4,0) -- (5,0.4) -- (6,0.1) -- (7,0.5) -- (8,0.2);
-\draw (0,2) -- (1,2.2) -- (2,2.1);
+  \draw (0,2) -- (1,2.2) -- (2,2.1);
 \end{tikzpicture}`);
   await page.getByRole("button", { name: "Select" }).click();
   await waitForHitRegions(page, 2);
-  const denseTargetId = await page.locator("[data-hit-region-target-id]").nth(0).getAttribute("data-hit-region-target-id");
-  const shortTargetId = await page.locator("[data-hit-region-target-id]").nth(1).getAttribute("data-hit-region-target-id");
-  if (!denseTargetId || !shortTargetId) {
-    throw new Error("Expected dense and short path hit-region target ids.");
+
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
+  await clickHitRegion(page, 0);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
+  const hintAfterFirstClick = await page.getByTestId("canvas-selection-hint").first().textContent().catch(() => null);
+  const firstSelected = await readSelectedSourceIds(page);
+  if (firstSelected.length !== 1) {
+    throw new Error(`Expected one selected source after first click, got ${firstSelected.length}.`);
   }
 
-  await clickHitRegion(page, 0);
+  await clickHitRegion(page, 1);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
+  const hintAfterSecondClick = await page.getByTestId("canvas-selection-hint").first().textContent().catch(() => null);
+  const secondSelected = await readSelectedSourceIds(page);
+  if (secondSelected.length !== 1) {
+    throw new Error(`Expected one selected source after second click, got ${secondSelected.length}.`);
+  }
+
+  const firstIsDense = hintAfterFirstClick?.includes("Double-click path to edit points.") ?? false;
+  const secondIsDense = hintAfterSecondClick?.includes("Double-click path to edit points.") ?? false;
+  if (firstIsDense === secondIsDense) {
+    throw new Error("Expected exactly one dense path selection hint.");
+  }
+
+  const denseIndex = firstIsDense ? 0 : 1;
+  const shortIndex = firstIsDense ? 1 : 0;
+  const denseTargetId = firstIsDense ? firstSelected[0]! : secondSelected[0]!;
+  const shortTargetId = firstIsDense ? secondSelected[0]! : firstSelected[0]!;
+
+  await clickHitRegion(page, denseIndex);
   await expect(page.getByTestId("canvas-selection-hint")).toContainText("Double-click path to edit points.");
   await expect.poll(async () =>
     page.locator(`[data-handle-kind="move-element"][data-source-id="${denseTargetId}"]`).count()
   ).toBeGreaterThan(0);
   await expect(page.locator(`[data-handle-kind="move-handle"][data-source-id="${denseTargetId}"]`)).toHaveCount(0);
 
-  await doubleClickHitRegion(page, 0);
+  await doubleClickHitRegion(page, denseIndex);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
 
-  await clickHitRegion(page, 1);
-  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
+  await clickHitRegion(page, shortIndex);
+  await expect(page.getByTestId("canvas-warning-message")).toHaveCount(0, { timeout: 10_000 });
+  const shortHint = page.getByTestId("canvas-selection-hint");
+  if ((await shortHint.count()) > 0) {
+    await expect(shortHint).not.toContainText("Double-click path to edit points.");
+  }
   await expect.poll(async () =>
     page.locator(`[data-handle-kind="move-handle"][data-source-id="${shortTargetId}"]`).count()
   ).toBeGreaterThan(0);
+});
+
+test("complex node shapes do not show dense path edit hint", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\node[draw, star, star points=12] at (2,2) {};
+\end{tikzpicture}`);
+  await page.getByRole("button", { name: "Select" }).click();
+  await waitForHitRegions(page, 1);
+
+  await clickHitRegion(page, 0);
+  await expect(page.getByTestId("canvas-selection-hint")).toHaveCount(0);
 });
 
 test("fit-to-content command is available when svg is rendered", async ({ page }) => {

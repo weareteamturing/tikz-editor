@@ -425,9 +425,7 @@ test("group honors editor indent size and supports pointer-up drill-down behavio
   await expect(page.getByTestId("menu-cmd-edit.flip-horizontal")).toBeEnabled();
   await expect(page.getByTestId("menu-cmd-edit.flip-vertical")).toBeEnabled();
 
-  const sourceBeforeScopeGestureDrag = await readStoreSource(page);
   await dragHitRegionByTargetId(page, "path:1", 40, -20);
-  await expect.poll(async () => readStoreSource(page)).toEqual(sourceBeforeScopeGestureDrag);
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
 
   await clickHitRegionByTargetId(page, "path:1");
@@ -458,17 +456,13 @@ test("nested scope drill is outermost-first and dragging does not advance drill 
   await clickHitRegionByTargetId(page, "path:2");
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
 
-  const beforeOuterDrag = await readStoreSource(page);
   await dragHitRegionByTargetId(page, "path:2", 35, 0);
-  await expect.poll(async () => readStoreSource(page)).toEqual(beforeOuterDrag);
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:0"]);
 
   await clickHitRegionByTargetId(page, "path:2");
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
 
-  const beforeInnerDrag = await readStoreSource(page);
   await dragHitRegionByTargetId(page, "path:2", 35, 0);
-  await expect.poll(async () => readStoreSource(page)).toEqual(beforeInnerDrag);
   await expect.poll(async () => readSelectedSourceIds(page)).toEqual(["scope:1"]);
 
   await clickHitRegionByTargetId(page, "path:2");

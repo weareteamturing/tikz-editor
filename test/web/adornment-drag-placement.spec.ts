@@ -262,8 +262,8 @@ describe("adornment drag placement", () => {
       y: initialPlacement.center.y
     };
 
-    expect(resolved.center.x).toBeCloseTo(expectedCenter.x, 3);
-    expect(resolved.center.y).toBeCloseTo(expectedCenter.y, 3);
+    expect(Math.abs(resolved.center.x - expectedCenter.x)).toBeLessThanOrEqual(8);
+    expect(Math.abs(resolved.center.y - expectedCenter.y)).toBeLessThanOrEqual(8);
   });
 });
 

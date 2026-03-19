@@ -1023,22 +1023,29 @@ export function CanvasPanel() {
 
   const densePathSourceIds = useMemo(() => {
     const dense = new Set<string>();
+    const candidateSourceIds = new Set<string>();
     for (const element of snapshot.scene?.elements ?? []) {
-      if (element.kind !== "Path") {
+      if (element.kind === "Path") {
+        candidateSourceIds.add(element.sourceRef.sourceId);
+      }
+    }
+    const parseOptions = {
+      activeFigureId:
+        activeFigureId == null
+          ? (snapshot.figures.length > 1 ? null : undefined)
+          : activeFigureId
+    };
+    for (const sourceId of candidateSourceIds) {
+      const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
+      if (resolved.kind !== "eligible") {
         continue;
       }
-      let segmentCount = 0;
-      for (const command of element.commands) {
-        if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
-          segmentCount += 1;
-        }
-      }
-      if (segmentCount >= DENSE_PATH_SEGMENT_THRESHOLD) {
-        dense.add(element.sourceRef.sourceId);
+      if (resolved.analysis.segments.length >= DENSE_PATH_SEGMENT_THRESHOLD) {
+        dense.add(sourceId);
       }
     }
     return dense;
-  }, [snapshot.scene]);
+  }, [snapshot.scene, snapshot.figures.length, activeFigureId, source]);
 
   const collapsedDensePathSourceIds = useMemo(() => {
     const collapsed = new Set<string>();
