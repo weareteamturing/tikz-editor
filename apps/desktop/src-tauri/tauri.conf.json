@@ -35,6 +35,28 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "name": "TikZ Source",
+        "description": "TikZ source document",
+        "ext": ["tikz"],
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/x-tikz",
+        "exportedType": {
+          "identifier": "com.tikz.editor.tikz",
+          "conformsTo": ["public.plain-text"]
+        }
+      },
+      {
+        "name": "TeX Source",
+        "description": "TeX source document",
+        "ext": ["tex"],
+        "role": "Editor",
+        "rank": "Alternate",
+        "mimeType": "text/x-tex"
+      }
+    ],
     "createUpdaterArtifacts": true
   },
   "plugins": {

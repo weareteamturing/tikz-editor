@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { APP_MENU_COMMAND_IDS } from "@tikz-editor/app";
 import { createDesktopPlatformAdapter } from "../src/platform/desktop-platform";
 
@@ -11,8 +11,11 @@ function makeMockBridge() {
   const saved: string[] = [];
   const contextMenuPayloads: unknown[] = [];
   const assistantStartTurnPayloads: unknown[] = [];
+  const pendingOpenRequests: Array<{ source: string; path: string; name: string }> = [];
+  const pendingOpenFailures: Array<{ path: string; message: string }> = [];
   let snapHapticCalls = 0;
   let contextMenuCommandHandler: ((payload: { requestId: string; commandId: string }) => void) | null = null;
+  let pendingOpenChangedHandler: (() => void) | null = null;
   return {
     saved,
     contextMenuPayloads,
@@ -46,6 +49,16 @@ function makeMockBridge() {
       },
       listRecentFiles: async () => [opened.path],
       onWindowCloseRequest: async () => () => undefined,
+      takePendingOpenRequests: async () => pendingOpenRequests.splice(0, pendingOpenRequests.length),
+      takePendingOpenFailures: async () => pendingOpenFailures.splice(0, pendingOpenFailures.length),
+      onPendingOpenRequestsChanged: async (handler) => {
+        pendingOpenChangedHandler = handler;
+        return () => {
+          if (pendingOpenChangedHandler === handler) {
+            pendingOpenChangedHandler = null;
+          }
+        };
+      },
       showContextMenu: async (payload) => {
         contextMenuPayloads.push(payload);
       },
@@ -91,6 +104,14 @@ function makeMockBridge() {
     },
     emitContextMenuCommand: (payload: { requestId: string; commandId: string }) => {
       contextMenuCommandHandler?.(payload);
+    },
+    queuePendingOpenRequest: (payload: { source: string; path: string; name: string }) => {
+      pendingOpenRequests.push(payload);
+      pendingOpenChangedHandler?.();
+    },
+    queuePendingOpenFailure: (payload: { path: string; message: string }) => {
+      pendingOpenFailures.push(payload);
+      pendingOpenChangedHandler?.();
     }
   };
 }
@@ -240,6 +261,97 @@ describe("desktop shell flows", () => {
     expect(seenSource).toContain("\\draw");
     if (typeof unbind === "function") {
       unbind();
+    }
+  });
+
+  it("flushes pending open requests queued before bind", async () => {
+    const mock = makeMockBridge();
+    mock.queuePendingOpenRequest({
+      source: "\\draw (0,0)--(2,2);",
+      path: "/tmp/pending.tex",
+      name: "pending.tex"
+    });
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    let seenSource = "";
+    const unbind = platform.files?.bindOpenRequest?.((openedRequest) => {
+      seenSource = openedRequest.source;
+    });
+
+    await vi.waitFor(() => {
+      expect(seenSource).toContain("\\draw (0,0)--(2,2);");
+    });
+    if (typeof unbind === "function") {
+      unbind();
+    }
+  });
+
+  it("opens successes and shows one aggregated failure alert", async () => {
+    const mock = makeMockBridge();
+    const originalAlert = (globalThis as { alert?: (message?: string) => void }).alert;
+    const alertSpy = vi.fn();
+    (globalThis as { alert?: (message?: string) => void }).alert = alertSpy;
+    try {
+      const platform = createDesktopPlatformAdapter({
+        storage: { getItem: () => null, setItem: () => undefined },
+        bridge: mock.bridge
+      });
+
+      const openedSources: string[] = [];
+      const unbind = platform.files?.bindOpenRequest?.((openedRequest) => {
+        openedSources.push(openedRequest.source);
+      });
+
+      mock.queuePendingOpenRequest({
+        source: "\\draw (0,0)--(3,3);",
+        path: "/tmp/good-1.tikz",
+        name: "good-1.tikz"
+      });
+      mock.queuePendingOpenRequest({
+        source: "\\draw (1,1)--(2,2);",
+        path: "/tmp/good-2.tex",
+        name: "good-2.tex"
+      });
+      mock.queuePendingOpenFailure({
+        path: "/tmp/missing-1.tikz",
+        message: "No such file or directory"
+      });
+      mock.queuePendingOpenFailure({
+        path: "/tmp/missing-2.tex",
+        message: "Permission denied"
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await vi.waitFor(() => {
+        expect(openedSources).toEqual([
+          "\\draw (0,0)--(3,3);",
+          "\\draw (1,1)--(2,2);"
+        ]);
+      });
+      await vi.waitFor(() => {
+        expect(alertSpy).toHaveBeenCalledTimes(1);
+      });
+      expect(alertSpy.mock.calls[0]?.[0]).toContain("Some files could not be opened:");
+      expect(alertSpy.mock.calls[0]?.[0]).toContain("/tmp/missing-1.tikz");
+      expect(alertSpy.mock.calls[0]?.[0]).toContain("/tmp/missing-2.tex");
+
+      await Promise.resolve();
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+
+      if (typeof unbind === "function") {
+        unbind();
+      }
+    } finally {
+      (globalThis as { alert?: (message?: string) => void }).alert = originalAlert;
     }
   });
 

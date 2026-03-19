@@ -9,8 +9,11 @@ use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext};
 use rfd::FileDialog;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashSet;
+use std::env;
 use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
@@ -26,6 +29,7 @@ use url::Url;
 const MAX_RECENT_FILES: usize = 10;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
+const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT: &str = "desktop-open-requests-changed";
 #[cfg(target_os = "macos")]
 const DESKTOP_SVG_CLIPBOARD_FORMATS: [&str; 2] =
     ["public.svg-image", "com.microsoft.image-svg-xml"];
@@ -53,11 +57,23 @@ struct WindowCloseState {
     allow_next_close: Mutex<bool>,
 }
 
+#[derive(Default)]
+struct PendingOpenRequestsState {
+    requests: Mutex<Vec<OpenTextPayload>>,
+    failures: Mutex<Vec<OpenTextFailurePayload>>,
+}
+
 #[derive(Serialize)]
 struct OpenTextPayload {
     source: String,
     path: String,
     name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct OpenTextFailurePayload {
+    path: String,
+    message: String,
 }
 
 #[derive(Serialize)]
@@ -204,6 +220,107 @@ fn parse_context_menu_item_id(raw_id: &str) -> Option<(String, String)> {
     Some((request_id.to_string(), command_id.to_string()))
 }
 
+fn has_supported_association_extension(path: &Path) -> bool {
+    let Some(ext) = path.extension().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    matches!(ext.to_ascii_lowercase().as_str(), "tikz" | "tex")
+}
+
+fn collect_associated_file_paths(args: &[String], cwd: Option<&str>) -> Vec<PathBuf> {
+    let base_dir = cwd.map(PathBuf::from);
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut out: Vec<PathBuf> = Vec::new();
+
+    for arg in args.iter().skip(1) {
+        let trimmed = arg.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let raw = PathBuf::from(trimmed);
+        let resolved = if raw.is_absolute() {
+            raw
+        } else if let Some(base) = base_dir.as_ref() {
+            base.join(raw)
+        } else {
+            raw
+        };
+
+        if !has_supported_association_extension(&resolved) {
+            continue;
+        }
+
+        let key = resolved.to_string_lossy().to_string();
+        if !seen.insert(key) {
+            continue;
+        }
+        out.push(resolved);
+    }
+
+    out
+}
+
+fn read_open_text_payload_from_path(path: &Path) -> Result<OpenTextPayload, String> {
+    let source = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let path_string = path.to_string_lossy().to_string();
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| "document.tex".to_string());
+    Ok(OpenTextPayload {
+        source,
+        path: path_string,
+        name,
+    })
+}
+
+fn enqueue_pending_open_results(
+    app: &AppHandle,
+    requests: Vec<OpenTextPayload>,
+    failures: Vec<OpenTextFailurePayload>,
+) {
+    if requests.is_empty() && failures.is_empty() {
+        return;
+    }
+
+    let state = app.state::<PendingOpenRequestsState>();
+    if let Ok(mut pending) = state.requests.lock() {
+        pending.extend(requests);
+    }
+    if let Ok(mut pending_failures) = state.failures.lock() {
+        pending_failures.extend(failures);
+    }
+
+    let _ = app.emit(DESKTOP_OPEN_REQUESTS_CHANGED_EVENT, ());
+}
+
+fn process_associated_open_requests(app: &AppHandle, args: &[String], cwd: Option<&str>) {
+    let candidates = collect_associated_file_paths(args, cwd);
+    if candidates.is_empty() {
+        return;
+    }
+
+    let mut successes: Vec<OpenTextPayload> = Vec::new();
+    let mut failures: Vec<OpenTextFailurePayload> = Vec::new();
+
+    for path in candidates {
+        match read_open_text_payload_from_path(&path) {
+            Ok(payload) => {
+                add_recent_file(app, payload.path.clone());
+                successes.push(payload);
+            }
+            Err(message) => failures.push(OpenTextFailurePayload {
+                path: path.to_string_lossy().to_string(),
+                message,
+            }),
+        }
+    }
+
+    enqueue_pending_open_results(app, successes, failures);
+}
+
 fn native_clipboard_role(command_id: &str) -> Option<&'static str> {
     match command_id {
         "edit.cut" => Some("cut"),
@@ -328,15 +445,9 @@ fn desktop_open_text(
     let Some(path_buf) = resolved_path else {
         return Ok(None);
     };
-    let source = fs::read_to_string(&path_buf).map_err(|error| error.to_string())?;
-    let path = path_buf.to_string_lossy().to_string();
-    let name = path_buf
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(ToOwned::to_owned)
-        .unwrap_or_else(|| "document.tex".to_string());
-    add_recent_file(&app, path.clone());
-    Ok(Some(OpenTextPayload { source, path, name }))
+    let payload = read_open_text_payload_from_path(&path_buf)?;
+    add_recent_file(&app, payload.path.clone());
+    Ok(Some(payload))
 }
 
 #[tauri::command]
@@ -467,6 +578,26 @@ fn desktop_clear_recent_files(app: AppHandle) -> Result<(), String> {
     }
     save_recent_files_to_disk(&app, &[]);
     Ok(())
+}
+
+#[tauri::command]
+fn desktop_take_pending_open_requests(app: AppHandle) -> Result<Vec<OpenTextPayload>, String> {
+    let state = app.state::<PendingOpenRequestsState>();
+    let mut pending = state
+        .requests
+        .lock()
+        .map_err(|_| "pending open requests state unavailable".to_string())?;
+    Ok(std::mem::take(&mut *pending))
+}
+
+#[tauri::command]
+fn desktop_take_pending_open_failures(app: AppHandle) -> Result<Vec<OpenTextFailurePayload>, String> {
+    let state = app.state::<PendingOpenRequestsState>();
+    let mut pending = state
+        .failures
+        .lock()
+        .map_err(|_| "pending open failures state unavailable".to_string())?;
+    Ok(std::mem::take(&mut *pending))
 }
 
 #[tauri::command]
@@ -717,7 +848,18 @@ fn desktop_assistant_read_account_snapshot(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            process_associated_open_requests(app, &args, Some(cwd.as_str()));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }));
+    }
+
+    builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_x::init());
     #[cfg(target_os = "macos")]
@@ -728,6 +870,7 @@ pub fn run() {
     builder
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
+        .manage(PendingOpenRequestsState::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -760,6 +903,8 @@ pub fn run() {
             desktop_confirm_window_close,
             desktop_list_recent_files,
             desktop_clear_recent_files,
+            desktop_take_pending_open_requests,
+            desktop_take_pending_open_failures,
             desktop_open_external,
             desktop_perform_snap_haptic,
             desktop_read_custom_clipboard_text,
@@ -807,6 +952,13 @@ pub fn run() {
                 *entries = loaded.clone();
             }
             save_recent_files_to_disk(&app.handle(), &loaded);
+
+            let startup_args: Vec<String> = env::args().collect();
+            let startup_cwd = env::current_dir()
+                .ok()
+                .and_then(|path| path.to_str().map(ToOwned::to_owned));
+            process_associated_open_requests(&app.handle(), &startup_args, startup_cwd.as_deref());
+
             app.manage(AssistantState::new(app.handle().clone()));
             Ok(())
         })
@@ -816,7 +968,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_external_url;
+    use super::{
+        collect_associated_file_paths, has_supported_association_extension, validate_external_url,
+    };
+    use std::path::Path;
 
     #[test]
     fn validates_supported_external_urls() {
@@ -840,5 +995,36 @@ mod tests {
 
         let hostless_http = validate_external_url("https://");
         assert!(hostless_http.is_err());
+    }
+
+    #[test]
+    fn association_extension_filter_is_case_insensitive() {
+        assert!(has_supported_association_extension(Path::new("/tmp/diagram.tikz")));
+        assert!(has_supported_association_extension(Path::new("/tmp/diagram.TEX")));
+        assert!(!has_supported_association_extension(Path::new("/tmp/diagram.svg")));
+    }
+
+    #[test]
+    fn collects_associated_paths_from_args() {
+        let args = vec![
+            "tikz-editor".to_string(),
+            "first.tikz".to_string(),
+            "second.tex".to_string(),
+            "third.txt".to_string(),
+            "first.tikz".to_string(),
+        ];
+
+        let collected = collect_associated_file_paths(&args, Some("/tmp/work"));
+        let rendered: Vec<String> = collected
+            .iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        assert_eq!(
+            rendered,
+            vec![
+                "/tmp/work/first.tikz".to_string(),
+                "/tmp/work/second.tex".to_string()
+            ]
+        );
     }
 }

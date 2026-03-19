@@ -27,6 +27,11 @@ type DesktopOpenTextResult = {
   name: string;
 };
 
+type DesktopOpenTextFailureResult = {
+  path: string;
+  message: string;
+};
+
 type DesktopSaveTextResult = {
   ok: boolean;
   path: string | null;
@@ -63,6 +68,9 @@ type DesktopBridge = {
   performSnapHaptic?: () => Promise<void>;
   listRecentFiles: () => Promise<string[]>;
   clearRecentFiles: () => Promise<void>;
+  takePendingOpenRequests: () => Promise<DesktopOpenTextResult[]>;
+  takePendingOpenFailures: () => Promise<DesktopOpenTextFailureResult[]>;
+  onPendingOpenRequestsChanged: (handler: () => void) => Promise<() => void>;
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
   showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
   onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
@@ -192,6 +200,8 @@ function hasModifierAccelerator(accelerator: string | undefined): accelerator is
   }
   return /cmd|ctrl|alt|shift|meta|option|super/i.test(accelerator);
 }
+
+const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT = "desktop-open-requests-changed";
 
 function basename(path: string): string {
   const segments = path.split(/[\\/]/g);
@@ -586,6 +596,20 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("desktop_clear_recent_files");
     },
+    takePendingOpenRequests: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<DesktopOpenTextResult[]>("desktop_take_pending_open_requests");
+    },
+    takePendingOpenFailures: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<DesktopOpenTextFailureResult[]>("desktop_take_pending_open_failures");
+    },
+    onPendingOpenRequestsChanged: async (handler) => {
+      const { listen } = await import("@tauri-apps/api/event");
+      return await listen(DESKTOP_OPEN_REQUESTS_CHANGED_EVENT, () => {
+        handler();
+      });
+    },
     onWindowCloseRequest: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
       return await listen("desktop-window-close-request", () => {
@@ -676,8 +700,12 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
   let menuHandler: MenuCommandHandler | null = null;
   let openRequestHandler: ((opened: { source: string; fileRef: DocumentFileRef | null }) => void) | null = null;
   let closeRequestHandler: (() => void) | null = null;
+  const pendingOpenedBuffer: Array<{ source: string; fileRef: DocumentFileRef | null }> = [];
+  const pendingOpenFailureBuffer: DesktopOpenTextFailureResult[] = [];
   let windowCloseUnlistenPromise: Promise<(() => void) | null> | null = null;
   let contextMenuCommandUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let openRequestsChangedUnlistenPromise: Promise<(() => void) | null> | null = null;
+  let pendingOpenSyncQueue = Promise.resolve();
   let nextContextMenuRequestId = 0;
 
   const nativeMenuManager = createNativeDesktopMenuManager({
@@ -702,6 +730,63 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     }
   });
 
+  function showPendingOpenFailuresAlert(failures: readonly DesktopOpenTextFailureResult[]): void {
+    if (failures.length === 0) {
+      return;
+    }
+    const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+    if (typeof alertFn !== "function") {
+      return;
+    }
+    const detailLines = failures.map((failure) => {
+      const pathLabel = failure.path?.trim() ? failure.path : "(unknown path)";
+      const message = failure.message?.trim() ? failure.message : "unknown error";
+      return `• ${pathLabel}: ${message}`;
+    });
+    const summary = failures.length === 1
+      ? "Could not open file:"
+      : "Some files could not be opened:";
+    alertFn(`${summary}\n${detailLines.join("\n")}`);
+  }
+
+  function flushPendingOpenBuffers(): void {
+    if (!openRequestHandler) {
+      return;
+    }
+    while (pendingOpenedBuffer.length > 0) {
+      const opened = pendingOpenedBuffer.shift()!;
+      openRequestHandler(opened);
+    }
+    if (pendingOpenFailureBuffer.length > 0) {
+      const failures = pendingOpenFailureBuffer.splice(0, pendingOpenFailureBuffer.length);
+      showPendingOpenFailuresAlert(failures);
+    }
+  }
+
+  function syncPendingOpenQueues(): void {
+    pendingOpenSyncQueue = pendingOpenSyncQueue.then(async () => {
+      const [pendingOpens, pendingFailures] = await Promise.all([
+        getBridge().takePendingOpenRequests().catch(() => [] as DesktopOpenTextResult[]),
+        getBridge().takePendingOpenFailures().catch(() => [] as DesktopOpenTextFailureResult[])
+      ]);
+
+      if (pendingOpens.length === 0 && pendingFailures.length === 0) {
+        return;
+      }
+
+      for (const opened of pendingOpens) {
+        pendingOpenedBuffer.push({
+          source: opened.source,
+          fileRef: toDesktopFileRef(opened.path, opened.name)
+        });
+      }
+      if (pendingFailures.length > 0) {
+        pendingOpenFailureBuffer.push(...pendingFailures);
+      }
+      flushPendingOpenBuffers();
+    }).catch(() => undefined);
+  }
+
   function ensureNativeEventHooks(): void {
     if (!windowCloseUnlistenPromise) {
       windowCloseUnlistenPromise = getBridge().onWindowCloseRequest(() => {
@@ -712,6 +797,12 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       contextMenuCommandUnlistenPromise = getBridge().onContextMenuCommand((payload) => {
         menuHandler?.(payload.commandId, "context-menu");
       }).catch(() => null);
+    }
+    if (!openRequestsChangedUnlistenPromise) {
+      openRequestsChangedUnlistenPromise = getBridge().onPendingOpenRequestsChanged(() => {
+        syncPendingOpenQueues();
+      }).catch(() => null);
+      syncPendingOpenQueues();
     }
   }
 
@@ -818,6 +909,7 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     files: {
       bindOpenRequest: (handler) => {
         openRequestHandler = handler;
+        flushPendingOpenBuffers();
         return () => {
           if (openRequestHandler === handler) {
             openRequestHandler = null;
