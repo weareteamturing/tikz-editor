@@ -3,7 +3,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/amplitude=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p> This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of 2.5pt means that deforming decorations should deform a path by up to 2.5pt away from the original path. </p><p> This key sets the TeX-dimension \\pgfdecorationsegmentamplitude. </p>",
+    "snippetHtml": "<p> This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of <code>2.5pt</code> means that deforming decorations should deform a path by up to 2.5pt away from the original path. </p><p> This key sets the TeX-dimension <code>\\pgfdecorationsegmentamplitude</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/amplitude",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/amplitude"
@@ -12,7 +12,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/amplitude=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p> This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of 2.5pt means that deforming decorations should deform a path by up to 2.5pt away from the original path. </p><p> This key sets the TeX-dimension \\pgfdecorationsegmentamplitude. </p>",
+    "snippetHtml": "<p> This key determines the “desired height” (or amplitude) of decorations for which this makes sense. For instance, the initial value of <code>2.5pt</code> means that deforming decorations should deform a path by up to 2.5pt away from the original path. </p><p> This key sets the TeX-dimension <code>\\pgfdecorationsegmentamplitude</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/amplitude",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/amplitude"
@@ -21,7 +21,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/meta-amplitude=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p>This key determines the amplitude for a meta-decoration.</p><p> The key sets the TeX-macro (!) \\pgfmetadecorationsegmentamplitude. </p>",
+    "snippetHtml": "<p>This key determines the amplitude for a meta-decoration.</p><p> The key sets the TeX-macro (!) <code>\\pgfmetadecorationsegmentamplitude</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/meta-amplitude",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/meta-amplitude"
@@ -30,7 +30,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/meta-amplitude=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p>This key determines the amplitude for a meta-decoration.</p><p> The key sets the TeX-macro (!) \\pgfmetadecorationsegmentamplitude. </p>",
+    "snippetHtml": "<p>This key determines the amplitude for a meta-decoration.</p><p> The key sets the TeX-macro (!) <code>\\pgfmetadecorationsegmentamplitude</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/meta-amplitude",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/meta-amplitude"
@@ -39,7 +39,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/segment length=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>10pt</kbd>)",
-    "snippetHtml": "<p>Many decorations are made up of small segments. This key determines the desired length of such segments.</p><p> This key sets the TeX-dimension \\pgfdecorationsegmentlength. </p>",
+    "snippetHtml": "<p>Many decorations are made up of small segments. This key determines the desired length of such segments.</p><p> This key sets the TeX-dimension <code>\\pgfdecorationsegmentlength</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/segment:length",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/segment%3Alength"
@@ -48,7 +48,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/segment length=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>10pt</kbd>)",
-    "snippetHtml": "<p>Many decorations are made up of small segments. This key determines the desired length of such segments.</p><p> This key sets the TeX-dimension \\pgfdecorationsegmentlength. </p>",
+    "snippetHtml": "<p>Many decorations are made up of small segments. This key determines the desired length of such segments.</p><p> This key sets the TeX-dimension <code>\\pgfdecorationsegmentlength</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/segment:length",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/segment%3Alength"
@@ -57,7 +57,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/meta-segment length=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>1cm</kbd>)",
-    "snippetHtml": "<p>This determined the length of the meta-segments from which a meta-decoration is made up.</p><p> This key sets the TeX-macro (!) \\pgfmetadecorationsegmentlength. </p>",
+    "snippetHtml": "<p>This determined the length of the meta-segments from which a meta-decoration is made up.</p><p> This key sets the TeX-macro (!) <code>\\pgfmetadecorationsegmentlength</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/meta-segment:length",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/meta-segment%3Alength"
@@ -66,7 +66,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/meta-segment length=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>1cm</kbd>)",
-    "snippetHtml": "<p>This determined the length of the meta-segments from which a meta-decoration is made up.</p><p> This key sets the TeX-macro (!) \\pgfmetadecorationsegmentlength. </p>",
+    "snippetHtml": "<p>This determined the length of the meta-segments from which a meta-decoration is made up.</p><p> This key sets the TeX-macro (!) <code>\\pgfmetadecorationsegmentlength</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/meta-segment:length",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/meta-segment%3Alength"
@@ -75,7 +75,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/angle=</kbd>⟨<i>degree</i>⟩",
     "defaultHtml": "(no default, initially <kbd>45</kbd>)",
-    "snippetHtml": "<p> The way some decorations look like depends on a configurable angle. For instance, a wave decoration consists of arcs and the opening angle of these arcs is given by the angle. </p><p> This key sets the TeX-macro \\pgfdecorationsegmentangle. </p>",
+    "snippetHtml": "<p> The way some decorations look like depends on a configurable angle. For instance, a <code>wave</code> decoration consists of arcs and the opening angle of these arcs is given by the <code>angle</code>. </p><p> This key sets the TeX-macro <code>\\pgfdecorationsegmentangle</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/angle",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/angle"
@@ -84,7 +84,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/angle=</kbd>⟨<i>degree</i>⟩",
     "defaultHtml": "(no default, initially <kbd>45</kbd>)",
-    "snippetHtml": "<p> The way some decorations look like depends on a configurable angle. For instance, a wave decoration consists of arcs and the opening angle of these arcs is given by the angle. </p><p> This key sets the TeX-macro \\pgfdecorationsegmentangle. </p>",
+    "snippetHtml": "<p> The way some decorations look like depends on a configurable angle. For instance, a <code>wave</code> decoration consists of arcs and the opening angle of these arcs is given by the <code>angle</code>. </p><p> This key sets the TeX-macro <code>\\pgfdecorationsegmentangle</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/angle",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/angle"
@@ -93,7 +93,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/aspect=</kbd>⟨<i>factor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>0.5</kbd>)",
-    "snippetHtml": "<p> For some decorations there is a natural aspect ratio. For instance, for a brace decoration the aspect ratio determines where the brace point will be. </p><p> This key sets the TeX-macro \\pgfdecorationsegmentaspect. </p>",
+    "snippetHtml": "<p> For some decorations there is a natural aspect ratio. For instance, for a <code>brace</code> decoration the aspect ratio determines where the brace point will be. </p><p> This key sets the TeX-macro <code>\\pgfdecorationsegmentaspect</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/aspect",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/aspect"
@@ -102,7 +102,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/aspect=</kbd>⟨<i>factor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>0.5</kbd>)",
-    "snippetHtml": "<p> For some decorations there is a natural aspect ratio. For instance, for a brace decoration the aspect ratio determines where the brace point will be. </p><p> This key sets the TeX-macro \\pgfdecorationsegmentaspect. </p>",
+    "snippetHtml": "<p> For some decorations there is a natural aspect ratio. For instance, for a <code>brace</code> decoration the aspect ratio determines where the brace point will be. </p><p> This key sets the TeX-macro <code>\\pgfdecorationsegmentaspect</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/aspect",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/aspect"
@@ -165,7 +165,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/path has corners=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to true may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to true will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if \\ifpgfdecoratepathhascorners. </p>",
+    "snippetHtml": "<p> This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to <code>true</code> may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to <code>true</code> will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if <code>\\ifpgfdecoratepathhascorners</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/path:has:corners",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/path%3Ahas%3Acorners"
@@ -174,7 +174,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/path has corners=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to true may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to true will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if \\ifpgfdecoratepathhascorners. </p>",
+    "snippetHtml": "<p> This is a hint to the decoration code as to whether the path has corners or not. If a path has a sharp corner, setting this option to <code>true</code> may result in better rendering of the decoration because the joins of input segments are approached “more carefully” than when this key is set to false. However, if the path is, say, a smooth circle, setting this key to <code>true</code> will usually look worse. Most decorations ignore this key, anyway. Internally, it sets the TeX-if <code>\\ifpgfdecoratepathhascorners</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/path:has:corners",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/path%3Ahas%3Acorners"
@@ -318,7 +318,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark=</kbd><kbd>at position </kbd>⟨<i>pos</i>⟩<kbd> with </kbd>⟨<i>code</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The options specifies that when a marking decoration is applied, there should be a marking at position ⟨<i>pos</i>⟩ on the path whose code is given by ⟨<i>code</i>⟩. </p><p>The ⟨<i>pos</i>⟩ can have four different forms:</p>",
+    "snippetHtml": "<p> The options specifies that when a <code>marking</code> decoration is applied, there should be a marking at position ⟨<i>pos</i>⟩ on the path whose code is given by ⟨<i>code</i>⟩. </p><p>The ⟨<i>pos</i>⟩ can have four different forms:</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark"
@@ -327,7 +327,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark=</kbd><kbd>at position </kbd>⟨<i>pos</i>⟩<kbd> with </kbd>⟨<i>code</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The options specifies that when a marking decoration is applied, there should be a marking at position ⟨<i>pos</i>⟩ on the path whose code is given by ⟨<i>code</i>⟩. </p><p>The ⟨<i>pos</i>⟩ can have four different forms:</p>",
+    "snippetHtml": "<p> The options specifies that when a <code>marking</code> decoration is applied, there should be a marking at position ⟨<i>pos</i>⟩ on the path whose code is given by ⟨<i>code</i>⟩. </p><p>The ⟨<i>pos</i>⟩ can have four different forms:</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark"
@@ -336,7 +336,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark info/sequence number</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key can only be read. Its value (which can be obtained using the \\pgfkeysvalueof command) is a “sequence number” of the mark. The first mark that is added to a path has number 1, the second number 2, and so on. This key is mainly useful in conjunction with repeated markings (see below). </p>",
+    "snippetHtml": "<p> This key can only be read. Its value (which can be obtained using the <code>\\pgfkeysvalueof</code> command) is a “sequence number” of the mark. The first mark that is added to a path has number <code>1</code>, the second number <code>2</code>, and so on. This key is mainly useful in conjunction with repeated markings (see below). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark:info/sequence:number",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark%3Ainfo/sequence%3Anumber"
@@ -345,7 +345,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark info/sequence number</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key can only be read. Its value (which can be obtained using the \\pgfkeysvalueof command) is a “sequence number” of the mark. The first mark that is added to a path has number 1, the second number 2, and so on. This key is mainly useful in conjunction with repeated markings (see below). </p>",
+    "snippetHtml": "<p> This key can only be read. Its value (which can be obtained using the <code>\\pgfkeysvalueof</code> command) is a “sequence number” of the mark. The first mark that is added to a path has number <code>1</code>, the second number <code>2</code>, and so on. This key is mainly useful in conjunction with repeated markings (see below). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark:info/sequence:number",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark%3Ainfo/sequence%3Anumber"
@@ -354,7 +354,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark info/distance from start</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key can only be read. Its value is the distance of the marking from the start of the path in points. For instance, if the path length is 100pt and the marking is in the middle of the path, the value of this key would be 50.0pt. </p>",
+    "snippetHtml": "<p> This key can only be read. Its value is the distance of the marking from the start of the path in points. For instance, if the path length is 100pt and the marking is in the middle of the path, the value of this key would be <code>50.0pt</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark:info/distance:from:start",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark%3Ainfo/distance%3Afrom%3Astart"
@@ -363,7 +363,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/mark info/distance from start</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key can only be read. Its value is the distance of the marking from the start of the path in points. For instance, if the path length is 100pt and the marking is in the middle of the path, the value of this key would be 50.0pt. </p>",
+    "snippetHtml": "<p> This key can only be read. Its value is the distance of the marking from the start of the path in points. For instance, if the path length is 100pt and the marking is in the middle of the path, the value of this key would be <code>50.0pt</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/mark:info/distance:from:start",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/mark%3Ainfo/distance%3Afrom%3Astart"
@@ -372,7 +372,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/reset marks</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Since mark options accumulate, there needs to be a way to “reset” things, so that any mark options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨<i>code</i>⟩ of a marking is executed, the markings are automatically reset. </p>",
+    "snippetHtml": "<p> Since <code>mark</code> options accumulate, there needs to be a way to “reset” things, so that any <code>mark</code> options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨<i>code</i>⟩ of a marking is executed, the markings are automatically reset. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/reset:marks",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/reset%3Amarks"
@@ -381,7 +381,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/reset marks</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Since mark options accumulate, there needs to be a way to “reset” things, so that any mark options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨<i>code</i>⟩ of a marking is executed, the markings are automatically reset. </p>",
+    "snippetHtml": "<p> Since <code>mark</code> options accumulate, there needs to be a way to “reset” things, so that any <code>mark</code> options set in an enclosing scope do not interfere. This option does exactly this. Note that when the ⟨<i>code</i>⟩ of a marking is executed, the markings are automatically reset. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/reset:marks",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/reset%3Amarks"
@@ -534,7 +534,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape width=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p> The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like shape start width). </p>",
+    "snippetHtml": "<p> The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like <code>shape start width</code>). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:width",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Awidth"
@@ -543,7 +543,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape width=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>2.5pt</kbd>)",
-    "snippetHtml": "<p> The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like shape start width). </p>",
+    "snippetHtml": "<p> The desired width of the shapes. For decorations that support varying shape sizes, this key sets both the start and end width (which can be overwritten using options like <code>shape start width</code>). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:width",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Awidth"
@@ -624,7 +624,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape sep=</kbd>⟨<i>spacing</i>⟩",
     "defaultHtml": "(no default, initially <kbd>.25cm, between centers</kbd>)",
-    "snippetHtml": "<p> Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords between centers, and between borders (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the <em>boundaries</em> of the shape borders. </p>",
+    "snippetHtml": "<p> Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords <code>between centers</code>, and <code>between borders</code> (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the <em>boundaries</em> of the shape borders. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:sep",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Asep"
@@ -633,7 +633,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape sep=</kbd>⟨<i>spacing</i>⟩",
     "defaultHtml": "(no default, initially <kbd>.25cm, between centers</kbd>)",
-    "snippetHtml": "<p> Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords between centers, and between borders (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the <em>boundaries</em> of the shape borders. </p>",
+    "snippetHtml": "<p> Set the spacing between the shapes on the decorations path. This can be just a distance on its own, but the additional keywords <code>between centers</code>, and <code>between borders</code> (which must be preceded by a comma), specify that the distance is between the center anchors of the shapes or between the edges of the <em>boundaries</em> of the shape borders. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:sep",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Asep"
@@ -642,7 +642,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape evenly spread=</kbd>⟨<i>number</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key overrides the shape sep key and forces the decoration to fit ⟨<i>number</i>⟩ shapes evenly across the path. If ⟨<i>number</i>⟩ is less than 1, then no shapes will be used. If ⟨<i>number</i>⟩ equals 1, then one shape is put in the middle of the path. The additional keywords by centers (the default, if no keyword is specified) and by borders can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time. </p>",
+    "snippetHtml": "<p> This key overrides the <code>shape sep</code> key and forces the decoration to fit ⟨<i>number</i>⟩ shapes evenly across the path. If ⟨<i>number</i>⟩ is less than <code>1</code>, then no shapes will be used. If ⟨<i>number</i>⟩ equals <code>1</code>, then one shape is put in the middle of the path. The additional keywords <code>by centers</code> (the default, if no keyword is specified) and <code>by borders</code> can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:evenly:spread",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Aevenly%3Aspread"
@@ -651,7 +651,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape evenly spread=</kbd>⟨<i>number</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key overrides the shape sep key and forces the decoration to fit ⟨<i>number</i>⟩ shapes evenly across the path. If ⟨<i>number</i>⟩ is less than 1, then no shapes will be used. If ⟨<i>number</i>⟩ equals 1, then one shape is put in the middle of the path. The additional keywords by centers (the default, if no keyword is specified) and by borders can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time. </p>",
+    "snippetHtml": "<p> This key overrides the <code>shape sep</code> key and forces the decoration to fit ⟨<i>number</i>⟩ shapes evenly across the path. If ⟨<i>number</i>⟩ is less than <code>1</code>, then no shapes will be used. If ⟨<i>number</i>⟩ equals <code>1</code>, then one shape is put in the middle of the path. The additional keywords <code>by centers</code> (the default, if no keyword is specified) and <code>by borders</code> can be used (both preceded by a comma), to specify how the distance between shapes is determined. These keywords will only have a noticeable effect if the shapes sizes differ over time. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:evenly:spread",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Aevenly%3Aspread"
@@ -660,7 +660,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape sloped=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>true</kbd>)",
-    "snippetHtml": "<p> By default, shapes are rotated to the slope of the decorations path. If ⟨<i>boolean</i>⟩ is the value false, then this rotation is turned off. Internally this sets the TeX-if \\ifpgfshapedecorationsloped accordingly. </p>",
+    "snippetHtml": "<p> By default, shapes are rotated to the slope of the decorations path. If ⟨<i>boolean</i>⟩ is the value <code>false</code>, then this rotation is turned off. Internally this sets the TeX-if <code>\\ifpgfshapedecorationsloped</code> accordingly. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:sloped",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Asloped"
@@ -669,7 +669,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/shape sloped=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>true</kbd>)",
-    "snippetHtml": "<p> By default, shapes are rotated to the slope of the decorations path. If ⟨<i>boolean</i>⟩ is the value false, then this rotation is turned off. Internally this sets the TeX-if \\ifpgfshapedecorationsloped accordingly. </p>",
+    "snippetHtml": "<p> By default, shapes are rotated to the slope of the decorations path. If ⟨<i>boolean</i>⟩ is the value <code>false</code>, then this rotation is turned off. Internally this sets the TeX-if <code>\\ifpgfshapedecorationsloped</code> accordingly. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/shape:sloped",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/shape%3Asloped"
@@ -813,7 +813,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> Sets the text to typeset along the curve. Consecutive spaces are ignored, so \\  (or \\space in LaTeX) should be used to insert multiple spaces. It is possible to format the text using normal formatting commands, such as \\it, \\bf and \\color, within customizable delimiters. Initially these delimiters are both | (however, care will be needed regarding the category codes of delimiters – see below). </p>",
+    "snippetHtml": "<p> Sets the text to typeset along the curve. Consecutive spaces are ignored, so <code>\\ </code> (or <code>\\space</code> in LaTeX) should be used to insert multiple spaces. It is possible to format the text using normal formatting commands, such as <code>\\it</code>, <code>\\bf</code> and <code>\\color</code>, within customizable delimiters. Initially these delimiters are both | (however, care will be needed regarding the category codes of delimiters – see below). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text"
@@ -822,7 +822,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> Sets the text to typeset along the curve. Consecutive spaces are ignored, so \\  (or \\space in LaTeX) should be used to insert multiple spaces. It is possible to format the text using normal formatting commands, such as \\it, \\bf and \\color, within customizable delimiters. Initially these delimiters are both | (however, care will be needed regarding the category codes of delimiters – see below). </p>",
+    "snippetHtml": "<p> Sets the text to typeset along the curve. Consecutive spaces are ignored, so <code>\\ </code> (or <code>\\space</code> in LaTeX) should be used to insert multiple spaces. It is possible to format the text using normal formatting commands, such as <code>\\it</code>, <code>\\bf</code> and <code>\\color</code>, within customizable delimiters. Initially these delimiters are both | (however, care will be needed regarding the category codes of delimiters – see below). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text"
@@ -831,7 +831,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text format delimiters=</kbd>{⟨<i>before</i>⟩}{⟨<i>after</i>⟩}",
     "defaultHtml": "(no default, initially <kbd>{|}{}</kbd>)",
-    "snippetHtml": "<p> Set the characters that the text decoration will use to parse formatting commands. If ⟨<i>after</i>⟩ is empty, then ⟨<i>before</i>⟩ will be used for both delimiters. In general you should stick to characters whose category codes are 11 or 12. As + is used to indicate that the specified format commands are added to any existing ones, you should avoid using + as a delimiter. </p>",
+    "snippetHtml": "<p> Set the characters that the text decoration will use to parse formatting commands. If ⟨<i>after</i>⟩ is empty, then ⟨<i>before</i>⟩ will be used for both delimiters. In general you should stick to characters whose category codes are <code>11</code> or <code>12</code>. As <code>+</code> is used to indicate that the specified format commands are added to any existing ones, you should avoid using <code>+</code> as a delimiter. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:format:delimiters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aformat%3Adelimiters"
@@ -840,7 +840,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text format delimiters=</kbd>{⟨<i>before</i>⟩}{⟨<i>after</i>⟩}",
     "defaultHtml": "(no default, initially <kbd>{|}{}</kbd>)",
-    "snippetHtml": "<p> Set the characters that the text decoration will use to parse formatting commands. If ⟨<i>after</i>⟩ is empty, then ⟨<i>before</i>⟩ will be used for both delimiters. In general you should stick to characters whose category codes are 11 or 12. As + is used to indicate that the specified format commands are added to any existing ones, you should avoid using + as a delimiter. </p>",
+    "snippetHtml": "<p> Set the characters that the text decoration will use to parse formatting commands. If ⟨<i>after</i>⟩ is empty, then ⟨<i>before</i>⟩ will be used for both delimiters. In general you should stick to characters whose category codes are <code>11</code> or <code>12</code>. As <code>+</code> is used to indicate that the specified format commands are added to any existing ones, you should avoid using <code>+</code> as a delimiter. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:format:delimiters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aformat%3Adelimiters"
@@ -885,7 +885,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align=</kbd>{⟨<i>alignment options</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This changes the key path to /pgf/decoration/text align and executes ⟨<i>alignment options</i>⟩. </p>",
+    "snippetHtml": "<p> This changes the key path to <code>/pgf/decoration/text align</code> and executes ⟨<i>alignment options</i>⟩. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign"
@@ -894,7 +894,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align=</kbd>{⟨<i>alignment options</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This changes the key path to /pgf/decoration/text align and executes ⟨<i>alignment options</i>⟩. </p>",
+    "snippetHtml": "<p> This changes the key path to <code>/pgf/decoration/text align</code> and executes ⟨<i>alignment options</i>⟩. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign"
@@ -903,7 +903,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align/align=</kbd>⟨<i>alignment</i>⟩",
     "defaultHtml": "(no default, initially <kbd>left</kbd>)",
-    "snippetHtml": "<p> Aligns the text according to ⟨<i>alignment</i>⟩, which should be one of left, right, or center. </p>",
+    "snippetHtml": "<p> Aligns the text according to ⟨<i>alignment</i>⟩, which should be one of <code>left</code>, <code>right</code>, or <code>center</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align/align",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign/align"
@@ -912,7 +912,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align/align=</kbd>⟨<i>alignment</i>⟩",
     "defaultHtml": "(no default, initially <kbd>left</kbd>)",
-    "snippetHtml": "<p> Aligns the text according to ⟨<i>alignment</i>⟩, which should be one of left, right, or center. </p>",
+    "snippetHtml": "<p> Aligns the text according to ⟨<i>alignment</i>⟩, which should be one of <code>left</code>, <code>right</code>, or <code>center</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align/align",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign/align"
@@ -1029,7 +1029,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align/fit to path stretching spaces=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This key works like the previous key except the automaton shifts forward only for space characters (including \\space, but <em>excluding</em> \\ ). </p>",
+    "snippetHtml": "<p> This key works like the previous key except the automaton shifts forward only for space characters (including <code>\\space</code>, but <em>excluding</em> <code>\\ </code>). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align/fit:to:path:stretching:spaces",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign/fit%3Ato%3Apath%3Astretching%3Aspaces"
@@ -1038,7 +1038,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text align/fit to path stretching spaces=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This key works like the previous key except the automaton shifts forward only for space characters (including \\space, but <em>excluding</em> \\ ). </p>",
+    "snippetHtml": "<p> This key works like the previous key except the automaton shifts forward only for space characters (including <code>\\space</code>, but <em>excluding</em> <code>\\ </code>). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:align/fit:to:path:stretching:spaces",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aalign/fit%3Ato%3Apath%3Astretching%3Aspaces"
@@ -1047,7 +1047,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text effects=</kbd>{⟨<i>options</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Execute every option in {⟨<i>options</i>⟩} with the key path for each option temporarily set to /pgf/decoration/text effects/. </p>",
+    "snippetHtml": "<p> Execute every option in {⟨<i>options</i>⟩} with the key path for each option temporarily set to <code>/pgf/decoration/text effects/</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./tikz/text:effects",
     "href": "https://tikz.dev/library-decorations#pgf./tikz/text%3Aeffects"
@@ -1056,7 +1056,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text effects=</kbd>{⟨<i>options</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Execute every option in {⟨<i>options</i>⟩} with the key path for each option temporarily set to /pgf/decoration/text effects/. </p>",
+    "snippetHtml": "<p> Execute every option in {⟨<i>options</i>⟩} with the key path for each option temporarily set to <code>/pgf/decoration/text effects/</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./tikz/text:effects",
     "href": "https://tikz.dev/library-decorations#pgf./tikz/text%3Aeffects"
@@ -1065,7 +1065,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/every character</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p> Set the effects that will be applied to every character in the decoration text. The effects will typically be TikZ node options. Initially, this style is empty so the decoration simply positions nodes at the appropriate position along the path. In order to make the text ‘follow the path’ like the text along path decoration the following key can be added to the every character style. </p>",
+    "snippetHtml": "<p> Set the effects that will be applied to every character in the decoration text. The effects will typically be TikZ node options. Initially, this style is empty so the decoration simply positions nodes at the appropriate position along the path. In order to make the text ‘follow the path’ like the <code>text along path</code> decoration the following key can be added to the <code>every character</code> style. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/every:character",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/every%3Acharacter"
@@ -1074,7 +1074,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/every character</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p> Set the effects that will be applied to every character in the decoration text. The effects will typically be TikZ node options. Initially, this style is empty so the decoration simply positions nodes at the appropriate position along the path. In order to make the text ‘follow the path’ like the text along path decoration the following key can be added to the every character style. </p>",
+    "snippetHtml": "<p> Set the effects that will be applied to every character in the decoration text. The effects will typically be TikZ node options. Initially, this style is empty so the decoration simply positions nodes at the appropriate position along the path. In order to make the text ‘follow the path’ like the <code>text along path</code> decoration the following key can be added to the <code>every character</code> style. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/every:character",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/every%3Acharacter"
@@ -1083,7 +1083,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/text along path</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p> This style automatically sets the TikZ keys transform shape (to make the character slope with the path), anchor=baseline (to make the baseline of the characters ‘sit’ on the path) and inner xsep=0pt (to horizontally fit each node to the character it contains, reducing the spacing between characters). </p>",
+    "snippetHtml": "<p> This style automatically sets the TikZ keys <code>transform shape</code> (to make the character slope with the path), <code>anchor=baseline</code> (to make the baseline of the characters ‘sit’ on the path) and <code>inner xsep=0pt</code> (to horizontally fit each node to the character it contains, reducing the spacing between characters). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/text:along:path",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/text%3Aalong%3Apath"
@@ -1092,7 +1092,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/text along path</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p> This style automatically sets the TikZ keys transform shape (to make the character slope with the path), anchor=baseline (to make the baseline of the characters ‘sit’ on the path) and inner xsep=0pt (to horizontally fit each node to the character it contains, reducing the spacing between characters). </p>",
+    "snippetHtml": "<p> This style automatically sets the TikZ keys <code>transform shape</code> (to make the character slope with the path), <code>anchor=baseline</code> (to make the baseline of the characters ‘sit’ on the path) and <code>inner xsep=0pt</code> (to horizontally fit each node to the character it contains, reducing the spacing between characters). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/text:along:path",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/text%3Aalong%3Apath"
@@ -1101,7 +1101,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/characters=</kbd>{⟨<i>effects</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Shorthand for the every character.</p>",
+    "snippetHtml": "<p>Shorthand for the <code>every character</code>.</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/characters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/characters"
@@ -1110,7 +1110,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/characters=</kbd>{⟨<i>effects</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Shorthand for the every character.</p>",
+    "snippetHtml": "<p>Shorthand for the <code>every character</code>.</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/characters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/characters"
@@ -1209,7 +1209,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/word separator=</kbd>⟨<i>character</i>⟩",
     "defaultHtml": "(no default, initially <kbd>space</kbd>)",
-    "snippetHtml": "<p> Specify the character that is to be used as the word separator. This <em>must</em> be a single character such as a or - or the special value space (which should be used to indicate that spaces should be used as the separator). </p>",
+    "snippetHtml": "<p> Specify the character that is to be used as the word separator. This <em>must</em> be a single character such as <code>a</code> or <code>-</code> or the special value <code>space</code> (which should be used to indicate that spaces should be used as the separator). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/word:separator",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/word%3Aseparator"
@@ -1218,7 +1218,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/word separator=</kbd>⟨<i>character</i>⟩",
     "defaultHtml": "(no default, initially <kbd>space</kbd>)",
-    "snippetHtml": "<p> Specify the character that is to be used as the word separator. This <em>must</em> be a single character such as a or - or the special value space (which should be used to indicate that spaces should be used as the separator). </p>",
+    "snippetHtml": "<p> Specify the character that is to be used as the word separator. This <em>must</em> be a single character such as <code>a</code> or <code>-</code> or the special value <code>space</code> (which should be used to indicate that spaces should be used as the separator). </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/word:separator",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/word%3Aseparator"
@@ -1245,7 +1245,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/character widths=</kbd>{⟨<i>effects</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Shorthand for the every character width style.</p>",
+    "snippetHtml": "<p>Shorthand for the <code>every character width</code> style.</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/character:widths",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/character%3Awidths"
@@ -1254,7 +1254,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/character widths=</kbd>{⟨<i>effects</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Shorthand for the every character width style.</p>",
+    "snippetHtml": "<p>Shorthand for the <code>every character width</code> style.</p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/character:widths",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/character%3Awidths"
@@ -1281,7 +1281,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/character total=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the total number of the characters in the decoration text in ⟨<i>macro</i>⟩. This key can be used with the character count key to produce some quite pleasing effects: </p>",
+    "snippetHtml": "<p> Store the total number of the characters in the decoration text in ⟨<i>macro</i>⟩. This key can be used with the <code>character count</code> key to produce some quite pleasing effects: </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/character:total",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/character%3Atotal"
@@ -1290,7 +1290,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/character total=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the total number of the characters in the decoration text in ⟨<i>macro</i>⟩. This key can be used with the character count key to produce some quite pleasing effects: </p>",
+    "snippetHtml": "<p> Store the total number of the characters in the decoration text in ⟨<i>macro</i>⟩. This key can be used with the <code>character count</code> key to produce some quite pleasing effects: </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/character:total",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/character%3Atotal"
@@ -1299,7 +1299,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/letter count=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of letter being typeset (i.e., the position of the character in the word) in ⟨<i>macro</i>⟩. Numbering starts at 1 and the character acting as a word separator is numbered 0. </p>",
+    "snippetHtml": "<p> Store the number of letter being typeset (i.e., the position of the character in the word) in ⟨<i>macro</i>⟩. Numbering starts at <code>1</code> and the character acting as a word separator is numbered <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/letter:count",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/letter%3Acount"
@@ -1308,7 +1308,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/letter count=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of letter being typeset (i.e., the position of the character in the word) in ⟨<i>macro</i>⟩. Numbering starts at 1 and the character acting as a word separator is numbered 0. </p>",
+    "snippetHtml": "<p> Store the number of letter being typeset (i.e., the position of the character in the word) in ⟨<i>macro</i>⟩. Numbering starts at <code>1</code> and the character acting as a word separator is numbered <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/letter:count",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/letter%3Acount"
@@ -1317,7 +1317,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text/effetcs/letter total=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of letters in the current word in ⟨<i>macro</i>⟩. When the character is the word separator, this value is 0. </p>",
+    "snippetHtml": "<p> Store the number of letters in the current word in ⟨<i>macro</i>⟩. When the character is the word separator, this value is <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text/effetcs/letter:total",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text/effetcs/letter%3Atotal"
@@ -1326,7 +1326,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text/effetcs/letter total=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of letters in the current word in ⟨<i>macro</i>⟩. When the character is the word separator, this value is 0. </p>",
+    "snippetHtml": "<p> Store the number of letters in the current word in ⟨<i>macro</i>⟩. When the character is the word separator, this value is <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text/effetcs/letter:total",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text/effetcs/letter%3Atotal"
@@ -1335,7 +1335,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/word count=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of words in the decoration text in ⟨<i>macro</i>⟩. Numbering starts at 1. When the character is the word separator, ⟨<i>macro</i>⟩ takes the number of the previous word. If the decoration text starts with a word separator ⟨<i>macro</i>⟩ will be 0. </p>",
+    "snippetHtml": "<p> Store the number of words in the decoration text in ⟨<i>macro</i>⟩. Numbering starts at <code>1</code>. When the character is the word separator, ⟨<i>macro</i>⟩ takes the number of the previous word. If the decoration text starts with a word separator ⟨<i>macro</i>⟩ will be <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/word:count",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/word%3Acount"
@@ -1344,7 +1344,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/word count=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Store the number of words in the decoration text in ⟨<i>macro</i>⟩. Numbering starts at 1. When the character is the word separator, ⟨<i>macro</i>⟩ takes the number of the previous word. If the decoration text starts with a word separator ⟨<i>macro</i>⟩ will be 0. </p>",
+    "snippetHtml": "<p> Store the number of words in the decoration text in ⟨<i>macro</i>⟩. Numbering starts at <code>1</code>. When the character is the word separator, ⟨<i>macro</i>⟩ takes the number of the previous word. If the decoration text starts with a word separator ⟨<i>macro</i>⟩ will be <code>0</code>. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/word:count",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/word%3Acount"
@@ -1389,7 +1389,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/path from text=</kbd>{⟨<i>true or false</i>⟩}",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When this key is set to true and the decorated path consists only of a single point, the decoration will calculate the width of the decoration text using all the specified parameters as if the decorated path was actually a straight line starting from the given point. This ‘virtual’ straight line is then decorated with the text. </p>",
+    "snippetHtml": "<p> When this key is set to <code>true</code> and the decorated path consists only of a single point, the decoration will calculate the width of the decoration text using all the specified parameters as if the decorated path was actually a straight line starting from the given point. This ‘virtual’ straight line is then decorated with the text. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/path:from:text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/path%3Afrom%3Atext"
@@ -1398,7 +1398,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/path from text=</kbd>{⟨<i>true or false</i>⟩}",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When this key is set to true and the decorated path consists only of a single point, the decoration will calculate the width of the decoration text using all the specified parameters as if the decorated path was actually a straight line starting from the given point. This ‘virtual’ straight line is then decorated with the text. </p>",
+    "snippetHtml": "<p> When this key is set to <code>true</code> and the decorated path consists only of a single point, the decoration will calculate the width of the decoration text using all the specified parameters as if the decorated path was actually a straight line starting from the given point. This ‘virtual’ straight line is then decorated with the text. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/path:from:text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/path%3Afrom%3Atext"
@@ -1407,7 +1407,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/path from text angle=</kbd>⟨<i>angle</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When used in conjunction with the path from text key, the straight line that is used as the decorated path is rotated by ⟨<i>angle</i>⟩ around the starting point. </p>",
+    "snippetHtml": "<p> When used in conjunction with the <code>path from text</code> key, the straight line that is used as the decorated path is rotated by ⟨<i>angle</i>⟩ around the starting point. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/path:from:text:angle",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/path%3Afrom%3Atext%3Aangle"
@@ -1416,7 +1416,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/path from text angle=</kbd>⟨<i>angle</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When used in conjunction with the path from text key, the straight line that is used as the decorated path is rotated by ⟨<i>angle</i>⟩ around the starting point. </p>",
+    "snippetHtml": "<p> When used in conjunction with the <code>path from text</code> key, the straight line that is used as the decorated path is rotated by ⟨<i>angle</i>⟩ around the starting point. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/path:from:text:angle",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/path%3Afrom%3Atext%3Aangle"
@@ -1497,7 +1497,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/repeat text=</kbd>⟨<i>times</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Usually, when the decoration runs out of text, it simply stops. This key will make the decoration repeat the decoration text for the specified number of ⟨<i>times</i>⟩. If no value is given the text will be repeated until the path is finished. There are two points to remember however. Firstly the numbering of characters, letters and words will be restarted each time the text is repeated. Secondly, the options for alignment, scaling or fitting the text to the path, fitting the path to the text, and so on, are computed using the decoration text before the decoration starts. If any of these options are given the behavior of the repeat text key is undefined, but typically it will be ignored. </p>",
+    "snippetHtml": "<p> Usually, when the decoration runs out of text, it simply stops. This key will make the decoration repeat the decoration text for the specified number of ⟨<i>times</i>⟩. If no value is given the text will be repeated until the path is finished. There are two points to remember however. Firstly the numbering of characters, letters and words will be restarted each time the text is repeated. Secondly, the options for alignment, scaling or fitting the text to the path, fitting the path to the text, and so on, are computed using the decoration text before the decoration starts. If any of these options are given the behavior of the <code>repeat text</code> key is undefined, but typically it will be ignored. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/repeat:text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/repeat%3Atext"
@@ -1506,7 +1506,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/repeat text=</kbd>⟨<i>times</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Usually, when the decoration runs out of text, it simply stops. This key will make the decoration repeat the decoration text for the specified number of ⟨<i>times</i>⟩. If no value is given the text will be repeated until the path is finished. There are two points to remember however. Firstly the numbering of characters, letters and words will be restarted each time the text is repeated. Secondly, the options for alignment, scaling or fitting the text to the path, fitting the path to the text, and so on, are computed using the decoration text before the decoration starts. If any of these options are given the behavior of the repeat text key is undefined, but typically it will be ignored. </p>",
+    "snippetHtml": "<p> Usually, when the decoration runs out of text, it simply stops. This key will make the decoration repeat the decoration text for the specified number of ⟨<i>times</i>⟩. If no value is given the text will be repeated until the path is finished. There are two points to remember however. Firstly the numbering of characters, letters and words will be restarted each time the text is repeated. Secondly, the options for alignment, scaling or fitting the text to the path, fitting the path to the text, and so on, are computed using the decoration text before the decoration starts. If any of these options are given the behavior of the <code>repeat text</code> key is undefined, but typically it will be ignored. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/repeat:text",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/repeat%3Atext"
@@ -1533,7 +1533,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/replace characters=</kbd>⟨<i>characters</i>⟩ with {⟨<i>code</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Replace the node for each character in ⟨<i>characters</i>⟩ with ⟨<i>code</i>⟩. The ⟨<i>code</i>⟩ can be thought of as describing a little picture or marking which will be used instead of the character node. The origin will be the current point along the decoration path. Any transformations associated with the ⟨<i>characters</i>⟩ (e.g., applied with the every character or every letter styles) will also be applied to ⟨<i>code</i>⟩. </p>",
+    "snippetHtml": "<p> Replace the node for each character in ⟨<i>characters</i>⟩ with ⟨<i>code</i>⟩. The ⟨<i>code</i>⟩ can be thought of as describing a little picture or marking which will be used instead of the character node. The origin will be the current point along the decoration path. Any transformations associated with the ⟨<i>characters</i>⟩ (e.g., applied with the <code>every character</code> or <code>every letter</code> styles) will also be applied to ⟨<i>code</i>⟩. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/replace:characters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/replace%3Acharacters"
@@ -1542,7 +1542,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/decoration/text effects/replace characters=</kbd>⟨<i>characters</i>⟩ with {⟨<i>code</i>⟩}",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Replace the node for each character in ⟨<i>characters</i>⟩ with ⟨<i>code</i>⟩. The ⟨<i>code</i>⟩ can be thought of as describing a little picture or marking which will be used instead of the character node. The origin will be the current point along the decoration path. Any transformations associated with the ⟨<i>characters</i>⟩ (e.g., applied with the every character or every letter styles) will also be applied to ⟨<i>code</i>⟩. </p>",
+    "snippetHtml": "<p> Replace the node for each character in ⟨<i>characters</i>⟩ with ⟨<i>code</i>⟩. The ⟨<i>code</i>⟩ can be thought of as describing a little picture or marking which will be used instead of the character node. The origin will be the current point along the decoration path. Any transformations associated with the ⟨<i>characters</i>⟩ (e.g., applied with the <code>every character</code> or <code>every letter</code> styles) will also be applied to ⟨<i>code</i>⟩. </p>",
     "page": "library-decorations",
     "anchor": "pgf./pgf/decoration/text:effects/replace:characters",
     "href": "https://tikz.dev/library-decorations#pgf./pgf/decoration/text%3Aeffects/replace%3Acharacters"

@@ -1,9 +1,9 @@
 {
   "child": {
     "type": "key",
-    "signatureHtml": "<kbd>\\path</kbd> … <kbd>child</kbd>[⟨<i>options</i>⟩]foreach⟨<i>variables</i>⟩in{⟨<i>values</i>⟩}{⟨<i>child path</i>⟩} …<kbd>;</kbd>",
+    "signatureHtml": "<kbd>\\path</kbd> … <kbd>child</kbd>[⟨<i>options</i>⟩]<code>foreach</code>⟨<i>variables</i>⟩<code>in</code>{⟨<i>values</i>⟩}{⟨<i>child path</i>⟩} …<kbd>;</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> This operation should directly follow a completed node operation or another child operation, although it is permissible that the first child operation is preceded by options (we will come to that). </p><p> When a node operation like node {X} is followed by child, TikZ starts counting the number of child nodes that follow the original node {X}. For this, it scans the input and stores away each child and its arguments until it reaches a path operation that is not a child. Note that this will fix the character codes of all text inside the child arguments, which means, in essence, that you cannot use verbatim text inside the nodes inside a child. Sorry. </p>",
+    "snippetHtml": "<p> This operation should directly follow a completed <code>node</code> operation or another <code>child</code> operation, although it is permissible that the first <code>child</code> operation is preceded by options (we will come to that). </p><p> When a <code>node</code> operation like <code>node {X}</code> is followed by <code>child</code>, TikZ starts counting the number of child nodes that follow the original <code>node {X}</code>. For this, it scans the input and stores away each <code>child</code> and its arguments until it reaches a path operation that is not a <code>child</code>. Note that this will fix the character codes of all text inside the child arguments, which means, in essence, that you cannot use verbatim text inside the nodes inside a <code>child</code>. Sorry. </p>",
     "page": "tikz-trees",
     "anchor": "pgf.child",
     "href": "https://tikz.dev/tikz-trees#pgf.child"
@@ -12,7 +12,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every child</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is used at the beginning of each child, as if you had given the style’s contents as options to the child operation. </p>",
+    "snippetHtml": "<p> This style is used at the beginning of each child, as if you had given the style’s contents as options to the <code>child</code> operation. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/every:child",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/every%3Achild"
@@ -21,7 +21,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every child</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is used at the beginning of each child, as if you had given the style’s contents as options to the child operation. </p>",
+    "snippetHtml": "<p> This style is used at the beginning of each child, as if you had given the style’s contents as options to the <code>child</code> operation. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/every:child",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/every%3Achild"
@@ -30,7 +30,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every child node</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p>This style is used at the beginning of each child node in addition to the every node style.</p>",
+    "snippetHtml": "<p>This style is used at the beginning of each child node in addition to the <code>every node</code> style.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/every:child:node",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/every%3Achild%3Anode"
@@ -39,7 +39,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every child node</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p>This style is used at the beginning of each child node in addition to the every node style.</p>",
+    "snippetHtml": "<p>This style is used at the beginning of each child node in addition to the <code>every node</code> style.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/every:child:node",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/every%3Achild%3Anode"
@@ -48,7 +48,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/level=</kbd>⟨<i>number</i>⟩",
     "defaultHtml": "(style, no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is executed at the beginning of each set of children, where ⟨<i>number</i>⟩ is the current level in the current tree. For example, when you say \\node {x} child child;, then level=1 is used before the first child. The style or code of this key will be passed ⟨<i>number</i>⟩ as its first parameter. If this first child has children itself, then level=2 would be used for them. </p>",
+    "snippetHtml": "<p> This style is executed at the beginning of each set of children, where ⟨<i>number</i>⟩ is the current level in the current tree. For example, when you say <code>\\node {x} child child;</code>, then <code>level=1</code> is used before the first <code>child</code>. The style or code of this key will be passed ⟨<i>number</i>⟩ as its first parameter. If this first <code>child</code> has children itself, then <code>level=2</code> would be used for them. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/level",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/level"
@@ -57,7 +57,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/level=</kbd>⟨<i>number</i>⟩",
     "defaultHtml": "(style, no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is executed at the beginning of each set of children, where ⟨<i>number</i>⟩ is the current level in the current tree. For example, when you say \\node {x} child child;, then level=1 is used before the first child. The style or code of this key will be passed ⟨<i>number</i>⟩ as its first parameter. If this first child has children itself, then level=2 would be used for them. </p>",
+    "snippetHtml": "<p> This style is executed at the beginning of each set of children, where ⟨<i>number</i>⟩ is the current level in the current tree. For example, when you say <code>\\node {x} child child;</code>, then <code>level=1</code> is used before the first <code>child</code>. The style or code of this key will be passed ⟨<i>number</i>⟩ as its first parameter. If this first <code>child</code> has children itself, then <code>level=2</code> would be used for them. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/level",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/level"
@@ -102,7 +102,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/grow=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is used to define the ⟨<i>direction</i>⟩ in which the tree will grow. The ⟨<i>direction</i>⟩ can either be an angle in degrees or one of the following special text strings: down, up, left, right, north, south, east, west, north east, north west, south east, and south west. All of these have “their obvious meaning”, so, say, south west is the same as the angle \\(-135^\\circ \\). </p><p>As a side effect, this option installs the default growth function.</p>",
+    "snippetHtml": "<p> This key is used to define the ⟨<i>direction</i>⟩ in which the tree will grow. The ⟨<i>direction</i>⟩ can either be an angle in degrees or one of the following special text strings: <code>down</code>, <code>up</code>, <code>left</code>, <code>right</code>, <code>north</code>, <code>south</code>, <code>east</code>, <code>west</code>, <code>north east</code>, <code>north west</code>, <code>south east</code>, and <code>south west</code>. All of these have “their obvious meaning”, so, say, <code>south west</code> is the same as the angle \\(-135^\\circ \\). </p><p>As a side effect, this option installs the default growth function.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/grow",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/grow"
@@ -111,7 +111,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/grow=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is used to define the ⟨<i>direction</i>⟩ in which the tree will grow. The ⟨<i>direction</i>⟩ can either be an angle in degrees or one of the following special text strings: down, up, left, right, north, south, east, west, north east, north west, south east, and south west. All of these have “their obvious meaning”, so, say, south west is the same as the angle \\(-135^\\circ \\). </p><p>As a side effect, this option installs the default growth function.</p>",
+    "snippetHtml": "<p> This key is used to define the ⟨<i>direction</i>⟩ in which the tree will grow. The ⟨<i>direction</i>⟩ can either be an angle in degrees or one of the following special text strings: <code>down</code>, <code>up</code>, <code>left</code>, <code>right</code>, <code>north</code>, <code>south</code>, <code>east</code>, <code>west</code>, <code>north east</code>, <code>north west</code>, <code>south east</code>, and <code>south west</code>. All of these have “their obvious meaning”, so, say, <code>south west</code> is the same as the angle \\(-135^\\circ \\). </p><p>As a side effect, this option installs the default growth function.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/grow",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/grow"
@@ -120,7 +120,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/grow'=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>This key has the same effect as grow, only the children are arranged in the opposite order.</p>",
+    "snippetHtml": "<p>This key has the same effect as <code>grow</code>, only the children are arranged in the opposite order.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/grow'",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/grow'"
@@ -129,7 +129,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/grow'=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>This key has the same effect as grow, only the children are arranged in the opposite order.</p>",
+    "snippetHtml": "<p>This key has the same effect as <code>grow</code>, only the children are arranged in the opposite order.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/grow'",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/grow'"
@@ -156,7 +156,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/growth parent anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>center</kbd>)",
-    "snippetHtml": "<p> This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the level distance is 2cm, then the child node will be placed two centimeters below the ⟨<i>anchor</i>⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the anchor= option in the node command of the child) is two centimeters below the parent node’s ⟨<i>anchor</i>⟩. </p><p>In the following example, the two red lines both have length 1cm.</p>",
+    "snippetHtml": "<p> This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the <code>level distance</code> is <code>2cm</code>, then the child node will be placed two centimeters below the ⟨<i>anchor</i>⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the <code>anchor=</code> option in the <code>node</code> command of the child) is two centimeters below the parent node’s ⟨<i>anchor</i>⟩. </p><p>In the following example, the two red lines both have length <code>1cm</code>.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/growth:parent:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/growth%3Aparent%3Aanchor"
@@ -165,7 +165,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/growth parent anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>center</kbd>)",
-    "snippetHtml": "<p> This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the level distance is 2cm, then the child node will be placed two centimeters below the ⟨<i>anchor</i>⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the anchor= option in the node command of the child) is two centimeters below the parent node’s ⟨<i>anchor</i>⟩. </p><p>In the following example, the two red lines both have length 1cm.</p>",
+    "snippetHtml": "<p> This key allows you to specify which anchor of the parent node is to be used for computing the children’s position. For example, when there is only one child and the <code>level distance</code> is <code>2cm</code>, then the child node will be placed two centimeters below the ⟨<i>anchor</i>⟩ of the parent node. “Being placed” means that the child node’s anchor (which is the anchor specified using the <code>anchor=</code> option in the <code>node</code> command of the child) is two centimeters below the parent node’s ⟨<i>anchor</i>⟩. </p><p>In the following example, the two red lines both have length <code>1cm</code>.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/growth:parent:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/growth%3Aparent%3Aanchor"
@@ -174,7 +174,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/growth function=</kbd>⟨<i>macro name</i>⟩",
     "defaultHtml": "(no default, initially <kbd>an internal function</kbd>)",
-    "snippetHtml": "<p> This rather low-level option allows you to set a new growth function. The ⟨<i>macro name</i>⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth. </p><p> The effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨<i>macro name</i>⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter \\tikznumberofchildren will be set to the total number of children of the parent node and the counter \\tikznumberofcurrentchild will be set to the number of the current child. </p>",
+    "snippetHtml": "<p> This rather low-level option allows you to set a new growth function. The ⟨<i>macro name</i>⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth. </p><p> The effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨<i>macro name</i>⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter <code>\\tikznumberofchildren</code> will be set to the total number of children of the parent node and the counter <code>\\tikznumberofcurrentchild</code> will be set to the number of the current child. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/growth:function",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/growth%3Afunction"
@@ -183,7 +183,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/growth function=</kbd>⟨<i>macro name</i>⟩",
     "defaultHtml": "(no default, initially <kbd>an internal function</kbd>)",
-    "snippetHtml": "<p> This rather low-level option allows you to set a new growth function. The ⟨<i>macro name</i>⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth. </p><p> The effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨<i>macro name</i>⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter \\tikznumberofchildren will be set to the total number of children of the parent node and the counter \\tikznumberofcurrentchild will be set to the number of the current child. </p>",
+    "snippetHtml": "<p> This rather low-level option allows you to set a new growth function. The ⟨<i>macro name</i>⟩ must be the name of a macro without parameters. This macro will be called for each child of a node. The initial function is an internal function that corresponds to downward growth. </p><p> The effect of executing the macro should be the following: It should transform the coordinate system in such a way that the origin becomes the place where the current child should be anchored. When the macro is called, the current coordinate system will be set up such that the anchor of the parent node is in the origin. Thus, in each call, the ⟨<i>macro name</i>⟩ must essentially do a shift to the child’s origin. When the macro is called, the TeX counter <code>\\tikznumberofchildren</code> will be set to the total number of children of the parent node and the counter <code>\\tikznumberofcurrentchild</code> will be set to the number of the current child. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/growth:function",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/growth%3Afunction"
@@ -192,7 +192,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/edge from parent</kbd>",
     "defaultHtml": "(style, initially <kbd>draw</kbd>)",
-    "snippetHtml": "<p> This style is inserted right before the edge from parent path and before the ⟨<i>options</i>⟩ are inserted. </p>",
+    "snippetHtml": "<p> This style is inserted right before the <code>edge from parent path</code> and before the ⟨<i>options</i>⟩ are inserted. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent"
@@ -201,7 +201,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/edge from parent</kbd>",
     "defaultHtml": "(style, initially <kbd>draw</kbd>)",
-    "snippetHtml": "<p> This style is inserted right before the edge from parent path and before the ⟨<i>options</i>⟩ are inserted. </p>",
+    "snippetHtml": "<p> This style is inserted right before the <code>edge from parent path</code> and before the ⟨<i>options</i>⟩ are inserted. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent"
@@ -210,7 +210,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/edge from parent path=</kbd>⟨<i>path</i>⟩",
     "defaultHtml": "(no default, initially <kbd>code shown below</kbd>)",
-    "snippetHtml": "<p> This option allows you to set the edge from parent path to a new path. Initially, this path is the following: </p>",
+    "snippetHtml": "<p> This option allows you to set the <code>edge from parent path</code> to a new path. Initially, this path is the following: </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent:path",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent%3Apath"
@@ -219,7 +219,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/edge from parent path=</kbd>⟨<i>path</i>⟩",
     "defaultHtml": "(no default, initially <kbd>code shown below</kbd>)",
-    "snippetHtml": "<p> This option allows you to set the edge from parent path to a new path. Initially, this path is the following: </p>",
+    "snippetHtml": "<p> This option allows you to set the <code>edge from parent path</code> to a new path. Initially, this path is the following: </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent:path",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent%3Apath"
@@ -228,7 +228,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/child anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>border</kbd>)",
-    "snippetHtml": "<p> Specifies the anchor where the edge from parent meets the child node by setting the macro \\tikzchildanchor to .⟨<i>anchor</i>⟩. </p><p> If you specify border as the ⟨<i>anchor</i>⟩, then the macro \\tikzchildanchor is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position. </p>",
+    "snippetHtml": "<p> Specifies the anchor where the edge from parent meets the child node by setting the macro <code>\\tikzchildanchor</code> to <code>.</code>⟨<i>anchor</i>⟩. </p><p> If you specify <code>border</code> as the ⟨<i>anchor</i>⟩, then the macro <code>\\tikzchildanchor</code> is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/child:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/child%3Aanchor"
@@ -237,7 +237,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/child anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>border</kbd>)",
-    "snippetHtml": "<p> Specifies the anchor where the edge from parent meets the child node by setting the macro \\tikzchildanchor to .⟨<i>anchor</i>⟩. </p><p> If you specify border as the ⟨<i>anchor</i>⟩, then the macro \\tikzchildanchor is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position. </p>",
+    "snippetHtml": "<p> Specifies the anchor where the edge from parent meets the child node by setting the macro <code>\\tikzchildanchor</code> to <code>.</code>⟨<i>anchor</i>⟩. </p><p> If you specify <code>border</code> as the ⟨<i>anchor</i>⟩, then the macro <code>\\tikzchildanchor</code> is set to the empty string. The effect of this is that the edge from the parent will meet the child on the border at an automatically calculated position. </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/child:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/child%3Aanchor"
@@ -246,7 +246,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/parent anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>border</kbd>)",
-    "snippetHtml": "<p>This option works the same way as the child anchor, only for the parent.</p>",
+    "snippetHtml": "<p>This option works the same way as the <code>child anchor</code>, only for the parent.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/parent:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/parent%3Aanchor"
@@ -255,7 +255,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/parent anchor=</kbd>⟨<i>anchor</i>⟩",
     "defaultHtml": "(no default, initially <kbd>border</kbd>)",
-    "snippetHtml": "<p>This option works the same way as the child anchor, only for the parent.</p>",
+    "snippetHtml": "<p>This option works the same way as the <code>child anchor</code>, only for the parent.</p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/parent:anchor",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/parent%3Aanchor"
@@ -264,7 +264,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/edge from parent macro=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>macro</i>⟩ gets expanded each time the edge from parent path operation is used. This ⟨<i>macro</i>⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨<i>options</i>⟩ that where passed to the edge from parent command, the second parameter will be the ⟨<i>node specifications</i>⟩ that following the command. </p><p> The standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨<i>macro</i>⟩ to the following: </p>",
+    "snippetHtml": "<p> The ⟨<i>macro</i>⟩ gets expanded each time the <code>edge from parent</code> path operation is used. This ⟨<i>macro</i>⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨<i>options</i>⟩ that where passed to the <code>edge from parent</code> command, the second parameter will be the ⟨<i>node specifications</i>⟩ that following the command. </p><p> The standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨<i>macro</i>⟩ to the following: </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent:macro",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent%3Amacro"
@@ -273,7 +273,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/edge from parent macro=</kbd>⟨<i>macro</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>macro</i>⟩ gets expanded each time the edge from parent path operation is used. This ⟨<i>macro</i>⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨<i>options</i>⟩ that where passed to the edge from parent command, the second parameter will be the ⟨<i>node specifications</i>⟩ that following the command. </p><p> The standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨<i>macro</i>⟩ to the following: </p>",
+    "snippetHtml": "<p> The ⟨<i>macro</i>⟩ gets expanded each time the <code>edge from parent</code> path operation is used. This ⟨<i>macro</i>⟩ must take two parameters and must expand to some text that is subsequently parsed by the parser. The first parameter will be the set of ⟨<i>options</i>⟩ that where passed to the <code>edge from parent</code> command, the second parameter will be the ⟨<i>node specifications</i>⟩ that following the command. </p><p> The standard behavior of drawing a straight line from the parent node to the child node could be achieved by setting the ⟨<i>macro</i>⟩ to the following: </p>",
     "page": "tikz-trees",
     "anchor": "pgf./tikz/edge:from:parent:macro",
     "href": "https://tikz.dev/tikz-trees#pgf./tikz/edge%3Afrom%3Aparent%3Amacro"

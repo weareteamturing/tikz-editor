@@ -44,7 +44,8 @@ import {
   hoverTooltip,
   keymap,
   lineNumbers,
-  rectangularSelection
+  rectangularSelection,
+  tooltips
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
@@ -166,6 +167,39 @@ const MAX_FORMATTER_MAX_LINE_LENGTH = 240;
 const SOURCE_PICKER_COLORS = uniqueStrings(["none", ...NAMED_COLORS]);
 const ENABLE_TIKZ_AUTOCOMPLETE = true;
 
+type MathJaxBrowserRuntime = {
+  typesetPromise?: (elements?: Element[]) => Promise<void>;
+};
+
+function stripTikzPrefixInSignatureHtml(signatureHtml: string): string {
+  const template = document.createElement("template");
+  template.innerHTML = signatureHtml;
+  template.content.querySelectorAll("kbd, code").forEach((el) => {
+    const text = el.textContent;
+    if (!text) return;
+    if (text.startsWith("/tikz/")) {
+      el.textContent = text.slice("/tikz/".length);
+    }
+  });
+  return template.innerHTML;
+}
+
+function includesInlineMath(text: string | null | undefined): boolean {
+  return typeof text === "string" && text.includes("\\(");
+}
+
+function maybeTypesetTooltipMathJax(dom: HTMLElement): void {
+  const runtime = (globalThis as { MathJax?: MathJaxBrowserRuntime }).MathJax;
+  if (!runtime || typeof runtime.typesetPromise !== "function") {
+    return;
+  }
+  queueMicrotask(() => {
+    void runtime.typesetPromise?.([dom]).catch(() => {
+      // Keep tooltip rendering resilient if MathJax fails on malformed inline input.
+    });
+  });
+}
+
 // ── State fields ─────────────────────────────────────────────────────────────
 
 const highlightField = StateField.define<DecorationSet>({
@@ -280,7 +314,7 @@ const docsTooltip = hoverTooltip(async (view, pos, side) => {
         if (entry.signatureHtml) {
           const signature = document.createElement("div");
           signature.className = "cm-editor-docs-tooltip-signature";
-          signature.innerHTML = entry.signatureHtml;
+          signature.innerHTML = stripTikzPrefixInSignatureHtml(entry.signatureHtml);
           meta.appendChild(signature);
         }
 
@@ -319,6 +353,14 @@ const docsTooltip = hoverTooltip(async (view, pos, side) => {
       });
       linkRow.appendChild(link);
       dom.appendChild(linkRow);
+
+      const shouldTypesetMath =
+        includesInlineMath(entry.signatureHtml) ||
+        includesInlineMath(entry.defaultHtml) ||
+        includesInlineMath(entry.snippetHtml);
+      if (shouldTypesetMath) {
+        maybeTypesetTooltipMathJax(dom);
+      }
 
       return { dom };
     }
@@ -560,6 +602,7 @@ export function SourcePanel() {
         highlightField,
         diagnosticsField,
         figureOverlayField,
+        tooltips({ parent: document.body }),
         diagnosticTooltip,
         docsTooltip,
         sourceHoverBridge,

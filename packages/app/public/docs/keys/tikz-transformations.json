@@ -21,7 +21,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/y=</kbd>⟨<i>value</i>⟩",
     "defaultHtml": "(no default, initially <kbd>1cm</kbd>)",
-    "snippetHtml": "<p> Works like the x= option, only if ⟨<i>value</i>⟩ is a dimension, the resulting vector points to (0,⟨<i>value</i>⟩). </p>",
+    "snippetHtml": "<p> Works like the <code>x=</code> option, only if ⟨<i>value</i>⟩ is a dimension, the resulting vector points to (0,⟨<i>value</i>⟩). </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/y",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/y"
@@ -30,7 +30,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/y=</kbd>⟨<i>value</i>⟩",
     "defaultHtml": "(no default, initially <kbd>1cm</kbd>)",
-    "snippetHtml": "<p> Works like the x= option, only if ⟨<i>value</i>⟩ is a dimension, the resulting vector points to (0,⟨<i>value</i>⟩). </p>",
+    "snippetHtml": "<p> Works like the <code>x=</code> option, only if ⟨<i>value</i>⟩ is a dimension, the resulting vector points to (0,⟨<i>value</i>⟩). </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/y",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/y"
@@ -39,7 +39,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/z=</kbd>⟨<i>value</i>⟩",
     "defaultHtml": "(no default, initially <kbd>\\(-3.85\\)mm</kbd>)",
-    "snippetHtml": "<p> Works like the y= option, but now a dimension is the point (⟨<i>value</i>⟩,⟨<i>value</i>⟩). </p>",
+    "snippetHtml": "<p> Works like the <code>y=</code> option, but now a dimension is the point (⟨<i>value</i>⟩,⟨<i>value</i>⟩). </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/z",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/z"
@@ -48,7 +48,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/z=</kbd>⟨<i>value</i>⟩",
     "defaultHtml": "(no default, initially <kbd>\\(-3.85\\)mm</kbd>)",
-    "snippetHtml": "<p> Works like the y= option, but now a dimension is the point (⟨<i>value</i>⟩,⟨<i>value</i>⟩). </p>",
+    "snippetHtml": "<p> Works like the <code>y=</code> option, but now a dimension is the point (⟨<i>value</i>⟩,⟨<i>value</i>⟩). </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/z",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/z"
@@ -145,7 +145,7 @@
   },
   "/tikz/scale around": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/scale around=</kbd>{⟨<i>factor</i>⟩:⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/scale around=</kbd>{⟨<i>factor</i>⟩<code>:</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> Scales the coordinate system by ⟨<i>factor</i>⟩, with the “origin of scaling” centered on ⟨<i>coordinate</i>⟩ rather than the origin. </p>",
     "page": "tikz-transformations",
@@ -154,7 +154,7 @@
   },
   "scale around": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/scale around=</kbd>{⟨<i>factor</i>⟩:⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/scale around=</kbd>{⟨<i>factor</i>⟩<code>:</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> Scales the coordinate system by ⟨<i>factor</i>⟩, with the “origin of scaling” centered on ⟨<i>coordinate</i>⟩ rather than the origin. </p>",
     "page": "tikz-transformations",
@@ -253,7 +253,7 @@
   },
   "/tikz/rotate around": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/rotate around=</kbd>{⟨<i>degree</i>⟩:⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/rotate around=</kbd>{⟨<i>degree</i>⟩<code>:</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> Rotates the coordinate system by ⟨<i>degree</i>⟩ around the point ⟨<i>coordinate</i>⟩. </p>",
     "page": "tikz-transformations",
@@ -262,7 +262,7 @@
   },
   "rotate around": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/rotate around=</kbd>{⟨<i>degree</i>⟩:⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/rotate around=</kbd>{⟨<i>degree</i>⟩<code>:</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> Rotates the coordinate system by ⟨<i>degree</i>⟩ around the point ⟨<i>coordinate</i>⟩. </p>",
     "page": "tikz-transformations",
@@ -325,7 +325,7 @@
   },
   "/tikz/cm": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/cm=</kbd>{⟨<i>\\(a\\)</i>⟩,⟨<i>\\(b\\)</i>⟩,⟨<i>\\(c\\)</i>⟩,⟨<i>\\(d\\)</i>⟩,⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/cm=</kbd>{⟨<i>\\(a\\)</i>⟩<code>,</code>⟨<i>\\(b\\)</i>⟩<code>,</code>⟨<i>\\(c\\)</i>⟩<code>,</code>⟨<i>\\(d\\)</i>⟩<code>,</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> applies the following transformation to all coordinates: Let \\((x,y)\\) be the coordinate to be transformed and let ⟨<i>coordinate</i>⟩ specify the point \\((t_x,t_y)\\). Then the new coordinate is given by \\(\\left (\\begin {smallmatrix} a &amp; c \\\\ b &amp; d\\end {smallmatrix}\\right ) \\left (\\begin {smallmatrix} x \\\\ y \\end {smallmatrix}\\right ) + \\left (\\begin {smallmatrix} t_x \\\\ t_y \\end {smallmatrix}\\right )\\). Usually, you do not use this option directly. </p>",
     "page": "tikz-transformations",
@@ -334,7 +334,7 @@
   },
   "cm": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/cm=</kbd>{⟨<i>\\(a\\)</i>⟩,⟨<i>\\(b\\)</i>⟩,⟨<i>\\(c\\)</i>⟩,⟨<i>\\(d\\)</i>⟩,⟨<i>coordinate</i>⟩}",
+    "signatureHtml": "<kbd>/tikz/cm=</kbd>{⟨<i>\\(a\\)</i>⟩<code>,</code>⟨<i>\\(b\\)</i>⟩<code>,</code>⟨<i>\\(c\\)</i>⟩<code>,</code>⟨<i>\\(d\\)</i>⟩<code>,</code>⟨<i>coordinate</i>⟩}",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> applies the following transformation to all coordinates: Let \\((x,y)\\) be the coordinate to be transformed and let ⟨<i>coordinate</i>⟩ specify the point \\((t_x,t_y)\\). Then the new coordinate is given by \\(\\left (\\begin {smallmatrix} a &amp; c \\\\ b &amp; d\\end {smallmatrix}\\right ) \\left (\\begin {smallmatrix} x \\\\ y \\end {smallmatrix}\\right ) + \\left (\\begin {smallmatrix} t_x \\\\ t_y \\end {smallmatrix}\\right )\\). Usually, you do not use this option directly. </p>",
     "page": "tikz-transformations",
@@ -363,7 +363,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/transform canvas=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>options</i>⟩ should contain coordinate transformations options like scale or xshift. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨<i>options</i>⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct. </p>",
+    "snippetHtml": "<p> The ⟨<i>options</i>⟩ should contain coordinate transformations options like <code>scale</code> or <code>xshift</code>. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨<i>options</i>⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct. </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/transform:canvas",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/transform%3Acanvas"
@@ -372,7 +372,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/transform canvas=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>options</i>⟩ should contain coordinate transformations options like scale or xshift. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨<i>options</i>⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct. </p>",
+    "snippetHtml": "<p> The ⟨<i>options</i>⟩ should contain coordinate transformations options like <code>scale</code> or <code>xshift</code>. Multiple options can be given, their effects accumulate in the usual manner. The effect of these ⟨<i>options</i>⟩ (immediately) changes the current canvas transformation matrix. The coordinate transformation matrix is not changed. Tracking of the picture size is (locally) switched off and the node coordinate will no longer be correct. </p>",
     "page": "tikz-transformations",
     "anchor": "pgf./tikz/transform:canvas",
     "href": "https://tikz.dev/tikz-transformations#pgf./tikz/transform%3Acanvas"

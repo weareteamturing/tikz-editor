@@ -12,7 +12,7 @@
     "type": "key",
     "signatureHtml": "<b>TikZ Library</b> <kbd>patterns.meta</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> <kbd>\\usepgflibrary{patterns.meta} % LaTeX and plain TeX and pure pgf</kbd><br> <kbd>\\usepgflibrary[patterns.meta] % ConTeXt and pure pgf</kbd><br> <kbd>\\usetikzlibrary{patterns.meta} % LaTeX and plain TeX when using TikZ</kbd><br> <kbd>\\usetikzlibrary[patterns.meta] % ConTeXt when using TikZ</kbd><br> <br> Define your own patterns with a syntax similar to arrows.meta. </p>",
+    "snippetHtml": "<p> <kbd>\\usepgflibrary{patterns.meta} % LaTeX and plain TeX and pure pgf</kbd><br> <kbd>\\usepgflibrary[patterns.meta] % ConTeXt and pure pgf</kbd><br> <kbd>\\usetikzlibrary{patterns.meta} % LaTeX and plain TeX when using TikZ</kbd><br> <kbd>\\usetikzlibrary[patterns.meta] % ConTeXt when using TikZ</kbd><br> <br> Define your own patterns with a syntax similar to <code>arrows.meta</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf.patterns.meta",
     "href": "https://tikz.dev/library-patterns#pgf.patterns.meta"
@@ -21,7 +21,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\pgfdeclarepattern</kbd>{⟨<i>config</i>⟩}",
     "defaultHtml": "",
-    "snippetHtml": "<p> This command is used to declare a new pattern. In contrast to the normal patterns and in the spirit of arrows.meta this command takes a list of keys and values to define the pattern. The following keys are available: </p>",
+    "snippetHtml": "<p> This command is used to declare a new pattern. In contrast to the normal patterns and in the spirit of <code>arrows.meta</code> this command takes a list of keys and values to define the pattern. The following keys are available: </p>",
     "page": "library-patterns",
     "anchor": "pgf.back/pgfdeclarepattern",
     "href": "https://tikz.dev/library-patterns#pgf.back/pgfdeclarepattern"
@@ -120,7 +120,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/defaults=</kbd>⟨<i>comma separated list</i>⟩",
     "defaultHtml": "(default <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the /pgf/pattern keys/ prefix. </p>",
+    "snippetHtml": "<p> This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the <code>/pgf/pattern keys/</code> prefix. </p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/defaults",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/defaults"
@@ -129,7 +129,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/defaults=</kbd>⟨<i>comma separated list</i>⟩",
     "defaultHtml": "(default <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the /pgf/pattern keys/ prefix. </p>",
+    "snippetHtml": "<p> This list holds default assignments to the parameters passed to the pattern. The default keys can then be found under the <code>/pgf/pattern keys/</code> prefix. </p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/defaults",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/defaults"
@@ -138,7 +138,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/bottom left=</kbd>⟨<i>pgfpoint</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Bottom left corner of the pattern’s bounding box, e.g. \\pgfqpoint{-.1pt}{-.1pt}.</p>",
+    "snippetHtml": "<p>Bottom left corner of the pattern’s bounding box, e.g. <code>\\pgfqpoint{-.1pt}{-.1pt}</code>.</p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/bottom:left",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/bottom%3Aleft"
@@ -147,7 +147,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/bottom left=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (-.1,-.1). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(-.1,-.1)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/bottom:left",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/bottom%3Aleft"
@@ -156,7 +156,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/top right=</kbd>⟨<i>pgfpoint</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Top right corner of the pattern’s bounding box, e.g. \\pgfqpoint{3.1pt}{3.1pt}.</p>",
+    "snippetHtml": "<p>Top right corner of the pattern’s bounding box, e.g. <code>\\pgfqpoint{3.1pt}{3.1pt}</code>.</p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/top:right",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/top%3Aright"
@@ -165,7 +165,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/top right=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (3.1,3.1). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(3.1,3.1)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/top:right",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/top%3Aright"
@@ -174,7 +174,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/tile size=</kbd>⟨<i>pgfpoint</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Width and height of a single of the pattern as a pgf point specification, i.e. the \\(x\\) coordinate is the width and the \\(y\\) coordinate is the height, e.g. \\pgfqpoint{3pt}{3pt}. </p>",
+    "snippetHtml": "<p> Width and height of a single of the pattern as a pgf point specification, i.e. the \\(x\\) coordinate is the width and the \\(y\\) coordinate is the height, e.g. <code>\\pgfqpoint{3pt}{3pt}</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/tile:size",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/tile%3Asize"
@@ -183,7 +183,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/tile size=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (3,3). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(3,3)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/tile:size",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/tile%3Asize"
@@ -192,7 +192,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/patterns/tile transformation=</kbd>⟨<i>pgftransformation</i>⟩",
     "defaultHtml": "(default <kbd>empty</kbd>)",
-    "snippetHtml": "<p>A pgf transformation, e.g. \\pgftransformrotate{30}.</p>",
+    "snippetHtml": "<p>A pgf transformation, e.g. <code>\\pgftransformrotate{30}</code>.</p>",
     "page": "library-patterns",
     "anchor": "pgf./pgf/patterns/tile:transformation",
     "href": "https://tikz.dev/library-patterns#pgf./pgf/patterns/tile%3Atransformation"
@@ -201,7 +201,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/tile transformation=</kbd>⟨<i>transformation</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf transformation, this key takes a list of keys and value and extracts the resulting transformation from them, e.g. rotate=30. </p>",
+    "snippetHtml": "<p> Instead of a pgf transformation, this key takes a list of keys and value and extracts the resulting transformation from them, e.g. <code>rotate=30</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/tile:transformation",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/tile%3Atransformation"
@@ -372,7 +372,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\tikzdeclarepattern</kbd>{⟨<i>config</i>⟩}",
     "defaultHtml": "",
-    "snippetHtml": "<p> A pattern declared with \\pgfdeclarepattern can only execute pgf code. This command extends the functionality to also allow TikZ code. All the same keys of \\pgfdeclarepattern are valid, but some of them have been overloaded to give a more natural TikZ syntax. </p>",
+    "snippetHtml": "<p> A pattern declared with <code>\\pgfdeclarepattern</code> can only execute pgf code. This command extends the functionality to also allow TikZ code. All the same keys of <code>\\pgfdeclarepattern</code> are valid, but some of them have been overloaded to give a more natural TikZ syntax. </p>",
     "page": "library-patterns",
     "anchor": "pgf.back/tikzdeclarepattern",
     "href": "https://tikz.dev/library-patterns#pgf.back/tikzdeclarepattern"
@@ -381,7 +381,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/bottom left=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (-.1,-.1). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(-.1,-.1)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/bottom:left",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/bottom%3Aleft"
@@ -390,7 +390,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/top right=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (3.1,3.1). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(3.1,3.1)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/top:right",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/top%3Aright"
@@ -399,7 +399,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/tile size=</kbd>⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. (3,3). </p>",
+    "snippetHtml": "<p> Instead of a pgf name point, this key takes a TikZ point, e.g. <code>(3,3)</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/tile:size",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/tile%3Asize"
@@ -408,7 +408,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/tile transformation=</kbd>⟨<i>transformation</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Instead of a pgf transformation, this key takes a list of keys and value and extracts the resulting transformation from them, e.g. rotate=30. </p>",
+    "snippetHtml": "<p> Instead of a pgf transformation, this key takes a list of keys and value and extracts the resulting transformation from them, e.g. <code>rotate=30</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/tile:transformation",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/tile%3Atransformation"
@@ -417,7 +417,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/bounding box=</kbd>⟨<i>point</i>⟩ and ⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This is a shorthand to set the bounding box. It will assign the first point to bottom left and the second point to top right. </p>",
+    "snippetHtml": "<p> This is a shorthand to set the bounding box. It will assign the first point to <code>bottom left</code> and the second point to <code>top right</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/bounding:box",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/bounding%3Abox"
@@ -426,7 +426,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/patterns/bounding box=</kbd>⟨<i>point</i>⟩ and ⟨<i>point</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This is a shorthand to set the bounding box. It will assign the first point to bottom left and the second point to top right. </p>",
+    "snippetHtml": "<p> This is a shorthand to set the bounding box. It will assign the first point to <code>bottom left</code> and the second point to <code>top right</code>. </p>",
     "page": "library-patterns",
     "anchor": "pgf./tikz/patterns/bounding:box",
     "href": "https://tikz.dev/library-patterns#pgf./tikz/patterns/bounding%3Abox"

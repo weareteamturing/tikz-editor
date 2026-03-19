@@ -55,7 +55,7 @@
   },
   "/tikz/domain": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/domain=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/domain=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default, initially <kbd>-5:5</kbd>)",
     "snippetHtml": "<p>Sets the domain from which the samples are taken.</p>",
     "page": "tikz-plots",
@@ -64,7 +64,7 @@
   },
   "domain": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/domain=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/domain=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default, initially <kbd>-5:5</kbd>)",
     "snippetHtml": "<p>Sets the domain from which the samples are taken.</p>",
     "page": "tikz-plots",
@@ -75,7 +75,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/samples at=</kbd>⟨<i>sample list</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option specifies a list of positions for which the variable should be evaluated. For instance, you can say samples at={1,2,8,9,10} to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the \\foreach syntax, so you can use ... inside the ⟨<i>sample list</i>⟩. </p><p> When this option is used, the samples and domain option are overruled. The other way round, setting either samples or domain will overrule this option. </p>",
+    "snippetHtml": "<p> This option specifies a list of positions for which the variable should be evaluated. For instance, you can say <code>samples at={1,2,8,9,10}</code> to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the <code>\\foreach</code> syntax, so you can use <code>...</code> inside the ⟨<i>sample list</i>⟩. </p><p> When this option is used, the <code>samples</code> and <code>domain</code> option are overruled. The other way round, setting either <code>samples</code> or <code>domain</code> will overrule this option. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/samples:at",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/samples%3Aat"
@@ -84,7 +84,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/samples at=</kbd>⟨<i>sample list</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option specifies a list of positions for which the variable should be evaluated. For instance, you can say samples at={1,2,8,9,10} to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the \\foreach syntax, so you can use ... inside the ⟨<i>sample list</i>⟩. </p><p> When this option is used, the samples and domain option are overruled. The other way round, setting either samples or domain will overrule this option. </p>",
+    "snippetHtml": "<p> This option specifies a list of positions for which the variable should be evaluated. For instance, you can say <code>samples at={1,2,8,9,10}</code> to have the variable evaluated exactly for values \\(1\\), \\(2\\), \\(8\\), \\(9\\), and \\(10\\). You can use the <code>\\foreach</code> syntax, so you can use <code>...</code> inside the ⟨<i>sample list</i>⟩. </p><p> When this option is used, the <code>samples</code> and <code>domain</code> option are overruled. The other way round, setting either <code>samples</code> or <code>domain</code> will overrule this option. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/samples:at",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/samples%3Aat"
@@ -93,7 +93,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/parametric=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> Sets whether the plot is a parametric plot. If true, then t must be used instead of x as the parameter and two comma-separated functions must be given in the ⟨<i>gnuplot formula</i>⟩. An example is the following: </p>",
+    "snippetHtml": "<p> Sets whether the plot is a parametric plot. If true, then <code>t</code> must be used instead of <code>x</code> as the parameter and two comma-separated functions must be given in the ⟨<i>gnuplot formula</i>⟩. An example is the following: </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/parametric",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/parametric"
@@ -102,14 +102,14 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/parametric=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> Sets whether the plot is a parametric plot. If true, then t must be used instead of x as the parameter and two comma-separated functions must be given in the ⟨<i>gnuplot formula</i>⟩. An example is the following: </p>",
+    "snippetHtml": "<p> Sets whether the plot is a parametric plot. If true, then <code>t</code> must be used instead of <code>x</code> as the parameter and two comma-separated functions must be given in the ⟨<i>gnuplot formula</i>⟩. An example is the following: </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/parametric",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/parametric"
   },
   "/tikz/range": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/range=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/range=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> This key sets the range of the plot. If set, all points whose \\(y\\)-coordinates lie outside this range will be considered to be outliers and will cause jumps in the plot, by default: </p>",
     "page": "tikz-plots",
@@ -118,7 +118,7 @@
   },
   "range": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/range=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/range=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p> This key sets the range of the plot. If set, all points whose \\(y\\)-coordinates lie outside this range will be considered to be outliers and will cause jumps in the plot, by default: </p>",
     "page": "tikz-plots",
@@ -127,25 +127,25 @@
   },
   "/tikz/yrange": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/yrange=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/yrange=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Same as range.</p>",
+    "snippetHtml": "<p>Same as <code>range</code>.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/yrange",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/yrange"
   },
   "yrange": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/yrange=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/yrange=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Same as range.</p>",
+    "snippetHtml": "<p>Same as <code>range</code>.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/yrange",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/yrange"
   },
   "/tikz/xrange": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/xrange=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/xrange=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p>Set the \\(x\\)-range. This makes sense only for parametric plots.</p>",
     "page": "tikz-plots",
@@ -154,7 +154,7 @@
   },
   "xrange": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/xrange=</kbd>⟨<i>start</i>⟩:⟨<i>end</i>⟩",
+    "signatureHtml": "<kbd>/tikz/xrange=</kbd>⟨<i>start</i>⟩<code>:</code>⟨<i>end</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p>Set the \\(x\\)-range. This makes sense only for parametric plots.</p>",
     "page": "tikz-plots",
@@ -165,7 +165,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/id=</kbd>⟨<i>id</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the identifier of the current plot. This should be a unique identifier for each plot (though things will also work if it is not, but not as well, see the explanations above). The ⟨<i>id</i>⟩ will be part of a filename, so it should not contain anything fancy like * or $. </p>",
+    "snippetHtml": "<p> Sets the identifier of the current plot. This should be a unique identifier for each plot (though things will also work if it is not, but not as well, see the explanations above). The ⟨<i>id</i>⟩ will be part of a filename, so it should not contain anything fancy like <code>*</code> or <code>$</code>. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/id",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/id"
@@ -174,7 +174,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/id=</kbd>⟨<i>id</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the identifier of the current plot. This should be a unique identifier for each plot (though things will also work if it is not, but not as well, see the explanations above). The ⟨<i>id</i>⟩ will be part of a filename, so it should not contain anything fancy like * or $. </p>",
+    "snippetHtml": "<p> Sets the identifier of the current plot. This should be a unique identifier for each plot (though things will also work if it is not, but not as well, see the explanations above). The ⟨<i>id</i>⟩ will be part of a filename, so it should not contain anything fancy like <code>*</code> or <code>$</code>. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/id",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/id"
@@ -183,7 +183,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/prefix=</kbd>⟨<i>prefix</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>prefix</i>⟩ is put before each plot file name. The default is \\jobname., but if you have many plots, it might be better to use, say plots/ and have all plots placed in a directory. You have to create the directory yourself. </p>",
+    "snippetHtml": "<p> The ⟨<i>prefix</i>⟩ is put before each plot file name. The default is <code>\\jobname.</code>, but if you have many plots, it might be better to use, say <code>plots/</code> and have all plots placed in a directory. You have to create the directory yourself. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/prefix",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/prefix"
@@ -192,7 +192,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/prefix=</kbd>⟨<i>prefix</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The ⟨<i>prefix</i>⟩ is put before each plot file name. The default is \\jobname., but if you have many plots, it might be better to use, say plots/ and have all plots placed in a directory. You have to create the directory yourself. </p>",
+    "snippetHtml": "<p> The ⟨<i>prefix</i>⟩ is put before each plot file name. The default is <code>\\jobname.</code>, but if you have many plots, it might be better to use, say <code>plots/</code> and have all plots placed in a directory. You have to create the directory yourself. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/prefix",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/prefix"
@@ -201,7 +201,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/raw gnuplot</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key causes the ⟨<i>gnuplot formula</i>⟩ to be passed on to gnuplot without setting up the samples or the plot operation. Thus, you could write </p>",
+    "snippetHtml": "<p> This key causes the ⟨<i>gnuplot formula</i>⟩ to be passed on to gnuplot without setting up the samples or the <code>plot</code> operation. Thus, you could write </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/raw:gnuplot",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/raw%3Agnuplot"
@@ -210,7 +210,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/raw gnuplot</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This key causes the ⟨<i>gnuplot formula</i>⟩ to be passed on to gnuplot without setting up the samples or the plot operation. Thus, you could write </p>",
+    "snippetHtml": "<p> This key causes the ⟨<i>gnuplot formula</i>⟩ to be passed on to gnuplot without setting up the samples or the <code>plot</code> operation. Thus, you could write </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/raw:gnuplot",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/raw%3Agnuplot"
@@ -237,7 +237,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark=</kbd>⟨<i>mark mnemonic</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the mark to a mnemonic that has previously been defined using the \\pgfdeclareplotmark. By default, *, +, and x are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library plotmarks is loaded. Section 65.6 lists the available plot marks. </p><p> One plot mark is special: the ball plot mark is available only in TikZ. The ball color option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript. </p>",
+    "snippetHtml": "<p> Sets the mark to a mnemonic that has previously been defined using the <code>\\pgfdeclareplotmark</code>. By default, <code>*</code>, <code>+</code>, and <code>x</code> are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library <code>plotmarks</code> is loaded. Section 65.6 lists the available plot marks. </p><p> One plot mark is special: the <code>ball</code> plot mark is available only in TikZ. The <code>ball color</code> option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark"
@@ -246,7 +246,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark=</kbd>⟨<i>mark mnemonic</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the mark to a mnemonic that has previously been defined using the \\pgfdeclareplotmark. By default, *, +, and x are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library plotmarks is loaded. Section 65.6 lists the available plot marks. </p><p> One plot mark is special: the ball plot mark is available only in TikZ. The ball color option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript. </p>",
+    "snippetHtml": "<p> Sets the mark to a mnemonic that has previously been defined using the <code>\\pgfdeclareplotmark</code>. By default, <code>*</code>, <code>+</code>, and <code>x</code> are available, which draw a filled circle, a plus, and a cross as marks. Many more marks become available when the library <code>plotmarks</code> is loaded. Section 65.6 lists the available plot marks. </p><p> One plot mark is special: the <code>ball</code> plot mark is available only in TikZ. The <code>ball color</code> option determines the balls’s color. Do not use this option with a large number of marks since it will take very long to render in PostScript. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark"
@@ -291,7 +291,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark indices=</kbd>⟨<i>list</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the \\foreach syntax, that is, ... can be used. </p>",
+    "snippetHtml": "<p> This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the <code>\\foreach</code> syntax, that is, <code>...</code> can be used. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:indices",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Aindices"
@@ -300,7 +300,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark indices=</kbd>⟨<i>list</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the \\foreach syntax, that is, ... can be used. </p>",
+    "snippetHtml": "<p> This option allows you to specify explicitly the indices at which a mark should be placed. Counting starts with 1. You can use the <code>\\foreach</code> syntax, that is, <code>...</code> can be used. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:indices",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Aindices"
@@ -309,7 +309,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark size=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the size of the plot marks. For circular plot marks, ⟨<i>dimension</i>⟩ is the radius, for other plot marks ⟨<i>dimension</i>⟩ should be about half the width and height. </p><p> This option is not really necessary, since you achieve the same effect by specifying scale=⟨<i>factor</i>⟩ as a local option, where ⟨<i>factor</i>⟩ is the quotient of the desired size and the default size. However, using mark size is a bit faster and more natural. </p>",
+    "snippetHtml": "<p> Sets the size of the plot marks. For circular plot marks, ⟨<i>dimension</i>⟩ is the radius, for other plot marks ⟨<i>dimension</i>⟩ should be about half the width and height. </p><p> This option is not really necessary, since you achieve the same effect by specifying <code>scale=</code>⟨<i>factor</i>⟩ as a local option, where ⟨<i>factor</i>⟩ is the quotient of the desired size and the default size. However, using <code>mark size</code> is a bit faster and more natural. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:size",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Asize"
@@ -318,7 +318,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark size=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the size of the plot marks. For circular plot marks, ⟨<i>dimension</i>⟩ is the radius, for other plot marks ⟨<i>dimension</i>⟩ should be about half the width and height. </p><p> This option is not really necessary, since you achieve the same effect by specifying scale=⟨<i>factor</i>⟩ as a local option, where ⟨<i>factor</i>⟩ is the quotient of the desired size and the default size. However, using mark size is a bit faster and more natural. </p>",
+    "snippetHtml": "<p> Sets the size of the plot marks. For circular plot marks, ⟨<i>dimension</i>⟩ is the radius, for other plot marks ⟨<i>dimension</i>⟩ should be about half the width and height. </p><p> This option is not really necessary, since you achieve the same effect by specifying <code>scale=</code>⟨<i>factor</i>⟩ as a local option, where ⟨<i>factor</i>⟩ is the quotient of the desired size and the default size. However, using <code>mark size</code> is a bit faster and more natural. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:size",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Asize"
@@ -345,7 +345,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark options=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Redefines every mark such that it sets {⟨<i>options</i>⟩}. </p>",
+    "snippetHtml": "<p> Redefines <code>every mark</code> such that it sets {⟨<i>options</i>⟩}. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:options",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Aoptions"
@@ -354,7 +354,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mark options=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Redefines every mark such that it sets {⟨<i>options</i>⟩}. </p>",
+    "snippetHtml": "<p> Redefines <code>every mark</code> such that it sets {⟨<i>options</i>⟩}. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/mark:options",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/mark%3Aoptions"
@@ -363,7 +363,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/no marks</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Disables markers (the same as mark=none).</p>",
+    "snippetHtml": "<p>Disables markers (the same as <code>mark=none</code>).</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/no:marks",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/no%3Amarks"
@@ -372,7 +372,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/no marks</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Disables markers (the same as mark=none).</p>",
+    "snippetHtml": "<p>Disables markers (the same as <code>mark=none</code>).</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/no:marks",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/no%3Amarks"
@@ -381,7 +381,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/no markers</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Disables markers (the same as mark=none).</p>",
+    "snippetHtml": "<p>Disables markers (the same as <code>mark=none</code>).</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/no:markers",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/no%3Amarkers"
@@ -390,7 +390,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/no markers</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Disables markers (the same as mark=none).</p>",
+    "snippetHtml": "<p>Disables markers (the same as <code>mark=none</code>).</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/no:markers",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/no%3Amarkers"
@@ -399,7 +399,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/sharp plot</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, smooth. </p>",
+    "snippetHtml": "<p> This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, <code>smooth</code>. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/sharp:plot",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/sharp%3Aplot"
@@ -408,7 +408,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/sharp plot</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, smooth. </p>",
+    "snippetHtml": "<p> This is the default and causes the points to be connected by straight lines. This option is included only so that you can “switch back” if you “globally” install, say, <code>smooth</code>. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/sharp:plot",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/sharp%3Aplot"
@@ -489,7 +489,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Just an alias for /tikz/const plot.</p>",
+    "snippetHtml": "<p>Just an alias for <code>/tikz/const plot</code>.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:left",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Aleft"
@@ -498,7 +498,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Just an alias for /tikz/const plot.</p>",
+    "snippetHtml": "<p>Just an alias for <code>/tikz/const plot</code>.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:left",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Aleft"
@@ -507,7 +507,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A variant of /tikz/const plot which places its mark on the right ends:</p>",
+    "snippetHtml": "<p>A variant of <code>/tikz/const plot</code> which places its mark on the right ends:</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:right",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Aright"
@@ -516,7 +516,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A variant of /tikz/const plot which places its mark on the right ends:</p>",
+    "snippetHtml": "<p>A variant of <code>/tikz/const plot</code> which places its mark on the right ends:</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:right",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Aright"
@@ -525,7 +525,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark mid</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A variant of /tikz/const plot which places its mark in the middle of the horizontal lines:</p>",
+    "snippetHtml": "<p>A variant of <code>/tikz/const plot</code> which places its mark in the middle of the horizontal lines:</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:mid",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Amid"
@@ -534,7 +534,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/const plot mark mid</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A variant of /tikz/const plot which places its mark in the middle of the horizontal lines:</p>",
+    "snippetHtml": "<p>A variant of <code>/tikz/const plot</code> which places its mark in the middle of the horizontal lines:</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/const:plot:mark:mid",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/const%3Aplot%3Amark%3Amid"
@@ -597,7 +597,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ycomb</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes the plot operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”. </p>",
+    "snippetHtml": "<p> This option causes the <code>plot</code> operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ycomb",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ycomb"
@@ -606,7 +606,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ycomb</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes the plot operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”. </p>",
+    "snippetHtml": "<p> This option causes the <code>plot</code> operation to interpret the plotting points differently. Instead of connecting them, for each point of the plot a straight line is added to the path from the \\(x\\)-axis to the point, resulting in a sort of “comb” or “bar diagram”. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ycomb",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ycomb"
@@ -615,7 +615,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xcomb</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This option works like ycomb except that the bars are horizontal.</p>",
+    "snippetHtml": "<p>This option works like <code>ycomb</code> except that the bars are horizontal.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xcomb",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xcomb"
@@ -624,7 +624,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xcomb</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This option works like ycomb except that the bars are horizontal.</p>",
+    "snippetHtml": "<p>This option works like <code>ycomb</code> except that the bars are horizontal.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xcomb",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xcomb"
@@ -651,7 +651,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ybar</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option produces fillable bar plots. It is thus very similar to ycomb, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style. </p>",
+    "snippetHtml": "<p> This option produces fillable bar plots. It is thus very similar to <code>ycomb</code>, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ybar",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ybar"
@@ -660,7 +660,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ybar</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option produces fillable bar plots. It is thus very similar to ycomb, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style. </p>",
+    "snippetHtml": "<p> This option produces fillable bar plots. It is thus very similar to <code>ycomb</code>, but it employs rectangular shapes instead of line-to operations. It thus allows to use any fill or pattern style. </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ybar",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ybar"
@@ -669,7 +669,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xbar</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This option works like ybar except that the bars are horizontal.</p>",
+    "snippetHtml": "<p>This option works like <code>ybar</code> except that the bars are horizontal.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xbar",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xbar"
@@ -678,7 +678,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xbar</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This option works like ybar except that the bars are horizontal.</p>",
+    "snippetHtml": "<p>This option works like <code>ybar</code> except that the bars are horizontal.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xbar",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xbar"
@@ -687,7 +687,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ybar interval</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> As /tikz/ybar, this options produces vertical bars. However, bars are centered at coordinate <em>intervals</em> instead of interval edges, and the bar’s width is also determined relatively to the interval’s length: </p>",
+    "snippetHtml": "<p> As <code>/tikz/ybar</code>, this options produces vertical bars. However, bars are centered at coordinate <em>intervals</em> instead of interval edges, and the bar’s width is also determined relatively to the interval’s length: </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ybar:interval",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ybar%3Ainterval"
@@ -696,7 +696,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/ybar interval</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> As /tikz/ybar, this options produces vertical bars. However, bars are centered at coordinate <em>intervals</em> instead of interval edges, and the bar’s width is also determined relatively to the interval’s length: </p>",
+    "snippetHtml": "<p> As <code>/tikz/ybar</code>, this options produces vertical bars. However, bars are centered at coordinate <em>intervals</em> instead of interval edges, and the bar’s width is also determined relatively to the interval’s length: </p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/ybar:interval",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/ybar%3Ainterval"
@@ -705,7 +705,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xbar interval</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Works like ybar interval, but for horizontal bar plots.</p>",
+    "snippetHtml": "<p>Works like <code>ybar interval</code>, but for horizontal bar plots.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xbar:interval",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xbar%3Ainterval"
@@ -714,7 +714,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/xbar interval</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Works like ybar interval, but for horizontal bar plots.</p>",
+    "snippetHtml": "<p>Works like <code>ybar interval</code>, but for horizontal bar plots.</p>",
     "page": "tikz-plots",
     "anchor": "pgf./tikz/xbar:interval",
     "href": "https://tikz.dev/tikz-plots#pgf./tikz/xbar%3Ainterval"

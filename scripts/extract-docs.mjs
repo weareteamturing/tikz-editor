@@ -349,6 +349,9 @@ function sanitizeInlineNode(node) {
   if (tag === "a") {
     return sanitizeChildrenInline(node);
   }
+  if (tag === "span" && hasClass(node, "verb")) {
+    return `<code>${sanitizeChildrenInline(node)}</code>`;
+  }
   if (tag === "span" && hasClass(node, "angle")) {
     return escapeHtml(normalizeText(extractText(node)));
   }

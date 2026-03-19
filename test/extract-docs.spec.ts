@@ -57,6 +57,16 @@ describe("extract-docs script", () => {
     expect(everyPath.defaultHtml.toLowerCase()).toContain("style");
   });
 
+  it("preserves verbatim spans as code in snippets", () => {
+    const html = readFileSync(join(process.cwd(), "tikz-dev", "tikz-shapes.html"), "utf8");
+    const entries = extractDocs.extractEntriesFromHtml("tikz-shapes", html);
+
+    const nodeCommand = entries[String.raw`\node`];
+    expect(nodeCommand).toBeDefined();
+    expect(nodeCommand.snippetHtml).toContain("<code>{tikzpicture}</code>");
+    expect(nodeCommand.snippetHtml).toContain("<code>\\path node</code>");
+  });
+
   it("builds hash-safe anchor links", () => {
     expect(extractDocs.encodeHashAnchor("pgf.line:width")).toBe("pgf.line%3Awidth");
     expect(extractDocs.encodeHashAnchor("pgf./tikz/line:width")).toBe("pgf./tikz/line%3Awidth");

@@ -3,7 +3,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/matrix of nodes</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Conceptually, this key adds \\node{ at the beginning and }; at the end of each cell and sets the anchor of the node to base. Furthermore, it adds the option name option to each node, where the name is set to ⟨<i>matrix name</i>⟩-⟨<i>row number</i>⟩-⟨<i>column number</i>⟩. For example, if the matrix has the name my matrix, then the node in the upper left cell will get the name my matrix-1-1. </p>",
+    "snippetHtml": "<p> Conceptually, this key adds <code>\\node{</code> at the beginning and <code>};</code> at the end of each cell and sets the <code>anchor</code> of the node to <code>base</code>. Furthermore, it adds the option <code>name</code> option to each node, where the name is set to ⟨<i>matrix name</i>⟩<code>-</code>⟨<i>row number</i>⟩<code>-</code>⟨<i>column number</i>⟩. For example, if the matrix has the name <code>my matrix</code>, then the node in the upper left cell will get the name <code>my matrix-1-1</code>. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/matrix:of:nodes",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/matrix%3Aof%3Anodes"
@@ -12,7 +12,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/matrix of nodes</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Conceptually, this key adds \\node{ at the beginning and }; at the end of each cell and sets the anchor of the node to base. Furthermore, it adds the option name option to each node, where the name is set to ⟨<i>matrix name</i>⟩-⟨<i>row number</i>⟩-⟨<i>column number</i>⟩. For example, if the matrix has the name my matrix, then the node in the upper left cell will get the name my matrix-1-1. </p>",
+    "snippetHtml": "<p> Conceptually, this key adds <code>\\node{</code> at the beginning and <code>};</code> at the end of each cell and sets the <code>anchor</code> of the node to <code>base</code>. Furthermore, it adds the option <code>name</code> option to each node, where the name is set to ⟨<i>matrix name</i>⟩<code>-</code>⟨<i>row number</i>⟩<code>-</code>⟨<i>column number</i>⟩. For example, if the matrix has the name <code>my matrix</code>, then the node in the upper left cell will get the name <code>my matrix-1-1</code>. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/matrix:of:nodes",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/matrix%3Aof%3Anodes"
@@ -21,7 +21,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/matrix of math nodes</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This style is almost the same as the previous style, only $ is added at the beginning and at the end of each node, so math mode will be switched on in all nodes. </p>",
+    "snippetHtml": "<p> This style is almost the same as the previous style, only <code>$</code> is added at the beginning and at the end of each node, so math mode will be switched on in all nodes. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/matrix:of:math:nodes",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/matrix%3Aof%3Amath%3Anodes"
@@ -30,7 +30,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/matrix of math nodes</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This style is almost the same as the previous style, only $ is added at the beginning and at the end of each node, so math mode will be switched on in all nodes. </p>",
+    "snippetHtml": "<p> This style is almost the same as the previous style, only <code>$</code> is added at the beginning and at the end of each node, so math mode will be switched on in all nodes. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/matrix:of:math:nodes",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/matrix%3Aof%3Amath%3Anodes"
@@ -39,7 +39,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/nodes in empty cells=</kbd>⟨<i>true or false</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When set to true, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a matrix of nodes and a matrix of math nodes. </p>",
+    "snippetHtml": "<p> When set to <code>true</code>, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a <code>matrix of nodes</code> and a <code>matrix of math nodes</code>. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/nodes:in:empty:cells",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/nodes%3Ain%3Aempty%3Acells"
@@ -48,7 +48,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/nodes in empty cells=</kbd>⟨<i>true or false</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When set to true, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a matrix of nodes and a matrix of math nodes. </p>",
+    "snippetHtml": "<p> When set to <code>true</code>, a node (with empty contents) is put in empty cells. Normally, empty cells are just, well, empty. The style can be used together with both a <code>matrix of nodes</code> and a <code>matrix of math nodes</code>. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/nodes:in:empty:cells",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/nodes%3Ain%3Aempty%3Acells"
@@ -57,7 +57,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/left delimiter=</kbd>⟨<i>delimiter</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given to a any node that has the standard anchors north, south and so on. The ⟨<i>delimiter</i>⟩ can be any delimiter that is acceptable to TeX’s \\left command. </p>",
+    "snippetHtml": "<p> This option can be given to a any node that has the standard anchors <code>north</code>, <code>south</code> and so on. The ⟨<i>delimiter</i>⟩ can be any delimiter that is acceptable to TeX’s <code>\\left</code> command. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/left:delimiter",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/left%3Adelimiter"
@@ -66,7 +66,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/left delimiter=</kbd>⟨<i>delimiter</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given to a any node that has the standard anchors north, south and so on. The ⟨<i>delimiter</i>⟩ can be any delimiter that is acceptable to TeX’s \\left command. </p>",
+    "snippetHtml": "<p> This option can be given to a any node that has the standard anchors <code>north</code>, <code>south</code> and so on. The ⟨<i>delimiter</i>⟩ can be any delimiter that is acceptable to TeX’s <code>\\left</code> command. </p>",
     "page": "library-matrix",
     "anchor": "pgf./tikz/left:delimiter",
     "href": "https://tikz.dev/library-matrix#pgf./tikz/left%3Adelimiter"

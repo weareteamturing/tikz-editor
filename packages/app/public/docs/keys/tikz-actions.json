@@ -3,7 +3,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\draw</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[draw].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[draw]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/draw",
     "href": "https://tikz.dev/tikz-actions#pgf.back/draw"
@@ -12,7 +12,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\fill</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[fill].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[fill]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/fill",
     "href": "https://tikz.dev/tikz-actions#pgf.back/fill"
@@ -21,7 +21,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\filldraw</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[fill,draw].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[fill,draw]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/filldraw",
     "href": "https://tikz.dev/tikz-actions#pgf.back/filldraw"
@@ -30,7 +30,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\pattern</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[pattern].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[pattern]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/pattern",
     "href": "https://tikz.dev/tikz-actions#pgf.back/pattern"
@@ -39,7 +39,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\shade</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[shade].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[shade]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/shade",
     "href": "https://tikz.dev/tikz-actions#pgf.back/shade"
@@ -48,7 +48,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\shadedraw</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[shade,draw].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[shade,draw]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/shadedraw",
     "href": "https://tikz.dev/tikz-actions#pgf.back/shadedraw"
@@ -57,7 +57,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\clip</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path[clip].</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[clip]</code>.</p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/clip",
     "href": "https://tikz.dev/tikz-actions#pgf.back/clip"
@@ -66,7 +66,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\useasboundingbox</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> Inside {tikzpicture} this is an abbreviation for \\path[use as bounding box]. </p>",
+    "snippetHtml": "<p> Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path[use as bounding box]</code>. </p>",
     "page": "tikz-actions",
     "anchor": "pgf.back/useasboundingbox",
     "href": "https://tikz.dev/tikz-actions#pgf.back/useasboundingbox"
@@ -75,7 +75,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/color=</kbd>⟨<i>color name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option. </p><p> The ⟨<i>color name</i>⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the xcolor extensions are allowed. Here is an example: </p>",
+    "snippetHtml": "<p> This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option. </p><p> The ⟨<i>color name</i>⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the <code>xcolor</code> extensions are allowed. Here is an example: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/color",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/color"
@@ -84,7 +84,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/color=</kbd>⟨<i>color name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option. </p><p> The ⟨<i>color name</i>⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the xcolor extensions are allowed. Here is an example: </p>",
+    "snippetHtml": "<p> This option sets the color that is used for fill, drawing, and text inside the current scope. Any special settings for filling colors or drawing colors are immediately “overruled” by this option. </p><p> The ⟨<i>color name</i>⟩ is the name of a previously defined color. For LaTeX users, this is just a normal “LaTeX-color” and the <code>xcolor</code> extensions are allowed. Here is an example: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/color",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/color"
@@ -255,7 +255,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/line cap=</kbd>⟨<i>type</i>⟩",
     "defaultHtml": "(no default, initially <kbd>butt</kbd>)",
-    "snippetHtml": "<p> Specifies how lines “end”. Permissible ⟨<i>type</i>⟩ are round, rect, and butt. They have the following effects: </p>",
+    "snippetHtml": "<p> Specifies how lines “end”. Permissible ⟨<i>type</i>⟩ are <code>round</code>, <code>rect</code>, and <code>butt</code>. They have the following effects: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/line:cap",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/line%3Acap"
@@ -264,7 +264,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/line cap=</kbd>⟨<i>type</i>⟩",
     "defaultHtml": "(no default, initially <kbd>butt</kbd>)",
-    "snippetHtml": "<p> Specifies how lines “end”. Permissible ⟨<i>type</i>⟩ are round, rect, and butt. They have the following effects: </p>",
+    "snippetHtml": "<p> Specifies how lines “end”. Permissible ⟨<i>type</i>⟩ are <code>round</code>, <code>rect</code>, and <code>butt</code>. They have the following effects: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/line:cap",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/line%3Acap"
@@ -273,7 +273,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/line join=</kbd>⟨<i>type</i>⟩",
     "defaultHtml": "(no default, initially <kbd>miter</kbd>)",
-    "snippetHtml": "<p> Specifies how lines “join”. Permissible ⟨<i>type</i>⟩ are round, bevel, and miter. They have the following effects: </p>",
+    "snippetHtml": "<p> Specifies how lines “join”. Permissible ⟨<i>type</i>⟩ are <code>round</code>, <code>bevel</code>, and <code>miter</code>. They have the following effects: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/line:join",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/line%3Ajoin"
@@ -282,7 +282,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/line join=</kbd>⟨<i>type</i>⟩",
     "defaultHtml": "(no default, initially <kbd>miter</kbd>)",
-    "snippetHtml": "<p> Specifies how lines “join”. Permissible ⟨<i>type</i>⟩ are round, bevel, and miter. They have the following effects: </p>",
+    "snippetHtml": "<p> Specifies how lines “join”. Permissible ⟨<i>type</i>⟩ are <code>round</code>, <code>bevel</code>, and <code>miter</code>. They have the following effects: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/line:join",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/line%3Ajoin"
@@ -309,7 +309,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/dash pattern=</kbd>⟨<i>dash pattern</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”. </p>",
+    "snippetHtml": "<p> Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern <code>on 2pt off 3pt on 4pt off 4pt</code> means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/dash:pattern",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/dash%3Apattern"
@@ -318,7 +318,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/dash pattern=</kbd>⟨<i>dash pattern</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern on 2pt off 3pt on 4pt off 4pt means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”. </p>",
+    "snippetHtml": "<p> Sets the dashing pattern. The syntax is the same as in metafont. For example following pattern <code>on 2pt off 3pt on 4pt off 4pt</code> means “draw 2pt, then leave out 3pt, then draw 4pt once more, then leave out 4pt again, repeat”. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/dash:pattern",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/dash%3Apattern"
@@ -343,7 +343,7 @@
   },
   "/tikz/dash": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/dash=</kbd>⟨<i>dash pattern</i>⟩phase⟨<i>dash phase</i>⟩",
+    "signatureHtml": "<kbd>/tikz/dash=</kbd>⟨<i>dash pattern</i>⟩<code>phase</code>⟨<i>dash phase</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p>Sets the dashing pattern and phase at the same time.</p>",
     "page": "tikz-actions",
@@ -352,7 +352,7 @@
   },
   "dash": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/dash=</kbd>⟨<i>dash pattern</i>⟩phase⟨<i>dash phase</i>⟩",
+    "signatureHtml": "<kbd>/tikz/dash=</kbd>⟨<i>dash pattern</i>⟩<code>phase</code>⟨<i>dash phase</i>⟩",
     "defaultHtml": "(no default)",
     "snippetHtml": "<p>Sets the dashing pattern and phase at the same time.</p>",
     "page": "tikz-actions",
@@ -363,7 +363,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/dash expand off</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied. </p>",
+    "snippetHtml": "<p> Makes the <code>off</code> part of a dash pattern expandable such that it can stretch. This only works when there is a single <code>on</code> and a single <code>off</code> field and requires the <code>decorations</code> library. Right now this option has to be specified on the path where it is supposed to take effect after the <code>dash pattern</code> option because the dash pattern has to be known at the point where it is applied. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/dash:expand:off",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/dash%3Aexpand%3Aoff"
@@ -372,7 +372,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/dash expand off</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Makes the off part of a dash pattern expandable such that it can stretch. This only works when there is a single on and a single off field and requires the decorations library. Right now this option has to be specified on the path where it is supposed to take effect after the dash pattern option because the dash pattern has to be known at the point where it is applied. </p>",
+    "snippetHtml": "<p> Makes the <code>off</code> part of a dash pattern expandable such that it can stretch. This only works when there is a single <code>on</code> and a single <code>off</code> field and requires the <code>decorations</code> library. Right now this option has to be specified on the path where it is supposed to take effect after the <code>dash pattern</code> option because the dash pattern has to be known at the point where it is applied. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/dash:expand:off",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/dash%3Aexpand%3Aoff"
@@ -615,7 +615,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double=</kbd>⟨<i>core color</i>⟩",
     "defaultHtml": "(default <kbd>white</kbd>)",
-    "snippetHtml": "<p> This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨<i>core color</i>⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths: </p>",
+    "snippetHtml": "<p> This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨<i>core color</i>⟩, which is normally <code>white</code>. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double"
@@ -624,7 +624,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double=</kbd>⟨<i>core color</i>⟩",
     "defaultHtml": "(default <kbd>white</kbd>)",
-    "snippetHtml": "<p> This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨<i>core color</i>⟩, which is normally white. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths: </p>",
+    "snippetHtml": "<p> This option causes “two” lines to be drawn instead of a single one. However, this is not what really happens. In reality, the path is drawn twice. First, with the normal drawing color, secondly with the ⟨<i>core color</i>⟩, which is normally <code>white</code>. Upon the second drawing, the line width is reduced. The net effect is that it appears as if two lines had been drawn and this works well even with complicated, curved paths: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double"
@@ -633,7 +633,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double distance=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>0.6pt</kbd>)",
-    "snippetHtml": "<p> Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the <em>first</em> time the path is drawn is twice the normal line width plus the given ⟨<i>dimension</i>⟩. As a side-effect, this option “selects” the double option. </p>",
+    "snippetHtml": "<p> Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the <em>first</em> time the path is drawn is twice the normal line width plus the given ⟨<i>dimension</i>⟩. As a side-effect, this option “selects” the <code>double</code> option. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double:distance",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double%3Adistance"
@@ -642,7 +642,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double distance=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default, initially <kbd>0.6pt</kbd>)",
-    "snippetHtml": "<p> Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the <em>first</em> time the path is drawn is twice the normal line width plus the given ⟨<i>dimension</i>⟩. As a side-effect, this option “selects” the double option. </p>",
+    "snippetHtml": "<p> Sets the distance the “two” lines are spaced apart. In reality, this is the thickness of the line that is used to draw the path for the second time. The thickness of the <em>first</em> time the path is drawn is twice the normal line width plus the given ⟨<i>dimension</i>⟩. As a side-effect, this option “selects” the <code>double</code> option. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double:distance",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double%3Adistance"
@@ -651,7 +651,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double distance between line centers=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the <em>first</em> time the path is drawn is the normal line width plus the given ⟨<i>dimension</i>⟩, while the line width of the <em>second</em> line that is drawn is ⟨<i>dimension</i>⟩ minus the normal line width. As a side-effect, this option “selects” the double option. </p>",
+    "snippetHtml": "<p> This option works like <code>double distance</code>, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the <em>first</em> time the path is drawn is the normal line width plus the given ⟨<i>dimension</i>⟩, while the line width of the <em>second</em> line that is drawn is ⟨<i>dimension</i>⟩ minus the normal line width. As a side-effect, this option “selects” the <code>double</code> option. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double:distance:between:line:centers",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double%3Adistance%3Abetween%3Aline%3Acenters"
@@ -660,7 +660,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/double distance between line centers=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option works like double distance, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the <em>first</em> time the path is drawn is the normal line width plus the given ⟨<i>dimension</i>⟩, while the line width of the <em>second</em> line that is drawn is ⟨<i>dimension</i>⟩ minus the normal line width. As a side-effect, this option “selects” the double option. </p>",
+    "snippetHtml": "<p> This option works like <code>double distance</code>, only the distance is not the distance between (inner) borders of the two main lines, but between their centers. Thus, the thickness the <em>first</em> time the path is drawn is the normal line width plus the given ⟨<i>dimension</i>⟩, while the line width of the <em>second</em> line that is drawn is ⟨<i>dimension</i>⟩ minus the normal line width. As a side-effect, this option “selects” the <code>double</code> option. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/double:distance:between:line:centers",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/double%3Adistance%3Abetween%3Aline%3Acenters"
@@ -687,7 +687,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/fill=</kbd>⟨<i>color</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s color setting</kbd>)",
-    "snippetHtml": "<p> This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨<i>color</i>⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below. </p><p> Just as for the draw option, setting ⟨<i>color</i>⟩ to none disables filling locally. </p>",
+    "snippetHtml": "<p> This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general <code>color=</code> option or the optional color ⟨<i>color</i>⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below. </p><p> Just as for the <code>draw</code> option, setting ⟨<i>color</i>⟩ to <code>none</code> disables filling locally. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/fill",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/fill"
@@ -696,7 +696,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/fill=</kbd>⟨<i>color</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s color setting</kbd>)",
-    "snippetHtml": "<p> This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general color= option or the optional color ⟨<i>color</i>⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below. </p><p> Just as for the draw option, setting ⟨<i>color</i>⟩ to none disables filling locally. </p>",
+    "snippetHtml": "<p> This option causes the path to be filled. All unclosed parts of the path are first closed, if necessary. Then, the area enclosed by the path is filled with the current filling color, which is either the last color set using the general <code>color=</code> option or the optional color ⟨<i>color</i>⟩. For self-intersection paths and for paths consisting of several closed areas, the “enclosed area” is somewhat complicated to define and two different definitions exist, namely the nonzero winding number rule and the even odd rule, see the explanation of these options, below. </p><p> Just as for the <code>draw</code> option, setting ⟨<i>color</i>⟩ to <code>none</code> disables filling locally. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/fill",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/fill"
@@ -705,7 +705,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pattern=</kbd>⟨<i>name</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s pattern</kbd>)",
-    "snippetHtml": "<p> This option causes the path to be filled with a pattern. If the ⟨<i>name</i>⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the draw and fill options, setting ⟨<i>name</i>⟩ to none disables filling locally. </p><p> The pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more. </p>",
+    "snippetHtml": "<p> This option causes the path to be filled with a pattern. If the ⟨<i>name</i>⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the <code>draw</code> and <code>fill</code> options, setting ⟨<i>name</i>⟩ to <code>none</code> disables filling locally. </p><p> The pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/pattern",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/pattern"
@@ -714,7 +714,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pattern=</kbd>⟨<i>name</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s pattern</kbd>)",
-    "snippetHtml": "<p> This option causes the path to be filled with a pattern. If the ⟨<i>name</i>⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the draw and fill options, setting ⟨<i>name</i>⟩ to none disables filling locally. </p><p> The pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more. </p>",
+    "snippetHtml": "<p> This option causes the path to be filled with a pattern. If the ⟨<i>name</i>⟩ is given, this pattern is used, otherwise the pattern set in the enclosing scope is used. As for the <code>draw</code> and <code>fill</code> options, setting ⟨<i>name</i>⟩ to <code>none</code> disables filling locally. </p><p> The pattern works like a fill color. In particular, setting a new fill color will fill the path with a solid color once more. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/pattern",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/pattern"
@@ -777,7 +777,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/path picture=</kbd>⟨<i>code</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When this option is given on a path and when the ⟨<i>code</i>⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨<i>code</i>⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given. </p><p> As with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path). </p>",
+    "snippetHtml": "<p> When this option is given on a path and when the ⟨<i>code</i>⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options <code>fill</code>, <code>pattern</code> and <code>shade</code>, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨<i>code</i>⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the <code>draw</code> option has been given. </p><p> As with other keys like <code>fill</code> or <code>draw</code> this option needs to be given on a path, setting the <code>path picture</code> outside a path has no effect (the path picture is cleared at the beginning of each path). </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/path:picture",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/path%3Apicture"
@@ -786,7 +786,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/path picture=</kbd>⟨<i>code</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When this option is given on a path and when the ⟨<i>code</i>⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options fill, pattern and shade, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨<i>code</i>⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the draw option has been given. </p><p> As with other keys like fill or draw this option needs to be given on a path, setting the path picture outside a path has no effect (the path picture is cleared at the beginning of each path). </p>",
+    "snippetHtml": "<p> When this option is given on a path and when the ⟨<i>code</i>⟩ is not empty, the following happens: After all other “filling” operations are done with the path, which are caused by the options <code>fill</code>, <code>pattern</code> and <code>shade</code>, a local scope is opened and the path is temporarily installed as a clipping path. Then, the ⟨<i>code</i>⟩ is executed, which can now draw something. Then, the local scope ends and, possibly, the path is stroked, provided the <code>draw</code> option has been given. </p><p> As with other keys like <code>fill</code> or <code>draw</code> this option needs to be given on a path, setting the <code>path picture</code> outside a path has no effect (the path picture is cleared at the beginning of each path). </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/path:picture",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/path%3Apicture"
@@ -795,7 +795,7 @@
     "type": "key",
     "signatureHtml": "<b>Predefined node</b> <kbd>path picture bounding box</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> This node is of shape rectangle. Its size and position are those of current path bounding box just before the ⟨<i>code</i>⟩ of the path picture started to be executed. The ⟨<i>code</i>⟩ can construct its own paths, so accessing the current path bounding box inside the ⟨<i>code</i>⟩ yields the bounding box of any path that is currently being constructed inside the ⟨<i>code</i>⟩. </p>",
+    "snippetHtml": "<p> This node is of shape <code>rectangle</code>. Its size and position are those of <code>current path bounding box</code> just before the ⟨<i>code</i>⟩ of the path picture started to be executed. The ⟨<i>code</i>⟩ can construct its own paths, so accessing the <code>current path bounding box</code> inside the ⟨<i>code</i>⟩ yields the bounding box of any path that is currently being constructed inside the ⟨<i>code</i>⟩. </p>",
     "page": "tikz-actions",
     "anchor": "pgf.path:picture:bounding:box",
     "href": "https://tikz.dev/tikz-actions#pgf.path%3Apicture%3Abounding%3Abox"
@@ -804,7 +804,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shade</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the draw option, then the path is first shaded, then drawn. </p><p>It is not an error to use this option together with the fill option, but it makes no sense.</p>",
+    "snippetHtml": "<p> Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the <code>draw</code> option, then the path is first shaded, then drawn. </p><p>It is not an error to use this option together with the <code>fill</code> option, but it makes no sense.</p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/shade",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/shade"
@@ -813,7 +813,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shade</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the draw option, then the path is first shaded, then drawn. </p><p>It is not an error to use this option together with the fill option, but it makes no sense.</p>",
+    "snippetHtml": "<p> Causes the path to be shaded using the currently selected shading (more on this later). If this option is used together with the <code>draw</code> option, then the path is first shaded, then drawn. </p><p>It is not an error to use this option together with the <code>fill</code> option, but it makes no sense.</p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/shade",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/shade"
@@ -822,7 +822,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shading=</kbd>⟨<i>name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This selects a shading named ⟨<i>name</i>⟩. The following shadings are predefined: axis, radial, and ball. </p>",
+    "snippetHtml": "<p> This selects a shading named ⟨<i>name</i>⟩. The following shadings are predefined: <code>axis</code>, <code>radial</code>, and <code>ball</code>. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/shading",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/shading"
@@ -831,7 +831,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shading=</kbd>⟨<i>name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This selects a shading named ⟨<i>name</i>⟩. The following shadings are predefined: axis, radial, and ball. </p>",
+    "snippetHtml": "<p> This selects a shading named ⟨<i>name</i>⟩. The following shadings are predefined: <code>axis</code>, <code>radial</code>, and <code>ball</code>. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/shading",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/shading"
@@ -858,7 +858,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/use as bounding box</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all <em>subsequent</em> paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box). </p><p> In a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped. </p>",
+    "snippetHtml": "<p> Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all <em>subsequent</em> paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the <code>\\pgfresetboundingbox</code> command to reset the previous bounding box). </p><p> In a sense, <code>use as bounding box</code> has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/use:as:bounding:box",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/use%3Aas%3Abounding%3Abox"
@@ -867,7 +867,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/use as bounding box</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all <em>subsequent</em> paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the \\pgfresetboundingbox command to reset the previous bounding box). </p><p> In a sense, use as bounding box has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped. </p>",
+    "snippetHtml": "<p> Normally, when this option is given on a path, the bounding box of the present path is used to determine the size of the picture and the size of all <em>subsequent</em> paths are ignored. However, if there were previous path operations that have already established a larger bounding box, it will not be made smaller by this operation (consider the <code>\\pgfresetboundingbox</code> command to reset the previous bounding box). </p><p> In a sense, <code>use as bounding box</code> has the same effect as clipping all subsequent drawing against the current path – without actually doing the clipping, only making pgf treat everything as if it were clipped. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/use:as:bounding:box",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/use%3Aas%3Abounding%3Abox"
@@ -876,7 +876,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/trim left=</kbd>⟨<i>dimension or coordinate or <kbd>default</kbd></i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p> The trim left key tells pgf to discard everything which is left of the provided ⟨<i>dimension or coordinate</i>⟩. Here, ⟨<i>dimension</i>⟩ is a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨<i>dimension or coordinate</i>⟩: </p>",
+    "snippetHtml": "<p> The <code>trim left</code> key tells pgf to discard everything which is left of the provided ⟨<i>dimension or coordinate</i>⟩. Here, ⟨<i>dimension</i>⟩ is a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue <code>\\hspace{-s}</code> where <code>s</code> is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨<i>dimension or coordinate</i>⟩: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/trim:left",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/trim%3Aleft"
@@ -885,7 +885,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/trim left=</kbd>⟨<i>dimension or coordinate or <kbd>default</kbd></i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p> The trim left key tells pgf to discard everything which is left of the provided ⟨<i>dimension or coordinate</i>⟩. Here, ⟨<i>dimension</i>⟩ is a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue \\hspace{-s} where s is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨<i>dimension or coordinate</i>⟩: </p>",
+    "snippetHtml": "<p> The <code>trim left</code> key tells pgf to discard everything which is left of the provided ⟨<i>dimension or coordinate</i>⟩. Here, ⟨<i>dimension</i>⟩ is a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ is a point with \\(x\\) and \\(y\\) coordinates (but only its \\(x\\) coordinate will be used). The effect is the same as if you issue <code>\\hspace{-s}</code> where <code>s</code> is the difference of the picture’s bounding box lower left \\(x\\) coordinate and the \\(x\\) coordinate specified as ⟨<i>dimension or coordinate</i>⟩: </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/trim:left",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/trim%3Aleft"
@@ -894,7 +894,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/trim right=</kbd>⟨<i>dimension or coordinate or <kbd>default</kbd></i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is similar to trim left: it discards everything which is right of the provided ⟨<i>dimension or coordinate</i>⟩. As for trim left, ⟨<i>dimension</i>⟩ denotes a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used). </p><p>We use the same example from above and add trim right:</p>",
+    "snippetHtml": "<p> This key is similar to <code>trim left</code>: it discards everything which is right of the provided ⟨<i>dimension or coordinate</i>⟩. As for <code>trim left</code>, ⟨<i>dimension</i>⟩ denotes a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used). </p><p>We use the same example from above and add <code>trim right</code>:</p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/trim:right",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/trim%3Aright"
@@ -903,7 +903,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/trim right=</kbd>⟨<i>dimension or coordinate or <kbd>default</kbd></i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is similar to trim left: it discards everything which is right of the provided ⟨<i>dimension or coordinate</i>⟩. As for trim left, ⟨<i>dimension</i>⟩ denotes a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used). </p><p>We use the same example from above and add trim right:</p>",
+    "snippetHtml": "<p> This key is similar to <code>trim left</code>: it discards everything which is right of the provided ⟨<i>dimension or coordinate</i>⟩. As for <code>trim left</code>, ⟨<i>dimension</i>⟩ denotes a single \\(x\\) coordinate of the picture and ⟨<i>coordinate</i>⟩ a coordinate with \\(x\\) and \\(y\\) value (although only its \\(x\\) component will be used). </p><p>We use the same example from above and add <code>trim right</code>:</p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/trim:right",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/trim%3Aright"
@@ -912,7 +912,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/trim lowlevel=</kbd><kbd>true</kbd>|<kbd>false</kbd>",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This affects only the basic level image externalization: the initial configuration trim lowlevel=false stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The trim lowlevel=true information causes the image externalization to store the trimmed image, possibly resulting in clipping. </p>",
+    "snippetHtml": "<p> This affects only the basic level image externalization: the initial configuration <code>trim lowlevel=false</code> stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The <code>trim lowlevel=true</code> information causes the image externalization to store the trimmed image, possibly resulting in clipping. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./pgf/trim:lowlevel",
     "href": "https://tikz.dev/tikz-actions#pgf./pgf/trim%3Alowlevel"
@@ -921,7 +921,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/pgf/trim lowlevel=</kbd><kbd>true</kbd>|<kbd>false</kbd>",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> This affects only the basic level image externalization: the initial configuration trim lowlevel=false stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The trim lowlevel=true information causes the image externalization to store the trimmed image, possibly resulting in clipping. </p>",
+    "snippetHtml": "<p> This affects only the basic level image externalization: the initial configuration <code>trim lowlevel=false</code> stores the normal image, without trimming, and the trimming into a separate file. This allows reduced bounding boxes without clipping the rest away. The <code>trim lowlevel=true</code> information causes the image externalization to store the trimmed image, possibly resulting in clipping. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./pgf/trim:lowlevel",
     "href": "https://tikz.dev/tikz-actions#pgf./pgf/trim%3Alowlevel"
@@ -930,7 +930,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/clip</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region. </p><p> The clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a {scope}. </p>",
+    "snippetHtml": "<p> This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region. </p><p> The clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a <code>{scope}</code>. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/clip",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/clip"
@@ -939,7 +939,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/clip</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region. </p><p> The clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a {scope}. </p>",
+    "snippetHtml": "<p> This option causes all subsequent drawings to be clipped against the current path and the size of subsequent paths will not be important for the picture size. If you clip against a self-intersecting path, the even-odd rule or the nonzero winding number rule is used to determine whether a point is inside or outside the clipping region. </p><p> The clipping path is a graphic state parameter, so it will be reset at the end of the current scope. Multiple clippings accumulate, that is, clipping is always done against the intersection of all clipping areas that have been specified inside the current scopes. The only way of enlarging the clipping area is to end a <code>{scope}</code>. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/clip",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/clip"
@@ -948,7 +948,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/preaction=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given to a \\path command (or to derived commands like \\draw which internally call \\path). Similarly to options like draw, this option only has an effect when given to a \\path or as part of the options of a node; as an option to a {scope} it has no effect. </p><p> When this option is used on a \\path, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨<i>options</i>⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨<i>options</i>⟩ in force and then again with the normal path options in force. </p>",
+    "snippetHtml": "<p> This option can be given to a <code>\\path</code> command (or to derived commands like <code>\\draw</code> which internally call <code>\\path</code>). Similarly to options like <code>draw</code>, this option only has an effect when given to a <code>\\path</code> or as part of the options of a <code>node</code>; as an option to a <code>{scope}</code> it has no effect. </p><p> When this option is used on a <code>\\path</code>, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨<i>options</i>⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨<i>options</i>⟩ in force and then again with the normal path options in force. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/preaction",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/preaction"
@@ -957,7 +957,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/preaction=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given to a \\path command (or to derived commands like \\draw which internally call \\path). Similarly to options like draw, this option only has an effect when given to a \\path or as part of the options of a node; as an option to a {scope} it has no effect. </p><p> When this option is used on a \\path, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨<i>options</i>⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨<i>options</i>⟩ in force and then again with the normal path options in force. </p>",
+    "snippetHtml": "<p> This option can be given to a <code>\\path</code> command (or to derived commands like <code>\\draw</code> which internally call <code>\\path</code>). Similarly to options like <code>draw</code>, this option only has an effect when given to a <code>\\path</code> or as part of the options of a <code>node</code>; as an option to a <code>{scope}</code> it has no effect. </p><p> When this option is used on a <code>\\path</code>, the effect is the following: When the path has been completely constructed and is about to be used, a scope is created. Inside this scope, the path is used but not with the original path options, but with ⟨<i>options</i>⟩ instead. Then, the path is used in the usual manner. In other words, the path is used twice: Once with ⟨<i>options</i>⟩ in force and then again with the normal path options in force. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/preaction",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/preaction"
@@ -966,7 +966,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/postaction=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The postactions work in the same way as the preactions, only they are applied <em>after</em> the main action has been taken. Like preactions, multiple postaction options may be given to a \\path command, in which case the path is reused several times, each time with a different set of options in force. </p><p> If both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions. </p>",
+    "snippetHtml": "<p> The postactions work in the same way as the preactions, only they are applied <em>after</em> the main action has been taken. Like preactions, multiple <code>postaction</code> options may be given to a <code>\\path</code> command, in which case the path is reused several times, each time with a different set of options in force. </p><p> If both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/postaction",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/postaction"
@@ -975,7 +975,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/postaction=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> The postactions work in the same way as the preactions, only they are applied <em>after</em> the main action has been taken. Like preactions, multiple postaction options may be given to a \\path command, in which case the path is reused several times, each time with a different set of options in force. </p><p> If both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions. </p>",
+    "snippetHtml": "<p> The postactions work in the same way as the preactions, only they are applied <em>after</em> the main action has been taken. Like preactions, multiple <code>postaction</code> options may be given to a <code>\\path</code> command, in which case the path is reused several times, each time with a different set of options in force. </p><p> If both pre- and postactions are specified, then the preactions are taken first, then the main action, and then the post actions. </p>",
     "page": "tikz-actions",
     "anchor": "pgf./tikz/postaction",
     "href": "https://tikz.dev/tikz-actions#pgf./tikz/postaction"

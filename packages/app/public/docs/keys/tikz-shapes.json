@@ -39,7 +39,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/in front of path</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to “switch back” to the normal behavior. </p>",
+    "snippetHtml": "<p> This is the opposite of <code>behind path</code>: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used <code>behind path</code> and you now wish to “switch back” to the normal behavior. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/in:front:of:path",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/in%3Afront%3Aof%3Apath"
@@ -48,7 +48,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/in front of path</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This is the opposite of behind path: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used behind path and you now wish to “switch back” to the normal behavior. </p>",
+    "snippetHtml": "<p> This is the opposite of <code>behind path</code>: It causes nodes to be drawn on top of the path. Since this is the default behavior, you usually do not need this option; it is only needed when an enclosing scope has used <code>behind path</code> and you now wish to “switch back” to the normal behavior. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/in:front:of:path",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/in%3Afront%3Aof%3Apath"
@@ -57,7 +57,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/alias=</kbd>⟨<i>another node name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14. </p>",
+    "snippetHtml": "<p> This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the <code>node also</code> syntax, you can also assign an alias name to a node at a later point, see Section 17.14. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/alias",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/alias"
@@ -66,7 +66,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/alias=</kbd>⟨<i>another node name</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the node also syntax, you can also assign an alias name to a node at a later point, see Section 17.14. </p>",
+    "snippetHtml": "<p> This option allows you to provide another name for the node. Giving this option multiple times will allow you to access the node via several aliases. Using the <code>node also</code> syntax, you can also assign an alias name to a node at a later point, see Section 17.14. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/alias",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/alias"
@@ -75,7 +75,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shape=</kbd>⟨<i>shape name</i>⟩",
     "defaultHtml": "(no default, initially <kbd>rectangle</kbd>)",
-    "snippetHtml": "<p> Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope. </p><p> Since this option is used often, you can leave out the shape=. When TikZ encounters an option like circle that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said shape=⟨<i>shape name</i>⟩. </p>",
+    "snippetHtml": "<p> Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope. </p><p> Since this option is used often, you can leave out the <code>shape=</code>. When TikZ encounters an option like <code>circle</code> that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said <code>shape=</code>⟨<i>shape name</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/shape",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/shape"
@@ -84,7 +84,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/shape=</kbd>⟨<i>shape name</i>⟩",
     "defaultHtml": "(no default, initially <kbd>rectangle</kbd>)",
-    "snippetHtml": "<p> Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope. </p><p> Since this option is used often, you can leave out the shape=. When TikZ encounters an option like circle that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said shape=⟨<i>shape name</i>⟩. </p>",
+    "snippetHtml": "<p> Select the shape either of the current node or, when this option is not given inside a node but somewhere outside, the shape of all nodes in the current scope. </p><p> Since this option is used often, you can leave out the <code>shape=</code>. When TikZ encounters an option like <code>circle</code> that it does not know, it will, after everything else has failed, check whether this option is the name of some shape. If so, that shape is selected as if you had said <code>shape=</code>⟨<i>shape name</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/shape",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/shape"
@@ -147,7 +147,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/name prefix=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨<i>name</i>⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name. </p><p> The net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name: </p>",
+    "snippetHtml": "<p> The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the <code>name</code> key or via the implicit <code>(</code>⟨<i>name</i>⟩<code>)</code> syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name. </p><p> The net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/name:prefix",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/name%3Aprefix"
@@ -156,7 +156,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/name prefix=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the name key or via the implicit (⟨<i>name</i>⟩) syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name. </p><p> The net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name: </p>",
+    "snippetHtml": "<p> The value of this key is prefixed to every node inside the current scope. This includes both the naming of the node (via the <code>name</code> key or via the implicit <code>(</code>⟨<i>name</i>⟩<code>)</code> syntax) as well as any referencing of the node. Outside the scope, the nodes can (and need to) be referenced using “full name” consisting of the prefix and the node name. </p><p> The net effect of this is that you can set the name prefix at the beginning of a scope to some value and then use short and simple names for the nodes inside the scope. Later, outside the scope, you can reference the nodes via their full name: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/name:prefix",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/name%3Aprefix"
@@ -165,7 +165,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/name suffix=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> Works as name prefix, only the ⟨<i>text</i>⟩ is appended to every node name in the current scope. </p>",
+    "snippetHtml": "<p> Works as <code>name prefix</code>, only the ⟨<i>text</i>⟩ is appended to every node name in the current scope. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/name:suffix",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/name%3Asuffix"
@@ -174,16 +174,16 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/name suffix=</kbd>⟨<i>text</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> Works as name prefix, only the ⟨<i>text</i>⟩ is appended to every node name in the current scope. </p>",
+    "snippetHtml": "<p> Works as <code>name prefix</code>, only the ⟨<i>text</i>⟩ is appended to every node name in the current scope. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/name:suffix",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/name%3Asuffix"
   },
   "coordinate": {
     "type": "key",
-    "signatureHtml": "<kbd>\\path</kbd> … <kbd>coordinate</kbd>[⟨<i>options</i>⟩](⟨<i>name</i>⟩)at(⟨<i>coordinate</i>⟩) …<kbd>;</kbd>",
+    "signatureHtml": "<kbd>\\path</kbd> … <kbd>coordinate</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code><code>(</code>⟨<i>name</i>⟩<code>)</code><code>at(</code>⟨<i>coordinate</i>⟩<code>)</code> …<kbd>;</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>This has the same effect as</p><p> \\node[shape=coordinate][⟨<i>options</i>⟩](⟨<i>name</i>⟩)at(⟨<i>coordinate</i>⟩){}, </p>",
+    "snippetHtml": "<p>This has the same effect as</p><p> <code>\\node[shape=coordinate]</code><code>[</code>⟨<i>options</i>⟩<code>](</code>⟨<i>name</i>⟩<code>)at(</code>⟨<i>coordinate</i>⟩<code>){}</code>, </p>",
     "page": "tikz-shapes",
     "anchor": "pgf.coordinate",
     "href": "https://tikz.dev/tikz-shapes#pgf.coordinate"
@@ -192,7 +192,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\node</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path node.</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path node</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf.back/node",
     "href": "https://tikz.dev/tikz-shapes#pgf.back/node"
@@ -201,7 +201,7 @@
     "type": "command",
     "signatureHtml": "<kbd>\\coordinate</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p>Inside {tikzpicture} this is an abbreviation for \\path coordinate.</p>",
+    "snippetHtml": "<p>Inside <code>{tikzpicture}</code> this is an abbreviation for <code>\\path coordinate</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf.back/coordinate",
     "href": "https://tikz.dev/tikz-shapes#pgf.back/coordinate"
@@ -424,9 +424,9 @@
   },
   "\\nodepart": {
     "type": "command",
-    "signatureHtml": "<kbd>\\nodepart</kbd>[⟨<i>options</i>⟩]{⟨<i>part name</i>⟩}",
+    "signatureHtml": "<kbd>\\nodepart</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code>{⟨<i>part name</i>⟩}",
     "defaultHtml": "",
-    "snippetHtml": "<p> This command can only be used inside the ⟨<i>text</i>⟩ argument of a node path operation. It works a little bit like a \\part command in LaTeX. It will stop the typesetting of whatever node part was typeset until now and then start putting all following text into the node part named ⟨<i>part name</i>⟩ – until another \\nodepart is encountered or until the node ⟨<i>text</i>⟩ ends. The ⟨<i>options</i>⟩ will be local to this part. </p>",
+    "snippetHtml": "<p> This command can only be used inside the ⟨<i>text</i>⟩ argument of a <code>node</code> path operation. It works a little bit like a <code>\\part</code> command in LaTeX. It will stop the typesetting of whatever node part was typeset until now and then start putting all following text into the node part named ⟨<i>part name</i>⟩ – until another <code>\\nodepart</code> is encountered or until the node ⟨<i>text</i>⟩ ends. The ⟨<i>options</i>⟩ will be local to this part. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf.back/nodepart",
     "href": "https://tikz.dev/tikz-shapes#pgf.back/nodepart"
@@ -435,7 +435,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text=</kbd>⟨<i>color</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the color to be used for text labels. A color= option will immediately override this option. </p>",
+    "snippetHtml": "<p> Sets the color to be used for text labels. A <code>color=</code> option will immediately override this option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text"
@@ -444,7 +444,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text=</kbd>⟨<i>color</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the color to be used for text labels. A color= option will immediately override this option. </p>",
+    "snippetHtml": "<p> Sets the color to be used for text labels. A <code>color=</code> option will immediately override this option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text"
@@ -471,7 +471,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/font=</kbd>⟨<i>font commands</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the font used for the text inside nodes. However, this font will <em>not</em> (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started). </p>",
+    "snippetHtml": "<p> Sets the font used for the text inside nodes. However, this font will <em>not</em> (yet) be installed when any of the dimensions of the node are being computed, so dimensions like <code>1em</code> will be with respect to the font used outside the node (usually the font that was in force when the picture started). </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/font",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/font"
@@ -480,7 +480,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/font=</kbd>⟨<i>font commands</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the font used for the text inside nodes. However, this font will <em>not</em> (yet) be installed when any of the dimensions of the node are being computed, so dimensions like 1em will be with respect to the font used outside the node (usually the font that was in force when the picture started). </p>",
+    "snippetHtml": "<p> Sets the font used for the text inside nodes. However, this font will <em>not</em> (yet) be installed when any of the dimensions of the node are being computed, so dimensions like <code>1em</code> will be with respect to the font used outside the node (usually the font that was in force when the picture started). </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/font",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/font"
@@ -489,7 +489,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text width=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option will put the text of a node in a box of the given width (something akin to a {minipage} of this width, only portable across formats). If the node text is not as wide as ⟨<i>dimension</i>⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done. </p><p> By default, when this option is given, a ragged right border will be used (align=left). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using align or directly using commands line \\centering. </p>",
+    "snippetHtml": "<p> This option will put the text of a node in a box of the given width (something akin to a <code>{minipage}</code> of this width, only portable across formats). If the node text is not as wide as ⟨<i>dimension</i>⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done. </p><p> By default, when this option is given, a ragged right border will be used (<code>align=left</code>). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using <code>align</code> or directly using commands line <code>\\centering</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:width",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Awidth"
@@ -498,7 +498,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text width=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option will put the text of a node in a box of the given width (something akin to a {minipage} of this width, only portable across formats). If the node text is not as wide as ⟨<i>dimension</i>⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done. </p><p> By default, when this option is given, a ragged right border will be used (align=left). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using align or directly using commands line \\centering. </p>",
+    "snippetHtml": "<p> This option will put the text of a node in a box of the given width (something akin to a <code>{minipage}</code> of this width, only portable across formats). If the node text is not as wide as ⟨<i>dimension</i>⟩, it will nevertheless be put in a box of this width. If it is larger, line breaking will be done. </p><p> By default, when this option is given, a ragged right border will be used (<code>align=left</code>). This is sensible since, typically, these boxes are narrow and justifying the text looks ugly. You can, however, change the alignment using <code>align</code> or directly using commands line <code>\\centering</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:width",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Awidth"
@@ -507,7 +507,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/align=</kbd>⟨<i>alignment option</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this <em>alignment with line breaking</em>), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨<i>alignment option</i>⟩. If text width is not set (that is, set to the empty string; let us call this <em>alignment without line breaking</em>), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨<i>alignment option</i>⟩ and the resulting node’s width will be minimal to encompass the resulting lines. </p><p> In detail, you can set ⟨<i>alignment option</i>⟩ to one of the following values: </p>",
+    "snippetHtml": "<p> This key is used to set up an alignment for multi-line text inside a node. If <code>text width</code> is set to some width (let us call this <em>alignment with line breaking</em>), the <code>align</code> key will setup the <code>\\leftskip</code> and the <code>\\rightskip</code> in such a way that the text is broken and aligned according to ⟨<i>alignment option</i>⟩. If <code>text width</code> is not set (that is, set to the empty string; let us call this <em>alignment without line breaking</em>), then a different mechanism is used internally, namely the key <code>node halign header</code>, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When <code>text width</code> is not set, you can use <code>\\\\</code> to break lines and align them according to ⟨<i>alignment option</i>⟩ and the resulting node’s width will be minimal to encompass the resulting lines. </p><p> In detail, you can set ⟨<i>alignment option</i>⟩ to one of the following values: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/align",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/align"
@@ -516,7 +516,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/align=</kbd>⟨<i>alignment option</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key is used to set up an alignment for multi-line text inside a node. If text width is set to some width (let us call this <em>alignment with line breaking</em>), the align key will setup the \\leftskip and the \\rightskip in such a way that the text is broken and aligned according to ⟨<i>alignment option</i>⟩. If text width is not set (that is, set to the empty string; let us call this <em>alignment without line breaking</em>), then a different mechanism is used internally, namely the key node halign header, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When text width is not set, you can use \\\\ to break lines and align them according to ⟨<i>alignment option</i>⟩ and the resulting node’s width will be minimal to encompass the resulting lines. </p><p> In detail, you can set ⟨<i>alignment option</i>⟩ to one of the following values: </p>",
+    "snippetHtml": "<p> This key is used to set up an alignment for multi-line text inside a node. If <code>text width</code> is set to some width (let us call this <em>alignment with line breaking</em>), the <code>align</code> key will setup the <code>\\leftskip</code> and the <code>\\rightskip</code> in such a way that the text is broken and aligned according to ⟨<i>alignment option</i>⟩. If <code>text width</code> is not set (that is, set to the empty string; let us call this <em>alignment without line breaking</em>), then a different mechanism is used internally, namely the key <code>node halign header</code>, is set to an appropriate value. While this key, which is documented below, is not to be used by beginners, the net effect is simple: When <code>text width</code> is not set, you can use <code>\\\\</code> to break lines and align them according to ⟨<i>alignment option</i>⟩ and the resulting node’s width will be minimal to encompass the resulting lines. </p><p> In detail, you can set ⟨<i>alignment option</i>⟩ to one of the following values: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/align",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/align"
@@ -543,7 +543,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/node halign header=</kbd>⟨<i>macro storing a header</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This is the key that is used by align internally for alignment without line breaking. Read the following only if you are familiar with the \\halign command. </p><p> This key only has an effect if text width is empty, otherwise it is ignored. Furthermore, if ⟨<i>macro storing a header</i>⟩ is empty, then this key also has no effect. So, suppose text width is empty, but ⟨<i>header</i>⟩ is not. In this case the following happens: </p>",
+    "snippetHtml": "<p> This is the key that is used by <code>align</code> internally for alignment without line breaking. Read the following only if you are familiar with the <code>\\halign</code> command. </p><p> This key only has an effect if <code>text width</code> is empty, otherwise it is ignored. Furthermore, if ⟨<i>macro storing a header</i>⟩ is empty, then this key also has no effect. So, suppose <code>text width</code> is empty, but ⟨<i>header</i>⟩ is not. In this case the following happens: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/node:halign:header",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/node%3Ahalign%3Aheader"
@@ -552,7 +552,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/node halign header=</kbd>⟨<i>macro storing a header</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This is the key that is used by align internally for alignment without line breaking. Read the following only if you are familiar with the \\halign command. </p><p> This key only has an effect if text width is empty, otherwise it is ignored. Furthermore, if ⟨<i>macro storing a header</i>⟩ is empty, then this key also has no effect. So, suppose text width is empty, but ⟨<i>header</i>⟩ is not. In this case the following happens: </p>",
+    "snippetHtml": "<p> This is the key that is used by <code>align</code> internally for alignment without line breaking. Read the following only if you are familiar with the <code>\\halign</code> command. </p><p> This key only has an effect if <code>text width</code> is empty, otherwise it is ignored. Furthermore, if ⟨<i>macro storing a header</i>⟩ is empty, then this key also has no effect. So, suppose <code>text width</code> is empty, but ⟨<i>header</i>⟩ is not. In this case the following happens: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/node:halign:header",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/node%3Ahalign%3Aheader"
@@ -561,7 +561,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text height=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the “natural” size of the text box remains unchanged. </p>",
+    "snippetHtml": "<p> Sets the height of the text boxes in shapes. Thus, when you write something like <code>node {text}</code>, the <code>text</code> is first typeset, resulting in some box of a certain height. This height is then replaced by the height <code>text height</code>. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write <code>text height=</code> without specifying anything, the “natural” size of the text box remains unchanged. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:height",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Aheight"
@@ -570,7 +570,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text height=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Sets the height of the text boxes in shapes. Thus, when you write something like node {text}, the text is first typeset, resulting in some box of a certain height. This height is then replaced by the height text height. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write text height= without specifying anything, the “natural” size of the text box remains unchanged. </p>",
+    "snippetHtml": "<p> Sets the height of the text boxes in shapes. Thus, when you write something like <code>node {text}</code>, the <code>text</code> is first typeset, resulting in some box of a certain height. This height is then replaced by the height <code>text height</code>. The resulting box is then used to determine the size of the shape, which will typically be larger. When you write <code>text height=</code> without specifying anything, the “natural” size of the text box remains unchanged. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:height",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Aheight"
@@ -579,7 +579,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text depth=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option works like text height, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned. </p>",
+    "snippetHtml": "<p> This option works like <code>text height</code>, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:depth",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Adepth"
@@ -588,7 +588,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/text depth=</kbd>⟨<i>dimension</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option works like text height, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned. </p>",
+    "snippetHtml": "<p> This option works like <code>text height</code>, only for the depth of the text box. This option is mostly useful when you need to ensure a uniform depth of text boxes that need to be aligned. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/text:depth",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/text%3Adepth"
@@ -597,7 +597,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p> Does the same as anchor=south. If the ⟨<i>offset</i>⟩ is specified, the node is additionally shifted upwards by the given ⟨<i>offset</i>⟩. </p>",
+    "snippetHtml": "<p> Does the same as <code>anchor=south</code>. If the ⟨<i>offset</i>⟩ is specified, the node is additionally shifted upwards by the given ⟨<i>offset</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above"
@@ -606,7 +606,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p> Does the same as anchor=south. If the ⟨<i>offset</i>⟩ is specified, the node is additionally shifted upwards by the given ⟨<i>offset</i>⟩. </p>",
+    "snippetHtml": "<p> Does the same as <code>anchor=south</code>. If the ⟨<i>offset</i>⟩ is specified, the node is additionally shifted upwards by the given ⟨<i>offset</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above"
@@ -615,7 +615,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below"
@@ -624,7 +624,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below"
@@ -633,7 +633,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/left=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/left"
@@ -642,7 +642,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/left=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/left"
@@ -651,7 +651,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/right=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/right"
@@ -660,7 +660,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/right=</kbd>⟨<i>offset</i>⟩",
     "defaultHtml": "(default <kbd>0pt</kbd>)",
-    "snippetHtml": "<p>Similar to above.</p>",
+    "snippetHtml": "<p>Similar to <code>above</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/right"
@@ -669,7 +669,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left “wins”. Actually, this option also takes an ⟨<i>offset</i>⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.) </p>",
+    "snippetHtml": "<p> Does the same as <code>anchor=south east</code>. Note that giving both <code>above</code> and <code>left</code> options does not have the same effect as <code>above left</code>, rather only the last <code>left</code> “wins”. Actually, this option also takes an ⟨<i>offset</i>⟩ parameter, but using this parameter without using the <code>positioning</code> library is deprecated. (The <code>positioning</code> library changes the meaning of this parameter to something more sensible.) </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above%3Aleft"
@@ -678,7 +678,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Does the same as anchor=south east. Note that giving both above and left options does not have the same effect as above left, rather only the last left “wins”. Actually, this option also takes an ⟨<i>offset</i>⟩ parameter, but using this parameter without using the positioning library is deprecated. (The positioning library changes the meaning of this parameter to something more sensible.) </p>",
+    "snippetHtml": "<p> Does the same as <code>anchor=south east</code>. Note that giving both <code>above</code> and <code>left</code> options does not have the same effect as <code>above left</code>, rather only the last <code>left</code> “wins”. Actually, this option also takes an ⟨<i>offset</i>⟩ parameter, but using this parameter without using the <code>positioning</code> library is deprecated. (The <code>positioning</code> library changes the meaning of this parameter to something more sensible.) </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above%3Aleft"
@@ -687,7 +687,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above%3Aright"
@@ -696,7 +696,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/above right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/above:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/above%3Aright"
@@ -705,7 +705,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below%3Aleft"
@@ -714,7 +714,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below left</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below%3Aleft"
@@ -723,7 +723,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below%3Aright"
@@ -732,7 +732,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/below right</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>Similar to above left.</p>",
+    "snippetHtml": "<p>Similar to <code>above left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/below:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/below%3Aright"
@@ -741,7 +741,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/centered</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A shorthand for anchor=center.</p>",
+    "snippetHtml": "<p>A shorthand for <code>anchor=center</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/centered",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/centered"
@@ -750,7 +750,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/centered</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>A shorthand for anchor=center.</p>",
+    "snippetHtml": "<p>A shorthand for <code>anchor=center</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/centered",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/centered"
@@ -759,7 +759,7 @@
     "type": "key",
     "signatureHtml": "<b>TikZ Library</b> <kbd>positioning</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> <kbd>\\usetikzlibrary{positioning} % LaTeX and plain TeX</kbd><br> <kbd>\\usetikzlibrary[positioning] % ConTeXt</kbd><br> <br> The library defines additional options for placing nodes conveniently. It also redefines the standard options like above so that they give you better control of node placement. </p>",
+    "snippetHtml": "<p> <kbd>\\usetikzlibrary{positioning} % LaTeX and plain TeX</kbd><br> <kbd>\\usetikzlibrary[positioning] % ConTeXt</kbd><br> <br> The library defines additional options for placing nodes conveniently. It also redefines the standard options like <code>above</code> so that they give you better control of node placement. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf.positioning",
     "href": "https://tikz.dev/tikz-shapes#pgf.positioning"
@@ -768,7 +768,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/on grid=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> When this key is set to true, an ⟨<i>of-part</i>⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨<i>node name</i>⟩ are set to center. </p><p> This has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option. </p>",
+    "snippetHtml": "<p> When this key is set to <code>true</code>, an ⟨<i>of-part</i>⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨<i>node name</i>⟩ are set to <code>center</code>. </p><p> This has the following effect: When you say <code>above=1cm of somenode</code> with <code>on grid</code> set to true, the new node will be placed in such a way that its center is 1cm above the center of <code>somenode</code>. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/on:grid",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/on%3Agrid"
@@ -777,7 +777,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/on grid=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(no default, initially <kbd>false</kbd>)",
-    "snippetHtml": "<p> When this key is set to true, an ⟨<i>of-part</i>⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨<i>node name</i>⟩ are set to center. </p><p> This has the following effect: When you say above=1cm of somenode with on grid set to true, the new node will be placed in such a way that its center is 1cm above the center of somenode. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option. </p>",
+    "snippetHtml": "<p> When this key is set to <code>true</code>, an ⟨<i>of-part</i>⟩ of the current form behaves differently: The anchors set for the current node as well as the anchor used for the other ⟨<i>node name</i>⟩ are set to <code>center</code>. </p><p> This has the following effect: When you say <code>above=1cm of somenode</code> with <code>on grid</code> set to true, the new node will be placed in such a way that its center is 1cm above the center of <code>somenode</code>. Repeatedly placing nodes in this way will result in nodes that are centered on “grid coordinate”, hence the name of the option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/on:grid",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/on%3Agrid"
@@ -804,7 +804,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/base left=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key works like the left key, only instead of the east anchor, the base east anchor is used and, when the second form of an ⟨<i>of-part</i>⟩ is used, the corresponding base west anchor. </p><p>This key is useful for chaining together nodes so that their base lines are aligned.</p>",
+    "snippetHtml": "<p> This key works like the <code>left</code> key, only instead of the <code>east</code> anchor, the <code>base east</code> anchor is used and, when the second form of an ⟨<i>of-part</i>⟩ is used, the corresponding <code>base west</code> anchor. </p><p>This key is useful for chaining together nodes so that their base lines are aligned.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/base:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/base%3Aleft"
@@ -813,7 +813,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/base left=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key works like the left key, only instead of the east anchor, the base east anchor is used and, when the second form of an ⟨<i>of-part</i>⟩ is used, the corresponding base west anchor. </p><p>This key is useful for chaining together nodes so that their base lines are aligned.</p>",
+    "snippetHtml": "<p> This key works like the <code>left</code> key, only instead of the <code>east</code> anchor, the <code>base east</code> anchor is used and, when the second form of an ⟨<i>of-part</i>⟩ is used, the corresponding <code>base west</code> anchor. </p><p>This key is useful for chaining together nodes so that their base lines are aligned.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/base:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/base%3Aleft"
@@ -822,7 +822,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/base right=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Works like base left.</p>",
+    "snippetHtml": "<p>Works like <code>base left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/base:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/base%3Aright"
@@ -831,7 +831,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/base right=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Works like base left.</p>",
+    "snippetHtml": "<p>Works like <code>base left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/base:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/base%3Aright"
@@ -840,7 +840,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mid left=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Works like base left, but with mid east and mid west anchors instead of base east and base west. </p>",
+    "snippetHtml": "<p> Works like <code>base left</code>, but with <code>mid east</code> and <code>mid west</code> anchors instead of <code>base east</code> and <code>base west</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/mid:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/mid%3Aleft"
@@ -849,7 +849,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mid left=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> Works like base left, but with mid east and mid west anchors instead of base east and base west. </p>",
+    "snippetHtml": "<p> Works like <code>base left</code>, but with <code>mid east</code> and <code>mid west</code> anchors instead of <code>base east</code> and <code>base west</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/mid:left",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/mid%3Aleft"
@@ -858,7 +858,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mid right=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Works like mid left.</p>",
+    "snippetHtml": "<p>Works like <code>mid left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/mid:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/mid%3Aright"
@@ -867,7 +867,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/mid right=</kbd>⟨<i>specification</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p>Works like mid left.</p>",
+    "snippetHtml": "<p>Works like <code>mid left</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/mid:right",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/mid%3Aright"
@@ -876,7 +876,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/transform shape</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Causes the current “external” transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a “huge” X in your graphic. </p>",
+    "snippetHtml": "<p> Causes the current “external” transformation matrix to be applied to the shape. For example, if you said <code>\\tikz[scale=3]</code> and then say <code>node[transform shape] {X}</code>, you will get a “huge” X in your graphic. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/transform:shape",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/transform%3Ashape"
@@ -885,7 +885,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/transform shape</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> Causes the current “external” transformation matrix to be applied to the shape. For example, if you said \\tikz[scale=3] and then say node[transform shape] {X}, you will get a “huge” X in your graphic. </p>",
+    "snippetHtml": "<p> Causes the current “external” transformation matrix to be applied to the shape. For example, if you said <code>\\tikz[scale=3]</code> and then say <code>node[transform shape] {X}</code>, you will get a “huge” X in your graphic. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/transform:shape",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/transform%3Ashape"
@@ -930,7 +930,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/auto=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s setting</kbd>)",
-    "snippetHtml": "<p> This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨<i>direction</i>⟩ is left, then the anchor is chosen such that the node is to the left of this line. If the ⟨<i>direction</i>⟩ is right, then the node is to the right of this line. Leaving out ⟨<i>direction</i>⟩ causes automatic placement to be enabled with the last value of left or right used. A ⟨<i>direction</i>⟩ of false disables automatic placement. This happens also whenever an anchor is given explicitly by the anchor option or by one of the above, below, etc. options. </p><p>This option only has an effect for nodes that are placed on lines or curves.</p>",
+    "snippetHtml": "<p> This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨<i>direction</i>⟩ is <code>left</code>, then the anchor is chosen such that the node is to the left of this line. If the ⟨<i>direction</i>⟩ is <code>right</code>, then the node is to the right of this line. Leaving out ⟨<i>direction</i>⟩ causes automatic placement to be enabled with the last value of <code>left</code> or <code>right</code> used. A ⟨<i>direction</i>⟩ of <code>false</code> disables automatic placement. This happens also whenever an anchor is given explicitly by the <code>anchor</code> option or by one of the <code>above</code>, <code>below</code>, etc. options. </p><p>This option only has an effect for nodes that are placed on lines or curves.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/auto",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/auto"
@@ -939,7 +939,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/auto=</kbd>⟨<i>direction</i>⟩",
     "defaultHtml": "(default <kbd>is scope’s setting</kbd>)",
-    "snippetHtml": "<p> This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨<i>direction</i>⟩ is left, then the anchor is chosen such that the node is to the left of this line. If the ⟨<i>direction</i>⟩ is right, then the node is to the right of this line. Leaving out ⟨<i>direction</i>⟩ causes automatic placement to be enabled with the last value of left or right used. A ⟨<i>direction</i>⟩ of false disables automatic placement. This happens also whenever an anchor is given explicitly by the anchor option or by one of the above, below, etc. options. </p><p>This option only has an effect for nodes that are placed on lines or curves.</p>",
+    "snippetHtml": "<p> This option causes an anchor position to be calculated automatically according to the following rule. Consider a line between two points. If the ⟨<i>direction</i>⟩ is <code>left</code>, then the anchor is chosen such that the node is to the left of this line. If the ⟨<i>direction</i>⟩ is <code>right</code>, then the node is to the right of this line. Leaving out ⟨<i>direction</i>⟩ causes automatic placement to be enabled with the last value of <code>left</code> or <code>right</code> used. A ⟨<i>direction</i>⟩ of <code>false</code> disables automatic placement. This happens also whenever an anchor is given explicitly by the <code>anchor</code> option or by one of the <code>above</code>, <code>below</code>, etc. options. </p><p>This option only has an effect for nodes that are placed on lines or curves.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/auto",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/auto"
@@ -948,7 +948,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/swap</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option exchanges the roles of left and right in automatic placement. That is, if left is the current auto placement, right is set instead and the other way round. </p>",
+    "snippetHtml": "<p> This option exchanges the roles of <code>left</code> and <code>right</code> in automatic placement. That is, if <code>left</code> is the current <code>auto</code> placement, <code>right</code> is set instead and the other way round. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/swap",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/swap"
@@ -957,7 +957,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/swap</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option exchanges the roles of left and right in automatic placement. That is, if left is the current auto placement, right is set instead and the other way round. </p>",
+    "snippetHtml": "<p> This option exchanges the roles of <code>left</code> and <code>right</code> in automatic placement. That is, if <code>left</code> is the current <code>auto</code> placement, <code>right</code> is set instead and the other way round. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/swap",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/swap"
@@ -966,7 +966,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/'</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This is a very short alias for swap.</p>",
+    "snippetHtml": "<p>This is a very short alias for <code>swap</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/'",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/'"
@@ -975,7 +975,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/'</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p>This is a very short alias for swap.</p>",
+    "snippetHtml": "<p>This is a very short alias for <code>swap</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/'",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/'"
@@ -984,7 +984,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/sloped</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use [rotate=180] or [allow upside down], see below. </p>",
+    "snippetHtml": "<p> This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use <code>[rotate=180]</code> or <code>[allow upside down]</code>, see below. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/sloped",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/sloped"
@@ -993,7 +993,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/sloped</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use [rotate=180] or [allow upside down], see below. </p>",
+    "snippetHtml": "<p> This option causes the node to be rotated such that a horizontal line becomes a tangent to the curve. The rotation is normally done in such a way that text is never “upside down”. To get upside-down text, use can use <code>[rotate=180]</code> or <code>[allow upside down]</code>, see below. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/sloped",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/sloped"
@@ -1002,7 +1002,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/allow upside down=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true, initially false</kbd>)",
-    "snippetHtml": "<p> If set to true, TikZ will not “righten” upside down text. </p>",
+    "snippetHtml": "<p> If set to <code>true</code>, TikZ will not “righten” upside down text. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/allow:upside:down",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/allow%3Aupside%3Adown"
@@ -1011,7 +1011,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/allow upside down=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true, initially false</kbd>)",
-    "snippetHtml": "<p> If set to true, TikZ will not “righten” upside down text. </p>",
+    "snippetHtml": "<p> If set to <code>true</code>, TikZ will not “righten” upside down text. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/allow:upside:down",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/allow%3Aupside%3Adown"
@@ -1020,7 +1020,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/midway</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>This has the same effect as pos=0.5.</p>",
+    "snippetHtml": "<p>This has the same effect as <code>pos=0.5</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/midway",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/midway"
@@ -1029,7 +1029,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/midway</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>This has the same effect as pos=0.5.</p>",
+    "snippetHtml": "<p>This has the same effect as <code>pos=0.5</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/midway",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/midway"
@@ -1038,7 +1038,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/near start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.25.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.25</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/near:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/near%3Astart"
@@ -1047,7 +1047,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/near start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.25.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.25</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/near:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/near%3Astart"
@@ -1056,7 +1056,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/near end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.75.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.75</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/near:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/near%3Aend"
@@ -1065,7 +1065,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/near end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.75.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.75</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/near:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/near%3Aend"
@@ -1074,7 +1074,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/very near start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.125.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.125</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/very:near:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/very%3Anear%3Astart"
@@ -1083,7 +1083,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/very near start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.125.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.125</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/very:near:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/very%3Anear%3Astart"
@@ -1092,7 +1092,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/very near end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.875.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.875</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/very:near:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/very%3Anear%3Aend"
@@ -1101,7 +1101,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/very near end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.875.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0.875</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/very:near:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/very%3Anear%3Aend"
@@ -1110,7 +1110,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/at start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/at:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/at%3Astart"
@@ -1119,7 +1119,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/at start</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=0.</p>",
+    "snippetHtml": "<p>Set to <code>pos=0</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/at:start",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/at%3Astart"
@@ -1128,7 +1128,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/at end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=1.</p>",
+    "snippetHtml": "<p>Set to <code>pos=1</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/at:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/at%3Aend"
@@ -1137,25 +1137,25 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/at end</kbd>",
     "defaultHtml": "(style, no value)",
-    "snippetHtml": "<p>Set to pos=1.</p>",
+    "snippetHtml": "<p>Set to <code>pos=1</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/at:end",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/at%3Aend"
   },
   "/tikz/label": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/label=</kbd>[⟨<i>options</i>⟩]⟨<i>angle</i>⟩:⟨<i>text</i>⟩",
+    "signatureHtml": "<kbd>/tikz/label=</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code>⟨<i>angle</i>⟩<code>:</code>⟨<i>text</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When this option is given to a node operation, it causes <em>another</em> node to be added to the path after the current node has been finished. This extra node will have the text ⟨<i>text</i>⟩. It is placed, in principle, in the direction ⟨<i>angle</i>⟩ relative to the main node, but the exact rules are a bit complex. Suppose the node currently under construction is called main node and let us call the label node label node. Then the following happens: </p><p> You can pass ⟨<i>options</i>⟩ to the node label node. For this, you provide the options in square brackets before the ⟨<i>angle</i>⟩. If you do so, you need to add braces around the whole argument of the label option and this is also the case if you have brackets or commas or semicolons or anything special in the ⟨<i>text</i>⟩. </p>",
+    "snippetHtml": "<p> When this option is given to a <code>node</code> operation, it causes <em>another</em> node to be added to the path after the current node has been finished. This extra node will have the text ⟨<i>text</i>⟩. It is placed, in principle, in the direction ⟨<i>angle</i>⟩ relative to the main node, but the exact rules are a bit complex. Suppose the <code>node</code> currently under construction is called <code>main node</code> and let us call the label node <code>label node</code>. Then the following happens: </p><p> You can pass ⟨<i>options</i>⟩ to the node <code>label node</code>. For this, you provide the options in square brackets before the ⟨<i>angle</i>⟩. If you do so, you need to add braces around the whole argument of the <code>label</code> option and this is also the case if you have brackets or commas or semicolons or anything special in the ⟨<i>text</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/label",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/label"
   },
   "label": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/label=</kbd>[⟨<i>options</i>⟩]⟨<i>angle</i>⟩:⟨<i>text</i>⟩",
+    "signatureHtml": "<kbd>/tikz/label=</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code>⟨<i>angle</i>⟩<code>:</code>⟨<i>text</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> When this option is given to a node operation, it causes <em>another</em> node to be added to the path after the current node has been finished. This extra node will have the text ⟨<i>text</i>⟩. It is placed, in principle, in the direction ⟨<i>angle</i>⟩ relative to the main node, but the exact rules are a bit complex. Suppose the node currently under construction is called main node and let us call the label node label node. Then the following happens: </p><p> You can pass ⟨<i>options</i>⟩ to the node label node. For this, you provide the options in square brackets before the ⟨<i>angle</i>⟩. If you do so, you need to add braces around the whole argument of the label option and this is also the case if you have brackets or commas or semicolons or anything special in the ⟨<i>text</i>⟩. </p>",
+    "snippetHtml": "<p> When this option is given to a <code>node</code> operation, it causes <em>another</em> node to be added to the path after the current node has been finished. This extra node will have the text ⟨<i>text</i>⟩. It is placed, in principle, in the direction ⟨<i>angle</i>⟩ relative to the main node, but the exact rules are a bit complex. Suppose the <code>node</code> currently under construction is called <code>main node</code> and let us call the label node <code>label node</code>. Then the following happens: </p><p> You can pass ⟨<i>options</i>⟩ to the node <code>label node</code>. For this, you provide the options in square brackets before the ⟨<i>angle</i>⟩. If you do so, you need to add braces around the whole argument of the <code>label</code> option and this is also the case if you have brackets or commas or semicolons or anything special in the ⟨<i>text</i>⟩. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/label",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/label"
@@ -1182,7 +1182,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/absolute=</kbd>⟨<i>true or false</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When this key is set, the ⟨<i>angle</i>⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured “absolutely”, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope). </p><p>The difference can be seen in the following example:</p>",
+    "snippetHtml": "<p> When this key is set, the ⟨<i>angle</i>⟩ is interpreted differently: We still use a point on the border of the <code>main node</code>, but the angle is measured “absolutely”, that is, an angle of <code>0</code> refers to the point on the border that lies on a straight line from the <code>main node</code>’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope). </p><p>The difference can be seen in the following example:</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/absolute",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/absolute"
@@ -1191,7 +1191,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/absolute=</kbd>⟨<i>true or false</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> When this key is set, the ⟨<i>angle</i>⟩ is interpreted differently: We still use a point on the border of the main node, but the angle is measured “absolutely”, that is, an angle of 0 refers to the point on the border that lies on a straight line from the main node’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope). </p><p>The difference can be seen in the following example:</p>",
+    "snippetHtml": "<p> When this key is set, the ⟨<i>angle</i>⟩ is interpreted differently: We still use a point on the border of the <code>main node</code>, but the angle is measured “absolutely”, that is, an angle of <code>0</code> refers to the point on the border that lies on a straight line from the <code>main node</code>’s center to the right (relative to the paper, not relative to the local coordinate system of either the node or the scope). </p><p>The difference can be seen in the following example:</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/absolute",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/absolute"
@@ -1218,7 +1218,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every label</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is used in every node created by the label option. The default is draw=none,fill=none. </p>",
+    "snippetHtml": "<p> This style is used in every node created by the <code>label</code> option. The default is <code>draw=none,fill=none</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:label",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Alabel"
@@ -1227,25 +1227,25 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every label</kbd>",
     "defaultHtml": "(style, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This style is used in every node created by the label option. The default is draw=none,fill=none. </p>",
+    "snippetHtml": "<p> This style is used in every node created by the <code>label</code> option. The default is <code>draw=none,fill=none</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:label",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Alabel"
   },
   "/tikz/pin": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/pin=</kbd>[⟨<i>options</i>⟩]⟨<i>angle</i>⟩:⟨<i>text</i>⟩",
+    "signatureHtml": "<kbd>/tikz/pin=</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code>⟨<i>angle</i>⟩<code>:</code>⟨<i>text</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node: </p>",
+    "snippetHtml": "<p> This option is quite similar to the <code>label</code> option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin"
   },
   "pin": {
     "type": "key",
-    "signatureHtml": "<kbd>/tikz/pin=</kbd>[⟨<i>options</i>⟩]⟨<i>angle</i>⟩:⟨<i>text</i>⟩",
+    "signatureHtml": "<kbd>/tikz/pin=</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code>⟨<i>angle</i>⟩<code>:</code>⟨<i>text</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option is quite similar to the label option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node: </p>",
+    "snippetHtml": "<p> This option is quite similar to the <code>label</code> option, but there is one difference: In addition to adding an extra node to the picture, it also adds an edge from this node to the main node. This causes the node to look like a pin that has been added to the main node: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin"
@@ -1254,7 +1254,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin distance=</kbd>⟨<i>distance</i>⟩",
     "defaultHtml": "(no default, initially <kbd>3ex</kbd>)",
-    "snippetHtml": "<p> This ⟨<i>distance</i>⟩ is used instead of the label distance for the distance between the main node and the label node. </p>",
+    "snippetHtml": "<p> This ⟨<i>distance</i>⟩ is used instead of the <code>label distance</code> for the distance between the main node and the label node. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:distance",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Adistance"
@@ -1263,7 +1263,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin distance=</kbd>⟨<i>distance</i>⟩",
     "defaultHtml": "(no default, initially <kbd>3ex</kbd>)",
-    "snippetHtml": "<p> This ⟨<i>distance</i>⟩ is used instead of the label distance for the distance between the main node and the label node. </p>",
+    "snippetHtml": "<p> This ⟨<i>distance</i>⟩ is used instead of the <code>label distance</code> for the distance between the main node and the label node. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:distance",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Adistance"
@@ -1272,7 +1272,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every pin</kbd>",
     "defaultHtml": "(style, initially <kbd>draw=none,fill=none</kbd>)",
-    "snippetHtml": "<p>This style is used in every node created by the pin option.</p>",
+    "snippetHtml": "<p>This style is used in every node created by the <code>pin</code> option.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Apin"
@@ -1281,7 +1281,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every pin</kbd>",
     "defaultHtml": "(style, initially <kbd>draw=none,fill=none</kbd>)",
-    "snippetHtml": "<p>This style is used in every node created by the pin option.</p>",
+    "snippetHtml": "<p>This style is used in every node created by the <code>pin</code> option.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Apin"
@@ -1290,7 +1290,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin position=</kbd>⟨<i>angle</i>⟩",
     "defaultHtml": "(no default, initially <kbd>above</kbd>)",
-    "snippetHtml": "<p>The default pin position. Works like label position.</p>",
+    "snippetHtml": "<p>The default pin position. Works like <code>label position</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:position",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Aposition"
@@ -1299,7 +1299,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin position=</kbd>⟨<i>angle</i>⟩",
     "defaultHtml": "(no default, initially <kbd>above</kbd>)",
-    "snippetHtml": "<p>The default pin position. Works like label position.</p>",
+    "snippetHtml": "<p>The default pin position. Works like <code>label position</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:position",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Aposition"
@@ -1308,7 +1308,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every pin edge</kbd>",
     "defaultHtml": "(style, initially <kbd>help lines</kbd>)",
-    "snippetHtml": "<p>This style is used in every edge created by the pin options.</p>",
+    "snippetHtml": "<p>This style is used in every edge created by the <code>pin</code> options.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:pin:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Apin%3Aedge"
@@ -1317,7 +1317,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every pin edge</kbd>",
     "defaultHtml": "(style, initially <kbd>help lines</kbd>)",
-    "snippetHtml": "<p>This style is used in every edge created by the pin options.</p>",
+    "snippetHtml": "<p>This style is used in every edge created by the <code>pin</code> options.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:pin:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Apin%3Aedge"
@@ -1326,7 +1326,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin edge=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This option can be used to set the options that are to be used in the edge created by the pin option. </p>",
+    "snippetHtml": "<p> This option can be used to set the options that are to be used in the edge created by the <code>pin</code> option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Aedge"
@@ -1335,7 +1335,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/pin edge=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default, initially <kbd>empty</kbd>)",
-    "snippetHtml": "<p> This option can be used to set the options that are to be used in the edge created by the pin option. </p>",
+    "snippetHtml": "<p> This option can be used to set the options that are to be used in the edge created by the <code>pin</code> option. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/pin:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/pin%3Aedge"
@@ -1389,7 +1389,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/quotes mean pin</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option: </p>",
+    "snippetHtml": "<p> This option has exactly the same effect as <code>quotes mean label</code>, only instead of transforming quoted text to the <code>label</code> option, they get transformed to the <code>pin</code> option: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/quotes:mean:pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/quotes%3Amean%3Apin"
@@ -1398,7 +1398,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/quotes mean pin</kbd>",
     "defaultHtml": "(no value)",
-    "snippetHtml": "<p> This option has exactly the same effect as quotes mean label, only instead of transforming quoted text to the label option, they get transformed to the pin option: </p>",
+    "snippetHtml": "<p> This option has exactly the same effect as <code>quotes mean label</code>, only instead of transforming quoted text to the <code>label</code> option, they get transformed to the <code>pin</code> option: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/quotes:mean:pin",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/quotes%3Amean%3Apin"
@@ -1425,7 +1425,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/node quotes mean=</kbd>⟨<i>replacement</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key–value pair with the syntax </p><p> is encountered, the following happens: The above string gets replaced by ⟨<i>replacement</i>⟩ where inside the ⟨<i>replacement</i>⟩ the parameter #1 is ⟨<i>text</i>⟩ and #2 is ⟨<i>options</i>⟩. If the apostrophe is present (see also the discussion of quotes mean label), the ⟨<i>options</i>⟩ start with ',. </p>",
+    "snippetHtml": "<p> This key allows you to define your own handler for quotes options. Inside the options of a <code>node</code>, whenever a key–value pair with the syntax </p><p> is encountered, the following happens: The above string gets replaced by ⟨<i>replacement</i>⟩ where inside the ⟨<i>replacement</i>⟩ the parameter <code>#1</code> is ⟨<i>text</i>⟩ and <code>#2</code> is ⟨<i>options</i>⟩. If the apostrophe is present (see also the discussion of <code>quotes mean label</code>), the ⟨<i>options</i>⟩ start with <code>',</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/node:quotes:mean",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/node%3Aquotes%3Amean"
@@ -1434,16 +1434,16 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/node quotes mean=</kbd>⟨<i>replacement</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This key allows you to define your own handler for quotes options. Inside the options of a node, whenever a key–value pair with the syntax </p><p> is encountered, the following happens: The above string gets replaced by ⟨<i>replacement</i>⟩ where inside the ⟨<i>replacement</i>⟩ the parameter #1 is ⟨<i>text</i>⟩ and #2 is ⟨<i>options</i>⟩. If the apostrophe is present (see also the discussion of quotes mean label), the ⟨<i>options</i>⟩ start with ',. </p>",
+    "snippetHtml": "<p> This key allows you to define your own handler for quotes options. Inside the options of a <code>node</code>, whenever a key–value pair with the syntax </p><p> is encountered, the following happens: The above string gets replaced by ⟨<i>replacement</i>⟩ where inside the ⟨<i>replacement</i>⟩ the parameter <code>#1</code> is ⟨<i>text</i>⟩ and <code>#2</code> is ⟨<i>options</i>⟩. If the apostrophe is present (see also the discussion of <code>quotes mean label</code>), the ⟨<i>options</i>⟩ start with <code>',</code>. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/node:quotes:mean",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/node%3Aquotes%3Amean"
   },
   "edge": {
     "type": "key",
-    "signatureHtml": "<kbd>\\path</kbd> … <kbd>edge</kbd>[⟨<i>options</i>⟩] ⟨<i>nodes</i>⟩ (⟨<i>coordinate</i>⟩) …<kbd>;</kbd>",
+    "signatureHtml": "<kbd>\\path</kbd> … <kbd>edge</kbd><code>[</code>⟨<i>options</i>⟩<code>]</code> ⟨<i>nodes</i>⟩ <code>(</code>⟨<i>coordinate</i>⟩<code>)</code> …<kbd>;</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> The effect of the edge operation is that after the main path the following path is added to the picture: </p><p> Here, ⟨<i>path</i>⟩ is the to path. Note that, unlike the path added by the to operation, the (\\tikztostart) is added before the ⟨<i>path</i>⟩ (which is unnecessary for the to operation, since this coordinate is already part of the main path). </p>",
+    "snippetHtml": "<p> The effect of the <code>edge</code> operation is that after the main path the following path is added to the picture: </p><p> Here, ⟨<i>path</i>⟩ is the <code>to path</code>. Note that, unlike the path added by the <code>to</code> operation, the <code>(\\tikztostart)</code> is added before the ⟨<i>path</i>⟩ (which is unnecessary for the <code>to</code> operation, since this coordinate is already part of the main path). </p>",
     "page": "tikz-shapes",
     "anchor": "pgf.edge",
     "href": "https://tikz.dev/tikz-shapes#pgf.edge"
@@ -1452,7 +1452,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every edge</kbd>",
     "defaultHtml": "(style, initially <kbd>draw</kbd>)",
-    "snippetHtml": "<p>Executed for each edge.</p>",
+    "snippetHtml": "<p>Executed for each <code>edge</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Aedge"
@@ -1461,7 +1461,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every edge</kbd>",
     "defaultHtml": "(style, initially <kbd>draw</kbd>)",
-    "snippetHtml": "<p>Executed for each edge.</p>",
+    "snippetHtml": "<p>Executed for each <code>edge</code>.</p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:edge",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Aedge"
@@ -1470,7 +1470,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every edge quotes</kbd>",
     "defaultHtml": "(style, initially <kbd>auto</kbd>)",
-    "snippetHtml": "<p> This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left. </p>",
+    "snippetHtml": "<p> This style is <code>auto</code> by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of <code>auto</code> has been changed, they will be placed to the left. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:edge:quotes",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Aedge%3Aquotes"
@@ -1479,7 +1479,7 @@
     "type": "style",
     "signatureHtml": "<kbd>/tikz/every edge quotes</kbd>",
     "defaultHtml": "(style, initially <kbd>auto</kbd>)",
-    "snippetHtml": "<p> This style is auto by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of auto has been changed, they will be placed to the left. </p>",
+    "snippetHtml": "<p> This style is <code>auto</code> by default, which causes labels specified using the quotes-syntax to be placed next to the edges. Unless the setting of <code>auto</code> has been changed, they will be placed to the left. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/every:edge:quotes",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/every%3Aedge%3Aquotes"
@@ -1506,7 +1506,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/overlay=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed. </p><p> You need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass <em>the node in the other picture</em>. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the overlay option with all pictures that contain references to other pictures. </p>",
+    "snippetHtml": "<p> This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed. </p><p> You need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass <em>the node in the other picture</em>. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the <code>overlay</code> option with all pictures that contain references to other pictures. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/overlay",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/overlay"
@@ -1515,16 +1515,16 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/overlay=</kbd>⟨<i>boolean</i>⟩",
     "defaultHtml": "(default <kbd>true</kbd>)",
-    "snippetHtml": "<p> This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed. </p><p> You need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass <em>the node in the other picture</em>. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the overlay option with all pictures that contain references to other pictures. </p>",
+    "snippetHtml": "<p> This option is mainly intended for use when nodes in other pictures are referenced, but you can also use it in other situations. The effect of this option is that everything within the current scope is not taken into consideration when the bounding box of the current picture is computed. </p><p> You need to specify this option on all paths (or at least on all parts of paths) that contain a reference to a node in another picture. The reason is that, otherwise, TikZ will attempt to make the current picture large enough to encompass <em>the node in the other picture</em>. However, on a second run of TeX this will create an even bigger picture, leading to larger and larger pictures. Unless you know what you are doing, I suggest specifying the <code>overlay</code> option with all pictures that contain references to other pictures. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/overlay",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/overlay"
   },
   "node also": {
     "type": "key",
-    "signatureHtml": "<kbd>\\path</kbd> … <kbd>node also</kbd>[⟨<i>late options</i>⟩](⟨<i>name</i>⟩) …<kbd>;</kbd>",
+    "signatureHtml": "<kbd>\\path</kbd> … <kbd>node also</kbd><code>[</code>⟨<i>late options</i>⟩<code>]</code><code>(</code>⟨<i>name</i>⟩<code>)</code> …<kbd>;</kbd>",
     "defaultHtml": "",
-    "snippetHtml": "<p> Note that the ⟨<i>name</i>⟩ is compulsory and that <em>no</em> text may be given. Also, the ordering of options and node label must be as above. </p><p> The effect of the above is the following effect: The node ⟨<i>name</i>⟩ must already be existing. Now, the ⟨<i>late options</i>⟩ are executed in a local scope. Most of these options will have no effect since you <em>cannot change the appearance of the node,</em> that is, you cannot change a red node into a green node using these “late” options. However, giving the append after command and prefix after command options inside the ⟨<i>late options</i>⟩ (directly or indirectly) does have the desired effect: The given path gets executed with the \\tikzlastnode set to the determined node. </p>",
+    "snippetHtml": "<p> Note that the ⟨<i>name</i>⟩ is compulsory and that <em>no</em> text may be given. Also, the ordering of options and node label must be as above. </p><p> The effect of the above is the following effect: The node ⟨<i>name</i>⟩ must already be existing. Now, the ⟨<i>late options</i>⟩ are executed in a local scope. Most of these options will have no effect since you <em>cannot change the appearance of the node,</em> that is, you cannot change a red node into a green node using these “late” options. However, giving the <code>append after command</code> and <code>prefix after command</code> options inside the ⟨<i>late options</i>⟩ (directly or indirectly) does have the desired effect: The given path gets executed with the <code>\\tikzlastnode</code> set to the determined node. </p>",
     "page": "tikz-shapes",
     "anchor": "pgf.node:also",
     "href": "https://tikz.dev/tikz-shapes#pgf.node%3Aalso"
@@ -1542,7 +1542,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/late options=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given on a path (but not as an argument to a node path command) and has the same effect as the node also path command. Inside the ⟨<i>options</i>⟩, you should use the name option to specify the node for which you wish to add late options: </p>",
+    "snippetHtml": "<p> This option can be given on a path (but not as an argument to a <code>node</code> path command) and has the same effect as the <code>node also</code> path command. Inside the ⟨<i>options</i>⟩, you should use the <code>name</code> option to specify the node for which you wish to add late options: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/late:options",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/late%3Aoptions"
@@ -1551,7 +1551,7 @@
     "type": "key",
     "signatureHtml": "<kbd>/tikz/late options=</kbd>⟨<i>options</i>⟩",
     "defaultHtml": "(no default)",
-    "snippetHtml": "<p> This option can be given on a path (but not as an argument to a node path command) and has the same effect as the node also path command. Inside the ⟨<i>options</i>⟩, you should use the name option to specify the node for which you wish to add late options: </p>",
+    "snippetHtml": "<p> This option can be given on a path (but not as an argument to a <code>node</code> path command) and has the same effect as the <code>node also</code> path command. Inside the ⟨<i>options</i>⟩, you should use the <code>name</code> option to specify the node for which you wish to add late options: </p>",
     "page": "tikz-shapes",
     "anchor": "pgf./tikz/late:options",
     "href": "https://tikz.dev/tikz-shapes#pgf./tikz/late%3Aoptions"

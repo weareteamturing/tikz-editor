@@ -168,7 +168,7 @@
   text-decoration-color: var(--color-warning);
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip) {
+:global(.cm-editor-diagnostic-tooltip) {
   max-width: 360px;
   border: 1px solid var(--border-light);
   background: var(--bg-pane);
@@ -177,9 +177,10 @@
   font-family: var(--font-mono);
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   line-height: 1.4;
+  z-index: 220;
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip-header) {
+:global(.cm-editor-diagnostic-tooltip-header) {
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -187,34 +188,36 @@
   margin-bottom: 3px;
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip-header code) {
+:global(.cm-editor-diagnostic-tooltip-header code) {
   font-weight: 700;
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip-message) {
+:global(.cm-editor-diagnostic-tooltip-message) {
   color: var(--text);
   white-space: normal;
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip-error .cm-editor-diagnostic-tooltip-header code) {
+:global(.cm-editor-diagnostic-tooltip-error .cm-editor-diagnostic-tooltip-header code) {
   color: var(--color-error);
 }
 
-.editorWrap :global(.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code) {
+:global(.cm-editor-diagnostic-tooltip-warning .cm-editor-diagnostic-tooltip-header code) {
   color: var(--color-warning);
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip) {
+:global(.cm-editor-docs-tooltip) {
   max-width: 420px;
   border: 1px solid var(--border-light);
   background: var(--bg-pane);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
   padding: 8px 10px;
+  font-family: var(--font-ui);
   font-size: calc(var(--app-ui-scale, 1) * 12px);
   line-height: 1.45;
+  z-index: 220;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-meta) {
+:global(.cm-editor-docs-tooltip-meta) {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -222,40 +225,48 @@
   font-family: var(--font-mono);
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-signature code),
-.editorWrap :global(.cm-editor-docs-tooltip-signature kbd) {
+:global(.cm-editor-docs-tooltip-signature code),
+:global(.cm-editor-docs-tooltip-signature kbd) {
   font-weight: 700;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-default) {
+:global(.cm-editor-docs-tooltip-default) {
   color: var(--text-muted);
   font-size: 0.95em;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-snippet) {
+:global(.cm-editor-docs-tooltip-snippet) {
   color: var(--text);
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-snippet p) {
+:global(.cm-editor-docs-tooltip-snippet p) {
   margin: 0 0 6px;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-snippet p:last-child) {
+:global(.cm-editor-docs-tooltip-snippet p:last-child) {
   margin-bottom: 0;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-link-row) {
+:global(.cm-editor-docs-tooltip-snippet code),
+:global(.cm-editor-docs-tooltip-snippet kbd) {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 3px;
+  padding: 0 0.2em;
+}
+
+:global(.cm-editor-docs-tooltip-link-row) {
   margin-top: 8px;
   border-top: 1px solid var(--border-light);
   padding-top: 6px;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-link) {
+:global(.cm-editor-docs-tooltip-link) {
   color: var(--accent-dark);
   text-decoration: none;
 }
 
-.editorWrap :global(.cm-editor-docs-tooltip-link:hover) {
+:global(.cm-editor-docs-tooltip-link:hover) {
   text-decoration: underline;
 }
 
