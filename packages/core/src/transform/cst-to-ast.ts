@@ -8,6 +8,7 @@ import { parseOptionListRaw } from "../options/parse.js";
 import { findFirstChildByName, findFirstNodeByName, forEachChild, walk } from "../syntax/cursor.js";
 import { parseSyntax } from "../syntax/parse.js";
 import { collectParseErrorDiagnostics, collectStructuralDiagnostics } from "../diagnostics/collect.js";
+import { buildLineStarts, findLineEndOffset, lineForOffset } from "../text/line-map.js";
 
 export type CstToAstResult = {
   figure: TikzFigure;
@@ -476,37 +477,5 @@ function findBalancedBraceEnd(source: string, openAt: number): number {
 }
 
 function findLineEnd(source: string, from: number): number {
-  let cursor = from;
-  while (cursor < source.length && source[cursor] !== "\n") {
-    cursor += 1;
-  }
-  return cursor;
-}
-
-function buildLineStarts(source: string): number[] {
-  const lineStarts = [0];
-  for (let i = 0; i < source.length; i += 1) {
-    if (source[i] === "\n") {
-      lineStarts.push(i + 1);
-    }
-  }
-  return lineStarts;
-}
-
-function lineForOffset(offset: number, lineStarts: number[]): number {
-  let low = 0;
-  let high = lineStarts.length - 1;
-  let answer = 0;
-
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (lineStarts[mid] <= offset) {
-      answer = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return answer + 1;
+  return findLineEndOffset(source, from);
 }

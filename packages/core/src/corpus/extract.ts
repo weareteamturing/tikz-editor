@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { buildLineStarts, lineBreakWidthAt, lineForOffset } from "../text/line-map.js";
 
 export type TikzSnippetKind = "tikzpicture" | "tikz-inline";
 
@@ -181,7 +182,7 @@ function findInlineSnippetEnd(source: string, cursor: number): { end: number; in
     const ch = source[i];
 
     if (inComment) {
-      if (ch === "\n") {
+      if (lineBreakWidthAt(source, i) > 0) {
         inComment = false;
       }
       continue;
@@ -228,7 +229,7 @@ function findInlineSnippetEnd(source: string, cursor: number): { end: number; in
       return { end: i + 1, incomplete: false };
     }
 
-    if (ch === "\n" && canTerminate) {
+    if (lineBreakWidthAt(source, i) > 0 && canTerminate) {
       return { end: i, incomplete: true };
     }
   }
@@ -243,34 +244,6 @@ function isInsideAnySpan(position: number, spans: SpanWithCompleteness[]): boole
     }
   }
   return false;
-}
-
-function buildLineStarts(source: string): number[] {
-  const lineStarts = [0];
-  for (let i = 0; i < source.length; i += 1) {
-    if (source[i] === "\n") {
-      lineStarts.push(i + 1);
-    }
-  }
-  return lineStarts;
-}
-
-function lineForOffset(offset: number, lineStarts: number[]): number {
-  let low = 0;
-  let high = lineStarts.length - 1;
-  let answer = 0;
-
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (lineStarts[mid] <= offset) {
-      answer = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return answer + 1;
 }
 
 function createSnippet(params: {

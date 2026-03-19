@@ -545,6 +545,7 @@ export function SourcePanel() {
         lineNumbers(),
         highlightActiveLineGutter(),
         highlightSpecialChars(),
+        CMState.lineSeparator.of("\n"),
         history(),
         foldGutter(),
         drawSelection(),

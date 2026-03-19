@@ -235,6 +235,29 @@ describe("parseTikz", () => {
     expect(result.figure.span.from).toBe(result.figures[0]?.span.from);
   });
 
+  it("counts mixed line endings consistently when computing figure inventory line numbers", () => {
+    const source =
+      "preface\r" +
+      "intro\r\n" +
+      "body\n" +
+      "\\begin{tikzpicture}\n" +
+      "  \\draw (0,0) -- (1,0);\r\n" +
+      "\\end{tikzpicture}";
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(1);
+    expect(result.figures[0]?.startLine).toBe(4);
+    expect(result.figures[0]?.endLine).toBe(6);
+  });
+
+  it("counts lone carriage returns as line breaks in figure inventory line numbers", () => {
+    const source = "heading\r\\begin{tikzpicture}\n  \\draw (0,0) -- (1,0);\n\\end{tikzpicture}";
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(1);
+    expect(result.figures[0]?.startLine).toBe(2);
+  });
+
   it("supports selecting the active figure by id", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
