@@ -166,7 +166,6 @@ fn panic_to_string(panic_payload: Box<dyn std::any::Any + Send>) -> String {
     "unknown panic".to_string()
 }
 
-#[cfg(any(test, target_os = "windows"))]
 fn map_unsaved_changes_dialog_result(result: rfd::MessageDialogResult) -> &'static str {
     match result {
         rfd::MessageDialogResult::Custom(label) => {
