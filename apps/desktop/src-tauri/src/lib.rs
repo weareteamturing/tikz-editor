@@ -16,7 +16,6 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::Mutex;
 use tauri::{
     menu::{
@@ -25,6 +24,8 @@ use tauri::{
     },
     AppHandle, Emitter, Manager,
 };
+use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_shell::ShellExt;
 use url::Url;
 
 const MAX_RECENT_FILES: usize = 10;
@@ -581,12 +582,16 @@ fn find_executable_base(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn npm_global_bin_dir() -> Option<PathBuf> {
+fn npm_global_bin_dir(app: Option<&AppHandle>) -> Option<PathBuf> {
+    let app = app?;
     let npm = find_executable_base("npm")?;
-    let output = Command::new(npm)
-        .args(["config", "get", "prefix"])
-        .output()
-        .ok()?;
+    let output = tauri::async_runtime::block_on(
+        app.shell()
+            .command(npm.to_string_lossy().to_string())
+            .args(["config", "get", "prefix"])
+            .output(),
+    )
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -605,12 +610,12 @@ fn npm_global_bin_dir() -> Option<PathBuf> {
     }
 }
 
-fn find_executable(name: &str) -> Option<PathBuf> {
+fn find_executable(name: &str, app: Option<&AppHandle>) -> Option<PathBuf> {
     if let Some(path) = find_executable_base(name) {
         return Some(path);
     }
     if name == "codex" {
-        if let Some(npm_bin) = npm_global_bin_dir() {
+        if let Some(npm_bin) = npm_global_bin_dir(app) {
             if let Some(path) = executable_in_dir(&npm_bin, name) {
                 return Some(path);
             }
@@ -619,21 +624,22 @@ fn find_executable(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn command_exists(name: &str) -> bool {
-    find_executable(name).is_some()
+fn command_exists(name: &str, app: Option<&AppHandle>) -> bool {
+    find_executable(name, app).is_some()
 }
 
-fn wsl_command_exists(name: &str) -> bool {
-    Command::new("wsl")
-        .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+fn wsl_command_exists(app: &AppHandle, name: &str) -> bool {
+    tauri::async_runtime::block_on(
+        app.shell()
+            .command("wsl")
+            .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
+            .status(),
+    )
+    .map(|status| status.success())
+    .unwrap_or(false)
 }
 
-fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
+fn augmented_path(extra_dir: Option<&Path>, app: Option<&AppHandle>) -> Option<OsString> {
     let mut seen = HashSet::new();
     let mut entries = Vec::<PathBuf>::new();
     if let Some(raw) = env::var_os("PATH") {
@@ -653,7 +659,7 @@ fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
             entries.push(dir);
         }
     }
-    if let Some(npm_bin) = npm_global_bin_dir() {
+    if let Some(npm_bin) = npm_global_bin_dir(app) {
         if seen.insert(npm_bin.clone()) {
             entries.push(npm_bin);
         }
@@ -670,22 +676,23 @@ struct CodexStatus {
 }
 
 #[tauri::command]
-fn desktop_check_codex_status() -> CodexStatus {
-    let has_wsl = cfg!(target_os = "windows") && command_exists("wsl");
-    let installed = command_exists("codex") || (has_wsl && wsl_command_exists("codex"));
+fn desktop_check_codex_status(app: AppHandle) -> CodexStatus {
+    let has_wsl = cfg!(target_os = "windows") && command_exists("wsl", Some(&app));
+    let installed =
+        command_exists("codex", Some(&app)) || (has_wsl && wsl_command_exists(&app, "codex"));
     CodexStatus {
         installed,
-        has_npm: command_exists("npm"),
-        has_brew: command_exists("brew"),
+        has_npm: command_exists("npm", Some(&app)),
+        has_brew: command_exists("brew", Some(&app)),
         has_wsl,
     }
 }
 
 #[tauri::command]
-async fn desktop_install_codex(method: String) -> Result<String, String> {
+async fn desktop_install_codex(method: String, app: AppHandle) -> Result<String, String> {
     let (cmd, args): (String, Vec<&str>) = match method.as_str() {
         "npm" => {
-            let npm = find_executable("npm")
+            let npm = find_executable("npm", Some(&app))
                 .ok_or_else(|| "npm is not available. Install Node.js/npm first.".to_string())?;
             (
                 npm.to_string_lossy().to_string(),
@@ -693,12 +700,12 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
             )
         }
         "brew" => {
-            let brew = find_executable("brew")
+            let brew = find_executable("brew", Some(&app))
                 .ok_or_else(|| "Homebrew is not available on this machine.".to_string())?;
             (brew.to_string_lossy().to_string(), vec!["install", "codex"])
         }
         "wsl" => {
-            if !command_exists("wsl") {
+            if !command_exists("wsl", Some(&app)) {
                 return Err("WSL is not available on this machine.".to_string());
             }
             (
@@ -708,21 +715,21 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
         }
         _ => return Err(format!("Unknown install method: {method}")),
     };
-    let mut command = Command::new(&cmd);
-    command.args(&args);
+    let mut command = app.shell().command(cmd.clone()).args(args.clone());
     if method != "wsl" {
-        if let Some(path) = augmented_path(None) {
-            command.env("PATH", path);
+        if let Some(path) = augmented_path(None, Some(&app)) {
+            command = command.env("PATH", path);
         }
     }
     let output = command
         .output()
+        .await
         .map_err(|e| format!("Failed to run {cmd}: {e}"))?;
     if output.status.success() {
-        let installed_now = command_exists("codex")
+        let installed_now = command_exists("codex", Some(&app))
             || (cfg!(target_os = "windows")
-                && command_exists("wsl")
-                && wsl_command_exists("codex"));
+                && command_exists("wsl", Some(&app))
+                && wsl_command_exists(&app, "codex"));
         let mut message = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if message.is_empty() {
             message = "Install completed.".to_string();
@@ -755,13 +762,13 @@ fn desktop_check_latex_available(state: tauri::State<'_, LatexAvailabilityCache>
     if let Some(val) = *cached {
         return val;
     }
-    let available = command_exists("latex") && command_exists("dvisvgm");
+    let available = command_exists("latex", None) && command_exists("dvisvgm", None);
     *cached = Some(available);
     available
 }
 
 #[tauri::command]
-fn desktop_compile_tikz(source: String) -> Result<String, String> {
+async fn desktop_compile_tikz(source: String, app: AppHandle) -> Result<String, String> {
     let tmp = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
     let tex_path = tmp.path().join("input.tex");
     let tex_content = format!(
@@ -770,10 +777,13 @@ fn desktop_compile_tikz(source: String) -> Result<String, String> {
     fs::write(&tex_path, &tex_content).map_err(|e| format!("Failed to write .tex: {e}"))?;
 
     // Run latex
-    let latex_result = Command::new("latex")
+    let latex_result = app
+        .shell()
+        .command("latex")
         .args(["-interaction=nonstopmode", "-halt-on-error", "input.tex"])
         .current_dir(tmp.path())
         .output()
+        .await
         .map_err(|e| format!("Failed to run latex: {e}"))?;
 
     if !latex_result.status.success() {
@@ -800,7 +810,9 @@ fn desktop_compile_tikz(source: String) -> Result<String, String> {
 
     // Run dvisvgm
     let svg_path = tmp.path().join("output.svg");
-    let dvisvgm_result = Command::new("dvisvgm")
+    let dvisvgm_result = app
+        .shell()
+        .command("dvisvgm")
         .args([
             "--page=1",
             "--bbox=min",
@@ -812,6 +824,7 @@ fn desktop_compile_tikz(source: String) -> Result<String, String> {
         ])
         .current_dir(tmp.path())
         .output()
+        .await
         .map_err(|e| format!("Failed to run dvisvgm: {e}"))?;
 
     if !dvisvgm_result.status.success() {
@@ -1019,32 +1032,11 @@ fn desktop_take_pending_open_failures(
 }
 
 #[tauri::command]
-fn desktop_open_external(url: String) -> Result<bool, String> {
+fn desktop_open_external(url: String, app: AppHandle) -> Result<bool, String> {
     let sanitized = validate_external_url(&url)?;
-
-    #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut command = Command::new("open");
-        command.arg(&sanitized);
-        command
-    };
-
-    #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut command = Command::new("rundll32");
-        command.args(["url.dll,FileProtocolHandler", &sanitized]);
-        command
-    };
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = {
-        let mut command = Command::new("xdg-open");
-        command.arg(&sanitized);
-        command
-    };
-
-    cmd.status()
-        .map(|status| status.success())
+    app.opener()
+        .open_url(sanitized, None::<&str>)
+        .map(|_| true)
         .map_err(|error| error.to_string())
 }
 
@@ -1311,7 +1303,9 @@ pub fn run() {
 
     builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_clipboard_x::init());
+        .plugin(tauri_plugin_clipboard_x::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init());
     #[cfg(target_os = "macos")]
     {
         builder = builder.plugin(tauri_macos_haptics::init());

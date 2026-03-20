@@ -7,24 +7,20 @@ use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
-
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
+use tauri_plugin_shell::{
+    process::{CommandChild, CommandEvent},
+    ShellExt,
+};
 
 const ASSISTANT_EVENT_NAME: &str = "desktop-assistant-event";
 const WATCH_INTERVAL_MS: u64 = 300;
-
-#[cfg(target_os = "windows")]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 enum CodexLaunch {
     Native {
@@ -142,12 +138,15 @@ fn find_executable(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn npm_global_bin_dir() -> Option<PathBuf> {
+fn npm_global_bin_dir(app: &AppHandle) -> Option<PathBuf> {
     let npm = find_executable("npm")?;
-    let output = Command::new(npm)
-        .args(["config", "get", "prefix"])
-        .output()
-        .ok()?;
+    let output = tauri::async_runtime::block_on(
+        app.shell()
+            .command(npm.to_string_lossy().to_string())
+            .args(["config", "get", "prefix"])
+            .output(),
+    )
+    .ok()?;
     if !output.status.success() {
         return None;
     }
@@ -166,11 +165,11 @@ fn npm_global_bin_dir() -> Option<PathBuf> {
     }
 }
 
-fn find_codex_native() -> Option<PathBuf> {
+fn find_codex_native(app: &AppHandle) -> Option<PathBuf> {
     if let Some(path) = find_executable("codex") {
         return Some(path);
     }
-    if let Some(npm_bin) = npm_global_bin_dir() {
+    if let Some(npm_bin) = npm_global_bin_dir(app) {
         if let Some(path) = executable_in_dir(&npm_bin, "codex") {
             return Some(path);
         }
@@ -179,38 +178,31 @@ fn find_codex_native() -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-fn wsl_command_exists(name: &str) -> bool {
-    Command::new("wsl")
-        .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
+fn wsl_command_exists(app: &AppHandle, name: &str) -> bool {
+    tauri::async_runtime::block_on(
+        app.shell()
+            .command("wsl")
+            .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
+            .status(),
+    )
+    .map(|status| status.success())
+    .unwrap_or(false)
 }
 
-fn resolve_codex_launch() -> Option<CodexLaunch> {
-    if let Some(path) = find_codex_native() {
+fn resolve_codex_launch(app: &AppHandle) -> Option<CodexLaunch> {
+    if let Some(path) = find_codex_native(app) {
         return Some(CodexLaunch::Native { executable: path });
     }
     #[cfg(target_os = "windows")]
     {
-        if find_executable("wsl").is_some() && wsl_command_exists("codex") {
+        if find_executable("wsl").is_some() && wsl_command_exists(app, "codex") {
             return Some(CodexLaunch::Wsl);
         }
     }
     None
 }
 
-#[cfg(target_os = "windows")]
-fn hide_windows_console(command: &mut Command) {
-    command.creation_flags(CREATE_NO_WINDOW);
-}
-
-#[cfg(not(target_os = "windows"))]
-fn hide_windows_console(_command: &mut Command) {}
-
-fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
+fn augmented_path(extra_dir: Option<&Path>, app: Option<&AppHandle>) -> Option<OsString> {
     let mut seen = HashSet::new();
     let mut entries = Vec::<PathBuf>::new();
     if let Some(raw) = env::var_os("PATH") {
@@ -230,7 +222,7 @@ fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
             entries.push(dir);
         }
     }
-    if let Some(npm_bin) = npm_global_bin_dir() {
+    if let Some(npm_bin) = app.and_then(npm_global_bin_dir) {
         if seen.insert(npm_bin.clone()) {
             entries.push(npm_bin);
         }
@@ -252,8 +244,7 @@ struct AssistantStateInner {
 }
 
 struct ProcessHandle {
-    _child: Child,
-    stdin: Arc<Mutex<ChildStdin>>,
+    child: Arc<Mutex<CommandChild>>,
     pending: Arc<Mutex<HashMap<String, Sender<Value>>>>,
     next_request_id: Arc<AtomicU64>,
 }
@@ -425,56 +416,42 @@ impl AssistantState {
             return Ok(());
         }
 
-        let launch = resolve_codex_launch().ok_or_else(|| {
+        let launch = resolve_codex_launch(&self.inner.app).ok_or_else(|| {
             "Codex CLI was not found. Install it from the Assistant panel and retry.".to_string()
         })?;
-        let mut command = match &launch {
+        let command = match &launch {
             CodexLaunch::Native { executable } => {
-                let mut cmd = Command::new(executable);
-                cmd.arg("app-server");
-                if let Some(path) = augmented_path(executable.parent()) {
-                    cmd.env("PATH", path);
+                let mut cmd = self
+                    .inner
+                    .app
+                    .shell()
+                    .command(executable.to_string_lossy().to_string())
+                    .args(["app-server"]);
+                if let Some(path) = augmented_path(executable.parent(), Some(&self.inner.app)) {
+                    cmd = cmd.env("PATH", path);
                 }
-                hide_windows_console(&mut cmd);
                 cmd
             }
             #[cfg(target_os = "windows")]
             CodexLaunch::Wsl => {
-                let mut cmd = Command::new("wsl");
-                cmd.args(["codex", "app-server"]);
-                hide_windows_console(&mut cmd);
-                cmd
+                self.inner
+                    .app
+                    .shell()
+                    .command("wsl")
+                    .args(["codex", "app-server"])
             }
         };
-        let mut child = command
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let (receiver, child) = command
             .spawn()
             .map_err(|error| format!("Failed to start `codex app-server`: {error}"))?;
-
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "Failed to open app-server stdin".to_string())?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| "Failed to open app-server stdout".to_string())?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| "Failed to open app-server stderr".to_string())?;
 
         let pending = Arc::new(Mutex::new(HashMap::<String, Sender<Value>>::new()));
         let next_request_id = Arc::new(AtomicU64::new(1));
         let state = self.clone();
-        spawn_stdout_reader(state.clone(), stdout, pending.clone());
-        spawn_stderr_reader(stderr);
+        spawn_command_event_reader(state.clone(), receiver, pending.clone());
 
         let process = ProcessHandle {
-            _child: child,
-            stdin: Arc::new(Mutex::new(stdin)),
+            child: Arc::new(Mutex::new(child)),
             pending,
             next_request_id,
         };
@@ -540,7 +517,7 @@ impl AssistantState {
 
     fn request(&self, method: &str, params: Value) -> Result<Value, String> {
         self.ensure_process()?;
-        let (id, stdin, pending) = {
+        let (id, pending) = {
             let process_guard = self
                 .inner
                 .process
@@ -551,7 +528,6 @@ impl AssistantState {
                 .ok_or_else(|| "Codex app-server is unavailable".to_string())?;
             (
                 process.next_request_id.fetch_add(1, Ordering::Relaxed),
-                process.stdin.clone(),
                 process.pending.clone(),
             )
         };
@@ -567,17 +543,7 @@ impl AssistantState {
           "method": method,
           "params": params
         });
-        let line = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        {
-            let mut writer = stdin
-                .lock()
-                .map_err(|_| "stdin lock unavailable".to_string())?;
-            writer
-                .write_all(line.as_bytes())
-                .map_err(|error| error.to_string())?;
-            writer.write_all(b"\n").map_err(|error| error.to_string())?;
-            writer.flush().map_err(|error| error.to_string())?;
-        }
+        self.write_json_line(&payload)?;
 
         let response = receiver
             .recv_timeout(Duration::from_secs(120))
@@ -598,31 +564,11 @@ impl AssistantState {
 
     fn notify(&self, method: &str, params: Value) -> Result<(), String> {
         self.ensure_process()?;
-        let stdin = {
-            let process_guard = self
-                .inner
-                .process
-                .lock()
-                .map_err(|_| "process lock unavailable".to_string())?;
-            process_guard
-                .as_ref()
-                .ok_or_else(|| "Codex app-server is unavailable".to_string())?
-                .stdin
-                .clone()
-        };
         let payload = json!({
           "method": method,
           "params": params
         });
-        let line = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        let mut writer = stdin
-            .lock()
-            .map_err(|_| "stdin lock unavailable".to_string())?;
-        writer
-            .write_all(line.as_bytes())
-            .map_err(|error| error.to_string())?;
-        writer.write_all(b"\n").map_err(|error| error.to_string())?;
-        writer.flush().map_err(|error| error.to_string())
+        self.write_json_line(&payload)
     }
 
     pub fn ensure_document_thread(
@@ -1047,32 +993,11 @@ impl AssistantState {
     }
 
     fn send_server_request_response(&self, request_id: Value, result: Value) -> Result<(), String> {
-        self.ensure_process()?;
-        let stdin = {
-            let process_guard = self
-                .inner
-                .process
-                .lock()
-                .map_err(|_| "process lock unavailable".to_string())?;
-            process_guard
-                .as_ref()
-                .ok_or_else(|| "Codex app-server is unavailable".to_string())?
-                .stdin
-                .clone()
-        };
         let payload = json!({
           "id": request_id,
           "result": result
         });
-        let line = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        let mut writer = stdin
-            .lock()
-            .map_err(|_| "stdin lock unavailable".to_string())?;
-        writer
-            .write_all(line.as_bytes())
-            .map_err(|error| error.to_string())?;
-        writer.write_all(b"\n").map_err(|error| error.to_string())?;
-        writer.flush().map_err(|error| error.to_string())
+        self.write_json_line(&payload)
     }
 
     fn send_server_request_error(
@@ -1081,8 +1006,19 @@ impl AssistantState {
         code: i64,
         message: &str,
     ) -> Result<(), String> {
+        let payload = json!({
+          "id": request_id,
+          "error": {
+            "code": code,
+            "message": message
+          }
+        });
+        self.write_json_line(&payload)
+    }
+
+    fn write_json_line(&self, payload: &Value) -> Result<(), String> {
         self.ensure_process()?;
-        let stdin = {
+        let child = {
             let process_guard = self
                 .inner
                 .process
@@ -1091,25 +1027,17 @@ impl AssistantState {
             process_guard
                 .as_ref()
                 .ok_or_else(|| "Codex app-server is unavailable".to_string())?
-                .stdin
+                .child
                 .clone()
         };
-        let payload = json!({
-          "id": request_id,
-          "error": {
-            "code": code,
-            "message": message
-          }
-        });
-        let line = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        let mut writer = stdin
+        let line = serde_json::to_string(payload).map_err(|error| error.to_string())?;
+        let mut child = child
             .lock()
-            .map_err(|_| "stdin lock unavailable".to_string())?;
-        writer
-            .write_all(line.as_bytes())
+            .map_err(|_| "child lock unavailable".to_string())?;
+        child
+            .write(line.as_bytes())
             .map_err(|error| error.to_string())?;
-        writer.write_all(b"\n").map_err(|error| error.to_string())?;
-        writer.flush().map_err(|error| error.to_string())
+        child.write(b"\n").map_err(|error| error.to_string())
     }
 
     fn handle_response(
@@ -1513,41 +1441,59 @@ fn extract_dynamic_tool_image_base64(result: &Value) -> Option<String> {
     None
 }
 
-fn spawn_stdout_reader(
+fn spawn_command_event_reader(
     state: AssistantState,
-    stdout: ChildStdout,
+    mut receiver: tauri::async_runtime::Receiver<CommandEvent>,
     pending: Arc<Mutex<HashMap<String, Sender<Value>>>>,
 ) {
-    thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
-            let Ok(line) = line else {
-                continue;
-            };
-            let Ok(message) = serde_json::from_str::<Value>(&line) else {
-                let _ = state.emit_event(AssistantEventPayload {
-          kind: "error".to_string(),
-          data: json!({ "message": format!("Failed to parse app-server message: {line}") }),
-        });
-                continue;
-            };
-            if message.get("method").is_some() && message.get("id").is_some() {
-                state.handle_server_request(message);
-            } else if message.get("method").is_some() {
-                state.handle_notification(message);
-            } else if message.get("id").is_some() {
-                state.handle_response(message, &pending);
-            }
-        }
-    });
-}
-
-fn spawn_stderr_reader(stderr: ChildStderr) {
-    thread::spawn(move || {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            if let Ok(line) = line {
-                eprintln!("[codex app-server] {line}");
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = receiver.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    let line = String::from_utf8_lossy(&bytes)
+                        .trim_end_matches(['\r', '\n'])
+                        .to_string();
+                    if line.is_empty() {
+                        continue;
+                    }
+                    let Ok(message) = serde_json::from_str::<Value>(&line) else {
+                        let _ = state.emit_event(AssistantEventPayload {
+                            kind: "error".to_string(),
+                            data: json!({ "message": format!("Failed to parse app-server message: {line}") }),
+                        });
+                        continue;
+                    };
+                    if message.get("method").is_some() && message.get("id").is_some() {
+                        state.handle_server_request(message);
+                    } else if message.get("method").is_some() {
+                        state.handle_notification(message);
+                    } else if message.get("id").is_some() {
+                        state.handle_response(message, &pending);
+                    }
+                }
+                CommandEvent::Stderr(bytes) => {
+                    let line = String::from_utf8_lossy(&bytes)
+                        .trim_end_matches(['\r', '\n'])
+                        .to_string();
+                    if !line.is_empty() {
+                        eprintln!("[codex app-server] {line}");
+                    }
+                }
+                CommandEvent::Error(error) => {
+                    let _ = state.emit_event(AssistantEventPayload {
+                        kind: "error".to_string(),
+                        data: json!({ "message": format!("Codex app-server error: {error}") }),
+                    });
+                }
+                CommandEvent::Terminated(payload) => {
+                    let _ = state.emit_event(AssistantEventPayload {
+                        kind: "error".to_string(),
+                        data: json!({
+                          "message": format!("Codex app-server terminated (code: {:?}, signal: {:?}).", payload.code, payload.signal)
+                        }),
+                    });
+                }
+                _ => {}
             }
         }
     });
@@ -1797,6 +1743,8 @@ mod tests {
             "make line thicker",
             "\\draw (0,0)--(1,1);",
             true,
+            None,
+            None,
         );
 
         let first_text = input
@@ -1837,6 +1785,8 @@ mod tests {
             "nudge the label",
             "\\draw (0,0)--(1,1);",
             false,
+            None,
+            None,
         );
 
         let first_text = input
