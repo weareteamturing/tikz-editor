@@ -51,9 +51,20 @@ export const APP_MENU_DEFINITION = [
       },
       { kind: "separator" },
       {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.IMPORT_SVG,
-        label: "Import SVG..."
+        kind: "submenu",
+        label: "Import",
+        items: [
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT,
+            label: "PowerPoint (.pptx)"
+          },
+          {
+            kind: "command",
+            commandId: APP_MENU_COMMAND_IDS.IMPORT_SVG,
+            label: "SVG..."
+          }
+        ]
       },
       {
         kind: "submenu",

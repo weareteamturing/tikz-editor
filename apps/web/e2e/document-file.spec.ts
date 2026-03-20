@@ -220,6 +220,40 @@ test("file import svg command imports svg as a new tikz document", async ({ page
   await expect.poll(async () => readSource(page)).toContain("\\begin{tikzpicture}");
 });
 
+test("file import powerpoint command shows an error for invalid pptx data", async ({ page }) => {
+  await injectNoFsApiFallback(page);
+  await page.addInitScript(() => {
+    const originalClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function clickPatched(this: HTMLInputElement) {
+      if (this.type === "file") {
+        const invalid = new Uint8Array([1, 2, 3, 4, 5, 6]);
+        const file = new File(
+          [invalid],
+          "broken.pptx",
+          { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }
+        );
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        Object.defineProperty(this, "files", {
+          configurable: true,
+          get: () => dataTransfer.files
+        });
+        this.dispatchEvent(new Event("change"));
+        return;
+      }
+      originalClick.call(this);
+    };
+  });
+
+  await gotoApp(page);
+
+  const dialogPromise = page.waitForEvent("dialog");
+  await openMenuCommand(page, "file", "file.import-powerpoint");
+  const dialog = await dialogPromise;
+  expect(dialog.message()).toContain("PowerPoint import failed:");
+  await dialog.accept();
+});
+
 test("fs-api save/open flows with rebinding and permission fallback", async ({ page }) => {
   await page.addInitScript(() => {
     type PermissionMode = "read" | "readwrite";
@@ -323,10 +357,12 @@ test("export commands smoke and svg copy command writes clipboard text", async (
   await latexDownload;
 
   await openMenuCommand(page, "file", "file.export-svg-copy");
+  await expect.poll(async () => (await page.evaluate(() => {
+    return (globalThis as unknown as { __PW_CLIPBOARD_WRITES__?: string[] }).__PW_CLIPBOARD_WRITES__ ?? [];
+  })).length).toBeGreaterThan(0);
   const clipboardWrites = await page.evaluate(() => {
     return (globalThis as unknown as { __PW_CLIPBOARD_WRITES__?: string[] }).__PW_CLIPBOARD_WRITES__ ?? [];
   });
-  expect(clipboardWrites.length).toBeGreaterThan(0);
   expect(clipboardWrites[0]).toContain("<svg");
 });
 

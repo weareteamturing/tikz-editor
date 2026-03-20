@@ -4,6 +4,7 @@ declare module "pptx2tikz" {
     size: { width: number; height: number };
   };
 
+  export function parse(arrayBuffer: ArrayBuffer): Promise<ParsedSlideDeck>;
   export function parseClipboardGVML(arrayBuffer: ArrayBuffer): Promise<ParsedSlideDeck>;
   export function convertSlideToTikZ(
     slide: unknown,
@@ -15,4 +16,14 @@ declare module "pptx2tikz" {
       xcolorRgbConvert?: boolean;
     }
   ): { body: string; images: unknown[] };
+  export function convertSlidesToTikZ(
+    slides: unknown[],
+    size: { width: number; height: number },
+    options?: {
+      noImages?: boolean;
+      imageDir?: string;
+      includeLayoutElements?: boolean;
+      xcolorRgbConvert?: boolean;
+    }
+  ): { tex: string; images: unknown[] };
 }

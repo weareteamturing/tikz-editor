@@ -5,6 +5,11 @@ type OpenedTextFile = {
   fileRef: DocumentFileRef | null;
 };
 
+type OpenedBinaryFile = {
+  bytes: ArrayBuffer | Uint8Array;
+  fileRef: DocumentFileRef | null;
+};
+
 type ResolveOpenedFileOptions = {
   requireSvg?: boolean;
 };
@@ -26,9 +31,9 @@ function stripExtension(name: string): string {
   return name.replace(/\.[^./\\]+$/u, "");
 }
 
-function suggestedTexNameFromName(name: string): string {
+function suggestedTexNameFromName(name: string, fallbackBaseName = "imported-svg"): string {
   const base = stripExtension(name).trim();
-  return `${base.length > 0 ? base : "imported-svg"}.tex`;
+  return `${base.length > 0 ? base : fallbackBaseName}.tex`;
 }
 
 function titleFromRef(fileRef: DocumentFileRef | null): string {
@@ -67,10 +72,10 @@ async function convertSvgToTikzSource(svgSource: string): Promise<string> {
   return svgToTikz(svgSource, { standalone: false });
 }
 
-function toImportedFileRef(name: string): DocumentFileRef {
+function toImportedFileRef(name: string, fallbackBaseName = "imported-svg"): DocumentFileRef {
   return {
     kind: "virtual",
-    name: suggestedTexNameFromName(name)
+    name: suggestedTexNameFromName(name, fallbackBaseName)
   };
 }
 
@@ -112,6 +117,32 @@ export async function resolveOpenedFileForDocument(
     fileRef: opened.fileRef,
     importedFromSvg: false
   };
+}
+
+export async function resolveOpenedPowerPointForDocument(opened: OpenedBinaryFile): Promise<ResolveOpenedFileResult> {
+  const originalName = opened.fileRef?.name ?? "imported.pptx";
+  try {
+    const { parse, convertSlidesToTikZ } = await import("pptx2tikz");
+    const inputBytes = opened.bytes instanceof Uint8Array ? opened.bytes : new Uint8Array(opened.bytes);
+    const parsed = await parse(normalizeBytesToArrayBuffer(inputBytes));
+    const converted = convertSlidesToTikZ(parsed.slides, parsed.size, {
+      noImages: true,
+      xcolorRgbConvert: true
+    });
+    const suggestedFileRef = toImportedFileRef(originalName, "imported-powerpoint");
+    return {
+      kind: "success",
+      source: converted.tex,
+      title: suggestedFileRef.name,
+      fileRef: suggestedFileRef,
+      importedFromSvg: false
+    };
+  } catch (error) {
+    return {
+      kind: "failure",
+      message: `PowerPoint import failed: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
 }
 
 export function buildScopeWrappedSnippet(body: string, options: { scale?: number } = {}): string {

@@ -8,6 +8,11 @@ function makeMockBridge() {
     path: "/tmp/diagram.tex",
     name: "diagram.tex"
   };
+  const openedBinary = {
+    bytesBase64: "AQID",
+    path: "/tmp/slides.pptx",
+    name: "slides.pptx"
+  };
   const saved: string[] = [];
   const contextMenuPayloads: unknown[] = [];
   const assistantStartTurnPayloads: unknown[] = [];
@@ -27,6 +32,12 @@ function makeMockBridge() {
           return null;
         }
         return opened;
+      },
+      openBinary: async (path?: string | null) => {
+        if (path && path !== openedBinary.path) {
+          return null;
+        }
+        return openedBinary;
       },
       saveText: async (params: { text: string; suggestedName?: string; path?: string | null; forceSaveAs: boolean }) => {
         saved.push(params.text);
@@ -233,6 +244,23 @@ describe("desktop shell flows", () => {
     expect(saved?.status).toBe("saved");
     expect(mock.saved).toContain("hello");
     expect(saved?.fileRef?.provider).toBe("desktop-fs");
+  });
+
+  it("opens binary files with desktop-backed file refs", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    const opened = await platform.files?.openBinary?.();
+    expect(opened?.fileRef).toMatchObject({
+      kind: "file",
+      provider: "desktop-fs",
+      path: "/tmp/slides.pptx",
+      name: "slides.pptx"
+    });
+    expect(Array.from(new Uint8Array(opened?.bytes ?? new ArrayBuffer(0)))).toEqual([1, 2, 3]);
   });
 
   it("handles bridge open requests", async () => {

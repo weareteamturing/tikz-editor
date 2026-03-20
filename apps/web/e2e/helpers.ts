@@ -40,7 +40,16 @@ export async function openMenuSection(page: Page, section: MenuSection): Promise
 
 async function prepareMenuCommand(page: Page, section: MenuSection, commandId: string): Promise<Locator> {
   await openMenuSection(page, section);
-  if (section === "file" && commandId.startsWith("file.export-")) {
+  if (section === "file" && commandId.startsWith("file.import-")) {
+    await page.getByRole("menuitem", { name: "Import" }).hover();
+  }
+  if (
+    section === "file" &&
+    (commandId === "file.export-svg-download" ||
+      commandId === "file.export-standalone-latex-download" ||
+      commandId === "file.export-pdf-download" ||
+      commandId === "file.export-png-download")
+  ) {
     await page.getByRole("menuitem", { name: "Export" }).hover();
   }
   if (section === "edit" && commandId.startsWith("edit.align-")) {

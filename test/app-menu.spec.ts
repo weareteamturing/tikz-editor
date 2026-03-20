@@ -5,6 +5,7 @@ describe("app menu definition", () => {
   it("defines file lifecycle command ids", () => {
     expect(APP_MENU_COMMAND_IDS.NEW_DOCUMENT).toBe("file.new-document");
     expect(APP_MENU_COMMAND_IDS.OPEN_DOCUMENT).toBe("file.open-document");
+    expect(APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT).toBe("file.import-powerpoint");
     expect(APP_MENU_COMMAND_IDS.IMPORT_SVG).toBe("file.import-svg");
     expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT).toBe("file.save-document");
     expect(APP_MENU_COMMAND_IDS.SAVE_DOCUMENT_AS).toBe("file.save-document-as");
@@ -116,27 +117,43 @@ describe("app menu definition", () => {
     expect(openExampleIndex).toBe(openIndex + 1);
   });
 
-  it("exposes Import SVG in the File menu", () => {
+  it("exposes PowerPoint and SVG import commands in the File > Import submenu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
-    const commandItem = items.find(
+    const importMenu = items.find(
+      (item) => item.kind === "submenu" && item.label === "Import"
+    );
+    expect(importMenu).toBeDefined();
+    if (!importMenu || importMenu.kind !== "submenu") {
+      throw new Error("Expected Import submenu in File menu.");
+    }
+
+    const powerpointItem = importMenu.items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT
+    );
+    const svgItem = importMenu.items.find(
       (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_SVG
     );
-    expect(commandItem).toBeDefined();
-    if (!commandItem || commandItem.kind !== "command") {
-      throw new Error("Expected file.import-svg command item in File menu.");
+    expect(powerpointItem).toBeDefined();
+    expect(svgItem).toBeDefined();
+    if (
+      !powerpointItem ||
+      powerpointItem.kind !== "command" ||
+      !svgItem ||
+      svgItem.kind !== "command"
+    ) {
+      throw new Error("Expected file.import-powerpoint and file.import-svg commands in File > Import.");
     }
-    expect(commandItem.label).toBe("Import SVG...");
+    expect(powerpointItem.label).toBe("PowerPoint (.pptx)");
+    expect(svgItem.label).toBe("SVG...");
   });
 
-  it("groups Import SVG directly above Export in the File menu", () => {
+  it("groups Import submenu directly above Export in the File menu", () => {
     const fileSection = APP_MENU_DEFINITION.find((section) => section.id === "file");
     expect(fileSection).toBeDefined();
     const items = fileSection?.items ?? [];
-    const importIndex = items.findIndex(
-      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.IMPORT_SVG
-    );
+    const importIndex = items.findIndex((item) => item.kind === "submenu" && item.label === "Import");
     const exportIndex = items.findIndex((item) => item.kind === "submenu" && item.label === "Export");
 
     expect(importIndex).toBeGreaterThanOrEqual(0);

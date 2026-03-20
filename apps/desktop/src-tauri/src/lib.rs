@@ -70,6 +70,14 @@ struct OpenTextPayload {
     name: String,
 }
 
+#[derive(Serialize)]
+struct OpenBinaryPayload {
+    #[serde(rename = "bytesBase64")]
+    bytes_base64: String,
+    path: String,
+    name: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct OpenTextFailurePayload {
     path: String,
@@ -455,6 +463,36 @@ fn desktop_open_text(
     let payload = read_open_text_payload_from_path(&path_buf)?;
     add_recent_file(&app, payload.path.clone());
     Ok(Some(payload))
+}
+
+#[tauri::command]
+fn desktop_open_binary(
+    path: Option<String>,
+    app: AppHandle,
+) -> Result<Option<OpenBinaryPayload>, String> {
+    let resolved_path = if let Some(raw_path) = path {
+        Some(PathBuf::from(raw_path))
+    } else {
+        FileDialog::new()
+            .add_filter("PowerPoint", &["pptx"])
+            .pick_file()
+    };
+    let Some(path_buf) = resolved_path else {
+        return Ok(None);
+    };
+    let bytes = fs::read(&path_buf).map_err(|error| error.to_string())?;
+    let path = path_buf.to_string_lossy().to_string();
+    let name = path_buf
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| "imported.pptx".to_string());
+    add_recent_file(&app, path.clone());
+    Ok(Some(OpenBinaryPayload {
+        bytes_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        path,
+        name,
+    }))
 }
 
 #[tauri::command]
@@ -936,6 +974,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             desktop_open_text,
+            desktop_open_binary,
             desktop_save_text,
             desktop_export_file,
             desktop_confirm_unsaved_changes,

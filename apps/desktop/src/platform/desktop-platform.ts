@@ -27,6 +27,12 @@ type DesktopOpenTextResult = {
   name: string;
 };
 
+type DesktopOpenBinaryResult = {
+  bytesBase64: string;
+  path: string;
+  name: string;
+};
+
 type DesktopOpenTextFailureResult = {
   path: string;
   message: string;
@@ -40,6 +46,7 @@ type DesktopSaveTextResult = {
 
 type DesktopBridge = {
   openText: (path?: string | null) => Promise<DesktopOpenTextResult | null>;
+  openBinary?: (path?: string | null) => Promise<DesktopOpenBinaryResult | null>;
   saveText: (params: {
     text: string;
     suggestedName?: string;
@@ -188,6 +195,18 @@ function base64FromBytes(bytes: Uint8Array): string {
     binary += String.fromCharCode(bytes[i]!);
   }
   return btoa(binary);
+}
+
+function bytesFromBase64(base64: string): Uint8Array {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(base64, "base64"));
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 function isMacPlatform(): boolean {
@@ -537,6 +556,10 @@ function createDefaultBridge(): DesktopBridge {
     openText: async (path) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<DesktopOpenTextResult | null>("desktop_open_text", { path });
+    },
+    openBinary: async (path) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<DesktopOpenBinaryResult | null>("desktop_open_binary", { path });
     },
     saveText: async ({ text, suggestedName, path, forceSaveAs }) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -936,6 +959,20 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         nativeMenuManager.refreshRecents();
         return {
           source: opened.source,
+          fileRef: toDesktopFileRef(opened.path, opened.name)
+        };
+      },
+      openBinary: async () => {
+        const opened = await getBridge().openBinary?.(null);
+        if (!opened) {
+          return null;
+        }
+        nativeMenuManager.refreshRecents();
+        const decoded = bytesFromBase64(opened.bytesBase64);
+        const bytes = new ArrayBuffer(decoded.byteLength);
+        new Uint8Array(bytes).set(decoded);
+        return {
+          bytes,
           fileRef: toDesktopFileRef(opened.path, opened.name)
         };
       },

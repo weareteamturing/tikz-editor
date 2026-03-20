@@ -6,7 +6,7 @@ import {
 
 const toTikzFromClipboardMock = vi.hoisted(() => vi.fn<(input: string) => { tikz: string }>());
 const parseClipboardGVMLMock = vi.hoisted(() => vi.fn<(input: ArrayBuffer) => Promise<{ slides: unknown[]; size: { width: number; height: number } }>>());
-const convertSlideToTikZMock = vi.hoisted(() => vi.fn<(slide: unknown, size: { width: number; height: number }) => { tex: string; images: unknown[] }>());
+const convertSlideToTikZMock = vi.hoisted(() => vi.fn<(slide: unknown, size: { width: number; height: number }) => { body: string; images: unknown[] }>());
 
 vi.mock("keynote-clipboard", () => ({
   toTikzFromClipboard: toTikzFromClipboardMock
@@ -63,13 +63,13 @@ describe("svg-import keynote helper", () => {
   it("converts PowerPoint GVML clipboard payload to scope snippet", async () => {
     const slide = { id: "slide-1" };
     const size = { width: 1024, height: 768 };
-    const tex = String.raw`\begin{document}
+    const body = String.raw`\begin{document}
 \begin{tikzpicture}
 \draw (2,2) -- (3,3);
 \end{tikzpicture}
 \end{document}`;
     parseClipboardGVMLMock.mockResolvedValue({ slides: [slide], size });
-    convertSlideToTikZMock.mockReturnValue({ tex, images: [] });
+    convertSlideToTikZMock.mockReturnValue({ body, images: [] });
 
     const converted = await convertPowerPointClipboardToScopeSnippet(new Uint8Array([1, 2, 3]));
 
@@ -77,7 +77,7 @@ describe("svg-import keynote helper", () => {
     if (converted.kind !== "success") {
       return;
     }
-    expect(converted.tikzSource).toBe(tex);
+    expect(converted.tikzSource).toBe(body);
     expect(converted.body).toBe("\\draw (2,2) -- (3,3);");
     expect(converted.snippet).toContain("\\begin{scope}");
     expect(converted.snippet).toContain("\\draw (2,2) -- (3,3);");

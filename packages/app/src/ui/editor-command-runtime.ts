@@ -35,7 +35,7 @@ import {
 } from "./editor-commands";
 
 import { requestSourceFormat } from "./source-sync";
-import { resolveOpenedFileForDocument } from "./svg-import";
+import { resolveOpenedFileForDocument, resolveOpenedPowerPointForDocument } from "./svg-import";
 
 export type CommandOrigin = "menu" | "shortcut" | "context-menu" | "platform";
 
@@ -166,6 +166,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canRedo = historyIndex < historyLength - 1;
   const canExport = snapshot.svg != null;
   const canOpen = typeof getActiveEditorPlatform().files?.openText === "function";
+  const canOpenBinary = typeof getActiveEditorPlatform().files?.openBinary === "function";
   const canSave = typeof getActiveEditorPlatform().files?.saveText === "function";
   const canOpenExternalUrl = typeof getActiveEditorPlatform().window?.openExternalUrl === "function";
   const isMacDesktop =
@@ -241,6 +242,28 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     });
   };
 
+  const runImportPowerPoint = () => {
+    const openBinary = getActiveEditorPlatform().files?.openBinary;
+    if (!openBinary) {
+      return;
+    }
+    void openBinary().then(async (opened) => {
+      if (!opened) {
+        return;
+      }
+      const resolved = await resolveOpenedPowerPointForDocument(opened);
+      if (resolved.kind === "failure") {
+        const alertFn = (globalThis as { alert?: (message?: string) => void }).alert;
+        if (typeof alertFn === "function") {
+          alertFn(resolved.message);
+        }
+        return;
+      }
+      dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
+      dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
+    });
+  };
+
   const singleSelectedId = selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null;
   const canAddAdornment =
     singleSelectedId != null &&
@@ -262,6 +285,10 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     [APP_MENU_COMMAND_IDS.OPEN_DOCUMENT]: {
       enabled: canOpen,
       run: () => runOpenDocument(false)
+    },
+    [APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT]: {
+      enabled: canOpenBinary,
+      run: () => runImportPowerPoint()
     },
     [APP_MENU_COMMAND_IDS.IMPORT_SVG]: {
       enabled: canOpen,

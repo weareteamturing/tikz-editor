@@ -22,7 +22,9 @@ type ClipboardLike = {
 };
 
 type FsApiLike = {
-  showOpenFilePicker?: (options?: unknown) => Promise<Array<{ name?: string; getFile: () => Promise<{ text: () => Promise<string> }> }>>;
+  showOpenFilePicker?: (
+    options?: unknown
+  ) => Promise<Array<{ name?: string; getFile: () => Promise<{ text: () => Promise<string>; arrayBuffer: () => Promise<ArrayBuffer> }> }>>;
   showSaveFilePicker?: (options?: unknown) => Promise<{ name?: string; createWritable: () => Promise<{ write: (text: string) => Promise<void>; close: () => Promise<void> }> }>;
 };
 
@@ -52,6 +54,15 @@ const ACCEPT_TYPES = [
     accept: {
       "text/plain": [".tex", ".tikz", ".txt"],
       "image/svg+xml": [".svg"]
+    }
+  }
+];
+
+const ACCEPT_PPTX_TYPES = [
+  {
+    description: "PowerPoint files",
+    accept: {
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"]
     }
   }
 ];
@@ -212,6 +223,39 @@ function openTextFileWithInput(): Promise<{ source: string; fileRef: DocumentFil
   });
 }
 
+function openBinaryFileWithInput(): Promise<{ bytes: ArrayBuffer; fileRef: DocumentFileRef } | null> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(null);
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    input.style.display = "none";
+    input.addEventListener("change", async () => {
+      const file = input.files?.[0];
+      if (!file) {
+        input.remove();
+        resolve(null);
+        return;
+      }
+      const bytes = await file.arrayBuffer();
+      input.remove();
+      resolve({
+        bytes,
+        fileRef: {
+          kind: "file",
+          name: file.name,
+          provider: DOWNLOAD_PROVIDER
+        }
+      });
+    }, { once: true });
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
 function downloadTextFile(text: string, fileName: string): boolean {
   if (
     typeof document === "undefined" ||
@@ -311,6 +355,34 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           name: handle.name ?? "document.tex",
           handleId,
           provider: BROWSER_FILE_PROVIDER
+        }
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function openBinaryViaFsApi(): Promise<{ bytes: ArrayBuffer; fileRef: DocumentFileRef } | null> {
+    if (!fsApi?.showOpenFilePicker) {
+      return null;
+    }
+    try {
+      const handles = await fsApi.showOpenFilePicker({
+        multiple: false,
+        types: ACCEPT_PPTX_TYPES
+      });
+      const handle = handles?.[0];
+      if (!handle) {
+        return null;
+      }
+      const file = await handle.getFile();
+      const bytes = await file.arrayBuffer();
+      return {
+        bytes,
+        fileRef: {
+          kind: "file",
+          name: handle.name ?? "imported.pptx",
+          provider: DOWNLOAD_PROVIDER
         }
       };
     } catch {
@@ -433,6 +505,13 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
           return fsResult;
         }
         return await openTextFileWithInput();
+      },
+      openBinary: async () => {
+        const fsResult = await openBinaryViaFsApi();
+        if (fsResult) {
+          return fsResult;
+        }
+        return await openBinaryFileWithInput();
       },
       saveText: async (text, options) => {
         const mode = options?.mode ?? "save";
