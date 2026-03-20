@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
-use std::ffi::OsString;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::{
@@ -164,6 +164,29 @@ fn panic_to_string(panic_payload: Box<dyn std::any::Any + Send>) -> String {
         return message.clone();
     }
     "unknown panic".to_string()
+}
+
+#[cfg(any(test, target_os = "windows"))]
+fn map_unsaved_changes_dialog_result(result: rfd::MessageDialogResult) -> &'static str {
+    match result {
+        rfd::MessageDialogResult::Custom(label) => {
+            let normalized = label.trim().to_ascii_lowercase();
+            if normalized == "save" {
+                "save"
+            } else if normalized == "don't save"
+                || normalized == "dont save"
+                || normalized == "don’t save"
+            {
+                "discard"
+            } else {
+                "cancel"
+            }
+        }
+        rfd::MessageDialogResult::Yes => "save",
+        rfd::MessageDialogResult::No => "discard",
+        rfd::MessageDialogResult::Ok => "save",
+        rfd::MessageDialogResult::Cancel => "cancel",
+    }
 }
 
 fn recents_file_path(app: &AppHandle) -> Option<PathBuf> {
@@ -665,7 +688,10 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
         "npm" => {
             let npm = find_executable("npm")
                 .ok_or_else(|| "npm is not available. Install Node.js/npm first.".to_string())?;
-            (npm.to_string_lossy().to_string(), vec!["install", "-g", "@openai/codex"])
+            (
+                npm.to_string_lossy().to_string(),
+                vec!["install", "-g", "@openai/codex"],
+            )
         }
         "brew" => {
             let brew = find_executable("brew")
@@ -676,7 +702,10 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
             if !command_exists("wsl") {
                 return Err("WSL is not available on this machine.".to_string());
             }
-            ("wsl".to_string(), vec!["npm", "install", "-g", "@openai/codex"])
+            (
+                "wsl".to_string(),
+                vec!["npm", "install", "-g", "@openai/codex"],
+            )
         }
         _ => return Err(format!("Unknown install method: {method}")),
     };
@@ -692,7 +721,9 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
         .map_err(|e| format!("Failed to run {cmd}: {e}"))?;
     if output.status.success() {
         let installed_now = command_exists("codex")
-            || (cfg!(target_os = "windows") && command_exists("wsl") && wsl_command_exists("codex"));
+            || (cfg!(target_os = "windows")
+                && command_exists("wsl")
+                && wsl_command_exists("codex"));
         let mut message = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if message.is_empty() {
             message = "Install completed.".to_string();
@@ -700,14 +731,19 @@ async fn desktop_install_codex(method: String) -> Result<String, String> {
         if installed_now {
             message.push_str("\nCodex is now discoverable by the app.");
         } else {
-            message.push_str("\nInstall finished, but Codex is not yet discoverable from this process PATH.");
+            message.push_str(
+                "\nInstall finished, but Codex is not yet discoverable from this process PATH.",
+            );
             message.push_str("\nThe app will keep probing common npm/bin locations automatically.");
         }
         Ok(message)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         if stderr.is_empty() {
-            Err(format!("{cmd} failed with exit code {:?}", output.status.code()))
+            Err(format!(
+                "{cmd} failed with exit code {:?}",
+                output.status.code()
+            ))
         } else {
             Err(format!("{cmd} failed: {stderr}"))
         }
@@ -904,7 +940,7 @@ fn desktop_export_file(
 
 #[tauri::command]
 async fn desktop_confirm_unsaved_changes(message: String) -> Result<String, String> {
-    use rfd::{AsyncMessageDialog, MessageButtons, MessageDialogResult, MessageLevel};
+    use rfd::{AsyncMessageDialog, MessageButtons, MessageLevel};
 
     let result = AsyncMessageDialog::new()
         .set_level(MessageLevel::Warning)
@@ -918,17 +954,7 @@ async fn desktop_confirm_unsaved_changes(message: String) -> Result<String, Stri
         .show()
         .await;
 
-    let decision = match result {
-        MessageDialogResult::Custom(s) => {
-            if s == "Save" {
-                "save"
-            } else {
-                "discard"
-            }
-        }
-        _ => "cancel",
-    };
-    Ok(decision.to_string())
+    Ok(map_unsaved_changes_dialog_result(result).to_string())
 }
 
 #[tauri::command]
@@ -982,7 +1008,9 @@ fn desktop_take_pending_open_requests(app: AppHandle) -> Result<Vec<OpenTextPayl
 }
 
 #[tauri::command]
-fn desktop_take_pending_open_failures(app: AppHandle) -> Result<Vec<OpenTextFailurePayload>, String> {
+fn desktop_take_pending_open_failures(
+    app: AppHandle,
+) -> Result<Vec<OpenTextFailurePayload>, String> {
     let state = app.state::<PendingOpenRequestsState>();
     let mut pending = state
         .failures
@@ -1399,8 +1427,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        collect_associated_file_paths, has_supported_association_extension, validate_external_url,
+        collect_associated_file_paths, has_supported_association_extension,
+        map_unsaved_changes_dialog_result, validate_external_url,
     };
+    use rfd::MessageDialogResult;
     use std::path::Path;
 
     #[test]
@@ -1429,9 +1459,15 @@ mod tests {
 
     #[test]
     fn association_extension_filter_is_case_insensitive() {
-        assert!(has_supported_association_extension(Path::new("/tmp/diagram.tikz")));
-        assert!(has_supported_association_extension(Path::new("/tmp/diagram.TEX")));
-        assert!(!has_supported_association_extension(Path::new("/tmp/diagram.svg")));
+        assert!(has_supported_association_extension(Path::new(
+            "/tmp/diagram.tikz"
+        )));
+        assert!(has_supported_association_extension(Path::new(
+            "/tmp/diagram.TEX"
+        )));
+        assert!(!has_supported_association_extension(Path::new(
+            "/tmp/diagram.svg"
+        )));
     }
 
     #[test]
@@ -1455,6 +1491,32 @@ mod tests {
                 "/tmp/work/first.tikz".to_string(),
                 "/tmp/work/second.tex".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn maps_unsaved_changes_dialog_results_consistently() {
+        assert_eq!(
+            map_unsaved_changes_dialog_result(MessageDialogResult::Yes),
+            "save"
+        );
+        assert_eq!(
+            map_unsaved_changes_dialog_result(MessageDialogResult::No),
+            "discard"
+        );
+        assert_eq!(
+            map_unsaved_changes_dialog_result(MessageDialogResult::Custom("Save".to_string())),
+            "save"
+        );
+        assert_eq!(
+            map_unsaved_changes_dialog_result(MessageDialogResult::Custom(
+                "Don’t Save".to_string()
+            )),
+            "discard"
+        );
+        assert_eq!(
+            map_unsaved_changes_dialog_result(MessageDialogResult::Custom("Cancel".to_string())),
+            "cancel"
         );
     }
 }

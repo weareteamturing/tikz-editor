@@ -21,7 +21,9 @@ const ASSISTANT_EVENT_NAME: &str = "desktop-assistant-event";
 const WATCH_INTERVAL_MS: u64 = 300;
 
 enum CodexLaunch {
-    Native { executable: PathBuf },
+    Native {
+        executable: PathBuf,
+    },
     #[cfg(target_os = "windows")]
     Wsl,
 }

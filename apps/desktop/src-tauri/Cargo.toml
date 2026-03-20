@@ -26,7 +26,7 @@ tauri-plugin-log = "2"
 tauri-plugin-clipboard-x = "2.0.1"
 clipboard-rs = "0.3.3"
 base64 = "0.22"
-rfd = "0.15"
+rfd = { version = "0.15", features = ["common-controls-v6"] }
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 url = "2.5"
 tempfile = "3"
