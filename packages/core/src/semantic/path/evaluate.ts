@@ -723,6 +723,10 @@ export function evaluatePathStatement(
           optionsSpan: adornmentPlan.mainOptions?.span
         };
         const standaloneNodeDefaultTarget = statement.command === "node" && !hasPathCurrentPoint ? defaultPathOrigin : undefined;
+        const allowImplicitOriginHandle =
+          statement.command === "node"
+          && !hasPathCurrentPoint
+          && !isMatrixNodeOptions(nodeItem.options);
         const resolvedNode = evaluateNodeItem(
           nodeItem,
           statement,
@@ -735,7 +739,7 @@ export function evaluatePathStatement(
           undefined,
           standaloneNodeDefaultTarget,
           statementStyleChain,
-          { allowImplicitOriginHandle: statement.command === "node" && !hasPathCurrentPoint }
+          { allowImplicitOriginHandle }
         );
         pendingNodeNameForNodeCommand = null;
         const edgeStartName = declaredNodeName ?? forcedMainNodeName;
@@ -2226,4 +2230,16 @@ function resolveNamedCoordinateRewriteHandleId(rawName: string, context: Semanti
     }
   }
   return undefined;
+}
+
+function isMatrixNodeOptions(options: NodeItem["options"] | undefined): boolean {
+  for (const entry of options?.entries ?? []) {
+    if (entry.kind !== "flag" && entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key === "matrix" || entry.key === "matrix of nodes" || entry.key === "matrix of math nodes") {
+      return true;
+    }
+  }
+  return false;
 }

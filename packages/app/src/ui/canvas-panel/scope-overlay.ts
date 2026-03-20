@@ -1,4 +1,5 @@
 import type { Statement } from "tikz-editor/ast/types";
+import type { SceneElement } from "tikz-editor/semantic/types";
 import type { Bounds } from "./types";
 
 export type ScopeOverlayNode = {
@@ -72,6 +73,83 @@ export function buildScopeOverlayIndex(
   };
 
   visit(statements, null, []);
+
+  return {
+    scopesById,
+    ancestorScopeIdsBySourceId,
+    boundsByScopeId
+  };
+}
+
+export function augmentScopeOverlayWithMatrices(
+  baseOverlay: ScopeOverlayIndex,
+  sceneElements: readonly SceneElement[] | undefined,
+  boundsBySourceId: ReadonlyMap<string, Bounds>
+): ScopeOverlayIndex {
+  if (!sceneElements || sceneElements.length === 0) {
+    return baseOverlay;
+  }
+
+  const matrixToCells = new Map<string, Set<string>>();
+  for (const element of sceneElements) {
+    const matrixCell = element.matrixCell;
+    if (!matrixCell) {
+      continue;
+    }
+    const matrixId = matrixCell.matrixSourceId.trim();
+    const cellId = matrixCell.cellSourceId.trim();
+    if (matrixId.length === 0 || cellId.length === 0) {
+      continue;
+    }
+    let cells = matrixToCells.get(matrixId);
+    if (!cells) {
+      cells = new Set<string>();
+      matrixToCells.set(matrixId, cells);
+    }
+    cells.add(cellId);
+  }
+
+  if (matrixToCells.size === 0) {
+    return baseOverlay;
+  }
+
+  const scopesById = new Map(baseOverlay.scopesById);
+  const ancestorScopeIdsBySourceId = new Map(baseOverlay.ancestorScopeIdsBySourceId);
+  const boundsByScopeId = new Map(baseOverlay.boundsByScopeId);
+
+  for (const [matrixSourceId, cellIds] of matrixToCells.entries()) {
+    const matrixAncestors = ancestorScopeIdsBySourceId.get(matrixSourceId) ?? [];
+    const parentScopeId = matrixAncestors.length > 0 ? matrixAncestors[matrixAncestors.length - 1] ?? null : null;
+
+    let matrixBounds = boundsBySourceId.get(matrixSourceId) ?? null;
+    if (!matrixBounds) {
+      for (const cellId of cellIds) {
+        const cellBounds = boundsBySourceId.get(cellId);
+        if (!cellBounds) {
+          continue;
+        }
+        matrixBounds = matrixBounds ? mergeBounds(matrixBounds, cellBounds) : cellBounds;
+      }
+    }
+
+    scopesById.set(matrixSourceId, {
+      scopeId: matrixSourceId,
+      parentScopeId,
+      childStatementIds: [...cellIds],
+      bounds: matrixBounds
+    });
+
+    ancestorScopeIdsBySourceId.set(matrixSourceId, [...matrixAncestors]);
+    if (matrixBounds) {
+      boundsByScopeId.set(matrixSourceId, matrixBounds);
+    }
+
+    for (const cellId of cellIds) {
+      const existingAncestors = ancestorScopeIdsBySourceId.get(cellId) ?? matrixAncestors;
+      const withoutMatrix = existingAncestors.filter((ancestorId) => ancestorId !== matrixSourceId);
+      ancestorScopeIdsBySourceId.set(cellId, [...withoutMatrix, matrixSourceId]);
+    }
+  }
 
   return {
     scopesById,

@@ -1177,6 +1177,200 @@ describe("applyEditAction – setProperty", () => {
     expect(result.newSource).not.toContain("\\node[transparent][draw]");
   });
 
+  it("inserts a matrix-cell option prefix when setting a property on a matrix-of-nodes cell", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell setProperty insertion to succeed");
+    }
+    expect(result.newSource).toContain("A & |[draw=red]| B");
+  });
+
+  it("updates existing matrix-cell option prefixes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[draw=red]| B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "fill",
+      value: "yellow"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell option rewrite to succeed");
+    }
+    expect(result.newSource).toContain("|[draw=red, fill=yellow]| B");
+  });
+
+  it("rejects matrix-cell property writes on plain matrices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+
+    expect(result.kind).toBe("unsupported");
+  });
+
+  it("removes matrix-cell option prefix when clearing the only supported key", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[draw=red]| B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: ""
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell prefix removal to succeed");
+    }
+    expect(result.newSource).toContain("A & B \\\\");
+    expect(result.newSource).not.toContain("|[draw=red]|");
+  });
+
+  it("keeps remaining matrix-cell options when clearing one of several keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[draw=red,fill=yellow]| B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "draw",
+      value: ""
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell partial key removal to succeed");
+    }
+    expect(result.newSource).toContain("|[fill=yellow]| B");
+    expect(result.newSource).not.toContain("draw=red");
+  });
+
+  it("rejects unsupported matrix-cell property keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "line width",
+      value: "1pt"
+    });
+
+    expect(result.kind).toBe("unsupported");
+  });
+
+  it("updates matrix-level row/column spacing properties", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=2mm,column sep=3mm] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const rowSepResult = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "row sep",
+      value: "5mm"
+    });
+    expect(rowSepResult.kind).toBe("success");
+    if (rowSepResult.kind !== "success") {
+      throw new Error("Expected matrix row sep update to succeed");
+    }
+    expect(rowSepResult.newSource).toContain("row sep=5mm");
+
+    const columnSepResult = applyEditAction(rowSepResult.newSource, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "column sep",
+      value: "7mm"
+    });
+    expect(columnSepResult.kind).toBe("success");
+    if (columnSepResult.kind !== "success") {
+      throw new Error("Expected matrix column sep update to succeed");
+    }
+    expect(columnSepResult.newSource).toContain("column sep=7mm");
+  });
+
+  it("updates matrix-level draw/fill properties", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const drawResult = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "draw",
+      value: "blue"
+    });
+    expect(drawResult.kind).toBe("success");
+    if (drawResult.kind !== "success") {
+      throw new Error("Expected matrix draw update to succeed");
+    }
+    expect(drawResult.newSource).toContain("draw=blue");
+
+    const fillResult = applyEditAction(drawResult.newSource, [], {
+      kind: "setProperty",
+      elementId: "path:0",
+      level: "command",
+      key: "fill",
+      value: "yellow"
+    });
+    expect(fillResult.kind).toBe("success");
+    if (fillResult.kind !== "success") {
+      throw new Error("Expected matrix fill update to succeed");
+    }
+    expect(fillResult.newSource).toContain("fill=yellow");
+  });
+
   it("updates an existing grid keyword option list by keyword id", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) grid[step=2mm] (2,2);
@@ -2676,6 +2870,28 @@ describe("applyEditAction – updateNodeText", () => {
     expect(result.newSource).toBe(String.raw`\begin{tikzpicture}
   \node[draw] at (0,0) {$x-y$};
 \end{tikzpicture}`);
+    expect(result.patches).toHaveLength(1);
+  });
+
+  it("updates matrix cell text by synthetic matrix-cell ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: "node:0:0:matrix-cell:1:2",
+      text: "Beta"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix cell text update to succeed");
+    }
+    expect(result.newSource).toContain("A & Beta");
+    expect(result.newSource).toContain("Beta \\\\");
     expect(result.patches).toHaveLength(1);
   });
 });

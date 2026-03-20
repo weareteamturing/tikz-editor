@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import {
+  augmentScopeOverlayWithMatrices,
   buildScopeOverlayIndex,
   isWorldPointWithinScopeBounds,
   resolveFocusedScopeIdForSelection,
@@ -126,5 +127,53 @@ describe("scope overlay selection resolver", () => {
     });
 
     expect(selected).toEqual(["scope:3"]);
+  });
+});
+
+describe("scope overlay matrix augmentation", () => {
+  it("registers virtual matrix scopes and supports drill from matrix to cells", () => {
+    const base = buildScopeOverlayIndex([], new Map());
+    const sceneElements = [
+      {
+        kind: "Text",
+        id: "scene:text:1",
+        runtimeId: "runtime:text:1",
+        sourceRef: { sourceId: "node:0:0:matrix-cell:1:1" },
+        matrixCell: {
+          matrixSourceId: "path:0",
+          cellSourceId: "node:0:0:matrix-cell:1:1",
+          row: 1,
+          column: 1,
+          textSpan: { from: 0, to: 1 },
+          cellSpan: { from: 0, to: 1 }
+        }
+      }
+    ] as any[];
+
+    const augmented = augmentScopeOverlayWithMatrices(
+      base,
+      sceneElements,
+      new Map([
+        ["node:0:0:matrix-cell:1:1", { minX: 0, minY: 0, maxX: 1, maxY: 1 }]
+      ])
+    );
+
+    expect(augmented.scopesById.has("path:0")).toBe(true);
+    expect(augmented.boundsByScopeId.get("path:0")).toEqual({ minX: 0, minY: 0, maxX: 1, maxY: 1 });
+    expect(augmented.ancestorScopeIdsBySourceId.get("node:0:0:matrix-cell:1:1")).toEqual(["path:0"]);
+
+    const resolvedDown = resolveScopeAwarePointerDownTarget({
+      hitTargetId: "node:0:0:matrix-cell:1:1",
+      hitSourceId: "node:0:0:matrix-cell:1:1",
+      scopeOverlay: augmented
+    });
+    expect(resolvedDown).toBe("path:0");
+
+    const resolvedDrill = resolveScopeAwarePointerUpDrillTarget({
+      selectedScopeId: "path:0",
+      hitSourceId: "node:0:0:matrix-cell:1:1",
+      scopeOverlay: augmented
+    });
+    expect(resolvedDrill).toBe("node:0:0:matrix-cell:1:1");
   });
 });

@@ -8,7 +8,7 @@ import type { NodePositioningResolution } from "../path/node-positioning.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "../path/types.js";
 import { normalizeOptionValue, parseStyleValueAsOptionList, readBalancedBlock } from "../style/option-utils.js";
 import { cloneStyleChain, type StyleChainEntry } from "../style-chain.js";
-import type { Point, ResolvedStyle, SceneElement } from "../types.js";
+import type { MatrixCellInfo, Point, ResolvedStyle, SceneElement } from "../types.js";
 import { parseBooleanishNormalized } from "../../utils/booleanish.js";
 import { placeNodeCenter, registerNamedNodeAnchors } from "./anchors.js";
 import {
@@ -89,11 +89,21 @@ type MatrixCell = {
 type ResolvedMatrixCell = {
   cell: MatrixCell;
   options?: OptionListAst;
+  cellSpan: Span;
+};
+
+export type MatrixNodeMetadata = {
+  matrixSourceId: string;
+  textSpan: Span;
+  rowCount: number;
+  columnCount: number;
+  cellSeparator: string;
 };
 
 export type MatrixNodeEvaluation = {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
+  metadata?: MatrixNodeMetadata;
 };
 
 type MatrixNodeEvaluator = (item: NodeItem, defaultTargetPoint: Point) => MatrixNodeEvaluation;
@@ -179,7 +189,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
 
       cellGrid[row][column] = {
         cell: parsedCell,
-        options: combinedCellOptions
+        options: combinedCellOptions,
+        cellSpan: rawCell.span
       };
       colWidths[column] = Math.max(colWidths[column], cellLayout.visualWidth);
       rowHeights[row] = Math.max(rowHeights[row], cellLayout.visualHeight);
@@ -686,6 +697,16 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         )
       };
       const evaluatedCell = params.evaluateNestedNode(cellItem, position);
+      const matrixCellInfo: MatrixCellInfo = {
+        matrixSourceId: params.statement.id,
+        cellSourceId: cellItem.id,
+        row: row + 1,
+        column: column + 1,
+        textSpan: resolvedCell.cell.textSpan,
+        cellSpan: resolvedCell.cellSpan
+      };
+      stampMatrixCellElements(evaluatedCell.behindElements, matrixCellInfo);
+      stampMatrixCellElements(evaluatedCell.frontElements, matrixCellInfo);
       behindCellElements.push(...evaluatedCell.behindElements);
       frontCellElements.push(...evaluatedCell.frontElements);
     }
@@ -695,13 +716,75 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   if (matrixLayer === "behind") {
     return {
       behindElements: [...matrixNodeElements, ...behindCellElements, ...frontCellElements],
-      frontElements: []
+      frontElements: [],
+      metadata: {
+        matrixSourceId: params.statement.id,
+        textSpan: params.item.textSpan,
+        rowCount,
+        columnCount: colCount,
+        cellSeparator: params.matrixMode.cellSeparator
+      }
     };
   }
   return {
     behindElements: behindCellElements,
-    frontElements: [...matrixNodeElements, ...frontCellElements]
+    frontElements: [...matrixNodeElements, ...frontCellElements],
+    metadata: {
+      matrixSourceId: params.statement.id,
+      textSpan: params.item.textSpan,
+      rowCount,
+      columnCount: colCount,
+      cellSeparator: params.matrixMode.cellSeparator
+    }
   };
+}
+
+export type MatrixCellEditTarget = {
+  row: number;
+  column: number;
+  cellSpan: Span;
+  textSpan: Span;
+  optionSpan?: Span;
+};
+
+export function resolveMatrixCellEditTarget(
+  matrixText: string,
+  matrixTextSpan: Span,
+  mode: MatrixMode,
+  row: number,
+  column: number
+): MatrixCellEditTarget | null {
+  if (!Number.isInteger(row) || !Number.isInteger(column) || row <= 0 || column <= 0) {
+    return null;
+  }
+
+  const parsed = parseMatrixRows(matrixText, mode.cellSeparator, matrixTextSpan.from);
+  const parsedRow = parsed.rows[row - 1];
+  const rawCell = parsedRow?.cells[column - 1];
+  if (!rawCell) {
+    return null;
+  }
+
+  const parsedCell = parseMatrixCell(rawCell, mode);
+  if (!parsedCell) {
+    return null;
+  }
+
+  return {
+    row,
+    column,
+    cellSpan: rawCell.span,
+    textSpan: parsedCell.textSpan,
+    optionSpan: resolveLeadingMatrixCellOptionSpan(rawCell.raw, rawCell.span.from)
+  };
+}
+
+function stampMatrixCellElements(elements: SceneElement[], matrixCell: MatrixCellInfo): void {
+  for (const element of elements) {
+    element.matrixCell = matrixCell;
+    element.sourceRef.sourceId = matrixCell.cellSourceId;
+    element.sourceRef.sourceSpan = matrixCell.cellSpan;
+  }
 }
 
 export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMode {
@@ -1351,6 +1434,42 @@ function findMatrixPipeClosing(input: string): number {
     }
   }
   return -1;
+}
+
+function resolveLeadingMatrixCellOptionSpan(rawCell: string, baseOffset: number): Span | undefined {
+  const trimmed = trimOuterWhitespaceBounds(rawCell, 0, rawCell.length);
+  if (trimmed.from >= trimmed.to || rawCell[trimmed.from] !== "|") {
+    return undefined;
+  }
+
+  const firstPipeClose = findMatrixPipeClosing(rawCell.slice(trimmed.from));
+  if (firstPipeClose <= 0) {
+    return undefined;
+  }
+
+  const absoluteClose = trimmed.from + firstPipeClose;
+  const payloadRaw = rawCell.slice(trimmed.from + 1, absoluteClose);
+  const payloadTrimStart = trimLeftWhitespaceBoundary(payloadRaw, 0, payloadRaw.length);
+  const payloadTrimEnd = trimRightWhitespaceBoundary(payloadRaw, payloadRaw.length, payloadTrimStart);
+  const trimmedPayload = payloadRaw.slice(payloadTrimStart, payloadTrimEnd);
+  if (!trimmedPayload.startsWith("[") || !trimmedPayload.endsWith("]")) {
+    return undefined;
+  }
+
+  const optionBlock = readBalancedBlock(trimmedPayload, 0, "[", "]");
+  if (!optionBlock || optionBlock.nextIndex !== trimmedPayload.length) {
+    return undefined;
+  }
+
+  const openBracketOffset = rawCell.indexOf("[", trimmed.from + 1);
+  if (openBracketOffset < 0 || openBracketOffset > absoluteClose) {
+    return undefined;
+  }
+
+  return {
+    from: baseOffset + openBracketOffset,
+    to: baseOffset + openBracketOffset + optionBlock.nextIndex
+  };
 }
 
 function trimOuterWhitespaceBounds(input: string, from: number, to: number): { from: number; to: number } {

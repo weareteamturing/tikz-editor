@@ -370,6 +370,8 @@ export type SetPropertyWriteTarget = {
   reason?: string;
 };
 
+const MATRIX_CELL_WRITABLE_KEYS = new Set(["draw", "fill", "text", "shape"]);
+
 export type InspectorProperty =
   | {
       kind: "text";
@@ -1707,7 +1709,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       : null;
   const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
   const nodeInspectorState =
-    inlineTarget.targetKind === "node-item"
+    inlineTarget.targetKind === "node-item" || inlineTarget.targetKind === "matrix-cell"
       ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions)
       : null;
 
@@ -2613,29 +2615,37 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
 }
 
 function makeSetPropertyWriteTarget(
-  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
   key: string
 ): SetPropertyWriteTarget {
   return makeSetPropertyWriteTargetForElementId(inlineTarget, inlineTarget.targetId, key);
 }
 
 function makeSetPropertyWriteTargetForElementId(
-  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
   elementId: string | null,
   key: string
 ): SetPropertyWriteTarget {
+  const normalizedKey = normalizeOptionKey(key);
+  const matrixCellWritable =
+    inlineTarget.targetKind !== "matrix-cell" || MATRIX_CELL_WRITABLE_KEYS.has(normalizedKey);
+  const writable = inlineTarget.writable && elementId != null && matrixCellWritable;
+  const reason =
+    !matrixCellWritable
+      ? "This matrix-cell property is not editable yet."
+      : inlineTarget.reason;
   return {
     mode: "setProperty",
     elementId: elementId ?? "",
     level: "command",
     key,
-    writable: inlineTarget.writable && elementId != null,
-    reason: inlineTarget.reason
+    writable,
+    reason
   };
 }
 
 function makeTransformSetPropertyWriteTarget(
-  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
   key: TransformInspectorKey,
   context: TransformInspectorMutationContext
 ): SetPropertyWriteTarget {
@@ -2650,7 +2660,7 @@ function makeTransformSetPropertyWriteTarget(
 }
 
 function makeArrowTipWriteTarget(
-  inlineTarget: { targetId: string | null; writable: boolean; reason?: string },
+  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
   element: Extract<SceneElement, { kind: "Path" }>,
   source: string,
   parseOptions: EditParseOptions = {}
@@ -3154,7 +3164,7 @@ function serializeFillPatternMetaPattern(family: FillPatternMetaFamilyId, values
 function resolvePathMorphingDecorationSuboptionProperties(
   preset: PathMorphingDecorationPresetId,
   decoration: { params: Record<string, string> },
-  inlineTarget: { targetId: string | null; writable: boolean; reason?: string }
+  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string }
 ): Array<Extract<InspectorProperty, { kind: "number" }>> {
   if (preset === "none" || preset === "custom") {
     return [];
@@ -4113,6 +4123,21 @@ function resolveInlineWriteTarget(
   for (const targetId of candidateTargetIds) {
     const resolved = resolvePropertyTarget(source, targetId, parseOptions);
     if (resolved.kind === "found") {
+      if (resolved.target.kind === "matrix-cell") {
+        if (!resolved.target.matrixOfNodes) {
+          return {
+            targetId,
+            targetKind: resolved.target.kind,
+            writable: false,
+            reason: "Cell property editing is only available for matrix of nodes."
+          };
+        }
+        return {
+          targetId,
+          targetKind: resolved.target.kind,
+          writable: true
+        };
+      }
       return { targetId, targetKind: resolved.target.kind, writable: true };
     }
   }

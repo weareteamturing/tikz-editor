@@ -235,12 +235,24 @@ describe("semantic evaluator / nodes and shapes", () => {
       const seenSpans = new Set<string>();
       for (const text of matrixTexts) {
         expect(text.textSourceSpan).toBeDefined();
+        expect(text.matrixCell).toBeDefined();
         const span = text.textSourceSpan;
+        const matrixCell = text.matrixCell;
         if (!span) {
+          continue;
+        }
+        if (!matrixCell) {
           continue;
         }
         expect(span.to).toBeGreaterThan(span.from);
         expect(source.slice(span.from, span.to)).toBe(text.text);
+        expect(text.sourceRef.sourceId).toBe(matrixCell.cellSourceId);
+        expect(text.sourceRef.sourceSpan).toEqual(matrixCell.cellSpan);
+        expect(matrixCell.matrixSourceId).toBe("path:0");
+        expect(matrixCell.row).toBeGreaterThan(0);
+        expect(matrixCell.column).toBeGreaterThan(0);
+        expect(matrixCell.cellSpan.to).toBeGreaterThan(matrixCell.cellSpan.from);
+        expect(source.slice(matrixCell.textSpan.from, matrixCell.textSpan.to)).toBe(text.text);
         seenSpans.add(`${span.from}:${span.to}`);
       }
 

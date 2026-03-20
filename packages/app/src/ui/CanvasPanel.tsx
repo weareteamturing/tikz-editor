@@ -1481,11 +1481,15 @@ export function CanvasPanel() {
       if (sceneText.text.includes("\n")) {
         return null;
       }
-      const sourceSpan = sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
+      const sourceSpan = sceneText.matrixCell?.textSpan ?? sceneText.textSourceSpan ?? sceneText.sourceRef.sourceSpan;
       if (sourceSpan.to <= sourceSpan.from) {
         return null;
       }
-      if (source.slice(sourceSpan.from, sourceSpan.to) !== sceneText.text) {
+      const sourceSlice = source.slice(sourceSpan.from, sourceSpan.to);
+      if (!sceneText.matrixCell && sourceSlice !== sceneText.text) {
+        return null;
+      }
+      if (sceneText.matrixCell && sourceSlice.length === 0) {
         return null;
       }
       if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {

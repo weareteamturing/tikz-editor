@@ -99,13 +99,10 @@ export function collectSourceWorldBounds(elements: SceneElement[]): Map<string, 
     }
     const bounds = elementBoundsInWorld(element);
     if (!bounds) continue;
-
-    const existing = boundsBySource.get(element.sourceRef.sourceId);
-    const merged = existing ? mergeBounds(existing, bounds) : bounds;
-    boundsBySource.set(element.sourceRef.sourceId, {
-      ...merged,
-      sourceId: element.sourceRef.sourceId
-    });
+    addBoundsForSourceId(boundsBySource, element.sourceRef.sourceId, bounds);
+    if (element.matrixCell) {
+      addBoundsForSourceId(boundsBySource, element.matrixCell.matrixSourceId, bounds);
+    }
   }
 
   return boundsBySource;
@@ -124,16 +121,26 @@ export function collectSourceReferenceBounds(elements: SceneElement[]): Map<stri
 
     const bounds = elementBoundsInWorld(element);
     if (!bounds) continue;
-
-    const existing = boundsBySource.get(element.sourceRef.sourceId);
-    const merged = existing ? mergeBounds(existing, bounds) : bounds;
-    boundsBySource.set(element.sourceRef.sourceId, {
-      ...merged,
-      sourceId: element.sourceRef.sourceId
-    });
+    addBoundsForSourceId(boundsBySource, element.sourceRef.sourceId, bounds);
+    if (element.matrixCell) {
+      addBoundsForSourceId(boundsBySource, element.matrixCell.matrixSourceId, bounds);
+    }
   }
 
   return boundsBySource;
+}
+
+function addBoundsForSourceId(boundsBySource: Map<string, SnapBounds>, sourceId: string, bounds: Bounds): void {
+  const normalized = sourceId.trim();
+  if (normalized.length === 0) {
+    return;
+  }
+  const existing = boundsBySource.get(normalized);
+  const merged = existing ? mergeBounds(existing, bounds) : bounds;
+  boundsBySource.set(normalized, {
+    ...merged,
+    sourceId: normalized
+  });
 }
 
 export function collectSourceSnapPoints(boundsBySource: Iterable<SnapBounds>): SnapPoint[] {

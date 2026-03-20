@@ -10,6 +10,7 @@ import {
 } from "../semantic/path/label-quotes.js";
 import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
 import { readBalancedBlock } from "../semantic/style/option-utils.js";
+import { resolveMatrixCellEditTarget, resolveMatrixMode } from "../semantic/nodes/matrix.js";
 
 export type PropertyTargetKind =
   | "figure"
@@ -17,6 +18,7 @@ export type PropertyTargetKind =
   | "style-source"
   | "path-keyword"
   | "node-item"
+  | "matrix-cell"
   | "node-adornment"
   | "to-operation"
   | "edge-operation"
@@ -50,6 +52,11 @@ export type PropertyTarget = {
   ownerSourceId?: string;
   adornmentKind?: "label" | "pin";
   adornmentIndex?: number;
+  matrixSourceId?: string;
+  matrixOfNodes?: boolean;
+  row?: number;
+  column?: number;
+  cellSpan?: Span;
 };
 
 export type PropertyTargetResolution =
@@ -78,6 +85,10 @@ export function resolvePropertyTarget(source: string, elementId: string, parseOp
   }
 
   const parseResult = parseTikzForEdit(source, parseOptions);
+  const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
+  if (matrixCellTarget) {
+    return { kind: "found", target: matrixCellTarget };
+  }
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (!target) {
     return { kind: "not-found", reason: `No editable source target found for ${normalizedId}` };
@@ -102,6 +113,11 @@ export function resolvePropertyTargetFromParseResult(
 
   if (normalizedId.startsWith(STYLE_SOURCE_TARGET_PREFIX)) {
     return resolveStyleSourceTarget(source, normalizedId);
+  }
+
+  const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
+  if (matrixCellTarget) {
+    return { kind: "found", target: matrixCellTarget };
   }
 
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
@@ -529,6 +545,98 @@ function makePathStatementTarget(statement: PathStatement, source: string): Prop
     optionsSpan: statement.options?.span,
     insertOffset
   };
+}
+
+function resolveMatrixCellTargetInStatements(
+  statements: Statement[],
+  source: string,
+  elementId: string
+): PropertyTarget | null {
+  const parsedId = parseMatrixCellTargetId(elementId);
+  if (!parsedId) {
+    return null;
+  }
+
+  const ref = findNodeItemInStatements(statements, parsedId.matrixNodeSourceId);
+  if (!ref) {
+    return null;
+  }
+
+  const matrixMode = resolveMatrixMode(ref.node.options);
+  if (!matrixMode.enabled) {
+    return null;
+  }
+
+  const resolvedCell = resolveMatrixCellEditTarget(
+    ref.node.text,
+    ref.node.textSpan,
+    matrixMode,
+    parsedId.row,
+    parsedId.column
+  );
+  if (!resolvedCell) {
+    return null;
+  }
+
+  const matrixCellOptions = resolvedCell.optionSpan
+    ? parseOptionListRaw(source.slice(resolvedCell.optionSpan.from, resolvedCell.optionSpan.to), resolvedCell.optionSpan.from)
+    : undefined;
+
+  const insertOffset = resolveInsertOffset(source, ref.statement.span, /\\?(?:node|matrix)\b/);
+  return {
+    id: elementId,
+    kind: "matrix-cell",
+    span: resolvedCell.cellSpan,
+    options: matrixCellOptions,
+    optionsSpan: resolvedCell.optionSpan,
+    optionsFormat: "bracketed",
+    textSpan: resolvedCell.textSpan,
+    optionSpan: resolvedCell.optionSpan,
+    insertOffset,
+    matrixSourceId: ref.statement.id,
+    matrixOfNodes: matrixMode.matrixOfNodes,
+    row: parsedId.row,
+    column: parsedId.column,
+    cellSpan: resolvedCell.cellSpan
+  };
+}
+
+function findNodeItemInStatements(
+  statements: Statement[],
+  nodeId: string
+): { statement: PathStatement; node: NodeItem } | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope") {
+      const nested = findNodeItemInStatements(statement.body, nodeId);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+    if (statement.kind !== "Path") {
+      continue;
+    }
+    for (const item of statement.items) {
+      if (item.kind === "Node" && item.id === nodeId) {
+        return { statement, node: item };
+      }
+    }
+  }
+  return null;
+}
+
+function parseMatrixCellTargetId(elementId: string): { matrixNodeSourceId: string; row: number; column: number } | null {
+  const match = /^(.*):matrix-cell:(\d+):(\d+)$/.exec(elementId.trim());
+  if (!match) {
+    return null;
+  }
+  const matrixNodeSourceId = match[1]?.trim();
+  const row = Number.parseInt(match[2] ?? "", 10);
+  const column = Number.parseInt(match[3] ?? "", 10);
+  if (!matrixNodeSourceId || !Number.isInteger(row) || !Number.isInteger(column) || row <= 0 || column <= 0) {
+    return null;
+  }
+  return { matrixNodeSourceId, row, column };
 }
 
 function makeScopeTarget(statement: Extract<Statement, { kind: "Scope" }>, source: string): PropertyTarget {

@@ -113,6 +113,15 @@ export type SourceRef = {
   sourceFingerprint: string;
 };
 
+export type MatrixCellInfo = {
+  matrixSourceId: string;
+  cellSourceId: string;
+  row: number;
+  column: number;
+  textSpan: Span;
+  cellSpan: Span;
+};
+
 export type ScenePathCommand =
   | { kind: "M"; to: Point }
   | { kind: "L"; to: Point }
@@ -127,6 +136,7 @@ export type ScenePath = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  matrixCell?: MatrixCellInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
@@ -142,6 +152,7 @@ export type SceneCircle = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  matrixCell?: MatrixCellInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -156,6 +167,7 @@ export type SceneEllipse = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  matrixCell?: MatrixCellInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -172,6 +184,7 @@ export type SceneText = {
   id: string;
   runtimeId: string;
   sourceRef: SourceRef;
+  matrixCell?: MatrixCellInfo;
   adornment?: SceneAdornment;
   textSourceSpan?: Span;
   textHasFixedWidth?: boolean;

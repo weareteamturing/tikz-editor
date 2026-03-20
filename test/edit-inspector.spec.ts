@@ -2794,6 +2794,100 @@ describe("getInspectorDescriptor", () => {
   });
 });
 
+describe("resolvePropertyTarget – matrix cells", () => {
+  it("resolves matrix-cell synthetic ids to cell text spans", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[draw,fill=yellow]| BC \\
+  };
+\end{tikzpicture}`;
+
+    const resolved = resolvePropertyTarget(source, "node:0:0:matrix-cell:1:2");
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error("Expected matrix-cell target");
+    }
+
+    expect(resolved.target.kind).toBe("matrix-cell");
+    expect(resolved.target.matrixSourceId).toBe("path:0");
+    expect(resolved.target.row).toBe(1);
+    expect(resolved.target.column).toBe(2);
+    expect(resolved.target.textSpan).toBeDefined();
+    expect(resolved.target.optionSpan).toBeDefined();
+    if (resolved.target.textSpan) {
+      expect(source.slice(resolved.target.textSpan.from, resolved.target.textSpan.to)).toBe("BC");
+    }
+    if (resolved.target.optionSpan) {
+      expect(source.slice(resolved.target.optionSpan.from, resolved.target.optionSpan.to)).toBe("[draw,fill=yellow]");
+    }
+  });
+
+  it("allows supported matrix-cell inspector writes for matrix of nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,nodes={draw}] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixCellText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.matrixCell?.cellSourceId === "node:0:0:matrix-cell:1:1"
+    );
+    expect(matrixCellText).toBeDefined();
+    if (!matrixCellText) {
+      throw new Error("Expected matrix cell text element");
+    }
+
+    const descriptor = getInspectorDescriptor(matrixCellText, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+    const strokeColor = strokeSection.properties.find((property) => property.kind === "color");
+    expect(strokeColor).toBeDefined();
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+    expect(strokeColor.write.writable).toBe(true);
+  });
+
+  it("keeps plain matrix-cell inspector writes read-only", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix {
+    A & B \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixCellText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.matrixCell?.cellSourceId === "node:0:0:matrix-cell:1:1"
+    );
+    expect(matrixCellText).toBeDefined();
+    if (!matrixCellText) {
+      throw new Error("Expected matrix cell text element");
+    }
+
+    const descriptor = getInspectorDescriptor(matrixCellText, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+    const strokeColor = strokeSection.properties.find((property) => property.kind === "color");
+    expect(strokeColor).toBeDefined();
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+    expect(strokeColor.write.writable).toBe(false);
+  });
+});
+
 function getNodeShapeProperty(descriptor: ReturnType<typeof getInspectorDescriptor>) {
   const nodeSection = descriptor.sections.find((section) => section.id === "node");
   if (!nodeSection) {

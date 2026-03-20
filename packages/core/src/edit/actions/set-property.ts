@@ -1,5 +1,9 @@
-import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "../option-mutations.js";
+import { parseOptionListRaw } from "../../options/parse.js";
+import { applyOptionMutationsToTarget, normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
 import { resolvePropertyTarget } from "../property-target.js";
+import type { PropertyTarget } from "../property-target.js";
+import { replaceSpan } from "../patch.js";
+import type { Span } from "../../ast/types.js";
 import type { SourcePatch } from "../types.js";
 import { applyAdornmentSetProperty } from "./adornment-set-property.js";
 import type { EditParseOptions } from "../parse-options.js";
@@ -25,6 +29,8 @@ export type SetPropertyAction = {
   clearKeys?: string[];
 };
 
+const MATRIX_CELL_SUPPORTED_KEYS = new Set(["draw", "fill", "text", "shape"]);
+
 export function applySetPropertyAction(
   source: string,
   action: SetPropertyAction,
@@ -37,6 +43,10 @@ export function applySetPropertyAction(
 
   if (resolved.target.kind === "node-adornment") {
     return applyAdornmentSetProperty(source, resolved.target, action as any);
+  }
+
+  if (resolved.target.kind === "matrix-cell") {
+    return applyMatrixCellSetProperty(source, resolved.target, action);
   }
 
   const key = normalizeOptionKey(action.key);
@@ -71,5 +81,135 @@ export function applySetPropertyAction(
     kind: "success",
     newSource: rewritten.source,
     patches: [rewritten.patch]
+  };
+}
+
+function applyMatrixCellSetProperty(
+  source: string,
+  target: PropertyTarget,
+  action: SetPropertyAction
+): EditActionResultLike {
+  if (!target.matrixOfNodes) {
+    return { kind: "unsupported", reason: "Cell property editing is only available for matrix of nodes." };
+  }
+
+  const key = normalizeOptionKey(action.key);
+  if (!MATRIX_CELL_SUPPORTED_KEYS.has(key)) {
+    return { kind: "unsupported", reason: `Matrix cell property '${action.key}' is not editable yet.` };
+  }
+
+  const normalizedValue = action.value.trim();
+  const removePrimaryKey = normalizedValue.length === 0;
+  const mutations = new Map<string, OptionMutation>();
+  for (const rawClearKey of action.clearKeys ?? []) {
+    const clearKey = normalizeOptionKey(rawClearKey);
+    if (clearKey.length === 0) {
+      continue;
+    }
+    if (clearKey === key && !removePrimaryKey) {
+      continue;
+    }
+    mutations.set(clearKey, { kind: "remove" });
+  }
+  if (removePrimaryKey) {
+    mutations.set(key, { kind: "remove" });
+  } else {
+    mutations.set(key, { kind: "set", value: action.value });
+  }
+
+  const cellSpan = target.cellSpan;
+  const textSpan = target.textSpan;
+  if (!cellSpan || !textSpan) {
+    return { kind: "unsupported", reason: "Matrix cell source spans are unavailable." };
+  }
+
+  if (target.optionSpan) {
+    const optionSpan = target.optionSpan;
+    const currentOptions = parseOptionListRaw(source.slice(optionSpan.from, optionSpan.to), optionSpan.from);
+    const replacement = rewriteOptionListMutations(currentOptions, mutations, undefined, "bracketed");
+    if (replacement.length > 0) {
+      if (source.slice(optionSpan.from, optionSpan.to) === replacement) {
+        return { kind: "unsupported", reason: "setProperty would not change the source." };
+      }
+      const updated = replaceSpan(source, optionSpan, replacement);
+      return {
+        kind: "success",
+        newSource: updated.source,
+        patches: [{ oldSpan: optionSpan, newSpan: updated.changedSpan, replacement }]
+      };
+    }
+
+    const prefixSpan = resolveMatrixCellOptionPrefixSpan(source, optionSpan, cellSpan, textSpan);
+    if (!prefixSpan) {
+      return { kind: "unsupported", reason: "Could not remove matrix-cell option prefix safely." };
+    }
+    const updated = replaceSpan(source, prefixSpan, "");
+    if (updated.source === source) {
+      return { kind: "unsupported", reason: "setProperty would not change the source." };
+    }
+    return {
+      kind: "success",
+      newSource: updated.source,
+      patches: [{ oldSpan: prefixSpan, newSpan: updated.changedSpan, replacement: "" }]
+    };
+  }
+
+  const setMutations = new Map<string, OptionMutation>();
+  for (const [mutationKey, mutation] of mutations.entries()) {
+    if (mutation.kind === "set") {
+      setMutations.set(mutationKey, mutation);
+    }
+  }
+  if (setMutations.size === 0) {
+    return { kind: "unsupported", reason: "setProperty would not change the source." };
+  }
+
+  const seedOptions = parseOptionListRaw("[]", textSpan.from);
+  const serializedOptions = rewriteOptionListMutations(seedOptions, setMutations, undefined, "bracketed");
+  if (serializedOptions.length === 0) {
+    return { kind: "unsupported", reason: "setProperty would not change the source." };
+  }
+  const insertion = `|${serializedOptions}| `;
+  const insertionSpan: Span = { from: textSpan.from, to: textSpan.from };
+  const updated = replaceSpan(source, insertionSpan, insertion);
+  if (updated.source === source) {
+    return { kind: "unsupported", reason: "setProperty would not change the source." };
+  }
+  return {
+    kind: "success",
+    newSource: updated.source,
+    patches: [{ oldSpan: insertionSpan, newSpan: updated.changedSpan, replacement: insertion }]
+  };
+}
+
+function resolveMatrixCellOptionPrefixSpan(
+  source: string,
+  optionSpan: Span,
+  cellSpan: Span,
+  textSpan: Span
+): Span | null {
+  let leftPipe = optionSpan.from - 1;
+  while (leftPipe >= cellSpan.from && /\s/u.test(source[leftPipe] ?? "")) {
+    leftPipe -= 1;
+  }
+  if (leftPipe < cellSpan.from || source[leftPipe] !== "|") {
+    return null;
+  }
+
+  let rightPipe = optionSpan.to;
+  while (rightPipe < cellSpan.to && /\s/u.test(source[rightPipe] ?? "")) {
+    rightPipe += 1;
+  }
+  if (rightPipe >= cellSpan.to || source[rightPipe] !== "|") {
+    return null;
+  }
+
+  let removalTo = rightPipe + 1;
+  while (removalTo < textSpan.from && /\s/u.test(source[removalTo] ?? "")) {
+    removalTo += 1;
+  }
+  return {
+    from: leftPipe,
+    to: removalTo
   };
 }

@@ -672,6 +672,11 @@ function resolveNodeTextSpanForElementId(
     return null;
   }
 
+  const resolvedTarget = resolvePropertyTarget(source, normalizedId, parseOptions);
+  if (resolvedTarget.kind === "found" && resolvedTarget.target.textSpan) {
+    return resolvedTarget.target.textSpan;
+  }
+
   const statementSnapshot = parseStatementSnapshot(source, parseOptions);
   const statementRef = statementSnapshot.byId.get(normalizedId);
   if (statementRef?.statement.kind === "Path" && statementRef.statement.command === "node") {

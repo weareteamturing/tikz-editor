@@ -408,7 +408,8 @@ export function evaluateNodeItem(
           undefined,
           undefined,
           defaultTargetPoint,
-          effectiveBaseStyleChain
+          effectiveBaseStyleChain,
+          { allowImplicitOriginHandle: false }
         )
     });
   }

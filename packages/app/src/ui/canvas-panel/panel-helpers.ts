@@ -591,7 +591,7 @@ export function resolveFallbackTextSourceSpanForSourceId(
 
   let bestSpan: Span | null = null;
   for (const candidate of candidates) {
-    const span = candidate.textSourceSpan ?? candidate.sourceRef.sourceSpan;
+    const span = candidate.matrixCell?.textSpan ?? candidate.textSourceSpan ?? candidate.sourceRef.sourceSpan;
     if (span.to <= span.from) {
       continue;
     }

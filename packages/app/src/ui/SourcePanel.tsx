@@ -1175,6 +1175,10 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
       continue;
     }
     sourceIds.add(sourceId);
+    const matrixSourceId = element.matrixCell?.matrixSourceId.trim();
+    if (matrixSourceId) {
+      sourceIds.add(matrixSourceId);
+    }
   }
 
   const sceneSpansBySourceId = new Map<string, SourceSpan>();
@@ -1192,6 +1196,21 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
     sceneSpansBySourceId.set(sourceId, {
       from: Math.min(existing.from, sourceSpan.from),
       to: Math.max(existing.to, sourceSpan.to)
+    });
+
+    const matrixSourceId = element.matrixCell?.matrixSourceId.trim();
+    const matrixSpan = element.matrixCell?.cellSpan;
+    if (!matrixSourceId || !matrixSpan || matrixSpan.to <= matrixSpan.from) {
+      continue;
+    }
+    const existingMatrixSpan = sceneSpansBySourceId.get(matrixSourceId);
+    if (!existingMatrixSpan) {
+      sceneSpansBySourceId.set(matrixSourceId, { from: matrixSpan.from, to: matrixSpan.to });
+      continue;
+    }
+    sceneSpansBySourceId.set(matrixSourceId, {
+      from: Math.min(existingMatrixSpan.from, matrixSpan.from),
+      to: Math.max(existingMatrixSpan.to, matrixSpan.to)
     });
   }
 

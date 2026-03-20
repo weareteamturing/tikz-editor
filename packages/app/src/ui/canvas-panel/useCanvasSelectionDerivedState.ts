@@ -17,7 +17,7 @@ import { resolveResizeFrameForSource } from "./resize-frames";
 import { resolveResizeFrameFromBounds } from "./resize-frames";
 import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
 import { resolveRotateHandlePosition } from "./rotate-handle";
-import { buildScopeOverlayIndex } from "./scope-overlay";
+import { augmentScopeOverlayWithMatrices, buildScopeOverlayIndex } from "./scope-overlay";
 import {
   collectMatrixStatementSourceIds,
   collectSourceBounds,
@@ -62,6 +62,16 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return collectMatrixStatementSourceIds(figure.body);
   }, [snapshot.parseResult]);
+  const matrixCellSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      const cellId = element.matrixCell?.cellSourceId;
+      if (cellId) {
+        ids.add(cellId);
+      }
+    }
+    return ids;
+  }, [snapshot.scene]);
   const dragCapability = useMemo(
     () => computeDragCapability(snapshot.editHandles),
     [snapshot.editHandles]
@@ -96,8 +106,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [snapshot.scene, svgResult]);
 
   const scopeOverlay = useMemo(
-    () => buildScopeOverlayIndex(snapshot.parseResult?.figure.body, sourceBoundsSvg),
-    [snapshot.parseResult, sourceBoundsSvg]
+    () =>
+      augmentScopeOverlayWithMatrices(
+        buildScopeOverlayIndex(snapshot.parseResult?.figure.body, sourceBoundsSvg),
+        snapshot.scene?.elements,
+        sourceBoundsSvg
+      ),
+    [snapshot.parseResult, snapshot.scene, sourceBoundsSvg]
   );
 
   const movableScopeSourceIds = useMemo(() => {
@@ -118,6 +133,9 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
   const draggableSourceIds = useMemo(() => {
     const ids = new Set<string>(dragCapability.draggableSourceIds);
+    for (const matrixCellId of matrixCellSourceIds) {
+      ids.delete(matrixCellId);
+    }
     for (const sourceId of matrixSourceIds) {
       ids.add(sourceId);
     }
@@ -128,7 +146,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       ids.add(targetId);
     }
     return ids;
-  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixSourceIds, movableScopeSourceIds]);
+  }, [adornmentTargetIds, dragCapability.draggableSourceIds, matrixCellSourceIds, matrixSourceIds, movableScopeSourceIds]);
 
   const selectionBounds = useMemo(() => {
     const selected: Array<{ sourceId: string; bounds: any }> = [];
@@ -175,22 +193,29 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (matrixSourceIds.has(sourceId)) {
         continue;
       }
+      if (matrixCellSourceIds.has(sourceId)) {
+        continue;
+      }
       if (sourceHasSingleResizablePathShape(snapshot.scene.elements, snapshot.editHandles, sourceId, statements)) {
         result.add(sourceId);
       }
     }
     return result;
-  }, [matrixSourceIds, selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
+  }, [matrixCellSourceIds, matrixSourceIds, selectionBoundsBySource, snapshot.editHandles, snapshot.parseResult, snapshot.scene]);
 
   const nodeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
     for (const handle of selectedHandles as any[]) {
-      if (handle.kind === "node-position" && !matrixSourceIds.has(handle.sourceRef.sourceId)) {
+      if (
+        handle.kind === "node-position"
+        && !matrixSourceIds.has(handle.sourceRef.sourceId)
+        && !matrixCellSourceIds.has(handle.sourceRef.sourceId)
+      ) {
         sourceIds.add(handle.sourceRef.sourceId);
       }
     }
     return sourceIds;
-  }, [matrixSourceIds, selectedHandles]);
+  }, [matrixCellSourceIds, matrixSourceIds, selectedHandles]);
 
   const scopeResizeSourceIds = useMemo(() => {
     const sourceIds = new Set<string>();
