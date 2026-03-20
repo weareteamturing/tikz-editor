@@ -208,6 +208,36 @@ describe("semantic evaluator / trees", () => {
       expect(result.diagnostics.some((diagnostic) => diagnostic.code === "edge-from-parent-outside-child")).toBe(false);
     });
 
+    it("preserves distinct treeChild metadata for nested descendants", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \path node {root}
+      child { node {left} child { node {left-left} } };
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      const left = result.scene.elements.find((element) => element.kind === "Text" && element.text === "left");
+      const leftLeft = result.scene.elements.find((element) => element.kind === "Text" && element.text === "left-left");
+      expect(left?.kind).toBe("Text");
+      expect(leftLeft?.kind).toBe("Text");
+      if (left?.kind === "Text" && leftLeft?.kind === "Text") {
+        expect(left.treeChild).toBeDefined();
+        expect(leftLeft.treeChild).toBeDefined();
+        if (!left.treeChild || !leftLeft.treeChild) {
+          return;
+        }
+        expect(leftLeft.treeChild.parentSourceId).toBe(left.treeChild.childSourceId);
+        expect(leftLeft.treeChild.childSourceId).not.toBe(left.treeChild.childSourceId);
+        expect(leftLeft.treeChild.level).toBeGreaterThan(left.treeChild.level);
+        expect(left.treeChild.bodySpan).toBeDefined();
+        expect(leftLeft.treeChild.bodySpan).toBeDefined();
+        if (!left.treeChild.bodySpan || !leftLeft.treeChild.bodySpan) {
+          return;
+        }
+        expect(source.slice(left.treeChild.bodySpan.from, left.treeChild.bodySpan.to)).toContain("node {left}");
+        expect(source.slice(leftLeft.treeChild.bodySpan.from, leftLeft.treeChild.bodySpan.to)).toContain("node {left-left}");
+      }
+    });
+
     it("places explicit edge-from-parent labels as edge nodes", () => {
       const source = String.raw`\begin{tikzpicture}
     \path node {root}

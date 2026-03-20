@@ -158,6 +158,129 @@ export function augmentScopeOverlayWithMatrices(
   };
 }
 
+export function augmentScopeOverlayWithTrees(
+  baseOverlay: ScopeOverlayIndex,
+  sceneElements: readonly SceneElement[] | undefined,
+  boundsBySourceId: ReadonlyMap<string, Bounds>
+): ScopeOverlayIndex {
+  if (!sceneElements || sceneElements.length === 0) {
+    return baseOverlay;
+  }
+
+  // Collect tree parent → child metadata.
+  // A "parent" is either the root statement or a child that itself has children.
+  const parentToChildrenInfo = new Map<string, Map<string, NonNullable<SceneElement["treeChild"]>>>();
+  const childInfoByChildId = new Map<string, NonNullable<SceneElement["treeChild"]>>();
+
+  for (const element of sceneElements) {
+    const tc = element.treeChild;
+    if (!tc) {
+      continue;
+    }
+    if (!childInfoByChildId.has(tc.childSourceId)) {
+      childInfoByChildId.set(tc.childSourceId, tc);
+    }
+    let children = parentToChildrenInfo.get(tc.parentSourceId);
+    if (!children) {
+      children = new Map<string, NonNullable<SceneElement["treeChild"]>>();
+      parentToChildrenInfo.set(tc.parentSourceId, children);
+    }
+    children.set(tc.childSourceId, tc);
+  }
+
+  if (parentToChildrenInfo.size === 0) {
+    return baseOverlay;
+  }
+
+  const parentToChildren = new Map<string, string[]>();
+  for (const [parentSourceId, childInfoMap] of parentToChildrenInfo.entries()) {
+    const orderedChildren = [...childInfoMap.values()]
+      .sort((a, b) => a.childIndex - b.childIndex)
+      .map((entry) => entry.childSourceId);
+    parentToChildren.set(parentSourceId, orderedChildren);
+  }
+
+  const scopesById = new Map(baseOverlay.scopesById);
+  const ancestorScopeIdsBySourceId = new Map(baseOverlay.ancestorScopeIdsBySourceId);
+  const boundsByScopeId = new Map(baseOverlay.boundsByScopeId);
+
+  const ancestorCache = new Map<string, string[]>();
+  const ancestorVisiting = new Set<string>();
+  const resolveAncestors = (sourceId: string): string[] => {
+    const cached = ancestorCache.get(sourceId);
+    if (cached) {
+      return cached;
+    }
+    if (ancestorVisiting.has(sourceId)) {
+      return [];
+    }
+    ancestorVisiting.add(sourceId);
+    const childInfo = childInfoByChildId.get(sourceId);
+    let ancestors: string[];
+    if (childInfo) {
+      const parentAncestors = resolveAncestors(childInfo.parentSourceId);
+      ancestors = [...parentAncestors, childInfo.parentSourceId];
+    } else {
+      ancestors = [...(ancestorScopeIdsBySourceId.get(sourceId) ?? [])];
+    }
+    ancestorVisiting.delete(sourceId);
+    ancestorCache.set(sourceId, ancestors);
+    return ancestors;
+  };
+
+  const boundsCache = new Map<string, Bounds | null>();
+  const boundsVisiting = new Set<string>();
+  const resolveSubtreeBounds = (sourceId: string): Bounds | null => {
+    if (boundsCache.has(sourceId)) {
+      return boundsCache.get(sourceId) ?? null;
+    }
+    if (boundsVisiting.has(sourceId)) {
+      return boundsBySourceId.get(sourceId) ?? null;
+    }
+    boundsVisiting.add(sourceId);
+    let merged = boundsBySourceId.get(sourceId) ?? null;
+    for (const childId of parentToChildren.get(sourceId) ?? []) {
+      const childBounds = resolveSubtreeBounds(childId);
+      if (childBounds) {
+        merged = merged ? mergeBounds(merged, childBounds) : childBounds;
+      }
+    }
+    boundsVisiting.delete(sourceId);
+    boundsCache.set(sourceId, merged);
+    return merged;
+  };
+
+  // Build scope for every node that has children (root or intermediate).
+  for (const [parentId, childIds] of parentToChildren.entries()) {
+    const parentAncestors = resolveAncestors(parentId);
+    const parentScopeId = parentAncestors.length > 0 ? parentAncestors[parentAncestors.length - 1] ?? null : null;
+    const scopeBounds = resolveSubtreeBounds(parentId);
+
+    scopesById.set(parentId, {
+      scopeId: parentId,
+      parentScopeId,
+      childStatementIds: [...childIds],
+      bounds: scopeBounds
+    });
+
+    ancestorScopeIdsBySourceId.set(parentId, [...parentAncestors]);
+    if (scopeBounds) {
+      boundsByScopeId.set(parentId, scopeBounds);
+    }
+
+    // Register each child with ancestors including this parent scope.
+    for (const childId of childIds) {
+      ancestorScopeIdsBySourceId.set(childId, [...parentAncestors, parentId]);
+    }
+  }
+
+  return {
+    scopesById,
+    ancestorScopeIdsBySourceId,
+    boundsByScopeId
+  };
+}
+
 export function resolveScopeAwareSelectionTarget(
   input: ResolveScopeAwareSelectionTargetInput
 ): string {

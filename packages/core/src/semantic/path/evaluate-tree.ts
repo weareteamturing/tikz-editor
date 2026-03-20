@@ -1,6 +1,6 @@
 import type { EdgeOperationItem, PathStatement } from "../../ast/types.js";
 import { readNamedCoordinate, withDependencySource, writeNamedCoordinate, type SemanticContext } from "../context.js";
-import type { Point, ResolvedStyle, SceneElement } from "../types.js";
+import type { Point, ResolvedStyle, SceneElement, TreeChildInfo } from "../types.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
 import { parseCoordinateOperation } from "./parsers.js";
@@ -21,6 +21,39 @@ import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { resolveContextDelta } from "../style/resolve.js";
 import { resolveFrameMeta } from "../evaluate.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "./types.js";
+
+function extractTreeRootSourceId(statementId: string): string {
+  const idx = statementId.indexOf(":tree-child:");
+  return idx >= 0 ? statementId.slice(0, idx) : statementId;
+}
+
+function absolutizeTreeChildSpan(
+  source: string,
+  span: { from: number; to: number } | undefined,
+  parentStatementSpan: { from: number; to: number },
+  raw: string
+): { from: number; to: number } | undefined {
+  if (!span) {
+    return undefined;
+  }
+  if (raw.length > 0 && source.slice(span.from, span.to) === raw) {
+    return { from: span.from, to: span.to };
+  }
+  if (raw.length > 0) {
+    const parentSlice = source.slice(parentStatementSpan.from, parentStatementSpan.to);
+    const rawOffset = parentSlice.indexOf(raw);
+    if (rawOffset >= 0) {
+      return {
+        from: parentStatementSpan.from + rawOffset,
+        to: parentStatementSpan.from + rawOffset + raw.length
+      };
+    }
+  }
+  return {
+    from: parentStatementSpan.from + span.from,
+    to: parentStatementSpan.from + span.to
+  };
+}
 
 export type TreeParentCandidate = { nameRaw: string | null; point: Point; span: { from: number; to: number } } | null;
 
@@ -319,6 +352,41 @@ export function handleChildOperationCluster(params: {
           honorInitialCurrentPoint: true
         })
       );
+
+      const treeRootSourceId = extractTreeRootSourceId(statement.id);
+      const childOperationSpan =
+        absolutizeTreeChildSpan(context.source, child.span, statement.span, child.raw) ?? child.span;
+      const childBodySpan = absolutizeTreeChildSpan(
+        context.source,
+        child.bodySpan,
+        statement.span,
+        child.bodyRaw
+      );
+      const childOptionsSpan = absolutizeTreeChildSpan(
+        context.source,
+        child.optionsSpan,
+        statement.span,
+        child.options?.raw ?? ""
+      );
+      const treeChildInfo: TreeChildInfo = {
+        treeRootSourceId,
+        parentSourceId: statement.id,
+        childOperationId: child.id,
+        childSourceId: childStatement.id,
+        childIndex,
+        level: childFrameMeta.treeLevel,
+        childOperationSpan,
+        bodySpan: childBodySpan,
+        optionsSpan: childOptionsSpan
+      };
+      for (const el of childElements) {
+        // Preserve nested child metadata from recursive evaluations.
+        // Only stamp elements that belong to this synthetic child statement.
+        if (el.sourceRef.sourceId === childStatement.id) {
+          el.treeChild = treeChildInfo;
+        }
+      }
+
       frontNodeElements.push(...childElements);
 
       const childRootPoint = readNamedCoordinate(context, scopedChildRootName) ?? childOrigin;
@@ -413,6 +481,7 @@ export function handleChildOperationCluster(params: {
         pushDiagnostic(code, `Tree edge option issue: ${code}`, materializedEdge.span.from, materializedEdge.span.to);
       }
 
+      const edgeHandlesStart = context.editHandles.length;
       const handledEdge = applyEdgeOperation(
         materializedEdge,
         context,
@@ -423,13 +492,31 @@ export function handleChildOperationCluster(params: {
         pushDiagnostic,
         parentAnchorPoint
       );
-      if (handledEdge.activePath && hasDrawablePathSegments(handledEdge.activePath)) {
-        frontNodeElements.push(...handledEdge.behindNodeElements);
-        frontNodeElements.push(handledEdge.activePath);
-        frontNodeElements.push(...handledEdge.frontNodeElements);
-      } else {
-        frontNodeElements.push(...handledEdge.behindNodeElements, ...handledEdge.frontNodeElements);
+      for (let handleIndex = edgeHandlesStart; handleIndex < context.editHandles.length; handleIndex += 1) {
+        const handle = context.editHandles[handleIndex];
+        if (!handle || handle.sourceRef.sourceId !== statement.id) {
+          continue;
+        }
+        context.editHandles[handleIndex] = {
+          ...handle,
+          sourceRef: {
+            ...handle.sourceRef,
+            // Keep tree-edge coordinate handles bound to the synthetic child statement
+            // so moving the tree root does not rewrite raw child-operation spans.
+            sourceId: childStatement.id
+          }
+        };
       }
+      const edgeElements: SceneElement[] = [];
+      if (handledEdge.activePath && hasDrawablePathSegments(handledEdge.activePath)) {
+        edgeElements.push(...handledEdge.behindNodeElements, handledEdge.activePath, ...handledEdge.frontNodeElements);
+      } else {
+        edgeElements.push(...handledEdge.behindNodeElements, ...handledEdge.frontNodeElements);
+      }
+      for (const el of edgeElements) {
+        el.treeChild = treeChildInfo;
+      }
+      frontNodeElements.push(...edgeElements);
       for (const coordinateOperation of splitBody.trailingCoordinateOperations) {
         const parsedName = coordinateOperation.name?.trim() || parseCoordinateOperation(coordinateOperation.raw)?.name;
         if (!parsedName) {

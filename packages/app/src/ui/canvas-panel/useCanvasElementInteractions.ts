@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, collectSelectionGeometryFromBounds, collectSourceWorldBounds } from "tikz-editor/edit/snapping";
-import type { EditHandle, Point } from "tikz-editor/semantic/types";
+import type { EditHandle, Point, SceneElement } from "tikz-editor/semantic/types";
 import { resolveEligibleExplicitPath, type ExplicitPathAnalysis, type ExplicitPathSegment } from "tikz-editor/edit/path-editing";
 import { closestPointOnLine, closestPointOnCubic } from "tikz-editor/edit/curve-math";
 import { clientToWorldPoint } from "./geometry";
@@ -8,6 +8,7 @@ import { makeMergeKey, resolveFallbackTextSourceSpanForSourceId, selectionAnchor
 import { requestSourceSelection } from "../source-sync";
 import {
   isSourceWithinScope,
+  type ScopeOverlayIndex,
   resolveFocusedScopeIdForSelection,
   resolveScopeAwarePointerDownTarget,
   resolveScopeAwarePointerUpDrillTarget
@@ -92,22 +93,7 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
         return;
       }
 
-      const snapExcludedSourceIds = (() => {
-        if (draggedIds.length === 0) {
-          return draggedIds;
-        }
-        const selectedForSnap = new Set<string>(draggedIds);
-        const draggedScopeIds = draggedIds.filter((id) => scopeOverlay.scopesById.has(id));
-        if (draggedScopeIds.length === 0) {
-          return [...selectedForSnap];
-        }
-        for (const [sourceId, ancestorScopeIds] of scopeOverlay.ancestorScopeIdsBySourceId.entries()) {
-          if (draggedScopeIds.some((scopeId) => ancestorScopeIds.includes(scopeId))) {
-            selectedForSnap.add(sourceId);
-          }
-        }
-        return [...selectedForSnap];
-      })();
+      const snapExcludedSourceIds = collectSnapExcludedSourceIds(draggedIds, scopeOverlay, snapshot.scene?.elements);
 
       const snapContext = snapshot.scene
         ? buildSnapContext({
@@ -540,6 +526,44 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     onElementPointerDown,
     onElementDoubleClick
   };
+}
+
+export function collectSnapExcludedSourceIds(
+  draggedIds: readonly string[],
+  scopeOverlay: ScopeOverlayIndex,
+  sceneElements?: readonly SceneElement[]
+): string[] {
+  if (draggedIds.length === 0) {
+    return [...draggedIds];
+  }
+
+  const selectedForSnap = new Set<string>(draggedIds);
+  const draggedScopeIds = draggedIds.filter((id) => scopeOverlay.scopesById.has(id));
+  if (draggedScopeIds.length > 0) {
+    for (const [sourceId, ancestorScopeIds] of scopeOverlay.ancestorScopeIdsBySourceId.entries()) {
+      if (draggedScopeIds.some((scopeId) => ancestorScopeIds.includes(scopeId))) {
+        selectedForSnap.add(sourceId);
+      }
+    }
+  }
+
+  if (sceneElements && sceneElements.length > 0) {
+    const candidateSourceIds = new Set(sceneElements.map((element) => element.sourceRef.sourceId));
+    for (const candidateSourceId of candidateSourceIds) {
+      for (const selectedSourceId of selectedForSnap) {
+        if (isSyntheticTreeDescendantSourceId(candidateSourceId, selectedSourceId)) {
+          selectedForSnap.add(candidateSourceId);
+          break;
+        }
+      }
+    }
+  }
+
+  return [...selectedForSnap];
+}
+
+function isSyntheticTreeDescendantSourceId(candidateSourceId: string, selectedSourceId: string): boolean {
+  return candidateSourceId.startsWith(`${selectedSourceId}:tree-child:`);
 }
 
 function findClosestSegmentPoint(

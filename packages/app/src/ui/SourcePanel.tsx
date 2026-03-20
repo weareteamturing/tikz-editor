@@ -1196,12 +1196,14 @@ function buildSourceSpanIndex(elements: readonly SceneElement[], statements: rea
   }
 
   const parseSpansById = collectParseSpansById(statements ?? []);
+  const treeChildSpansBySourceId = collectTreeChildSpansBySourceId(elements);
   const adornmentSpansByTargetId = collectAdornmentSpansByTargetId(elements);
   const bySourceId = new Map<string, SourceSpan>();
   for (const sourceId of sourceIds) {
+    const treeChildSpan = treeChildSpansBySourceId.get(sourceId);
     const parseSpan = parseSpansById.get(sourceId);
     const sceneSpan = sceneSpansBySourceId.get(sourceId);
-    const chosen = parseSpan ?? sceneSpan;
+    const chosen = treeChildSpan ?? parseSpan ?? sceneSpan;
     if (!chosen) {
       continue;
     }
@@ -1245,6 +1247,34 @@ function collectAdornmentSpansByTargetId(elements: readonly SceneElement[]): Map
     spans.set(adornment.targetId, {
       from: Math.min(existing.from, adornment.textSpan.from),
       to: Math.max(existing.to, adornment.textSpan.to)
+    });
+  }
+  return spans;
+}
+
+function collectTreeChildSpansBySourceId(elements: readonly SceneElement[]): Map<string, SourceSpan> {
+  const spans = new Map<string, SourceSpan>();
+  for (const element of elements) {
+    const treeChild = element.treeChild;
+    if (!treeChild) {
+      continue;
+    }
+    const sourceId = treeChild.childSourceId?.trim() ?? "";
+    if (!sourceId) {
+      continue;
+    }
+    const span = treeChild.bodySpan ?? treeChild.childOperationSpan;
+    if (!span || span.to <= span.from) {
+      continue;
+    }
+    const existing = spans.get(sourceId);
+    if (!existing) {
+      spans.set(sourceId, { from: span.from, to: span.to });
+      continue;
+    }
+    spans.set(sourceId, {
+      from: Math.min(existing.from, span.from),
+      to: Math.max(existing.to, span.to)
     });
   }
   return spans;

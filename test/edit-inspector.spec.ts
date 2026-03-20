@@ -16,6 +16,7 @@ import {
   buildRoundedCornersSetPropertyMutation,
   buildShadowMutationContextForPreset,
   buildShadowSetPropertyMutations,
+  buildTreeInspectorDescriptor,
   buildTransformSetPropertyMutations,
   getInspectorDescriptor,
   resolveTransformInspectorMutationContext,
@@ -2936,6 +2937,255 @@ describe("resolvePropertyTarget – matrix cells", () => {
       throw new Error("Expected stroke color property");
     }
     expect(strokeColor.write.writable).toBe(false);
+  });
+});
+
+describe("resolvePropertyTarget – tree children", () => {
+  it("resolves synthetic tree-child ids with child/node spans", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[level distance=4mm] { node[draw,fill=yellow] {left} }
+    child { node {right} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    expect(leftText?.kind).toBe("Text");
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected a tree child text element");
+    }
+
+    const resolved = resolvePropertyTarget(source, leftText.treeChild.childSourceId);
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error("Expected tree-child property target");
+    }
+    expect(resolved.target.kind).toBe("tree-child");
+    expect(resolved.target.childOperationId).toBe(leftText.treeChild.childOperationId);
+    expect(resolved.target.treeChildForeach).toBe(false);
+    expect(resolved.target.treeChildOptionsSpan).toBeDefined();
+    expect(resolved.target.treeNodeOptionsSpan).toBeDefined();
+    expect(resolved.target.textSpan).toBeDefined();
+    if (resolved.target.treeChildOptionsSpan) {
+      expect(source.slice(resolved.target.treeChildOptionsSpan.from, resolved.target.treeChildOptionsSpan.to)).toBe("[level distance=4mm]");
+    }
+    if (resolved.target.treeNodeOptionsSpan) {
+      expect(source.slice(resolved.target.treeNodeOptionsSpan.from, resolved.target.treeNodeOptionsSpan.to)).toBe("[draw,fill=yellow]");
+    }
+    if (resolved.target.textSpan) {
+      expect(source.slice(resolved.target.textSpan.from, resolved.target.textSpan.to)).toBe("left");
+    }
+  });
+
+  it("marks child foreach tree children as read-only targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child foreach \x in {A,B} { node {\x} };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const path = parsed.figure.body.find((statement) => statement.kind === "Path");
+    if (!path || path.kind !== "Path") {
+      throw new Error("Expected path statement");
+    }
+    const childOperation = path.items.find((item) => item.kind === "ChildOperation");
+    if (!childOperation || childOperation.kind !== "ChildOperation") {
+      throw new Error("Expected child operation");
+    }
+    const syntheticChildId = `${path.id}:tree-child:1:${childOperation.id}`;
+    const resolved = resolvePropertyTarget(source, syntheticChildId);
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error("Expected tree-child property target");
+    }
+    expect(resolved.target.kind).toBe("tree-child");
+    expect(resolved.target.treeChildForeach).toBe(true);
+  });
+
+  it("builds tree-child descriptors with node controls and without Transform/Child Layout", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[level distance=3mm,sibling distance=7mm] { node[draw,fill=yellow] {left} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    expect(leftText?.kind).toBe("Text");
+    if (!leftText || leftText.kind !== "Text") {
+      throw new Error("Expected tree child text element");
+    }
+
+    const descriptor = getInspectorDescriptor(leftText, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(descriptor.sections.some((section) => section.id === "transform")).toBe(false);
+    expect(descriptor.sections.some((section) => section.id === "tree-child-layout")).toBe(false);
+    expect(descriptor.sections.some((section) => section.id === "node")).toBe(true);
+    const lineWidth = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "lineWidth");
+    expect(lineWidth?.kind).toBe("lineWidth");
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected lineWidth property");
+    }
+    expect(lineWidth.write.writable).toBe(true);
+  });
+
+  it("keeps tree-child write targeting on the synthetic child id when style-chain command points at root path", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node[draw] {root}
+    child { node[draw,fill=yellow] {left} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    expect(leftText?.kind).toBe("Text");
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const rootText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "root"
+    );
+    expect(rootText?.kind).toBe("Text");
+    if (!rootText || rootText.kind !== "Text") {
+      throw new Error("Expected root text element");
+    }
+    const syntheticStyleChainElement = {
+      ...leftText,
+      styleChain: rootText.styleChain
+    };
+
+    const descriptor = getInspectorDescriptor(syntheticStyleChainElement, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(descriptor.writeTargetId).toBe(leftText.treeChild.childSourceId);
+    const writableFillProperty = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "color" && property.write.key === "fill");
+    expect(writableFillProperty).toBeDefined();
+    if (!writableFillProperty || writableFillProperty.kind !== "color") {
+      throw new Error("Expected fill color property");
+    }
+    expect(writableFillProperty.write.elementId).toBe(leftText.treeChild.childSourceId);
+    expect(writableFillProperty.write.writable).toBe(true);
+  });
+
+  it("keeps tree-child descriptors read-only for child foreach expansions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child foreach \x in {A,B} { node[draw] {\x} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const rootText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "root"
+    );
+    if (!rootText || rootText.kind !== "Text") {
+      throw new Error("Expected root text element");
+    }
+
+    const parsed = parseTikz(source, { recover: true });
+    const path = parsed.figure.body.find((statement) => statement.kind === "Path");
+    if (!path || path.kind !== "Path") {
+      throw new Error("Expected path statement");
+    }
+    const childOperation = path.items.find((item) => item.kind === "ChildOperation");
+    if (!childOperation || childOperation.kind !== "ChildOperation") {
+      throw new Error("Expected child operation");
+    }
+    const syntheticChildId = `${path.id}:tree-child:1:${childOperation.id}`;
+    const fakeTreeChildElement = {
+      ...rootText,
+      styleChain: [],
+      sourceRef: {
+        ...rootText.sourceRef,
+        sourceId: syntheticChildId
+      }
+    };
+
+    const descriptor = getInspectorDescriptor(fakeTreeChildElement, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(descriptor.readOnlyReason).toContain("child foreach");
+    expect(descriptor.sections.some((section) => section.id === "tree-child-layout")).toBe(false);
+    expect(descriptor.sections.some((section) => section.id === "node")).toBe(true);
+  });
+
+  it("builds root tree descriptor with transform, layout, and node controls", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=6mm] node[draw] {root}
+    child[sibling distance=5mm] { node[fill=yellow] {left} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const rootText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "root"
+    );
+    expect(rootText?.kind).toBe("Text");
+    if (!rootText) {
+      throw new Error("Expected root tree text element");
+    }
+
+    const descriptor = buildTreeInspectorDescriptor(source, "path:0", rootText, {});
+    expect(descriptor).toBeDefined();
+    if (!descriptor) {
+      throw new Error("Expected tree root descriptor");
+    }
+    expect(descriptor.sections.some((section) => section.id === "transform")).toBe(true);
+    expect(descriptor.sections.some((section) => section.id === "tree-layout")).toBe(true);
+    expect(descriptor.sections.some((section) => section.id === "node")).toBe(true);
+  });
+
+  it("chooses root layout write targets by existing key site with path fallback", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[level distance=4mm] node[sibling distance=3mm] {root}
+    child { node {left} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const rootText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "root"
+    );
+    expect(rootText?.kind).toBe("Text");
+    if (!rootText) {
+      throw new Error("Expected root tree text element");
+    }
+
+    const descriptor = buildTreeInspectorDescriptor(source, "path:0", rootText, {});
+    if (!descriptor) {
+      throw new Error("Expected tree root descriptor");
+    }
+    const treeLayout = descriptor.sections.find((section) => section.id === "tree-layout");
+    expect(treeLayout).toBeDefined();
+    if (!treeLayout) {
+      throw new Error("Expected tree layout section");
+    }
+    const levelDistance = treeLayout.properties.find((property) => property.id === "tree-level-distance");
+    const siblingDistance = treeLayout.properties.find((property) => property.id === "tree-sibling-distance");
+    const grow = treeLayout.properties.find((property) => property.id === "tree-grow");
+    expect(levelDistance?.kind).toBe("length");
+    expect(siblingDistance?.kind).toBe("length");
+    expect(grow?.kind).toBe("enum");
+    if (!levelDistance || levelDistance.kind !== "length" || !siblingDistance || siblingDistance.kind !== "length" || !grow || grow.kind !== "enum") {
+      throw new Error("Expected tree layout properties");
+    }
+    const nodeSection = descriptor.sections.find((section) => section.id === "node");
+    expect(nodeSection).toBeDefined();
+    if (!nodeSection) {
+      throw new Error("Expected node section");
+    }
+    const nodeShape = nodeSection.properties.find((property) => property.id === "node-shape");
+    expect(nodeShape?.kind).toBe("nodeShape");
+    if (!nodeShape || nodeShape.kind !== "nodeShape") {
+      throw new Error("Expected node shape write target");
+    }
+
+    expect(levelDistance.write.elementId).toBe("path:0");
+    expect(siblingDistance.write.elementId).toBe(nodeShape.write.elementId);
+    expect(grow.write.elementId).toBe("path:0");
   });
 });
 

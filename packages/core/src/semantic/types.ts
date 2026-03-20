@@ -123,6 +123,18 @@ export type MatrixCellInfo = {
   cellSpan: Span;
 };
 
+export type TreeChildInfo = {
+  treeRootSourceId: string;
+  parentSourceId: string;
+  childOperationId: string;
+  childSourceId: string;
+  childIndex: number;
+  level: number;
+  childOperationSpan: Span;
+  bodySpan?: Span;
+  optionsSpan?: Span;
+};
+
 export type ScenePathCommand =
   | { kind: "M"; to: Point }
   | { kind: "L"; to: Point }
@@ -138,6 +150,7 @@ export type ScenePath = {
   runtimeId: string;
   sourceRef: SourceRef;
   matrixCell?: MatrixCellInfo;
+  treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   shapeHint?: ScenePathShapeHint | null;
@@ -154,6 +167,7 @@ export type SceneCircle = {
   runtimeId: string;
   sourceRef: SourceRef;
   matrixCell?: MatrixCellInfo;
+  treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -169,6 +183,7 @@ export type SceneEllipse = {
   runtimeId: string;
   sourceRef: SourceRef;
   matrixCell?: MatrixCellInfo;
+  treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
   origin?: SceneElementOrigin;
   style: ResolvedStyle;
@@ -186,6 +201,7 @@ export type SceneText = {
   runtimeId: string;
   sourceRef: SourceRef;
   matrixCell?: MatrixCellInfo;
+  treeChild?: TreeChildInfo;
   adornment?: SceneAdornment;
   textSourceSpan?: Span;
   textHasFixedWidth?: boolean;

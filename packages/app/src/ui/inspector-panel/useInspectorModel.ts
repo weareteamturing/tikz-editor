@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   buildMatrixInspectorDescriptor,
+  buildTreeInspectorDescriptor,
   resolveTransformInspectorMutationContext,
   resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID,
@@ -26,6 +27,27 @@ import {
   type InspectorPropertyProvenanceMap,
   type MultiInspectorModel
 } from "./panel-helpers";
+
+export function inspectorElementPriority(sourceId: string, element: SceneElement): number {
+  if (!sourceId.includes(":tree-child:")) {
+    return 0;
+  }
+
+  let priority = 0;
+  if (element.adornment) {
+    priority += 1000;
+  }
+  if (element.kind === "Path" && element.id.includes(":edge-from-parent:")) {
+    priority += 400;
+  }
+  if (element.kind === "Text") {
+    priority += 50;
+  }
+  if (element.kind === "Path" && element.id.startsWith("scene-node-box:")) {
+    priority -= 20;
+  }
+  return priority;
+}
 
 function buildScopeTransformWriteTarget(
   scopeId: string,
@@ -183,11 +205,18 @@ export function useInspectorModel(args: {
 
   const selectedElementBySourceId = useMemo(() => {
     const bySource = new Map<string, SceneElement>();
+    const bestPriorityBySource = new Map<string, number>();
     for (const element of snapshot.scene?.elements ?? []) {
       const targetId = element.adornment?.targetId ?? element.sourceRef.sourceId;
-      if (!selectedSourceIdSet.has(targetId) || bySource.has(targetId)) {
+      if (!selectedSourceIdSet.has(targetId)) {
         continue;
       }
+      const priority = inspectorElementPriority(targetId, element);
+      const existingPriority = bestPriorityBySource.get(targetId);
+      if (existingPriority != null && priority >= existingPriority) {
+        continue;
+      }
+      bestPriorityBySource.set(targetId, priority);
       bySource.set(targetId, element);
     }
 
@@ -207,11 +236,17 @@ export function useInspectorModel(args: {
         return matrixDescriptor;
       }
 
+      const selectedElement = selectedElementBySourceId.get(sourceId) ?? null;
+      const treeDescriptor = buildTreeInspectorDescriptor(snapshot.source, sourceId, selectedElement, parseOptions);
+      if (treeDescriptor) {
+        return treeDescriptor;
+      }
+
       if (sourceId.startsWith("scope:")) {
         return buildScopeInspectorDescriptor(snapshot.source, sourceId, parseOptions);
       }
 
-      const element = selectedElementBySourceId.get(sourceId);
+      const element = selectedElement;
       if (!element) {
         return null;
       }

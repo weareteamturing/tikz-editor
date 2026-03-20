@@ -70,6 +70,8 @@ function createDocumentSession(params: {
     lastEditChangedSourceIds: null,
     lastEditChangeToken: 0,
     lastEditPatches: null,
+    lastEditWarningMessage: null,
+    lastEditWarningToken: 0,
     history: [],
     historyIndex: -1,
     selectedElementIds: new Set(),
@@ -222,6 +224,8 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     lastEditChangedSourceIds: active.lastEditChangedSourceIds,
     lastEditChangeToken: active.lastEditChangeToken,
     lastEditPatches: active.lastEditPatches,
+    lastEditWarningMessage: active.lastEditWarningMessage,
+    lastEditWarningToken: active.lastEditWarningToken,
     history: active.history,
     historyIndex: active.historyIndex,
     selectedElementIds: active.selectedElementIds,
@@ -270,6 +274,19 @@ function actionLabel(kind: HistoryEntry["kind"]): string {
     case "align": return "Aligned elements";
     case "distribute": return "Distributed elements";
   }
+}
+
+function applyEditWarningToDocument(doc: DocumentSession, message: string | null): DocumentSession {
+  const shouldEmit = message != null;
+  const shouldClear = message == null && doc.lastEditWarningMessage != null;
+  if (!shouldEmit && !shouldClear) {
+    return doc;
+  }
+  return {
+    ...doc,
+    lastEditWarningMessage: message,
+    lastEditWarningToken: doc.lastEditWarningToken + 1
+  };
 }
 
 function updateDocument(
@@ -364,6 +381,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       projectedActive.lastEditChangedSourceIds !== state.lastEditChangedSourceIds ||
       projectedActive.lastEditChangeToken !== state.lastEditChangeToken ||
       projectedActive.lastEditPatches !== state.lastEditPatches ||
+      projectedActive.lastEditWarningMessage !== state.lastEditWarningMessage ||
+      projectedActive.lastEditWarningToken !== state.lastEditWarningToken ||
       projectedActive.history !== state.history ||
       projectedActive.historyIndex !== state.historyIndex ||
       projectedActive.selectedElementIds !== state.selectedElementIds ||
@@ -380,6 +399,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       lastEditChangedSourceIds: state.lastEditChangedSourceIds,
       lastEditChangeToken: state.lastEditChangeToken,
       lastEditPatches: state.lastEditPatches,
+      lastEditWarningMessage: state.lastEditWarningMessage,
+      lastEditWarningToken: state.lastEditWarningToken,
       history: state.history,
       historyIndex: state.historyIndex,
       selectedElementIds: state.selectedElementIds,
@@ -521,6 +542,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: scrubChangedSourceIds,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: scrubPatches,
+          lastEditWarningMessage: null,
+          lastEditWarningToken:
+            doc.lastEditWarningMessage != null
+              ? doc.lastEditWarningToken + 1
+              : doc.lastEditWarningToken,
           history: [],
           historyIndex: -1,
           activeHandleId: null,
@@ -711,6 +737,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
+          lastEditWarningMessage: null,
+          lastEditWarningToken:
+            doc.lastEditWarningMessage != null
+              ? doc.lastEditWarningToken + 1
+              : doc.lastEditWarningToken,
           history: nextHistory,
           historyIndex: nextHistory.length - 1,
           activeHandleId: null,
@@ -757,10 +788,21 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         );
 
       if (result.kind !== "success" && result.kind !== "partial") {
-        return state;
+        const message =
+          result.kind === "unsupported"
+            ? `Edit action skipped: ${result.reason}`
+            : `Edit action failed: ${result.message}`;
+        workspace = updateDocument(workspace, documentId, (doc) => applyEditWarningToDocument(doc, message));
+        break;
       }
 
+      const actionWarning = result.kind === "partial" ? result.reason : null;
+
       if (result.newSource === activeDoc.source) {
+        if (actionWarning) {
+          workspace = updateDocument(workspace, documentId, (doc) => applyEditWarningToDocument(doc, actionWarning));
+          break;
+        }
         return state;
       }
 
@@ -784,6 +826,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
+          lastEditWarningMessage: actionWarning,
+          lastEditWarningToken:
+            actionWarning != null || doc.lastEditWarningMessage != null
+              ? doc.lastEditWarningToken + 1
+              : doc.lastEditWarningToken,
           selectedElementIds: nextSelection,
           focusedScopeId: nextFocusedScopeId,
           activeHandleId: null,
@@ -833,6 +880,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: result.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: result.patches,
+          lastEditWarningMessage: actionWarning,
+          lastEditWarningToken:
+            actionWarning != null || doc.lastEditWarningMessage != null
+              ? doc.lastEditWarningToken + 1
+              : doc.lastEditWarningToken,
           selectedElementIds: nextSelection,
           focusedScopeId: nextFocusedScopeId,
           activeHandleId: null,
@@ -860,6 +912,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: result.changedSourceIds ?? null,
         lastEditChangeToken: doc.lastEditChangeToken + 1,
         lastEditPatches: result.patches,
+        lastEditWarningMessage: actionWarning,
+        lastEditWarningToken:
+          actionWarning != null || doc.lastEditWarningMessage != null
+            ? doc.lastEditWarningToken + 1
+            : doc.lastEditWarningToken,
         selectedElementIds: nextSelection,
         focusedScopeId: nextFocusedScopeId,
         activeHandleId: null,
@@ -885,6 +942,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           lastEditChangedSourceIds: action.changedSourceIds ?? null,
           lastEditChangeToken: doc.lastEditChangeToken + 1,
           lastEditPatches: null,
+          lastEditWarningMessage: null,
+          lastEditWarningToken:
+            doc.lastEditWarningMessage != null
+              ? doc.lastEditWarningToken + 1
+              : doc.lastEditWarningToken,
           activeHandleId: null,
           dirty: action.source !== doc.savedSource
         };
@@ -908,6 +970,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,
+        lastEditWarningMessage: null,
+        lastEditWarningToken:
+          current.lastEditWarningMessage != null
+            ? current.lastEditWarningToken + 1
+            : current.lastEditWarningToken,
         historyIndex: current.historyIndex - 1,
         dirty: entry.sourceBefore !== current.savedSource
       }));
@@ -930,6 +997,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         lastEditChangedSourceIds: null,
         lastEditChangeToken: current.lastEditChangeToken + 1,
         lastEditPatches: null,
+        lastEditWarningMessage: null,
+        lastEditWarningToken:
+          current.lastEditWarningMessage != null
+            ? current.lastEditWarningToken + 1
+            : current.lastEditWarningToken,
         historyIndex: current.historyIndex + 1,
         dirty: entry.sourceAfter !== current.savedSource
       }));

@@ -77,6 +77,10 @@ export type DocumentSession = {
   lastEditChangeToken: number;
   /** Source patches from the most recent WYSIWYG edit action (for surgical CodeMirror updates). */
   lastEditPatches: ReadonlyArray<{ oldSpan: { from: number; to: number }; newSpan: { from: number; to: number }; replacement: string }> | null;
+  /** Last warning surfaced by edit-action dispatch (unsupported/error/partial fallback). */
+  lastEditWarningMessage: string | null;
+  /** Monotonic token bumped when warning message changes or re-emits. */
+  lastEditWarningToken: number;
   history: HistoryEntry[];
   historyIndex: number;
   selectedElementIds: ReadonlySet<string>;
@@ -157,6 +161,10 @@ export type EditorState = {
   lastEditChangeToken: number;
   /** Source patches from the most recent WYSIWYG edit action (for surgical CodeMirror updates). */
   lastEditPatches: ReadonlyArray<{ oldSpan: { from: number; to: number }; newSpan: { from: number; to: number }; replacement: string }> | null;
+  /** Last warning surfaced by edit-action dispatch (unsupported/error/partial fallback). */
+  lastEditWarningMessage: string | null;
+  /** Monotonic token bumped when warning message changes or re-emits. */
+  lastEditWarningToken: number;
 
   // ── history slice ────────────────────────────────────────────────────────────
   /** WYSIWYG undo history (code edits use CodeMirror's built-in history). */

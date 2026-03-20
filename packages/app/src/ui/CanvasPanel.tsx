@@ -545,6 +545,8 @@ export function CanvasPanel() {
   const activeSourceScrubSourceId = useEditorStore((s) => s.activeSourceScrubSourceId);
   const lastEditChangedSourceIds = useEditorStore((s) => s.lastEditChangedSourceIds);
   const lastEditChangeToken = useEditorStore((s) => s.lastEditChangeToken);
+  const lastEditWarningMessage = useEditorStore((s) => s.documents[s.activeDocumentId]?.lastEditWarningMessage ?? null);
+  const lastEditWarningToken = useEditorStore((s) => s.documents[s.activeDocumentId]?.lastEditWarningToken ?? 0);
   const canvasTransform = useEditorStore((s) => s.canvasTransform);
   const fitToContentRequestToken = useEditorStore((s) => s.fitToContentRequestToken);
   const zoomRequestToken = useEditorStore((s) => s.zoomRequestToken);
@@ -2195,6 +2197,13 @@ export function CanvasPanel() {
       previewSource: nextPreviewSource
     };
   }, [activeFigureId, bucketFillColor, dispatch, hoveredElementId, snapshot.editHandles, snapshot.figures.length, snapshot.scene, source, toolMode]);
+
+  useEffect(() => {
+    if (!lastEditWarningMessage) {
+      return;
+    }
+    setWarning(lastEditWarningMessage);
+  }, [lastEditWarningMessage, lastEditWarningToken]);
 
   useEffect(() => {
     if (!warning) return;

@@ -55,13 +55,18 @@ export function applyMoveElementsAction(
     const statement = findPathStatementById(parsed.figure.body, elementId);
     return statement != null && isMatrixPathStatement(statement);
   });
+  const treeRootElementIds = normalizedIds.filter((elementId) => {
+    const statement = findPathStatementById(parsed.figure.body, elementId);
+    return statement != null && isTreeRootPathStatement(statement);
+  });
   const scopeElementIdSet = new Set(
     normalizedIds.filter((elementId) => findScopeStatementById(parsed.figure.body, elementId) != null)
   );
   const matrixElementIdSet = new Set(matrixElementIds);
+  const treeRootElementIdSet = new Set(treeRootElementIds);
   const changedSourceIds = expandChangedSourceIdsForMovedElements(parsed.figure.body, normalizedIds);
   const nonMatrixElementIds = normalizedIds.filter(
-    (elementId) => !matrixElementIdSet.has(elementId) && !scopeElementIdSet.has(elementId)
+    (elementId) => !matrixElementIdSet.has(elementId) && !scopeElementIdSet.has(elementId) && !treeRootElementIdSet.has(elementId)
   );
   const scopeElementIds = normalizedIds.filter((elementId) => scopeElementIdSet.has(elementId));
 
@@ -119,6 +124,28 @@ export function applyMoveElementsAction(
       }
     } else {
       reasons.push(byMatrixPlacement.reason);
+    }
+  }
+
+  if (treeRootElementIds.length > 0) {
+    const byTreeRootPlacement = applyMoveTreeRootElementsWithPlacementRewrite(
+      currentSource,
+      treeRootElementIds,
+      delta,
+      parseOptions
+    );
+    if (byTreeRootPlacement.kind === "error") {
+      return byTreeRootPlacement;
+    }
+    if (byTreeRootPlacement.kind === "success" || byTreeRootPlacement.kind === "partial") {
+      currentSource = byTreeRootPlacement.newSource;
+      patches.push(...byTreeRootPlacement.patches);
+      movedAny = true;
+      if (byTreeRootPlacement.kind === "partial") {
+        reasons.push(byTreeRootPlacement.reason);
+      }
+    } else {
+      reasons.push(byTreeRootPlacement.reason);
     }
   }
 
@@ -652,6 +679,53 @@ type MatrixPlacementRewriteResult =
   | { kind: "success"; source: string; patches: SourcePatch[] }
   | { kind: "unsupported"; reason: string };
 
+function applyMoveTreeRootElementsWithPlacementRewrite(
+  source: string,
+  elementIds: readonly string[],
+  delta: Point,
+  parseOptions: EditParseOptions
+): EditActionResultLike {
+  let currentSource = source;
+  const patches: SourcePatch[] = [];
+  const failedElementIds: string[] = [];
+  const failureReasons: string[] = [];
+
+  for (const elementId of elementIds) {
+    const rewrite = rewriteSingleTreeRootPlacement(currentSource, elementId, delta, parseOptions);
+    if (rewrite.kind === "unsupported") {
+      failedElementIds.push(elementId);
+      failureReasons.push(rewrite.reason);
+      continue;
+    }
+
+    currentSource = rewrite.source;
+    patches.push(...rewrite.patches);
+  }
+
+  if (patches.length === 0) {
+    return {
+      kind: "unsupported",
+      reason: failureReasons[0] ?? "No tree root placement rewrite succeeded"
+    };
+  }
+
+  if (failedElementIds.length > 0) {
+    return {
+      kind: "partial",
+      newSource: currentSource,
+      patches,
+      skippedHandles: [],
+      reason: `Could not move some tree roots (${failedElementIds.join(", ")}): ${uniqueStrings(failureReasons).join(" ")}`
+    };
+  }
+
+  return {
+    kind: "success",
+    newSource: currentSource,
+    patches
+  };
+}
+
 function rewriteSingleMatrixPlacement(
   source: string,
   elementId: string,
@@ -751,6 +825,88 @@ function rewriteSingleMatrixPlacement(
   return {
     kind: "unsupported",
     reason: `Could not rewrite matrix placement for ${elementId}`
+  };
+}
+
+function rewriteSingleTreeRootPlacement(
+  source: string,
+  elementId: string,
+  delta: Point,
+  parseOptions: EditParseOptions
+): MatrixPlacementRewriteResult {
+  const parsed = parseTikzForEdit(source, parseOptions);
+  const statement = findPathStatementById(parsed.figure.body, elementId);
+  if (!statement) {
+    return { kind: "unsupported", reason: `Tree root statement ${elementId} was not found` };
+  }
+  if (!isTreeRootPathStatement(statement)) {
+    return { kind: "unsupported", reason: `${elementId} is not a tree root statement` };
+  }
+
+  const rootNode = findPrimaryTreeRootNodeItem(statement);
+  if (!rootNode) {
+    return { kind: "unsupported", reason: `Tree root node item for ${elementId} was not found` };
+  }
+
+  const semantic = evaluateTikzFigure(parsed.figure, source);
+  const placementHandle = semantic.editHandles.find(
+    (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "node-position"
+  );
+  const currentPlacementWorld =
+    placementHandle?.world ??
+    (() => {
+      const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
+      const bounds = boundsBySource.get(elementId);
+      if (!bounds) {
+        return null;
+      }
+      return {
+        x: (bounds.minX + bounds.maxX) / 2,
+        y: (bounds.minY + bounds.maxY) / 2
+      } satisfies Point;
+    })();
+  if (!currentPlacementWorld) {
+    return { kind: "unsupported", reason: `Could not resolve semantic placement for tree root ${elementId}` };
+  }
+  const nextPlacementWorld: Point = {
+    x: currentPlacementWorld.x + delta.x,
+    y: currentPlacementWorld.y + delta.y
+  };
+  const nextCoordinate = formatPlacementCoordinateFromWorld(nextPlacementWorld, placementHandle?.transform);
+
+  if (rootNode.atSpan) {
+    const rewrittenAt = replaceSourceSpan(source, rootNode.atSpan, nextCoordinate);
+    if (rewrittenAt) {
+      return { kind: "success", source: rewrittenAt.source, patches: [rewrittenAt.patch] };
+    }
+    return {
+      kind: "unsupported",
+      reason: `Tree root ${elementId} placement already matches the requested position`
+    };
+  }
+
+  const atOptionEntry = rootNode.options?.entries
+    .filter((entry): entry is Extract<typeof entry, { kind: "kv" }> => entry.kind === "kv")
+    .find((entry) => normalizeOptionKey(entry.key) === "at");
+  if (atOptionEntry) {
+    const rewrittenOption = replaceSourceSpan(source, atOptionEntry.span, `at=${nextCoordinate}`);
+    if (rewrittenOption) {
+      return { kind: "success", source: rewrittenOption.source, patches: [rewrittenOption.patch] };
+    }
+    return {
+      kind: "unsupported",
+      reason: `Tree root ${elementId} placement already matches the requested position`
+    };
+  }
+
+  const insertionOffset = resolveTreeRootNodePlacementInsertionOffset(rootNode, source);
+  const inserted = replaceSourceSpan(source, { from: insertionOffset, to: insertionOffset }, ` at ${nextCoordinate}`);
+  if (inserted) {
+    return { kind: "success", source: inserted.source, patches: [inserted.patch] };
+  }
+  return {
+    kind: "unsupported",
+    reason: `Tree root ${elementId} placement already matches the requested position`
   };
 }
 
@@ -938,6 +1094,26 @@ function findInlineAtCoordinateItem(statement: PathStatement): CoordinateItem | 
 
 function isMatrixPathStatement(statement: PathStatement): boolean {
   return statement.items.some((item) => item.kind === "Node" && isMatrixNodeItem(item));
+}
+
+function isTreeRootPathStatement(statement: PathStatement): boolean {
+  return statement.items.some((item) => item.kind === "ChildOperation");
+}
+
+function findPrimaryTreeRootNodeItem(statement: PathStatement): NodeItem | null {
+  for (const item of statement.items) {
+    if (item.kind === "Node") {
+      return item;
+    }
+  }
+  return null;
+}
+
+function resolveTreeRootNodePlacementInsertionOffset(node: NodeItem, source: string): number {
+  if (node.textSource === "group" && node.textSpan.from > node.span.from && source[node.textSpan.from - 1] === "{") {
+    return node.textSpan.from - 1;
+  }
+  return node.span.to;
 }
 
 function isMatrixNodeItem(item: NodeItem): boolean {

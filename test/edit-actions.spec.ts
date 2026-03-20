@@ -6,6 +6,7 @@ import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import { PT_PER_CM } from "../packages/core/src/edit/format.js";
 import { TIKZPICTURE_GLOBAL_TARGET_ID } from "../packages/core/src/edit/property-target.js";
 import { computeSourceFingerprint } from "../packages/core/src/utils/source-fingerprint.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 import { collectSourceWorldBounds } from "../packages/core/src/edit/snapping/geometry.js";
@@ -480,6 +481,97 @@ describe("applyEditAction – moveElement", () => {
     if (result.kind !== "success") return;
     expect(result.newSource).toContain("  \\node (A) at (2,3) {A};");
     expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves tree roots without rewriting child operation bodies into coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right] node[draw,level distance=15mm, sibling distance=10mm, rounded corners=2pt,fill=blue!10] at (0,0) {Root}
+    child { node[draw,fill=green!12] {Leaf A} }
+    child {
+      node[draw,fill=green!12] {Branch}
+      child { node[draw,fill=yellow!16] {Leaf B1} }
+      child { node[draw,fill=yellow!16] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+
+    const result = applyEditAction(source, semantic.editHandles, {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(0.29), y: cm(0.12) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("child { node[draw,fill=green!12] {Leaf A} }");
+    expect(result.newSource).toContain("child { node[draw,fill=yellow!16] {Leaf B1} }");
+    expect(result.newSource).toContain("child { node[draw,fill=yellow!16] {Leaf B2} }");
+    expect(result.newSource).not.toMatch(/\n\s*\([^)]+\)\s*\n\s*\([^)]+\)\s*;/);
+    expect(result.newSource).toMatch(/at\s*\([^)]+\)\s*\{Root\}/);
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves tree roots without explicit at by inserting inline placement", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=15mm,sibling distance=10mm]
+    node[draw,rounded corners=2pt,fill=blue!10] {Root}
+    child { node[draw,fill=green!12] {Leaf A} }
+    child {
+      node[draw,fill=green!12] {Branch}
+      child { node[draw,fill=yellow!16] {Leaf B1} }
+      child { node[draw,fill=yellow!16] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const semantic = evaluateTikzFigure(parsed.figure, source);
+
+    const result = applyEditAction(source, semantic.editHandles, {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(0.29), y: cm(0.12) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toMatch(/node\[draw,rounded corners=2pt,fill=blue!10\]\s*at\s*\([^)]+\)\s*\{Root\}/);
+    expect(result.newSource).toContain("child { node[draw,fill=green!12] {Leaf A} }");
+    expect(result.newSource).toContain("child { node[draw,fill=yellow!16] {Leaf B1} }");
+    expect(result.newSource).toContain("child { node[draw,fill=yellow!16] {Leaf B2} }");
+    expectPatchesReconstructSource(source, result);
+  });
+
+  it("moves tree roots incrementally from the root node position (not full-tree bounds center)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=15mm,sibling distance=10mm]
+    node[draw,rounded corners=2pt,fill=blue!10] at (0,0) {Root}
+    child { node[draw,fill=green!12] {Leaf A} }
+    child {
+      node[draw,fill=green!12] {Branch}
+      child { node[draw,fill=yellow!16] {Leaf B1} }
+      child { node[draw,fill=yellow!16] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+
+    const first = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(0.1), y: cm(0) }
+    });
+    expect(first.kind).toBe("success");
+    if (first.kind !== "success") return;
+    expect(first.newSource).toMatch(/at\s*\(0\.1,0\)\s*\{Root\}/);
+
+    const second = applyEditAction(first.newSource, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(0.1), y: cm(0) }
+    });
+    expect(second.kind).toBe("success");
+    if (second.kind !== "success") return;
+    expect(second.newSource).toMatch(/at\s*\(0\.2,0\)\s*\{Root\}/);
+    expect(second.newSource).not.toMatch(/at\s*\(1\.[0-9]+,0\)\s*\{Root\}/);
+    expectPatchesReconstructSource(first.newSource, second);
   });
 
   it("moves matrix statements by normalizing buggy at options into inline placement", () => {
@@ -1443,6 +1535,166 @@ describe("applyEditAction – setProperty", () => {
     expect(current).toContain("row sep=0.1pt");
     expect(current).not.toContain("][");
     expect(current.match(/\[/g)?.length ?? 0).toBe(1);
+  });
+
+  it("routes tree-child layout keys to child options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[level distance=2mm] { node[draw] {leaf} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leafText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "leaf"
+    );
+    if (!leafText || leafText.kind !== "Text" || !leafText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: leafText.treeChild.childSourceId,
+      level: "command",
+      key: "level distance",
+      value: "5mm"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected tree-child layout update to succeed");
+    }
+    expect(result.newSource).toContain("child[level distance=5mm]");
+    expect(result.newSource).toContain("node[draw] {leaf}");
+  });
+
+  it("routes tree-child node style keys to child root node options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[level distance=2mm] { node[draw] {leaf} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leafText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "leaf"
+    );
+    if (!leafText || leafText.kind !== "Text" || !leafText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: leafText.treeChild.childSourceId,
+      level: "command",
+      key: "fill",
+      value: "yellow"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected tree-child node style update to succeed");
+    }
+    expect(result.newSource).toContain("child[level distance=2mm]");
+    expect(result.newSource).toContain("node[");
+    expect(result.newSource).toContain("draw");
+    expect(result.newSource).toContain("fill=yellow");
+    expect(result.newSource).toContain("{leaf}");
+  });
+
+  it("supports broader tree-child node property writes (e.g. line width)", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child[level distance=2mm] { node[draw] {leaf} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leafText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "leaf"
+    );
+    if (!leafText || leafText.kind !== "Text" || !leafText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: leafText.treeChild.childSourceId,
+      level: "command",
+      key: "line width",
+      value: "1.5pt"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected broader tree-child node write to succeed");
+    }
+    expect(result.newSource).toContain("child[level distance=2mm]");
+    expect(result.newSource).toContain("node[");
+    expect(result.newSource).toContain("draw");
+    expect(result.newSource).toContain("line width=1.5pt");
+    expect(result.newSource).toContain("{leaf}");
+  });
+
+  it("inserts missing tree-child option lists at the correct level", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {leaf} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leafText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "leaf"
+    );
+    if (!leafText || leafText.kind !== "Text" || !leafText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const layoutInsert = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: leafText.treeChild.childSourceId,
+      level: "command",
+      key: "sibling distance",
+      value: "4mm"
+    });
+    expect(layoutInsert.kind).toBe("success");
+    if (layoutInsert.kind !== "success") {
+      throw new Error("Expected tree-child layout insert to succeed");
+    }
+    expect(layoutInsert.newSource).toContain("child[sibling distance=4mm] { node {leaf} }");
+
+    const nodeInsert = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: leafText.treeChild.childSourceId,
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+    expect(nodeInsert.kind).toBe("success");
+    if (nodeInsert.kind !== "success") {
+      throw new Error("Expected tree-child node options insert to succeed");
+    }
+    expect(nodeInsert.newSource).toContain("child { node[draw=red]");
+    expect(nodeInsert.newSource).toContain("{leaf}");
+  });
+
+  it("rejects tree-child setProperty writes for child foreach", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child foreach \x in {A,B} { node {\x} };
+\end{tikzpicture}`;
+    const parsed = parseTikz(source, { recover: true });
+    const path = parsed.figure.body.find((statement) => statement.kind === "Path");
+    if (!path || path.kind !== "Path") {
+      throw new Error("Expected path statement");
+    }
+    const childOperation = path.items.find((item) => item.kind === "ChildOperation");
+    if (!childOperation || childOperation.kind !== "ChildOperation") {
+      throw new Error("Expected child operation");
+    }
+    const syntheticChildId = `${path.id}:tree-child:1:${childOperation.id}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: syntheticChildId,
+      level: "command",
+      key: "draw",
+      value: "red"
+    });
+    expect(result.kind).toBe("unsupported");
+    if (result.kind === "unsupported") {
+      expect(result.reason).toContain("child foreach");
+    }
   });
 
   it("updates an existing grid keyword option list by keyword id", () => {
@@ -2988,5 +3240,44 @@ describe("applyEditAction – updateNodeText", () => {
     }
     expect(result.newSource).toContain("x^2 & \\frac{1}{y}");
     expect(result.patches).toHaveLength(1);
+  });
+
+  it("updates tree child text by synthetic tree-child ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} child { node {left-left} } };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const left = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    const leftLeft = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left-left"
+    );
+    if (!left || left.kind !== "Text" || !left.treeChild || !leftLeft || leftLeft.kind !== "Text" || !leftLeft.treeChild) {
+      throw new Error("Expected direct and nested tree-child text elements");
+    }
+
+    const nestedChildResult = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: leftLeft.treeChild.childSourceId,
+      text: "left-left*"
+    });
+    expect(nestedChildResult.kind).toBe("success");
+    if (nestedChildResult.kind !== "success") {
+      throw new Error("Expected nested tree-child text edit to succeed");
+    }
+    expect(nestedChildResult.newSource).toContain("node {left-left*}");
+
+    const directChildResult = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: left.treeChild.childSourceId,
+      text: "left*"
+    });
+    expect(directChildResult.kind).toBe("success");
+    if (directChildResult.kind !== "success") {
+      throw new Error("Expected direct tree-child text edit to succeed");
+    }
+    expect(directChildResult.newSource).toContain("node {left*}");
   });
 });

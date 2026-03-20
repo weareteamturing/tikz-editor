@@ -154,6 +154,11 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
   const onResizeHandlePointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
+      if (sourceId.includes(":tree-child:")) {
+        // Tree descendants intentionally show corner handles for visual consistency,
+        // but resize drag is not enabled yet.
+        return;
+      }
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       viewportRef.current?.focus({ preventScroll: true });

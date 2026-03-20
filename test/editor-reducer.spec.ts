@@ -381,7 +381,7 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     expect(second.history[0]?.sourceAfter).toBe("\\draw (7,8) -- (3,4);");
   });
 
-  it("is a no-op for unsupported edit actions", () => {
+  it("surfaces a warning for unsupported edit actions", () => {
     const initial = makeInitialState();
     const next = editorReducer(initial, {
       type: "APPLY_EDIT_ACTION",
@@ -391,7 +391,10 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
         delta: { x: cm(1), y: cm(1) }
       }
     });
-    expect(next).toBe(initial);
+    expect(next).not.toBe(initial);
+    expect(next.source).toBe(initial.source);
+    expect(next.lastEditWarningMessage).toContain("Edit action skipped");
+    expect(next.lastEditWarningToken).toBe(initial.lastEditWarningToken + 1);
   });
 
   it("applies precomputed edit results without recomputing the action", () => {
@@ -614,6 +617,41 @@ describe("editorReducer – APPLY_EDIT_ACTION", () => {
     });
 
     expect(committed.sourceRevision).toBe(2);
+  });
+
+  it("surfaces partial edit reasons as warnings while applying the source change", () => {
+    const source = "\\draw (1,2) -- (3,4);";
+    const initial: EditorState = {
+      ...makeInitialState(),
+      source,
+      snapshot: { ...makeEmptySnapshot(source), source, editHandles: [] }
+    };
+
+    const next = editorReducer(initial, {
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "moveHandle",
+        handleId: "unused",
+        newWorld: { x: cm(5), y: cm(6) }
+      },
+      precomputedResult: {
+        kind: "partial",
+        newSource: "\\draw (5,6) -- (3,4);",
+        patches: [
+          {
+            oldSpan: { from: 6, to: 11 },
+            newSpan: { from: 6, to: 11 },
+            replacement: "(5,6)"
+          }
+        ],
+        skippedHandles: [],
+        reason: "fallback path used"
+      }
+    });
+
+    expect(next.source).toBe("\\draw (5,6) -- (3,4);");
+    expect(next.lastEditWarningMessage).toBe("fallback path used");
+    expect(next.lastEditWarningToken).toBe(initial.lastEditWarningToken + 1);
   });
 });
 

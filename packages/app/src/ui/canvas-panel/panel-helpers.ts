@@ -1023,7 +1023,15 @@ export function preferredNodeBoundsForSource(
   }
 
   const nonText = sourceElements.filter((element) => element.kind !== "Text");
-  const preferred = nonText.length > 0 ? nonText : sourceElements;
+  const nodeBoxPaths = nonText.filter(
+    (element): element is ScenePath =>
+      element.kind === "Path" && element.id.startsWith("scene-node-box:")
+  );
+  const preferred = nodeBoxPaths.length > 0
+    ? nodeBoxPaths
+    : nonText.length > 0
+      ? nonText
+      : sourceElements;
 
   let bounds: Bounds | null = null;
   for (const element of preferred) {

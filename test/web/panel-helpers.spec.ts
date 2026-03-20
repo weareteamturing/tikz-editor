@@ -8,6 +8,7 @@ import {
   collectSelectionBounds,
   collectSourceBounds,
   isPointInsideRectHitRegionContentBox,
+  preferredNodeBoundsForSource,
   rectHitRegionsForTargetId,
   resolveFallbackTextSourceSpanForSourceId,
   resolveGridResizeSnapForHandleDrag,
@@ -281,6 +282,50 @@ describe("rectHitRegionsForTargetId", () => {
     expect(bounds).toBeDefined();
     expect(bounds?.minX).toBeCloseTo(34, 6);
     expect(bounds?.maxX).toBeCloseTo(46, 6);
+  });
+
+  it("prefers tree node-box geometry when resolving node bounds for root/children", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right] node[draw] {Root}
+    child { node[draw] {Leaf A} }
+    child {
+      node[draw] {Branch}
+      child { node[draw] {Leaf B1} }
+      child { node[draw] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const rootId = "path:0";
+    const branchText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "Branch"
+    );
+    expect(branchText?.kind).toBe("Text");
+    if (!branchText || branchText.kind !== "Text" || !branchText.treeChild) {
+      throw new Error("Expected Branch text tree child element");
+    }
+    const branchId = branchText.treeChild.childSourceId;
+
+    const boundsFromNodeBoxesOnly = collectSourceBounds(
+      rendered.semantic.scene.elements.filter(
+        (element) => element.kind === "Path" && element.id.startsWith("scene-node-box:")
+      ),
+      rendered.svg.viewBox
+    );
+    const rootPreferred = preferredNodeBoundsForSource(
+      rendered.semantic.scene.elements,
+      rootId,
+      rendered.svg.viewBox,
+      null
+    );
+    const branchPreferred = preferredNodeBoundsForSource(
+      rendered.semantic.scene.elements,
+      branchId,
+      rendered.svg.viewBox,
+      null
+    );
+
+    expect(rootPreferred).toEqual(boundsFromNodeBoxesOnly.get(rootId));
+    expect(branchPreferred).toEqual(boundsFromNodeBoxesOnly.get(branchId));
   });
 });
 

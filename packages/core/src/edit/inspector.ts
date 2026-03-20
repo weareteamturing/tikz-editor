@@ -1,5 +1,6 @@
 import type { StyleLevel } from "./actions.js";
 import { MATRIX_CELL_WRITABLE_KEYS } from "./matrix-editing.js";
+import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import type { EditParseOptions } from "./parse-options.js";
 import {
@@ -1680,6 +1681,44 @@ function resolveMatrixColorOption(options: OptionListAst | undefined, key: "draw
   return normalized.length > 0 ? normalized : null;
 }
 
+function optionHasNormalizedKey(options: OptionListAst | undefined, key: string): boolean {
+  const normalizedKey = normalizeOptionKey(key);
+  return (
+    options?.entries.some(
+      (entry) =>
+        (entry.kind === "flag" || entry.kind === "kv")
+        && normalizeOptionKey(entry.key) === normalizedKey
+    ) ?? false
+  );
+}
+
+function resolveTreeLengthOptionPt(options: OptionListAst | undefined, key: "level distance" | "sibling distance"): number {
+  const normalizedKey = normalizeOptionKey(key);
+  const entry = options?.entries.find(
+    (candidate) =>
+      candidate.kind === "kv"
+      && normalizeOptionKey(candidate.key) === normalizedKey
+  );
+  if (!entry || entry.kind !== "kv") {
+    return 0;
+  }
+  const parsed = parseLength(entry.valueRaw, "pt");
+  return parsed != null && Number.isFinite(parsed) ? parsed : 0;
+}
+
+function resolveTreeGrowOption(options: OptionListAst | undefined): string {
+  const growEntry = options?.entries.find(
+    (candidate) =>
+      candidate.kind === "kv"
+      && normalizeOptionKey(candidate.key) === "grow"
+  );
+  if (!growEntry || growEntry.kind !== "kv") {
+    return "down";
+  }
+  const normalized = growEntry.valueRaw.trim();
+  return normalized.length > 0 ? normalized : "down";
+}
+
 export function buildMatrixInspectorDescriptor(
   source: string,
   matrixId: string,
@@ -1862,6 +1901,263 @@ export function buildMatrixInspectorDescriptor(
   };
 }
 
+const TREE_GROW_DIRECTION_OPTIONS = [
+  { value: "down", label: "Down" },
+  { value: "up", label: "Up" },
+  { value: "left", label: "Left" },
+  { value: "right", label: "Right" }
+];
+
+export function buildTreeInspectorDescriptor(
+  source: string,
+  sourceId: string,
+  element: SceneElement | null,
+  parseOptions: EditParseOptions = {}
+): InspectorDescriptor | null {
+  const resolvedRootTarget = resolvePropertyTarget(source, sourceId, parseOptions);
+  if (resolvedRootTarget.kind === "not-found" || resolvedRootTarget.target.kind !== "path-statement") {
+    return null;
+  }
+
+  const parsed = parseTikz(source, { recover: true, activeFigureId: parseOptions.activeFigureId });
+  const rootStatement = findPathStatementById(parsed.figure.body, sourceId);
+  if (!rootStatement) {
+    return null;
+  }
+  const hasChildren = rootStatement.items.some((item) => item.kind === "ChildOperation");
+  if (!hasChildren) {
+    return null;
+  }
+
+  const rootNode = rootStatement.items.find((item): item is Extract<PathItem, { kind: "Node" }> => item.kind === "Node");
+  if (!rootNode) {
+    return null;
+  }
+
+  const rootNodeElement = element
+    ? ({
+        ...element,
+        sourceRef: {
+          ...element.sourceRef,
+          sourceId: rootNode.id
+        }
+      } as SceneElement)
+    : null;
+  const rootNodeDescriptor = rootNodeElement
+    ? getInspectorDescriptor(rootNodeElement, {
+        source,
+        parseOptions
+      })
+    : null;
+  const nodeSections = rootNodeDescriptor
+    ? rootNodeDescriptor.sections.filter((section) => section.id !== "transform")
+    : [];
+
+  const writable = true;
+  const readOnlyReason = undefined;
+  const transformContext = resolveTransformInspectorMutationContext(source, sourceId, parseOptions);
+  const transformValues = transformContext.values;
+
+  const resolveRootLayoutWriteTargetId = (key: string): string => {
+    if (!TREE_ROOT_LAYOUT_KEYS.has(normalizeOptionKey(key))) {
+      return sourceId;
+    }
+    if (optionHasNormalizedKey(resolvedRootTarget.target.options, key)) {
+      return sourceId;
+    }
+    if (optionHasNormalizedKey(rootNode.options, key)) {
+      return rootNode.id;
+    }
+    return sourceId;
+  };
+  const resolveRootLayoutValue = (key: "level distance" | "sibling distance"): number => {
+    if (optionHasNormalizedKey(resolvedRootTarget.target.options, key)) {
+      return resolveTreeLengthOptionPt(resolvedRootTarget.target.options, key);
+    }
+    if (optionHasNormalizedKey(rootNode.options, key)) {
+      return resolveTreeLengthOptionPt(rootNode.options, key);
+    }
+    return 0;
+  };
+  const growValue = optionHasNormalizedKey(resolvedRootTarget.target.options, "grow")
+    ? resolveTreeGrowOption(resolvedRootTarget.target.options)
+    : resolveTreeGrowOption(rootNode.options);
+
+  return {
+    elementKind: "path",
+    elementId: sourceId,
+    writeTargetId: sourceId,
+    readOnlyReason,
+    sections: [
+      {
+        id: "transform",
+        title: "Transform",
+        sourceLevel: "command",
+        properties: [
+          {
+            kind: "number",
+            id: "xshift",
+            label: "X shift",
+            value: transformValues.xshift,
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: sourceId,
+              level: "command",
+              key: "xshift",
+              transformContext: {
+                key: "xshift",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "yshift",
+            label: "Y shift",
+            value: transformValues.yshift,
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: sourceId,
+              level: "command",
+              key: "yshift",
+              transformContext: {
+                key: "yshift",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "xscale",
+            label: "X scale",
+            value: transformValues.xscale,
+            step: 0.1,
+            write: {
+              mode: "setProperty",
+              elementId: sourceId,
+              level: "command",
+              key: "xscale",
+              transformContext: {
+                key: "xscale",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "yscale",
+            label: "Y scale",
+            value: transformValues.yscale,
+            step: 0.1,
+            write: {
+              mode: "setProperty",
+              elementId: sourceId,
+              level: "command",
+              key: "yscale",
+              transformContext: {
+                key: "yscale",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "rotate",
+            label: "Rotate",
+            value: transformValues.rotate,
+            step: 1,
+            unit: "deg",
+            write: {
+              mode: "setProperty",
+              elementId: sourceId,
+              level: "command",
+              key: "rotate",
+              transformContext: {
+                key: "rotate",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          }
+        ]
+      },
+      {
+        id: "tree-layout",
+        title: "Tree Layout",
+        sourceLevel: "command",
+        properties: [
+          {
+            kind: "enum",
+            id: "tree-grow",
+            label: "Grow",
+            value: growValue,
+            options: TREE_GROW_DIRECTION_OPTIONS,
+            write: {
+              mode: "setProperty",
+              elementId: resolveRootLayoutWriteTargetId("grow"),
+              level: "command",
+              key: "grow",
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "length",
+            id: "tree-level-distance",
+            label: "Level distance",
+            value: resolveRootLayoutValue("level distance"),
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: resolveRootLayoutWriteTargetId("level distance"),
+              level: "command",
+              key: "level distance",
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "length",
+            id: "tree-sibling-distance",
+            label: "Sibling distance",
+            value: resolveRootLayoutValue("sibling distance"),
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: resolveRootLayoutWriteTargetId("sibling distance"),
+              level: "command",
+              key: "sibling distance",
+              writable,
+              reason: readOnlyReason
+            }
+          }
+        ]
+      },
+      ...nodeSections
+    ]
+  };
+}
+
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
   const inlineTarget = resolveInlineWriteTarget(element, snapshot.source, snapshot.parseOptions);
   const colorAliases = collectInspectorColorAliases(snapshot.source);
@@ -1918,7 +2214,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       : null;
   const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
   const nodeInspectorState =
-    inlineTarget.targetKind === "node-item" || inlineTarget.targetKind === "matrix-cell"
+    inlineTarget.targetKind === "node-item" || inlineTarget.targetKind === "matrix-cell" || inlineTarget.targetKind === "tree-child"
       ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions)
       : null;
 
@@ -2814,6 +3110,13 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     });
   }
 
+  if (inlineTarget.targetKind === "tree-child") {
+    const transformSectionIndex = sections.findIndex((section) => section.id === "transform");
+    if (transformSectionIndex >= 0) {
+      sections.splice(transformSectionIndex, 1);
+    }
+  }
+
   return {
     elementKind: normalizeElementKind(element.kind),
     elementId: element.sourceRef.sourceId,
@@ -2838,11 +3141,16 @@ function makeSetPropertyWriteTargetForElementId(
   const normalizedKey = normalizeOptionKey(key);
   const matrixCellWritable =
     inlineTarget.targetKind !== "matrix-cell" || MATRIX_CELL_WRITABLE_KEYS.has(normalizedKey);
-  const writable = inlineTarget.writable && elementId != null && matrixCellWritable;
+  const treeChildWritable =
+    inlineTarget.targetKind !== "tree-child"
+    || !TREE_CHILD_NODE_READONLY_KEYS.has(normalizedKey);
+  const writable = inlineTarget.writable && elementId != null && matrixCellWritable && treeChildWritable;
   const reason =
     !matrixCellWritable
       ? "This matrix-cell property is not editable yet."
-      : inlineTarget.reason;
+      : !treeChildWritable
+        ? "This tree-child property is read-only."
+        : inlineTarget.reason;
   return {
     mode: "setProperty",
     elementId: elementId ?? "",
@@ -4323,10 +4631,13 @@ function resolveInlineWriteTarget(
 
   const styleChainCommandSourceId =
     [...element.styleChain].reverse().find((entry) => entry.kind === "command")?.sourceRef?.sourceId ?? null;
+  const elementSourceId = element.sourceRef.sourceId;
+  const prefersSourceTarget =
+    elementSourceId.includes(":tree-child:");
   const candidateTargetIds = [
     element.adornment?.targetId ?? null,
-    styleChainCommandSourceId,
-    element.sourceRef.sourceId
+    prefersSourceTarget ? elementSourceId : styleChainCommandSourceId,
+    prefersSourceTarget ? styleChainCommandSourceId : elementSourceId
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   for (const targetId of candidateTargetIds) {
@@ -4339,6 +4650,34 @@ function resolveInlineWriteTarget(
             targetKind: resolved.target.kind,
             writable: false,
             reason: "Cell property editing is only available for matrix node cells."
+          };
+        }
+        return {
+          targetId,
+          targetKind: resolved.target.kind,
+          writable: true
+        };
+      }
+      if (resolved.target.kind === "tree-child") {
+        if (resolved.target.treeChildForeach) {
+          return {
+            targetId,
+            targetKind: resolved.target.kind,
+            writable: false,
+            reason: "Tree child editing is read-only for child foreach expansions."
+          };
+        }
+        if (
+          !resolved.target.treeNodeId
+          || !resolved.target.treeNodeTextSpan
+          || resolved.target.treeChildInsertOffset == null
+          || resolved.target.treeNodeInsertOffset == null
+        ) {
+          return {
+            targetId,
+            targetKind: resolved.target.kind,
+            writable: false,
+            reason: "Tree child source spans could not be resolved for editing."
           };
         }
         return {

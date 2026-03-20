@@ -1,4 +1,4 @@
-import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
+import type { Span, Statement, PathStatement, PathItem, NodeItem, ChildOperationItem } from "../ast/types.js";
 import type { ParseTikzResult } from "../parser/index.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { normalizeOptionKey } from "./option-key.js";
@@ -21,6 +21,7 @@ export type PropertyTargetKind =
   | "path-keyword"
   | "node-item"
   | "matrix-cell"
+  | "tree-child"
   | "node-adornment"
   | "to-operation"
   | "edge-operation"
@@ -63,6 +64,19 @@ export type PropertyTarget = {
   row?: number;
   column?: number;
   cellSpan?: Span;
+  treeRootSourceId?: string;
+  treeChildSourceId?: string;
+  childOperationId?: string;
+  treeChildOptions?: OptionListAst;
+  treeChildOptionsSpan?: Span;
+  treeChildInsertOffset?: number;
+  treeNodeId?: string;
+  treeNodeTextSpan?: Span;
+  treeNodeOptions?: OptionListAst;
+  treeNodeOptionsSpan?: Span;
+  treeNodeInsertOffset?: number;
+  treeChildForeach?: boolean;
+  treeChildNodeSpanFallbackUsed?: boolean;
 };
 
 export type PropertyTargetResolution =
@@ -95,6 +109,10 @@ export function resolvePropertyTarget(source: string, elementId: string, parseOp
   if (matrixCellTarget) {
     return { kind: "found", target: matrixCellTarget };
   }
+  const treeChildTarget = resolveTreeChildTargetInStatements(parseResult.figure.body, source, normalizedId);
+  if (treeChildTarget) {
+    return { kind: "found", target: treeChildTarget };
+  }
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (!target) {
     return { kind: "not-found", reason: `No editable source target found for ${normalizedId}` };
@@ -124,6 +142,10 @@ export function resolvePropertyTargetFromParseResult(
   const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (matrixCellTarget) {
     return { kind: "found", target: matrixCellTarget };
+  }
+  const treeChildTarget = resolveTreeChildTargetInStatements(parseResult.figure.body, source, normalizedId);
+  if (treeChildTarget) {
+    return { kind: "found", target: treeChildTarget };
   }
 
   const target = findTargetInStatements(parseResult.figure.body, source, normalizedId);
@@ -689,6 +711,25 @@ function findNodeItemInStatements(
   return null;
 }
 
+function findPathStatementById(
+  statements: Statement[],
+  statementId: string
+): PathStatement | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, statementId);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+    if (statement.kind === "Path" && statement.id === statementId) {
+      return statement;
+    }
+  }
+  return null;
+}
+
 function resolveMatrixBodyOpenOffset(source: string, textSpan: Span): number | undefined {
   for (let cursor = textSpan.from - 1; cursor >= 0; cursor -= 1) {
     const char = source[cursor];
@@ -714,6 +755,265 @@ function parseMatrixCellTargetId(elementId: string): { matrixNodeSourceId: strin
     return null;
   }
   return { matrixNodeSourceId, row, column };
+}
+
+function resolveTreeChildTargetInStatements(
+  statements: Statement[],
+  source: string,
+  elementId: string
+): PropertyTarget | null {
+  const parsedId = parseTreeChildTargetId(elementId);
+  if (!parsedId) {
+    return null;
+  }
+
+  const child = resolveTreeChildOperationFromSegments(statements, parsedId);
+  if (!child) {
+    return null;
+  }
+
+  const node = resolveFirstEditableTreeNode(child.body);
+  const nodeOptions = node?.options;
+  const nodeSpanInfo = node ? resolveTreeChildNodeSpanInfo(source, child, node) : null;
+  const nodeOptionsSpan = nodeSpanInfo?.optionsSpan;
+  const nodeTextSpan = nodeSpanInfo?.textSpan;
+  const treeChildInsertOffset = resolveInsertOffset(source, child.span, /\bchild\b/);
+  const treeNodeInsertOffset = nodeSpanInfo?.insertOffset;
+
+  return {
+    id: elementId,
+    kind: "tree-child",
+    span: child.span,
+    options: nodeOptions,
+    optionsSpan: nodeOptionsSpan,
+    optionSpan: nodeOptionsSpan,
+    optionsFormat: "bracketed",
+    textSpan: nodeTextSpan,
+    insertOffset: treeNodeInsertOffset ?? treeChildInsertOffset,
+    treeRootSourceId: parsedId.treeRootSourceId,
+    treeChildSourceId: parsedId.treeChildSourceId,
+    childOperationId: child.id,
+    treeChildOptions: child.options,
+    treeChildOptionsSpan: child.optionsSpan ?? child.options?.span,
+    treeChildInsertOffset,
+    treeNodeId: node?.id,
+    treeNodeTextSpan: nodeTextSpan,
+    treeNodeOptions: nodeOptions,
+    treeNodeOptionsSpan: nodeOptionsSpan,
+    treeNodeInsertOffset,
+    treeChildForeach: (child.foreachClauses?.length ?? 0) > 0,
+    treeChildNodeSpanFallbackUsed: nodeSpanInfo?.fallbackUsed ?? false
+  };
+}
+
+function parseTreeChildTargetId(elementId: string): {
+  treeRootSourceId: string;
+  treeChildSourceId: string;
+  segments: Array<{ childIndexOneBased: number; childOperationId: string }>;
+} | null {
+  const normalized = elementId.trim();
+  if (normalized.length === 0) {
+    return null;
+  }
+  const firstTreeChildMarker = normalized.indexOf(":tree-child:");
+  if (firstTreeChildMarker < 0) {
+    return null;
+  }
+  const treeRootSourceId = normalized.slice(0, firstTreeChildMarker).trim();
+  if (treeRootSourceId.length === 0) {
+    return null;
+  }
+  const segmentsRaw = normalized.slice(firstTreeChildMarker).split(":tree-child:");
+  const segments: Array<{ childIndexOneBased: number; childOperationId: string }> = [];
+  for (const rawSegment of segmentsRaw) {
+    const segment = rawSegment.trim();
+    if (segment.length === 0) {
+      continue;
+    }
+    const firstColon = segment.indexOf(":");
+    if (firstColon <= 0) {
+      return null;
+    }
+    const indexRaw = segment.slice(0, firstColon).trim();
+    const childOperationId = segment.slice(firstColon + 1).trim();
+    if (!/^\d+$/u.test(indexRaw) || childOperationId.length === 0) {
+      return null;
+    }
+    segments.push({
+      childIndexOneBased: Number.parseInt(indexRaw, 10),
+      childOperationId
+    });
+  }
+  if (segments.length === 0) {
+    return null;
+  }
+  return {
+    treeRootSourceId,
+    treeChildSourceId: normalized,
+    segments
+  };
+}
+
+function resolveTreeChildOperationFromSegments(
+  statements: Statement[],
+  parsedId: {
+    treeRootSourceId: string;
+    segments: Array<{ childIndexOneBased: number; childOperationId: string }>;
+  }
+): ChildOperationItem | null {
+  const rootStatement = findPathStatementById(statements, parsedId.treeRootSourceId);
+  if (!rootStatement) {
+    return null;
+  }
+  let currentItems = rootStatement.items;
+  let parentBaseFrom = 0;
+  let currentChild: ChildOperationItem | null = null;
+  for (const segment of parsedId.segments) {
+    const childOperations = currentItems.filter(
+      (item): item is ChildOperationItem => item.kind === "ChildOperation"
+    );
+    if (childOperations.length === 0) {
+      return null;
+    }
+    const index = segment.childIndexOneBased - 1;
+    const indexed = index >= 0 && index < childOperations.length ? childOperations[index] ?? null : null;
+    const matched = indexed && indexed.id === segment.childOperationId
+      ? indexed
+      : childOperations.find((candidate) => candidate.id === segment.childOperationId) ?? indexed;
+    if (!matched) {
+      return null;
+    }
+    const absoluteChild = absolutizeChildOperationSpans(matched, parentBaseFrom);
+    currentChild = absoluteChild;
+    currentItems = matched.body;
+    parentBaseFrom = absoluteChild.span.from;
+  }
+  return currentChild;
+}
+
+function absolutizeChildOperationSpans(
+  child: ChildOperationItem,
+  parentBaseFrom: number
+): ChildOperationItem {
+  const absolutize = (span: Span | undefined): Span | undefined => {
+    if (!span) {
+      return span;
+    }
+    if (span.from <= parentBaseFrom) {
+      return {
+        from: parentBaseFrom + span.from,
+        to: parentBaseFrom + span.to
+      };
+    }
+    return span;
+  };
+  return {
+    ...child,
+    span: absolutize(child.span)!,
+    optionsSpan: absolutize(child.optionsSpan),
+    bodySpan: absolutize(child.bodySpan)
+  };
+}
+
+function resolveFirstEditableTreeNode(items: PathItem[]): NodeItem | null {
+  let encounteredEdgeFromParent = false;
+  for (const item of items) {
+    if (item.kind === "PathComment" || item.kind === "PathOption") {
+      continue;
+    }
+    if (item.kind === "EdgeFromParentOperation") {
+      encounteredEdgeFromParent = true;
+      continue;
+    }
+    if (item.kind === "Node") {
+      if (encounteredEdgeFromParent) {
+        continue;
+      }
+      return item;
+    }
+  }
+  return null;
+}
+
+function resolveTreeChildNodeSpanInfo(
+  source: string,
+  child: ChildOperationItem,
+  node: NodeItem
+): {
+  optionsSpan?: Span;
+  textSpan?: Span;
+  insertOffset: number;
+  fallbackUsed: boolean;
+} | null {
+  let bodySpan = child.bodySpan;
+  if (!bodySpan) {
+    return null;
+  }
+  let fallbackUsed = false;
+  let bodySlice = source.slice(bodySpan.from, bodySpan.to);
+  let nodeOffsetInBody = bodySlice.indexOf(node.raw);
+  if (nodeOffsetInBody < 0 && child.bodyRaw.length > 0) {
+    const searchStart = Math.max(0, bodySpan.from - 256);
+    const searchEnd = Math.min(source.length, bodySpan.to + 256);
+    const searchSlice = source.slice(searchStart, searchEnd);
+    const bodyOffset = searchSlice.indexOf(child.bodyRaw);
+    if (bodyOffset >= 0) {
+      const fallbackBodyFrom = searchStart + bodyOffset;
+      bodySpan = {
+        from: fallbackBodyFrom,
+        to: fallbackBodyFrom + child.bodyRaw.length
+      };
+      fallbackUsed = true;
+      bodySlice = source.slice(bodySpan.from, bodySpan.to);
+      nodeOffsetInBody = bodySlice.indexOf(node.raw);
+    }
+  }
+  if (nodeOffsetInBody < 0) {
+    return null;
+  }
+  const nodeFrom = bodySpan.from + nodeOffsetInBody;
+  const nodeTo = nodeFrom + node.raw.length;
+  const nodeSlice = source.slice(nodeFrom, nodeTo);
+  const nodeKeywordMatch = /\bnode\b/u.exec(nodeSlice);
+  const insertOffset = nodeKeywordMatch
+    ? nodeFrom + nodeKeywordMatch.index + nodeKeywordMatch[0].length
+    : nodeFrom;
+
+  let optionsSpan: Span | undefined;
+  let textSpan: Span | undefined;
+  let cursor = insertOffset - nodeFrom;
+  while (cursor < nodeSlice.length && /\s/u.test(nodeSlice[cursor] ?? "")) {
+    cursor += 1;
+  }
+  if (nodeSlice[cursor] === "[") {
+    const optionsBlock = readBalancedBlock(nodeSlice, cursor, "[", "]");
+    if (optionsBlock) {
+      optionsSpan = {
+        from: nodeFrom + cursor,
+        to: nodeFrom + optionsBlock.nextIndex
+      };
+      cursor = optionsBlock.nextIndex;
+    }
+  }
+  while (cursor < nodeSlice.length && /\s/u.test(nodeSlice[cursor] ?? "")) {
+    cursor += 1;
+  }
+  if (nodeSlice[cursor] === "{") {
+    const textBlock = readBalancedBlock(nodeSlice, cursor, "{", "}");
+    if (textBlock) {
+      textSpan = {
+        from: nodeFrom + cursor + 1,
+        to: nodeFrom + textBlock.nextIndex - 1
+      };
+    }
+  }
+
+  return {
+    optionsSpan,
+    textSpan,
+    insertOffset,
+    fallbackUsed
+  };
 }
 
 function makeScopeTarget(statement: Extract<Statement, { kind: "Scope" }>, source: string): PropertyTarget {
