@@ -3280,4 +3280,201 @@ describe("applyEditAction – updateNodeText", () => {
     }
     expect(directChildResult.newSource).toContain("node {left*}");
   });
+
+  it("adds a child to a selected tree root", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: "path:0"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected addTreeChild on root to succeed");
+    }
+    expect(result.newSource).toContain("child { node {left} }");
+    expect(result.newSource).toContain("child { node {New} }");
+  });
+
+  it("adds a nested child when a tree child is selected", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "addTreeChild",
+      parentSourceId: leftText.treeChild.childSourceId
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected addTreeChild on child to succeed");
+    }
+    expect(result.newSource).toContain("child { node {left}");
+    expect(result.newSource).toContain("child { node {New} }");
+  });
+
+  it("adds tree siblings before and after a selected child", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected left tree child text element");
+    }
+    const leftId = leftText.treeChild.childSourceId;
+
+    const after = applyEditAction(source, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: leftId,
+      position: "after"
+    });
+    expect(after.kind).toBe("success");
+    if (after.kind !== "success") {
+      throw new Error("Expected addTreeSibling(after) to succeed");
+    }
+    expect(after.newSource).toMatch(/node \{left\}[\s\S]*child \{ node \{New\} \}[\s\S]*node \{right\}/);
+
+    const before = applyEditAction(source, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: leftId,
+      position: "before"
+    });
+    expect(before.kind).toBe("success");
+    if (before.kind !== "success") {
+      throw new Error("Expected addTreeSibling(before) to succeed");
+    }
+    expect(before.newSource).toMatch(/child \{ node \{New\} \}[\s\S]*node \{left\}/);
+  });
+
+  it("removes a selected tree child by synthetic id", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} }
+    child { node {right} };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const rightText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "right"
+    );
+    if (!rightText || rightText.kind !== "Text" || !rightText.treeChild) {
+      throw new Error("Expected right tree child text element");
+    }
+
+    const result = applyEditAction(source, [], {
+      kind: "removeTreeChild",
+      childSourceId: rightText.treeChild.childSourceId
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected removeTreeChild to succeed");
+    }
+    expect(result.newSource).toContain("child { node {left} }");
+    expect(result.newSource).not.toContain("node {right}");
+  });
+
+  it("keeps nested tree structure valid when adding children to deep descendants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=15mm,sibling distance=10mm]
+    node[draw,rounded corners=2pt,fill=blue!10] {Root}
+    child { node[draw,fill=green!12] {Leaf A} }
+    child {
+      node[draw,fill=green!12] {Branch}
+      child { node[draw,fill=yellow!16] {Leaf B1} }
+      child { node[draw,fill=yellow!16] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leaves = rendered.semantic.scene.elements.filter(
+      (entry) => entry.kind === "Text" && (entry.text === "Leaf B1" || entry.text === "Leaf B2")
+    );
+    expect(leaves).toHaveLength(2);
+
+    for (const leaf of leaves) {
+      if (leaf.kind !== "Text" || !leaf.treeChild) {
+        throw new Error("Expected tree-child text for deep leaf");
+      }
+      const result = applyEditAction(source, [], {
+        kind: "addTreeChild",
+        parentSourceId: leaf.treeChild.childSourceId
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error("Expected addTreeChild on deep descendant to succeed");
+      }
+      const rerendered = renderTikzToSvg(result.newSource);
+      const newTexts = rerendered.semantic.scene.elements.filter(
+        (entry) => entry.kind === "Text" && entry.text === "New"
+      );
+      expect(newTexts.length).toBeGreaterThanOrEqual(1);
+      expect(result.newSource).toContain("Leaf B1");
+      expect(result.newSource).toContain("Leaf B2");
+    }
+  });
+
+  it("keeps nested tree structure valid when adding siblings around deep descendants", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path[grow=right,level distance=15mm,sibling distance=10mm]
+    node[draw,rounded corners=2pt,fill=blue!10] {Root}
+    child { node[draw,fill=green!12] {Leaf A} }
+    child {
+      node[draw,fill=green!12] {Branch}
+      child { node[draw,fill=yellow!16] {Leaf B1} }
+      child { node[draw,fill=yellow!16] {Leaf B2} }
+    };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const leafB1 = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "Leaf B1"
+    );
+    const leafB2 = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "Leaf B2"
+    );
+    if (!leafB1 || leafB1.kind !== "Text" || !leafB1.treeChild || !leafB2 || leafB2.kind !== "Text" || !leafB2.treeChild) {
+      throw new Error("Expected deep tree descendants");
+    }
+
+    const afterB1 = applyEditAction(source, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: leafB1.treeChild.childSourceId,
+      position: "after"
+    });
+    expect(afterB1.kind).toBe("success");
+    if (afterB1.kind !== "success") {
+      throw new Error("Expected addTreeSibling(after) on Leaf B1 to succeed");
+    }
+    renderTikzToSvg(afterB1.newSource);
+    expect(afterB1.newSource).toContain("Leaf B1");
+    expect(afterB1.newSource).toContain("Leaf B2");
+    expect(afterB1.newSource).toContain("node {New}");
+
+    const beforeB2 = applyEditAction(source, [], {
+      kind: "addTreeSibling",
+      siblingSourceId: leafB2.treeChild.childSourceId,
+      position: "before"
+    });
+    expect(beforeB2.kind).toBe("success");
+    if (beforeB2.kind !== "success") {
+      throw new Error("Expected addTreeSibling(before) on Leaf B2 to succeed");
+    }
+    renderTikzToSvg(beforeB2.newSource);
+    expect(beforeB2.newSource).toContain("Leaf B1");
+    expect(beforeB2.newSource).toContain("Leaf B2");
+    expect(beforeB2.newSource).toContain("node {New}");
+  });
 });

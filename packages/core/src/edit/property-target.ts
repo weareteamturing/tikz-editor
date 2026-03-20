@@ -69,6 +69,7 @@ export type PropertyTarget = {
   childOperationId?: string;
   treeChildOptions?: OptionListAst;
   treeChildOptionsSpan?: Span;
+  treeChildBodySpan?: Span;
   treeChildInsertOffset?: number;
   treeNodeId?: string;
   treeNodeTextSpan?: Span;
@@ -767,7 +768,7 @@ function resolveTreeChildTargetInStatements(
     return null;
   }
 
-  const child = resolveTreeChildOperationFromSegments(statements, parsedId);
+  const child = resolveTreeChildOperationFromSegments(statements, source, parsedId);
   if (!child) {
     return null;
   }
@@ -795,6 +796,7 @@ function resolveTreeChildTargetInStatements(
     childOperationId: child.id,
     treeChildOptions: child.options,
     treeChildOptionsSpan: child.optionsSpan ?? child.options?.span,
+    treeChildBodySpan: child.bodySpan,
     treeChildInsertOffset,
     treeNodeId: node?.id,
     treeNodeTextSpan: nodeTextSpan,
@@ -856,6 +858,7 @@ function parseTreeChildTargetId(elementId: string): {
 
 function resolveTreeChildOperationFromSegments(
   statements: Statement[],
+  source: string,
   parsedId: {
     treeRootSourceId: string;
     segments: Array<{ childIndexOneBased: number; childOperationId: string }>;
@@ -866,7 +869,7 @@ function resolveTreeChildOperationFromSegments(
     return null;
   }
   let currentItems = rootStatement.items;
-  let parentBaseFrom = 0;
+  let containerSpan: Span = rootStatement.span;
   let currentChild: ChildOperationItem | null = null;
   for (const segment of parsedId.segments) {
     const childOperations = currentItems.filter(
@@ -883,35 +886,49 @@ function resolveTreeChildOperationFromSegments(
     if (!matched) {
       return null;
     }
-    const absoluteChild = absolutizeChildOperationSpans(matched, parentBaseFrom);
+    const absoluteChild = absolutizeChildOperationSpans(source, matched, containerSpan);
     currentChild = absoluteChild;
     currentItems = matched.body;
-    parentBaseFrom = absoluteChild.span.from;
+    containerSpan = absoluteChild.bodySpan ?? absoluteChild.span;
   }
   return currentChild;
 }
 
 function absolutizeChildOperationSpans(
+  source: string,
   child: ChildOperationItem,
-  parentBaseFrom: number
+  containerSpan: Span
 ): ChildOperationItem {
-  const absolutize = (span: Span | undefined): Span | undefined => {
+  const absolutize = (
+    span: Span | undefined,
+    raw: string
+  ): Span | undefined => {
     if (!span) {
+      return undefined;
+    }
+    if (raw.length > 0 && source.slice(span.from, span.to) === raw) {
       return span;
     }
-    if (span.from <= parentBaseFrom) {
-      return {
-        from: parentBaseFrom + span.from,
-        to: parentBaseFrom + span.to
-      };
+    if (raw.length > 0) {
+      const containerSlice = source.slice(containerSpan.from, containerSpan.to);
+      const rawOffset = containerSlice.indexOf(raw);
+      if (rawOffset >= 0) {
+        return {
+          from: containerSpan.from + rawOffset,
+          to: containerSpan.from + rawOffset + raw.length
+        };
+      }
     }
-    return span;
+    return {
+      from: containerSpan.from + span.from,
+      to: containerSpan.from + span.to
+    };
   };
   return {
     ...child,
-    span: absolutize(child.span)!,
-    optionsSpan: absolutize(child.optionsSpan),
-    bodySpan: absolutize(child.bodySpan)
+    span: absolutize(child.span, child.raw)!,
+    optionsSpan: absolutize(child.optionsSpan, child.options?.raw ?? ""),
+    bodySpan: absolutize(child.bodySpan, child.bodyRaw)
   };
 }
 

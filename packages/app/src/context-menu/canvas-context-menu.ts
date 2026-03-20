@@ -179,6 +179,24 @@ const EDIT_EQUATION_ITEM: AppMenuItem = {
   accelerator: "CmdOrCtrl+Shift+E"
 };
 
+const TREE_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TREE_ADD_CHILD,
+    label: "Add Child"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE,
+    label: "Add Sibling Before"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER,
+    label: "Add Sibling After"
+  }
+];
+
 const SINGLE_NODE_TOP_ACTIONS: readonly AppMenuItem[] = [
   {
     kind: "command",
@@ -264,6 +282,14 @@ const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
     items: REORDER_ITEMS
   }
 ];
+
+function withTreeItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
+  return [
+    ...TREE_ITEMS,
+    { kind: "separator" },
+    ...items
+  ];
+}
 
 export function buildCanvasContextMenuDefinition(
   options: { includeEditEquationForSingleNode?: boolean } = {}
@@ -400,6 +426,84 @@ export function buildCanvasContextMenuDefinition(
       items: REORDER_ITEMS
     }
   ],
+  "selection-single-tree": [
+    ...withTreeItems([
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNDO,
+        label: "Undo",
+        accelerator: "CmdOrCtrl+Z"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REDO,
+        label: "Redo",
+        accelerator: "CmdOrCtrl+Shift+Z"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CUT,
+        label: "Cut",
+        accelerator: "CmdOrCtrl+X"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.COPY,
+        label: "Copy",
+        accelerator: "CmdOrCtrl+C"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PASTE,
+        label: "Paste",
+        accelerator: "CmdOrCtrl+V"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DELETE,
+        label: "Delete",
+        accelerator: "Delete"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+        label: "Duplicate",
+        accelerator: "CmdOrCtrl+D"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.GROUP,
+        label: "Group",
+        accelerator: "CmdOrCtrl+G"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+        label: "Ungroup",
+        accelerator: "CmdOrCtrl+Shift+G"
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Transform",
+        items: TRANSFORM_ITEMS
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Path",
+        items: PATH_ITEMS
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Reorder",
+        items: REORDER_ITEMS
+      }
+    ])
+  ],
   "selection-single-path-point": [
     ...PATH_POINT_ITEMS,
     { kind: "separator" },
@@ -458,8 +562,71 @@ export function buildCanvasContextMenuDefinition(
       items: REORDER_ITEMS
     }
   ],
+  "selection-single-path-point-tree": [
+    ...withTreeItems([
+      ...PATH_POINT_ITEMS,
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNDO,
+        label: "Undo",
+        accelerator: "CmdOrCtrl+Z"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REDO,
+        label: "Redo",
+        accelerator: "CmdOrCtrl+Shift+Z"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CUT,
+        label: "Cut",
+        accelerator: "CmdOrCtrl+X"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.COPY,
+        label: "Copy",
+        accelerator: "CmdOrCtrl+C"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PASTE,
+        label: "Paste",
+        accelerator: "CmdOrCtrl+V"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DELETE,
+        label: "Delete",
+        accelerator: "Delete"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+        label: "Duplicate",
+        accelerator: "CmdOrCtrl+D"
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Path",
+        items: PATH_ITEMS
+      },
+      {
+        kind: "submenu",
+        label: "Reorder",
+        items: REORDER_ITEMS
+      }
+    ])
+  ],
   "selection-single-node": [
     ...selectionSingleNodeItems
+  ],
+  "selection-single-node-tree": [
+    ...withTreeItems(selectionSingleNodeItems)
   ],
   "selection-multi": [
     {

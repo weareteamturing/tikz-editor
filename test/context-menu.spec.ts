@@ -10,7 +10,10 @@ describe("canvas context menu definition", () => {
       "selection-multi",
       "selection-single",
       "selection-single-node",
-      "selection-single-path-point"
+      "selection-single-node-tree",
+      "selection-single-path-point",
+      "selection-single-path-point-tree",
+      "selection-single-tree"
     ]);
   });
 
@@ -18,7 +21,10 @@ describe("canvas context menu definition", () => {
     const knownCommandIds = new Set(Object.values(APP_MENU_COMMAND_IDS));
     const commandIds = collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["canvas-empty"])
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point-tree"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node-tree"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-tree"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
 
@@ -56,7 +62,20 @@ describe("canvas context menu definition", () => {
     if (!path || path.kind !== "submenu") {
       throw new Error("Expected Path submenu on single selection context menu.");
     }
+    expect(collectCommandIds(items)).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_CHILD);
+    expect(collectCommandIds(items)).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE);
+    expect(collectCommandIds(items)).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER);
     expect(collectCommandIds(path.items)).toContain(APP_MENU_COMMAND_IDS.PATH_REVERSE);
+  });
+
+  it("defines selection-single-tree with tree actions at the top", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-tree"];
+    expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.TREE_ADD_CHILD,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
   });
 
   it("defines selection-single-node with label and pin insertion commands", () => {
@@ -66,6 +85,9 @@ describe("canvas context menu definition", () => {
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_LABEL);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_PIN);
     expect(commandIds).not.toContain(APP_MENU_COMMAND_IDS.EDIT_EQUATION);
+    expect(commandIds).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_CHILD);
+    expect(commandIds).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE);
+    expect(commandIds).not.toContain(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER);
     expect(items.slice(0, 2).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
       APP_MENU_COMMAND_IDS.ADD_LABEL,
       APP_MENU_COMMAND_IDS.ADD_PIN
@@ -73,17 +95,41 @@ describe("canvas context menu definition", () => {
     expect(items[2]).toEqual({ kind: "separator" });
   });
 
+  it("defines selection-single-node-tree with tree actions above node actions", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node-tree"];
+    const commandIds = collectCommandIds(items);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_LABEL);
+    expect(commandIds).toContain(APP_MENU_COMMAND_IDS.ADD_PIN);
+    expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.TREE_ADD_CHILD,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+    expect(items.slice(4, 6).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.ADD_LABEL,
+      APP_MENU_COMMAND_IDS.ADD_PIN
+    ]);
+    expect(items[6]).toEqual({ kind: "separator" });
+  });
+
   it("adds Edit Equation for selection-single-node when opted in", () => {
     const withEdit = buildCanvasContextMenuDefinition({ includeEditEquationForSingleNode: true });
-    const items = withEdit["selection-single-node"];
+    const items = withEdit["selection-single-node-tree"];
     const commandIds = collectCommandIds(items);
     expect(commandIds).toContain(APP_MENU_COMMAND_IDS.EDIT_EQUATION);
     expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.TREE_ADD_CHILD,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+    expect(items.slice(4, 7).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
       APP_MENU_COMMAND_IDS.EDIT_EQUATION,
       APP_MENU_COMMAND_IDS.ADD_LABEL,
       APP_MENU_COMMAND_IDS.ADD_PIN
     ]);
-    expect(items[3]).toEqual({ kind: "separator" });
+    expect(items[7]).toEqual({ kind: "separator" });
   });
 
   it("defines selection-single-path-point with point-editing commands up front", () => {
@@ -91,6 +137,23 @@ describe("canvas context menu definition", () => {
     const commandItems = items.filter((item) => item.kind === "command");
 
     expect(commandItems.slice(0, 4).map((item) => item.commandId)).toEqual([
+      APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
+      APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
+      APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,
+      APP_MENU_COMMAND_IDS.PATH_SPLIT
+    ]);
+  });
+
+  it("defines selection-single-path-point-tree with tree actions before point-editing commands", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point-tree"];
+    const commandItems = items.filter((item) => item.kind === "command");
+
+    expect(commandItems.slice(0, 3).map((item) => item.commandId)).toEqual([
+      APP_MENU_COMMAND_IDS.TREE_ADD_CHILD,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE,
+      APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER
+    ]);
+    expect(commandItems.slice(3, 7).map((item) => item.commandId)).toEqual([
       APP_MENU_COMMAND_IDS.PATH_DELETE_POINT,
       APP_MENU_COMMAND_IDS.PATH_POINT_CORNER,
       APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH,

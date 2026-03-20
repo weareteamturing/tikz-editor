@@ -311,7 +311,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "stable",
     svg: "stable",
-    edit: "none",
+    edit: "partial",
     fixtures: ["tree_child_operation"]
   },
   edge_from_parent_operation: {
@@ -325,7 +325,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "stable",
     svg: "stable",
-    edit: "none",
+    edit: "partial",
     fixtures: ["tree_layout_keys"]
   },
   tree_level_styles: {

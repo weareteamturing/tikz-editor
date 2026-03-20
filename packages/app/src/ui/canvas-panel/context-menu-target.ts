@@ -1,5 +1,7 @@
 import type { CanvasContextMenuTarget } from "../../context-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
+import { parseTikzForEdit } from "tikz-editor/edit/parse-options";
+import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { ToolMode } from "../../store/types";
 
 export type ContextMenuSelectionAction =
@@ -32,19 +34,23 @@ export function resolveCanvasContextMenuTarget(
   }
 
   if (selectedElementIds.has(clickedSourceId)) {
+    const treeTarget = isTreeContextTarget(source, clickedSourceId);
     return {
       target:
         selectedElementIds.size > 1
           ? "selection-multi"
           : isNodeContextTarget(source, clickedSourceId)
-            ? "selection-single-node"
-            : "selection-single",
+            ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
+            : (treeTarget ? "selection-single-tree" : "selection-single"),
       selectionAction: { kind: "preserve" }
     };
   }
 
+  const treeTarget = isTreeContextTarget(source, clickedSourceId);
   return {
-    target: isNodeContextTarget(source, clickedSourceId) ? "selection-single-node" : "selection-single",
+    target: isNodeContextTarget(source, clickedSourceId)
+      ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
+      : (treeTarget ? "selection-single-tree" : "selection-single"),
     selectionAction: { kind: "select-only", sourceId: clickedSourceId }
   };
 }
@@ -58,6 +64,41 @@ function isNodeContextTarget(source: string, targetId: string): boolean {
     resolved.target.kind === "node-item" ||
     (resolved.target.kind === "path-statement" && resolved.target.pathCommand === "node")
   );
+}
+
+function isTreeContextTarget(source: string, targetId: string): boolean {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found") {
+    return false;
+  }
+  if (resolved.target.kind === "tree-child") {
+    return true;
+  }
+  if (resolved.target.kind !== "path-statement") {
+    return false;
+  }
+  const parsed = parseTikzForEdit(source);
+  const statement = findPathStatementById(parsed.figure.body, targetId);
+  if (!statement) {
+    return false;
+  }
+  return statement.items.some((item) => item.kind === "ChildOperation");
+}
+
+function findPathStatementById(statements: readonly Statement[], sourceId: string): PathStatement | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, sourceId);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+    if (statement.kind === "Path" && statement.id === sourceId) {
+      return statement;
+    }
+  }
+  return null;
 }
 
 export type ContextMenuAnchor = {

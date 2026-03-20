@@ -84,6 +84,11 @@ import { applyReorderElementsAction, buildParentReorderReplacement } from "./act
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
 import { applyGroupElementsAction, applyUngroupElementsAction } from "./actions/group-ungroup-actions.js";
+import {
+  applyAddTreeChildAction,
+  applyAddTreeSiblingAction,
+  applyRemoveTreeChildAction
+} from "./actions/tree-child-actions.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 
@@ -138,6 +143,9 @@ export type EditAction =
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
   | { kind: "groupElements"; elementIds: string[] }
   | { kind: "ungroupElements"; elementIds: string[] }
+  | { kind: "addTreeChild"; parentSourceId: string; afterChildIndex?: number }
+  | { kind: "removeTreeChild"; childSourceId: string }
+  | { kind: "addTreeSibling"; siblingSourceId: string; position: "before" | "after" }
   | {
       kind: "resizeElement";
       elementId: string;
@@ -248,6 +256,12 @@ export function applyEditAction(
         return applyGroupElements(source, action, parseOptions);
       case "ungroupElements":
         return applyUngroupElements(source, action, parseOptions);
+      case "addTreeChild":
+        return applyAddTreeChildAction(source, action, parseOptions);
+      case "removeTreeChild":
+        return applyRemoveTreeChildAction(source, action, parseOptions);
+      case "addTreeSibling":
+        return applyAddTreeSiblingAction(source, action, parseOptions);
       case "resizeElement":
         return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
@@ -649,6 +663,12 @@ function inferChangedSourceIds(
       return [];
     case "ungroupElements":
       return [];
+    case "addTreeChild":
+      return normalizeElementIds([action.parentSourceId]);
+    case "removeTreeChild":
+      return normalizeElementIds([action.childSourceId]);
+    case "addTreeSibling":
+      return normalizeElementIds([action.siblingSourceId]);
     case "setProperty":
       return [];
     case "updateNodeText":

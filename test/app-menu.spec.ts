@@ -84,6 +84,12 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.PATH_POINT_SMOOTH).toBe("path.point-smooth");
   });
 
+  it("defines tree editing command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.TREE_ADD_CHILD).toBe("tree.add-child");
+    expect(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE).toBe("tree.add-sibling-before");
+    expect(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER).toBe("tree.add-sibling-after");
+  });
+
   it("defines a help manual command id", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
   });

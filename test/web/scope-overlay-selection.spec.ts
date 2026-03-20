@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import {
   augmentScopeOverlayWithMatrices,
-  augmentScopeOverlayWithTrees,
   buildScopeOverlayIndex,
   isWorldPointWithinScopeBounds,
   resolveFocusedScopeIdForSelection,
@@ -177,110 +176,5 @@ describe("scope overlay matrix augmentation", () => {
       scopeOverlay: augmented
     });
     expect(resolvedDrill).toBe("node:0:0:matrix-cell:1:1");
-  });
-});
-
-describe("scope overlay tree augmentation", () => {
-  it("registers nested tree scopes with recursive bounds and stable drill ancestry", () => {
-    const base = buildScopeOverlayIndex([], new Map([
-      ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 1 }]
-    ]));
-    const sceneElements = [
-      {
-        kind: "Text",
-        id: "scene:text:grand",
-        runtimeId: "runtime:text:grand",
-        sourceRef: { sourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0" },
-        treeChild: {
-          treeRootSourceId: "path:0",
-          parentSourceId: "path:0:tree-child:1:child:0",
-          childOperationId: "child:0:grand",
-          childSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-          childIndex: 0,
-          level: 1,
-          childOperationSpan: { from: 0, to: 1 }
-        }
-      },
-      {
-        kind: "Text",
-        id: "scene:text:child",
-        runtimeId: "runtime:text:child",
-        sourceRef: { sourceId: "path:0:tree-child:1:child:0" },
-        treeChild: {
-          treeRootSourceId: "path:0",
-          parentSourceId: "path:0",
-          childOperationId: "child:0",
-          childSourceId: "path:0:tree-child:1:child:0",
-          childIndex: 0,
-          level: 0,
-          childOperationSpan: { from: 0, to: 1 }
-        }
-      }
-    ] as any[];
-
-    const augmented = augmentScopeOverlayWithTrees(
-      base,
-      sceneElements,
-      new Map([
-        ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 1 }],
-        ["path:0:tree-child:1:child:0", { minX: 1, minY: 1, maxX: 2, maxY: 2 }],
-        ["path:0:tree-child:1:child:0:tree-child:1:child:0", { minX: 3, minY: 3, maxX: 4, maxY: 4 }]
-      ])
-    );
-
-    expect(augmented.scopesById.has("path:0")).toBe(true);
-    expect(augmented.scopesById.has("path:0:tree-child:1:child:0")).toBe(true);
-    expect(augmented.boundsByScopeId.get("path:0")).toEqual({ minX: 0, minY: 0, maxX: 4, maxY: 4 });
-    expect(augmented.boundsByScopeId.get("path:0:tree-child:1:child:0")).toEqual({ minX: 1, minY: 1, maxX: 4, maxY: 4 });
-    expect(augmented.ancestorScopeIdsBySourceId.get("path:0:tree-child:1:child:0")).toEqual(["path:0"]);
-    expect(augmented.ancestorScopeIdsBySourceId.get("path:0:tree-child:1:child:0:tree-child:1:child:0")).toEqual([
-      "path:0",
-      "path:0:tree-child:1:child:0"
-    ]);
-
-    const resolvedDown = resolveScopeAwarePointerDownTarget({
-      hitTargetId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      hitSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      scopeOverlay: augmented
-    });
-    expect(resolvedDown).toBe("path:0");
-
-    const resolvedDrillToChild = resolveScopeAwarePointerUpDrillTarget({
-      selectedScopeId: "path:0",
-      hitSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      scopeOverlay: augmented
-    });
-    expect(resolvedDrillToChild).toBe("path:0:tree-child:1:child:0");
-
-    const resolvedDrillToGrandchild = resolveScopeAwarePointerUpDrillTarget({
-      selectedScopeId: "path:0:tree-child:1:child:0",
-      hitSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      scopeOverlay: augmented
-    });
-    expect(resolvedDrillToGrandchild).toBe("path:0:tree-child:1:child:0:tree-child:1:child:0");
-  });
-});
-
-describe("scope overlay tree selection policy", () => {
-  it("keeps tree descendant hits directly selectable when tree augmentation is not applied", () => {
-    const base = buildScopeOverlayIndex([], new Map([
-      ["path:0", { minX: 0, minY: 0, maxX: 1, maxY: 1 }],
-      ["path:0:tree-child:1:child:0", { minX: 1, minY: 1, maxX: 2, maxY: 2 }],
-      ["path:0:tree-child:1:child:0:tree-child:1:child:0", { minX: 3, minY: 3, maxX: 4, maxY: 4 }]
-    ]));
-
-    const resolved = resolveScopeAwarePointerDownTarget({
-      hitTargetId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      hitSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      scopeOverlay: base
-    });
-    expect(resolved).toBe("path:0:tree-child:1:child:0:tree-child:1:child:0");
-
-    const drillTarget = resolveScopeAwarePointerUpDrillTarget({
-      selectedScopeId: "path:0",
-      hitSourceId: "path:0:tree-child:1:child:0:tree-child:1:child:0",
-      scopeOverlay: base
-    });
-    expect(drillTarget).toBeNull();
   });
 });

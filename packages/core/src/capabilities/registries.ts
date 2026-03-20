@@ -251,5 +251,7 @@ export const editFeatureRegistry = [
   "shape_cloud_callout",
   "shape_single_arrow",
   "shape_double_arrow",
+  "child_operation",
+  "tree_layout_keys",
   "svg_text"
 ] as const satisfies readonly FeatureId[];

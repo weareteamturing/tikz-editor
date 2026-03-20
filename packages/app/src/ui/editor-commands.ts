@@ -12,10 +12,12 @@ import {
   resolveStatementRefs,
   statementSnippet
 } from "tikz-editor/edit/statement-ops";
+import { parseTikzForEdit } from "tikz-editor/edit/parse-options";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import type { EditParseOptions } from "tikz-editor/edit/parse-options";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic/types";
+import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditorAction } from "../store/types";
 import {
   buildSelectionSvgSync,
@@ -111,6 +113,16 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
   }
 
   const ids = [...context.selectedElementIds];
+  if (ids.length === 1 && canRemoveTreeChild(context)) {
+    context.dispatch({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeTreeChild",
+        childSourceId: ids[0]!
+      }
+    });
+    return true;
+  }
   if (ids.length === 1 && parseEditableTargetId(ids[0]!).kind === "node-adornment") {
     context.dispatch({
       type: "APPLY_EDIT_ACTION",
@@ -440,7 +452,7 @@ export function canCutSelection(context: SelectionCommandContext): boolean {
 }
 
 export function canDeleteSelection(context: SelectionCommandContext): boolean {
-  return availabilityFor(context).delete.enabled;
+  return availabilityFor(context).delete.enabled || canRemoveTreeChild(context);
 }
 
 export function canGroupSelection(context: SelectionCommandContext): boolean {
@@ -460,6 +472,58 @@ export function canReorderSelection(
 
 export function canPasteSelection(context: PasteCommandContext): boolean {
   return availabilityFor(context).paste.enabled;
+}
+
+export function canAddTreeChild(context: SelectionCommandContext): boolean {
+  const target = resolveTreeCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  if (target.kind === "child") {
+    return !target.foreach;
+  }
+  return target.kind === "root";
+}
+
+export function canAddTreeSibling(context: SelectionCommandContext): boolean {
+  const target = resolveTreeCommandTarget(context);
+  return target?.kind === "child" && !target.foreach;
+}
+
+export function canRemoveTreeChild(context: SelectionCommandContext): boolean {
+  const target = resolveTreeCommandTarget(context);
+  return target?.kind === "child" && !target.foreach;
+}
+
+export function addTreeChild(context: SelectionCommandContext): boolean {
+  const target = resolveTreeCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "addTreeChild",
+      parentSourceId: target.sourceId
+    }
+  });
+  return true;
+}
+
+export function addTreeSibling(context: SelectionCommandContext, position: "before" | "after"): boolean {
+  const target = resolveTreeCommandTarget(context);
+  if (!target || target.kind !== "child" || target.foreach) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action: {
+      kind: "addTreeSibling",
+      siblingSourceId: target.sourceId,
+      position
+    }
+  });
+  return true;
 }
 
 export function canAlignSelection(context: SelectionCommandContext, mode: AlignMode): boolean {
@@ -634,6 +698,62 @@ function selectedSnippets(context: SelectionCommandContext): string[] {
   }
 
   return snippets;
+}
+
+function resolveTreeCommandTarget(
+  context: SelectionCommandContext
+): { kind: "root" | "child"; sourceId: string; foreach: boolean } | null {
+  if (context.selectedElementIds.size !== 1) {
+    return null;
+  }
+  const sourceId = [...context.selectedElementIds][0]?.trim() ?? "";
+  if (!sourceId) {
+    return null;
+  }
+
+  const parseOptions = parseOptionsForContext(context);
+  const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
+  if (resolved.kind !== "found") {
+    return null;
+  }
+  if (resolved.target.kind === "tree-child") {
+    return {
+      kind: "child",
+      sourceId,
+      foreach: resolved.target.treeChildForeach === true
+    };
+  }
+  if (resolved.target.kind !== "path-statement") {
+    return null;
+  }
+
+  const parsed = parseTikzForEdit(context.source, parseOptions);
+  const statement = findPathStatementById(parsed.figure.body, sourceId);
+  if (!statement) {
+    return null;
+  }
+  const hasNode = statement.items.some((item) => item.kind === "Node");
+  const hasChildren = statement.items.some((item) => item.kind === "ChildOperation");
+  if (!hasNode || !hasChildren) {
+    return null;
+  }
+  return { kind: "root", sourceId, foreach: false };
+}
+
+function findPathStatementById(statements: readonly Statement[], sourceId: string): PathStatement | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope") {
+      const nested = findPathStatementById(statement.body, sourceId);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+    if (statement.kind === "Path" && statement.id === sourceId) {
+      return statement;
+    }
+  }
+  return null;
 }
 
 function selectedStatementRefs(context: SelectionCommandContext) {

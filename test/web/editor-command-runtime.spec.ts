@@ -164,6 +164,84 @@ describe("editor-command-runtime", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("enables tree context commands for tree-child selection and routes commands to tree edit actions", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const leftText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.text === "left"
+    );
+    if (!leftText || leftText.kind !== "Text" || !leftText.treeChild) {
+      throw new Error("Expected tree child text element");
+    }
+    const selectedChildId = leftText.treeChild.childSourceId;
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([selectedChildId])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_CHILD].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DELETE].enabled).toBe(true);
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addTreeSibling",
+        siblingSourceId: selectedChildId,
+        position: "after"
+      }
+    });
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.DELETE, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeTreeChild",
+        childSourceId: selectedChildId
+      }
+    });
+  });
+
+  it("enables only add-child for tree-root selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \path node {root}
+    child { node {left} };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(["path:0"])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_CHILD].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER].enabled).toBe(false);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.TREE_ADD_CHILD, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addTreeChild",
+        parentSourceId: "path:0"
+      }
+    });
+  });
+
   it("enables point-targeted path commands when a matching active handle is set", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (2,0);

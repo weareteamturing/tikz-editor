@@ -63,6 +63,32 @@ describe("canvas context menu target resolution", () => {
 
     expect(result.target).toBe("selection-single-node");
   });
+
+  it("recognizes tree-root selections for tree-specific context menu", () => {
+    const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\begin{tikzpicture}
+  \path node {Root} child { node {Leaf} };
+\end{tikzpicture}`,
+      toolMode: "select",
+      clickedSourceId: "path:0",
+      selectedElementIds: new Set(["path:0"])
+    });
+
+    expect(result.target).toBe("selection-single-tree");
+  });
+
+  it("recognizes tree-child selections for tree-specific context menu", () => {
+    const result = resolveCanvasContextMenuTarget({
+      source: String.raw`\begin{tikzpicture}
+  \path node {Root} child { node {Leaf} };
+\end{tikzpicture}`,
+      toolMode: "select",
+      clickedSourceId: "path:0:tree-child:1:child-operation:0:2",
+      selectedElementIds: new Set(["path:0:tree-child:1:child-operation:0:2"])
+    });
+
+    expect(result.target).toBe("selection-single-tree");
+  });
 });
 
 describe("context menu clamping", () => {

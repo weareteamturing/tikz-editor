@@ -703,7 +703,7 @@ export function CanvasPanel() {
 
   const resolveIncludeEditEquationForSingleNode = useCallback(
     (target: CanvasContextMenuTarget, sourceId: string | null): boolean => {
-      if (target !== "selection-single-node" || !sourceId) {
+      if ((target !== "selection-single-node" && target !== "selection-single-node-tree") || !sourceId) {
         return false;
       }
       return resolveEquationNodeTarget(source, sourceId, editParseOptions) != null;
@@ -751,8 +751,11 @@ export function CanvasPanel() {
     dispatch({ type: "SET_ACTIVE_HANDLE", handleId: pendingNativeContextMenuRequest.clickedHandleId });
 
     const nativeEffectiveTarget =
-      pendingNativeContextMenuRequest.clickedHandleId && resolution.target === "selection-single"
-        ? "selection-single-path-point" as CanvasContextMenuTarget
+      pendingNativeContextMenuRequest.clickedHandleId
+      && (resolution.target === "selection-single" || resolution.target === "selection-single-tree")
+        ? (resolution.target === "selection-single-tree"
+            ? "selection-single-path-point-tree"
+            : "selection-single-path-point") as CanvasContextMenuTarget
         : resolution.target;
     const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(
       nativeEffectiveTarget,
@@ -1942,8 +1945,10 @@ export function CanvasPanel() {
       };
 
       const effectiveTarget =
-        clickedHandleId && resolution.target === "selection-single"
-          ? "selection-single-path-point" as CanvasContextMenuTarget
+        clickedHandleId && (resolution.target === "selection-single" || resolution.target === "selection-single-tree")
+          ? (resolution.target === "selection-single-tree"
+              ? "selection-single-path-point-tree"
+              : "selection-single-path-point") as CanvasContextMenuTarget
           : resolution.target;
       const equationSourceId = resolution.selectionAction.kind === "select-only"
         ? resolution.selectionAction.sourceId

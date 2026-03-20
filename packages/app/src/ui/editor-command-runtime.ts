@@ -14,7 +14,12 @@ import { getToolCapabilityStatus } from "./capabilities";
 import { resolveEquationNodeTargetFromSelection, type EquationNodeTarget } from "./equation-utils";
 import {
   actionAvailability,
+  addTreeChild,
+  addTreeSibling,
   alignSelection,
+  canAddTreeChild,
+  canAddTreeSibling,
+  canRemoveTreeChild,
   deleteSelectedPathPoint,
   flipSelection,
   copySelection,
@@ -276,6 +281,9 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       );
     })();
   const equationTarget = resolveEquationNodeTargetFromSelection(source, selectedElementIds, parseOptions);
+  const canTreeAddChild = canAddTreeChild(commandContext);
+  const canTreeAddSibling = canAddTreeSibling(commandContext);
+  const canTreeRemoveChild = canRemoveTreeChild(commandContext);
 
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
@@ -435,9 +443,27 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.DELETE]: {
-      enabled: availability.delete.enabled,
+      enabled: availability.delete.enabled || canTreeRemoveChild,
       run: () => {
         deleteSelection(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TREE_ADD_CHILD]: {
+      enabled: canTreeAddChild,
+      run: () => {
+        addTreeChild(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_BEFORE]: {
+      enabled: canTreeAddSibling,
+      run: () => {
+        addTreeSibling(commandContext, "before");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER]: {
+      enabled: canTreeAddSibling,
+      run: () => {
+        addTreeSibling(commandContext, "after");
       }
     },
     [APP_MENU_COMMAND_IDS.DUPLICATE]: {
