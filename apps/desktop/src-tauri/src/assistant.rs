@@ -2,7 +2,9 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Write};
@@ -17,6 +19,208 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const ASSISTANT_EVENT_NAME: &str = "desktop-assistant-event";
 const WATCH_INTERVAL_MS: u64 = 300;
+
+enum CodexLaunch {
+    Native { executable: PathBuf },
+    #[cfg(target_os = "windows")]
+    Wsl,
+}
+
+#[cfg(target_os = "windows")]
+fn windows_pathexts() -> Vec<String> {
+    let default = vec![
+        ".COM".to_string(),
+        ".EXE".to_string(),
+        ".BAT".to_string(),
+        ".CMD".to_string(),
+    ];
+    env::var("PATHEXT")
+        .ok()
+        .map(|value| {
+            value
+                .split(';')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .map(|entry| entry.to_ascii_uppercase())
+                .collect::<Vec<_>>()
+        })
+        .filter(|exts| !exts.is_empty())
+        .unwrap_or(default)
+}
+
+fn executable_in_dir(dir: &Path, name: &str) -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let has_ext = Path::new(name).extension().is_some();
+        if has_ext {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            return None;
+        }
+        let upper_name = name.to_ascii_uppercase();
+        for ext in windows_pathexts() {
+            let candidate = dir.join(format!("{upper_name}{ext}"));
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+        let direct = dir.join(name);
+        if direct.is_file() {
+            return Some(direct);
+        }
+        None
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let candidate = dir.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        None
+    }
+}
+
+fn find_executable_in_path(name: &str) -> Option<PathBuf> {
+    env::var_os("PATH").and_then(|raw_path| {
+        for dir in env::split_paths(&raw_path) {
+            if let Some(path) = executable_in_dir(&dir, name) {
+                return Some(path);
+            }
+        }
+        None
+    })
+}
+
+fn common_bin_dirs() -> Vec<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let mut dirs = Vec::new();
+        if let Some(user_profile) = env::var_os("USERPROFILE") {
+            dirs.push(
+                PathBuf::from(user_profile)
+                    .join("AppData")
+                    .join("Roaming")
+                    .join("npm"),
+            );
+        }
+        if let Some(program_files) = env::var_os("ProgramFiles") {
+            dirs.push(PathBuf::from(program_files).join("nodejs"));
+        }
+        dirs
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        vec![
+            PathBuf::from("/opt/homebrew/bin"),
+            PathBuf::from("/usr/local/bin"),
+            PathBuf::from("/opt/local/bin"),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/bin"),
+        ]
+    }
+}
+
+fn find_executable(name: &str) -> Option<PathBuf> {
+    if let Some(path) = find_executable_in_path(name) {
+        return Some(path);
+    }
+    for dir in common_bin_dirs() {
+        if let Some(path) = executable_in_dir(&dir, name) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn npm_global_bin_dir() -> Option<PathBuf> {
+    let npm = find_executable("npm")?;
+    let output = Command::new(npm)
+        .args(["config", "get", "prefix"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if prefix.is_empty() || prefix == "undefined" {
+        return None;
+    }
+    let prefix_path = PathBuf::from(prefix);
+    #[cfg(target_os = "windows")]
+    {
+        Some(prefix_path)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Some(prefix_path.join("bin"))
+    }
+}
+
+fn find_codex_native() -> Option<PathBuf> {
+    if let Some(path) = find_executable("codex") {
+        return Some(path);
+    }
+    if let Some(npm_bin) = npm_global_bin_dir() {
+        if let Some(path) = executable_in_dir(&npm_bin, "codex") {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn wsl_command_exists(name: &str) -> bool {
+    Command::new("wsl")
+        .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn resolve_codex_launch() -> Option<CodexLaunch> {
+    if let Some(path) = find_codex_native() {
+        return Some(CodexLaunch::Native { executable: path });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if find_executable("wsl").is_some() && wsl_command_exists("codex") {
+            return Some(CodexLaunch::Wsl);
+        }
+    }
+    None
+}
+
+fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
+    let mut seen = HashSet::new();
+    let mut entries = Vec::<PathBuf>::new();
+    if let Some(raw) = env::var_os("PATH") {
+        for dir in env::split_paths(&raw) {
+            if seen.insert(dir.clone()) {
+                entries.push(dir);
+            }
+        }
+    }
+    if let Some(dir) = extra_dir {
+        if seen.insert(dir.to_path_buf()) {
+            entries.push(dir.to_path_buf());
+        }
+    }
+    for dir in common_bin_dirs() {
+        if seen.insert(dir.clone()) {
+            entries.push(dir);
+        }
+    }
+    if let Some(npm_bin) = npm_global_bin_dir() {
+        if seen.insert(npm_bin.clone()) {
+            entries.push(npm_bin);
+        }
+    }
+    env::join_paths(entries).ok()
+}
 
 #[derive(Clone)]
 pub struct AssistantState {
@@ -205,8 +409,26 @@ impl AssistantState {
             return Ok(());
         }
 
-        let mut child = Command::new("codex")
-            .args(["app-server"])
+        let launch = resolve_codex_launch().ok_or_else(|| {
+            "Codex CLI was not found. Install it from the Assistant panel and retry.".to_string()
+        })?;
+        let mut command = match &launch {
+            CodexLaunch::Native { executable } => {
+                let mut cmd = Command::new(executable);
+                cmd.arg("app-server");
+                if let Some(path) = augmented_path(executable.parent()) {
+                    cmd.env("PATH", path);
+                }
+                cmd
+            }
+            #[cfg(target_os = "windows")]
+            CodexLaunch::Wsl => {
+                let mut cmd = Command::new("wsl");
+                cmd.args(["codex", "app-server"]);
+                cmd
+            }
+        };
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

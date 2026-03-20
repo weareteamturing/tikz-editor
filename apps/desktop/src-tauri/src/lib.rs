@@ -15,6 +15,7 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
+use std::ffi::OsString;
 use std::process::Command;
 use std::sync::Mutex;
 use tauri::{
@@ -450,14 +451,267 @@ fn build_context_menu<R: tauri::Runtime>(
     Ok(menu)
 }
 
+#[cfg(target_os = "windows")]
+fn windows_pathexts() -> Vec<String> {
+    let default = vec![
+        ".COM".to_string(),
+        ".EXE".to_string(),
+        ".BAT".to_string(),
+        ".CMD".to_string(),
+    ];
+    env::var("PATHEXT")
+        .ok()
+        .map(|value| {
+            value
+                .split(';')
+                .map(str::trim)
+                .filter(|entry| !entry.is_empty())
+                .map(|entry| entry.to_ascii_uppercase())
+                .collect::<Vec<_>>()
+        })
+        .filter(|exts| !exts.is_empty())
+        .unwrap_or(default)
+}
+
+fn executable_in_dir(dir: &Path, name: &str) -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let has_ext = Path::new(name).extension().is_some();
+        if has_ext {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            return None;
+        }
+        let upper_name = name.to_ascii_uppercase();
+        for ext in windows_pathexts() {
+            let candidate = dir.join(format!("{upper_name}{ext}"));
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+        let direct = dir.join(name);
+        if direct.is_file() {
+            return Some(direct);
+        }
+        None
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let candidate = dir.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        None
+    }
+}
+
+fn find_executable_in_path(name: &str) -> Option<PathBuf> {
+    env::var_os("PATH").and_then(|raw_path| {
+        for dir in env::split_paths(&raw_path) {
+            if let Some(path) = executable_in_dir(&dir, name) {
+                return Some(path);
+            }
+        }
+        None
+    })
+}
+
+fn common_bin_dirs() -> Vec<PathBuf> {
+    #[cfg(target_os = "windows")]
+    {
+        let mut dirs = Vec::new();
+        if let Some(user_profile) = env::var_os("USERPROFILE") {
+            dirs.push(
+                PathBuf::from(user_profile)
+                    .join("AppData")
+                    .join("Roaming")
+                    .join("npm"),
+            );
+        }
+        if let Some(program_files) = env::var_os("ProgramFiles") {
+            dirs.push(PathBuf::from(program_files).join("nodejs"));
+        }
+        dirs
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        vec![
+            PathBuf::from("/opt/homebrew/bin"),
+            PathBuf::from("/usr/local/bin"),
+            PathBuf::from("/opt/local/bin"),
+            PathBuf::from("/usr/bin"),
+            PathBuf::from("/bin"),
+        ]
+    }
+}
+
+fn find_executable_base(name: &str) -> Option<PathBuf> {
+    if let Some(path) = find_executable_in_path(name) {
+        return Some(path);
+    }
+    for dir in common_bin_dirs() {
+        if let Some(path) = executable_in_dir(&dir, name) {
+            return Some(path);
+        }
+    }
+    None
+}
+
+fn npm_global_bin_dir() -> Option<PathBuf> {
+    let npm = find_executable_base("npm")?;
+    let output = Command::new(npm)
+        .args(["config", "get", "prefix"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let prefix = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if prefix.is_empty() || prefix == "undefined" {
+        return None;
+    }
+    let prefix_path = PathBuf::from(prefix);
+    #[cfg(target_os = "windows")]
+    {
+        Some(prefix_path)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Some(prefix_path.join("bin"))
+    }
+}
+
+fn find_executable(name: &str) -> Option<PathBuf> {
+    if let Some(path) = find_executable_base(name) {
+        return Some(path);
+    }
+    if name == "codex" {
+        if let Some(npm_bin) = npm_global_bin_dir() {
+            if let Some(path) = executable_in_dir(&npm_bin, name) {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
 fn command_exists(name: &str) -> bool {
-    Command::new("which")
-        .arg(name)
+    find_executable(name).is_some()
+}
+
+fn wsl_command_exists(name: &str) -> bool {
+    Command::new("wsl")
+        .args(["sh", "-lc", &format!("command -v {name} >/dev/null 2>&1")])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
+}
+
+fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
+    let mut seen = HashSet::new();
+    let mut entries = Vec::<PathBuf>::new();
+    if let Some(raw) = env::var_os("PATH") {
+        for dir in env::split_paths(&raw) {
+            if seen.insert(dir.clone()) {
+                entries.push(dir);
+            }
+        }
+    }
+    if let Some(dir) = extra_dir {
+        if seen.insert(dir.to_path_buf()) {
+            entries.push(dir.to_path_buf());
+        }
+    }
+    for dir in common_bin_dirs() {
+        if seen.insert(dir.clone()) {
+            entries.push(dir);
+        }
+    }
+    if let Some(npm_bin) = npm_global_bin_dir() {
+        if seen.insert(npm_bin.clone()) {
+            entries.push(npm_bin);
+        }
+    }
+    env::join_paths(entries).ok()
+}
+
+#[derive(Serialize)]
+struct CodexStatus {
+    installed: bool,
+    has_npm: bool,
+    has_brew: bool,
+    has_wsl: bool,
+}
+
+#[tauri::command]
+fn desktop_check_codex_status() -> CodexStatus {
+    let has_wsl = cfg!(target_os = "windows") && command_exists("wsl");
+    let installed = command_exists("codex") || (has_wsl && wsl_command_exists("codex"));
+    CodexStatus {
+        installed,
+        has_npm: command_exists("npm"),
+        has_brew: command_exists("brew"),
+        has_wsl,
+    }
+}
+
+#[tauri::command]
+async fn desktop_install_codex(method: String) -> Result<String, String> {
+    let (cmd, args): (String, Vec<&str>) = match method.as_str() {
+        "npm" => {
+            let npm = find_executable("npm")
+                .ok_or_else(|| "npm is not available. Install Node.js/npm first.".to_string())?;
+            (npm.to_string_lossy().to_string(), vec!["install", "-g", "@openai/codex"])
+        }
+        "brew" => {
+            let brew = find_executable("brew")
+                .ok_or_else(|| "Homebrew is not available on this machine.".to_string())?;
+            (brew.to_string_lossy().to_string(), vec!["install", "codex"])
+        }
+        "wsl" => {
+            if !command_exists("wsl") {
+                return Err("WSL is not available on this machine.".to_string());
+            }
+            ("wsl".to_string(), vec!["npm", "install", "-g", "@openai/codex"])
+        }
+        _ => return Err(format!("Unknown install method: {method}")),
+    };
+    let mut command = Command::new(&cmd);
+    command.args(&args);
+    if method != "wsl" {
+        if let Some(path) = augmented_path(None) {
+            command.env("PATH", path);
+        }
+    }
+    let output = command
+        .output()
+        .map_err(|e| format!("Failed to run {cmd}: {e}"))?;
+    if output.status.success() {
+        let installed_now = command_exists("codex")
+            || (cfg!(target_os = "windows") && command_exists("wsl") && wsl_command_exists("codex"));
+        let mut message = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if message.is_empty() {
+            message = "Install completed.".to_string();
+        }
+        if installed_now {
+            message.push_str("\nCodex is now discoverable by the app.");
+        } else {
+            message.push_str("\nInstall finished, but Codex is not yet discoverable from this process PATH.");
+            message.push_str("\nThe app will keep probing common npm/bin locations automatically.");
+        }
+        Ok(message)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            Err(format!("{cmd} failed with exit code {:?}", output.status.code()))
+        } else {
+            Err(format!("{cmd} failed: {stderr}"))
+        }
+    }
 }
 
 #[tauri::command]
@@ -1066,6 +1320,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            desktop_check_codex_status,
+            desktop_install_codex,
             desktop_check_latex_available,
             desktop_compile_tikz,
             desktop_open_text,

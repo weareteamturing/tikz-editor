@@ -84,6 +84,8 @@ type DesktopBridge = {
   onWindowCloseRequest: (handler: () => void) => Promise<() => void>;
   showContextMenu: (payload: DesktopContextMenuPayload) => Promise<void>;
   onContextMenuCommand: (handler: (payload: { requestId: string; commandId: AppMenuCommandId }) => void) => Promise<() => void>;
+  checkCodexStatus?: () => Promise<{ installed: boolean; has_npm: boolean; has_brew: boolean; has_wsl: boolean }>;
+  installCodex?: (method: "npm" | "brew" | "wsl") => Promise<string>;
   assistantEnsureDocumentThread?: (params: {
     documentId: string;
     source: string;
@@ -658,6 +660,14 @@ function createDefaultBridge(): DesktopBridge {
         handler(event.payload);
       });
     },
+    checkCodexStatus: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<{ installed: boolean; has_npm: boolean; has_brew: boolean; has_wsl: boolean }>("desktop_check_codex_status");
+    },
+    installCodex: async (method: "npm" | "brew" | "wsl") => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<string>("desktop_install_codex", { method });
+    },
     assistantEnsureDocumentThread: async ({ documentId, source, threadId, workspacePath, figurePath, previewPath }) => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantThreadSummary>("desktop_assistant_ensure_document_thread", {
@@ -1024,6 +1034,14 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       }
     },
     assistant: {
+      checkCodexStatus: async () => {
+        const result = await getBridge().checkCodexStatus?.();
+        if (!result) return { installed: false, hasNpm: false, hasBrew: false, hasWsl: false };
+        return { installed: result.installed, hasNpm: result.has_npm, hasBrew: result.has_brew, hasWsl: result.has_wsl };
+      },
+      installCodex: async (method) => {
+        return await getBridge().installCodex?.(method) ?? "";
+      },
       ensureDocumentThread: async (params) => await getBridge().assistantEnsureDocumentThread?.(params)
         ?? Promise.reject(new Error("Assistant bridge unavailable.")),
       startTurn: async (params) => await getBridge().assistantStartTurn?.(params)

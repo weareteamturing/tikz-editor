@@ -367,6 +367,69 @@
   text-align: center;
 }
 
+.empty code {
+  background: var(--bg-input);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.95em;
+}
+
+.installButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.installNotice {
+  margin: 8px 0 4px;
+}
+
+.installCommandList {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  text-align: left;
+  color: var(--text-faint);
+}
+
+.installHint {
+  margin-top: 6px;
+}
+
+.installButton {
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-input);
+  padding: 4px 14px;
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.installButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.installButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.installError {
+  color: var(--color-warning);
+  margin-top: 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.installOutput {
+  color: var(--text-faint);
+  margin-top: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
 .error {
   margin: 8px;
   border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);

@@ -13,7 +13,8 @@ import type {
   AssistantAccountSnapshot,
   AssistantItem,
   AssistantModelOption,
-  AssistantPendingApproval
+  AssistantPendingApproval,
+  CodexStatus
 } from "../platform/types";
 import css from "./AssistantPanel.module.css";
 
@@ -43,6 +44,12 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   const [metaLoading, setMetaLoading] = useState(false);
   const [pendingImageAttachments, setPendingImageAttachments] = useState<AssistantComposerImageAttachment[]>([]);
   const [expandedAttachmentId, setExpandedAttachmentId] = useState<string | null>(null);
+  const [codexStatus, setCodexStatus] = useState<CodexStatus | null>(null);
+  const [codexStatusChecked, setCodexStatusChecked] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [installError, setInstallError] = useState<string | null>(null);
+  const [installOutput, setInstallOutput] = useState<string | null>(null);
+  const [codexStatusError, setCodexStatusError] = useState<string | null>(null);
   const nextAttachmentIdRef = useRef(0);
   const pendingImageAttachmentsRef = useRef<AssistantComposerImageAttachment[]>([]);
   const timelineRef = useRef<HTMLDivElement | null>(null);
@@ -124,8 +131,91 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     timeline.scrollTop = timeline.scrollHeight;
   }, [groupedItems.length, doc?.assistantPendingApprovals.length]);
 
+  useEffect(() => {
+    if (!assistantAvailable || !assistantApi?.checkCodexStatus) {
+      setCodexStatusChecked(true);
+      return;
+    }
+    let disposed = false;
+    void assistantApi.checkCodexStatus().then((status) => {
+      if (!disposed) {
+        setCodexStatus(status);
+        setCodexStatusError(null);
+        setCodexStatusChecked(true);
+      }
+    }).catch((error) => {
+      if (!disposed) {
+        setCodexStatusError(error instanceof Error ? error.message : String(error));
+        setCodexStatusChecked(true);
+      }
+    });
+    return () => { disposed = true; };
+  }, [assistantAvailable, assistantApi]);
+
   if (!assistantAvailable) {
     return <div className={css.empty}>Codex assistant is only available in the desktop app.</div>;
+  }
+
+  if (codexStatusChecked && !codexStatus?.installed) {
+    const detected = codexStatus ?? { installed: false, hasNpm: false, hasBrew: false, hasWsl: false };
+    const methods: Array<{ method: "npm" | "brew" | "wsl"; label: string; command: string }> = [];
+    if (detected.hasNpm) methods.push({ method: "npm", label: "Install with npm", command: "npm install -g @openai/codex" });
+    if (detected.hasBrew) methods.push({ method: "brew", label: "Install with Homebrew", command: "brew install codex" });
+    if (detected.hasWsl) methods.push({ method: "wsl", label: "Install with WSL", command: "wsl npm install -g @openai/codex" });
+    return (
+      <div className={css.empty}>
+        <p>Codex CLI is not installed.</p>
+        {methods.length > 0 ? (
+          <>
+            <p className={css.installNotice}>Clicking an install button runs the matching command on your machine:</p>
+            <ul className={css.installCommandList}>
+              {methods.map(({ method, command }) => (
+                <li key={method}><code>{command}</code></li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {detected.hasWsl ? (
+          <p className={css.installHint}>WSL install uses your default WSL distro. The assistant will run via WSL if native Windows Codex is unavailable.</p>
+        ) : null}
+        <p className={css.installHint}>No app restart is required; the app refreshes command lookup (including common npm/bin locations) after install.</p>
+        {methods.length > 0 ? (
+          <div className={css.installButtons}>
+            {methods.map(({ method, label }) => (
+              <button
+                key={method}
+                className={css.installButton}
+                disabled={installing}
+                onClick={async () => {
+                  setInstalling(true);
+                  setInstallError(null);
+                  setInstallOutput(null);
+                  try {
+                    const output = await assistantApi?.installCodex?.(method);
+                    setInstallOutput(output?.trim() ? output : "Install command finished.");
+                    const status = await assistantApi?.checkCodexStatus?.();
+                    if (status) {
+                      setCodexStatus(status);
+                    }
+                  } catch (e) {
+                    setInstallError(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setInstalling(false);
+                  }
+                }}
+              >
+                {installing ? "Installing..." : label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p>Install manually: <code>npm install -g @openai/codex</code></p>
+        )}
+        {codexStatusError && <p className={css.installError}>Could not auto-detect Codex status: {codexStatusError}</p>}
+        {installError && <p className={css.installError}>{installError}</p>}
+        {installOutput && <p className={css.installOutput}>{installOutput}</p>}
+      </div>
+    );
   }
 
   if (!doc) {

@@ -199,7 +199,16 @@ export type AssistantEvent =
   | { type: "dynamic-tool-call"; documentId: string; requestId: string; itemId?: string; tool: string; arguments?: unknown }
   | { type: "error"; documentId?: string; message: string };
 
+export type CodexStatus = {
+  installed: boolean;
+  hasNpm: boolean;
+  hasBrew: boolean;
+  hasWsl: boolean;
+};
+
 export type AssistantApi = {
+  checkCodexStatus?: () => Promise<CodexStatus>;
+  installCodex?: (method: "npm" | "brew" | "wsl") => Promise<string>;
   ensureDocumentThread?: (params: {
     documentId: string;
     source: string;
