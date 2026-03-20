@@ -17,8 +17,14 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 const ASSISTANT_EVENT_NAME: &str = "desktop-assistant-event";
 const WATCH_INTERVAL_MS: u64 = 300;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 enum CodexLaunch {
     Native {
@@ -195,6 +201,14 @@ fn resolve_codex_launch() -> Option<CodexLaunch> {
     }
     None
 }
+
+#[cfg(target_os = "windows")]
+fn hide_windows_console(command: &mut Command) {
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_windows_console(_command: &mut Command) {}
 
 fn augmented_path(extra_dir: Option<&Path>) -> Option<OsString> {
     let mut seen = HashSet::new();
@@ -421,12 +435,14 @@ impl AssistantState {
                 if let Some(path) = augmented_path(executable.parent()) {
                     cmd.env("PATH", path);
                 }
+                hide_windows_console(&mut cmd);
                 cmd
             }
             #[cfg(target_os = "windows")]
             CodexLaunch::Wsl => {
                 let mut cmd = Command::new("wsl");
                 cmd.args(["codex", "app-server"]);
+                hide_windows_console(&mut cmd);
                 cmd
             }
         };
