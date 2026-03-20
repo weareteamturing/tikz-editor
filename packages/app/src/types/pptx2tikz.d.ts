@@ -14,5 +14,5 @@ declare module "pptx2tikz" {
       includeLayoutElements?: boolean;
       xcolorRgbConvert?: boolean;
     }
-  ): { tex: string; images: unknown[] };
+  ): { body: string; images: unknown[] };
 }
