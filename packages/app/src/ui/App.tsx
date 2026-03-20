@@ -1160,6 +1160,7 @@ export function App() {
           <TikzJaxModal
             source={compiledPictureSource}
             onClose={() => setCompiledPictureSource(null)}
+            latex={platform.latex}
           />
         </Suspense>
       ) : null}

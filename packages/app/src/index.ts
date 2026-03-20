@@ -34,6 +34,7 @@ export type {
   AssistantThreadSummary,
   AssistantTurnStatus,
   EditorPlatform,
+  PlatformLatex,
   MenuCommandOrigin,
   MenuCommandHandler
 } from "./platform/types.js";

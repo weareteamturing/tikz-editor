@@ -241,4 +241,10 @@ export type EditorPlatform = {
   window?: PlatformWindowApi;
   haptics?: PlatformHaptics;
   assistant?: AssistantApi;
+  latex?: PlatformLatex;
+};
+
+export type PlatformLatex = {
+  checkAvailable: () => Promise<boolean>;
+  compileTikzToSvg: (source: string) => Promise<string>;
 };

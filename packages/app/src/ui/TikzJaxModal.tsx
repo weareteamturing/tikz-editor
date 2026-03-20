@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./Modal";
+import type { PlatformLatex } from "../platform/types";
 import css from "./TikzJaxModal.module.css";
 
 const TIKZJAX_FONTS_CSS = "https://cdn.jsdelivr.net/npm/@drgrice1/tikzjax@1.0.0-beta24/dist/fonts.css";
@@ -39,29 +40,68 @@ function ensureTikzJaxLoaded(): Promise<void> {
   return _libPromise;
 }
 
-type Phase = "loading-lib" | "lib-error" | "rendering" | "done";
+type Phase =
+  | "checking-native"
+  | "compiling-native"
+  | "native-error"
+  | "loading-lib"
+  | "lib-error"
+  | "rendering"
+  | "done";
 
 type TikzJaxModalProps = {
   source: string;
   onClose: () => void;
+  latex?: PlatformLatex;
 };
 
-export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
-  const [phase, setPhase] = useState<Phase>("loading-lib");
+export function TikzJaxModal({ source, onClose, latex }: TikzJaxModalProps) {
+  const [phase, setPhase] = useState<Phase>(latex ? "checking-native" : "loading-lib");
+  const [nativeError, setNativeError] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement | null>(null);
 
-  // Always go through ensureTikzJaxLoaded() so that even when the lib is
-  // already loaded, the phase transition to "rendering" happens as a microtask
-  // after the initial render — keeping the rendering effect out of React
-  // StrictMode's double-invocation on mount.
+  // Try native LaTeX compilation if available
   useEffect(() => {
+    if (phase !== "checking-native" || !latex) return;
+    let cancelled = false;
+    latex.checkAvailable().then((available) => {
+      if (cancelled) return;
+      if (!available) {
+        setPhase("loading-lib");
+        return;
+      }
+      setPhase("compiling-native");
+      return latex.compileTikzToSvg(source).then((svg) => {
+        if (cancelled) return;
+        const output = outputRef.current;
+        if (output) {
+          output.innerHTML = svg;
+          const svgEl = output.querySelector("svg");
+          if (svgEl) {
+            svgEl.removeAttribute("width");
+            svgEl.removeAttribute("height");
+          }
+        }
+        setPhase("done");
+      });
+    }).catch((err) => {
+      if (cancelled) return;
+      setNativeError(String(err));
+      setPhase("native-error");
+    });
+    return () => { cancelled = true; };
+  }, [phase, latex, source]);
+
+  // TikZJax fallback path
+  useEffect(() => {
+    if (phase !== "loading-lib") return;
     ensureTikzJaxLoaded().then(
       () => setPhase("rendering"),
       () => setPhase("lib-error")
     );
-  }, []);
+  }, [phase]);
 
-  // Trigger rendering once the library is ready
+  // Trigger TikZJax rendering once the library is ready
   useEffect(() => {
     if (phase !== "rendering") return;
     const output = outputRef.current;
@@ -96,6 +136,8 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
   }, [phase, source]);
 
   const statusText =
+    phase === "checking-native" ? "Checking LaTeX availability…" :
+    phase === "compiling-native" ? "Compiling with LaTeX…" :
     phase === "loading-lib" ? "Loading TikZJax…" :
     phase === "lib-error" ? "Failed to load TikZJax from CDN." :
     phase === "rendering" ? "Compiling…" :
@@ -134,7 +176,6 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
                 const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="${TIKZJAX_FONTS_CSS}">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff}svg{width:auto;height:auto;max-width:90vw;max-height:90vh}</style>
 </head><body>${svg.outerHTML}</body></html>`;
                 const blob = new Blob([html], { type: "text/html" });
@@ -149,6 +190,23 @@ export function TikzJaxModal({ source, onClose }: TikzJaxModalProps) {
         </div>
 
         {statusText ? <div className={css.status}>{statusText}</div> : null}
+
+        {phase === "native-error" ? (
+          <div className={css.nativeError}>
+            <div className={css.status}>LaTeX compilation failed:</div>
+            <pre className={css.errorLog}>{nativeError}</pre>
+            <button
+              type="button"
+              className={css.closeBtn}
+              onClick={() => {
+                setNativeError(null);
+                setPhase("loading-lib");
+              }}
+            >
+              Retry with TikZJax
+            </button>
+          </div>
+        ) : null}
 
         <div className={css.output} ref={outputRef} />
     </Modal>

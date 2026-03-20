@@ -63,6 +63,11 @@ struct PendingOpenRequestsState {
     failures: Mutex<Vec<OpenTextFailurePayload>>,
 }
 
+#[derive(Default)]
+struct LatexAvailabilityCache {
+    result: Mutex<Option<bool>>,
+}
+
 #[derive(Serialize)]
 struct OpenTextPayload {
     source: String,
@@ -443,6 +448,93 @@ fn build_context_menu<R: tauri::Runtime>(
         menu.append(&built).map_err(|error| error.to_string())?;
     }
     Ok(menu)
+}
+
+fn command_exists(name: &str) -> bool {
+    Command::new("which")
+        .arg(name)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+fn desktop_check_latex_available(state: tauri::State<'_, LatexAvailabilityCache>) -> bool {
+    let mut cached = state.result.lock().unwrap();
+    if let Some(val) = *cached {
+        return val;
+    }
+    let available = command_exists("latex") && command_exists("dvisvgm");
+    *cached = Some(available);
+    available
+}
+
+#[tauri::command]
+fn desktop_compile_tikz(source: String) -> Result<String, String> {
+    let tmp = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
+    let tex_path = tmp.path().join("input.tex");
+    let tex_content = format!(
+        "\\documentclass[dvisvgm,border=2pt]{{standalone}}\n\\usepackage{{tikz}}\n\\begin{{document}}\n{source}\n\\end{{document}}\n"
+    );
+    fs::write(&tex_path, &tex_content).map_err(|e| format!("Failed to write .tex: {e}"))?;
+
+    // Run latex
+    let latex_result = Command::new("latex")
+        .args(["-interaction=nonstopmode", "-halt-on-error", "input.tex"])
+        .current_dir(tmp.path())
+        .output()
+        .map_err(|e| format!("Failed to run latex: {e}"))?;
+
+    if !latex_result.status.success() {
+        let log = String::from_utf8_lossy(&latex_result.stdout);
+        let stderr = String::from_utf8_lossy(&latex_result.stderr);
+        // Extract useful lines from the log (lines starting with ! or containing error info)
+        let tail: String = log
+            .lines()
+            .chain(stderr.lines())
+            .rev()
+            .take(60)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Err(format!("latex compilation failed:\n{tail}"));
+    }
+
+    let dvi_path = tmp.path().join("input.dvi");
+    if !dvi_path.exists() {
+        return Err("latex completed but DVI was not produced.".to_string());
+    }
+
+    // Run dvisvgm
+    let svg_path = tmp.path().join("output.svg");
+    let dvisvgm_result = Command::new("dvisvgm")
+        .args([
+            "--page=1",
+            "--bbox=min",
+            "--exact",
+            "--font-format=woff2",
+            "-o",
+            "output.svg",
+            "input.dvi",
+        ])
+        .current_dir(tmp.path())
+        .output()
+        .map_err(|e| format!("Failed to run dvisvgm: {e}"))?;
+
+    if !dvisvgm_result.status.success() {
+        let stderr = String::from_utf8_lossy(&dvisvgm_result.stderr);
+        return Err(format!("dvisvgm failed:\n{stderr}"));
+    }
+
+    if !svg_path.exists() {
+        return Err("dvisvgm completed but SVG was not produced.".to_string());
+    }
+
+    fs::read_to_string(&svg_path).map_err(|e| format!("Failed to read SVG: {e}"))
 }
 
 #[tauri::command]
@@ -948,6 +1040,7 @@ pub fn run() {
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
         .manage(PendingOpenRequestsState::default())
+        .manage(LatexAvailabilityCache::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -973,6 +1066,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            desktop_check_latex_available,
+            desktop_compile_tikz,
             desktop_open_text,
             desktop_open_binary,
             desktop_save_text,

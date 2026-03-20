@@ -1013,6 +1013,16 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         nativeMenuManager.refreshRecents();
       }
     },
+    latex: {
+      checkAvailable: async () => {
+        const { invoke } = await import("@tauri-apps/api/core");
+        return await invoke<boolean>("desktop_check_latex_available");
+      },
+      compileTikzToSvg: async (source: string) => {
+        const { invoke } = await import("@tauri-apps/api/core");
+        return await invoke<string>("desktop_compile_tikz", { source });
+      }
+    },
     assistant: {
       ensureDocumentThread: async (params) => await getBridge().assistantEnsureDocumentThread?.(params)
         ?? Promise.reject(new Error("Assistant bridge unavailable.")),

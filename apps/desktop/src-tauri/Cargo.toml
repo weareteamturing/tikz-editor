@@ -29,6 +29,7 @@ base64 = "0.22"
 rfd = "0.15"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 url = "2.5"
+tempfile = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-macos-haptics = "2.0"
