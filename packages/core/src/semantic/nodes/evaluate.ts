@@ -225,7 +225,14 @@ export function measureNodeAnchorExtents(
     trace: context.macroTraceCollector ?? undefined
   });
   const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
-  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeLocalStyle, 1, context.textEngine);
+  const baseNodeLayout = resolveNodeLayout(
+    resolvedNodeText,
+    expandedNodeOptions,
+    nodeLocalStyle,
+    1,
+    context.textEngine,
+    "text"
+  );
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const anchor = resolveNodeAnchor(expandedNodeOptions);
   const directionalExtents = resolveDirectionalAnchorExtents(anchor, nodeLayout.anchorHalfWidth, nodeLayout.anchorHalfHeight);
@@ -270,7 +277,7 @@ export function evaluateNodeItem(
   defaultPositionFraction?: number,
   defaultTargetPoint?: Point,
   baseStyleChain?: StyleChainEntry[],
-  placementOptions: { allowImplicitOriginHandle?: boolean } = {}
+  placementOptions: { allowImplicitOriginHandle?: boolean; textMode?: "text" | "math" } = {}
 ): {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
@@ -409,12 +416,19 @@ export function evaluateNodeItem(
           undefined,
           defaultTargetPoint,
           effectiveBaseStyleChain,
-          { allowImplicitOriginHandle: false }
+          { allowImplicitOriginHandle: false, textMode: matrixMode.textMode }
         )
     });
   }
 
-  const baseNodeLayout = resolveNodeLayout(resolvedNodeText, expandedNodeOptions, nodeStyle, 1, context.textEngine);
+  const baseNodeLayout = resolveNodeLayout(
+    resolvedNodeText,
+    expandedNodeOptions,
+    nodeStyle,
+    1,
+    context.textEngine,
+    placementOptions.textMode ?? "text"
+  );
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
   const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);

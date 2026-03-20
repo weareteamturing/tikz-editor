@@ -9,6 +9,7 @@ export type NodeTextValidationIssue = {
 
 export type NodeTextMeasureRequest = {
   text: string;
+  mode?: "text" | "math";
   textWidthPt: number | null;
   fontStyle: NodeTextFontStyle;
   fontWeight: NodeTextFontWeight;

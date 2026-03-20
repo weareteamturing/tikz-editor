@@ -56,6 +56,8 @@ type MatrixSpacingSpec = {
 export type MatrixMode = {
   enabled: boolean;
   matrixOfNodes: boolean;
+  matrixKind: "plain" | "nodes" | "math-nodes";
+  textMode: "text" | "math";
   includeEmptyCells: boolean;
   cellSeparator: string;
   rowSep: MatrixSpacingSpec;
@@ -92,18 +94,9 @@ type ResolvedMatrixCell = {
   cellSpan: Span;
 };
 
-export type MatrixNodeMetadata = {
-  matrixSourceId: string;
-  textSpan: Span;
-  rowCount: number;
-  columnCount: number;
-  cellSeparator: string;
-};
-
 export type MatrixNodeEvaluation = {
   behindElements: SceneElement[];
   frontElements: SceneElement[];
-  metadata?: MatrixNodeMetadata;
 };
 
 type MatrixNodeEvaluator = (item: NodeItem, defaultTargetPoint: Point) => MatrixNodeEvaluation;
@@ -184,7 +177,8 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         combinedCellOptions,
         cellStyle,
         cellTransformScale,
-        params.context.textEngine
+        params.context.textEngine,
+        params.matrixMode.textMode
       );
 
       cellGrid[row][column] = {
@@ -702,6 +696,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
         cellSourceId: cellItem.id,
         row: row + 1,
         column: column + 1,
+        textMode: params.matrixMode.textMode,
         textSpan: resolvedCell.cell.textSpan,
         cellSpan: resolvedCell.cellSpan
       };
@@ -716,32 +711,19 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
   if (matrixLayer === "behind") {
     return {
       behindElements: [...matrixNodeElements, ...behindCellElements, ...frontCellElements],
-      frontElements: [],
-      metadata: {
-        matrixSourceId: params.statement.id,
-        textSpan: params.item.textSpan,
-        rowCount,
-        columnCount: colCount,
-        cellSeparator: params.matrixMode.cellSeparator
-      }
+      frontElements: []
     };
   }
   return {
     behindElements: behindCellElements,
-    frontElements: [...matrixNodeElements, ...frontCellElements],
-    metadata: {
-      matrixSourceId: params.statement.id,
-      textSpan: params.item.textSpan,
-      rowCount,
-      columnCount: colCount,
-      cellSeparator: params.matrixMode.cellSeparator
-    }
+    frontElements: [...matrixNodeElements, ...frontCellElements]
   };
 }
 
 export type MatrixCellEditTarget = {
   row: number;
   column: number;
+  textMode: "text" | "math";
   cellSpan: Span;
   textSpan: Span;
   optionSpan?: Span;
@@ -773,6 +755,7 @@ export function resolveMatrixCellEditTarget(
   return {
     row,
     column,
+    textMode: mode.textMode,
     cellSpan: rawCell.span,
     textSpan: parsedCell.textSpan,
     optionSpan: resolveLeadingMatrixCellOptionSpan(rawCell.raw, rawCell.span.from)
@@ -790,6 +773,7 @@ function stampMatrixCellElements(elements: SceneElement[], matrixCell: MatrixCel
 export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMode {
   let enabled = false;
   let matrixOfNodes = false;
+  let matrixKind: MatrixMode["matrixKind"] = "plain";
   let includeEmptyCells = false;
   let cellSeparator = "&";
   let rowSep: MatrixSpacingSpec = { gap: 0, betweenOrigins: false };
@@ -801,6 +785,8 @@ export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMod
     return {
       enabled,
       matrixOfNodes,
+      matrixKind,
+      textMode: "text",
       includeEmptyCells,
       cellSeparator,
       rowSep,
@@ -817,6 +803,7 @@ export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMod
       } else if (entry.key === "matrix of nodes" || entry.key === "matrix of math nodes") {
         enabled = true;
         matrixOfNodes = true;
+        matrixKind = entry.key === "matrix of math nodes" ? "math-nodes" : "nodes";
       } else if (entry.key === "nodes in empty cells") {
         includeEmptyCells = true;
       }
@@ -842,8 +829,10 @@ export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMod
       if (parsed === true) {
         enabled = true;
         matrixOfNodes = true;
+        matrixKind = entry.key === "matrix of math nodes" ? "math-nodes" : "nodes";
       } else if (parsed === false) {
         matrixOfNodes = false;
+        matrixKind = "plain";
       }
       continue;
     }
@@ -887,6 +876,8 @@ export function resolveMatrixMode(options: OptionListAst | undefined): MatrixMod
   return {
     enabled,
     matrixOfNodes,
+    matrixKind,
+    textMode: matrixKind === "math-nodes" ? "math" : "text",
     includeEmptyCells,
     cellSeparator,
     rowSep,

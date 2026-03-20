@@ -1489,7 +1489,10 @@ export function CanvasPanel() {
       if (!sceneText.matrixCell && sourceSlice !== sceneText.text) {
         return null;
       }
-      if (sceneText.matrixCell && sourceSlice.length === 0) {
+      if (sceneText.matrixCell?.textMode === "text" && sourceSlice !== sceneText.text) {
+        return null;
+      }
+      if (sceneText.matrixCell?.textMode === "math" && sourceSlice.length === 0) {
         return null;
       }
       if (!(sceneText.textBlockWidth != null && sceneText.textBlockWidth > 0)) {
@@ -1498,7 +1501,7 @@ export function CanvasPanel() {
       return {
         sourceId: targetId,
         sourceSpan,
-        text: sceneText.text,
+        text: sceneText.matrixCell ? sourceSlice : sceneText.text,
         style: sceneText.style,
         totalWidth: sceneText.textBlockWidth,
         region

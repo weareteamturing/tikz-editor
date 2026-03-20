@@ -1,6 +1,7 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem } from "../ast/types.js";
 import type { ParseTikzResult } from "../parser/index.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
+import { normalizeOptionKey } from "./option-key.js";
 import type { OptionListAst } from "../options/types.js";
 import { parseOptionListRaw } from "../options/parse.js";
 import {
@@ -15,6 +16,7 @@ import { resolveMatrixCellEditTarget, resolveMatrixMode } from "../semantic/node
 export type PropertyTargetKind =
   | "figure"
   | "path-statement"
+  | "matrix-statement"
   | "style-source"
   | "path-keyword"
   | "node-item"
@@ -53,6 +55,10 @@ export type PropertyTarget = {
   adornmentKind?: "label" | "pin";
   adornmentIndex?: number;
   matrixSourceId?: string;
+  matrixKind?: "plain" | "nodes" | "math-nodes";
+  matrixTextMode?: "text" | "math";
+  matrixTextSpan?: Span;
+  matrixBodyOpenOffset?: number;
   matrixOfNodes?: boolean;
   row?: number;
   column?: number;
@@ -530,6 +536,10 @@ function findTargetInNodeList(
 }
 
 function makePathStatementTarget(statement: PathStatement, source: string): PropertyTarget {
+  const matrixTarget = makeMatrixStatementTarget(statement, source);
+  if (matrixTarget) {
+    return matrixTarget;
+  }
   const commandRegex =
     statement.command === "node"
       ? /\\?(?:node|matrix)\b/
@@ -544,6 +554,58 @@ function makePathStatementTarget(statement: PathStatement, source: string): Prop
     options: statement.options,
     optionsSpan: statement.options?.span,
     insertOffset
+  };
+}
+
+function makeMatrixStatementTarget(statement: PathStatement, source: string): PropertyTarget | null {
+  const matrixNode = statement.items.find((item): item is NodeItem => item.kind === "Node");
+  if (!matrixNode) {
+    return null;
+  }
+  const matrixMode = resolveMatrixMode(matrixNode.options);
+  if (!matrixMode.enabled) {
+    return null;
+  }
+  const insertOffset = resolveInsertOffset(source, statement.span, /\\?(?:node|matrix)\b/);
+  const bodyOpenOffset = resolveMatrixBodyOpenOffset(source, matrixNode.textSpan);
+  return {
+    id: statement.id,
+    kind: "matrix-statement",
+    pathCommand: statement.command,
+    span: statement.span,
+    options: normalizeMatrixStatementOptions(matrixNode.options),
+    optionsSpan: matrixNode.options?.span,
+    optionsFormat: "bracketed",
+    insertOffset,
+    matrixSourceId: statement.id,
+    matrixKind: matrixMode.matrixKind,
+    matrixTextMode: matrixMode.textMode,
+    matrixOfNodes: matrixMode.matrixOfNodes,
+    matrixTextSpan: matrixNode.textSpan,
+    matrixBodyOpenOffset: bodyOpenOffset
+  };
+}
+
+function normalizeMatrixStatementOptions(options: OptionListAst | undefined): OptionListAst | undefined {
+  if (!options) {
+    return options;
+  }
+  const hasSpecificMatrixKind = options.entries.some(
+    (entry) => (entry.kind === "flag" || entry.kind === "kv")
+      && (entry.key === "matrix of nodes" || entry.key === "matrix of math nodes")
+  );
+  if (!hasSpecificMatrixKind) {
+    return options;
+  }
+  const entries = options.entries.filter(
+    (entry) => !(entry.kind === "flag" || entry.kind === "kv") || normalizeOptionKey(entry.key) !== "matrix"
+  );
+  if (entries.length === options.entries.length) {
+    return options;
+  }
+  return {
+    ...options,
+    entries
   };
 }
 
@@ -594,6 +656,8 @@ function resolveMatrixCellTargetInStatements(
     optionSpan: resolvedCell.optionSpan,
     insertOffset,
     matrixSourceId: ref.statement.id,
+    matrixKind: matrixMode.matrixKind,
+    matrixTextMode: resolvedCell.textMode,
     matrixOfNodes: matrixMode.matrixOfNodes,
     row: parsedId.row,
     column: parsedId.column,
@@ -623,6 +687,19 @@ function findNodeItemInStatements(
     }
   }
   return null;
+}
+
+function resolveMatrixBodyOpenOffset(source: string, textSpan: Span): number | undefined {
+  for (let cursor = textSpan.from - 1; cursor >= 0; cursor -= 1) {
+    const char = source[cursor];
+    if (char === "{") {
+      return cursor;
+    }
+    if (!/\s/u.test(char ?? "")) {
+      break;
+    }
+  }
+  return undefined;
 }
 
 function parseMatrixCellTargetId(elementId: string): { matrixNodeSourceId: string; row: number; column: number } | null {

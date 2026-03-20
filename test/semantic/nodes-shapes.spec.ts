@@ -249,6 +249,7 @@ describe("semantic evaluator / nodes and shapes", () => {
         expect(text.sourceRef.sourceId).toBe(matrixCell.cellSourceId);
         expect(text.sourceRef.sourceSpan).toEqual(matrixCell.cellSpan);
         expect(matrixCell.matrixSourceId).toBe("path:0");
+        expect(matrixCell.textMode).toBe("text");
         expect(matrixCell.row).toBeGreaterThan(0);
         expect(matrixCell.column).toBeGreaterThan(0);
         expect(matrixCell.cellSpan.to).toBeGreaterThan(matrixCell.cellSpan.from);

@@ -1,4 +1,5 @@
 import type { StyleLevel } from "./actions.js";
+import { MATRIX_CELL_WRITABLE_KEYS } from "./matrix-editing.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import type { EditParseOptions } from "./parse-options.js";
 import {
@@ -369,8 +370,6 @@ export type SetPropertyWriteTarget = {
   writable: boolean;
   reason?: string;
 };
-
-const MATRIX_CELL_WRITABLE_KEYS = new Set(["draw", "fill", "text", "shape"]);
 
 export type InspectorProperty =
   | {
@@ -1651,6 +1650,216 @@ export function buildShadowSetPropertyMutations(
   }
 
   return [{ key: tikzKey, value: opts.length === 0 ? "true" : `{${opts.join(",")}}`, clearKeys: otherClearKeys }];
+}
+
+function resolveMatrixSpacingPt(options: OptionListAst | undefined, key: "row sep" | "column sep"): number {
+  const entry = options?.entries.find((candidate) => candidate.kind === "kv" && candidate.key === key);
+  if (!entry || entry.kind !== "kv") {
+    return 0;
+  }
+  const tokens = entry.valueRaw
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+  let sum = 0;
+  for (const token of tokens) {
+    const parsed = parseLength(token, "pt");
+    if (parsed != null) {
+      sum += parsed;
+    }
+  }
+  return sum;
+}
+
+function resolveMatrixColorOption(options: OptionListAst | undefined, key: "draw" | "fill"): string | null {
+  const entry = options?.entries.find((candidate) => candidate.kind === "kv" && candidate.key === key);
+  if (!entry || entry.kind !== "kv") {
+    return null;
+  }
+  const normalized = entry.valueRaw.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+export function buildMatrixInspectorDescriptor(
+  source: string,
+  matrixId: string,
+  parseOptions: EditParseOptions = {}
+): InspectorDescriptor | null {
+  const resolved = resolvePropertyTarget(source, matrixId, parseOptions);
+  if (resolved.kind === "not-found" || resolved.target.kind !== "matrix-statement") {
+    return null;
+  }
+
+  const writable = true;
+  const readOnlyReason = undefined;
+  const transformContext = resolveTransformInspectorMutationContext(source, matrixId, parseOptions);
+  const transformValues = transformContext.values;
+  const rowSepPt = resolveMatrixSpacingPt(resolved.target.options, "row sep");
+  const columnSepPt = resolveMatrixSpacingPt(resolved.target.options, "column sep");
+  const drawColor = resolveMatrixColorOption(resolved.target.options, "draw");
+  const fillColor = resolveMatrixColorOption(resolved.target.options, "fill");
+
+  return {
+    elementKind: "path",
+    elementId: matrixId,
+    writeTargetId: matrixId,
+    readOnlyReason,
+    sections: [
+      {
+        id: "transform",
+        title: "Transform",
+        sourceLevel: "command",
+        properties: [
+          {
+            kind: "number",
+            id: "xshift",
+            label: "X shift",
+            value: transformValues.xshift,
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: matrixId,
+              level: "command",
+              key: "xshift",
+              transformContext: {
+                key: "xshift",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "yshift",
+            label: "Y shift",
+            value: transformValues.yshift,
+            step: 0.1,
+            unit: "pt",
+            write: {
+              mode: "setProperty",
+              elementId: matrixId,
+              level: "command",
+              key: "yshift",
+              transformContext: {
+                key: "yshift",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "xscale",
+            label: "X scale",
+            value: transformValues.xscale,
+            step: 0.1,
+            write: {
+              mode: "setProperty",
+              elementId: matrixId,
+              level: "command",
+              key: "xscale",
+              transformContext: {
+                key: "xscale",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "yscale",
+            label: "Y scale",
+            value: transformValues.yscale,
+            step: 0.1,
+            write: {
+              mode: "setProperty",
+              elementId: matrixId,
+              level: "command",
+              key: "yscale",
+              transformContext: {
+                key: "yscale",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          },
+          {
+            kind: "number",
+            id: "rotate",
+            label: "Rotate",
+            value: transformValues.rotate,
+            step: 1,
+            unit: "deg",
+            write: {
+              mode: "setProperty",
+              elementId: matrixId,
+              level: "command",
+              key: "rotate",
+              transformContext: {
+                key: "rotate",
+                values: cloneTransformInspectorValues(transformContext.values),
+                presence: transformContext.presence ? { ...transformContext.presence } : undefined
+              },
+              writable,
+              reason: readOnlyReason
+            }
+          }
+        ]
+      },
+      {
+        id: "matrix",
+        title: "Matrix",
+        sourceLevel: "command",
+        properties: [
+          {
+            kind: "length",
+            id: "matrix-row-sep",
+            label: "Row sep",
+            value: rowSepPt,
+            step: 0.1,
+            unit: "pt",
+            write: { mode: "setProperty", elementId: matrixId, level: "command", key: "row sep", writable, reason: readOnlyReason }
+          },
+          {
+            kind: "length",
+            id: "matrix-column-sep",
+            label: "Column sep",
+            value: columnSepPt,
+            step: 0.1,
+            unit: "pt",
+            write: { mode: "setProperty", elementId: matrixId, level: "command", key: "column sep", writable, reason: readOnlyReason }
+          },
+          {
+            kind: "color",
+            id: "matrix-draw",
+            label: "Draw",
+            value: drawColor,
+            syntaxValue: drawColor,
+            options: colorOptionsForValue(drawColor),
+            write: { mode: "setProperty", elementId: matrixId, level: "command", key: "draw", writable, reason: readOnlyReason }
+          },
+          {
+            kind: "color",
+            id: "matrix-fill",
+            label: "Fill",
+            value: fillColor,
+            syntaxValue: fillColor,
+            options: colorOptionsForValue(fillColor),
+            write: { mode: "setProperty", elementId: matrixId, level: "command", key: "fill", writable, reason: readOnlyReason }
+          }
+        ]
+      }
+    ]
+  };
 }
 
 export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
@@ -4129,7 +4338,7 @@ function resolveInlineWriteTarget(
             targetId,
             targetKind: resolved.target.kind,
             writable: false,
-            reason: "Cell property editing is only available for matrix of nodes."
+            reason: "Cell property editing is only available for matrix node cells."
           };
         }
         return {

@@ -144,6 +144,7 @@ describe("scope overlay matrix augmentation", () => {
           cellSourceId: "node:0:0:matrix-cell:1:1",
           row: 1,
           column: 1,
+          textMode: "text",
           textSpan: { from: 0, to: 1 },
           cellSpan: { from: 0, to: 1 }
         }

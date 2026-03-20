@@ -173,8 +173,8 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
         fontWeight: "normal",
         fontFamily: "serif"
       });
-      const tex = buildWrappedTeX(prepared.text, null, prepared.font);
-      const defaultMeasureKey = measurementKey(prepared.text, null, prepared.font);
+      const tex = buildWrappedTeX(prepared.text, null, prepared.font, "text");
+      const defaultMeasureKey = measurementKey("text", prepared.text, null, prepared.font);
 
       try {
         const node = runtime.tex2svg(tex, { display: false });
@@ -203,16 +203,17 @@ async function initializeEngine(font: MathJaxFont): Promise<NodeTextEngine> {
     measure(request: NodeTextMeasureRequest): NodeTextMetrics | null {
       const scale = computeFontScale(request.fontSizePt);
       const normalizedWidth = request.textWidthPt == null ? null : request.textWidthPt / scale;
+      const mode = request.mode ?? "text";
       const prepared = normalizeMathJaxTextInput(request.text, {
         fontStyle: request.fontStyle,
         fontWeight: request.fontWeight,
         fontFamily: request.fontFamily
       });
-      const cacheKey = measurementKey(prepared.text, normalizedWidth, prepared.font);
+      const cacheKey = measurementKey(mode, prepared.text, normalizedWidth, prepared.font);
 
       let entry: CachedRenderEntry | null = cache.get(cacheKey) ?? null;
       if (!entry) {
-        const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font);
+        const tex = buildWrappedTeX(prepared.text, normalizedWidth, prepared.font, mode);
         try {
           const node = runtime.tex2svg(tex, { display: false });
           entry = buildCacheEntry(cacheKey, node, runtime.startup?.adaptor ?? null);
@@ -916,11 +917,13 @@ type BrowserDocumentLike = {
 };
 
 function measurementKey(
+  mode: "text" | "math",
   text: string,
   textWidthPt: number | null,
   font: TextFontOptions
 ): string {
   return JSON.stringify({
+    mode,
     text,
     textWidthPt: textWidthPt == null ? null : formatPt(textWidthPt),
     fontStyle: font.fontStyle,
@@ -932,19 +935,26 @@ function measurementKey(
 function buildWrappedTeX(
   text: string,
   textWidthPt: number | null,
-  font: TextFontOptions
+  font: TextFontOptions,
+  mode: "text" | "math" = "text"
 ): string {
   let styledText = text;
-  if (font.fontFamily === "sans") {
+  if (mode === "text" && font.fontFamily === "sans") {
     styledText = `\\textsf{${styledText}}`;
-  } else if (font.fontFamily === "monospace") {
+  } else if (mode === "text" && font.fontFamily === "monospace") {
     styledText = `\\texttt{${styledText}}`;
   }
-  if (font.fontWeight === "bold") {
+  if (mode === "text" && font.fontWeight === "bold") {
     styledText = `\\textbf{${styledText}}`;
   }
-  if (font.fontStyle === "italic") {
+  if (mode === "text" && font.fontStyle === "italic") {
     styledText = `\\textit{${styledText}}`;
+  }
+  if (mode === "math") {
+    if (textWidthPt == null) {
+      return styledText;
+    }
+    return `\\parbox{${formatPt(textWidthPt)}pt}{$${styledText}$}`;
   }
   if (textWidthPt == null) {
     return `\\mbox{${styledText}}`;

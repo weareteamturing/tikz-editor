@@ -162,6 +162,7 @@ describe("rectHitRegionsForTargetId", () => {
         cellSourceId: targetId,
         row: 1,
         column: 1,
+        textMode: "text",
         textSpan: { from: 22, to: 27 },
         cellSpan: { from: 20, to: 30 }
       },

@@ -29,6 +29,20 @@ describe("render pipeline", () => {
     expect(result.svg.svg).toContain('stroke-dasharray="3 3"');
   });
 
+  it("renders matrix of math nodes cells in math mode", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of math nodes] {
+    x^2 & \frac{1}{y} \\
+  };
+\end{tikzpicture}`;
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.svg.svg).toContain('data-text-renderer="mathjax"');
+    expect(result.svg.svg).toContain('data-latex="x^2"');
+    expect(result.svg.svg).toContain('data-latex="\\frac{1}{y}"');
+    expect(result.svg.svg).not.toContain('\\mbox{x^2}');
+  });
+
   it("mirrors rotated ellipse arc angles when emitting SVG path data", () => {
     const source = String.raw`\begin{tikzpicture}
   \fill (0,0) ellipse[x radius=1, y radius=2, rotate=45];

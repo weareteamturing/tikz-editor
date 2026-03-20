@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseLength } from "../../packages/core/src/semantic/coords/parse-length.js";
-import { buildMatrixInspectorDescriptor } from "../../packages/app/src/ui/inspector-panel/useInspectorModel.js";
+import { buildMatrixInspectorDescriptor } from "../../packages/core/src/edit/inspector.js";
 
 describe("matrix inspector model descriptor", () => {
   it("builds matrix-level controls for matrix statements", () => {

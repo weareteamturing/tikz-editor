@@ -2795,6 +2795,25 @@ describe("getInspectorDescriptor", () => {
 });
 
 describe("resolvePropertyTarget – matrix cells", () => {
+  it("resolves matrix statement ids to matrix-statement targets", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,row sep=2mm,column sep=3mm] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+
+    const resolved = resolvePropertyTarget(source, "path:0");
+    expect(resolved.kind).toBe("found");
+    if (resolved.kind !== "found") {
+      throw new Error("Expected matrix statement target");
+    }
+
+    expect(resolved.target.kind).toBe("matrix-statement");
+    expect(resolved.target.optionsSpan).toBeDefined();
+    expect(resolved.target.matrixKind).toBe("nodes");
+    expect(resolved.target.matrixTextMode).toBe("text");
+  });
+
   it("resolves matrix-cell synthetic ids to cell text spans", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes] {
@@ -2842,6 +2861,38 @@ describe("resolvePropertyTarget – matrix cells", () => {
       editHandles: rendered.semantic.editHandles
     });
 
+    const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
+    expect(strokeSection).toBeDefined();
+    if (!strokeSection) {
+      throw new Error("Expected stroke section");
+    }
+    const strokeColor = strokeSection.properties.find((property) => property.kind === "color");
+    expect(strokeColor).toBeDefined();
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected stroke color property");
+    }
+    expect(strokeColor.write.writable).toBe(true);
+  });
+
+  it("allows supported matrix-cell inspector writes for matrix of math nodes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of math nodes,nodes={draw}] {
+    x^2 & y^2 \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixCellText = rendered.semantic.scene.elements.find(
+      (entry) => entry.kind === "Text" && entry.matrixCell?.cellSourceId === "node:0:0:matrix-cell:1:1"
+    );
+    expect(matrixCellText).toBeDefined();
+    if (!matrixCellText) {
+      throw new Error("Expected matrix cell text element");
+    }
+
+    const descriptor = getInspectorDescriptor(matrixCellText, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
     const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
     expect(strokeSection).toBeDefined();
     if (!strokeSection) {

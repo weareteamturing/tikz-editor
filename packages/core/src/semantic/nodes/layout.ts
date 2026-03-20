@@ -10,7 +10,8 @@ export function resolveNodeLayout(
   options: PathOptionItem["options"] | undefined,
   style: ResolvedStyle,
   _transformScale = 1,
-  textEngine: NodeTextEngine | null = null
+  textEngine: NodeTextEngine | null = null,
+  textMode: "text" | "math" = "text"
 ): NodeLayout {
   const fontSize = style.fontSize;
   const charWidth = fontSize * 0.7;
@@ -103,6 +104,7 @@ export function resolveNodeLayout(
 
   const measuredText = textEngine?.measure({
     text,
+    mode: textMode,
     textWidthPt: textWidth,
     fontStyle: style.fontStyle,
     fontWeight: style.fontWeight,

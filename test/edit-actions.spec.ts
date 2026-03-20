@@ -482,7 +482,7 @@ describe("applyEditAction – moveElement", () => {
     expectPatchesReconstructSource(source, result);
   });
 
-  it("moves matrix statements by rewriting at options when inline placement is absent", () => {
+  it("moves matrix statements by normalizing buggy at options into inline placement", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes,at={(0,0)}] {
     A & B \\
@@ -497,10 +497,11 @@ describe("applyEditAction – moveElement", () => {
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toContain("at={(1,2)}");
+    expect(result.newSource).toContain("\\matrix[matrix of nodes] at (1,2) {");
+    expect(result.newSource).not.toContain("at={");
   });
 
-  it("moves matrix statements without placement by inserting at=(...)", () => {
+  it("moves matrix statements without placement by inserting inline at (...)", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes] {
     A & B \\
@@ -515,7 +516,33 @@ describe("applyEditAction – moveElement", () => {
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).toMatch(/matrix of nodes,\s*at=\(1,2\)/);
+    expect(result.newSource).toContain("\\matrix[matrix of nodes] at (1,2) {");
+    expect(result.newSource).not.toContain("at=(");
+  });
+
+  it("moves matrix statements with ampersand replacement using inline placement syntax", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[
+    matrix of nodes,
+    ampersand replacement=\&,
+  ] (m) {
+    A \& B \& C \\
+    D \& E \& F \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "moveElement",
+      elementId: "path:0",
+      delta: { x: cm(-0.21), y: cm(0.17) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain("ampersand replacement=\\&");
+    expect(result.newSource).toContain("] (m) at (-0.21,0.17) {");
+    expect(result.newSource).not.toContain("at=");
+    expect(result.newSource).not.toContain(",,");
   });
 
   it("moves scopes by rewriting xshift and yshift options", () => {
@@ -1369,6 +1396,53 @@ describe("applyEditAction – setProperty", () => {
       throw new Error("Expected matrix fill update to succeed");
     }
     expect(fillResult.newSource).toContain("fill=yellow");
+  });
+
+  it("keeps matrix-level inspector writes inside one option list", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[
+    matrix of nodes,
+    ampersand replacement=\&,
+  ] (m) {
+    A \& B \& C \\
+    D \& E \& F \\
+  };
+\end{tikzpicture}`;
+
+    const updates = [
+      ["draw", "red"],
+      ["column sep", "0.2pt"],
+      ["row sep", "0.4pt"],
+      ["row sep", "0.3pt"],
+      ["row sep", "0.2pt"],
+      ["column sep", "0.1pt"],
+      ["row sep", "0.1pt"]
+    ] as const;
+
+    let current = source;
+    for (const [key, value] of updates) {
+      const result = applyEditAction(current, [], {
+        kind: "setProperty",
+        elementId: "path:0",
+        level: "command",
+        key,
+        value
+      });
+      expect(result.kind).toBe("success");
+      if (result.kind !== "success") {
+        throw new Error(`Expected matrix property '${key}' to update`);
+      }
+      current = result.newSource;
+    }
+
+    expect(current).toContain("\\matrix[");
+    expect(current).toContain("matrix of nodes");
+    expect(current).toContain("ampersand replacement=\\&");
+    expect(current).toContain("draw=red");
+    expect(current).toContain("column sep=0.1pt");
+    expect(current).toContain("row sep=0.1pt");
+    expect(current).not.toContain("][");
+    expect(current.match(/\[/g)?.length ?? 0).toBe(1);
   });
 
   it("updates an existing grid keyword option list by keyword id", () => {
@@ -2892,6 +2966,27 @@ describe("applyEditAction – updateNodeText", () => {
     }
     expect(result.newSource).toContain("A & Beta");
     expect(result.newSource).toContain("Beta \\\\");
+    expect(result.patches).toHaveLength(1);
+  });
+
+  it("updates matrix-of-math-nodes cell text by synthetic matrix-cell ids", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of math nodes] {
+    x^2 & y^2 \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "updateNodeText",
+      elementId: "node:0:0:matrix-cell:1:2",
+      text: "\\frac{1}{y}"
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-of-math-nodes text update to succeed");
+    }
+    expect(result.newSource).toContain("x^2 & \\frac{1}{y}");
     expect(result.patches).toHaveLength(1);
   });
 });

@@ -1,5 +1,6 @@
 import { parseOptionListRaw } from "../../options/parse.js";
 import { applyOptionMutationsToTarget, normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
+import { MATRIX_CELL_WRITABLE_KEYS } from "../matrix-editing.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { PropertyTarget } from "../property-target.js";
 import { replaceSpan } from "../patch.js";
@@ -28,8 +29,6 @@ export type SetPropertyAction = {
   value: string;
   clearKeys?: string[];
 };
-
-const MATRIX_CELL_SUPPORTED_KEYS = new Set(["draw", "fill", "text", "shape"]);
 
 export function applySetPropertyAction(
   source: string,
@@ -90,11 +89,11 @@ function applyMatrixCellSetProperty(
   action: SetPropertyAction
 ): EditActionResultLike {
   if (!target.matrixOfNodes) {
-    return { kind: "unsupported", reason: "Cell property editing is only available for matrix of nodes." };
+    return { kind: "unsupported", reason: "Cell property editing is only available for matrix node cells." };
   }
 
   const key = normalizeOptionKey(action.key);
-  if (!MATRIX_CELL_SUPPORTED_KEYS.has(key)) {
+  if (!MATRIX_CELL_WRITABLE_KEYS.has(key)) {
     return { kind: "unsupported", reason: `Matrix cell property '${action.key}' is not editable yet.` };
   }
 

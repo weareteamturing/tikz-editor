@@ -118,6 +118,7 @@ export type MatrixCellInfo = {
   cellSourceId: string;
   row: number;
   column: number;
+  textMode: "text" | "math";
   textSpan: Span;
   cellSpan: Span;
 };

@@ -12,9 +12,10 @@ import {
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget, type PropertyTarget } from "../property-target.js";
 import { rewriteCoordinate } from "../rewrite.js";
+import { applyTextReplacements } from "../statement-ops.js";
 import type { SourcePatch } from "../types.js";
 import { planAlignDeltas, planDistributeDeltas, type AlignMode, type DistributeAxis } from "../arrange.js";
-import { applyOptionMutationsToTarget, type OptionMutation } from "../option-mutations.js";
+import { applyOptionMutationsToTarget, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
 import { parseTikzForEdit, type EditParseOptions } from "../parse-options.js";
 import { normalizeOptionKey } from "../option-key.js";
 
@@ -312,7 +313,7 @@ function applyMoveMatrixElementsWithPlacementRewrite(
     }
 
     currentSource = rewrite.source;
-    patches.push(rewrite.patch);
+    patches.push(...rewrite.patches);
   }
 
   if (patches.length === 0) {
@@ -648,7 +649,7 @@ function applyInverseLinear(linear: LinearTransform, point: Point): Point | null
 }
 
 type MatrixPlacementRewriteResult =
-  | { kind: "success"; source: string; patch: SourcePatch }
+  | { kind: "success"; source: string; patches: SourcePatch[] }
   | { kind: "unsupported"; reason: string };
 
 function rewriteSingleMatrixPlacement(
@@ -689,7 +690,7 @@ function rewriteSingleMatrixPlacement(
   if (inlineAtCoordinate) {
     const rewrittenInline = replaceSourceSpan(source, inlineAtCoordinate.span, nextCoordinate);
     if (rewrittenInline) {
-      return { kind: "success", ...rewrittenInline };
+      return { kind: "success", source: rewrittenInline.source, patches: [rewrittenInline.patch] };
     }
     return {
       kind: "unsupported",
@@ -700,38 +701,50 @@ function rewriteSingleMatrixPlacement(
   const atOptionEntry = matrixNode.options?.entries.find(
     (entry): entry is Extract<OptionEntry, { kind: "kv" }> => entry.kind === "kv" && entry.key === "at"
   );
-  if (atOptionEntry) {
-    const serializedValue = serializeAtOptionValue(atOptionEntry.valueRaw, nextCoordinate);
-    const replacement = `at=${serializedValue}`;
-    const rewrittenOption = replaceSourceSpan(source, atOptionEntry.span, replacement);
-    if (rewrittenOption) {
-      return { kind: "success", ...rewrittenOption };
+  const matrixTarget = resolvePropertyTarget(source, elementId, parseOptions);
+  if (matrixTarget.kind === "found" && matrixTarget.target.kind === "matrix-statement") {
+    const bodyOpenOffset = matrixTarget.target.matrixBodyOpenOffset;
+    if (bodyOpenOffset == null) {
+      return {
+        kind: "unsupported",
+        reason: `Could not resolve inline matrix placement position for ${elementId}`
+      };
     }
-    return {
-      kind: "unsupported",
-      reason: `Matrix ${elementId} placement already matches the requested position`
-    };
-  }
 
-  const insertionMutations = new Map<string, OptionMutation>([["at", { kind: "set", value: nextCoordinate }]]);
-  if (matrixNode.optionsSpan) {
-    const existingOptions = source.slice(matrixNode.optionsSpan.from, matrixNode.optionsSpan.to);
-    const replacement = appendOptionEntryToListRaw(existingOptions, `at=${nextCoordinate}`);
-    const rewrittenOptions = replaceSourceSpan(source, matrixNode.optionsSpan, replacement);
-    if (rewrittenOptions) {
-      return { kind: "success", ...rewrittenOptions };
-    }
-  }
-
-  const matrixTarget = resolvePropertyTarget(source, matrixNode.id, parseOptions);
-  if (matrixTarget.kind === "found") {
-    const rewritten = applyOptionMutationsToTarget(source, matrixTarget.target, insertionMutations);
-    if (rewritten) {
+    if (atOptionEntry && matrixTarget.target.options && matrixTarget.target.optionsSpan) {
+      const optionReplacement = rewriteOptionListMutations(
+        matrixTarget.target.options,
+        new Map<string, OptionMutation>([["at", { kind: "remove" }]]),
+        undefined,
+        matrixTarget.target.optionsFormat ?? "bracketed"
+      );
+      const applied = applyTextReplacements(source, [
+        { span: matrixTarget.target.optionsSpan, text: optionReplacement },
+        {
+          span: { from: bodyOpenOffset, to: bodyOpenOffset },
+          text: buildMatrixInlineAtInsertion(source, bodyOpenOffset, nextCoordinate)
+        }
+      ]);
+      if (applied.source === source) {
+        return {
+          kind: "unsupported",
+          reason: `Matrix ${elementId} placement already matches the requested position`
+        };
+      }
       return {
         kind: "success",
-        source: rewritten.source,
-        patch: rewritten.patch
+        source: applied.source,
+        patches: applied.patches
       };
+    }
+
+    const rewrittenInlineInsertion = replaceSourceSpan(
+      source,
+      { from: bodyOpenOffset, to: bodyOpenOffset },
+      buildMatrixInlineAtInsertion(source, bodyOpenOffset, nextCoordinate)
+    );
+    if (rewrittenInlineInsertion) {
+      return { kind: "success", source: rewrittenInlineInsertion.source, patches: [rewrittenInlineInsertion.patch] };
     }
   }
 
@@ -883,26 +896,9 @@ function replaceSourceSpan(
   };
 }
 
-function serializeAtOptionValue(existingRaw: string, nextCoordinate: string): string {
-  const trimmed = existingRaw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    return `{${nextCoordinate}}`;
-  }
-  return nextCoordinate;
-}
-
-function appendOptionEntryToListRaw(optionsRaw: string, entry: string): string {
-  const trimmed = optionsRaw.trim();
-  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) {
-    return `[${entry}]`;
-  }
-
-  const inner = trimmed.slice(1, -1).trim();
-  if (inner.length === 0) {
-    return `[${entry}]`;
-  }
-
-  return `[${inner}, ${entry}]`;
+function buildMatrixInlineAtInsertion(source: string, bodyOpenOffset: number, nextCoordinate: string): string {
+  const needsLeadingSpace = bodyOpenOffset <= 0 || !/\s/u.test(source[bodyOpenOffset - 1] ?? "");
+  return `${needsLeadingSpace ? " " : ""}at ${nextCoordinate} `;
 }
 
 function formatPlacementCoordinateFromWorld(world: Point, transform?: EditHandle["transform"]): string {
