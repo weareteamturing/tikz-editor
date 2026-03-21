@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
+import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import type { NodeAnchorTarget, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import {
   computeVisibleRanges,
@@ -128,6 +129,9 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [snapshot.scene, svgResult]);
 
   const matrixCellAnchorHints = useMemo<readonly MatrixCellAnchorHint[]>(() => {
+    const sourceBoundsWorld = snapshot.scene
+      ? collectSourceWorldBounds(snapshot.scene.elements)
+      : new Map<string, { minX: number; minY: number; maxX: number; maxY: number }>();
     const byCellId = new Map<string, MatrixCellAnchorHint>();
     for (const element of snapshot.scene?.elements ?? []) {
       const matrixCell = element.matrixCell;
@@ -138,7 +142,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (existing) {
         continue;
       }
-      const bounds = sourceBoundsSvg.get(matrixCell.cellSourceId);
+      const bounds = sourceBoundsWorld.get(matrixCell.cellSourceId);
       if (!bounds) {
         continue;
       }
@@ -156,7 +160,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       });
     }
     return [...byCellId.values()];
-  }, [snapshot.scene, sourceBoundsSvg]);
+  }, [snapshot.scene]);
 
   const scopeOverlay = useMemo(
     () =>

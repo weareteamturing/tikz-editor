@@ -113,4 +113,61 @@ describe("resolveEndpointAnchorSnap", () => {
     expect(result.visibleAnchors.every((target) => target.nodeName === "m-1-2")).toBe(true);
     expect(result.snappedAnchor?.nodeName).toBe("m-1-2");
   });
+
+  it("shows both matrix-cell anchors and matrix anchors for matrix cell hover", () => {
+    const matrixTargets: NodeAnchorTarget[] = [
+      { nodeName: "m", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },
+      { nodeName: "m", anchor: "east", world: { x: 2, y: 0 }, tier: "basic" },
+      { nodeName: "m-1-1", anchor: "center", world: { x: 1, y: 1 }, tier: "basic" },
+      { nodeName: "m-1-1", anchor: "east", world: { x: 1.2, y: 1 }, tier: "basic" }
+    ];
+    const matrixHints: MatrixCellAnchorHint[] = [
+      {
+        matrixSourceId: "path:0",
+        cellSourceId: "node:0:0:matrix-cell:1:1",
+        row: 1,
+        column: 1,
+        bounds: { minX: 0.7, minY: 0.7, maxX: 1.3, maxY: 1.3 }
+      }
+    ];
+
+    const result = resolveEndpointAnchorSnap({
+      pointerWorld: { x: 1.1, y: 1.0 },
+      zoom: 1,
+      nodeAnchorTargets: matrixTargets,
+      matrixCellAnchorHints: matrixHints
+    });
+
+    const nodeNames = new Set(result.visibleAnchors.map((target) => target.nodeName));
+    expect(nodeNames.has("m-1-1")).toBe(true);
+    expect(nodeNames.has("m")).toBe(true);
+  });
+
+  it("keeps snapping to the nearest anchor when matrix and cell anchors are both visible", () => {
+    const matrixTargets: NodeAnchorTarget[] = [
+      { nodeName: "m", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },
+      { nodeName: "m", anchor: "east", world: { x: 2, y: 0 }, tier: "basic" },
+      { nodeName: "m-1-1", anchor: "center", world: { x: 1, y: 1 }, tier: "basic" },
+      { nodeName: "m-1-1", anchor: "east", world: { x: 1.2, y: 1 }, tier: "basic" }
+    ];
+    const matrixHints: MatrixCellAnchorHint[] = [
+      {
+        matrixSourceId: "path:0",
+        cellSourceId: "node:0:0:matrix-cell:1:1",
+        row: 1,
+        column: 1,
+        bounds: { minX: 0.7, minY: 0.7, maxX: 1.3, maxY: 1.3 }
+      }
+    ];
+
+    const result = resolveEndpointAnchorSnap({
+      pointerWorld: { x: 1.18, y: 1.0 },
+      zoom: 1,
+      nodeAnchorTargets: matrixTargets,
+      matrixCellAnchorHints: matrixHints
+    });
+
+    expect(result.snappedAnchor?.nodeName).toBe("m-1-1");
+    expect(result.snappedAnchor?.anchor).toBe("east");
+  });
 });

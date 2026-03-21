@@ -74,14 +74,46 @@ export function resolveEndpointAnchorSnap(input: {
     };
   }
 
-  const visibleAnchors = nearestNodeAnchors
-    .filter((anchor) => anchor.tier === "basic")
-    .sort((left, right) => {
-      if (left.tier !== right.tier) {
-        return left.tier === "basic" ? -1 : 1;
+  const visibleAnchorGroups: NodeAnchorTarget[][] = [nearestNodeAnchors];
+  const nearestNodeName = nearestNodeAnchors[0]?.nodeName ?? null;
+  if (
+    preferredMatrixCellAnchors &&
+    preferredMatrixCellAnchors.distanceSq <= revealNodeRadiusSq &&
+    preferredMatrixCellAnchors.anchors.length > 0
+  ) {
+    const preferredName = preferredMatrixCellAnchors.anchors[0]?.nodeName ?? null;
+    if (preferredName && preferredName !== nearestNodeName) {
+      visibleAnchorGroups.push(preferredMatrixCellAnchors.anchors);
+    }
+    const relatedMatrixAnchors = resolveRelatedMatrixNodeAnchors(byNode, preferredMatrixCellAnchors.anchors, input.pointerWorld);
+    if (relatedMatrixAnchors && relatedMatrixAnchors.distanceSq <= revealNodeRadiusSq) {
+      const relatedName = relatedMatrixAnchors.anchors[0]?.nodeName ?? null;
+      if (
+        relatedName &&
+        relatedName !== nearestNodeName &&
+        relatedName !== preferredName
+      ) {
+        visibleAnchorGroups.push(relatedMatrixAnchors.anchors);
       }
-      return left.anchor.localeCompare(right.anchor);
-    });
+    }
+  }
+
+  const uniqueVisibleAnchors = new Map<string, NodeAnchorTarget>();
+  for (const group of visibleAnchorGroups) {
+    for (const anchor of group) {
+      if (anchor.tier !== "basic") {
+        continue;
+      }
+      uniqueVisibleAnchors.set(`${anchor.nodeName}:${anchor.anchor}`, anchor);
+    }
+  }
+  const visibleAnchors = [...uniqueVisibleAnchors.values()].sort((left, right) => {
+    const byNode = left.nodeName.localeCompare(right.nodeName);
+    if (byNode !== 0) {
+      return byNode;
+    }
+    return left.anchor.localeCompare(right.anchor);
+  });
 
   let snappedAnchor: NodeAnchorTarget | null = null;
   let snappedDistanceSq = Number.POSITIVE_INFINITY;
@@ -141,7 +173,38 @@ function resolvePreferredMatrixCellAnchors(
   return best;
 }
 
-function parseTrailingMatrixCellIndices(nodeName: string): { row: number; column: number } | null {
+function resolveRelatedMatrixNodeAnchors(
+  anchorsByNode: ReadonlyMap<string, NodeAnchorTarget[]>,
+  preferredCellAnchors: readonly NodeAnchorTarget[],
+  pointerWorld: Point
+): { anchors: NodeAnchorTarget[]; distanceSq: number } | null {
+  let best: { anchors: NodeAnchorTarget[]; distanceSq: number } | null = null;
+  for (const anchor of preferredCellAnchors) {
+    const parsed = parseTrailingMatrixCellIndices(anchor.nodeName);
+    if (!parsed) {
+      continue;
+    }
+    const baseNodeName = anchor.nodeName.slice(0, parsed.suffixStart);
+    if (!baseNodeName) {
+      continue;
+    }
+    const anchors = anchorsByNode.get(baseNodeName);
+    if (!anchors || anchors.length === 0) {
+      continue;
+    }
+    const extent = deriveNodeExtent(anchors);
+    if (!extent) {
+      continue;
+    }
+    const distanceSq = distanceSquaredToBounds(pointerWorld, extent);
+    if (!best || distanceSq < best.distanceSq) {
+      best = { anchors, distanceSq };
+    }
+  }
+  return best;
+}
+
+function parseTrailingMatrixCellIndices(nodeName: string): { row: number; column: number; suffixStart: number } | null {
   const match = /-(\d+)-(\d+)$/.exec(nodeName.trim());
   if (!match) {
     return null;
@@ -151,7 +214,7 @@ function parseTrailingMatrixCellIndices(nodeName: string): { row: number; column
   if (!Number.isInteger(row) || !Number.isInteger(column) || row <= 0 || column <= 0) {
     return null;
   }
-  return { row, column };
+  return { row, column, suffixStart: match.index };
 }
 
 function distanceSquared(a: Point, b: Point): number {
