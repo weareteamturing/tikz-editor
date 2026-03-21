@@ -131,7 +131,7 @@ describe("scope overlay selection resolver", () => {
 });
 
 describe("scope overlay matrix augmentation", () => {
-  it("registers virtual matrix scopes and supports drill from matrix to cells", () => {
+  it("registers virtual matrix scopes and supports matrix drill-down from scope to cell", () => {
     const base = buildScopeOverlayIndex([], new Map());
     const sceneElements = [
       {
@@ -170,11 +170,103 @@ describe("scope overlay matrix augmentation", () => {
     });
     expect(resolvedDown).toBe("path:0");
 
+    const resolvedDownMatrix = resolveScopeAwarePointerDownTarget({
+      hitTargetId: "path:0",
+      hitSourceId: "path:0",
+      scopeOverlay: augmented
+    });
+    expect(resolvedDownMatrix).toBe("path:0");
+
     const resolvedDrill = resolveScopeAwarePointerUpDrillTarget({
       selectedScopeId: "path:0",
       hitSourceId: "node:0:0:matrix-cell:1:1",
       scopeOverlay: augmented
     });
     expect(resolvedDrill).toBe("node:0:0:matrix-cell:1:1");
+  });
+
+  it("keeps additive matrix-cell targeting stable even when focused on the matrix scope", () => {
+    const base = buildScopeOverlayIndex([], new Map());
+    const sceneElements = [
+      {
+        kind: "Text",
+        id: "scene:text:1",
+        runtimeId: "runtime:text:1",
+        sourceRef: { sourceId: "node:0:0:matrix-cell:1:1" },
+        matrixCell: {
+          matrixSourceId: "path:0",
+          cellSourceId: "node:0:0:matrix-cell:1:1",
+          row: 1,
+          column: 1,
+          textMode: "text",
+          textSpan: { from: 0, to: 1 },
+          cellSpan: { from: 0, to: 1 }
+        }
+      },
+      {
+        kind: "Text",
+        id: "scene:text:2",
+        runtimeId: "runtime:text:2",
+        sourceRef: { sourceId: "node:0:0:matrix-cell:1:2" },
+        matrixCell: {
+          matrixSourceId: "path:0",
+          cellSourceId: "node:0:0:matrix-cell:1:2",
+          row: 1,
+          column: 2,
+          textMode: "text",
+          textSpan: { from: 0, to: 1 },
+          cellSpan: { from: 0, to: 1 }
+        }
+      },
+      {
+        kind: "Text",
+        id: "scene:text:3",
+        runtimeId: "runtime:text:3",
+        sourceRef: { sourceId: "node:0:0:matrix-cell:2:1" },
+        matrixCell: {
+          matrixSourceId: "path:0",
+          cellSourceId: "node:0:0:matrix-cell:2:1",
+          row: 2,
+          column: 1,
+          textMode: "text",
+          textSpan: { from: 0, to: 1 },
+          cellSpan: { from: 0, to: 1 }
+        }
+      }
+    ] as any[];
+    const augmented = augmentScopeOverlayWithMatrices(
+      base,
+      sceneElements,
+      new Map([
+        ["node:0:0:matrix-cell:1:1", { minX: 0, minY: 0, maxX: 1, maxY: 1 }],
+        ["node:0:0:matrix-cell:1:2", { minX: 1, minY: 0, maxX: 2, maxY: 1 }],
+        ["node:0:0:matrix-cell:2:1", { minX: 0, minY: 1, maxX: 1, maxY: 2 }]
+      ])
+    );
+
+    expect(
+      resolveScopeAwarePointerDownTarget({
+        hitTargetId: "node:0:0:matrix-cell:1:1",
+        hitSourceId: "node:0:0:matrix-cell:1:1",
+        scopeOverlay: augmented,
+        focusedScopeId: "path:0"
+      })
+    ).toBe("node:0:0:matrix-cell:1:1");
+    expect(
+      resolveScopeAwarePointerDownTarget({
+        hitTargetId: "node:0:0:matrix-cell:1:2",
+        hitSourceId: "node:0:0:matrix-cell:1:2",
+        scopeOverlay: augmented,
+        focusedScopeId: "path:0"
+      })
+    ).toBe("node:0:0:matrix-cell:1:2");
+    expect(
+      resolveScopeAwarePointerDownTarget({
+        hitTargetId: "node:0:0:matrix-cell:2:1",
+        hitSourceId: "node:0:0:matrix-cell:2:1",
+        scopeOverlay: augmented,
+        focusedScopeId: "path:0"
+      })
+    ).toBe("node:0:0:matrix-cell:2:1");
   });
 });

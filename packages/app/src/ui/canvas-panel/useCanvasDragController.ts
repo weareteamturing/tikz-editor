@@ -34,7 +34,7 @@ import {
   resolveToolCreateCurrentWorld
 } from "./interaction-helpers";
 import { resolveHandleDragAction, shouldCommitHandleAnchorOnPointerUp } from "./handle-drag-actions";
-import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
+import { resolveEndpointAnchorSnap, type MatrixCellAnchorHint } from "./endpoint-anchor-snap";
 import { clientToWorldPoint, distanceSquared, worldToSvgPoint } from "./geometry";
 import { PATH_TOOL_BEND_DRAG_THRESHOLD_PX, type PathToolGestureSegment } from "./path-tool";
 import { resolveAddShapeOriginFromDrag } from "./add-shape-draft";
@@ -75,6 +75,7 @@ export function useCanvasDragController(params: {
   snapshotScene: { elements: SceneElement[] } | null;
   snapshotEditHandles: EditHandle[];
   nodeAnchorTargets: readonly NodeAnchorTarget[];
+  matrixCellAnchorHints: readonly MatrixCellAnchorHint[];
   source: string;
   svgResult: { viewBox: SvgViewBox } | null;
   dragRef: { current: DragState | null };
@@ -120,6 +121,7 @@ export function useCanvasDragController(params: {
     snapshotScene,
     snapshotEditHandles,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     source,
     svgResult,
     dragRef,
@@ -325,7 +327,8 @@ export function useCanvasDragController(params: {
           endpointAnchorOverlay = resolveEndpointAnchorSnap({
             pointerWorld: world,
             zoom: drag.snapContext?.zoom ?? 1,
-            nodeAnchorTargets
+            nodeAnchorTargets,
+            matrixCellAnchorHints
           });
           drag.activeEndpointAnchor = endpointAnchorOverlay.snappedAnchor;
           if (endpointAnchorOverlay.snappedAnchor) {
@@ -752,7 +755,8 @@ export function useCanvasDragController(params: {
         endpointAnchorOverlay = resolveEndpointAnchorSnap({
           pointerWorld: world,
           zoom: drag.snapContext?.zoom ?? 1,
-          nodeAnchorTargets
+          nodeAnchorTargets,
+          matrixCellAnchorHints
         });
         drag.activeEndpointAnchor = endpointAnchorOverlay.snappedAnchor;
         if (endpointAnchorOverlay.snappedAnchor) {
@@ -841,7 +845,8 @@ export function useCanvasDragController(params: {
               ? resolveEndpointAnchorSnap({
                   pointerWorld: world,
                   zoom: drag.snapContext?.zoom ?? 1,
-                  nodeAnchorTargets
+                  nodeAnchorTargets,
+                  matrixCellAnchorHints
                 }).snappedAnchor
               : drag.activeEndpointAnchor
             : null;
@@ -1110,6 +1115,7 @@ export function useCanvasDragController(params: {
     snapshotScene,
     snapshotSource,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     scopeOverlay,
     source,
     sourceBoundsSvgRef,

@@ -35,6 +35,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     snapSettingsPatch,
     viewportWorldBounds,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     setToolCursorWorld,
     setPathDraft,
     setPathSegmentDraft,
@@ -222,7 +223,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             ? resolveEndpointAnchorSnap({
                 pointerWorld: world,
                 zoom: toolSnapContext?.zoom ?? canvasTransform.scale,
-                nodeAnchorTargets
+                nodeAnchorTargets,
+                matrixCellAnchorHints
               })
             : null;
         const startEndpointAnchor = lineToolStartAnchorSnap?.snappedAnchor ?? null;
@@ -518,6 +520,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       svgResult,
       startMarqueeSelection,
       nodeAnchorTargets,
+      matrixCellAnchorHints,
       pendingBezier,
       toolMode,
       snapGuideInput,
@@ -613,7 +616,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         ? resolveEndpointAnchorSnap({
             pointerWorld: world,
             zoom: snapContext.zoom,
-            nodeAnchorTargets
+            nodeAnchorTargets,
+            matrixCellAnchorHints
           })
         : null;
       const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
@@ -663,6 +667,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       canvasTransform.scale,
       logSnapDebug,
       nodeAnchorTargets,
+      matrixCellAnchorHints,
       snapshot.scene,
       snapshot.source,
       source,
@@ -763,7 +768,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
         ? resolveEndpointAnchorSnap({
             pointerWorld: world,
             zoom: snapContext.zoom,
-            nodeAnchorTargets
+            nodeAnchorTargets,
+            matrixCellAnchorHints
           })
         : null;
       const hoverEndpointAnchor = hoverEndpointAnchorOverlay?.snappedAnchor ?? null;
@@ -813,6 +819,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       canvasTransform.scale,
       logSnapDebug,
       nodeAnchorTargets,
+      matrixCellAnchorHints,
       snapshot.scene,
       snapshot.source,
       source,

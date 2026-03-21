@@ -16,6 +16,8 @@ import { parseTikzForEdit } from "tikz-editor/edit/parse-options";
 import { parseEditableTargetId } from "tikz-editor/edit/editable-targets";
 import type { EditParseOptions } from "tikz-editor/edit/parse-options";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
+import { parseMatrixRowsForEdit, resolveMatrixMode } from "tikz-editor/semantic/nodes/matrix";
+import type { OptionListAst } from "tikz-editor/options/types";
 import type { EditHandle, SceneElement, SceneFigure } from "tikz-editor/semantic/types";
 import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditorAction } from "../store/types";
@@ -485,6 +487,113 @@ export function canAddTreeChild(context: SelectionCommandContext): boolean {
   return target.kind === "root";
 }
 
+export function canAddMatrixRowAtEnd(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixRow",
+    matrixSourceId: target.matrixSourceId,
+    rowIndex: target.rowCount + 1
+  });
+}
+
+export function canAddMatrixColumnAtEnd(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixColumn",
+    matrixSourceId: target.matrixSourceId,
+    columnIndex: target.columnCount + 1
+  });
+}
+
+export function canInsertMatrixRowAbove(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixRow",
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex
+  });
+}
+
+export function canInsertMatrixRowBelow(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixRow",
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex + 1
+  });
+}
+
+export function canInsertMatrixColumnLeft(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixColumn",
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex
+  });
+}
+
+export function canInsertMatrixColumnRight(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "addMatrixColumn",
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex + 1
+  });
+}
+
+export function canTransposeMatrix(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "transposeMatrix",
+    matrixSourceId: target.matrixSourceId
+  });
+}
+
+export function canRemoveMatrixRow(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "removeMatrixRow",
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex
+  });
+}
+
+export function canRemoveMatrixColumn(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  return canApplyMatrixAction(context, {
+    kind: "removeMatrixColumn",
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex
+  });
+}
+
 export function canAddTreeSibling(context: SelectionCommandContext): boolean {
   const target = resolveTreeCommandTarget(context);
   return target?.kind === "child" && !target.foreach;
@@ -522,6 +631,173 @@ export function addTreeSibling(context: SelectionCommandContext, position: "befo
       siblingSourceId: target.sourceId,
       position
     }
+  });
+  return true;
+}
+
+export function addMatrixRowAtEnd(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixRow" as const,
+    matrixSourceId: target.matrixSourceId,
+    rowIndex: target.rowCount + 1
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action
+  });
+  return true;
+}
+
+export function addMatrixColumnAtEnd(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixColumn" as const,
+    matrixSourceId: target.matrixSourceId,
+    columnIndex: target.columnCount + 1
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action
+  });
+  return true;
+}
+
+export function insertMatrixRowAbove(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixRow" as const,
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({ type: "APPLY_EDIT_ACTION", action });
+  return true;
+}
+
+export function insertMatrixRowBelow(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixRow" as const,
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex + 1
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({ type: "APPLY_EDIT_ACTION", action });
+  return true;
+}
+
+export function insertMatrixColumnLeft(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixColumn" as const,
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({ type: "APPLY_EDIT_ACTION", action });
+  return true;
+}
+
+export function insertMatrixColumnRight(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "addMatrixColumn" as const,
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex + 1
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({ type: "APPLY_EDIT_ACTION", action });
+  return true;
+}
+
+export function transposeMatrix(context: SelectionCommandContext): boolean {
+  const target = resolveMatrixStatementCommandTarget(context);
+  if (!target) {
+    return false;
+  }
+  const action = {
+    kind: "transposeMatrix" as const,
+    matrixSourceId: target.matrixSourceId
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action
+  });
+  return true;
+}
+
+export function removeMatrixRow(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.rowIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "removeMatrixRow" as const,
+    matrixSourceId: selection.matrixSourceId,
+    rowIndex: selection.rowIndex
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action
+  });
+  return true;
+}
+
+export function removeMatrixColumn(context: SelectionCommandContext): boolean {
+  const selection = resolveUniformMatrixCellSelection(context);
+  if (!selection || selection.columnIndex == null) {
+    return false;
+  }
+  const action = {
+    kind: "removeMatrixColumn" as const,
+    matrixSourceId: selection.matrixSourceId,
+    columnIndex: selection.columnIndex
+  };
+  if (!canApplyMatrixAction(context, action)) {
+    return false;
+  }
+  context.dispatch({
+    type: "APPLY_EDIT_ACTION",
+    action
   });
   return true;
 }
@@ -772,6 +1048,152 @@ function selectedStatementRefs(context: SelectionCommandContext) {
     return left.span.to - right.span.to;
   });
   return refs;
+}
+
+function resolveMatrixStatementCommandTarget(
+  context: SelectionCommandContext
+): { matrixSourceId: string; rowCount: number; columnCount: number } | null {
+  if (context.selectedElementIds.size !== 1) {
+    return null;
+  }
+  const sourceId = [...context.selectedElementIds][0]?.trim() ?? "";
+  if (!sourceId) {
+    return null;
+  }
+  const parseOptions = parseOptionsForContext(context);
+  const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
+  if (resolved.kind !== "found" || resolved.target.kind !== "matrix-statement") {
+    return null;
+  }
+  const dimensions = resolveMatrixDimensions(context.source, resolved.target.matrixTextSpan, resolved.target.options);
+  if (!dimensions) {
+    return null;
+  }
+  return {
+    matrixSourceId: sourceId,
+    rowCount: dimensions.rowCount,
+    columnCount: dimensions.columnCount
+  };
+}
+
+function resolveMatrixCellCommandTarget(
+  context: SelectionCommandContext
+): { matrixSourceId: string; rowIndex: number; columnIndex: number } | null {
+  if (context.selectedElementIds.size !== 1) {
+    return null;
+  }
+  const sourceId = [...context.selectedElementIds][0]?.trim() ?? "";
+  if (!sourceId) {
+    return null;
+  }
+  const parseOptions = parseOptionsForContext(context);
+  const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
+  if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
+    return null;
+  }
+  const matrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
+  const rowIndex = resolved.target.row ?? 0;
+  const columnIndex = resolved.target.column ?? 0;
+  if (!matrixSourceId || rowIndex <= 0 || columnIndex <= 0) {
+    return null;
+  }
+  const resolvedMatrix = resolvePropertyTarget(context.source, matrixSourceId, parseOptions);
+  if (resolvedMatrix.kind !== "found" || resolvedMatrix.target.kind !== "matrix-statement") {
+    return null;
+  }
+  const dimensions = resolveMatrixDimensions(
+    context.source,
+    resolvedMatrix.target.matrixTextSpan,
+    resolvedMatrix.target.options
+  );
+  if (!dimensions) {
+    return null;
+  }
+  return {
+    matrixSourceId,
+    rowIndex,
+    columnIndex
+  };
+}
+
+function resolveUniformMatrixCellSelection(
+  context: SelectionCommandContext
+): { matrixSourceId: string; rowIndex: number | null; columnIndex: number | null } | null {
+  const sourceIds = [...context.selectedElementIds].map((id) => id.trim()).filter(Boolean);
+  if (sourceIds.length === 0) {
+    return null;
+  }
+  const parseOptions = parseOptionsForContext(context);
+  let matrixSourceId: string | null = null;
+  let rowIndex: number | null = null;
+  let columnIndex: number | null = null;
+
+  for (const sourceId of sourceIds) {
+    const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
+    if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
+      return null;
+    }
+    const currentMatrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
+    const currentRow = resolved.target.row ?? 0;
+    const currentColumn = resolved.target.column ?? 0;
+    if (!currentMatrixSourceId || currentRow <= 0 || currentColumn <= 0) {
+      return null;
+    }
+    if (matrixSourceId == null) {
+      matrixSourceId = currentMatrixSourceId;
+      rowIndex = currentRow;
+      columnIndex = currentColumn;
+      continue;
+    }
+    if (matrixSourceId !== currentMatrixSourceId) {
+      return null;
+    }
+    if (rowIndex !== null && rowIndex !== currentRow) {
+      rowIndex = null;
+    }
+    if (columnIndex !== null && columnIndex !== currentColumn) {
+      columnIndex = null;
+    }
+  }
+
+  if (!matrixSourceId) {
+    return null;
+  }
+  return { matrixSourceId, rowIndex, columnIndex };
+}
+
+function resolveMatrixDimensions(
+  source: string,
+  matrixTextSpan: { from: number; to: number } | undefined,
+  options: OptionListAst | undefined
+): { rowCount: number; columnCount: number } | null {
+  if (!matrixTextSpan || matrixTextSpan.from < 0 || matrixTextSpan.to < matrixTextSpan.from || matrixTextSpan.to > source.length) {
+    return null;
+  }
+  const matrixMode = resolveMatrixMode(options);
+  if (!matrixMode.enabled) {
+    return null;
+  }
+  const matrixText = source.slice(matrixTextSpan.from, matrixTextSpan.to);
+  const parsedRows = parseMatrixRowsForEdit(matrixText, matrixMode.cellSeparator, matrixTextSpan.from);
+  const rowCount = parsedRows.rows.length;
+  const columnCount = parsedRows.rows.reduce((max, row) => Math.max(max, row.cells.length), 0);
+  return { rowCount, columnCount };
+}
+
+function canApplyMatrixAction(
+  context: SelectionCommandContext,
+  action:
+    | { kind: "addMatrixRow"; matrixSourceId: string; rowIndex: number }
+    | { kind: "removeMatrixRow"; matrixSourceId: string; rowIndex: number }
+    | { kind: "addMatrixColumn"; matrixSourceId: string; columnIndex: number }
+    | { kind: "removeMatrixColumn"; matrixSourceId: string; columnIndex: number }
+    | { kind: "transposeMatrix"; matrixSourceId: string }
+): boolean {
+  const result = applyEditAction(context.source, context.editHandles as EditHandle[], action, {
+    parseOptions: parseOptionsForContext(context)
+  });
+  return result.kind === "success" || result.kind === "partial";
 }
 
 function availabilityFor(context: SelectionCommandContext) {

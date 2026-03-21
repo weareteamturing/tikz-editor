@@ -90,6 +90,18 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.TREE_ADD_SIBLING_AFTER).toBe("tree.add-sibling-after");
   });
 
+  it("defines matrix editing command ids", () => {
+    expect(APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END).toBe("matrix.add-row-end");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END).toBe("matrix.add-column-end");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE).toBe("matrix.insert-row-above");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW).toBe("matrix.insert-row-below");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT).toBe("matrix.insert-column-left");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT).toBe("matrix.insert-column-right");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE).toBe("matrix.transpose");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW).toBe("matrix.remove-row");
+    expect(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN).toBe("matrix.remove-column");
+  });
+
   it("defines a help manual command id", () => {
     expect(APP_MENU_COMMAND_IDS.OPEN_PGF_TIKZ_MANUAL).toBe("help.open-pgf-tikz-manual");
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import {
   clampContextMenuAnchor,
   resolveCanvasContextMenuTarget
@@ -88,6 +89,77 @@ describe("canvas context menu target resolution", () => {
     });
 
     expect(result.target).toBe("selection-single-tree");
+  });
+
+  it("recognizes matrix statement selections for matrix-specific context menu", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixSourceId = rendered.semantic.scene.elements.find((entry) => entry.matrixCell)?.matrixCell?.matrixSourceId;
+    if (!matrixSourceId) {
+      throw new Error("Expected matrix source id");
+    }
+    const result = resolveCanvasContextMenuTarget({
+      source,
+      toolMode: "select",
+      clickedSourceId: matrixSourceId,
+      selectedElementIds: new Set([matrixSourceId])
+    });
+
+    expect(result.target).toBe("selection-single-matrix");
+  });
+
+  it("recognizes matrix-cell selections for matrix-cell context menu", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixCellId = rendered.semantic.scene.elements.find(
+      (entry) => entry.matrixCell?.row === 1 && entry.matrixCell.column === 2
+    )?.matrixCell?.cellSourceId;
+    if (!matrixCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+    const result = resolveCanvasContextMenuTarget({
+      source,
+      toolMode: "select",
+      clickedSourceId: matrixCellId,
+      selectedElementIds: new Set([matrixCellId])
+    });
+
+    expect(result.target).toBe("selection-single-matrix-cell");
+  });
+
+  it("keeps selection-multi for multi-selected matrix cells", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const matrixCellIds = rendered.semantic.scene.elements
+      .filter((entry) => entry.matrixCell)
+      .map((entry) => entry.matrixCell!.cellSourceId);
+    const clickedCellId = matrixCellIds[1];
+    if (!clickedCellId || matrixCellIds.length < 3) {
+      throw new Error("Expected multiple matrix cell source ids");
+    }
+    const result = resolveCanvasContextMenuTarget({
+      source,
+      toolMode: "select",
+      clickedSourceId: clickedCellId,
+      selectedElementIds: new Set(matrixCellIds.slice(0, 3))
+    });
+
+    expect(result.target).toBe("selection-multi");
   });
 });
 

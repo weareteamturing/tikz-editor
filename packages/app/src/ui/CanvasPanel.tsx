@@ -357,6 +357,12 @@ type CanvasContextMenuState = {
   anchorY: number;
   handleIdOverride?: string | null;
   includeEditEquationForSingleNode?: boolean;
+  includeMatrixMultiRemoveRow?: boolean;
+  includeMatrixMultiRemoveColumn?: boolean;
+  includeMatrixMultiInsertRowAbove?: boolean;
+  includeMatrixMultiInsertRowBelow?: boolean;
+  includeMatrixMultiInsertColumnLeft?: boolean;
+  includeMatrixMultiInsertColumnRight?: boolean;
 };
 
 type PendingNativeContextMenuRequest = {
@@ -691,8 +697,27 @@ export function CanvasPanel() {
   );
 
   const showNativeContextMenu = useCallback(
-    (target: CanvasContextMenuTarget, includeEditEquationForSingleNode = false) => {
-      const definition = buildCanvasContextMenuDefinition({ includeEditEquationForSingleNode });
+    (
+      target: CanvasContextMenuTarget,
+      options: {
+        includeEditEquationForSingleNode?: boolean;
+        includeMatrixMultiRemoveRow?: boolean;
+        includeMatrixMultiRemoveColumn?: boolean;
+        includeMatrixMultiInsertRowAbove?: boolean;
+        includeMatrixMultiInsertRowBelow?: boolean;
+        includeMatrixMultiInsertColumnLeft?: boolean;
+        includeMatrixMultiInsertColumnRight?: boolean;
+      } = {}
+    ) => {
+      const definition = buildCanvasContextMenuDefinition({
+        includeEditEquationForSingleNode: options.includeEditEquationForSingleNode,
+        includeMatrixMultiRemoveRow: options.includeMatrixMultiRemoveRow,
+        includeMatrixMultiRemoveColumn: options.includeMatrixMultiRemoveColumn,
+        includeMatrixMultiInsertRowAbove: options.includeMatrixMultiInsertRowAbove,
+        includeMatrixMultiInsertRowBelow: options.includeMatrixMultiInsertRowBelow,
+        includeMatrixMultiInsertColumnLeft: options.includeMatrixMultiInsertColumnLeft,
+        includeMatrixMultiInsertColumnRight: options.includeMatrixMultiInsertColumnRight
+      });
       void platform.menu?.showNativeContextMenu?.({
         items: definition[target],
         commandStates: commandRuntime.bindings
@@ -707,6 +732,84 @@ export function CanvasPanel() {
         return false;
       }
       return resolveEquationNodeTarget(source, sourceId, editParseOptions) != null;
+    },
+    [editParseOptions, source]
+  );
+
+  const resolveMatrixMultiContextMenuOptions = useCallback(
+    (target: CanvasContextMenuTarget, sourceIds: ReadonlySet<string>) => {
+      if (target !== "selection-multi") {
+        return {
+          includeMatrixMultiInsertRowAbove: false,
+          includeMatrixMultiInsertRowBelow: false,
+          includeMatrixMultiRemoveRow: false,
+          includeMatrixMultiInsertColumnLeft: false,
+          includeMatrixMultiInsertColumnRight: false,
+          includeMatrixMultiRemoveColumn: false
+        };
+      }
+
+      let matrixSourceId: string | null = null;
+      let row: number | null = null;
+      let column: number | null = null;
+
+      for (const sourceId of sourceIds) {
+        const resolved = resolvePropertyTarget(source, sourceId, editParseOptions);
+        if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
+          return {
+            includeMatrixMultiInsertRowAbove: false,
+            includeMatrixMultiInsertRowBelow: false,
+            includeMatrixMultiRemoveRow: false,
+            includeMatrixMultiInsertColumnLeft: false,
+            includeMatrixMultiInsertColumnRight: false,
+            includeMatrixMultiRemoveColumn: false
+          };
+        }
+        const currentMatrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
+        const currentRow = resolved.target.row ?? 0;
+        const currentColumn = resolved.target.column ?? 0;
+        if (!currentMatrixSourceId || currentRow <= 0 || currentColumn <= 0) {
+          return {
+            includeMatrixMultiInsertRowAbove: false,
+            includeMatrixMultiInsertRowBelow: false,
+            includeMatrixMultiRemoveRow: false,
+            includeMatrixMultiInsertColumnLeft: false,
+            includeMatrixMultiInsertColumnRight: false,
+            includeMatrixMultiRemoveColumn: false
+          };
+        }
+        if (matrixSourceId == null) {
+          matrixSourceId = currentMatrixSourceId;
+          row = currentRow;
+          column = currentColumn;
+          continue;
+        }
+        if (matrixSourceId !== currentMatrixSourceId) {
+          return {
+            includeMatrixMultiInsertRowAbove: false,
+            includeMatrixMultiInsertRowBelow: false,
+            includeMatrixMultiRemoveRow: false,
+            includeMatrixMultiInsertColumnLeft: false,
+            includeMatrixMultiInsertColumnRight: false,
+            includeMatrixMultiRemoveColumn: false
+          };
+        }
+        if (row !== null && row !== currentRow) {
+          row = null;
+        }
+        if (column !== null && column !== currentColumn) {
+          column = null;
+        }
+      }
+
+      return {
+        includeMatrixMultiInsertRowAbove: row != null,
+        includeMatrixMultiInsertRowBelow: row != null,
+        includeMatrixMultiRemoveRow: row != null,
+        includeMatrixMultiInsertColumnLeft: column != null,
+        includeMatrixMultiInsertColumnRight: column != null,
+        includeMatrixMultiRemoveColumn: column != null
+      };
     },
     [editParseOptions, source]
   );
@@ -761,10 +864,19 @@ export function CanvasPanel() {
       nativeEffectiveTarget,
       pendingNativeContextMenuRequest.clickedSourceId
     );
+    const matrixMultiOptions = resolveMatrixMultiContextMenuOptions(nativeEffectiveTarget, selectedElementIds);
 
     pendingNativeContextMenuTimeoutRef.current = setTimeout(() => {
       pendingNativeContextMenuTimeoutRef.current = null;
-      showNativeContextMenu(nativeEffectiveTarget, includeEditEquationForSingleNode);
+      showNativeContextMenu(nativeEffectiveTarget, {
+        includeEditEquationForSingleNode,
+        includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
+        includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn,
+        includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
+        includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
+        includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
+        includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight
+      });
       setPendingNativeContextMenuRequest(null);
       viewport.focus({ preventScroll: true });
     }, NATIVE_CONTEXT_MENU_SELECT_DELAY_MS);
@@ -780,6 +892,7 @@ export function CanvasPanel() {
     pendingNativeContextMenuRequest,
     selectedElementIds,
     resolveIncludeEditEquationForSingleNode,
+    resolveMatrixMultiContextMenuOptions,
     showNativeContextMenu,
     source,
     svgResult,
@@ -1091,6 +1204,7 @@ export function CanvasPanel() {
 
   const {
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     dragCapability,
     draggableSourceIds,
     sceneTextByRegionKey,
@@ -1954,13 +2068,20 @@ export function CanvasPanel() {
         ? resolution.selectionAction.sourceId
         : clickedSourceId ?? (selectedElementIds.size === 1 ? [...selectedElementIds][0] ?? null : null);
       const includeEditEquationForSingleNode = resolveIncludeEditEquationForSingleNode(effectiveTarget, equationSourceId);
+      const matrixMultiOptions = resolveMatrixMultiContextMenuOptions(effectiveTarget, selectedElementIds);
 
       const nextContextMenuState: CanvasContextMenuState = {
         target: effectiveTarget,
         anchorX: clientX - rect.left,
         anchorY: clientY - rect.top,
         handleIdOverride: clickedHandleId,
-        includeEditEquationForSingleNode
+        includeEditEquationForSingleNode,
+        includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
+        includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
+        includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
+        includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
+        includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight,
+        includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn
       };
 
       if (platform.menu?.usesNativeContextMenus) {
@@ -1974,7 +2095,15 @@ export function CanvasPanel() {
           viewport.focus({ preventScroll: true });
           return;
         }
-        showNativeContextMenu(effectiveTarget, includeEditEquationForSingleNode);
+        showNativeContextMenu(effectiveTarget, {
+          includeEditEquationForSingleNode,
+          includeMatrixMultiInsertRowAbove: matrixMultiOptions.includeMatrixMultiInsertRowAbove,
+          includeMatrixMultiInsertRowBelow: matrixMultiOptions.includeMatrixMultiInsertRowBelow,
+          includeMatrixMultiRemoveRow: matrixMultiOptions.includeMatrixMultiRemoveRow,
+          includeMatrixMultiInsertColumnLeft: matrixMultiOptions.includeMatrixMultiInsertColumnLeft,
+          includeMatrixMultiInsertColumnRight: matrixMultiOptions.includeMatrixMultiInsertColumnRight,
+          includeMatrixMultiRemoveColumn: matrixMultiOptions.includeMatrixMultiRemoveColumn
+        });
         viewport.focus({ preventScroll: true });
         return;
       }
@@ -1990,6 +2119,7 @@ export function CanvasPanel() {
       scopeOverlay,
       selectedElementIds,
       resolveIncludeEditEquationForSingleNode,
+      resolveMatrixMultiContextMenuOptions,
       showNativeContextMenu,
       source,
       svgResult,
@@ -2039,6 +2169,7 @@ export function CanvasPanel() {
     snapSettingsPatch,
     viewportWorldBounds,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     setToolCursorWorld,
     setPathDraft,
     setPathSegmentDraft,
@@ -2447,6 +2578,7 @@ export function CanvasPanel() {
     snapshotScene: snapshot.scene,
     snapshotEditHandles: snapshot.editHandles,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     source,
     svgResult,
     dragRef,
@@ -2558,9 +2690,23 @@ export function CanvasPanel() {
   const contextMenuDefinition = useMemo(
     () =>
       buildCanvasContextMenuDefinition({
-        includeEditEquationForSingleNode: contextMenuState?.includeEditEquationForSingleNode ?? false
+        includeEditEquationForSingleNode: contextMenuState?.includeEditEquationForSingleNode ?? false,
+        includeMatrixMultiInsertRowAbove: contextMenuState?.includeMatrixMultiInsertRowAbove ?? false,
+        includeMatrixMultiInsertRowBelow: contextMenuState?.includeMatrixMultiInsertRowBelow ?? false,
+        includeMatrixMultiRemoveRow: contextMenuState?.includeMatrixMultiRemoveRow ?? false,
+        includeMatrixMultiInsertColumnLeft: contextMenuState?.includeMatrixMultiInsertColumnLeft ?? false,
+        includeMatrixMultiInsertColumnRight: contextMenuState?.includeMatrixMultiInsertColumnRight ?? false,
+        includeMatrixMultiRemoveColumn: contextMenuState?.includeMatrixMultiRemoveColumn ?? false
       }),
-    [contextMenuState?.includeEditEquationForSingleNode]
+    [
+      contextMenuState?.includeEditEquationForSingleNode,
+      contextMenuState?.includeMatrixMultiInsertRowAbove,
+      contextMenuState?.includeMatrixMultiInsertRowBelow,
+      contextMenuState?.includeMatrixMultiRemoveRow,
+      contextMenuState?.includeMatrixMultiInsertColumnLeft,
+      contextMenuState?.includeMatrixMultiInsertColumnRight,
+      contextMenuState?.includeMatrixMultiRemoveColumn
+    ]
   );
 
   return (

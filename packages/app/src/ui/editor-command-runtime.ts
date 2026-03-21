@@ -16,6 +16,17 @@ import {
   actionAvailability,
   addTreeChild,
   addTreeSibling,
+  addMatrixColumnAtEnd,
+  addMatrixRowAtEnd,
+  canAddMatrixColumnAtEnd,
+  canAddMatrixRowAtEnd,
+  canInsertMatrixColumnLeft,
+  canInsertMatrixColumnRight,
+  canInsertMatrixRowAbove,
+  canInsertMatrixRowBelow,
+  canRemoveMatrixColumn,
+  canRemoveMatrixRow,
+  canTransposeMatrix,
   alignSelection,
   canAddTreeChild,
   canAddTreeSibling,
@@ -33,6 +44,13 @@ import {
   reorderSelection,
   reverseSelectedPath,
   rotateSelection,
+  insertMatrixColumnLeft,
+  insertMatrixColumnRight,
+  insertMatrixRowAbove,
+  insertMatrixRowBelow,
+  removeMatrixColumn,
+  removeMatrixRow,
+  transposeMatrix,
   ungroupSelection,
   setSelectedPathClosed,
   setSelectedPathPointKind,
@@ -284,6 +302,15 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const canTreeAddChild = canAddTreeChild(commandContext);
   const canTreeAddSibling = canAddTreeSibling(commandContext);
   const canTreeRemoveChild = canRemoveTreeChild(commandContext);
+  const canMatrixAddRowEnd = canAddMatrixRowAtEnd(commandContext);
+  const canMatrixAddColumnEnd = canAddMatrixColumnAtEnd(commandContext);
+  const canMatrixInsertRowAbove = canInsertMatrixRowAbove(commandContext);
+  const canMatrixInsertRowBelow = canInsertMatrixRowBelow(commandContext);
+  const canMatrixInsertColumnLeft = canInsertMatrixColumnLeft(commandContext);
+  const canMatrixInsertColumnRight = canInsertMatrixColumnRight(commandContext);
+  const canMatrixTranspose = canTransposeMatrix(commandContext);
+  const canMatrixRemoveRow = canRemoveMatrixRow(commandContext);
+  const canMatrixRemoveColumn = canRemoveMatrixColumn(commandContext);
 
   const bindings: CommandBindings = {
     [APP_MENU_COMMAND_IDS.NEW_DOCUMENT]: {
@@ -464,6 +491,60 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       enabled: canTreeAddSibling,
       run: () => {
         addTreeSibling(commandContext, "after");
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END]: {
+      enabled: canMatrixAddRowEnd,
+      run: () => {
+        addMatrixRowAtEnd(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END]: {
+      enabled: canMatrixAddColumnEnd,
+      run: () => {
+        addMatrixColumnAtEnd(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE]: {
+      enabled: canMatrixInsertRowAbove,
+      run: () => {
+        insertMatrixRowAbove(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW]: {
+      enabled: canMatrixInsertRowBelow,
+      run: () => {
+        insertMatrixRowBelow(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT]: {
+      enabled: canMatrixInsertColumnLeft,
+      run: () => {
+        insertMatrixColumnLeft(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT]: {
+      enabled: canMatrixInsertColumnRight,
+      run: () => {
+        insertMatrixColumnRight(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE]: {
+      enabled: canMatrixTranspose,
+      run: () => {
+        transposeMatrix(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW]: {
+      enabled: canMatrixRemoveRow,
+      run: () => {
+        removeMatrixRow(commandContext);
+      }
+    },
+    [APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN]: {
+      enabled: canMatrixRemoveColumn,
+      run: () => {
+        removeMatrixColumn(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.DUPLICATE]: {

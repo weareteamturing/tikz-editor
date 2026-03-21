@@ -320,7 +320,6 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       if (additiveSelection) {
         dispatch({ type: "SELECT", id: resolvedTargetId, additive: true });
-        dispatch({ type: "SET_FOCUSED_SCOPE", scopeId: null });
         return;
       }
 

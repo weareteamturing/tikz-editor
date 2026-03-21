@@ -242,6 +242,289 @@ describe("editor-command-runtime", () => {
     });
   });
 
+  it("enables matrix structural commands for matrix statement selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(["path:0"])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE].enabled).toBe(true);
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 3
+      }
+    });
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 3
+      }
+    });
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "transposeMatrix",
+        matrixSourceId: "path:0"
+      }
+    });
+  });
+
+  it("enables matrix row/column removal commands for matrix-cell selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const matrixCellId = rendered.semantic.scene.elements.find(
+      (entry) => entry.matrixCell?.row === 1 && entry.matrixCell.column === 2
+    )?.matrixCell?.cellSourceId;
+    if (!matrixCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([matrixCellId])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT].enabled).toBe(true);
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 1
+      }
+    });
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 2
+      }
+    });
+
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 1
+      }
+    });
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 2
+      }
+    });
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 2
+      }
+    });
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "addMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 3
+      }
+    });
+  });
+
+  it("disables matrix row/column removal when only one row or one column remains", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const matrixCellId = rendered.semantic.scene.elements.find(
+      (entry) => entry.matrixCell?.row === 1 && entry.matrixCell.column === 1
+    )?.matrixCell?.cellSourceId;
+    if (!matrixCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([matrixCellId])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN].enabled).toBe(true);
+
+    const singleColumnSource = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A \\
+    B \\
+  };
+\end{tikzpicture}`;
+    const singleColumnRendered = renderTikzToSvg(singleColumnSource);
+    const singleColumnCellId = singleColumnRendered.semantic.scene.elements.find(
+      (entry) => entry.matrixCell?.row === 1 && entry.matrixCell.column === 1
+    )?.matrixCell?.cellSourceId;
+    if (!singleColumnCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+
+    const singleColumnRuntime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source: singleColumnSource,
+        snapshot: makeSnapshot(singleColumnRendered, singleColumnSource),
+        selectedElementIds: new Set([singleColumnCellId])
+      })
+    );
+    expect(singleColumnRuntime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW].enabled).toBe(true);
+    expect(singleColumnRuntime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN].enabled).toBe(false);
+  });
+
+  it("enables matrix row removal for multi-selected matrix cells in the same row", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const rowCellIds = rendered.semantic.scene.elements
+      .filter((entry) => entry.matrixCell?.row === 1)
+      .map((entry) => entry.matrixCell!.cellSourceId);
+    if (rowCellIds.length < 2) {
+      throw new Error("Expected matrix row cell source ids");
+    }
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(rowCellIds.slice(0, 2))
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT].enabled).toBe(false);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 1
+      }
+    });
+  });
+
+  it("enables matrix column removal for multi-selected matrix cells in the same column", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const columnCellIds = rendered.semantic.scene.elements
+      .filter((entry) => entry.matrixCell?.column === 1)
+      .map((entry) => entry.matrixCell!.cellSourceId);
+    if (columnCellIds.length < 2) {
+      throw new Error("Expected matrix column cell source ids");
+    }
+
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(columnCellIds.slice(0, 2))
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT].enabled).toBe(true);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN, "context-menu")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 1
+      }
+    });
+  });
+
   it("enables point-targeted path commands when a matching active handle is set", () => {
     const source = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0) -- (2,0);

@@ -8,10 +8,19 @@ export type EndpointAnchorSnapResult = {
   snappedAnchor: NodeAnchorTarget | null;
 };
 
+export type MatrixCellAnchorHint = {
+  matrixSourceId: string;
+  cellSourceId: string;
+  row: number;
+  column: number;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+};
+
 export function resolveEndpointAnchorSnap(input: {
   pointerWorld: Point;
   zoom: number;
   nodeAnchorTargets: readonly NodeAnchorTarget[];
+  matrixCellAnchorHints?: readonly MatrixCellAnchorHint[];
 }): EndpointAnchorSnapResult {
   const zoom = Math.max(input.zoom, 1e-6);
   if (input.nodeAnchorTargets.length === 0) {
@@ -38,6 +47,14 @@ export function resolveEndpointAnchorSnap(input: {
 
   let nearestNodeAnchors: NodeAnchorTarget[] | null = null;
   let nearestNodeDistanceSq = Number.POSITIVE_INFINITY;
+  const nearestMatrixCellHint = resolveNearestMatrixCellHint(input.pointerWorld, input.matrixCellAnchorHints ?? []);
+  const preferredMatrixCellAnchors = nearestMatrixCellHint
+    ? resolvePreferredMatrixCellAnchors(byNode, nearestMatrixCellHint.row, nearestMatrixCellHint.column, input.pointerWorld)
+    : null;
+  if (preferredMatrixCellAnchors && preferredMatrixCellAnchors.distanceSq <= revealNodeRadiusSq) {
+    nearestNodeAnchors = preferredMatrixCellAnchors.anchors;
+    nearestNodeDistanceSq = preferredMatrixCellAnchors.distanceSq;
+  }
   for (const anchors of byNode.values()) {
     const extent = deriveNodeExtent(anchors);
     if (!extent) {
@@ -81,6 +98,60 @@ export function resolveEndpointAnchorSnap(input: {
     visibleAnchors,
     snappedAnchor
   };
+}
+
+function resolveNearestMatrixCellHint(
+  pointerWorld: Point,
+  hints: readonly MatrixCellAnchorHint[]
+): MatrixCellAnchorHint | null {
+  let nearest: MatrixCellAnchorHint | null = null;
+  let nearestDistanceSq = Number.POSITIVE_INFINITY;
+  for (const hint of hints) {
+    const distanceSq = distanceSquaredToBounds(pointerWorld, hint.bounds);
+    if (distanceSq >= nearestDistanceSq) {
+      continue;
+    }
+    nearest = hint;
+    nearestDistanceSq = distanceSq;
+  }
+  return nearest;
+}
+
+function resolvePreferredMatrixCellAnchors(
+  anchorsByNode: ReadonlyMap<string, NodeAnchorTarget[]>,
+  row: number,
+  column: number,
+  pointerWorld: Point
+): { anchors: NodeAnchorTarget[]; distanceSq: number } | null {
+  let best: { anchors: NodeAnchorTarget[]; distanceSq: number } | null = null;
+  for (const [nodeName, anchors] of anchorsByNode.entries()) {
+    const parsed = parseTrailingMatrixCellIndices(nodeName);
+    if (!parsed || parsed.row !== row || parsed.column !== column) {
+      continue;
+    }
+    const extent = deriveNodeExtent(anchors);
+    if (!extent) {
+      continue;
+    }
+    const distanceSq = distanceSquaredToBounds(pointerWorld, extent);
+    if (!best || distanceSq < best.distanceSq) {
+      best = { anchors, distanceSq };
+    }
+  }
+  return best;
+}
+
+function parseTrailingMatrixCellIndices(nodeName: string): { row: number; column: number } | null {
+  const match = /-(\d+)-(\d+)$/.exec(nodeName.trim());
+  if (!match) {
+    return null;
+  }
+  const row = Number.parseInt(match[1] ?? "", 10);
+  const column = Number.parseInt(match[2] ?? "", 10);
+  if (!Number.isInteger(row) || !Number.isInteger(column) || row <= 0 || column <= 0) {
+    return null;
+  }
+  return { row, column };
 }
 
 function distanceSquared(a: Point, b: Point): number {

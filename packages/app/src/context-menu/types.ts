@@ -6,6 +6,8 @@ export type CanvasContextMenuTarget =
   | "selection-single-tree"
   | "selection-single-node"
   | "selection-single-node-tree"
+  | "selection-single-matrix"
+  | "selection-single-matrix-cell"
   | "selection-single-path-point"
   | "selection-single-path-point-tree"
   | "selection-multi";

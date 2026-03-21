@@ -197,6 +197,60 @@ const TREE_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
+const MATRIX_STATEMENT_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END,
+    label: "Add Row at End"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END,
+    label: "Add Column at End"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE,
+    label: "Transpose Matrix"
+  }
+];
+
+const MATRIX_CELL_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE,
+    label: "Insert Row Above"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW,
+    label: "Insert Row Below"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW,
+    label: "Remove Row"
+  },
+  {
+    kind: "separator"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT,
+    label: "Insert Column Left"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT,
+    label: "Insert Column Right"
+  },
+  {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN,
+    label: "Remove Column"
+  }
+];
+
 const SINGLE_NODE_TOP_ACTIONS: readonly AppMenuItem[] = [
   {
     kind: "command",
@@ -291,8 +345,32 @@ function withTreeItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
   ];
 }
 
+function withMatrixStatementItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
+  return [
+    ...MATRIX_STATEMENT_ITEMS,
+    { kind: "separator" },
+    ...items
+  ];
+}
+
+function withMatrixCellItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
+  return [
+    ...MATRIX_CELL_ITEMS,
+    { kind: "separator" },
+    ...items
+  ];
+}
+
 export function buildCanvasContextMenuDefinition(
-  options: { includeEditEquationForSingleNode?: boolean } = {}
+  options: {
+    includeEditEquationForSingleNode?: boolean;
+    includeMatrixMultiRemoveRow?: boolean;
+    includeMatrixMultiRemoveColumn?: boolean;
+    includeMatrixMultiInsertRowAbove?: boolean;
+    includeMatrixMultiInsertRowBelow?: boolean;
+    includeMatrixMultiInsertColumnLeft?: boolean;
+    includeMatrixMultiInsertColumnRight?: boolean;
+  } = {}
 ) {
   const selectionSingleNodeItems = options.includeEditEquationForSingleNode
     ? [
@@ -301,6 +379,86 @@ export function buildCanvasContextMenuDefinition(
         ...BASE_SELECTION_SINGLE_NODE_ITEMS.slice(2)
       ]
     : BASE_SELECTION_SINGLE_NODE_ITEMS;
+  const selectionMultiItems = withMatrixMultiItems([
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNDO,
+      label: "Undo",
+      accelerator: "CmdOrCtrl+Z"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REDO,
+      label: "Redo",
+      accelerator: "CmdOrCtrl+Shift+Z"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.CUT,
+      label: "Cut",
+      accelerator: "CmdOrCtrl+X"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.COPY,
+      label: "Copy",
+      accelerator: "CmdOrCtrl+C"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.PASTE,
+      label: "Paste",
+      accelerator: "CmdOrCtrl+V"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DELETE,
+      label: "Delete",
+      accelerator: "Delete"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+      label: "Duplicate",
+      accelerator: "CmdOrCtrl+D"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.GROUP,
+      label: "Group",
+      accelerator: "CmdOrCtrl+G"
+    },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+      label: "Ungroup",
+      accelerator: "CmdOrCtrl+Shift+G"
+    },
+    { kind: "separator" },
+    {
+      kind: "submenu",
+      label: "Align",
+      items: ALIGN_ITEMS
+    },
+    {
+      kind: "submenu",
+      label: "Transform",
+      items: TRANSFORM_ITEMS
+    },
+    {
+      kind: "submenu",
+      label: "Distribute",
+      items: DISTRIBUTE_ITEMS
+    },
+    {
+      kind: "submenu",
+      label: "Reorder",
+      items: REORDER_ITEMS
+    }
+  ], options);
+
   return {
   "canvas-empty": [
     {
@@ -628,86 +786,155 @@ export function buildCanvasContextMenuDefinition(
   "selection-single-node-tree": [
     ...withTreeItems(selectionSingleNodeItems)
   ],
+  "selection-single-matrix": [
+    ...withMatrixStatementItems([
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNDO,
+        label: "Undo",
+        accelerator: "CmdOrCtrl+Z"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REDO,
+        label: "Redo",
+        accelerator: "CmdOrCtrl+Shift+Z"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.CUT,
+        label: "Cut",
+        accelerator: "CmdOrCtrl+X"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.COPY,
+        label: "Copy",
+        accelerator: "CmdOrCtrl+C"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.PASTE,
+        label: "Paste",
+        accelerator: "CmdOrCtrl+V"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DELETE,
+        label: "Delete",
+        accelerator: "Delete"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
+        label: "Duplicate",
+        accelerator: "CmdOrCtrl+D"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.GROUP,
+        label: "Group",
+        accelerator: "CmdOrCtrl+G"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.UNGROUP,
+        label: "Ungroup",
+        accelerator: "CmdOrCtrl+Shift+G"
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Transform",
+        items: TRANSFORM_ITEMS
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Path",
+        items: PATH_ITEMS
+      },
+      { kind: "separator" },
+      {
+        kind: "submenu",
+        label: "Reorder",
+        items: REORDER_ITEMS
+      }
+    ])
+  ],
+  "selection-single-matrix-cell": [
+    ...withMatrixCellItems(selectionSingleNodeItems)
+  ],
   "selection-multi": [
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNDO,
-      label: "Undo",
-      accelerator: "CmdOrCtrl+Z"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REDO,
-      label: "Redo",
-      accelerator: "CmdOrCtrl+Shift+Z"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.CUT,
-      label: "Cut",
-      accelerator: "CmdOrCtrl+X"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.COPY,
-      label: "Copy",
-      accelerator: "CmdOrCtrl+C"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.PASTE,
-      label: "Paste",
-      accelerator: "CmdOrCtrl+V"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DELETE,
-      label: "Delete",
-      accelerator: "Delete"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-      label: "Duplicate",
-      accelerator: "CmdOrCtrl+D"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.GROUP,
-      label: "Group",
-      accelerator: "CmdOrCtrl+G"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-      label: "Ungroup",
-      accelerator: "CmdOrCtrl+Shift+G"
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Align",
-      items: ALIGN_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Transform",
-      items: TRANSFORM_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Distribute",
-      items: DISTRIBUTE_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Reorder",
-      items: REORDER_ITEMS
-    }
+    ...selectionMultiItems
   ]
 } as const satisfies CanvasContextMenuDefinition;
 }
 
 export const CANVAS_CONTEXT_MENU_DEFINITION = buildCanvasContextMenuDefinition();
+
+function withMatrixMultiItems(
+  items: readonly AppMenuItem[],
+  options: {
+    includeMatrixMultiRemoveRow?: boolean;
+    includeMatrixMultiRemoveColumn?: boolean;
+    includeMatrixMultiInsertRowAbove?: boolean;
+    includeMatrixMultiInsertRowBelow?: boolean;
+    includeMatrixMultiInsertColumnLeft?: boolean;
+    includeMatrixMultiInsertColumnRight?: boolean;
+  }
+): readonly AppMenuItem[] {
+  const topItems: AppMenuItem[] = [];
+  if (options.includeMatrixMultiInsertRowAbove) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE,
+      label: "Insert Row Above"
+    });
+  }
+  if (options.includeMatrixMultiInsertRowBelow) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW,
+      label: "Insert Row Below"
+    });
+  }
+  if (options.includeMatrixMultiRemoveRow) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW,
+      label: "Remove Row"
+    });
+  }
+  const hasRowItems = topItems.length > 0;
+  if (hasRowItems && (options.includeMatrixMultiInsertColumnLeft || options.includeMatrixMultiInsertColumnRight || options.includeMatrixMultiRemoveColumn)) {
+    topItems.push({ kind: "separator" });
+  }
+  if (options.includeMatrixMultiInsertColumnLeft) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT,
+      label: "Insert Column Left"
+    });
+  }
+  if (options.includeMatrixMultiInsertColumnRight) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT,
+      label: "Insert Column Right"
+    });
+  }
+  if (options.includeMatrixMultiRemoveColumn) {
+    topItems.push({
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN,
+      label: "Remove Column"
+    });
+  }
+  if (topItems.length === 0) {
+    return items;
+  }
+  return [...topItems, { kind: "separator" }, ...items];
+}

@@ -9,6 +9,8 @@ describe("canvas context menu definition", () => {
       "canvas-empty",
       "selection-multi",
       "selection-single",
+      "selection-single-matrix",
+      "selection-single-matrix-cell",
       "selection-single-node",
       "selection-single-node-tree",
       "selection-single-path-point",
@@ -24,6 +26,8 @@ describe("canvas context menu definition", () => {
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-path-point-tree"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-node-tree"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-matrix"]))
+      .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-matrix-cell"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single-tree"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-single"]))
       .concat(collectCommandIds(CANVAS_CONTEXT_MENU_DEFINITION["selection-multi"]));
@@ -113,6 +117,32 @@ describe("canvas context menu definition", () => {
     expect(items[6]).toEqual({ kind: "separator" });
   });
 
+  it("defines selection-single-matrix with matrix actions at the top", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-matrix"];
+    expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.MATRIX_ADD_ROW_END,
+      APP_MENU_COMMAND_IDS.MATRIX_ADD_COLUMN_END,
+      APP_MENU_COMMAND_IDS.MATRIX_TRANSPOSE
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+  });
+
+  it("defines selection-single-matrix-cell with row/column insertion and removal actions at the top", () => {
+    const items = CANVAS_CONTEXT_MENU_DEFINITION["selection-single-matrix-cell"];
+    expect(items.slice(0, 3).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE,
+      APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW,
+      APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW,
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+    expect(items.slice(4, 7).map((item) => item.kind === "command" ? item.commandId : null)).toEqual([
+      APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT,
+      APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT,
+      APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN
+    ]);
+    expect(items[7]).toEqual({ kind: "separator" });
+  });
+
   it("adds Edit Equation for selection-single-node when opted in", () => {
     const withEdit = buildCanvasContextMenuDefinition({ includeEditEquationForSingleNode: true });
     const items = withEdit["selection-single-node-tree"];
@@ -168,6 +198,106 @@ describe("canvas context menu definition", () => {
     expect(items.some((item) => item.kind === "submenu" && item.label === "Transform")).toBe(true);
     expect(items.some((item) => item.kind === "submenu" && item.label === "Distribute")).toBe(true);
     expect(items.some((item) => item.kind === "submenu" && item.label === "Reorder")).toBe(true);
+  });
+
+  it("prepends row insertion/removal items to selection-multi when matrix row actions are enabled", () => {
+    const definition = buildCanvasContextMenuDefinition({
+      includeMatrixMultiInsertRowAbove: true,
+      includeMatrixMultiInsertRowBelow: true,
+      includeMatrixMultiRemoveRow: true
+    });
+    const items = definition["selection-multi"];
+    expect(items.slice(0, 3)).toEqual([
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE,
+        label: "Insert Row Above"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW,
+        label: "Insert Row Below"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW,
+        label: "Remove Row"
+      }
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+  });
+
+  it("prepends column insertion/removal items to selection-multi when matrix column actions are enabled", () => {
+    const definition = buildCanvasContextMenuDefinition({
+      includeMatrixMultiInsertColumnLeft: true,
+      includeMatrixMultiInsertColumnRight: true,
+      includeMatrixMultiRemoveColumn: true
+    });
+    const items = definition["selection-multi"];
+    expect(items.slice(0, 3)).toEqual([
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT,
+        label: "Insert Column Left"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT,
+        label: "Insert Column Right"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN,
+        label: "Remove Column"
+      }
+    ]);
+    expect(items[3]).toEqual({ kind: "separator" });
+  });
+
+  it("prepends both row and column insertion/removal items to selection-multi when both are enabled", () => {
+    const definition = buildCanvasContextMenuDefinition({
+      includeMatrixMultiInsertRowAbove: true,
+      includeMatrixMultiInsertRowBelow: true,
+      includeMatrixMultiRemoveRow: true,
+      includeMatrixMultiInsertColumnLeft: true,
+      includeMatrixMultiInsertColumnRight: true,
+      includeMatrixMultiRemoveColumn: true
+    });
+    const items = definition["selection-multi"];
+    expect(items.slice(0, 7)).toEqual([
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_ABOVE,
+        label: "Insert Row Above"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_ROW_BELOW,
+        label: "Insert Row Below"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_ROW,
+        label: "Remove Row"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_LEFT,
+        label: "Insert Column Left"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_INSERT_COLUMN_RIGHT,
+        label: "Insert Column Right"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.MATRIX_REMOVE_COLUMN,
+        label: "Remove Column"
+      }
+    ]);
+    expect(items[7]).toEqual({ kind: "separator" });
   });
 
   it("separates Group/Ungroup from clipboard actions with a divider under Duplicate", () => {

@@ -34,11 +34,16 @@ export function resolveCanvasContextMenuTarget(
   }
 
   if (selectedElementIds.has(clickedSourceId)) {
+    const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId);
     const treeTarget = isTreeContextTarget(source, clickedSourceId);
     return {
       target:
         selectedElementIds.size > 1
           ? "selection-multi"
+          : matrixContextKind === "matrix-statement"
+            ? "selection-single-matrix"
+            : matrixContextKind === "matrix-cell"
+              ? "selection-single-matrix-cell"
           : isNodeContextTarget(source, clickedSourceId)
             ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
             : (treeTarget ? "selection-single-tree" : "selection-single"),
@@ -46,9 +51,14 @@ export function resolveCanvasContextMenuTarget(
     };
   }
 
+  const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId);
   const treeTarget = isTreeContextTarget(source, clickedSourceId);
   return {
-    target: isNodeContextTarget(source, clickedSourceId)
+    target: matrixContextKind === "matrix-statement"
+      ? "selection-single-matrix"
+      : matrixContextKind === "matrix-cell"
+        ? "selection-single-matrix-cell"
+      : isNodeContextTarget(source, clickedSourceId)
       ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
       : (treeTarget ? "selection-single-tree" : "selection-single"),
     selectionAction: { kind: "select-only", sourceId: clickedSourceId }
@@ -83,6 +93,23 @@ function isTreeContextTarget(source: string, targetId: string): boolean {
     return false;
   }
   return statement.items.some((item) => item.kind === "ChildOperation");
+}
+
+function resolveMatrixContextKind(
+  source: string,
+  targetId: string
+): "matrix-statement" | "matrix-cell" | null {
+  const resolved = resolvePropertyTarget(source, targetId);
+  if (resolved.kind === "not-found") {
+    return null;
+  }
+  if (resolved.target.kind === "matrix-statement") {
+    return "matrix-statement";
+  }
+  if (resolved.target.kind === "matrix-cell") {
+    return "matrix-cell";
+  }
+  return null;
 }
 
 function findPathStatementById(statements: readonly Statement[], sourceId: string): PathStatement | null {

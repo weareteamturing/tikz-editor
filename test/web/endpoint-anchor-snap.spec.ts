@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { NodeAnchorTarget } from "../../packages/core/src/semantic/types.js";
-import { resolveEndpointAnchorSnap } from "../../packages/app/src/ui/canvas-panel/endpoint-anchor-snap";
+import { resolveEndpointAnchorSnap, type MatrixCellAnchorHint } from "../../packages/app/src/ui/canvas-panel/endpoint-anchor-snap";
 
 const TARGETS: NodeAnchorTarget[] = [
   { nodeName: "A", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },
@@ -76,5 +76,41 @@ describe("resolveEndpointAnchorSnap", () => {
     expect(result.visibleAnchors.length).toBeGreaterThan(0);
     expect(result.visibleAnchors.every((target) => target.nodeName === "Wide")).toBe(true);
     expect(result.snappedAnchor?.anchor).toBe("east");
+  });
+
+  it("biases anchor reveal toward the nearest matrix cell row/column when hints are available", () => {
+    const matrixTargets: NodeAnchorTarget[] = [
+      { nodeName: "m-1-1", anchor: "center", world: { x: 0, y: 0 }, tier: "basic" },
+      { nodeName: "m-1-1", anchor: "east", world: { x: 0.8, y: 0 }, tier: "basic" },
+      { nodeName: "m-1-2", anchor: "center", world: { x: 1.6, y: 0 }, tier: "basic" },
+      { nodeName: "m-1-2", anchor: "west", world: { x: 1.2, y: 0 }, tier: "basic" }
+    ];
+    const matrixHints: MatrixCellAnchorHint[] = [
+      {
+        matrixSourceId: "path:0",
+        cellSourceId: "node:0:0:matrix-cell:1:1",
+        row: 1,
+        column: 1,
+        bounds: { minX: -0.4, minY: -0.4, maxX: 0.9, maxY: 0.4 }
+      },
+      {
+        matrixSourceId: "path:0",
+        cellSourceId: "node:0:0:matrix-cell:1:2",
+        row: 1,
+        column: 2,
+        bounds: { minX: 1.0, minY: -0.4, maxX: 2.1, maxY: 0.4 }
+      }
+    ];
+
+    const result = resolveEndpointAnchorSnap({
+      pointerWorld: { x: 1.05, y: 0 },
+      zoom: 1,
+      nodeAnchorTargets: matrixTargets,
+      matrixCellAnchorHints: matrixHints
+    });
+
+    expect(result.visibleAnchors.length).toBeGreaterThan(0);
+    expect(result.visibleAnchors.every((target) => target.nodeName === "m-1-2")).toBe(true);
+    expect(result.snappedAnchor?.nodeName).toBe("m-1-2");
   });
 });

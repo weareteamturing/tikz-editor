@@ -18,6 +18,7 @@ import { resolveResizeFrameFromBounds } from "./resize-frames";
 import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
 import { resolveRotateHandlePosition } from "./rotate-handle";
 import { augmentScopeOverlayWithMatrices, buildScopeOverlayIndex } from "./scope-overlay";
+import type { MatrixCellAnchorHint } from "./endpoint-anchor-snap";
 import {
   collectMatrixStatementSourceIds,
   collectSourceBounds,
@@ -125,6 +126,37 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
     return collectSourceBounds(snapshot.scene.elements, svgResult.viewBox);
   }, [snapshot.scene, svgResult]);
+
+  const matrixCellAnchorHints = useMemo<readonly MatrixCellAnchorHint[]>(() => {
+    const byCellId = new Map<string, MatrixCellAnchorHint>();
+    for (const element of snapshot.scene?.elements ?? []) {
+      const matrixCell = element.matrixCell;
+      if (!matrixCell) {
+        continue;
+      }
+      const existing = byCellId.get(matrixCell.cellSourceId);
+      if (existing) {
+        continue;
+      }
+      const bounds = sourceBoundsSvg.get(matrixCell.cellSourceId);
+      if (!bounds) {
+        continue;
+      }
+      byCellId.set(matrixCell.cellSourceId, {
+        matrixSourceId: matrixCell.matrixSourceId,
+        cellSourceId: matrixCell.cellSourceId,
+        row: matrixCell.row,
+        column: matrixCell.column,
+        bounds: {
+          minX: bounds.minX,
+          minY: bounds.minY,
+          maxX: bounds.maxX,
+          maxY: bounds.maxY
+        }
+      });
+    }
+    return [...byCellId.values()];
+  }, [snapshot.scene, sourceBoundsSvg]);
 
   const scopeOverlay = useMemo(
     () =>
@@ -745,6 +777,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   return {
     selectedHandles,
     nodeAnchorTargets,
+    matrixCellAnchorHints,
     matrixSourceIds,
     dragCapability,
     adornmentTargetIds,
