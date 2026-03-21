@@ -14,6 +14,8 @@ function makeMockBridge() {
     name: "slides.pptx"
   };
   const saved: string[] = [];
+  const openTextCalls: Array<{ path?: string | null; addToRecent?: boolean }> = [];
+  const openBinaryCalls: Array<{ path?: string | null; addToRecent?: boolean }> = [];
   const contextMenuPayloads: unknown[] = [];
   const assistantStartTurnPayloads: unknown[] = [];
   const pendingOpenRequests: Array<{ source: string; path: string; name: string }> = [];
@@ -23,17 +25,21 @@ function makeMockBridge() {
   let pendingOpenChangedHandler: (() => void) | null = null;
   return {
     saved,
+    openTextCalls,
+    openBinaryCalls,
     contextMenuPayloads,
     assistantStartTurnPayloads,
     getSnapHapticCalls: () => snapHapticCalls,
     bridge: {
-      openText: async (path?: string | null) => {
+      openText: async (path?: string | null, options?: { addToRecent?: boolean }) => {
+        openTextCalls.push({ path, addToRecent: options?.addToRecent });
         if (path && path !== opened.path) {
           return null;
         }
         return opened;
       },
-      openBinary: async (path?: string | null) => {
+      openBinary: async (path?: string | null, options?: { addToRecent?: boolean }) => {
+        openBinaryCalls.push({ path, addToRecent: options?.addToRecent });
         if (path && path !== openedBinary.path) {
           return null;
         }
@@ -143,6 +149,20 @@ describe("desktop shell flows", () => {
     platform.menu?.dispatchCommand?.(APP_MENU_COMMAND_IDS.UNDO, "platform");
     await Promise.resolve();
     expect(received).toBe(APP_MENU_COMMAND_IDS.UNDO);
+  });
+
+  it("forwards recent-file tracking flags through open helpers", async () => {
+    const mock = makeMockBridge();
+    const platform = createDesktopPlatformAdapter({
+      storage: { getItem: () => null, setItem: () => undefined },
+      bridge: mock.bridge
+    });
+
+    await platform.files?.openText?.({ addToRecent: false });
+    await platform.files?.openBinary?.({ addToRecent: false });
+
+    expect(mock.openTextCalls.at(-1)).toEqual({ path: null, addToRecent: false });
+    expect(mock.openBinaryCalls.at(-1)).toEqual({ path: null, addToRecent: false });
   });
 
   it("reports native context menu support on desktop", () => {

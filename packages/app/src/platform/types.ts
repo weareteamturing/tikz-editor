@@ -27,8 +27,8 @@ export type PlatformClipboard = {
 };
 
 export type PlatformFileApi = {
-  openText?: () => Promise<{ source: string; fileRef: DocumentFileRef | null } | null>;
-  openBinary?: () => Promise<{ bytes: ArrayBuffer; fileRef: DocumentFileRef | null } | null>;
+  openText?: (options?: { addToRecent?: boolean }) => Promise<{ source: string; fileRef: DocumentFileRef | null } | null>;
+  openBinary?: (options?: { addToRecent?: boolean }) => Promise<{ bytes: ArrayBuffer; fileRef: DocumentFileRef | null } | null>;
   bindOpenRequest?: (
     handler: (opened: { source: string; fileRef: DocumentFileRef | null }) => void
   ) => (() => void) | void;

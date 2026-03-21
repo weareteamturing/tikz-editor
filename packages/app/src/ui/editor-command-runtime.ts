@@ -247,12 +247,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     }));
   };
 
-  const runOpenDocument = (requireSvg = false) => {
+  const runOpenDocument = (requireSvg = false, addToRecent = true) => {
     const openText = getActiveEditorPlatform().files?.openText;
     if (!openText) {
       return;
     }
-    void openText().then(async (opened) => {
+    void openText({ addToRecent }).then(async (opened) => {
       if (!opened) {
         return;
       }
@@ -274,7 +274,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     if (!openBinary) {
       return;
     }
-    void openBinary().then(async (opened) => {
+    void openBinary({ addToRecent: false }).then(async (opened) => {
       if (!opened) {
         return;
       }
@@ -330,7 +330,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     },
     [APP_MENU_COMMAND_IDS.IMPORT_SVG]: {
       enabled: canOpen,
-      run: () => runOpenDocument(true)
+      run: () => runOpenDocument(true, false)
     },
     [APP_MENU_COMMAND_IDS.CLEAR_RECENT_FILES]: {
       enabled: typeof getActiveEditorPlatform().files?.clearRecentFiles === "function",

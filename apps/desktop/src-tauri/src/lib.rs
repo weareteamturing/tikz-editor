@@ -1041,6 +1041,7 @@ fn desktop_read_last_compile_log() -> Result<String, String> {
 #[tauri::command]
 fn desktop_open_text(
     path: Option<String>,
+    add_to_recent: Option<bool>,
     app: AppHandle,
 ) -> Result<Option<OpenTextPayload>, String> {
     let resolved_path = if let Some(raw_path) = path {
@@ -1054,13 +1055,16 @@ fn desktop_open_text(
         return Ok(None);
     };
     let payload = read_open_text_payload_from_path(&path_buf)?;
-    add_recent_file(&app, payload.path.clone());
+    if add_to_recent.unwrap_or(true) {
+        add_recent_file(&app, payload.path.clone());
+    }
     Ok(Some(payload))
 }
 
 #[tauri::command]
 fn desktop_open_binary(
     path: Option<String>,
+    add_to_recent: Option<bool>,
     app: AppHandle,
 ) -> Result<Option<OpenBinaryPayload>, String> {
     let resolved_path = if let Some(raw_path) = path {
@@ -1080,7 +1084,9 @@ fn desktop_open_binary(
         .and_then(|name| name.to_str())
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| "imported.pptx".to_string());
-    add_recent_file(&app, path.clone());
+    if add_to_recent.unwrap_or(true) {
+        add_recent_file(&app, path.clone());
+    }
     Ok(Some(OpenBinaryPayload {
         bytes_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
         path,

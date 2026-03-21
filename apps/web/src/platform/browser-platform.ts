@@ -499,14 +499,14 @@ export function createBrowserPlatformAdapter(env: BrowserPlatformEnvironment = {
       }
     },
     files: {
-      openText: async () => {
+      openText: async (_options) => {
         const fsResult = await openViaFsApi();
         if (fsResult) {
           return fsResult;
         }
         return await openTextFileWithInput();
       },
-      openBinary: async () => {
+      openBinary: async (_options) => {
         const fsResult = await openBinaryViaFsApi();
         if (fsResult) {
           return fsResult;

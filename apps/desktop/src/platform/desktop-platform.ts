@@ -45,8 +45,8 @@ type DesktopSaveTextResult = {
 };
 
 type DesktopBridge = {
-  openText: (path?: string | null) => Promise<DesktopOpenTextResult | null>;
-  openBinary?: (path?: string | null) => Promise<DesktopOpenBinaryResult | null>;
+  openText: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenTextResult | null>;
+  openBinary?: (path?: string | null, options?: { addToRecent?: boolean }) => Promise<DesktopOpenBinaryResult | null>;
   saveText: (params: {
     text: string;
     suggestedName?: string;
@@ -555,13 +555,19 @@ function createNativeDesktopMenuManager(options: {
 
 function createDefaultBridge(): DesktopBridge {
   return {
-    openText: async (path) => {
+    openText: async (path, options) => {
       const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<DesktopOpenTextResult | null>("desktop_open_text", { path });
+      return await invoke<DesktopOpenTextResult | null>("desktop_open_text", {
+        path,
+        addToRecent: options?.addToRecent
+      });
     },
-    openBinary: async (path) => {
+    openBinary: async (path, options) => {
       const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<DesktopOpenBinaryResult | null>("desktop_open_binary", { path });
+      return await invoke<DesktopOpenBinaryResult | null>("desktop_open_binary", {
+        path,
+        addToRecent: options?.addToRecent
+      });
     },
     saveText: async ({ text, suggestedName, path, forceSaveAs }) => {
       const { invoke } = await import("@tauri-apps/api/core");
@@ -961,8 +967,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           }
         };
       },
-      openText: async () => {
-        const opened = await getBridge().openText(null);
+      openText: async (options) => {
+        const opened = await getBridge().openText(null, { addToRecent: options?.addToRecent ?? true });
         if (!opened) {
           return null;
         }
@@ -972,8 +978,8 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
           fileRef: toDesktopFileRef(opened.path, opened.name)
         };
       },
-      openBinary: async () => {
-        const opened = await getBridge().openBinary?.(null);
+      openBinary: async (options) => {
+        const opened = await getBridge().openBinary?.(null, { addToRecent: options?.addToRecent ?? true });
         if (!opened) {
           return null;
         }
