@@ -20,17 +20,21 @@ import {
   addMatrixRowAtEnd,
   canAddMatrixColumnAtEnd,
   canAddMatrixRowAtEnd,
+  canCopySelection,
+  canCutSelection,
+  canDeleteSelection,
+  canDuplicateSelection,
   canInsertMatrixColumnLeft,
   canInsertMatrixColumnRight,
   canInsertMatrixRowAbove,
   canInsertMatrixRowBelow,
+  canPasteSelection,
   canRemoveMatrixColumn,
   canRemoveMatrixRow,
   canTransposeMatrix,
   alignSelection,
   canAddTreeChild,
   canAddTreeSibling,
-  canRemoveTreeChild,
   deleteSelectedPathPoint,
   flipSelection,
   copySelection,
@@ -301,7 +305,6 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
   const equationTarget = resolveEquationNodeTargetFromSelection(source, selectedElementIds, parseOptions);
   const canTreeAddChild = canAddTreeChild(commandContext);
   const canTreeAddSibling = canAddTreeSibling(commandContext);
-  const canTreeRemoveChild = canRemoveTreeChild(commandContext);
   const canMatrixAddRowEnd = canAddMatrixRowAtEnd(commandContext);
   const canMatrixAddColumnEnd = canAddMatrixColumnAtEnd(commandContext);
   const canMatrixInsertRowAbove = canInsertMatrixRowAbove(commandContext);
@@ -444,19 +447,19 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.CUT]: {
-      enabled: availability.cut.enabled && availability.delete.enabled,
+      enabled: canCutSelection(commandContext),
       run: () => {
         void cutSelection(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.COPY]: {
-      enabled: availability.copy.enabled,
+      enabled: canCopySelection(commandContext),
       run: () => {
         void copySelection(commandContext);
       }
     },
     [APP_MENU_COMMAND_IDS.PASTE]: {
-      enabled: true,
+      enabled: canPasteSelection(commandContext),
       run: () => {
         void pasteSelectionFromSystemClipboard(commandContext).then((result) => {
           if (result.kind !== "failure" || result.reason === "empty") {
@@ -470,7 +473,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.DELETE]: {
-      enabled: availability.delete.enabled || canTreeRemoveChild,
+      enabled: canDeleteSelection(commandContext),
       run: () => {
         deleteSelection(commandContext);
       }
@@ -548,7 +551,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
       }
     },
     [APP_MENU_COMMAND_IDS.DUPLICATE]: {
-      enabled: availability.duplicate.enabled,
+      enabled: canDuplicateSelection(commandContext),
       run: () => {
         duplicateSelection(commandContext);
       }

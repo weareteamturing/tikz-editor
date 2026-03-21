@@ -562,7 +562,9 @@ export function HitRegionLayer({
         const isHovered = hoveredElementId === (toolMode === "addBucket" ? region.sourceId : region.targetId);
         const cursor =
           toolMode === "select"
-            ? region.shape === "rect" && region.interactionMode === "move"
+            ? region.shape === "rect" && region.matrixEdgeSelection
+              ? region.matrixEdgeSelection.cursor
+              : region.shape === "rect" && region.interactionMode === "move"
               ? "move"
               : editableTextRegionKeys.has(region.key)
               ? "text"
@@ -709,6 +711,8 @@ export function HitRegionLayer({
             onPointerEnter={onEnter}
             onPointerLeave={onLeave}
             data-hit-region-target-id={region.targetId}
+            data-hit-region-matrix-edge-kind={region.matrixEdgeSelection?.kind}
+            data-hit-region-matrix-source-id={region.matrixEdgeSelection?.matrixSourceId}
           />
         );
       })}

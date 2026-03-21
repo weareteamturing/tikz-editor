@@ -15,6 +15,24 @@ const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
 \end{tikzpicture}`;
 
+function uniqueMatrixCellIds(
+  rendered: ReturnType<typeof renderTikzToSvg>,
+  predicate: (entry: { row: number; column: number }) => boolean
+): string[] {
+  const ids = new Set<string>();
+  for (const element of rendered.semantic.scene.elements) {
+    const matrixCell = element.matrixCell;
+    if (!matrixCell) {
+      continue;
+    }
+    if (!predicate({ row: matrixCell.row, column: matrixCell.column })) {
+      continue;
+    }
+    ids.add(matrixCell.cellSourceId);
+  }
+  return [...ids];
+}
+
 describe("editor-command-runtime", () => {
   afterEach(() => {
     svgToTikzMock.mockReset();
@@ -481,6 +499,96 @@ describe("editor-command-runtime", () => {
         rowIndex: 1
       }
     });
+  });
+
+  it("maps delete to remove-row only for exact full-row matrix selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const fullRowIds = uniqueMatrixCellIds(rendered, ({ row }) => row === 1);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set(fullRowIds)
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DELETE].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.DELETE, "shortcut")).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 1
+      }
+    });
+  });
+
+  it("disables delete + clipboard commands for partial matrix selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const partialCellId = uniqueMatrixCellIds(rendered, ({ row, column }) => row === 1 && column === 1)[0];
+    if (!partialCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([partialCellId])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DELETE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.CUT].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.COPY].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DUPLICATE].enabled).toBe(false);
+  });
+
+  it("disables delete + clipboard commands for mixed matrix and non-matrix selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const matrixCellId = uniqueMatrixCellIds(rendered, ({ row, column }) => row === 1 && column === 1)[0];
+    if (!matrixCellId) {
+      throw new Error("Expected matrix cell source id");
+    }
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        source,
+        snapshot: makeSnapshot(rendered, source),
+        selectedElementIds: new Set([matrixCellId, "path:1"])
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DELETE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.CUT].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.COPY].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.PASTE].enabled).toBe(false);
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.DUPLICATE].enabled).toBe(false);
   });
 
   it("enables matrix column removal for multi-selected matrix cells in the same column", () => {

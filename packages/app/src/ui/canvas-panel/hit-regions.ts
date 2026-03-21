@@ -57,6 +57,12 @@ export type HitRegion =
       sceneTextKey?: string;
       contentWidth?: number;
       contentHeight?: number;
+      matrixEdgeSelection?: {
+        kind: "row" | "column";
+        matrixSourceId: string;
+        selectionIds: string[];
+        cursor: "e-resize" | "s-resize";
+      };
     };
 
 export type ScopeHitBounds = {

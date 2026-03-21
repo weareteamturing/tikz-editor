@@ -114,6 +114,33 @@ export function deleteSelection(context: SelectionCommandContext): boolean {
     return false;
   }
 
+  const matrixSelection = classifyMatrixCellSelection(context);
+  if (matrixSelection.hasAnyMatrixCellSelection) {
+    if (matrixSelection.exactFullRow) {
+      context.dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: {
+          kind: "removeMatrixRow",
+          matrixSourceId: matrixSelection.exactFullRow.matrixSourceId,
+          rowIndex: matrixSelection.exactFullRow.rowIndex
+        }
+      });
+      return true;
+    }
+    if (matrixSelection.exactFullColumn) {
+      context.dispatch({
+        type: "APPLY_EDIT_ACTION",
+        action: {
+          kind: "removeMatrixColumn",
+          matrixSourceId: matrixSelection.exactFullColumn.matrixSourceId,
+          columnIndex: matrixSelection.exactFullColumn.columnIndex
+        }
+      });
+      return true;
+    }
+    return false;
+  }
+
   const ids = [...context.selectedElementIds];
   if (ids.length === 1 && canRemoveTreeChild(context)) {
     context.dispatch({
@@ -441,19 +468,46 @@ export function flipSelection(context: SelectionCommandContext, axis: "horizonta
 }
 
 export function canCopySelection(context: SelectionCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
   return availabilityFor(context).copy.enabled;
 }
 
 export function canDuplicateSelection(context: SelectionCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
   return availabilityFor(context).duplicate.enabled;
 }
 
 export function canCutSelection(context: SelectionCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
   const availability = availabilityFor(context);
   return availability.cut.enabled && availability.delete.enabled;
 }
 
 export function canDeleteSelection(context: SelectionCommandContext): boolean {
+  const matrixSelection = classifyMatrixCellSelection(context);
+  if (matrixSelection.hasAnyMatrixCellSelection) {
+    if (matrixSelection.exactFullRow) {
+      return canApplyMatrixAction(context, {
+        kind: "removeMatrixRow",
+        matrixSourceId: matrixSelection.exactFullRow.matrixSourceId,
+        rowIndex: matrixSelection.exactFullRow.rowIndex
+      });
+    }
+    if (matrixSelection.exactFullColumn) {
+      return canApplyMatrixAction(context, {
+        kind: "removeMatrixColumn",
+        matrixSourceId: matrixSelection.exactFullColumn.matrixSourceId,
+        columnIndex: matrixSelection.exactFullColumn.columnIndex
+      });
+    }
+    return false;
+  }
   return availabilityFor(context).delete.enabled || canRemoveTreeChild(context);
 }
 
@@ -473,6 +527,9 @@ export function canReorderSelection(
 }
 
 export function canPasteSelection(context: PasteCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
   return availabilityFor(context).paste.enabled;
 }
 
@@ -1160,6 +1217,128 @@ function resolveUniformMatrixCellSelection(
     return null;
   }
   return { matrixSourceId, rowIndex, columnIndex };
+}
+
+type MatrixCellSelectionClassification = {
+  hasAnyMatrixCellSelection: boolean;
+  exactFullRow: { matrixSourceId: string; rowIndex: number } | null;
+  exactFullColumn: { matrixSourceId: string; columnIndex: number } | null;
+};
+
+function classifyMatrixCellSelection(
+  context: SelectionCommandContext
+): MatrixCellSelectionClassification {
+  const sourceIds = [...context.selectedElementIds].map((id) => id.trim()).filter(Boolean);
+  if (sourceIds.length === 0) {
+    return {
+      hasAnyMatrixCellSelection: false,
+      exactFullRow: null,
+      exactFullColumn: null
+    };
+  }
+
+  const parseOptions = parseOptionsForContext(context);
+  const matrixCells: Array<{ sourceId: string; matrixSourceId: string; row: number; column: number }> = [];
+  let hasNonMatrixSelection = false;
+  for (const sourceId of sourceIds) {
+    const resolved = resolvePropertyTarget(context.source, sourceId, parseOptions);
+    if (resolved.kind !== "found" || resolved.target.kind !== "matrix-cell") {
+      hasNonMatrixSelection = true;
+      continue;
+    }
+    const matrixSourceId = resolved.target.matrixSourceId?.trim() ?? "";
+    const row = resolved.target.row ?? 0;
+    const column = resolved.target.column ?? 0;
+    if (!matrixSourceId || row <= 0 || column <= 0) {
+      hasNonMatrixSelection = true;
+      continue;
+    }
+    matrixCells.push({ sourceId, matrixSourceId, row, column });
+  }
+
+  if (matrixCells.length === 0) {
+    return {
+      hasAnyMatrixCellSelection: false,
+      exactFullRow: null,
+      exactFullColumn: null
+    };
+  }
+
+  const matrixSourceId = matrixCells[0]?.matrixSourceId ?? null;
+  if (!matrixSourceId || matrixCells.some((cell) => cell.matrixSourceId !== matrixSourceId)) {
+    return {
+      hasAnyMatrixCellSelection: true,
+      exactFullRow: null,
+      exactFullColumn: null
+    };
+  }
+  if (hasNonMatrixSelection) {
+    return {
+      hasAnyMatrixCellSelection: true,
+      exactFullRow: null,
+      exactFullColumn: null
+    };
+  }
+  if (!context.scene) {
+    return {
+      hasAnyMatrixCellSelection: true,
+      exactFullRow: null,
+      exactFullColumn: null
+    };
+  }
+
+  const rowToCellIds = new Map<number, Set<string>>();
+  const columnToCellIds = new Map<number, Set<string>>();
+  const seenCellIds = new Set<string>();
+  for (const element of context.scene.elements) {
+    const matrixCell = element.matrixCell;
+    if (!matrixCell || matrixCell.matrixSourceId !== matrixSourceId) {
+      continue;
+    }
+    if (seenCellIds.has(matrixCell.cellSourceId)) {
+      continue;
+    }
+    seenCellIds.add(matrixCell.cellSourceId);
+    const rowSet = rowToCellIds.get(matrixCell.row) ?? new Set<string>();
+    rowSet.add(matrixCell.cellSourceId);
+    rowToCellIds.set(matrixCell.row, rowSet);
+    const columnSet = columnToCellIds.get(matrixCell.column) ?? new Set<string>();
+    columnSet.add(matrixCell.cellSourceId);
+    columnToCellIds.set(matrixCell.column, columnSet);
+  }
+
+  const selectedCellIds = new Set(matrixCells.map((cell) => cell.sourceId));
+  const singleRow = matrixCells.every((cell) => cell.row === matrixCells[0]?.row) ? (matrixCells[0]?.row ?? null) : null;
+  const singleColumn = matrixCells.every((cell) => cell.column === matrixCells[0]?.column)
+    ? (matrixCells[0]?.column ?? null)
+    : null;
+
+  const exactFullRow =
+    singleRow != null && areSetValuesEqual(selectedCellIds, rowToCellIds.get(singleRow))
+      ? { matrixSourceId, rowIndex: singleRow }
+      : null;
+  const exactFullColumn =
+    singleColumn != null && areSetValuesEqual(selectedCellIds, columnToCellIds.get(singleColumn))
+      ? { matrixSourceId, columnIndex: singleColumn }
+      : null;
+
+  return {
+    hasAnyMatrixCellSelection: true,
+    exactFullRow,
+    exactFullColumn
+  };
+}
+
+function areSetValuesEqual(left: ReadonlySet<string>, right: ReadonlySet<string> | undefined): boolean {
+  if (!right || left.size !== right.size) {
+    return false;
+  }
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function resolveMatrixDimensions(

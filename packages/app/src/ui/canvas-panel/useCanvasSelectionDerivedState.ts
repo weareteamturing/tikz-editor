@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
 import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
-import type { NodeAnchorTarget, ScenePath, SceneText } from "tikz-editor/semantic/types";
+import type { NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import {
   computeVisibleRanges,
   resizeCursorForVector,
@@ -13,7 +13,7 @@ import {
 import { boundsFromPoints } from "./interaction-helpers";
 import { computeDragCapability } from "./drag-capability";
 import { deriveCurveControlLines } from "./curve-controls";
-import { buildHitRegions } from "./hit-regions";
+import { buildHitRegions, type HitRegion } from "./hit-regions";
 import { resolveResizeFrameForSource } from "./resize-frames";
 import { resolveResizeFrameFromBounds } from "./resize-frames";
 import { RESIZE_FRAME_CORNER_ROLES } from "./resize-frames";
@@ -757,8 +757,11 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
-    return buildHitRegions(snapshot.scene.elements, svgResult.viewBox, canvasTransform.scale, selectedScopeHitBounds);
-  }, [canvasTransform.scale, selectedScopeHitBounds, snapshot.scene, svgResult]);
+    const matrixEdgeRegions = buildMatrixEdgeHitRegions(snapshot.scene.elements, sourceBoundsSvg, canvasTransform.scale);
+    const regions = buildHitRegions(snapshot.scene.elements, svgResult.viewBox, canvasTransform.scale, selectedScopeHitBounds);
+    // Matrix edge selectors must stay behind regular hit regions so nearby elements keep precedence.
+    return [...matrixEdgeRegions, ...regions];
+  }, [canvasTransform.scale, selectedScopeHitBounds, snapshot.scene, sourceBoundsSvg, svgResult]);
 
   const visibleRanges = useMemo<VisibleRanges | null>(() => {
     if (!svgResult || viewportSize.width <= 0 || viewportSize.height <= 0) return null;
@@ -814,4 +817,171 @@ function distanceSquared(a: { x: number; y: number }, b: { x: number; y: number 
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return dx * dx + dy * dy;
+}
+
+function buildMatrixEdgeHitRegions(
+  elements: readonly SceneElement[],
+  boundsBySource: ReadonlyMap<string, { minX: number; minY: number; maxX: number; maxY: number }>,
+  scale: number
+): HitRegion[] {
+  const byCell = new Map<
+    string,
+    { matrixSourceId: string; row: number; column: number; cellSourceId: string; bounds: { minX: number; minY: number; maxX: number; maxY: number } }
+  >();
+  for (const element of elements) {
+    const matrixCell = element.matrixCell;
+    if (!matrixCell) {
+      continue;
+    }
+    const existing = byCell.get(matrixCell.cellSourceId);
+    if (existing) {
+      continue;
+    }
+    const bounds = boundsBySource.get(matrixCell.cellSourceId);
+    if (!bounds) {
+      continue;
+    }
+    byCell.set(matrixCell.cellSourceId, {
+      matrixSourceId: matrixCell.matrixSourceId,
+      row: matrixCell.row,
+      column: matrixCell.column,
+      cellSourceId: matrixCell.cellSourceId,
+      bounds
+    });
+  }
+
+  const byMatrix = new Map<
+    string,
+    {
+      rows: Map<number, string[]>;
+      columns: Map<number, string[]>;
+      boundsByRow: Map<number, { minX: number; minY: number; maxX: number; maxY: number }>;
+      boundsByColumn: Map<number, { minX: number; minY: number; maxX: number; maxY: number }>;
+      matrixMinX: number;
+      matrixMinY: number;
+      matrixMaxX: number;
+      matrixMaxY: number;
+    }
+  >();
+  for (const cell of byCell.values()) {
+    const current = byMatrix.get(cell.matrixSourceId) ?? {
+      rows: new Map<number, string[]>(),
+      columns: new Map<number, string[]>(),
+      boundsByRow: new Map<number, { minX: number; minY: number; maxX: number; maxY: number }>(),
+      boundsByColumn: new Map<number, { minX: number; minY: number; maxX: number; maxY: number }>(),
+      matrixMinX: Number.POSITIVE_INFINITY,
+      matrixMinY: Number.POSITIVE_INFINITY,
+      matrixMaxX: Number.NEGATIVE_INFINITY,
+      matrixMaxY: Number.NEGATIVE_INFINITY
+    };
+
+    const rowIds = current.rows.get(cell.row) ?? [];
+    rowIds.push(cell.cellSourceId);
+    current.rows.set(cell.row, rowIds);
+    const columnIds = current.columns.get(cell.column) ?? [];
+    columnIds.push(cell.cellSourceId);
+    current.columns.set(cell.column, columnIds);
+
+    const rowBounds = current.boundsByRow.get(cell.row);
+    current.boundsByRow.set(
+      cell.row,
+      rowBounds
+        ? {
+            minX: Math.min(rowBounds.minX, cell.bounds.minX),
+            minY: Math.min(rowBounds.minY, cell.bounds.minY),
+            maxX: Math.max(rowBounds.maxX, cell.bounds.maxX),
+            maxY: Math.max(rowBounds.maxY, cell.bounds.maxY)
+          }
+        : { ...cell.bounds }
+    );
+    const columnBounds = current.boundsByColumn.get(cell.column);
+    current.boundsByColumn.set(
+      cell.column,
+      columnBounds
+        ? {
+            minX: Math.min(columnBounds.minX, cell.bounds.minX),
+            minY: Math.min(columnBounds.minY, cell.bounds.minY),
+            maxX: Math.max(columnBounds.maxX, cell.bounds.maxX),
+            maxY: Math.max(columnBounds.maxY, cell.bounds.maxY)
+          }
+        : { ...cell.bounds }
+    );
+    current.matrixMinX = Math.min(current.matrixMinX, cell.bounds.minX);
+    current.matrixMinY = Math.min(current.matrixMinY, cell.bounds.minY);
+    current.matrixMaxX = Math.max(current.matrixMaxX, cell.bounds.maxX);
+    current.matrixMaxY = Math.max(current.matrixMaxY, cell.bounds.maxY);
+    byMatrix.set(cell.matrixSourceId, current);
+  }
+
+  const gap = 8 / Math.max(scale, 1e-3);
+  const strip = 12 / Math.max(scale, 1e-3);
+  const regions: HitRegion[] = [];
+
+  for (const [matrixSourceId, matrix] of byMatrix.entries()) {
+    if (!Number.isFinite(matrix.matrixMinX) || !Number.isFinite(matrix.matrixMinY) || !Number.isFinite(matrix.matrixMaxX) || !Number.isFinite(matrix.matrixMaxY)) {
+      continue;
+    }
+
+    const rowEntries = [...matrix.rows.entries()].sort((a, b) => a[0] - b[0]);
+    for (const [row, ids] of rowEntries) {
+      const rowBounds = matrix.boundsByRow.get(row);
+      if (!rowBounds || ids.length === 0) {
+        continue;
+      }
+      const selectionIds = [...new Set(ids)].sort();
+      regions.push({
+        shape: "rect",
+        key: `matrix-edge:${matrixSourceId}:row:${row}`,
+        sourceId: matrixSourceId,
+        targetId: matrixSourceId,
+        x: matrix.matrixMinX - gap - strip,
+        y: rowBounds.minY,
+        width: strip,
+        height: Math.max(0, rowBounds.maxY - rowBounds.minY),
+        cx: matrix.matrixMinX - gap - (strip / 2),
+        cy: (rowBounds.minY + rowBounds.maxY) / 2,
+        rotation: 0,
+        pointerMode: "fill",
+        interactionMode: "move",
+        matrixEdgeSelection: {
+          kind: "row",
+          matrixSourceId,
+          selectionIds,
+          cursor: "e-resize"
+        }
+      });
+    }
+
+    const columnEntries = [...matrix.columns.entries()].sort((a, b) => a[0] - b[0]);
+    for (const [column, ids] of columnEntries) {
+      const columnBounds = matrix.boundsByColumn.get(column);
+      if (!columnBounds || ids.length === 0) {
+        continue;
+      }
+      const selectionIds = [...new Set(ids)].sort();
+      regions.push({
+        shape: "rect",
+        key: `matrix-edge:${matrixSourceId}:column:${column}`,
+        sourceId: matrixSourceId,
+        targetId: matrixSourceId,
+        x: columnBounds.minX,
+        y: matrix.matrixMinY - gap - strip,
+        width: Math.max(0, columnBounds.maxX - columnBounds.minX),
+        height: strip,
+        cx: (columnBounds.minX + columnBounds.maxX) / 2,
+        cy: matrix.matrixMinY - gap - (strip / 2),
+        rotation: 0,
+        pointerMode: "fill",
+        interactionMode: "move",
+        matrixEdgeSelection: {
+          kind: "column",
+          matrixSourceId,
+          selectionIds,
+          cursor: "s-resize"
+        }
+      });
+    }
+  }
+
+  return regions;
 }

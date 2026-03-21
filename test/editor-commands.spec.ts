@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   alignSelection,
+  canCopySelection,
+  canCutSelection,
+  canDeleteSelection,
+  canDuplicateSelection,
+  canPasteSelection,
   copySelection,
   copySelectionToClipboardData,
   cutSelection,
@@ -28,6 +33,24 @@ const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
   \draw (0,1) -- (1,1);
 \end{tikzpicture}`;
+
+function uniqueMatrixCellIds(
+  rendered: ReturnType<typeof renderTikzToSvg>,
+  predicate: (entry: { row: number; column: number }) => boolean
+): string[] {
+  const ids = new Set<string>();
+  for (const element of rendered.semantic.scene.elements) {
+    const matrixCell = element.matrixCell;
+    if (!matrixCell) {
+      continue;
+    }
+    if (!predicate({ row: matrixCell.row, column: matrixCell.column })) {
+      continue;
+    }
+    ids.add(matrixCell.cellSourceId);
+  }
+  return [...ids];
+}
 
 describe("editor-commands", () => {
   afterEach(() => {
@@ -440,7 +463,125 @@ describe("editor-commands", () => {
         elementIds: ["path:0", "path:1"]
       }
     });
-    expect(dispatch).toHaveBeenCalledWith({ type: "CLEAR_SELECTION" });
+  });
+
+  it("deleteSelection removes a full selected matrix row", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const selectedElementIds = new Set(uniqueMatrixCellIds(rendered, ({ row }) => row === 1));
+
+    const didDelete = deleteSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds,
+      dispatch
+    });
+
+    expect(didDelete).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixRow",
+        matrixSourceId: "path:0",
+        rowIndex: 1
+      }
+    });
+  });
+
+  it("deleteSelection removes a full selected matrix column", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const selectedElementIds = new Set(uniqueMatrixCellIds(rendered, ({ column }) => column === 2));
+
+    const didDelete = deleteSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds,
+      dispatch
+    });
+
+    expect(didDelete).toBe(true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "APPLY_EDIT_ACTION",
+      action: {
+        kind: "removeMatrixColumn",
+        matrixSourceId: "path:0",
+        columnIndex: 2
+      }
+    });
+  });
+
+  it("deleteSelection is disabled for partial matrix-cell selection", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const partialCellId = uniqueMatrixCellIds(rendered, ({ row, column }) => row === 1 && column === 1)[0];
+    if (!partialCellId) {
+      throw new Error("Expected matrix cell id");
+    }
+
+    const didDelete = deleteSelection({
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set([partialCellId]),
+      dispatch
+    });
+
+    expect(didDelete).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("disables delete/cut/copy/paste/duplicate for mixed matrix and non-matrix selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] (m) {
+    A & B \\
+    C & D \\
+  };
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const rendered = renderTikzToSvg(source);
+    const matrixCellId = uniqueMatrixCellIds(rendered, ({ row, column }) => row === 1 && column === 1)[0];
+    if (!matrixCellId) {
+      throw new Error("Expected matrix cell id");
+    }
+    const context = {
+      source,
+      snapshotSource: source,
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles,
+      selectedElementIds: new Set([matrixCellId, "path:1"]),
+      dispatch
+    };
+
+    expect(canDeleteSelection(context)).toBe(false);
+    expect(canCutSelection(context)).toBe(false);
+    expect(canCopySelection(context)).toBe(false);
+    expect(canPasteSelection(context)).toBe(false);
+    expect(canDuplicateSelection(context)).toBe(false);
   });
 
   it("cutSelection copies then deletes the selection", async () => {
@@ -466,7 +607,6 @@ describe("editor-commands", () => {
         elementId: "path:0"
       }
     });
-    expect(dispatch).toHaveBeenCalledWith({ type: "CLEAR_SELECTION" });
   });
 
   it("alignSelection dispatches when availability says the action is enabled", () => {

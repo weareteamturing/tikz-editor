@@ -272,6 +272,10 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
       if (toolMode !== "select") return;
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
       const hitSourceId = typeof region?.sourceId === "string" ? region.sourceId : targetId;
+      const matrixEdgeSelection =
+        region?.shape === "rect" && region.matrixEdgeSelection
+          ? region.matrixEdgeSelection
+          : null;
       const resolvedTargetId = resolveScopeAwarePointerDownTarget({
         hitTargetId: targetId,
         hitSourceId,
@@ -288,6 +292,18 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
 
       event.preventDefault();
       event.stopPropagation();
+
+      if (!additiveSelection && matrixEdgeSelection && event.button === 0) {
+        setTextEditingSession(null);
+        setExpandedDensePathSourceId(null);
+        dispatch({ type: "SELECT_RANGE", ids: matrixEdgeSelection.selectionIds });
+        dispatch({
+          type: "SET_FOCUSED_SCOPE",
+          scopeId: resolveFocusedScopeIdForSelection(matrixEdgeSelection.matrixSourceId, scopeOverlay)
+        });
+        setSnapLines([]);
+        return;
+      }
 
       if (resolvedTargetId === targetId && beginTextSelectionDrag(event, targetId, region)) {
         return;
