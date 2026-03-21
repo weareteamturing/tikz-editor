@@ -274,6 +274,64 @@ describe("parseTikz", () => {
     expect(result.figure.span.from).toBe(firstPass.figures[1]?.span.from);
   });
 
+  it("filters template tikzpictures with unresolved # placeholders from figure inventory", () => {
+    const source = String.raw`\newcommand{\templ}[1]{
+\begin{tikzpicture}
+  \node at (0,0) {#1};
+\end{tikzpicture}
+}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(1);
+    expect(result.activeFigureId).toBe("figure:0");
+    expect(result.figure.body.some((statement) => statement.kind === "Path")).toBe(true);
+  });
+
+  it("ignores escaped and doubled # placeholders when filtering template figures", () => {
+    const source = String.raw`\newcommand{\ok}[1]{
+\begin{tikzpicture}
+  % #1 in comments should be ignored
+  \node at (0,0) {\#1 ##1};
+\end{tikzpicture}
+}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(2);
+    expect(result.figures.map((figure) => figure.id)).toEqual(["figure:0", "figure:1"]);
+  });
+
+  it("falls back to the first visible figure when activeFigureId points past filtered template figures", () => {
+    const source = String.raw`\newcommand{\templ}[1]{
+\begin{tikzpicture}
+  \node at (0,0) {#1};
+\end{tikzpicture}
+}
+\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true, activeFigureId: "figure:1" });
+
+    expect(result.figures).toHaveLength(1);
+    expect(result.activeFigureId).toBe("figure:0");
+  });
+
+  it("does not filter normal figures that contain local macro definitions with # placeholders", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \newcommand{\pair}[2]{#1/#2}
+  \node at (0,0) {\pair{A}{B}};
+\end{tikzpicture}`;
+    const result = parseTikz(source, { recover: true });
+
+    expect(result.figures).toHaveLength(1);
+    expect(result.activeFigureId).toBe("figure:0");
+  });
+
   it("keeps figure ids stable when figure spans change", () => {
     const sourceA = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
@@ -423,6 +481,19 @@ describe("parseTikz", () => {
       expect(result.figure.body[1].nameRaw).toBe("\\y");
       expect(result.figure.body[1].targetRaw).toBe("\\x");
     }
+  });
+
+  it("accepts control-symbol macros in groups, options, and unknown statements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[font=\small, label={right:A\,B\!C}] at (0,0) {A\,B\!C};
+  \foo \, \! \;;
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    expect(result.figure.body).toHaveLength(2);
+    expect(result.figure.body[0]?.kind).toBe("Path");
+    expect(result.figure.body[1]?.kind).toBe("UnknownStatement");
   });
 
   it("allows trailing semicolons after standalone macro commands", () => {

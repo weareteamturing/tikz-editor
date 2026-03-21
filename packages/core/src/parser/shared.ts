@@ -1,4 +1,5 @@
 import type { Statement } from "../ast/types.js";
+import { scanTikzFigures } from "./figure-scan.js";
 
 export type ContextDefinitionCacheEntry = {
   prefix: string;
@@ -53,23 +54,9 @@ export function resolveActiveFigureSpan(
 }
 
 export function scanFigureSpans(source: string): Array<{ from: number; to: number }> {
-  const beginPattern = /\\begin\{tikzpicture\*?\}/g;
-  const spans: Array<{ from: number; to: number }> = [];
-  let match = beginPattern.exec(source);
-  while (match) {
-    const beginRaw = match[0] ?? "";
-    const from = match.index;
-    const beginTo = from + beginRaw.length;
-    const endToken = beginRaw.endsWith("*}") ? "\\end{tikzpicture*}" : "\\end{tikzpicture}";
-    const endFrom = source.indexOf(endToken, beginTo);
-    if (endFrom < 0) {
-      break;
-    }
-    spans.push({ from, to: endFrom + endToken.length });
-    beginPattern.lastIndex = endFrom + endToken.length;
-    match = beginPattern.exec(source);
-  }
-  return spans;
+  return scanTikzFigures(source)
+    .filter((figure) => !figure.isTemplate)
+    .map((figure) => ({ from: figure.span.from, to: figure.span.to }));
 }
 
 export function parseFigureIndexFromId(figureId: string): number | null {

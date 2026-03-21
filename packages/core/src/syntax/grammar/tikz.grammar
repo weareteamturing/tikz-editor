@@ -61,6 +61,7 @@ ForeachHeaderToken {
   Coordinate |
   PathKeyword |
   FontSizeCmd |
+  ControlSymbolCmd |
   CommandName |
   IdentifierLike |
   Number |
@@ -71,6 +72,7 @@ ForeachList {
   Group |
   Coordinate |
   FontSizeCmd |
+  ControlSymbolCmd |
   CommandName |
   IdentifierLike
 }
@@ -229,6 +231,7 @@ LetPart {
   Group |
   PathKeyword |
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   IdentifierLike |
   Number |
@@ -333,6 +336,7 @@ MacroCommandDefaultArgPart {
   EscapedParenCloseCmd |
   PathKeyword |
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   ToKw |
   EdgeKw |
@@ -360,6 +364,7 @@ UnknownPart {
 
 UnknownPathItem {
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   IdentifierLike |
   Number |
@@ -384,6 +389,7 @@ OptionPart {
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   NodeKw |
   ToKw |
@@ -451,6 +457,7 @@ GroupPart {
   ForeachKw |
   KnownCommand |
   NodeKw |
+  ControlSymbolCmd |
   CommandName |
   ToKw |
   EdgeKw |
@@ -479,6 +486,7 @@ StylePayloadPart {
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   NodeKw |
   ToKw |
@@ -543,6 +551,7 @@ Coordinate {
   EscapedParenOpenCmd |
   EscapedParenCloseCmd |
   KnownCommand |
+  ControlSymbolCmd |
   CommandName |
   ToKw |
   ChildKw |
@@ -673,9 +682,10 @@ StrayToken {
     EscapedAmpersandCmd,
     EscapedPercentCmd,
     EscapedDollarCmd,
-    EscapedSpaceCmd,
-    EscapedParenOpenCmd,
-    EscapedParenCloseCmd,
+  EscapedSpaceCmd,
+  EscapedParenOpenCmd,
+  EscapedParenCloseCmd,
+    ControlSymbolCmd,
     AtKw,
     BendKw,
     CycleKw,
@@ -752,6 +762,27 @@ StrayToken {
   EscapedSpaceCmd { "\\ " }
   EscapedParenOpenCmd { "\\(" }
   EscapedParenCloseCmd { "\\)" }
+  ControlSymbolCmd {
+    "\\," |
+    "\\!" |
+    "\\;" |
+    "\\:" |
+    "\\." |
+    "\\?" |
+    "\\/" |
+    "\\|" |
+    "\\+" |
+    "\\-" |
+    "\\=" |
+    "\\*" |
+    "\\'" |
+    "\\\"" |
+    "\\`" |
+    "\\~" |
+    "\\^" |
+    "\\_" |
+    "\\#"
+  }
 
   AtKw { "at" }
   BendKw { "bend" }

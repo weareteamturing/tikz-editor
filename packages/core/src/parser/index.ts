@@ -10,7 +10,8 @@ import { parseSyntax } from "../syntax/parse.js";
 import {
   getCachedContextDefinitions,
   resolveActiveFigureSpan,
-  resolveParseWindowSource
+  resolveParseWindowSource,
+  scanFigureSpans
 } from "./shared.js";
 
 export type NodeTextValidationContext = {
@@ -91,35 +92,6 @@ export function parseTikz(input: string, opts: ParseTikzOptions = {}): ParseTikz
     diagnostics,
     features: FeatureFlags
   };
-}
-
-function scanFigureSpans(source: string): Array<{ from: number; to: number }> {
-  const beginPattern = /\\begin\{tikzpicture\*?\}/g;
-  const spans: Array<{ from: number; to: number }> = [];
-  let match = beginPattern.exec(source);
-  while (match) {
-    const beginRaw = match[0] ?? "";
-    const from = match.index;
-    const beginTo = from + beginRaw.length;
-    const endToken = beginRaw.endsWith("*}") ? "\\end{tikzpicture*}" : "\\end{tikzpicture}";
-    const endFrom = source.indexOf(endToken, beginTo);
-    if (endFrom < 0) {
-      break;
-    }
-    spans.push({ from, to: endFrom + endToken.length });
-    beginPattern.lastIndex = endFrom + endToken.length;
-    match = beginPattern.exec(source);
-  }
-  return spans;
-}
-
-function parseFigureIndexFromId(figureId: string): number | null {
-  const match = /^figure:(\d+)(?::|$)/u.exec(figureId.trim());
-  if (!match?.[1]) {
-    return null;
-  }
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function collectNodeItems(statements: Statement[]): NodeItem[] {

@@ -20,6 +20,7 @@ import { findFirstChildByName, findFirstNodeByName, forEachChild, walk } from ".
 import { parseSyntax } from "../syntax/parse.js";
 import { collectParseErrorDiagnostics, collectStructuralDiagnostics } from "../diagnostics/collect.js";
 import { buildLineStarts, lineForOffset } from "../text/line-map.js";
+import { scanTikzFigures } from "../parser/figure-scan.js";
 
 export type CstToAstResult = {
   figure: TikzFigure;
@@ -289,20 +290,16 @@ function scanFigureInventories(
   source: string,
   lineStarts: number[]
 ): Array<Omit<TikzFigureInventoryItem, "id">> {
-  const beginPattern = /\\begin\{tikzpicture\*?\}/g;
   const figures: Array<Omit<TikzFigureInventoryItem, "id">> = [];
-  let match = beginPattern.exec(source);
-
-  while (match) {
-    const beginRaw = match[0] ?? "";
-    const beginFrom = match.index;
-    const beginTo = beginFrom + beginRaw.length;
-    const endToken = beginRaw.endsWith("*}") ? "\\end{tikzpicture*}" : "\\end{tikzpicture}";
-    const endFrom = source.indexOf(endToken, beginTo);
-    if (endFrom < 0) {
-      break;
+  const scanned = scanTikzFigures(source);
+  for (const figure of scanned) {
+    if (figure.isTemplate) {
+      continue;
     }
-    const endTo = endFrom + endToken.length;
+    const beginFrom = figure.beginSpan.from;
+    const beginTo = figure.beginSpan.to;
+    const endFrom = figure.endSpan.from;
+    const endTo = figure.endSpan.to;
     const optionsSpan = scanFigureOptionsSpan(source, beginTo, endFrom);
     figures.push({
       span: { from: beginFrom, to: endTo },
@@ -312,8 +309,6 @@ function scanFigureInventories(
       startLine: lineForOffset(beginFrom, lineStarts),
       endLine: lineForOffset(Math.max(beginFrom, endTo - 1), lineStarts)
     });
-    beginPattern.lastIndex = endTo;
-    match = beginPattern.exec(source);
   }
 
   return figures;

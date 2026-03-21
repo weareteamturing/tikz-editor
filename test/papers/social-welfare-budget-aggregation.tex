@@ -378,12 +378,12 @@ However, when restricting to mechanisms satisfying our baseline property of neut
     \def\axispos{0.1}
     \def\coorddist{0.29}
     \def\coordwidth{0.06}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[ultra thick, #3] (#1*\coorddist-\coordwidth,#2) -- (#1*\coorddist+\coordwidth,#2)
         node[pos=0, anchor=east] {\large #4}
         node[pos=1, anchor=west] {\large #5};
     }
-    \newcommand{\drawaggregate}[2]{
+    \newcommand{\draggregate}[2]{
         \fill[pattern={Lines[angle=45*0.8,distance=4pt,line width=2pt]},pattern color=lightgray, draw=lightgray] (#1*\coorddist-\coordwidth,0) rectangle (#1*\coorddist+\coordwidth,#2);
     }
     \begin{subfigure}[t]{.48\textwidth}
@@ -402,16 +402,16 @@ However, when restricting to mechanisms satisfying our baseline property of neut
             \node[anchor=north, outer sep=5pt] at (1*\coorddist,0) {$1$};
             \node[anchor=north, outer sep=5pt] at (2*\coorddist,0) {$2$};
             \node[anchor=north, outer sep=5pt] at (3*\coorddist,0) {$3$};
-            \drawaggregate{1}{1/3}
-            \drawaggregate{2}{1/3}
-            \drawaggregate{3}{1/3}
+            \draggregate{1}{1/3}
+            \draggregate{2}{1/3}
+            \draggregate{3}{1/3}
             \def\shift{0.012}
-            \drawvoteannotated{1}{1/2}{color1}{$\frac{1}{2}$}{}
-            \drawvoteannotated{2}{1/2}{color1}{$\frac{1}{2}$}{}
-            \drawvoteannotated{3}{0}{color1}{$0$}{}
-            \drawvoteannotated{1}{1/3}{color2}{}{$\frac{1}{3}$}
-            \drawvoteannotated{2}{1/3}{color2}{}{$\frac{1}{3}$}
-            \drawvoteannotated{3}{1/3}{color2}{}{$\frac{1}{3}$}
+            \drvoteannotated{1}{1/2}{color1}{$\frac{1}{2}$}{}
+            \drvoteannotated{2}{1/2}{color1}{$\frac{1}{2}$}{}
+            \drvoteannotated{3}{0}{color1}{$0$}{}
+            \drvoteannotated{1}{1/3}{color2}{}{$\frac{1}{3}$}
+            \drvoteannotated{2}{1/3}{color2}{}{$\frac{1}{3}$}
+            \drvoteannotated{3}{1/3}{color2}{}{$\frac{1}{3}$}
         \end{tikzpicture}
         \caption{Profile $P$. The aggregate of any neutral and decomposable mechanism is $a = \big(\frac{1}{3}, \frac{1}{3}, \frac{1}{3}\big)$.}
         \label{fig:decomposability_truthfulness1}
@@ -432,15 +432,15 @@ However, when restricting to mechanisms satisfying our baseline property of neut
             \node[anchor=north, outer sep=5pt] at (1*\coorddist,0) {$1$};
             \node[anchor=north, outer sep=5pt] at (2*\coorddist,0) {$2$};
             \node[anchor=north, outer sep=5pt] at (3*\coorddist,0) {$3$};
-            \drawaggregate{1}{5/12}
-            \drawaggregate{2}{7/24}
-            \drawaggregate{3}{7/24}
-            \drawvoteannotated{1}{5/12}{color1}{$\frac{5}{12}$}{}
-            \drawvoteannotated{2}{7/24}{color1}{$\frac{7}{24}$}{}
-            \drawvoteannotated{3}{7/24}{color1}{$\frac{7}{24}$}{}
-            \drawvoteannotated{1}{1/3}{color2}{}{$\frac{1}{3}$}
-            \drawvoteannotated{2}{1/3}{color2}{}{$\frac{1}{3}$}
-            \drawvoteannotated{3}{1/3}{color2}{}{$\frac{1}{3}$}
+            \draggregate{1}{5/12}
+            \draggregate{2}{7/24}
+            \draggregate{3}{7/24}
+            \drvoteannotated{1}{5/12}{color1}{$\frac{5}{12}$}{}
+            \drvoteannotated{2}{7/24}{color1}{$\frac{7}{24}$}{}
+            \drvoteannotated{3}{7/24}{color1}{$\frac{7}{24}$}{}
+            \drvoteannotated{1}{1/3}{color2}{}{$\frac{1}{3}$}
+            \drvoteannotated{2}{1/3}{color2}{}{$\frac{1}{3}$}
+            \drvoteannotated{3}{1/3}{color2}{}{$\frac{1}{3}$}
         \end{tikzpicture}
         \caption{Profile $P'$. The aggregate of any neutral and decomposable mechanism is $a' = \big(\frac{5}{12}, \frac{7}{24}, \frac{7}{24}\big)$.}
         \label{fig:decomposability_truthfulness2}
@@ -578,10 +578,10 @@ We note that a closely related instance was used by \citet[Theorem 1]{MPS20a} to
     \centering
     \def\coorddist{0.18}
     \def\coordwidth{0.06}
-    \newcommand{\drawaggregatearea}[5]{
+    \newcommand{\draggregatearea}[5]{
         \fill[pattern={Lines[angle=#4*0.8,distance=4pt,line width=2pt]},pattern color=#3!80!white, draw=#3!60!white] (#1*\coorddist-\coordwidth,0) rectangle (#1*\coorddist+\coordwidth,#2);
     }
-    \newcommand{\drawaggregatelineannotated}[5]{
+    \newcommand{\draggregatelineannotated}[5]{
         \draw[#3] (#1*\coorddist-\coordwidth,#2) -- (#1*\coorddist+\coordwidth,#2) node[anchor=west] {#5};
     }
     \begin{tikzpicture}[yscale=3,xscale=6]
@@ -600,14 +600,14 @@ We note that a closely related instance was used by \citet[Theorem 1]{MPS20a} to
         \node[anchor=north, outer sep=5pt] at (2*\coorddist,0) {$\cdots$\phantom{2}};
         \node[anchor=north, outer sep=5pt] at (3*\coorddist,0) {$n-\sqrt{n}$};
         \node[anchor=north, outer sep=5pt] at (5*\coorddist,0) {$n-\sqrt{n}+1$};
-        \drawaggregatearea{5}{1}{lightgray}{45}{$1$}
-        \drawaggregatearea{1}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
-        \drawaggregatearea{3}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
-        \drawaggregatearea{5}{0.35}{darkgray}{-45}{$\frac{1}{\sqrt{n}}$}
-        \drawaggregatelineannotated{5}{1}{lightgray}{45}{$1$}
-        \drawaggregatelineannotated{1}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
-        \drawaggregatelineannotated{3}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
-        \drawaggregatelineannotated{5}{0.35}{darkgray}{-45}{$\frac{1}{\sqrt{n}}$}
+        \draggregatearea{5}{1}{lightgray}{45}{$1$}
+        \draggregatearea{1}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
+        \draggregatearea{3}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
+        \draggregatearea{5}{0.35}{darkgray}{-45}{$\frac{1}{\sqrt{n}}$}
+        \draggregatelineannotated{5}{1}{lightgray}{45}{$1$}
+        \draggregatelineannotated{1}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
+        \draggregatelineannotated{3}{0.1}{darkgray}{-45}{$\frac{1}{n}$}
+        \draggregatelineannotated{5}{0.35}{darkgray}{-45}{$\frac{1}{\sqrt{n}}$}
         \draw[ultra thick, color1] (1*\coorddist-\coordwidth,1) -- (1*\coorddist+\coordwidth,1) node[pos=0, anchor=east, inner sep=1pt] {\small $1\times$}; 
         \draw[ultra thick, color1] (3*\coorddist-\coordwidth,1) -- (3*\coorddist+\coordwidth,1) node[pos=0, anchor=east, inner sep=1pt] {\small $1\times$}; 
         \draw[ultra thick, color1] (5*\coorddist-\coordwidth,1) -- (5*\coorddist+\coordwidth,1) node[pos=0, anchor=east, inner sep=1pt] {\small $\sqrt{n}\,\times$}; 
@@ -644,17 +644,17 @@ Formally, a mechanism satisfies \emph{proportional spending} if, for every profi
     \def\postwo{\posone + \coorddist}
     \def\posthr{\postwo + \coorddist}
     \def\posfou{\posthr + \coorddist}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[very thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=1pt, anchor=east] {\small #4}
         node[pos=1, inner sep=2pt, anchor=west] {\small #5};
     }
-    \newcommand{\drawVOTEannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[very thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=1pt, anchor=east] {\small #4}
         node[pos=1, inner sep=2pt, anchor=west] {\small #5};
     }
-    \newcommand{\drawaggregate}[5]{
+    \newcommand{\draggregate}[5]{
         \fill[pattern={Lines[angle=#5*0.8,distance=4pt,line width=2pt]},pattern color=#4!70!white, draw=#4!50!white] (#1-\coordwidth,#2) rectangle (#1-\coordwidth+\coordwidth*2,#3);
     }
     \newcommand{\drawarea}[5]{
@@ -680,21 +680,21 @@ Formally, a mechanism satisfies \emph{proportional spending} if, for every profi
             \drawarea{\posone}{0}{1/10}{color2}{45};
             \drawarea{\postwo}{0}{2/10}{color2}{45};
             \drawarea{\posthr}{0}{1/10}{color2}{45};
-            \drawaggregate{\posone}{0}{1/10}{darkgray}{45};
-            \drawaggregate{\postwo}{0}{2/10}{darkgray}{45};
-            \drawaggregate{\posthr}{0}{1/10}{darkgray}{45};
-            \drawvoteannotated{\posone}{9/10}{color1}{}{};
-            \drawvoteannotated{\posone}{0/10}{color1}{}{};
-            \drawVOTEannotated{\posone}{1/10}{color2}{$\mu^2_1$}{};
-            \drawvoteannotated{\posone}{6/10}{color1}{}{};
-            \drawvoteannotated{\postwo}{1/10}{color1}{}{};
-            \drawvoteannotated{\postwo}{6/10}{color1}{}{};
-            \drawVOTEannotated{\postwo}{2/10}{color2}{$\mu^2_2$}{};
-            \drawvoteannotated{\postwo}{3/10}{color1}{}{};
-            \drawvoteannotated{\posthr}{0/10}{color1}{}{};
-            \drawvoteannotated{\posthr}{4/10}{color1}{}{};
-            \drawvoteannotated{\posthr}{7/10}{color1}{}{};
-            \drawVOTEannotated{\posthr}{1/10}{color2}{$\mu^2_3$}{};
+            \draggregate{\posone}{0}{1/10}{darkgray}{45};
+            \draggregate{\postwo}{0}{2/10}{darkgray}{45};
+            \draggregate{\posthr}{0}{1/10}{darkgray}{45};
+            \drvoteannotated{\posone}{9/10}{color1}{}{};
+            \drvoteannotated{\posone}{0/10}{color1}{}{};
+            \drvoteannotated{\posone}{1/10}{color2}{$\mu^2_1$}{};
+            \drvoteannotated{\posone}{6/10}{color1}{}{};
+            \drvoteannotated{\postwo}{1/10}{color1}{}{};
+            \drvoteannotated{\postwo}{6/10}{color1}{}{};
+            \drvoteannotated{\postwo}{2/10}{color2}{$\mu^2_2$}{};
+            \drvoteannotated{\postwo}{3/10}{color1}{}{};
+            \drvoteannotated{\posthr}{0/10}{color1}{}{};
+            \drvoteannotated{\posthr}{4/10}{color1}{}{};
+            \drvoteannotated{\posthr}{7/10}{color1}{}{};
+            \drvoteannotated{\posthr}{1/10}{color2}{$\mu^2_3$}{};
         \end{tikzpicture}
     \end{subfigure}\hfill
     \begin{subfigure}[t]{0.48\textwidth}
@@ -716,21 +716,21 @@ Formally, a mechanism satisfies \emph{proportional spending} if, for every profi
             \drawarea{\posone}{0}{6/10}{color2}{45};
             \drawarea{\postwo}{0}{3/10}{color2}{45};
             \drawarea{\posthr}{0}{4/10}{color2}{45};
-            \drawaggregate{\posone}{0}{2/10}{darkgray}{45};
-            \drawaggregate{\postwo}{0}{2/10}{darkgray}{45};
-            \drawaggregate{\posthr}{0}{1/10}{darkgray}{45};
-            \drawvoteannotated{\posone}{9/10}{color1}{}{};
-            \drawvoteannotated{\posone}{0/10}{color1}{}{};
-            \drawvoteannotated{\posone}{1/10}{color1}{}{};
-            \drawVOTEannotated{\posone}{6/10}{color2}{$\mu^3_1$}{};
-            \drawvoteannotated{\postwo}{1/10}{color1}{}{};
-            \drawvoteannotated{\postwo}{6/10}{color1}{}{};
-            \drawvoteannotated{\postwo}{2/10}{color1}{}{};
-            \drawVOTEannotated{\postwo}{3/10}{color2}{$\mu^3_2$}{};
-            \drawvoteannotated{\posthr}{0/10}{color1}{}{};
-            \drawVOTEannotated{\posthr}{4/10}{color2}{$\mu^3_3$}{};
-            \drawvoteannotated{\posthr}{7/10}{color1}{}{};
-            \drawvoteannotated{\posthr}{1/10}{color1}{}{};
+            \draggregate{\posone}{0}{2/10}{darkgray}{45};
+            \draggregate{\postwo}{0}{2/10}{darkgray}{45};
+            \draggregate{\posthr}{0}{1/10}{darkgray}{45};
+            \drvoteannotated{\posone}{9/10}{color1}{}{};
+            \drvoteannotated{\posone}{0/10}{color1}{}{};
+            \drvoteannotated{\posone}{1/10}{color1}{}{};
+            \drvoteannotated{\posone}{6/10}{color2}{$\mu^3_1$}{};
+            \drvoteannotated{\postwo}{1/10}{color1}{}{};
+            \drvoteannotated{\postwo}{6/10}{color1}{}{};
+            \drvoteannotated{\postwo}{2/10}{color1}{}{};
+            \drvoteannotated{\postwo}{3/10}{color2}{$\mu^3_2$}{};
+            \drvoteannotated{\posthr}{0/10}{color1}{}{};
+            \drvoteannotated{\posthr}{4/10}{color2}{$\mu^3_3$}{};
+            \drvoteannotated{\posthr}{7/10}{color1}{}{};
+            \drvoteannotated{\posthr}{1/10}{color1}{}{};
         \end{tikzpicture}
     \end{subfigure}
     \caption{Illustration of the proportional spending property on an instance with $n = 4$ voters and $m = 3$ alternatives. For $k = 2$ (left figure), we have $\frac{4}{10} = \sum_{j \in [m]} \mu^k_j < \frac{n-k+1}{n} = \frac{3}{4}$, thus proportional spending requires that $a_j \ge \mu^k_j$ for each alternative $j$. For $k = 3$ (right figure), we have $\frac{13}{10} = \sum_{j \in [m]} \mu^k_j > \frac{n-k+1}{n} = \frac{1}{2}$, thus proportional spending requires that $a_j$ spends a total of at least $\frac{1}{2}$ below $\mu^3$.}
@@ -1048,7 +1048,7 @@ We further show in \Cref{app:paretoGrdDecUtDec} that there are instances on whic
     \def\posthr{\postwo + \coorddist}
     \def\posfou{\posthr + \coorddist}
     \def\posfiv{\posfou + \coorddist}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[ultra thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=0pt, anchor=east] {\small #4}
         node[pos=1, inner sep=0pt, anchor=west] {\small #5};
@@ -1080,13 +1080,13 @@ We further show in \Cref{app:paretoGrdDecUtDec} that there are instances on whic
             \drawcontribution{\postwo}{0}{1/4}{color3}{45}{0}{1};
             \drawcontribution{\posthr}{0}{1/4}{color1}{-45}{0}{1};
             \drawcontribution{\posfou}{0}{1/4}{color1}{-45}{0}{1};
-            \drawvoteannotated{\posone}{3/4}{color2}{}{$\frac{3}{4}$};
-            \drawvoteannotated{\postwo}{3/4}{color3}{}{$\frac{3}{4}$};
-            \drawvoteannotated{\posthr}{1/3}{color1}{$2\times$}{};
-            \drawvoteannotated{\posthr}{1/4}{color2}{}{$\frac{1}{4}$};
-            \drawvoteannotated{\posfou}{1/3}{color1}{$2\times$}{};
-            \drawvoteannotated{\posfou}{1/4}{color3}{}{$\frac{1}{4}$};
-            \drawvoteannotated{\posfiv}{1/3}{color1}{$2\times$}{$\frac{1}{3}$};
+            \drvoteannotated{\posone}{3/4}{color2}{}{$\frac{3}{4}$};
+            \drvoteannotated{\postwo}{3/4}{color3}{}{$\frac{3}{4}$};
+            \drvoteannotated{\posthr}{1/3}{color1}{$2\times$}{};
+            \drvoteannotated{\posthr}{1/4}{color2}{}{$\frac{1}{4}$};
+            \drvoteannotated{\posfou}{1/3}{color1}{$2\times$}{};
+            \drvoteannotated{\posfou}{1/4}{color3}{}{$\frac{1}{4}$};
+            \drvoteannotated{\posfiv}{1/3}{color1}{$2\times$}{$\frac{1}{3}$};
         \end{tikzpicture}
         \caption{Output of \GrdDec.} \label{fig:greedydecomp_social_welfare_small_grdydecomp}
     \end{subfigure}
@@ -1117,13 +1117,13 @@ We further show in \Cref{app:paretoGrdDecUtDec} that there are instances on whic
             \drawcontribution{\posfou}{0}{1/6}{color3}{45}{0}{1};
             \drawcontribution{\posfou}{1/6}{1/4}{color1}{-45}{0}{1};
             \drawcontribution{\posfiv}{0}{1/3}{color1}{-45}{0}{1};
-            \drawvoteannotated{\posone}{3/4}{color2}{}{$\frac{3}{4}$};
-            \drawvoteannotated{\postwo}{3/4}{color3}{}{$\frac{3}{4}$};
-            \drawvoteannotated{\posthr}{1/3}{color1}{$2\times$}{};
-            \drawvoteannotated{\posthr}{1/4}{color2}{}{$\frac{1}{4}$};
-            \drawvoteannotated{\posfou}{1/3}{color1}{$2\times$}{};
-            \drawvoteannotated{\posfou}{1/4}{color3}{}{$\frac{1}{4}$};
-            \drawvoteannotated{\posfiv}{1/3}{color1}{$2\times$}{$\frac{1}{3}$};
+            \drvoteannotated{\posone}{3/4}{color2}{}{$\frac{3}{4}$};
+            \drvoteannotated{\postwo}{3/4}{color3}{}{$\frac{3}{4}$};
+            \drvoteannotated{\posthr}{1/3}{color1}{$2\times$}{};
+            \drvoteannotated{\posthr}{1/4}{color2}{}{$\frac{1}{4}$};
+            \drvoteannotated{\posfou}{1/3}{color1}{$2\times$}{};
+            \drvoteannotated{\posfou}{1/4}{color3}{}{$\frac{1}{4}$};
+            \drvoteannotated{\posfiv}{1/3}{color1}{$2\times$}{$\frac{1}{3}$};
         \end{tikzpicture}
         \caption{Optimal decomposable allocation.} \label{fig:greedydecomp_social_welfare_small_opt}
     \end{subfigure}
@@ -1525,12 +1525,12 @@ We fix $n\in \N$ and define the function $h\colon [0,n]\to \R_+$ by
     \def\posfou{\posthr + \coorddist + 0.1}
     \def\posfiv{\posfou + \coorddist}
     \def\possix{\posfiv + \coorddist}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[very thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=1pt, anchor=east] {\small #4}
         node[pos=1, inner sep=2pt, anchor=west] {\small #5};
     }
-    \newcommand{\drawaggregate}[5]{
+    \newcommand{\draggregate}[5]{
         \fill[pattern={Lines[angle=#5*0.8,distance=4pt,line width=2pt]},pattern color=#4!70!white, draw=#4!50!white] (#1-\coordwidth,#2) rectangle (#1-\coordwidth+\coordwidth*2,#3);
     }
     \newcommand{\drawphantomannotated}[3]{
@@ -1563,12 +1563,12 @@ We fix $n\in \N$ and define the function $h\colon [0,n]\to \R_+$ by
         \node[anchor=north, outer sep=5pt] at (\posfiv,0) {$\in J$};
         \node[anchor=north, outer sep=5pt] at (\possix,0) {$\in J$};
         \node[anchor=east, outer sep=0pt] at (label1.west) {\small Alternative:};
-        \drawaggregate{\posone}{0}{4/6}{lightgray}{45};
-        \drawaggregate{\postwo}{0}{3/6}{lightgray}{45};
-        \drawaggregate{\posthr}{0}{0.62}{lightgray}{45};
-        \drawaggregate{\posfou}{0}{0.43}{lightgray}{45};
-        \drawaggregate{\posfiv}{0}{1.5/6}{lightgray}{45};
-        \drawaggregate{\possix}{0}{0.20}{lightgray}{45};
+        \draggregate{\posone}{0}{4/6}{lightgray}{45};
+        \draggregate{\postwo}{0}{3/6}{lightgray}{45};
+        \draggregate{\posthr}{0}{0.62}{lightgray}{45};
+        \draggregate{\posfou}{0}{0.43}{lightgray}{45};
+        \draggregate{\posfiv}{0}{1.5/6}{lightgray}{45};
+        \draggregate{\possix}{0}{0.20}{lightgray}{45};
         \drawphantomannotated{1}{}{$f_0(t)$}
         \drawphantomannotated{5/6}{}{\,\,\,\,$\vdots$\phantom{$\frac{I}{I}$}}
         \drawphantomannotated{4/6}{}{\,\,\,\,$\vdots$\phantom{$\frac{I}{I}$}}
@@ -1582,42 +1582,42 @@ We fix $n\in \N$ and define the function $h\colon [0,n]\to \R_+$ by
         \drawproplevelannotated{2/6}{}{}
         \drawproplevelannotated{1/6}{}{}
         \drawproplevelannotated{0}{}{}
-        \drawvoteannotated{\posone}{0.95}{color2}{}{};
-        \drawvoteannotated{\posone}{0.90}{color2}{}{};
-        \drawvoteannotated{\posone}{0.87}{color2}{}{};
-        \drawvoteannotated{\posone}{0.77}{color2}{$\mu^{k_j+1}_j = \mu^{k^\star+1}_j$}{};
-        \drawvoteannotated{\posone}{0.3}{color2}{}{};
-        \drawvoteannotated{\posone}{0.1}{color2}{}{};
-        \drawvoteannotated{\postwo}{0.98}{color2}{}{};
-        \drawvoteannotated{\postwo}{0.65}{color2}{}{};
-        \drawvoteannotated{\postwo}{0.55}{color2}{$\mu^{k_j+1}_j$}{};
-        \drawvoteannotated{\postwo}{0.30}{color2}{}{};
-        \drawvoteannotated{\postwo}{0.20}{color2}{}{};
-        \drawvoteannotated{\postwo}{0.05}{color2}{}{};
-        \drawvoteannotated{\posthr}{0.89}{color2}{}{};
-        \drawvoteannotated{\posthr}{0.87}{color2}{}{};
-        \drawvoteannotated{\posthr}{0.75}{color2}{$\mu^{k_j+1}_j$}{};
-        \drawvoteannotated{\posthr}{0.62}{color2}{}{};
-        \drawvoteannotated{\posthr}{0.07}{color2}{}{};
-        \drawvoteannotated{\posthr}{0.02}{color2}{}{};
-        \drawvoteannotated{\posfou}{0.95}{color2}{}{};
-        \drawvoteannotated{\posfou}{0.73}{color2}{$\mu_j^{\hat{k}+1}$}{};
-        \drawvoteannotated{\posfou}{0.43}{color2}{$\mu_j^{\hat{k}}$}{};
-        \drawvoteannotated{\posfou}{0.20}{color2}{}{};
-        \drawvoteannotated{\posfou}{0.10}{color2}{}{};
-        \drawvoteannotated{\posfou}{0.05}{color2}{}{};
-        \drawvoteannotated{\posfiv}{0.80}{color2}{}{};
-        \drawvoteannotated{\posfiv}{0.56}{color2}{$\mu_j^{\hat{k}+1}$}{};
-        \drawvoteannotated{\posfiv}{0.12}{color2}{$\mu_j^{\hat{k}}$}{};
-        \drawvoteannotated{\posfiv}{0.075}{color2}{}{};
-        \drawvoteannotated{\posfiv}{0.06}{color2}{}{};
-        \drawvoteannotated{\posfiv}{0.04}{color2}{}{};
-        \drawvoteannotated{\possix}{0.35}{color2}{}{};
-        \drawvoteannotated{\possix}{0.20}{color2}{$\mu_j^{\hat{k}+1}$}{};
-        \drawvoteannotated{\possix}{0.10}{color2}{$\mu_j^{\hat{k}}$}{};
-        \drawvoteannotated{\possix}{0.05}{color2}{}{};
-        \drawvoteannotated{\possix}{0.035}{color2}{}{};
-        \drawvoteannotated{\possix}{0.02}{color2}{}{};
+        \drvoteannotated{\posone}{0.95}{color2}{}{};
+        \drvoteannotated{\posone}{0.90}{color2}{}{};
+        \drvoteannotated{\posone}{0.87}{color2}{}{};
+        \drvoteannotated{\posone}{0.77}{color2}{$\mu^{k_j+1}_j = \mu^{k^\star+1}_j$}{};
+        \drvoteannotated{\posone}{0.3}{color2}{}{};
+        \drvoteannotated{\posone}{0.1}{color2}{}{};
+        \drvoteannotated{\postwo}{0.98}{color2}{}{};
+        \drvoteannotated{\postwo}{0.65}{color2}{}{};
+        \drvoteannotated{\postwo}{0.55}{color2}{$\mu^{k_j+1}_j$}{};
+        \drvoteannotated{\postwo}{0.30}{color2}{}{};
+        \drvoteannotated{\postwo}{0.20}{color2}{}{};
+        \drvoteannotated{\postwo}{0.05}{color2}{}{};
+        \drvoteannotated{\posthr}{0.89}{color2}{}{};
+        \drvoteannotated{\posthr}{0.87}{color2}{}{};
+        \drvoteannotated{\posthr}{0.75}{color2}{$\mu^{k_j+1}_j$}{};
+        \drvoteannotated{\posthr}{0.62}{color2}{}{};
+        \drvoteannotated{\posthr}{0.07}{color2}{}{};
+        \drvoteannotated{\posthr}{0.02}{color2}{}{};
+        \drvoteannotated{\posfou}{0.95}{color2}{}{};
+        \drvoteannotated{\posfou}{0.73}{color2}{$\mu_j^{\hat{k}+1}$}{};
+        \drvoteannotated{\posfou}{0.43}{color2}{$\mu_j^{\hat{k}}$}{};
+        \drvoteannotated{\posfou}{0.20}{color2}{}{};
+        \drvoteannotated{\posfou}{0.10}{color2}{}{};
+        \drvoteannotated{\posfou}{0.05}{color2}{}{};
+        \drvoteannotated{\posfiv}{0.80}{color2}{}{};
+        \drvoteannotated{\posfiv}{0.56}{color2}{$\mu_j^{\hat{k}+1}$}{};
+        \drvoteannotated{\posfiv}{0.12}{color2}{$\mu_j^{\hat{k}}$}{};
+        \drvoteannotated{\posfiv}{0.075}{color2}{}{};
+        \drvoteannotated{\posfiv}{0.06}{color2}{}{};
+        \drvoteannotated{\posfiv}{0.04}{color2}{}{};
+        \drvoteannotated{\possix}{0.35}{color2}{}{};
+        \drvoteannotated{\possix}{0.20}{color2}{$\mu_j^{\hat{k}+1}$}{};
+        \drvoteannotated{\possix}{0.10}{color2}{$\mu_j^{\hat{k}}$}{};
+        \drvoteannotated{\possix}{0.05}{color2}{}{};
+        \drvoteannotated{\possix}{0.035}{color2}{}{};
+        \drvoteannotated{\possix}{0.02}{color2}{}{};
         \draw [black, very thick] (\posthr+\coordwidth+0.01,3/6) -- (\posthr+\coordwidth+0.01,0.62) node[midway, anchor=west] {$x_j$};
     \end{tikzpicture}
     \caption{Illustration of the situation in the proof of \Cref{thm:utilPropMbound}. For this example, we have $n = 6$ voters. Phantom $f_{\hat{k}} = f_4$ is the last one that moved and the index $k^\star$ is $2$, since on the leftmost alternative the third lowest voter votes above $\frac{n-2}{n} = \frac{4}{6}$. For illustration purposes, the votes and aggregate are not normalized in this example, which has the side effect that $q = \sum_{j \in I} n_j > n$, which is not possible for a valid profile.}
@@ -1941,7 +1941,7 @@ While we do not have a similar result for \Ladder, we can show that \Ladder does
     \def\coorddist{0.25}
     \def\coordwidth{0.06}
     \def\shift{0.0093}
-    \newcommand{\drawvoteannotated}[6]{
+    \newcommand{\drvoteannotated}[6]{
         \draw[ultra thick, #3] (#1*\coorddist-\coordwidth,#2) -- (#1*\coorddist+\coordwidth,#2)
         node[pos=0, inner sep=0pt, anchor=east, yshift=#6] {\small #4}
         node[pos=1, inner sep=0pt, anchor=west, yshift=#6] {\small #5};
@@ -1973,15 +1973,15 @@ While we do not have a similar result for \Ladder, we can show that \Ladder does
             \drawcontribution{3}{0}{1/7}{color4}{45};
             \drawcontribution{4}{0}{2/7}{color2}{45};
             \drawcontribution{4}{2/7}{4/7}{color3}{-45};
-            \drawvoteannotated{1}{3/7}{color1}{}{}{0};
-            \drawvoteannotated{3}{4/7-\shift}{color1}{}{}{0};
-            \drawvoteannotated{2}{3/7}{color1!50!black}{}{}{0};
-            \drawvoteannotated{3}{4/7+\shift}{color1!50!black}{}{}{0};
-            \drawvoteannotated{1}{2/7}{color2}{$2\times$}{}{0};
-            \drawvoteannotated{4}{5/7+\shift}{color2}{$2\times$}{}{2.5pt};
-            \drawvoteannotated{2}{2/7}{color3}{$2\times$}{}{0};
-            \drawvoteannotated{4}{5/7-\shift}{color3}{$2\times$}{}{-2.5pt};
-            \drawvoteannotated{3}{1}{color4}{}{}{0};
+            \drvoteannotated{1}{3/7}{color1}{}{}{0};
+            \drvoteannotated{3}{4/7-\shift}{color1}{}{}{0};
+            \drvoteannotated{2}{3/7}{color1!50!black}{}{}{0};
+            \drvoteannotated{3}{4/7+\shift}{color1!50!black}{}{}{0};
+            \drvoteannotated{1}{2/7}{color2}{$2\times$}{}{0};
+            \drvoteannotated{4}{5/7+\shift}{color2}{$2\times$}{}{2.5pt};
+            \drvoteannotated{2}{2/7}{color3}{$2\times$}{}{0};
+            \drvoteannotated{4}{5/7-\shift}{color3}{$2\times$}{}{-2.5pt};
+            \drvoteannotated{3}{1}{color4}{}{}{0};
         \end{tikzpicture}
         \caption{Output of \GrdDec.}\label{fig:greedydecomp_pareto_dominated_greedydecomp}
     \end{subfigure}\hfill
@@ -2006,15 +2006,15 @@ While we do not have a similar result for \Ladder, we can show that \Ladder does
             \node[anchor=north, outer sep=5pt] at (4*\coorddist,0) {$4$};
             \drawcontribution{3}{0}{2/7}{darkgray}{45};
             \drawcontribution{4}{0}{5/7}{darkgray}{45};
-            \drawvoteannotated{1}{3/7}{color1}{}{}{0};
-            \drawvoteannotated{3}{4/7-\shift}{color1}{}{}{0};
-            \drawvoteannotated{2}{3/7}{color1!50!black}{}{}{0};
-            \drawvoteannotated{3}{4/7+\shift}{color1!50!black}{}{}{0};
-            \drawvoteannotated{1}{2/7}{color2}{$2\times$}{}{0};
-            \drawvoteannotated{4}{5/7+\shift}{color2}{$2\times$}{}{2.5pt};
-            \drawvoteannotated{2}{2/7}{color3}{$2\times$}{}{0};
-            \drawvoteannotated{4}{5/7-\shift}{color3}{$2\times$}{}{-2.5pt};
-            \drawvoteannotated{3}{1}{color4}{}{}{0};
+            \drvoteannotated{1}{3/7}{color1}{}{}{0};
+            \drvoteannotated{3}{4/7-\shift}{color1}{}{}{0};
+            \drvoteannotated{2}{3/7}{color1!50!black}{}{}{0};
+            \drvoteannotated{3}{4/7+\shift}{color1!50!black}{}{}{0};
+            \drvoteannotated{1}{2/7}{color2}{$2\times$}{}{0};
+            \drvoteannotated{4}{5/7+\shift}{color2}{$2\times$}{}{2.5pt};
+            \drvoteannotated{2}{2/7}{color3}{$2\times$}{}{0};
+            \drvoteannotated{4}{5/7-\shift}{color3}{$2\times$}{}{-2.5pt};
+            \drvoteannotated{3}{1}{color4}{}{}{0};
         \end{tikzpicture}
         \caption{Welfare-optimal allocation.}\label{fig:greedydecomp_pareto_dominated_opt}
     \end{subfigure}
@@ -2110,7 +2110,7 @@ From our definition of voter utilities, captured precisely by $\sum_{j\in [m]}u_
     \def\posthr{\postwo + \coorddist}
     \def\posfou{\posthr + \coorddist}
     \def\posfiv{\posfou + \coorddist}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[ultra thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=1pt, anchor=east] {\small #4}
         node[pos=1, inner sep=2pt, anchor=west] {\small #5};
@@ -2143,16 +2143,16 @@ From our definition of voter utilities, captured precisely by $\sum_{j\in [m]}u_
         \drawcontribution{\posfou}{0}{1/8}{color1}{-45};
         \drawcontribution{\posthr}{1/8}{0.05+\epsmark}{color3}{45};
         \drawcontribution{\posfiv}{0}{0.05+\epsmark/3}{color3}{45};
-        \drawvoteannotated{\posone}{0.8}{color2}{$18q \times$}{$1-\frac{1}{n}+\frac{\varepsilon}{3}$};
-        \drawvoteannotated{\posfiv}{0.05+\epsmark/3}{color2}{$6 \times$}{$\frac{1}{n}-\frac{\varepsilon}{3}$};
-        \drawvoteannotated{\postwo}{0.4}{color4}{$k\times$}{$\frac{q}{n}$};
-        \drawvoteannotated{\posthr}{0.6}{color4}{}{$1-\frac{q}{n}$};
-        \drawvoteannotated{\posfou}{0.6}{color4}{}{$1-\frac{q}{n}$};
-        \drawvoteannotated{\posthr}{1}{color1}{}{$1$};
-        \drawvoteannotated{\posfou}{1}{color1}{}{$1$};
-        \drawvoteannotated{\posthr}{0.05+\epsmark}{color3}{$3\times$}{$\varepsilon+\frac{1}{n}$};
-        \drawvoteannotated{\posfou}{0.05+\epsmark}{color3}{$3\times$}{$\varepsilon+\frac{1}{n}$};
-        \drawvoteannotated{\posfiv}{0.5}{color3}{}{$1-3\!\left(\varepsilon+\tfrac{1}{n}\right)$};
+        \drvoteannotated{\posone}{0.8}{color2}{$18q \times$}{$1-\frac{1}{n}+\frac{\varepsilon}{3}$};
+        \drvoteannotated{\posfiv}{0.05+\epsmark/3}{color2}{$6 \times$}{$\frac{1}{n}-\frac{\varepsilon}{3}$};
+        \drvoteannotated{\postwo}{0.4}{color4}{$k\times$}{$\frac{q}{n}$};
+        \drvoteannotated{\posthr}{0.6}{color4}{}{$1-\frac{q}{n}$};
+        \drvoteannotated{\posfou}{0.6}{color4}{}{$1-\frac{q}{n}$};
+        \drvoteannotated{\posthr}{1}{color1}{}{$1$};
+        \drvoteannotated{\posfou}{1}{color1}{}{$1$};
+        \drvoteannotated{\posthr}{0.05+\epsmark}{color3}{$3\times$}{$\varepsilon+\frac{1}{n}$};
+        \drvoteannotated{\posfou}{0.05+\epsmark}{color3}{$3\times$}{$\varepsilon+\frac{1}{n}$};
+        \drvoteannotated{\posfiv}{0.5}{color3}{}{$1-3\!\left(\varepsilon+\tfrac{1}{n}\right)$};
     \end{tikzpicture}
     \caption{Illustration of the construction used in the proof of Theorem~\ref{thm:welfare-optimal-decomposable-hardness}. Only non-zero votes are drawn and only representative examples of subset and dummy alternatives are shown. Blue line segments represent helper voters, orange line segments represent single-minded voters, red line segments represent toggle voters, and purple line segments represent element voters. Quantities to the left of the line segments indicate multiple voters at that position. Quantities to the right label the vote values. Colored hatching represents contributions of each voter type in the welfare-optimal decomposable allocation assuming that an exact cover exists. If an exact cover does not exist then the amount allocated to $D_i$ increases while the amount allocated to subset alternatives decreases in the welfare-optimal decomposable allocation.}
     \label{fig:reduction}
@@ -2234,10 +2234,10 @@ $A\subseteq [0,1)^m$ to be a vector of subsets, where each subset $A_j$ is a dis
     \centering
     \def\coorddist{0.5}
     \def\coordwidth{0.06}
-    \newcommand{\drawaggregatearea}[5]{
+    \newcommand{\draggregatearea}[5]{
         \fill[pattern={Lines[angle=#4*0.8,distance=4pt,line width=2pt]},pattern color=#3!70!white, draw=#3!60!white] (#1*\coorddist-\coordwidth,0) rectangle (#1*\coorddist+\coordwidth,#2);
     }
-    \newcommand{\drawaggregatelineannotated}[5]{
+    \newcommand{\draggregatelineannotated}[5]{
         \draw[#3] (#1*\coorddist-\coordwidth,#2) -- (#1*\coorddist+\coordwidth,#2) node[anchor=west] {\small #5};
     }
     \begin{tikzpicture}[yscale=3,xscale=6]
@@ -2254,18 +2254,18 @@ $A\subseteq [0,1)^m$ to be a vector of subsets, where each subset $A_j$ is a dis
         \node[anchor=north, outer sep=5pt] at (1*\coorddist,0) {$1$};
         \node[anchor=north, outer sep=5pt] at (2*\coorddist,0) {$2$};
         \node[anchor=north, outer sep=5pt] at (3*\coorddist,0) {$3$};
-        \drawaggregatearea{1}{0.3}{darkgray}{-45}{$a_1$}
-        \drawaggregatearea{2}{0.1}{darkgray}{-45}{$a_2$}
-        \drawaggregatearea{3}{0.6}{darkgray}{-45}{$a_3$}
-        \drawaggregatearea{1}{0.5}{lightgray}{45}{$a_1'$}
-        \drawaggregatearea{2}{0.2}{lightgray}{45}{$a_2'$}
-        \drawaggregatearea{3}{0.3}{lightgray}{45}{$a_3'$}
-        \drawaggregatelineannotated{1}{0.3}{darkgray}{-45}{$a_1$}
-        \drawaggregatelineannotated{2}{0.1}{darkgray}{-45}{$a_2$}
-        \drawaggregatelineannotated{3}{0.6}{darkgray}{-45}{$a_3$}
-        \drawaggregatelineannotated{1}{0.5}{lightgray}{45}{$a_1'$}
-        \drawaggregatelineannotated{2}{0.2}{lightgray}{45}{$a_2'$}
-        \drawaggregatelineannotated{3}{0.3}{lightgray}{45}{$a_3'$}
+        \draggregatearea{1}{0.3}{darkgray}{-45}{$a_1$}
+        \draggregatearea{2}{0.1}{darkgray}{-45}{$a_2$}
+        \draggregatearea{3}{0.6}{darkgray}{-45}{$a_3$}
+        \draggregatearea{1}{0.5}{lightgray}{45}{$a_1'$}
+        \draggregatearea{2}{0.2}{lightgray}{45}{$a_2'$}
+        \draggregatearea{3}{0.3}{lightgray}{45}{$a_3'$}
+        \draggregatelineannotated{1}{0.3}{darkgray}{-45}{$a_1$}
+        \draggregatelineannotated{2}{0.1}{darkgray}{-45}{$a_2$}
+        \draggregatelineannotated{3}{0.6}{darkgray}{-45}{$a_3$}
+        \draggregatelineannotated{1}{0.5}{lightgray}{45}{$a_1'$}
+        \draggregatelineannotated{2}{0.2}{lightgray}{45}{$a_2'$}
+        \draggregatelineannotated{3}{0.3}{lightgray}{45}{$a_3'$}
         \draw [black, very thick] (1*\coorddist-\coordwidth-0.02,0.3) -- (1*\coorddist-\coordwidth-0.02,0.5) node[midway, anchor=east] {\small $(A' \setminus A)_1$};
         \draw [black, very thick] (2*\coorddist-\coordwidth-0.02,0.1) -- (2*\coorddist-\coordwidth-0.02,0.2) node[midway, anchor=east] {\small $(A' \setminus A)_2$};
     \end{tikzpicture}
@@ -2349,7 +2349,7 @@ $A\subseteq [0,1)^m$ to be a vector of subsets, where each subset $A_j$ is a dis
     \def\possix{\posfiv + 0.17}
     \def\possev{\possix + 0.33}
     \def\coordwidth{0.05}
-    \newcommand{\drawvoteannotated}[5]{
+    \newcommand{\drvoteannotated}[5]{
         \draw[ultra thick, #3] (#1-\coordwidth,#2) -- (#1+\coordwidth,#2)
         node[pos=0, inner sep=0pt, anchor=east] {\small #4}
         node[pos=1, inner sep=0pt, anchor=west] {\small #5};
@@ -2384,13 +2384,13 @@ $A\subseteq [0,1)^m$ to be a vector of subsets, where each subset $A_j$ is a dis
             \drawcontribution{\posthr}{0}{0.22}{color3}{45}{0}{1};
             \drawcontribution{\posfou}{0}{0.22}{color1}{-45}{0}{1};
             \drawcontribution{\possix}{0}{0.22}{color1}{-45}{0}{1};
-            \drawvoteannotated{\posone}{0.78}{color2}{}{$\frac{n-1}{n}$};
-            \drawvoteannotated{\posthr}{0.78}{color3}{}{$\frac{n-1}{n}$};
-            \drawvoteannotated{\posfou}{0.26}{color1}{$\frac{n}{2}\times$}{$\frac{1+\varepsilon}{n}$};
-            \drawvoteannotated{\posfou}{0.22}{color2}{}{};
-            \drawvoteannotated{\possix}{0.26}{color1}{$\frac{n}{2}\times$}{};
-            \drawvoteannotated{\possix}{0.22}{color3}{}{$\frac{1}{n}$};
-            \drawvoteannotated{\possev}{0.5}{color1}{$\frac{n}{2}\times$}{$\frac{1-\varepsilon}{2}$};
+            \drvoteannotated{\posone}{0.78}{color2}{}{$\frac{n-1}{n}$};
+            \drvoteannotated{\posthr}{0.78}{color3}{}{$\frac{n-1}{n}$};
+            \drvoteannotated{\posfou}{0.26}{color1}{$\frac{n}{2}\times$}{$\frac{1+\varepsilon}{n}$};
+            \drvoteannotated{\posfou}{0.22}{color2}{}{};
+            \drvoteannotated{\possix}{0.26}{color1}{$\frac{n}{2}\times$}{};
+            \drvoteannotated{\possix}{0.22}{color3}{}{$\frac{1}{n}$};
+            \drvoteannotated{\possev}{0.5}{color1}{$\frac{n}{2}\times$}{$\frac{1-\varepsilon}{2}$};
         \end{tikzpicture}
         \caption{Output of \GrdDec.} \label{fig:greedydecomp_social_welfare_grdydecomp}
     \end{subfigure}
@@ -2424,13 +2424,13 @@ $A\subseteq [0,1)^m$ to be a vector of subsets, where each subset $A_j$ is a dis
             \drawcontribution{\possix}{0.00}{0.04}{color1}{-45}{0}{1};
             \drawcontribution{\possix}{0.04}{0.22}{color3}{45}{0}{1};
             \drawcontribution{\possev}{0}{0.5}{color1}{-45}{0}{1};
-            \drawvoteannotated{\posone}{0.78}{color2}{}{$\frac{n-1}{n}$};
-            \drawvoteannotated{\posthr}{0.78}{color3}{}{$\frac{n-1}{n}$};
-            \drawvoteannotated{\posfou}{0.26}{color1}{$\frac{n}{2}\times$}{$\frac{1+\varepsilon}{n}$};
-            \drawvoteannotated{\posfou}{0.22}{color2}{}{};
-            \drawvoteannotated{\possix}{0.26}{color1}{$\frac{n}{2}\times$}{};
-            \drawvoteannotated{\possix}{0.22}{color3}{}{$\frac{1}{n}$};
-            \drawvoteannotated{\possev}{0.5}{color1}{$\frac{n}{2}\times$}{$\frac{1-\varepsilon}{2}$};
+            \drvoteannotated{\posone}{0.78}{color2}{}{$\frac{n-1}{n}$};
+            \drvoteannotated{\posthr}{0.78}{color3}{}{$\frac{n-1}{n}$};
+            \drvoteannotated{\posfou}{0.26}{color1}{$\frac{n}{2}\times$}{$\frac{1+\varepsilon}{n}$};
+            \drvoteannotated{\posfou}{0.22}{color2}{}{};
+            \drvoteannotated{\possix}{0.26}{color1}{$\frac{n}{2}\times$}{};
+            \drvoteannotated{\possix}{0.22}{color3}{}{$\frac{1}{n}$};
+            \drvoteannotated{\possev}{0.5}{color1}{$\frac{n}{2}\times$}{$\frac{1-\varepsilon}{2}$};
         \end{tikzpicture}
         \caption{Welfare-optimal decomposable allocation.} \label{fig:greedydecomp_social_welfare_opt}
     \end{subfigure}
