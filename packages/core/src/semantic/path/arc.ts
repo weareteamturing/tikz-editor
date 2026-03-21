@@ -3,10 +3,18 @@ import type { PathOptionItem } from "../../ast/types.js";
 import type { DiagnosticPushFn, ArcParameters, PlacementSegment } from "./types.js";
 import { coordinateInner, toRadians } from "./shared.js";
 import { parseLength } from "../coords/parse-length.js";
+import type { MacroBinding, MacroExpansionTraceEvent } from "../../macros/index.js";
 import type { Point, ResolvedStyle, ScenePathCommand } from "../types.js";
 import { applyMatrixToVector } from "../transform.js";
+import { expandPathMacroBindings } from "./macro-expansion.js";
 
-export function extractArcParameters(item: PathOptionItem, pushDiagnostic: DiagnosticPushFn, style: ResolvedStyle): ArcParameters | null {
+export function extractArcParameters(
+  item: PathOptionItem,
+  pushDiagnostic: DiagnosticPushFn,
+  style: ResolvedStyle,
+  macroBindings?: ReadonlyMap<string, MacroBinding>,
+  macroTraceCollector?: MacroExpansionTraceEvent[]
+): ArcParameters | null {
   let startAngle: number | null = null;
   let endAngle: number | null = null;
   let deltaAngle: number | null = null;
@@ -18,33 +26,33 @@ export function extractArcParameters(item: PathOptionItem, pushDiagnostic: Diagn
       continue;
     }
     if (entry.key === "start angle") {
-      const parsed = Number(entry.valueRaw);
+      const parsed = Number(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector));
       if (Number.isFinite(parsed)) {
         startAngle = parsed;
       }
     } else if (entry.key === "end angle") {
-      const parsed = Number(entry.valueRaw);
+      const parsed = Number(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector));
       if (Number.isFinite(parsed)) {
         endAngle = parsed;
       }
     } else if (entry.key === "delta angle") {
-      const parsed = Number(entry.valueRaw);
+      const parsed = Number(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector));
       if (Number.isFinite(parsed)) {
         deltaAngle = parsed;
       }
     } else if (entry.key === "radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         rx = parsed;
         ry = parsed;
       }
     } else if (entry.key === "x radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         rx = parsed;
       }
     } else if (entry.key === "y radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         ry = parsed;
       }

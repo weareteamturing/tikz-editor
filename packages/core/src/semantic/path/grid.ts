@@ -9,12 +9,14 @@ import { coordinateInner, normalizeOptionValue, toRadians } from "./shared.js";
 import { DEFAULT_GRID_STEP } from "./constants.js";
 import type { StyleChainEntry } from "../style-chain.js";
 import { cloneStyleChain } from "../style-chain.js";
+import { expandPathMacroBindings } from "./macro-expansion.js";
 
 export function extractGridSteps(
   item: PathOptionItem,
   pushDiagnostic: DiagnosticPushFn,
   context: SemanticContext
 ): { stepX?: number; stepY?: number } | null {
+  const frame = context.stack[context.stack.length - 1];
   let stepX: number | undefined;
   let stepY: number | undefined;
 
@@ -24,7 +26,8 @@ export function extractGridSteps(
     }
 
     if (entry.key === "step") {
-      const pair = parseCoordinateLike(entry.valueRaw);
+      const expandedValue = expandPathMacroBindings(entry.valueRaw, frame?.macroBindings);
+      const pair = parseCoordinateLike(expandedValue);
       if (pair) {
         const parsedX = parseLength(pair.x, "cm");
         const parsedY = parseLength(pair.y, "cm");
@@ -37,14 +40,17 @@ export function extractGridSteps(
         continue;
       }
 
-      const polar = parsePolarStep(entry.valueRaw);
+      const polar = parsePolarStep(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings));
       if (polar) {
         stepX = Math.abs(polar.x);
         stepY = Math.abs(polar.y);
         continue;
       }
 
-      const scalar = parseLength(entry.valueRaw, "cm");
+      const scalar = parseLength(
+        expandPathMacroBindings(entry.valueRaw, frame?.macroBindings),
+        "cm"
+      );
       if (scalar == null || scalar < 0) {
         pushDiagnostic("invalid-grid-step", "Grid `step` must be a positive length.", entry.span.from, entry.span.to);
         continue;
@@ -56,7 +62,7 @@ export function extractGridSteps(
     }
 
     if (entry.key === "xstep" || entry.key === "x step") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings), "cm");
       if (parsed == null || parsed < 0) {
         pushDiagnostic("invalid-grid-step", "Grid `xstep` must be a positive length.", entry.span.from, entry.span.to);
         continue;
@@ -66,7 +72,7 @@ export function extractGridSteps(
     }
 
     if (entry.key === "ystep" || entry.key === "y step") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings), "cm");
       if (parsed == null || parsed < 0) {
         pushDiagnostic("invalid-grid-step", "Grid `ystep` must be a positive length.", entry.span.from, entry.span.to);
         continue;

@@ -934,6 +934,57 @@ describe("semantic evaluator / coordinates and path ops", () => {
       }
     });
 
+    it("expands macros in circle radius path options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \def\r{1cm}
+    \draw (0,0) circle [radius=\r];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      expect(elementsOfKind(result.scene.elements, "Circle")).toHaveLength(1);
+    });
+
+    it("expands macros in ellipse radii path options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \def\r{1cm}
+    \def\h{0.5cm}
+    \draw (2,0) ellipse [x radius=\r, y radius=\h];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      expect(result.scene.elements.some((element) => element.kind === "Ellipse")).toBe(true);
+    });
+
+    it("expands macros in arc path options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \def\r{1cm}
+    \def\h{0.5cm}
+    \draw (4,0) arc [start angle=0, end angle=90, x radius=\r, y radius=\h];
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      expect(paths.some((path) => path.commands.some((command) => command.kind === "A"))).toBe(true);
+    });
+
+    it("expands macros in grid and parabola path options", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \def\s{0.25cm}
+    \def\h{0.5cm}
+    \draw (0,2) grid [step=\s] (1,3);
+    \draw (0,4) parabola [parabola height=\h] (1,4);
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      const paths = elementsOfKind(result.scene.elements, "Path");
+      expect(paths.some((path) => path.id.includes("scene-grid-"))).toBe(true);
+      expect(paths.some((path) => path.commands.some((command) => command.kind === "C"))).toBe(true);
+    });
+
     it("supports arc variants and grid step variants", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (1,0) arc (0:90:1cm);

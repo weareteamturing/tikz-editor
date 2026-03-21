@@ -4,6 +4,7 @@ import { evaluateCoordinate, evaluateRawCoordinate } from "../coords/evaluate.js
 import { parseLength } from "../coords/parse-length.js";
 import type { Point, ScenePathCommand } from "../types.js";
 import { clamp, interpolate, normalizeOptionValue } from "./shared.js";
+import { expandPathMacroBindings } from "./macro-expansion.js";
 
 export function parseParabolaFromItems(
   items: PathItem[],
@@ -24,7 +25,7 @@ export function parseParabolaFromItems(
     cursor += 1;
   }
 
-  const parsedOptions = parseParabolaOptions(parabolaOptions);
+  const parsedOptions = parseParabolaOptions(parabolaOptions, context);
   let bendSpec = parsedOptions.bend;
   let bendPos = parsedOptions.bendPos;
 
@@ -90,7 +91,10 @@ export function parseParabolaFromItems(
   };
 }
 
-function parseParabolaOptions(options: PathOptionItem["options"] | undefined): {
+function parseParabolaOptions(
+  options: PathOptionItem["options"] | undefined,
+  context: SemanticContext
+): {
   bendPos: number;
   bend:
     | { kind: "saved" }
@@ -102,6 +106,7 @@ function parseParabolaOptions(options: PathOptionItem["options"] | undefined): {
     | { kind: "saved" }
     | { kind: "height"; height: number }
     | { kind: "coordinate"; raw: string; relativePrefix?: "+" | "++" } = { kind: "saved" };
+  const frame = context.stack[context.stack.length - 1];
 
   if (!options) {
     return { bendPos, bend };
@@ -130,7 +135,7 @@ function parseParabolaOptions(options: PathOptionItem["options"] | undefined): {
       continue;
     }
     if (entry.key === "parabola height") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings), "cm");
       if (parsed != null) {
         bendPos = 0.5;
         bend = { kind: "height", height: parsed };
@@ -138,7 +143,7 @@ function parseParabolaOptions(options: PathOptionItem["options"] | undefined): {
       continue;
     }
     if (entry.key === "bend") {
-      const parsed = parseBendCoordinateValue(entry.valueRaw);
+      const parsed = parseBendCoordinateValue(expandPathMacroBindings(entry.valueRaw, frame?.macroBindings));
       if (parsed) {
         bend = { kind: "coordinate", raw: parsed.raw, relativePrefix: parsed.relativePrefix };
       }

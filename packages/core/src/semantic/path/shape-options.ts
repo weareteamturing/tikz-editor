@@ -1,8 +1,15 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import { parseLength } from "../coords/parse-length.js";
+import type { MacroBinding, MacroExpansionTraceEvent } from "../../macros/index.js";
 import type { DiagnosticPushFn } from "./types.js";
+import { expandPathMacroBindings } from "./macro-expansion.js";
 
-export function extractEllipseRadii(item: PathOptionItem, pushDiagnostic: DiagnosticPushFn): { rx: number; ry: number } | null {
+export function extractEllipseRadii(
+  item: PathOptionItem,
+  pushDiagnostic: DiagnosticPushFn,
+  macroBindings?: ReadonlyMap<string, MacroBinding>,
+  macroTraceCollector?: MacroExpansionTraceEvent[]
+): { rx: number; ry: number } | null {
   let rx: number | null = null;
   let ry: number | null = null;
   let radius: number | null = null;
@@ -12,11 +19,11 @@ export function extractEllipseRadii(item: PathOptionItem, pushDiagnostic: Diagno
       continue;
     }
     if (entry.key === "x radius") {
-      rx = parseLength(entry.valueRaw, "cm");
+      rx = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
     } else if (entry.key === "y radius") {
-      ry = parseLength(entry.valueRaw, "cm");
+      ry = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
     } else if (entry.key === "radius") {
-      radius = parseLength(entry.valueRaw, "cm");
+      radius = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
     }
   }
 
@@ -36,7 +43,11 @@ export function extractEllipseRadii(item: PathOptionItem, pushDiagnostic: Diagno
   return null;
 }
 
-export function extractCircleShapeOptions(item: PathOptionItem): {
+export function extractCircleShapeOptions(
+  item: PathOptionItem,
+  macroBindings?: ReadonlyMap<string, MacroBinding>,
+  macroTraceCollector?: MacroExpansionTraceEvent[]
+): {
   radius?: number;
   rx?: number;
   ry?: number;
@@ -52,22 +63,22 @@ export function extractCircleShapeOptions(item: PathOptionItem): {
       continue;
     }
     if (entry.key === "radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         radius = parsed;
       }
     } else if (entry.key === "x radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         rx = parsed;
       }
     } else if (entry.key === "y radius") {
-      const parsed = parseLength(entry.valueRaw, "cm");
+      const parsed = parseLength(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector), "cm");
       if (parsed != null) {
         ry = parsed;
       }
     } else if (entry.key === "rotate") {
-      const parsed = Number(entry.valueRaw);
+      const parsed = Number(expandPathMacroBindings(entry.valueRaw, macroBindings, macroTraceCollector));
       if (Number.isFinite(parsed)) {
         rotation = parsed;
       }

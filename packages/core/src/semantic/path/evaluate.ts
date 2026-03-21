@@ -62,6 +62,7 @@ import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.
 import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
 import { parseStyleValueAsOptionList, resolveContextDelta } from "../style/resolve.js";
+import { expandOptionListMacros } from "../style/macro-options.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
 import { resolveFrameMeta } from "../evaluate.js";
@@ -583,8 +584,10 @@ export function evaluatePathStatement(
       "PathOption",
       (pathItem) => {
         const item = pathItem as Extract<PathItem, { kind: "PathOption" }>;
+        const expandedOptions = expandOptionListMacros([item.options], treeFrameState.macroBindings, context.macroTraceCollector ?? undefined)[0] ?? item.options;
+        const expandedItem = expandedOptions === item.options ? item : { ...item, options: expandedOptions };
         if (pendingCircleCenter) {
-          const parsed = extractCircleShapeOptions(item);
+          const parsed = extractCircleShapeOptions(expandedItem, treeFrameState.macroBindings, context.macroTraceCollector ?? undefined);
           if (parsed.radius != null) {
             pendingCircleRadius = parsed.radius;
             pendingCircleRadii = null;
@@ -598,11 +601,22 @@ export function evaluatePathStatement(
         }
 
         if (pendingEllipseCenter) {
-          pendingEllipseRadii = extractEllipseRadii(item, pushDiagnostic);
+          pendingEllipseRadii = extractEllipseRadii(
+            expandedItem,
+            pushDiagnostic,
+            treeFrameState.macroBindings,
+            context.macroTraceCollector ?? undefined
+          );
         }
 
         if (pendingArc) {
-          const arcParams = extractArcParameters(item, pushDiagnostic, style);
+          const arcParams = extractArcParameters(
+            expandedItem,
+            pushDiagnostic,
+            style,
+            treeFrameState.macroBindings,
+            context.macroTraceCollector ?? undefined
+          );
           if (arcParams) {
             let path: ScenePath | null = activePath;
             if (!path) {
@@ -621,7 +635,7 @@ export function evaluatePathStatement(
         }
 
         if (pendingGrid) {
-          const parsed = extractGridSteps(item, pushDiagnostic, context);
+          const parsed = extractGridSteps(expandedItem, pushDiagnostic, context);
           if (parsed) {
             if (parsed.stepX != null && parsed.stepX >= 0) {
               pendingGrid.stepX = parsed.stepX;
@@ -632,13 +646,13 @@ export function evaluatePathStatement(
           }
         }
 
-        const rounded = extractRoundedCorners(item.options, activeRoundedCorners);
+        const rounded = extractRoundedCorners(expandedOptions, activeRoundedCorners);
         if (rounded !== undefined) {
           activeRoundedCorners = rounded;
         }
 
         const isLeadingPathOption = !sawNonLeadingPathItem;
-        if (item.options && !isLeadingPathOption) {
+        if (expandedOptions && !isLeadingPathOption) {
           const optionSourceRef = {
             sourceId: item.id,
             sourceSpan: item.span,
@@ -653,7 +667,7 @@ export function evaluatePathStatement(
               {
                 kind: "scope",
                 sourceRef: optionSourceRef,
-                rawOptions: [item.options]
+                rawOptions: [expandedOptions]
               }
             ],
             optionCustomStyles,
@@ -2247,5 +2261,5 @@ function isMatrixNodeOptions(options: NodeItem["options"] | undefined): boolean 
 
 function expandPathItemRaw(raw: string, context: SemanticContext): string {
   const frame = context.stack[context.stack.length - 1];
-  return expandMacroBindings(raw, frame.macroBindings, context.macroTraceCollector ?? undefined);
+  return expandMacroBindings(raw, frame.macroBindings, { trace: context.macroTraceCollector ?? undefined });
 }
