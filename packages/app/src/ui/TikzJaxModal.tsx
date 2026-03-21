@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./Modal";
 import type { PlatformLatex } from "../platform/types";
+import { buildStandaloneLatexDocument } from "tikz-editor/export/index";
 import css from "./TikzJaxModal.module.css";
 
 const TIKZJAX_FONTS_CSS = "https://cdn.jsdelivr.net/npm/@drgrice1/tikzjax@1.0.0-beta24/dist/fonts.css";
 const TIKZJAX_JS = "https://cdn.jsdelivr.net/npm/@drgrice1/tikzjax@1.0.0-beta24/dist/tikzjax.js";
+const NATIVE_COMPILE_TIMEOUT_MS = 22000;
 
 
 type LibState = "idle" | "loading" | "loaded" | "error";
@@ -51,46 +53,118 @@ type Phase =
 
 type TikzJaxModalProps = {
   source: string;
+  requiredLibraries?: readonly string[];
   onClose: () => void;
   latex?: PlatformLatex;
+  showOpenInNewTab?: boolean;
+  showLogToggle?: boolean;
 };
 
-export function TikzJaxModal({ source, onClose, latex }: TikzJaxModalProps) {
+export function TikzJaxModal({
+  source,
+  requiredLibraries = [],
+  onClose,
+  latex,
+  showOpenInNewTab = true,
+  showLogToggle = false
+}: TikzJaxModalProps) {
   const [phase, setPhase] = useState<Phase>(latex ? "checking-native" : "loading-lib");
   const [nativeError, setNativeError] = useState<string | null>(null);
+  const [nativeLog, setNativeLog] = useState<string>("");
+  const [showLogView, setShowLogView] = useState(false);
   const outputRef = useRef<HTMLDivElement | null>(null);
+  const svgMarkupRef = useRef<string | null>(null);
+
+  const renderSvgIntoOutput = (svg: string): void => {
+    svgMarkupRef.current = svg;
+    const output = outputRef.current;
+    if (!output) {
+      return;
+    }
+    output.innerHTML = svg;
+    const svgEl = output.querySelector("svg");
+    if (svgEl) {
+      svgEl.removeAttribute("width");
+      svgEl.removeAttribute("height");
+    }
+  };
 
   // Try native LaTeX compilation if available
   useEffect(() => {
-    if (phase !== "checking-native" || !latex) return;
+    if (!latex) {
+      setPhase("loading-lib");
+      return;
+    }
     let cancelled = false;
-    latex.checkAvailable().then((available) => {
+    let pollId: number | null = null;
+    svgMarkupRef.current = null;
+    setShowLogView(false);
+    setNativeError(null);
+    setNativeLog("Probing native LaTeX toolchain...");
+    latex.checkAvailable().then((status) => {
       if (cancelled) return;
-      if (!available) {
-        setPhase("loading-lib");
+      const details = `Native LaTeX probe:\n${status.details}`;
+      if (!status.available) {
+        setNativeError("Native LaTeX is not available in this app environment.");
+        setNativeLog(details);
+        setPhase("native-error");
         return;
       }
+      const prefix = `${details}\n\nStarting compilation...`;
+      setNativeLog(prefix);
       setPhase("compiling-native");
-      return latex.compileTikzToSvg(source).then((svg) => {
+      const latexDocument = buildStandaloneLatexDocument(source, requiredLibraries, {
+        documentClassOptions: ["dvisvgm", "border=2pt"]
+      });
+      const readLastCompileLog = latex.readLastCompileLog;
+      if (typeof readLastCompileLog === "function") {
+        pollId = window.setInterval(() => {
+          void readLastCompileLog().then((logText) => {
+            if (cancelled) {
+              return;
+            }
+            if (!logText) {
+              return;
+            }
+            setNativeLog(`${prefix}\n\n--- input.log ---\n${logText}`);
+          }).catch(() => {
+            // Ignore log polling failures; compile result path remains authoritative.
+          });
+        }, 120);
+      }
+      const compilePromise = latex.compileTikzToSvg(latexDocument);
+      const timeoutPromise = new Promise<string>((_resolve, reject) => {
+        const timeoutId = window.setTimeout(() => {
+          reject(new Error(`Native compile did not return within ${NATIVE_COMPILE_TIMEOUT_MS}ms.`));
+        }, NATIVE_COMPILE_TIMEOUT_MS);
+        compilePromise.finally(() => window.clearTimeout(timeoutId));
+      });
+      return Promise.race([compilePromise, timeoutPromise]).then((svg) => {
         if (cancelled) return;
-        const output = outputRef.current;
-        if (output) {
-          output.innerHTML = svg;
-          const svgEl = output.querySelector("svg");
-          if (svgEl) {
-            svgEl.removeAttribute("width");
-            svgEl.removeAttribute("height");
-          }
+        setShowLogView(false);
+        if (pollId != null) {
+          window.clearInterval(pollId);
         }
+        renderSvgIntoOutput(svg);
         setPhase("done");
       });
     }).catch((err) => {
       if (cancelled) return;
-      setNativeError(String(err));
+      if (pollId != null) {
+        window.clearInterval(pollId);
+      }
+      const message = String(err);
+      setNativeError(message);
+      setNativeLog(message);
       setPhase("native-error");
     });
-    return () => { cancelled = true; };
-  }, [phase, latex, source]);
+    return () => {
+      cancelled = true;
+      if (pollId != null) {
+        window.clearInterval(pollId);
+      }
+    };
+  }, [latex, requiredLibraries, source]);
 
   // TikZJax fallback path
   useEffect(() => {
@@ -135,11 +209,44 @@ export function TikzJaxModal({ source, onClose, latex }: TikzJaxModalProps) {
     };
   }, [phase, source]);
 
+  // Show progress/errors inside the same output panel while native compile is running/failing.
+  useEffect(() => {
+    const output = outputRef.current;
+    if (!output) return;
+    if (phase === "done" || phase === "rendering" || phase === "loading-lib") return;
+    const pre = document.createElement("pre");
+    pre.className = css.outputLog;
+    pre.textContent = nativeLog || nativeError || "No diagnostic output.";
+    output.innerHTML = "";
+    output.appendChild(pre);
+    pre.scrollTop = pre.scrollHeight;
+  }, [nativeError, nativeLog, phase]);
+
+  useEffect(() => {
+    if (phase !== "done") return;
+    const output = outputRef.current;
+    if (!output) return;
+    if (showLogView) {
+      const pre = document.createElement("pre");
+      pre.className = css.outputLog;
+      pre.textContent = nativeLog || "No diagnostic output.";
+      output.innerHTML = "";
+      output.appendChild(pre);
+      pre.scrollTop = pre.scrollHeight;
+      return;
+    }
+    const svg = svgMarkupRef.current;
+    if (svg) {
+      renderSvgIntoOutput(svg);
+    }
+  }, [nativeLog, phase, showLogView]);
+
   const statusText =
     phase === "checking-native" ? "Checking LaTeX availability…" :
     phase === "compiling-native" ? "Compiling with LaTeX…" :
     phase === "loading-lib" ? "Loading TikZJax…" :
     phase === "lib-error" ? "Failed to load TikZJax from CDN." :
+    phase === "native-error" ? "Native LaTeX compile failed." :
     phase === "rendering" ? "Compiling…" :
     null;
 
@@ -166,25 +273,36 @@ export function TikzJaxModal({ source, onClose, latex }: TikzJaxModalProps) {
             >
               Download SVG
             </button>
-            <button
-              type="button"
-              className={css.closeBtn}
-              disabled={phase !== "done"}
-              onClick={() => {
-                const svg = outputRef.current?.querySelector("svg");
-                if (!svg) return;
-                const html = `<!DOCTYPE html>
+            {showOpenInNewTab ? (
+              <button
+                type="button"
+                className={css.closeBtn}
+                disabled={phase !== "done"}
+                onClick={() => {
+                  const svg = outputRef.current?.querySelector("svg");
+                  if (!svg) return;
+                  const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff}svg{width:auto;height:auto;max-width:90vw;max-height:90vh}</style>
 </head><body>${svg.outerHTML}</body></html>`;
-                const blob = new Blob([html], { type: "text/html" });
-                const url = URL.createObjectURL(blob);
-                window.open(url, "_blank");
-              }}
-            >
-              Open in New Tab
-            </button>
+                  const blob = new Blob([html], { type: "text/html" });
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, "_blank");
+                }}
+              >
+                Open in New Tab
+              </button>
+            ) : null}
+            {showLogToggle && phase === "done" && nativeLog.trim().length > 0 ? (
+              <button
+                type="button"
+                className={css.closeBtn}
+                onClick={() => setShowLogView((prev) => !prev)}
+              >
+                {showLogView ? "Show Image" : "Show Log"}
+              </button>
+            ) : null}
             <button type="button" className={css.closeBtn} onClick={onClose}>Close</button>
           </div>
         </div>
@@ -193,17 +311,14 @@ export function TikzJaxModal({ source, onClose, latex }: TikzJaxModalProps) {
 
         {phase === "native-error" ? (
           <div className={css.nativeError}>
-            <div className={css.status}>LaTeX compilation failed:</div>
-            <pre className={css.errorLog}>{nativeError}</pre>
             <button
               type="button"
               className={css.closeBtn}
               onClick={() => {
-                setNativeError(null);
                 setPhase("loading-lib");
               }}
             >
-              Retry with TikZJax
+              Continue with TikZJax Fallback
             </button>
           </div>
         ) : null}

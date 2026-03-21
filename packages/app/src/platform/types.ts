@@ -254,6 +254,7 @@ export type EditorPlatform = {
 };
 
 export type PlatformLatex = {
-  checkAvailable: () => Promise<boolean>;
-  compileTikzToSvg: (source: string) => Promise<string>;
+  checkAvailable: () => Promise<{ available: boolean; details: string }>;
+  compileTikzToSvg: (latexDocument: string) => Promise<string>;
+  readLastCompileLog?: () => Promise<string>;
 };

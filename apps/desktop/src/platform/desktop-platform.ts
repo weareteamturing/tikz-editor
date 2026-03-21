@@ -1026,11 +1026,15 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
     latex: {
       checkAvailable: async () => {
         const { invoke } = await import("@tauri-apps/api/core");
-        return await invoke<boolean>("desktop_check_latex_available");
+        return await invoke<{ available: boolean; details: string }>("desktop_check_latex_available");
       },
-      compileTikzToSvg: async (source: string) => {
+      compileTikzToSvg: async (latexDocument: string) => {
         const { invoke } = await import("@tauri-apps/api/core");
-        return await invoke<string>("desktop_compile_tikz", { source });
+        return await invoke<string>("desktop_compile_tikz", { latexDocument });
+      },
+      readLastCompileLog: async () => {
+        const { invoke } = await import("@tauri-apps/api/core");
+        return await invoke<string>("desktop_read_last_compile_log");
       }
     },
     assistant: {

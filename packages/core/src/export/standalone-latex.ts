@@ -13,6 +13,10 @@ export type CreateStandaloneLatexExportArtifactOptions = {
   fileName?: string;
 };
 
+export type StandaloneLatexDocumentOptions = {
+  documentClassOptions?: readonly string[];
+};
+
 function normalizeLibraryNames(libraries: readonly string[]): string[] {
   const unique = new Set<string>();
   for (const library of libraries) {
@@ -79,7 +83,22 @@ export function normalizeStandaloneLatexExportFileName(fileName?: string): strin
   return `${candidate}.tex`;
 }
 
-export function buildStandaloneLatexDocument(source: string, requiredLibraries: readonly string[] = []): string {
+function normalizeDocumentClassOptions(options: readonly string[] = []): string[] {
+  const unique = new Set<string>();
+  for (const option of options) {
+    const normalized = option.trim();
+    if (normalized.length > 0) {
+      unique.add(normalized);
+    }
+  }
+  return [...unique];
+}
+
+export function buildStandaloneLatexDocument(
+  source: string,
+  requiredLibraries: readonly string[] = [],
+  options: StandaloneLatexDocumentOptions = {}
+): string {
   const normalizedLibraries = normalizeLibraryNames(requiredLibraries);
   if (hasDocumentWrapper(source)) {
     if (normalizedLibraries.length === 0) {
@@ -101,8 +120,10 @@ export function buildStandaloneLatexDocument(source: string, requiredLibraries: 
     return `${prefix}${injection}${suffix}`;
   }
 
+  const classOptions = normalizeDocumentClassOptions(options.documentClassOptions);
+  const classOptionsText = classOptions.length > 0 ? `[${classOptions.join(",")}]` : "";
   const lines = [
-    "\\documentclass{standalone}",
+    `\\documentclass${classOptionsText}{standalone}`,
     "\\usepackage{tikz}"
   ];
   if (normalizedLibraries.length > 0) {

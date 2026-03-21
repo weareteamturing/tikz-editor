@@ -16,6 +16,7 @@ use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use std::sync::Mutex;
 use tauri::{
     menu::{
@@ -25,10 +26,14 @@ use tauri::{
     AppHandle, Emitter, Manager,
 };
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_shell::{
+    process::CommandEvent,
+    ShellExt,
+};
 use url::Url;
 
 const MAX_RECENT_FILES: usize = 10;
+const LATEX_COMMAND_TIMEOUT_SECS: u64 = 20;
 const RECENTS_FILENAME: &str = "recent-files.json";
 const CONTEXT_MENU_EVENT_PREFIX: &str = "ctx::";
 const DESKTOP_OPEN_REQUESTS_CHANGED_EVENT: &str = "desktop-open-requests-changed";
@@ -65,9 +70,10 @@ struct PendingOpenRequestsState {
     failures: Mutex<Vec<OpenTextFailurePayload>>,
 }
 
-#[derive(Default)]
-struct LatexAvailabilityCache {
-    result: Mutex<Option<bool>>,
+#[derive(Clone, Serialize)]
+struct LatexAvailabilityStatus {
+    available: bool,
+    details: String,
 }
 
 #[derive(Serialize)]
@@ -757,63 +763,234 @@ async fn desktop_install_codex(method: String, app: AppHandle) -> Result<String,
 }
 
 #[tauri::command]
-fn desktop_check_latex_available(state: tauri::State<'_, LatexAvailabilityCache>) -> bool {
-    let mut cached = state.result.lock().unwrap();
-    if let Some(val) = *cached {
-        return val;
+fn desktop_check_latex_available(app: AppHandle) -> LatexAvailabilityStatus {
+    let latex_path = find_executable("latex", Some(&app));
+    let dvisvgm_path = find_executable("dvisvgm", Some(&app));
+    let available = latex_path.is_some() && dvisvgm_path.is_some();
+    let latex_cmd = latex_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "latex".to_string());
+    let dvisvgm_cmd = dvisvgm_path
+        .as_ref()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "dvisvgm".to_string());
+    let working_dir = latex_compile_working_dir();
+    let details = format!(
+        "latex: {latex_cmd}\ndvisvgm: {dvisvgm_cmd}\nworking_dir: {}\nPATH={}\ncompile_timeout_secs={}\nbuild_marker=native-timeout-v2\n\nCommands used by the app:\ncd \"{}\"\n\"{latex_cmd}\" -interaction=batchmode -file-line-error -halt-on-error input.tex\n\"{dvisvgm_cmd}\" --page=1 --bbox=min --exact --font-format=woff2 -o output.svg input.dvi",
+        working_dir.to_string_lossy(),
+        env::var("PATH").unwrap_or_else(|_| "<unavailable>".to_string()),
+        LATEX_COMMAND_TIMEOUT_SECS,
+        working_dir.to_string_lossy(),
+    );
+    LatexAvailabilityStatus { available, details }
+}
+
+fn latex_compile_working_dir() -> PathBuf {
+    env::temp_dir().join("tikz-editor-native-compile")
+}
+
+fn read_text_if_exists(path: &Path) -> String {
+    if !path.exists() {
+        return String::new();
     }
-    let available = command_exists("latex", None) && command_exists("dvisvgm", None);
-    *cached = Some(available);
-    available
+    fs::read_to_string(path).unwrap_or_default()
+}
+
+fn format_command_failure(
+    command_label: &str,
+    status_code: Option<i32>,
+    stdout: &[u8],
+    stderr: &[u8],
+    log_path: Option<&Path>,
+    working_dir: &Path,
+) -> String {
+    let stdout_text = String::from_utf8_lossy(stdout).trim().to_string();
+    let stderr_text = String::from_utf8_lossy(stderr).trim().to_string();
+    let log_text = log_path.map(read_text_if_exists).unwrap_or_default();
+    let mut out = String::new();
+    out.push_str(&format!(
+        "{command_label} failed (exit code: {:?})\nworking_dir: {}\n",
+        status_code,
+        working_dir.to_string_lossy()
+    ));
+    if !stdout_text.is_empty() {
+        out.push_str("\n--- stdout ---\n");
+        out.push_str(&stdout_text);
+        out.push('\n');
+    }
+    if !stderr_text.is_empty() {
+        out.push_str("\n--- stderr ---\n");
+        out.push_str(&stderr_text);
+        out.push('\n');
+    }
+    if !log_text.trim().is_empty() {
+        out.push_str("\n--- latex log ---\n");
+        out.push_str(&log_text);
+        out.push('\n');
+    }
+    if stdout_text.is_empty() && stderr_text.is_empty() && log_text.trim().is_empty() {
+        out.push_str("\n(no command output)\n");
+    }
+    out
+}
+
+struct CommandRunOutput {
+    status_code: Option<i32>,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+async fn run_shell_command(
+    app: &AppHandle,
+    command: &str,
+    args: &[&str],
+    working_dir: &Path,
+) -> Result<CommandRunOutput, String> {
+    let (mut receiver, child) = app
+        .shell()
+        .command(command)
+        .args(args.to_vec())
+        .current_dir(working_dir)
+        .spawn()
+        .map_err(|e| format!("Failed to spawn `{command}` in {}: {e}", working_dir.to_string_lossy()))?;
+
+    let mut stdout = Vec::<u8>::new();
+    let mut stderr = Vec::<u8>::new();
+    let mut status_code = None;
+    let deadline = Instant::now() + Duration::from_secs(LATEX_COMMAND_TIMEOUT_SECS);
+
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            let _ = child.kill();
+            let timeout_details = format_command_failure(
+                command,
+                None,
+                &stdout,
+                &stderr,
+                None,
+                working_dir,
+            );
+            return Err(format!(
+                "Command timed out after {}s.\n{}",
+                LATEX_COMMAND_TIMEOUT_SECS, timeout_details
+            ));
+        }
+        let remaining = deadline.saturating_duration_since(now);
+        let maybe_event = match tokio::time::timeout(remaining, receiver.recv()).await {
+            Ok(event) => event,
+            Err(_) => {
+                let _ = child.kill();
+                let timeout_details = format_command_failure(
+                    command,
+                    None,
+                    &stdout,
+                    &stderr,
+                    None,
+                    working_dir,
+                );
+                return Err(format!(
+                    "Command timed out after {}s.\n{}",
+                    LATEX_COMMAND_TIMEOUT_SECS, timeout_details
+                ));
+            }
+        };
+
+        let Some(event) = maybe_event else {
+            break;
+        };
+
+        match event {
+            CommandEvent::Stdout(bytes) => stdout.extend(bytes),
+            CommandEvent::Stderr(bytes) => stderr.extend(bytes),
+            CommandEvent::Terminated(payload) => {
+                status_code = payload.code;
+                break;
+            }
+            CommandEvent::Error(error) => {
+                return Err(format!(
+                    "`{command}` emitted an error in {}: {error}",
+                    working_dir.to_string_lossy()
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    Ok(CommandRunOutput {
+        status_code,
+        stdout,
+        stderr,
+    })
 }
 
 #[tauri::command]
-async fn desktop_compile_tikz(source: String, app: AppHandle) -> Result<String, String> {
-    let tmp = tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
-    let tex_path = tmp.path().join("input.tex");
-    let tex_content = format!(
-        "\\documentclass[dvisvgm,border=2pt]{{standalone}}\n\\usepackage{{tikz}}\n\\begin{{document}}\n{source}\n\\end{{document}}\n"
-    );
-    fs::write(&tex_path, &tex_content).map_err(|e| format!("Failed to write .tex: {e}"))?;
+async fn desktop_compile_tikz(
+    latex_document: String,
+    app: AppHandle,
+) -> Result<String, String> {
+    let working_dir = latex_compile_working_dir();
+    fs::create_dir_all(&working_dir).map_err(|e| {
+        format!(
+            "Failed to create working dir {}: {e}",
+            working_dir.to_string_lossy()
+        )
+    })?;
+    let _ = fs::remove_file(working_dir.join("output.svg"));
+    let _ = fs::remove_file(working_dir.join("input.dvi"));
+    let _ = fs::remove_file(working_dir.join("input.log"));
+    let tex_path = working_dir.join("input.tex");
+    fs::write(&tex_path, &latex_document)
+        .map_err(|e| format!("Failed to write .tex in {}: {e}", working_dir.to_string_lossy()))?;
 
     // Run latex
-    let latex_result = app
-        .shell()
-        .command("latex")
-        .args(["-interaction=nonstopmode", "-halt-on-error", "input.tex"])
-        .current_dir(tmp.path())
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run latex: {e}"))?;
+    let latex_result = run_shell_command(
+        &app,
+        "latex",
+        &[
+            "-interaction=batchmode",
+            "-file-line-error",
+            "-halt-on-error",
+            "input.tex",
+        ],
+        &working_dir,
+    )
+    .await?;
 
-    if !latex_result.status.success() {
-        let log = String::from_utf8_lossy(&latex_result.stdout);
-        let stderr = String::from_utf8_lossy(&latex_result.stderr);
-        // Extract useful lines from the log (lines starting with ! or containing error info)
-        let tail: String = log
-            .lines()
-            .chain(stderr.lines())
-            .rev()
-            .take(60)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect::<Vec<_>>()
-            .join("\n");
-        return Err(format!("latex compilation failed:\n{tail}"));
+    if latex_result.status_code != Some(0) {
+        let latex_log_path = working_dir.join("input.log");
+        return Err(format_command_failure(
+            "latex",
+            latex_result.status_code,
+            &latex_result.stdout,
+            &latex_result.stderr,
+            Some(&latex_log_path),
+            &working_dir,
+        ));
     }
 
-    let dvi_path = tmp.path().join("input.dvi");
+    let dvi_path = working_dir.join("input.dvi");
     if !dvi_path.exists() {
-        return Err("latex completed but DVI was not produced.".to_string());
+        let latex_log_path = working_dir.join("input.log");
+        let log = read_text_if_exists(&latex_log_path);
+        let mut message = format!(
+            "latex succeeded but DVI was not produced.\nworking_dir: {}",
+            working_dir.to_string_lossy()
+        );
+        if !log.trim().is_empty() {
+            message.push_str("\n\n--- latex log ---\n");
+            message.push_str(&log);
+        }
+        return Err(message);
     }
 
     // Run dvisvgm
-    let svg_path = tmp.path().join("output.svg");
-    let dvisvgm_result = app
-        .shell()
-        .command("dvisvgm")
-        .args([
+    let svg_path = working_dir.join("output.svg");
+    let dvisvgm_result = run_shell_command(
+        &app,
+        "dvisvgm",
+        &[
             "--page=1",
             "--bbox=min",
             "--exact",
@@ -821,22 +998,44 @@ async fn desktop_compile_tikz(source: String, app: AppHandle) -> Result<String, 
             "-o",
             "output.svg",
             "input.dvi",
-        ])
-        .current_dir(tmp.path())
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run dvisvgm: {e}"))?;
+        ],
+        &working_dir,
+    )
+    .await?;
 
-    if !dvisvgm_result.status.success() {
-        let stderr = String::from_utf8_lossy(&dvisvgm_result.stderr);
-        return Err(format!("dvisvgm failed:\n{stderr}"));
+    if dvisvgm_result.status_code != Some(0) {
+        return Err(format_command_failure(
+            "dvisvgm",
+            dvisvgm_result.status_code,
+            &dvisvgm_result.stdout,
+            &dvisvgm_result.stderr,
+            None,
+            &working_dir,
+        ));
     }
 
     if !svg_path.exists() {
-        return Err("dvisvgm completed but SVG was not produced.".to_string());
+        return Err(format!(
+            "dvisvgm succeeded but SVG was not produced.\nworking_dir: {}",
+            working_dir.to_string_lossy()
+        ));
     }
 
     fs::read_to_string(&svg_path).map_err(|e| format!("Failed to read SVG: {e}"))
+}
+
+#[tauri::command]
+fn desktop_read_last_compile_log() -> Result<String, String> {
+    let log_path = latex_compile_working_dir().join("input.log");
+    if !log_path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&log_path).map_err(|e| {
+        format!(
+            "Failed to read {}: {e}",
+            log_path.to_string_lossy()
+        )
+    })
 }
 
 #[tauri::command]
@@ -1315,7 +1514,6 @@ pub fn run() {
         .manage(RecentFilesState::default())
         .manage(WindowCloseState::default())
         .manage(PendingOpenRequestsState::default())
-        .manage(LatexAvailabilityCache::default())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let allow_close = {
@@ -1345,6 +1543,7 @@ pub fn run() {
             desktop_install_codex,
             desktop_check_latex_available,
             desktop_compile_tikz,
+            desktop_read_last_compile_log,
             desktop_open_text,
             desktop_open_binary,
             desktop_save_text,

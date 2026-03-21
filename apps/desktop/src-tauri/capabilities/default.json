@@ -8,6 +8,9 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
-    "clipboard-x:default"
+    "clipboard-x:default",
+    "shell:allow-execute",
+    "shell:allow-spawn",
+    "shell:allow-stdin-write"
   ]
 }

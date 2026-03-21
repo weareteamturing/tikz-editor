@@ -158,7 +158,10 @@ export function App() {
     | null
   >(null);
   const [insertEquationDraft, setInsertEquationDraft] = useState("");
-  const [compiledPictureSource, setCompiledPictureSource] = useState<string | null>(null);
+  const [compiledPictureSource, setCompiledPictureSource] = useState<{
+    source: string;
+    requiredLibraries: readonly string[];
+  } | null>(null);
   const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pendingAutoFit, setPendingAutoFit] = useState(false);
@@ -217,7 +220,10 @@ export function App() {
       setPngExportSvgResult(svgResult);
     },
     onShowCompiledPicture: () => {
-      setCompiledPictureSource(source);
+      setCompiledPictureSource({
+        source,
+        requiredLibraries: snapshot.semanticResult?.scene.requiredTikzLibraries ?? []
+      });
     },
     onOpenSettings: () => {
       setShowSettingsModal(true);
@@ -1158,9 +1164,12 @@ export function App() {
       {compiledPictureSource !== null ? (
         <Suspense fallback={null}>
           <TikzJaxModal
-            source={compiledPictureSource}
+            source={compiledPictureSource.source}
+            requiredLibraries={compiledPictureSource.requiredLibraries}
             onClose={() => setCompiledPictureSource(null)}
             latex={platform.latex}
+            showOpenInNewTab={!platform.id.startsWith("desktop")}
+            showLogToggle={platform.id.startsWith("desktop")}
           />
         </Suspense>
       ) : null}
