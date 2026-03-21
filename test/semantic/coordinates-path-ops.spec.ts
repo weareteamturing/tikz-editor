@@ -915,6 +915,25 @@ describe("semantic evaluator / coordinates and path ops", () => {
       expect(result.scene.elements.some((element) => element.kind === "Path")).toBe(true);
     });
 
+    it("expands macros before evaluating ellipse radii", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \def\xdist{0.13}
+    \def\ydist{0.05}
+    \fill [fill=red!30!white] (30*\xdist, -5) rectangle (50*\xdist,-0);
+      \fill [fill=blue!30!white] (50*\xdist, 0) ellipse ({50*\xdist} and {50*\ydist});
+  \end{tikzpicture}`;
+      const result = evaluateSemantic(source);
+
+      expect(result.diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+      const ellipse = result.scene.elements.find(
+        (element) => element.kind === "Path" && element.shapeHint === "ellipse"
+      );
+      expect(ellipse?.kind).toBe("Path");
+      if (ellipse?.kind === "Path") {
+        expect(ellipse.shapeHint).toBe("ellipse");
+      }
+    });
+
     it("supports arc variants and grid step variants", () => {
       const source = String.raw`\begin{tikzpicture}
     \draw (1,0) arc (0:90:1cm);

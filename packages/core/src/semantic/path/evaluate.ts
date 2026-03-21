@@ -57,6 +57,7 @@ import {
   makeNodeAdornmentTargetId,
   materializeNodeAdornment
 } from "./label-quotes.js";
+import { expandMacroBindings } from "../../macros/index.js";
 import type { DiagnosticPushFn, FeatureMarkFn, PlacementSegment } from "./types.js";
 import { applyMatrix, identityMatrix } from "../transform.js";
 import { createEditHandle } from "../edit-handles.js";
@@ -1365,7 +1366,7 @@ export function evaluatePathStatement(
       }
 
         if (pendingCircleCenter) {
-          const radius = parseCircleRadiusFromCoordinateRaw(item.raw);
+          const radius = parseCircleRadiusFromCoordinateRaw(expandPathItemRaw(item.raw, context));
           if (radius != null) {
             activePath = emitCircleOrEllipse({
               geometry: transformCircleGeometry(radius, frameTransform),
@@ -1390,7 +1391,7 @@ export function evaluatePathStatement(
         }
 
       if (pendingEllipseCenter) {
-        const parsedRadii = parseEllipseRadiiFromCoordinateRaw(item.raw);
+        const parsedRadii = parseEllipseRadiiFromCoordinateRaw(expandPathItemRaw(item.raw, context));
         if (parsedRadii) {
           const geometry = transformEllipseGeometry(parsedRadii.rx, parsedRadii.ry, 0, frameTransform);
           markFeature("keyword_ellipse", "supported");
@@ -1415,7 +1416,7 @@ export function evaluatePathStatement(
       }
 
       if (pendingArc) {
-        const shorthand = parseArcShorthand(item.raw);
+        const shorthand = parseArcShorthand(expandPathItemRaw(item.raw, context));
         if (shorthand) {
           let path: ScenePath | null = activePath;
           if (!path) {
@@ -2242,4 +2243,9 @@ function isMatrixNodeOptions(options: NodeItem["options"] | undefined): boolean 
     }
   }
   return false;
+}
+
+function expandPathItemRaw(raw: string, context: SemanticContext): string {
+  const frame = context.stack[context.stack.length - 1];
+  return expandMacroBindings(raw, frame.macroBindings, context.macroTraceCollector ?? undefined);
 }
