@@ -175,7 +175,7 @@ const SNAP_ITEMS: readonly AppMenuItem[] = [
 const EDIT_EQUATION_ITEM: AppMenuItem = {
   kind: "command",
   commandId: APP_MENU_COMMAND_IDS.EDIT_EQUATION,
-  label: "Edit Equation",
+  label: "Edit Equation...",
   accelerator: "CmdOrCtrl+Shift+E"
 };
 

@@ -57,7 +57,7 @@ export const APP_MENU_DEFINITION = [
           {
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.IMPORT_POWERPOINT,
-            label: "PowerPoint (.pptx)"
+            label: "PowerPoint (.pptx)..."
           },
           {
             kind: "command",
@@ -73,7 +73,7 @@ export const APP_MENU_DEFINITION = [
           {
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.EXPORT_SVG_DOWNLOAD,
-            label: "SVG"
+            label: "SVG..."
           },
           {
             kind: "command",
@@ -83,12 +83,12 @@ export const APP_MENU_DEFINITION = [
           {
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.EXPORT_PDF_DOWNLOAD,
-            label: "PDF"
+            label: "PDF..."
           },
           {
             kind: "command",
             commandId: APP_MENU_COMMAND_IDS.EXPORT_PNG_DOWNLOAD,
-            label: "PNG"
+            label: "PNG..."
           }
         ]
       },
@@ -101,7 +101,7 @@ export const APP_MENU_DEFINITION = [
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.SHOW_COMPILED_PICTURE,
-        label: "Show Compiled Picture"
+        label: "Show Compiled Picture..."
       },
       { kind: "separator" },
       {
