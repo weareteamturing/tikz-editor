@@ -2861,6 +2861,7 @@ describe("resolvePropertyTarget – matrix cells", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
+    expect(descriptor.sections.some((section) => section.id === "transform")).toBe(false);
 
     const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
     expect(strokeSection).toBeDefined();
@@ -2873,6 +2874,12 @@ describe("resolvePropertyTarget – matrix cells", () => {
       throw new Error("Expected stroke color property");
     }
     expect(strokeColor.write.writable).toBe(true);
+    const lineWidth = strokeSection.properties.find((property) => property.kind === "lineWidth");
+    expect(lineWidth).toBeDefined();
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected stroke line width property");
+    }
+    expect(lineWidth.write.writable).toBe(true);
   });
 
   it("allows supported matrix-cell inspector writes for matrix of math nodes", () => {
@@ -2894,6 +2901,7 @@ describe("resolvePropertyTarget – matrix cells", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
+    expect(descriptor.sections.some((section) => section.id === "transform")).toBe(false);
     const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
     expect(strokeSection).toBeDefined();
     if (!strokeSection) {
@@ -2905,6 +2913,12 @@ describe("resolvePropertyTarget – matrix cells", () => {
       throw new Error("Expected stroke color property");
     }
     expect(strokeColor.write.writable).toBe(true);
+    const lineWidth = strokeSection.properties.find((property) => property.kind === "lineWidth");
+    expect(lineWidth).toBeDefined();
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected stroke line width property");
+    }
+    expect(lineWidth.write.writable).toBe(true);
   });
 
   it("keeps plain matrix-cell inspector writes read-only", () => {
@@ -2926,6 +2940,7 @@ describe("resolvePropertyTarget – matrix cells", () => {
       source,
       editHandles: rendered.semantic.editHandles
     });
+    expect(descriptor.sections.some((section) => section.id === "transform")).toBe(false);
     const strokeSection = descriptor.sections.find((section) => section.id === "stroke");
     expect(strokeSection).toBeDefined();
     if (!strokeSection) {
@@ -2937,6 +2952,12 @@ describe("resolvePropertyTarget – matrix cells", () => {
       throw new Error("Expected stroke color property");
     }
     expect(strokeColor.write.writable).toBe(false);
+    const lineWidth = strokeSection.properties.find((property) => property.kind === "lineWidth");
+    expect(lineWidth).toBeDefined();
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected stroke line width property");
+    }
+    expect(lineWidth.write.writable).toBe(false);
   });
 });
 

@@ -1,6 +1,5 @@
 import { parseOptionListRaw } from "../../options/parse.js";
 import { applyOptionMutationsToTarget, normalizeOptionKey, rewriteOptionListMutations, type OptionMutation } from "../option-mutations.js";
-import { MATRIX_CELL_WRITABLE_KEYS } from "../matrix-editing.js";
 import { TREE_CHILD_LAYOUT_WRITABLE_KEYS, TREE_CHILD_NODE_READONLY_KEYS } from "../tree-editing.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import type { PropertyTarget } from "../property-target.js";
@@ -156,8 +155,8 @@ function applyMatrixCellSetProperty(
   }
 
   const key = normalizeOptionKey(action.key);
-  if (!MATRIX_CELL_WRITABLE_KEYS.has(key)) {
-    return { kind: "unsupported", reason: `Matrix cell property '${action.key}' is not editable yet.` };
+  if (key.length === 0) {
+    return { kind: "error", message: "Cannot set an empty option key" };
   }
 
   const normalizedValue = action.value.trim();

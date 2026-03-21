@@ -1,5 +1,4 @@
 import type { StyleLevel } from "./actions.js";
-import { MATRIX_CELL_WRITABLE_KEYS } from "./matrix-editing.js";
 import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import type { EditParseOptions } from "./parse-options.js";
@@ -3110,7 +3109,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
     });
   }
 
-  if (inlineTarget.targetKind === "tree-child") {
+  if (inlineTarget.targetKind === "tree-child" || inlineTarget.targetKind === "matrix-cell") {
     const transformSectionIndex = sections.findIndex((section) => section.id === "transform");
     if (transformSectionIndex >= 0) {
       sections.splice(transformSectionIndex, 1);
@@ -3139,18 +3138,14 @@ function makeSetPropertyWriteTargetForElementId(
   key: string
 ): SetPropertyWriteTarget {
   const normalizedKey = normalizeOptionKey(key);
-  const matrixCellWritable =
-    inlineTarget.targetKind !== "matrix-cell" || MATRIX_CELL_WRITABLE_KEYS.has(normalizedKey);
   const treeChildWritable =
     inlineTarget.targetKind !== "tree-child"
     || !TREE_CHILD_NODE_READONLY_KEYS.has(normalizedKey);
-  const writable = inlineTarget.writable && elementId != null && matrixCellWritable && treeChildWritable;
+  const writable = inlineTarget.writable && elementId != null && treeChildWritable;
   const reason =
-    !matrixCellWritable
-      ? "This matrix-cell property is not editable yet."
-      : !treeChildWritable
-        ? "This tree-child property is read-only."
-        : inlineTarget.reason;
+    !treeChildWritable
+      ? "This tree-child property is read-only."
+      : inlineTarget.reason;
   return {
     mode: "setProperty",
     elementId: elementId ?? "",

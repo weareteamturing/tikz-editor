@@ -1404,7 +1404,7 @@ describe("applyEditAction – setProperty", () => {
     expect(result.newSource).not.toContain("draw=red");
   });
 
-  it("rejects unsupported matrix-cell property keys", () => {
+  it("supports broader matrix-cell property keys like line width", () => {
     const source = String.raw`\begin{tikzpicture}
   \matrix[matrix of nodes] {
     A & B \\
@@ -1419,7 +1419,34 @@ describe("applyEditAction – setProperty", () => {
       value: "1pt"
     });
 
-    expect(result.kind).toBe("unsupported");
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell line width insertion to succeed");
+    }
+    expect(result.newSource).toContain("A & |[line width=1pt]| B");
+  });
+
+  it("clears broader matrix-cell keys and removes empty option prefixes", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & |[line width=1pt]| B \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: "node:0:0:matrix-cell:1:2",
+      level: "command",
+      key: "line width",
+      value: ""
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected matrix-cell line width clear to succeed");
+    }
+    expect(result.newSource).toContain("A & B \\\\");
+    expect(result.newSource).not.toContain("|[line width=1pt]|");
   });
 
   it("updates matrix-level row/column spacing properties", () => {
