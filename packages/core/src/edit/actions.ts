@@ -89,6 +89,13 @@ import {
   applyAddTreeSiblingAction,
   applyRemoveTreeChildAction
 } from "./actions/tree-child-actions.js";
+import {
+  applyAddMatrixColumnAction,
+  applyAddMatrixRowAction,
+  applyRemoveMatrixColumnAction,
+  applyRemoveMatrixRowAction,
+  applyTransposeMatrixAction
+} from "./actions/matrix-structure-actions.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { patchesMatchSourceTransition } from "./source-patches.js";
 
@@ -146,6 +153,11 @@ export type EditAction =
   | { kind: "addTreeChild"; parentSourceId: string; afterChildIndex?: number }
   | { kind: "removeTreeChild"; childSourceId: string }
   | { kind: "addTreeSibling"; siblingSourceId: string; position: "before" | "after" }
+  | { kind: "addMatrixRow"; matrixSourceId: string; rowIndex: number }
+  | { kind: "removeMatrixRow"; matrixSourceId: string; rowIndex: number }
+  | { kind: "addMatrixColumn"; matrixSourceId: string; columnIndex: number }
+  | { kind: "removeMatrixColumn"; matrixSourceId: string; columnIndex: number }
+  | { kind: "transposeMatrix"; matrixSourceId: string }
   | {
       kind: "resizeElement";
       elementId: string;
@@ -262,6 +274,16 @@ export function applyEditAction(
         return applyRemoveTreeChildAction(source, action, parseOptions);
       case "addTreeSibling":
         return applyAddTreeSiblingAction(source, action, parseOptions);
+      case "addMatrixRow":
+        return applyAddMatrixRowAction(source, action, parseOptions);
+      case "removeMatrixRow":
+        return applyRemoveMatrixRowAction(source, action, parseOptions);
+      case "addMatrixColumn":
+        return applyAddMatrixColumnAction(source, action, parseOptions);
+      case "removeMatrixColumn":
+        return applyRemoveMatrixColumnAction(source, action, parseOptions);
+      case "transposeMatrix":
+        return applyTransposeMatrixAction(source, action, parseOptions);
       case "resizeElement":
         return applyResizeElement(source, action, evaluateOptions, parseOptions);
     }
@@ -669,6 +691,16 @@ function inferChangedSourceIds(
       return normalizeElementIds([action.childSourceId]);
     case "addTreeSibling":
       return normalizeElementIds([action.siblingSourceId]);
+    case "addMatrixRow":
+      return normalizeElementIds([action.matrixSourceId]);
+    case "removeMatrixRow":
+      return normalizeElementIds([action.matrixSourceId]);
+    case "addMatrixColumn":
+      return normalizeElementIds([action.matrixSourceId]);
+    case "removeMatrixColumn":
+      return normalizeElementIds([action.matrixSourceId]);
+    case "transposeMatrix":
+      return normalizeElementIds([action.matrixSourceId]);
     case "setProperty":
       return [];
     case "updateNodeText":

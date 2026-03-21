@@ -251,6 +251,7 @@ export const editFeatureRegistry = [
   "shape_cloud_callout",
   "shape_single_arrow",
   "shape_double_arrow",
+  "matrix_node",
   "child_operation",
   "tree_layout_keys",
   "svg_text"

@@ -269,7 +269,7 @@ export const capabilityMatrix: CapabilityMatrix = {
     parser: "stable",
     semantic: "stable",
     svg: "stable",
-    edit: "none",
+    edit: "partial",
     fixtures: ["matrix_basic"]
   },
   named_coordinates: {

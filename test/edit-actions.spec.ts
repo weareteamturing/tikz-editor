@@ -1564,6 +1564,180 @@ describe("applyEditAction – setProperty", () => {
     expect(current.match(/\[/g)?.length ?? 0).toBe(1);
   });
 
+  it("adds matrix rows at start, middle, and end using 1-based insert-at indices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+
+    const addStart = applyEditAction(source, [], {
+      kind: "addMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 1
+    });
+    expect(addStart.kind).toBe("success");
+    if (addStart.kind !== "success") {
+      throw new Error("Expected addMatrixRow at start to succeed");
+    }
+    expect(addStart.changedSourceIds).toEqual(["path:0"]);
+
+    const addMiddle = applyEditAction(source, [], {
+      kind: "addMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 2
+    });
+    expect(addMiddle.kind).toBe("success");
+
+    const addEnd = applyEditAction(source, [], {
+      kind: "addMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 3
+    });
+    expect(addEnd.kind).toBe("success");
+  });
+
+  it("removes matrix rows with index validation", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+    C & D \\
+    E & F \\
+  };
+\end{tikzpicture}`;
+
+    const removeMiddle = applyEditAction(source, [], {
+      kind: "removeMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 2
+    });
+    expect(removeMiddle.kind).toBe("success");
+    if (removeMiddle.kind !== "success") {
+      throw new Error("Expected removeMatrixRow to succeed");
+    }
+    expect(removeMiddle.newSource).not.toContain("C & D");
+
+    const invalid = applyEditAction(source, [], {
+      kind: "removeMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 4
+    });
+    expect(invalid.kind).toBe("unsupported");
+  });
+
+  it("adds and removes matrix columns at arbitrary indices for ragged matrices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B & C \\
+    D & E \\
+    F \\
+  };
+\end{tikzpicture}`;
+
+    const addColumn = applyEditAction(source, [], {
+      kind: "addMatrixColumn",
+      matrixSourceId: "path:0",
+      columnIndex: 2
+    });
+    expect(addColumn.kind).toBe("success");
+    if (addColumn.kind !== "success") {
+      throw new Error("Expected addMatrixColumn to succeed");
+    }
+    expect(addColumn.changedSourceIds).toEqual(["path:0"]);
+
+    const removeColumn = applyEditAction(addColumn.newSource, [], {
+      kind: "removeMatrixColumn",
+      matrixSourceId: "path:0",
+      columnIndex: 3
+    });
+    expect(removeColumn.kind).toBe("success");
+  });
+
+  it("transposes rectangular matrices", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "transposeMatrix",
+      matrixSourceId: "path:0"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected transposeMatrix to succeed");
+    }
+    expect(result.newSource).toMatch(/A\s*&\s*C\s*\\\\/);
+    expect(result.newSource).toMatch(/B\s*&\s*D/);
+  });
+
+  it("transposes ragged matrices by padding then trimming trailing empties", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B & C \\
+    D & E \\
+    F \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "transposeMatrix",
+      matrixSourceId: "path:0"
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected ragged transpose to succeed");
+    }
+    expect(result.newSource).toMatch(/A\s*&\s*D\s*&\s*F\s*\\\\/);
+    expect(result.newSource).toMatch(/B\s*&\s*E\s*\\\\/);
+    expect(result.newSource).toMatch(/\n\s*C\s*}\s*;/);
+  });
+
+  it("keeps custom ampersand replacement parseable across structural edits", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes,ampersand replacement=\&] {
+    A \& B \\
+    C \& D \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addMatrixColumn",
+      matrixSourceId: "path:0",
+      columnIndex: 2
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected addMatrixColumn with ampersand replacement to succeed");
+    }
+    const rendered = renderTikzToSvg(result.newSource);
+    expect(rendered.semantic.featureUsage.matrix_node).toBe("used-supported");
+  });
+
+  it("normalizes away boundary gap overrides in structural matrix rewrites", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A &[2mm] B \\[3mm]
+    C & D \\
+  };
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 2
+    });
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error("Expected addMatrixRow with gap overrides to succeed");
+    }
+    expect(result.newSource).not.toContain("&[");
+    expect(result.newSource).not.toContain("\\\\[");
+  });
+
   it("routes tree-child layout keys to child options", () => {
     const source = String.raw`\begin{tikzpicture}
   \path node {root}

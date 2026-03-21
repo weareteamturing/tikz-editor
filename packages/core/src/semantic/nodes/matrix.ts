@@ -74,6 +74,15 @@ type MatrixParsedRows = {
   rowGapOverrides: number[];
 };
 
+export type MatrixParsedRowsForEdit = {
+  rows: Array<{
+    cells: Array<{
+      raw: string;
+      span: Span;
+    }>;
+  }>;
+};
+
 type MatrixParsedCell = {
   raw: string;
   span: Span;
@@ -949,6 +958,18 @@ function parseMatrixRows(input: string, cellSeparator: string, baseOffset: numbe
   }
 
   return { rows, rowGapOverrides };
+}
+
+export function parseMatrixRowsForEdit(input: string, cellSeparator: string, baseOffset: number): MatrixParsedRowsForEdit {
+  const parsed = parseMatrixRows(input, cellSeparator, baseOffset);
+  return {
+    rows: parsed.rows.map((row) => ({
+      cells: row.cells.map((cell) => ({
+        raw: cell.raw,
+        span: cell.span
+      }))
+    }))
+  };
 }
 
 function splitMatrixRowCells(

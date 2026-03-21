@@ -9,6 +9,7 @@ import {
   svgFeatureRegistry
 } from "../packages/core/src/capabilities/registries.js";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
+import { applyEditAction } from "../packages/core/src/edit/actions.js";
 import { capabilityFixtures } from "./capability-fixtures.js";
 
 describe("capability matrix guards", () => {
@@ -98,6 +99,31 @@ describe("capability matrix guards", () => {
         }
       }
     }
+  });
+
+  it("keeps matrix edit capability justified with structural matrix action smoke tests", () => {
+    const source = capabilityFixtures.matrix_basic;
+    const addRow = applyEditAction(source, [], {
+      kind: "addMatrixRow",
+      matrixSourceId: "path:0",
+      rowIndex: 2
+    });
+    expect(addRow.kind).toBe("success");
+    if (addRow.kind !== "success") {
+      throw new Error("Expected addMatrixRow capability smoke edit to succeed");
+    }
+
+    const transpose = applyEditAction(addRow.newSource, [], {
+      kind: "transposeMatrix",
+      matrixSourceId: "path:0"
+    });
+    expect(transpose.kind).toBe("success");
+    if (transpose.kind !== "success") {
+      throw new Error("Expected transposeMatrix capability smoke edit to succeed");
+    }
+
+    const rendered = renderTikzToSvg(transpose.newSource);
+    expect(rendered.semantic.featureUsage.matrix_node).toBe("used-supported");
   });
 });
 
