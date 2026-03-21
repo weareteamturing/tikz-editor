@@ -195,12 +195,15 @@ describe("property target resolution", () => {
       includeContextDefinitions: true
     });
     const semantic = evaluateTikzFigure(parseResult.figure, parseResult.source, {});
-    const magentaAxis = semantic.scene.elements.find((element) => element.sourceRef.sourceId === "path:3");
+    const magentaAxis = semantic.scene.elements.find(
+      (element) => element.kind === "Path" && element.style.stroke === "#ff00ff"
+    );
 
     expect(magentaAxis).toBeDefined();
     if (!magentaAxis) {
-      throw new Error("Expected the magenta axis line to resolve to source id path:3");
+      throw new Error("Expected the magenta axis line to resolve to a path source id");
     }
+    expect(magentaAxis.sourceRef.sourceId.startsWith("path:")).toBe(true);
 
     const resolved = resolvePropertyTarget(paperSource, magentaAxis.sourceRef.sourceId, {
       activeFigureId: "figure:11"

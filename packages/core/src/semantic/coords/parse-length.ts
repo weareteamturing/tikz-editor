@@ -2,6 +2,8 @@ import { splitAllAtTopLevel } from "../../domains/coordinates/parse.js";
 
 const UNIT_FACTORS: Record<string, number> = {
   pt: 1,
+  bp: 72.27 / 72,
+  px: 72.27 / 72,
   cm: 28.4527559055,
   mm: 2.84527559055,
   in: 72.27,
