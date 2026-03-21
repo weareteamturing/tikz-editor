@@ -1,4 +1,6 @@
 import {
+  colorletStatementId,
+  defineColorStatementId,
   childForeachClauseId,
   childOperationItemId,
   coordinateItemId,
@@ -11,6 +13,7 @@ import {
   macroAliasStatementId,
   macroCommandDefinitionStatementId,
   macroDefinitionStatementId,
+  pgfkeysStatementId,
   nodeForeachClauseId,
   nodeItemId,
   pathCommentItemId,
@@ -20,6 +23,9 @@ import {
   plotOperationItemId,
   pathStatementId,
   scopeStatementId,
+  tikzLibraryStatementId,
+  tikzSetStatementId,
+  tikzStyleStatementId,
   svgOperationItemId,
   toOperationItemId,
   unknownPathItemId,
@@ -921,6 +927,36 @@ function reindexStatementsInPlace(statements: Statement[], state: { nextStatemen
 
     if (statement.kind === "MacroCommandDefinition") {
       statement.id = macroCommandDefinitionStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "TikzSet") {
+      statement.id = tikzSetStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "TikzStyle") {
+      statement.id = tikzStyleStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "Pgfkeys") {
+      statement.id = pgfkeysStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "TikzLibrary") {
+      statement.id = tikzLibraryStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "Colorlet") {
+      statement.id = colorletStatementId(statementIndex);
+      continue;
+    }
+
+    if (statement.kind === "DefineColor") {
+      statement.id = defineColorStatementId(statementIndex);
       continue;
     }
 

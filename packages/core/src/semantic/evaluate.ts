@@ -1,9 +1,15 @@
 import type {
+  ColorletStatement,
+  DefineColorStatement,
   MacroAliasStatement,
   MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
+  PgfkeysStatement,
   PathItem,
   PathStatement,
+  TikzLibraryStatement,
+  TikzSetStatement,
+  TikzStyleStatement,
   TikzFigure,
   Statement
 } from "../ast/types.js";
@@ -23,7 +29,6 @@ import type {
   ForeachOriginFrame as ExpansionForeachOriginFrame,
   ForeachStatementAttribution
 } from "../foreach/types.js";
-import { parseOptionListRaw } from "../options/parse.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   beginStatementEffectTracking,
@@ -50,7 +55,6 @@ import { parseNodeDistance } from "./path/node-positioning.js";
 import { DEFAULT_TEXT_FONT_SIZE, defaultStyle, commandDefaultStyle, parseStyleValueAsOptionList, resolveContextDelta } from "./style/resolve.js";
 import { applyCustomStyleDefinition, cloneCustomStyleRegistry } from "./style/custom-styles.js";
 import { expandOptionListMacros } from "./style/macro-options.js";
-import { readBalancedBlock } from "./style/option-utils.js";
 import { FONT_SIZE_COMMAND_FACTORS } from "./style/constants.js";
 import { resolveDefineColorModel } from "./style/colors.js";
 import { identityMatrix } from "./transform.js";
@@ -941,7 +945,43 @@ function evaluateStatement(
     return [];
   }
 
-  if (applyStandaloneCommandStatement(statement.raw, context, diagnostics, statement.span)) {
+  if (statement.kind === "TikzSet") {
+    applyTikzSetStatement(statement, context, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "TikzStyle") {
+    applyTikzStyleStatement(statement, context, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "Pgfkeys") {
+    applyPgfkeysStatement(statement, context, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "TikzLibrary") {
+    applyTikzLibraryStatement(statement, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "Colorlet") {
+    applyColorletStatement(statement, context, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "DefineColor") {
+    applyDefineColorStatement(statement, context, diagnostics);
+    markFeature(featureUsage, "unknown_statement", "supported");
+    return [];
+  }
+
+  if (statement.kind === "UnknownStatement" && applyStandaloneCommandStatement(statement.raw, context, diagnostics, statement.span)) {
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -975,85 +1015,164 @@ function applyStandaloneCommandStatement(
     }
   }
 
-  if (parseUseTikzLibraryCommand(raw)) {
-    return true;
-  }
-
-  const tikzSetOptions = parseTikzSetOptionLists(raw, span.from);
-  if (tikzSetOptions) {
-    applyOptionListsToCurrentFrame(tikzSetOptions, context, diagnostics, span, "\\tikzset");
-    return true;
-  }
-
-  const pgfkeysOptions = parsePgfkeysOptionLists(raw, span.from);
-  if (pgfkeysOptions) {
-    applyOptionListsToCurrentFrame(pgfkeysOptions, context, diagnostics, span, "\\pgfkeys");
-    return true;
-  }
-
-  const colorlet = parseColorletDefinition(raw);
-  if (colorlet) {
-    const frame = currentFrame(context);
-    const expandedValue = expandMacroBindings(colorlet.valueRaw, frame.macroBindings, {
-      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
-      trace: context.macroTraceCollector ?? undefined
-    });
-    frame.colorAliases.set(colorlet.name, expandedValue);
-
-    const optionList = parseStyleValueAsOptionList(expandedValue);
-    if (optionList) {
-      applyCustomStyleDefinition(frame.customStyles, colorlet.name, "style", optionList, {
-        sourceId: `standalone:${span.from}:${span.to}`,
-        sourceSpan: span,
-        sourceKind: "colorlet",
-        label: colorlet.name
-      });
-    }
-    return true;
-  }
-
-  const defineColor = parseDefineColorDefinition(raw);
-  if (defineColor) {
-    const frame = currentFrame(context);
-    const expandedModel = expandMacroBindings(defineColor.modelRaw, frame.macroBindings, {
-      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
-      trace: context.macroTraceCollector ?? undefined
-    });
-    const expandedSpecification = expandMacroBindings(defineColor.specificationRaw, frame.macroBindings, {
-      maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
-      trace: context.macroTraceCollector ?? undefined
-    });
-    const resolvedValue = resolveDefineColorModel(expandedModel, expandedSpecification);
-    if (!resolvedValue) {
-      return false;
-    }
-
-    frame.colorAliases.set(defineColor.name, resolvedValue);
-    const optionList = parseStyleValueAsOptionList(resolvedValue);
-    if (optionList) {
-      applyCustomStyleDefinition(frame.customStyles, defineColor.name, "style", optionList, {
-        sourceId: `standalone:${span.from}:${span.to}`,
-        sourceSpan: span,
-        sourceKind: "definecolor",
-        label: defineColor.name
-      });
-    }
-    return true;
-  }
-
-  const legacyStyle = parseLegacyTikzStyleDefinition(raw);
-  if (legacyStyle) {
-    const frame = currentFrame(context);
-    applyCustomStyleDefinition(frame.customStyles, legacyStyle.styleName, legacyStyle.kind, legacyStyle.optionList, {
-      sourceId: `standalone:${span.from}:${span.to}`,
-      sourceSpan: span,
-      sourceKind: "legacy-tikzstyle",
-      label: legacyStyle.styleName
-    });
-    return true;
-  }
-
   return false;
+}
+
+function applyTikzSetStatement(
+  statement: TikzSetStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  applyOptionListsToCurrentFrame([statement.optionList], context, diagnostics, statement.span, statement.commandRaw);
+}
+
+function applyPgfkeysStatement(
+  statement: PgfkeysStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  const normalized = normalizePgfkeysOptionList(statement.optionList);
+  applyOptionListsToCurrentFrame([normalized], context, diagnostics, statement.span, statement.commandRaw);
+}
+
+function applyTikzStyleStatement(
+  statement: TikzStyleStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  const styleName = statement.styleNameRaw.trim();
+  if (styleName.length === 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-tikzstyle-name",
+      message: "TikZ style statement is missing a style name.",
+      span: statement.styleNameSpan ?? statement.span
+    });
+    return;
+  }
+
+  const frame = currentFrame(context);
+  applyCustomStyleDefinition(frame.customStyles, styleName, statement.definitionKind, statement.optionList, {
+    sourceId: statement.id,
+    sourceSpan: statement.span,
+    sourceKind: "legacy-tikzstyle",
+    label: styleName
+  });
+}
+
+function applyTikzLibraryStatement(statement: TikzLibraryStatement, diagnostics: Diagnostic[]): void {
+  if (statement.libraries.length > 0) {
+    return;
+  }
+  diagnostics.push({
+    severity: "warning",
+    code: "invalid-tikzlibrary",
+    message: "\\usetikzlibrary requires at least one library name.",
+    span: statement.librariesSpan ?? statement.span
+  });
+}
+
+function applyColorletStatement(
+  statement: ColorletStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  const name = normalizeColorAliasName(statement.nameRaw);
+  if (!name) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-colorlet-name",
+      message: "\\colorlet requires a non-empty color name.",
+      span: statement.nameSpan ?? statement.span
+    });
+    return;
+  }
+  const rawValue = statement.valueRaw.trim();
+  if (rawValue.length === 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-colorlet-value",
+      message: "\\colorlet requires a non-empty color expression.",
+      span: statement.valueSpan ?? statement.span
+    });
+    return;
+  }
+
+  const frame = currentFrame(context);
+  const expandedValue = expandMacroBindings(rawValue, frame.macroBindings, {
+    maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+    trace: context.macroTraceCollector ?? undefined
+  });
+  frame.colorAliases.set(name, expandedValue);
+
+  const optionList = parseStyleValueAsOptionList(expandedValue);
+  if (optionList) {
+    applyCustomStyleDefinition(frame.customStyles, name, "style", optionList, {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceKind: "colorlet",
+      label: name
+    });
+  }
+}
+
+function applyDefineColorStatement(
+  statement: DefineColorStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
+  const name = normalizeColorAliasName(statement.nameRaw);
+  if (!name) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-definecolor-name",
+      message: "\\definecolor requires a non-empty color name.",
+      span: statement.nameSpan ?? statement.span
+    });
+    return;
+  }
+  const modelRaw = statement.modelRaw.trim();
+  const specificationRaw = statement.specificationRaw.trim();
+  if (modelRaw.length === 0 || specificationRaw.length === 0) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-definecolor-args",
+      message: "\\definecolor requires model and specification arguments.",
+      span: statement.modelSpan ?? statement.specificationSpan ?? statement.span
+    });
+    return;
+  }
+
+  const frame = currentFrame(context);
+  const expandedModel = expandMacroBindings(modelRaw, frame.macroBindings, {
+    maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+    trace: context.macroTraceCollector ?? undefined
+  });
+  const expandedSpecification = expandMacroBindings(specificationRaw, frame.macroBindings, {
+    maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+    trace: context.macroTraceCollector ?? undefined
+  });
+  const resolvedValue = resolveDefineColorModel(expandedModel, expandedSpecification);
+  if (!resolvedValue) {
+    diagnostics.push({
+      severity: "warning",
+      code: "invalid-definecolor-model",
+      message: `Could not resolve \\definecolor model '${expandedModel}'.`,
+      span: statement.modelSpan ?? statement.span
+    });
+    return;
+  }
+
+  frame.colorAliases.set(name, resolvedValue);
+  const optionList = parseStyleValueAsOptionList(resolvedValue);
+  if (optionList) {
+    applyCustomStyleDefinition(frame.customStyles, name, "style", optionList, {
+      sourceId: statement.id,
+      sourceSpan: statement.span,
+      sourceKind: "definecolor",
+      label: name
+    });
+  }
 }
 
 function applyOptionListsToCurrentFrame(
@@ -1367,228 +1486,6 @@ function parseStandaloneCommandName(raw: string): string | null {
   return stripped;
 }
 
-function parseTikzSetOptionLists(raw: string, absoluteFrom = 0): OptionListAst[] | null {
-  const parsed = parseBracedCommandContent(raw, "\\tikzset");
-  if (parsed == null) {
-    return null;
-  }
-  return [parseOptionListRaw(parsed.content, absoluteFrom + parsed.contentOffset)];
-}
-
-function parseUseTikzLibraryCommand(raw: string): boolean {
-  return parseBracedCommandContent(raw, "\\usetikzlibrary") != null;
-}
-
-function parsePgfkeysOptionLists(raw: string, absoluteFrom = 0): OptionListAst[] | null {
-  const parsed = parseBracedCommandContent(raw, "\\pgfkeys");
-  if (parsed == null) {
-    return null;
-  }
-  return [normalizePgfkeysOptionList(parseOptionListRaw(parsed.content, absoluteFrom + parsed.contentOffset))];
-}
-
-function parseColorletDefinition(raw: string): { name: string; valueRaw: string } | null {
-  const stripped = stripOptionalTrailingSemicolon(raw.trim());
-  if (!stripped.startsWith("\\colorlet")) {
-    return null;
-  }
-
-  let cursor = "\\colorlet".length;
-  cursor = skipWhitespace(stripped, cursor);
-  const nameBlock = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!nameBlock) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, nameBlock.nextIndex);
-  const valueBlock = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!valueBlock) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, valueBlock.nextIndex);
-  if (cursor !== stripped.length) {
-    return null;
-  }
-
-  const normalizedName = normalizeColorAliasName(nameBlock.content);
-  const valueRaw = valueBlock.content.trim();
-  if (!normalizedName || valueRaw.length === 0) {
-    return null;
-  }
-
-  return {
-    name: normalizedName,
-    valueRaw
-  };
-}
-
-function parseDefineColorDefinition(raw: string): { name: string; modelRaw: string; specificationRaw: string } | null {
-  const stripped = stripOptionalTrailingSemicolon(raw.trim());
-  if (!stripped.startsWith("\\definecolor")) {
-    return null;
-  }
-
-  let cursor = "\\definecolor".length;
-  cursor = skipWhitespace(stripped, cursor);
-  const nameBlock = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!nameBlock) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, nameBlock.nextIndex);
-  const modelBlock = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!modelBlock) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, modelBlock.nextIndex);
-  const specificationBlock = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!specificationBlock) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, specificationBlock.nextIndex);
-  if (cursor !== stripped.length) {
-    return null;
-  }
-
-  const normalizedName = normalizeColorAliasName(nameBlock.content);
-  const modelRaw = modelBlock.content.trim();
-  const specificationRaw = specificationBlock.content.trim();
-  if (!normalizedName || modelRaw.length === 0 || specificationRaw.length === 0) {
-    return null;
-  }
-
-  return {
-    name: normalizedName,
-    modelRaw,
-    specificationRaw
-  };
-}
-
-function parseLegacyTikzStyleDefinition(raw: string): {
-  styleName: string;
-  kind: "style" | "append";
-  optionList: OptionListAst;
-} | null {
-  const stripped = stripOptionalTrailingSemicolon(raw.trim());
-  if (!stripped.startsWith("\\tikzstyle")) {
-    return null;
-  }
-
-  let cursor = "\\tikzstyle".length;
-  cursor = skipWhitespace(stripped, cursor);
-  if (cursor >= stripped.length) {
-    return null;
-  }
-
-  let styleName = "";
-  if (stripped[cursor] === "{") {
-    const block = readBalancedBlock(stripped, cursor, "{", "}");
-    if (!block) {
-      return null;
-    }
-    styleName = block.content.trim();
-    cursor = block.nextIndex;
-  } else {
-    const start = cursor;
-    while (cursor < stripped.length) {
-      const char = stripped[cursor] ?? "";
-      if (char === "=" || char === "+" || /\s/.test(char)) {
-        break;
-      }
-      cursor += 1;
-    }
-    styleName = stripped.slice(start, cursor).trim();
-  }
-  if (styleName.length === 0) {
-    return null;
-  }
-
-  cursor = skipWhitespace(stripped, cursor);
-  let kind: "style" | "append" = "style";
-  if (stripped[cursor] === "+") {
-    kind = "append";
-    cursor += 1;
-    cursor = skipWhitespace(stripped, cursor);
-  }
-  if (stripped[cursor] !== "=") {
-    return null;
-  }
-  cursor += 1;
-  cursor = skipWhitespace(stripped, cursor);
-  if (cursor >= stripped.length) {
-    return null;
-  }
-
-  let styleValueRaw = "";
-  if (stripped[cursor] === "[") {
-    const block = readBalancedBlock(stripped, cursor, "[", "]");
-    if (!block) {
-      return null;
-    }
-    styleValueRaw = block.content;
-    cursor = block.nextIndex;
-  } else if (stripped[cursor] === "{") {
-    const block = readBalancedBlock(stripped, cursor, "{", "}");
-    if (!block) {
-      return null;
-    }
-    styleValueRaw = block.content;
-    cursor = block.nextIndex;
-  } else {
-    styleValueRaw = stripped.slice(cursor).trim();
-    cursor = stripped.length;
-  }
-
-  cursor = skipWhitespace(stripped, cursor);
-  if (cursor !== stripped.length) {
-    return null;
-  }
-
-  const optionList = parseStyleValueAsOptionList(styleValueRaw);
-  if (!optionList) {
-    return null;
-  }
-
-  return {
-    styleName,
-    kind,
-    optionList
-  };
-}
-
-function parseBracedCommandContent(
-  raw: string,
-  commandName: string
-): { content: string; contentOffset: number } | null {
-  const trimmedRaw = raw.trim();
-  const stripped = stripOptionalTrailingSemicolon(trimmedRaw);
-  if (!stripped.startsWith(commandName)) {
-    return null;
-  }
-  const strippedOffsetInRaw = raw.indexOf(stripped);
-  const safeOffset = strippedOffsetInRaw >= 0 ? strippedOffsetInRaw : 0;
-
-  let cursor = commandName.length;
-  cursor = skipWhitespace(stripped, cursor);
-  const block = readBalancedBlock(stripped, cursor, "{", "}");
-  if (!block) {
-    return null;
-  }
-  const contentOffset = safeOffset + cursor + 1;
-
-  cursor = skipWhitespace(stripped, block.nextIndex);
-  if (cursor !== stripped.length) {
-    return null;
-  }
-  return {
-    content: block.content,
-    contentOffset
-  };
-}
-
 function normalizePgfkeysOptionList(list: OptionListAst): OptionListAst {
   let inTikzDirectory = false;
   const entries: OptionListAst["entries"] = [];
@@ -1640,14 +1537,6 @@ function normalizeColorAliasName(raw: string): string | null {
     return null;
   }
   return trimmed.toLowerCase();
-}
-
-function skipWhitespace(input: string, start: number): number {
-  let cursor = start;
-  while (cursor < input.length && /\s/.test(input[cursor] ?? "")) {
-    cursor += 1;
-  }
-  return cursor;
 }
 
 export function computeBounds(elements: SceneElement[]): Bounds | undefined {

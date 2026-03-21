@@ -2,6 +2,8 @@ import type { Tree } from "@lezer/common";
 
 import type { Diagnostic } from "../diagnostics/types.js";
 import type {
+  ColorletStatement,
+  DefineColorStatement,
   MacroAliasStatement,
   MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
@@ -10,6 +12,8 @@ import type {
   TikzFigureInventoryItem
 } from "../ast/types.js";
 import {
+  colorletStatementId,
+  defineColorStatementId,
   macroAliasStatementId,
   macroCommandDefinitionStatementId,
   macroDefinitionStatementId
@@ -214,7 +218,7 @@ function collectPriorDefinitions(
     }
     if (child.to <= beginDocumentOffset || child.from < activeFrom) {
       const unwrapped = unwrapStatementLikeNode(child);
-      if (!isRelevantDefinitionNode(unwrapped, source)) {
+      if (!isRelevantDefinitionNode(unwrapped)) {
         return;
       }
       const mapped = mapStatementNode(unwrapped, source, state);
@@ -235,16 +239,25 @@ export function collectContextDefinitions(source: string): Statement[] {
   const state = { nextStatementIndex: 0 };
   const collected = collectPriorDefinitions(tree, source, source.length, state);
   const parserMacros = collected.filter(isMacroContextStatement);
-  const parserNonMacros = collected.filter((statement) => !isMacroContextStatement(statement));
+  const parserColorDefs = collected.filter(isColorContextStatement);
+  const parserNonMacros = collected.filter(
+    (statement) => !isMacroContextStatement(statement) && !isColorContextStatement(statement)
+  );
   const scopedMacros = collectScopedMacroDefinitionsFromStream(source, parserMacros);
-  const merged = [...parserNonMacros, ...scopedMacros];
-  merged.sort((left, right) => {
+  const scopedColorDefs = collectScopedColorDefinitionsFromStream(source, parserColorDefs);
+  const merged = [...parserNonMacros, ...scopedMacros, ...scopedColorDefs];
+  const deduped = new Map<string, Statement>();
+  for (const statement of merged) {
+    deduped.set(`${statement.span.from}:${statement.span.to}:${statement.kind}`, statement);
+  }
+  const dedupedValues = [...deduped.values()];
+  dedupedValues.sort((left, right) => {
     if (left.span.from !== right.span.from) {
       return left.span.from - right.span.from;
     }
     return left.span.to - right.span.to;
   });
-  return merged;
+  return dedupedValues;
 }
 
 function collectParsedFigureNodes(tree: Tree): import("@lezer/common").SyntaxNode[] {
@@ -347,7 +360,7 @@ function collectRelevantStatementsFromNode(
   const statements: Statement[] = [];
   forEachChild(node, (child) => {
     const unwrapped = unwrapStatementLikeNode(child);
-    if (!isRelevantDefinitionNode(unwrapped, source)) {
+    if (!isRelevantDefinitionNode(unwrapped)) {
       return;
     }
     const mapped = mapStatementNode(unwrapped, source, state);
@@ -358,7 +371,7 @@ function collectRelevantStatementsFromNode(
   return statements;
 }
 
-function isRelevantDefinitionNode(node: import("@lezer/common").SyntaxNode, source: string): boolean {
+function isRelevantDefinitionNode(node: import("@lezer/common").SyntaxNode): boolean {
   const typeName = node.type.name;
   if (
     typeName === "MacroDefinitionStatement" ||
@@ -375,16 +388,7 @@ function isRelevantDefinitionNode(node: import("@lezer/common").SyntaxNode, sour
   ) {
     return true;
   }
-  if (typeName !== "UnknownStatement") {
-    return false;
-  }
-  const raw = source.slice(node.from, node.to).trimStart().toLowerCase();
-  return raw.startsWith("\\tikzset") ||
-    raw.startsWith("\\tikzstyle") ||
-    raw.startsWith("\\pgfkeys") ||
-    raw.startsWith("\\usetikzlibrary") ||
-    raw.startsWith("\\definecolor") ||
-    raw.startsWith("\\colorlet");
+  return false;
 }
 
 function findBeginDocumentOffset(source: string): number {
@@ -401,6 +405,10 @@ function isMacroContextStatement(statement: Statement): statement is MacroDefini
     statement.kind === "MacroAlias" ||
     statement.kind === "MacroCommandDefinition"
   );
+}
+
+function isColorContextStatement(statement: Statement): statement is ColorletStatement | DefineColorStatement {
+  return statement.kind === "Colorlet" || statement.kind === "DefineColor";
 }
 
 function collectScopedMacroDefinitionsFromStream(
@@ -695,6 +703,189 @@ function tryParseNewCommandStatement(
       bodyRaw: bodyGroup.content,
       bodySpan: { from: bodyGroup.from + 1, to: bodyGroup.to - 1 },
       starred
+    },
+    to: cursor
+  };
+}
+
+function collectScopedColorDefinitionsFromStream(
+  source: string,
+  parserColorDefs: readonly (ColorletStatement | DefineColorStatement)[]
+): Array<ColorletStatement | DefineColorStatement> {
+  type ScopeFrame = {
+    statements: Array<ColorletStatement | DefineColorStatement>;
+  };
+  const parserBySpan = new Map<string, ColorletStatement | DefineColorStatement>();
+  for (const statement of parserColorDefs) {
+    parserBySpan.set(`${statement.span.from}:${statement.span.to}`, statement);
+  }
+
+  const scopes: ScopeFrame[] = [{ statements: [] }];
+  let nextStatementIndex = parserColorDefs.length;
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const char = source[cursor] ?? "";
+
+    if (char === "%") {
+      cursor = skipComment(source, cursor);
+      continue;
+    }
+
+    if (char === "\\") {
+      const command = readControlSequence(source, cursor);
+      if (!command) {
+        cursor += 1;
+        continue;
+      }
+
+      cursor = command.to;
+      const commandName = command.raw;
+      if (commandName === "\\begingroup" || commandName === "\\bgroup") {
+        scopes.push({ statements: [] });
+        continue;
+      }
+      if (commandName === "\\endgroup" || commandName === "\\egroup") {
+        if (scopes.length > 1) {
+          scopes.pop();
+        }
+        continue;
+      }
+      if (commandName === "\\begin" || commandName === "\\end") {
+        const argCursor = skipWhitespaceAndComments(source, cursor);
+        const envGroup = readBalancedDelimited(source, argCursor, "{", "}");
+        if (envGroup) {
+          cursor = envGroup.to;
+          if (commandName === "\\begin") {
+            scopes.push({ statements: [] });
+          } else if (scopes.length > 1) {
+            scopes.pop();
+          }
+        }
+        continue;
+      }
+
+      if (commandName === "\\colorlet") {
+        const parsed = tryParseColorletStatement(source, command.from, cursor, nextStatementIndex);
+        if (parsed) {
+          cursor = parsed.to;
+          nextStatementIndex += 1;
+          const key = `${parsed.statement.span.from}:${parsed.statement.span.to}`;
+          scopes[scopes.length - 1]?.statements.push(parserBySpan.get(key) ?? parsed.statement);
+        }
+        continue;
+      }
+
+      if (commandName === "\\definecolor") {
+        const parsed = tryParseDefineColorStatement(source, command.from, cursor, nextStatementIndex);
+        if (parsed) {
+          cursor = parsed.to;
+          nextStatementIndex += 1;
+          const key = `${parsed.statement.span.from}:${parsed.statement.span.to}`;
+          scopes[scopes.length - 1]?.statements.push(parserBySpan.get(key) ?? parsed.statement);
+        }
+        continue;
+      }
+
+      continue;
+    }
+
+    if (char === "{") {
+      scopes.push({ statements: [] });
+      cursor += 1;
+      continue;
+    }
+    if (char === "}") {
+      if (scopes.length > 1) {
+        scopes.pop();
+      }
+      cursor += 1;
+      continue;
+    }
+    cursor += 1;
+  }
+
+  const visible: Array<ColorletStatement | DefineColorStatement> = [];
+  for (const scope of scopes) {
+    visible.push(...scope.statements);
+  }
+  visible.sort((left, right) => {
+    if (left.span.from !== right.span.from) {
+      return left.span.from - right.span.from;
+    }
+    return left.span.to - right.span.to;
+  });
+  return visible;
+}
+
+function tryParseColorletStatement(
+  source: string,
+  commandFrom: number,
+  fromCursor: number,
+  statementIndex: number
+): { statement: ColorletStatement; to: number } | null {
+  let cursor = skipWhitespaceAndComments(source, fromCursor);
+  const nameGroup = readBalancedDelimited(source, cursor, "{", "}");
+  if (!nameGroup) {
+    return null;
+  }
+  cursor = skipWhitespaceAndComments(source, nameGroup.to);
+  const valueGroup = readBalancedDelimited(source, cursor, "{", "}");
+  if (!valueGroup) {
+    return null;
+  }
+  cursor = valueGroup.to;
+  return {
+    statement: {
+      kind: "Colorlet",
+      id: colorletStatementId(statementIndex),
+      span: { from: commandFrom, to: cursor },
+      raw: source.slice(commandFrom, cursor),
+      commandRaw: "\\colorlet",
+      nameRaw: nameGroup.content,
+      nameSpan: { from: nameGroup.from + 1, to: nameGroup.to - 1 },
+      valueRaw: valueGroup.content,
+      valueSpan: { from: valueGroup.from + 1, to: valueGroup.to - 1 }
+    },
+    to: cursor
+  };
+}
+
+function tryParseDefineColorStatement(
+  source: string,
+  commandFrom: number,
+  fromCursor: number,
+  statementIndex: number
+): { statement: DefineColorStatement; to: number } | null {
+  let cursor = skipWhitespaceAndComments(source, fromCursor);
+  const nameGroup = readBalancedDelimited(source, cursor, "{", "}");
+  if (!nameGroup) {
+    return null;
+  }
+  cursor = skipWhitespaceAndComments(source, nameGroup.to);
+  const modelGroup = readBalancedDelimited(source, cursor, "{", "}");
+  if (!modelGroup) {
+    return null;
+  }
+  cursor = skipWhitespaceAndComments(source, modelGroup.to);
+  const specificationGroup = readBalancedDelimited(source, cursor, "{", "}");
+  if (!specificationGroup) {
+    return null;
+  }
+  cursor = specificationGroup.to;
+  return {
+    statement: {
+      kind: "DefineColor",
+      id: defineColorStatementId(statementIndex),
+      span: { from: commandFrom, to: cursor },
+      raw: source.slice(commandFrom, cursor),
+      commandRaw: "\\definecolor",
+      nameRaw: nameGroup.content,
+      nameSpan: { from: nameGroup.from + 1, to: nameGroup.to - 1 },
+      modelRaw: modelGroup.content,
+      modelSpan: { from: modelGroup.from + 1, to: modelGroup.to - 1 },
+      specificationRaw: specificationGroup.content,
+      specificationSpan: { from: specificationGroup.from + 1, to: specificationGroup.to - 1 }
     },
     to: cursor
   };

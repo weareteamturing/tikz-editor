@@ -119,4 +119,18 @@ describe("context definitions", () => {
       definitions.some((statement) => statement.kind === "MacroDefinition" && statement.nameRaw === "\\x")
     ).toBe(false);
   });
+
+  it("collects typed context statements like colorlet and style definitions", () => {
+    const definitions = collectContextDefinitions(String.raw`\colorlet{alternativebarcolor}{black!15}
+\tikzset{my style/.style={fill=alternativebarcolor}}
+\definecolor{brand}{HTML}{1A2B3C}
+\pgfkeys{/tikz/.cd, draw=brand}
+\usetikzlibrary{patterns}`);
+
+    expect(definitions.some((statement) => statement.kind === "Colorlet")).toBe(true);
+    expect(definitions.some((statement) => statement.kind === "DefineColor")).toBe(true);
+    expect(definitions.some((statement) => statement.kind === "TikzSet")).toBe(true);
+    expect(definitions.some((statement) => statement.kind === "Pgfkeys")).toBe(true);
+    expect(definitions.some((statement) => statement.kind === "TikzLibrary")).toBe(true);
+  });
 });

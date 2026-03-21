@@ -256,6 +256,16 @@ UnknownStatement {
   CommandName UnknownPart* ";"
 }
 
+UnknownPart {
+  Comment |
+  RelativeCoordinate |
+  Coordinate |
+  OptionList |
+  Group |
+  PathOperator |
+  UnknownPathItem
+}
+
 FontSizeStatement {
   FontSizeCmd
 }
@@ -351,15 +361,6 @@ MacroCommandDefaultArgPart {
   Number |
   IdentifierLike |
   GroupPunct
-}
-
-UnknownPart {
-  Comment |
-  RelativeCoordinate |
-  Coordinate |
-  OptionList |
-  PathOperator |
-  UnknownPathItem
 }
 
 UnknownPathItem {

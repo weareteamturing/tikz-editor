@@ -110,6 +110,22 @@ describe("source color detection", () => {
     expect(draw.cssColor).toBe("#ff8000");
   });
 
+  it("resolves colorlet aliases collected from parser context definitions", () => {
+    const source = String.raw`\documentclass{article}
+\colorlet{alternativebarcolor}{black!15}
+\begin{tikzpicture}
+  \fill[alternativebarcolor] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const { declared, occurrences } = detect(source);
+
+    expect(declared.get("alternativebarcolor")).toBeTruthy();
+    const fill = findSingleOccurrence(
+      occurrences,
+      (value) => value.source === "option-flag" && value.token === "alternativebarcolor"
+    );
+    expect(fill.cssColor).toBe(declared.get("alternativebarcolor") ?? null);
+  });
+
   it("does not emit swatches for non-color option tokens", () => {
     const source = "\\draw[->, line width=2pt] (0,0) -- (1,1);";
     const { occurrences } = detect(source);

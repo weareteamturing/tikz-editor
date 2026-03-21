@@ -66,6 +66,12 @@ export type Statement =
   | MacroDefinitionStatement
   | MacroAliasStatement
   | MacroCommandDefinitionStatement
+  | TikzSetStatement
+  | TikzStyleStatement
+  | PgfkeysStatement
+  | TikzLibraryStatement
+  | ColorletStatement
+  | DefineColorStatement
   | UnknownStatement;
 
 export type PathStatement = {
@@ -138,6 +144,79 @@ export type MacroCommandDefinitionStatement = {
   bodyRaw: string;
   bodySpan?: Span;
   starred: boolean;
+};
+
+export type TikzSetStatement = {
+  kind: "TikzSet";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\tikzset";
+  payloadRaw: string;
+  payloadSpan?: Span;
+  optionList: OptionListAst;
+};
+
+export type TikzStyleStatement = {
+  kind: "TikzStyle";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\tikzstyle";
+  styleNameRaw: string;
+  styleNameSpan?: Span;
+  definitionKind: "style" | "append";
+  payloadRaw: string;
+  payloadSpan?: Span;
+  optionList: OptionListAst;
+};
+
+export type PgfkeysStatement = {
+  kind: "Pgfkeys";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\pgfkeys";
+  payloadRaw: string;
+  payloadSpan?: Span;
+  optionList: OptionListAst;
+};
+
+export type TikzLibraryStatement = {
+  kind: "TikzLibrary";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\usetikzlibrary";
+  librariesRaw: string;
+  librariesSpan?: Span;
+  libraries: string[];
+};
+
+export type ColorletStatement = {
+  kind: "Colorlet";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\colorlet";
+  nameRaw: string;
+  nameSpan?: Span;
+  valueRaw: string;
+  valueSpan?: Span;
+};
+
+export type DefineColorStatement = {
+  kind: "DefineColor";
+  id: string;
+  span: Span;
+  raw: string;
+  commandRaw: "\\definecolor";
+  nameRaw: string;
+  nameSpan?: Span;
+  modelRaw: string;
+  modelSpan?: Span;
+  specificationRaw: string;
+  specificationSpan?: Span;
 };
 
 export type PathCommand =

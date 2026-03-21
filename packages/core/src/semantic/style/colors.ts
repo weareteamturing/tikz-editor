@@ -170,6 +170,17 @@ export function mixNormalizedColors(first: string, second: string, ratio: number
   });
 }
 
+export function resolveColorToCss(
+  raw: string,
+  opts: { currentColor?: string | null; resolveAlias?: ColorAliasResolver } = {}
+): string | null {
+  const normalized = normalizeColor(raw, opts);
+  if (normalized === "none") {
+    return null;
+  }
+  return toRgbColor(normalized) ? normalized : null;
+}
+
 function toRgbColor(color: string): { r: number; g: number; b: number } | null {
   const normalized = color.trim().toLowerCase();
   if (normalized in COLOR_HEX) {

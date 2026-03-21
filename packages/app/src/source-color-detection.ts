@@ -1,6 +1,8 @@
 import type { Tree } from "@lezer/common";
+import { collectContextDefinitions } from "tikz-editor/transform/cst-to-ast";
 import { parseOptionListRaw } from "tikz-editor/options/parse";
 import type { OptionEntry, OptionListAst } from "tikz-editor/options/types";
+import { collectDeclaredColorsFromStatements } from "tikz-editor/semantic/index";
 import { normalizeColor, resolveDefineColorModel } from "tikz-editor/semantic/style/colors";
 import { parseStyleValueAsOptionList, readBalancedBlock } from "tikz-editor/semantic/style/option-utils";
 
@@ -66,56 +68,8 @@ const COLOR_VALUE_KEYS = new Set([
 const DEFINECOLOR_READ_ONLY_REASON = "\\definecolor preview is read-only in source swatches.";
 
 export function collectDeclaredColors(source: string, tree: Tree): ReadonlyMap<string, string> {
-  const declaredColors = new Map<string, string>();
-
-  walkTree(tree, (name, from, to) => {
-    if (name === "ColorletStatement") {
-      const groups = readStatementBraceGroups(source, from, to);
-      if (groups.length < 2) {
-        return;
-      }
-
-      const nameRaw = normalizeDeclaredColorName(groups[0]!.innerRaw);
-      if (!nameRaw) {
-        return;
-      }
-
-      const resolved = resolveColorExpression(groups[1]!.innerRaw, {
-        declaredColors
-      });
-      if (!resolved.resolved || resolved.cssColor == null) {
-        return;
-      }
-      declaredColors.set(nameRaw, resolved.cssColor);
-      return;
-    }
-
-    if (name === "DefineColorStatement") {
-      const groups = readStatementBraceGroups(source, from, to);
-      if (groups.length < 3) {
-        return;
-      }
-
-      const nameRaw = normalizeDeclaredColorName(groups[0]!.innerRaw);
-      if (!nameRaw) {
-        return;
-      }
-
-      const modelRaw = groups[1]!.innerRaw.trim();
-      const specificationRaw = groups[2]!.innerRaw.trim();
-      if (modelRaw.length === 0 || specificationRaw.length === 0) {
-        return;
-      }
-
-      const resolved = resolveDefineColorModel(modelRaw, specificationRaw);
-      if (!resolved) {
-        return;
-      }
-      declaredColors.set(nameRaw, normalizeHex(resolved));
-    }
-  });
-
-  return declaredColors;
+  void tree;
+  return collectDeclaredColorsFromStatements(collectContextDefinitions(source));
 }
 
 let _cachedDeclaredSource = "";
@@ -536,14 +490,6 @@ function readStatementBraceGroups(source: string, statementFrom: number, stateme
   }
 
   return groups;
-}
-
-function normalizeDeclaredColorName(raw: string): string | null {
-  const normalized = raw.trim().toLowerCase();
-  if (!/^[a-z][a-z0-9._:@-]*$/u.test(normalized)) {
-    return null;
-  }
-  return normalized;
 }
 
 function isStylePayloadCarrierKey(key: string): boolean {

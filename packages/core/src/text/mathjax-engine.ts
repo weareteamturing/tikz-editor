@@ -428,11 +428,14 @@ function hasWorkerRuntimeGlobals(): boolean {
 function createMathJaxConfig(): Record<string, unknown> {
   return {
     loader: {
-      load: ["input/tex", "output/svg", "[tex]/color"]
+      load: ["input/tex", "output/svg", "[tex]/color", "[tex]/html"]
     },
     tex: {
+      macros: {
+        textsc: ["\\style{font-variant-caps: small-caps}{#1}", 1]
+      },
       packages: {
-        "[+]": ["color"],
+        "[+]": ["color", "html"],
         "[-]": ["noundefined"]
       },
       formatError: (_jax: unknown, err: Error) => {
@@ -496,11 +499,12 @@ function configureBrowserMathJaxGlobal(font: MathJaxFont): void {
   const existingSvg = isRecord(existing.svg) ? existing.svg : {};
   const existingOutput = isRecord(existing.output) ? existing.output : {};
   const existingStartup = isRecord(existing.startup) ? existing.startup : {};
+  const existingTexMacros = isRecord(existingTex.macros) ? existingTex.macros : {};
   const existingTexPackages = isRecord(existingTex.packages) ? existingTex.packages : {};
   const existingSvgLinebreaks = isRecord(existingSvg.linebreaks) ? existingSvg.linebreaks : {};
 
-  const loaderLoad = uniqueStrings([...toStringArray(existingLoader.load), "input/tex", "output/svg", "[tex]/color"]);
-  const enabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[+]"]), "color"]);
+  const loaderLoad = uniqueStrings([...toStringArray(existingLoader.load), "input/tex", "output/svg", "[tex]/color", "[tex]/html"]);
+  const enabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[+]"]), "color", "html"]);
   const disabledPackages = uniqueStrings([...toStringArray(existingTexPackages["[-]"]), "noundefined"]);
 
   globals.MathJax = {
@@ -515,6 +519,10 @@ function configureBrowserMathJaxGlobal(font: MathJaxFont): void {
     },
     tex: {
       ...existingTex,
+      macros: {
+        ...existingTexMacros,
+        textsc: ["\\style{font-family: serif; font-variant-caps: small-caps}{#1}", 1]
+      },
       packages: {
         ...existingTexPackages,
         "[+]": enabledPackages,

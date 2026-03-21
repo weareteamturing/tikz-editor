@@ -22,6 +22,30 @@ export function macroCommandDefinitionStatementId(statementIndex: number): strin
   return `macro-command-definition:${statementIndex}`;
 }
 
+export function tikzSetStatementId(statementIndex: number): string {
+  return `tikz-set:${statementIndex}`;
+}
+
+export function tikzStyleStatementId(statementIndex: number): string {
+  return `tikz-style:${statementIndex}`;
+}
+
+export function pgfkeysStatementId(statementIndex: number): string {
+  return `pgfkeys:${statementIndex}`;
+}
+
+export function tikzLibraryStatementId(statementIndex: number): string {
+  return `tikz-library:${statementIndex}`;
+}
+
+export function colorletStatementId(statementIndex: number): string {
+  return `colorlet:${statementIndex}`;
+}
+
+export function defineColorStatementId(statementIndex: number): string {
+  return `definecolor:${statementIndex}`;
+}
+
 export function unknownStatementId(statementIndex: number): string {
   return `unknown-statement:${statementIndex}`;
 }

@@ -163,9 +163,11 @@ describe("parseTikz", () => {
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
     expect(result.figure.body).toHaveLength(2);
-    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
-    if (result.figure.body[0]?.kind === "UnknownStatement") {
-      expect(result.figure.body[0].raw).toContain("\\colorlet");
+    expect(result.figure.body[0]?.kind).toBe("Colorlet");
+    if (result.figure.body[0]?.kind === "Colorlet") {
+      expect(result.figure.body[0].commandRaw).toBe("\\colorlet");
+      expect(result.figure.body[0].nameRaw).toBe("mycolor");
+      expect(result.figure.body[0].valueRaw).toBe("blue");
     }
   });
 
@@ -178,9 +180,12 @@ describe("parseTikz", () => {
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
     expect(result.figure.body).toHaveLength(2);
-    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
-    if (result.figure.body[0]?.kind === "UnknownStatement") {
-      expect(result.figure.body[0].raw).toContain("\\definecolor");
+    expect(result.figure.body[0]?.kind).toBe("DefineColor");
+    if (result.figure.body[0]?.kind === "DefineColor") {
+      expect(result.figure.body[0].commandRaw).toBe("\\definecolor");
+      expect(result.figure.body[0].nameRaw).toBe("brand");
+      expect(result.figure.body[0].modelRaw).toBe("HTML");
+      expect(result.figure.body[0].specificationRaw).toBe("1A2B3C");
     }
   });
 
@@ -194,14 +199,14 @@ describe("parseTikz", () => {
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
     expect(result.figure.body).toHaveLength(3);
-    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
-    expect(result.figure.body[1]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[0]?.kind).toBe("TikzLibrary");
+    expect(result.figure.body[1]?.kind).toBe("TikzLibrary");
     expect(result.figure.body[2]?.kind).toBe("Path");
-    if (result.figure.body[0]?.kind === "UnknownStatement") {
-      expect(result.figure.body[0].raw).toContain("\\usetikzlibrary");
+    if (result.figure.body[0]?.kind === "TikzLibrary") {
+      expect(result.figure.body[0].libraries).toContain("shapes.geometric");
     }
-    if (result.figure.body[1]?.kind === "UnknownStatement") {
-      expect(result.figure.body[1].raw).toContain("\\usetikzlibrary");
+    if (result.figure.body[1]?.kind === "TikzLibrary") {
+      expect(result.figure.body[1].libraries).toContain("shadows");
     }
   });
 
@@ -443,19 +448,20 @@ describe("parseTikz", () => {
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
     expect(result.figure.body.length).toBe(4);
-    expect(result.figure.body[0]?.kind).toBe("UnknownStatement");
-    expect(result.figure.body[1]?.kind).toBe("UnknownStatement");
-    expect(result.figure.body[2]?.kind).toBe("UnknownStatement");
+    expect(result.figure.body[0]?.kind).toBe("TikzSet");
+    expect(result.figure.body[1]?.kind).toBe("TikzStyle");
+    expect(result.figure.body[2]?.kind).toBe("Pgfkeys");
     expect(result.figure.body[3]?.kind).toBe("Path");
 
-    if (result.figure.body[0]?.kind === "UnknownStatement") {
-      expect(result.figure.body[0].raw).toContain("\\tikzset");
+    if (result.figure.body[0]?.kind === "TikzSet") {
+      expect(result.figure.body[0].commandRaw).toBe("\\tikzset");
     }
-    if (result.figure.body[1]?.kind === "UnknownStatement") {
-      expect(result.figure.body[1].raw).toContain("\\tikzstyle");
+    if (result.figure.body[1]?.kind === "TikzStyle") {
+      expect(result.figure.body[1].commandRaw).toBe("\\tikzstyle");
+      expect(result.figure.body[1].styleNameRaw).toBe("legacy");
     }
-    if (result.figure.body[2]?.kind === "UnknownStatement") {
-      expect(result.figure.body[2].raw).toContain("\\pgfkeys");
+    if (result.figure.body[2]?.kind === "Pgfkeys") {
+      expect(result.figure.body[2].commandRaw).toBe("\\pgfkeys");
     }
   });
 

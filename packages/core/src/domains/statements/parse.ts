@@ -1,25 +1,38 @@
 import type { SyntaxNode } from "@lezer/common";
 
 import {
+  colorletStatementId,
+  defineColorStatementId,
   foreachStatementId,
   macroAliasStatementId,
   macroCommandDefinitionStatementId,
   macroDefinitionStatementId,
-  scopeStatementId
+  pgfkeysStatementId,
+  scopeStatementId,
+  tikzLibraryStatementId,
+  tikzSetStatementId,
+  tikzStyleStatementId
 } from "../../ast/ids.js";
 import type {
+  ColorletStatement,
+  DefineColorStatement,
   ForeachStatement,
   MacroAliasStatement,
   MacroCommandDefinitionStatement,
   MacroDefinitionStatement,
+  PgfkeysStatement,
   ScopeStatement,
   Span,
-  Statement
+  Statement,
+  TikzLibraryStatement,
+  TikzSetStatement,
+  TikzStyleStatement
 } from "../../ast/types.js";
 import { mapPathStatement } from "../paths/parse.js";
 import { mapUnknownStatement } from "../../transform/unknown.js";
 import { parseOptionListRaw } from "../../options/parse.js";
 import { parseForeachHeaderRaw } from "../../foreach/header.js";
+import { parseStyleValueAsOptionList } from "../../semantic/style/option-utils.js";
 import { findFirstChildByName, findFirstNodeByName, firstNamedChild, forEachChild } from "../../syntax/cursor.js";
 
 export type StatementMappingState = {
@@ -56,19 +69,19 @@ export function mapStatementNode(node: SyntaxNode, source: string, state: Statem
   }
 
   if (node.type.name === "StyleDefinitionStatement") {
-    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+    return mapStyleDefinitionStatement(node, source, state);
   }
 
   if (node.type.name === "ColorletStatement") {
-    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+    return mapColorletStatement(node, source, state);
   }
 
   if (node.type.name === "DefineColorStatement") {
-    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+    return mapDefineColorStatement(node, source, state);
   }
 
   if (node.type.name === "TikzLibraryStatement") {
-    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+    return mapTikzLibraryStatement(node, source, state);
   }
 
   if (node.type.name === "MacroDefinitionStatement") {
@@ -84,7 +97,7 @@ export function mapStatementNode(node: SyntaxNode, source: string, state: Statem
   }
 
   if (node.type.name === "TikzSetStatement" || node.type.name === "TikzStyleStatement" || node.type.name === "PgfkeysStatement") {
-    return mapUnknownStatement(node, source, allocateStatementIndex(state));
+    return mapStyleDefinitionStatement(node, source, state);
   }
 
   if (node.type.name === "FontSizeStatement") {
@@ -259,6 +272,165 @@ function mapMacroCommandDefinitionStatement(
   };
 }
 
+function mapStyleDefinitionStatement(node: SyntaxNode, source: string, state: StatementMappingState): Statement | null {
+  if (node.type.name === "StyleDefinitionStatement") {
+    const actual = firstNamedChild(node);
+    if (!actual) {
+      return null;
+    }
+    return mapStyleDefinitionStatement(actual, source, state);
+  }
+
+  if (node.type.name === "TikzSetStatement") {
+    return mapTikzSetStatement(node, source, state);
+  }
+  if (node.type.name === "TikzStyleStatement") {
+    return mapTikzStyleStatement(node, source, state);
+  }
+  if (node.type.name === "PgfkeysStatement") {
+    return mapPgfkeysStatement(node, source, state);
+  }
+  return null;
+}
+
+function mapTikzSetStatement(node: SyntaxNode, source: string, state: StatementMappingState): TikzSetStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const payloadNode = findFirstChildByName(node, "StylePayload");
+  const payloadRaw = payloadNode ? source.slice(payloadNode.from, payloadNode.to) : "";
+  const optionList = parseStyleValueAsOptionList(payloadRaw, payloadNode?.from ?? node.from) ?? parseOptionListRaw("[]", node.from);
+
+  return {
+    kind: "TikzSet",
+    id: tikzSetStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\tikzset",
+    payloadRaw,
+    payloadSpan: toSpan(payloadNode),
+    optionList
+  };
+}
+
+function mapTikzStyleStatement(node: SyntaxNode, source: string, state: StatementMappingState): TikzStyleStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const cmdNode = findFirstChildByName(node, "TikzStyleCmd");
+  const styleNameGroup = findFirstChildByName(node, "Group");
+  const styleNameIdentifier = findFirstChildByName(node, "IdentifierLike");
+  const styleNameNode = styleNameGroup ?? styleNameIdentifier;
+  const styleNameRaw =
+    styleNameNode == null
+      ? ""
+      : styleNameNode.type.name === "Group"
+        ? extractGroupInnerRaw(styleNameNode, source)
+        : source.slice(styleNameNode.from, styleNameNode.to);
+
+  const payloadNode =
+    findFirstChildByName(node, "OptionList") ??
+    findFirstChildByName(node, "StylePayload");
+  const payloadRaw = payloadNode ? source.slice(payloadNode.from, payloadNode.to) : "";
+  const optionList =
+    payloadNode?.type.name === "OptionList"
+      ? parseOptionListRaw(payloadRaw, payloadNode.from)
+      : parseStyleValueAsOptionList(payloadRaw, payloadNode?.from ?? node.from) ?? parseOptionListRaw("[]", node.from);
+  const betweenRaw =
+    cmdNode && styleNameNode && payloadNode
+      ? source.slice(styleNameNode.to, payloadNode.from)
+      : "";
+
+  return {
+    kind: "TikzStyle",
+    id: tikzStyleStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\tikzstyle",
+    styleNameRaw: styleNameRaw.trim(),
+    styleNameSpan: styleNameNode?.type.name === "Group" ? toGroupInnerSpan(styleNameNode, source) : toSpan(styleNameNode),
+    definitionKind: betweenRaw.includes("+") ? "append" : "style",
+    payloadRaw,
+    payloadSpan: toSpan(payloadNode),
+    optionList
+  };
+}
+
+function mapPgfkeysStatement(node: SyntaxNode, source: string, state: StatementMappingState): PgfkeysStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const payloadNode = findFirstChildByName(node, "StylePayload");
+  const payloadRaw = payloadNode ? source.slice(payloadNode.from, payloadNode.to) : "";
+  const optionList = parseStyleValueAsOptionList(payloadRaw, payloadNode?.from ?? node.from) ?? parseOptionListRaw("[]", node.from);
+
+  return {
+    kind: "Pgfkeys",
+    id: pgfkeysStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\pgfkeys",
+    payloadRaw,
+    payloadSpan: toSpan(payloadNode),
+    optionList
+  };
+}
+
+function mapTikzLibraryStatement(node: SyntaxNode, source: string, state: StatementMappingState): TikzLibraryStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const groupNode = findFirstChildByName(node, "Group");
+  const librariesRaw = groupNode ? extractGroupInnerRaw(groupNode, source) : "";
+  const libraries = librariesRaw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  return {
+    kind: "TikzLibrary",
+    id: tikzLibraryStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\usetikzlibrary",
+    librariesRaw,
+    librariesSpan: groupNode ? toGroupInnerSpan(groupNode, source) : undefined,
+    libraries
+  };
+}
+
+function mapColorletStatement(node: SyntaxNode, source: string, state: StatementMappingState): ColorletStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const groups = findChildrenByName(node, "Group");
+  const nameGroup = groups[0] ?? null;
+  const valueGroup = groups[1] ?? null;
+  return {
+    kind: "Colorlet",
+    id: colorletStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\colorlet",
+    nameRaw: nameGroup ? extractGroupInnerRaw(nameGroup, source) : "",
+    nameSpan: nameGroup ? toGroupInnerSpan(nameGroup, source) : undefined,
+    valueRaw: valueGroup ? extractGroupInnerRaw(valueGroup, source) : "",
+    valueSpan: valueGroup ? toGroupInnerSpan(valueGroup, source) : undefined
+  };
+}
+
+function mapDefineColorStatement(node: SyntaxNode, source: string, state: StatementMappingState): DefineColorStatement {
+  const statementIndex = allocateStatementIndex(state);
+  const groups = findChildrenByName(node, "Group");
+  const nameGroup = groups[0] ?? null;
+  const modelGroup = groups[1] ?? null;
+  const specificationGroup = groups[2] ?? null;
+
+  return {
+    kind: "DefineColor",
+    id: defineColorStatementId(statementIndex),
+    span: { from: node.from, to: node.to },
+    raw: source.slice(node.from, node.to),
+    commandRaw: "\\definecolor",
+    nameRaw: nameGroup ? extractGroupInnerRaw(nameGroup, source) : "",
+    nameSpan: nameGroup ? toGroupInnerSpan(nameGroup, source) : undefined,
+    modelRaw: modelGroup ? extractGroupInnerRaw(modelGroup, source) : "",
+    modelSpan: modelGroup ? toGroupInnerSpan(modelGroup, source) : undefined,
+    specificationRaw: specificationGroup ? extractGroupInnerRaw(specificationGroup, source) : "",
+    specificationSpan: specificationGroup ? toGroupInnerSpan(specificationGroup, source) : undefined
+  };
+}
+
 function resolveMacroCommandBodyNode(node: SyntaxNode, source: string): SyntaxNode | null {
   const groups: SyntaxNode[] = [];
   forEachChild(node, (child) => {
@@ -337,6 +509,16 @@ function toSpan(node: SyntaxNode | null): Span | undefined {
     return undefined;
   }
   return { from: node.from, to: node.to };
+}
+
+function findChildrenByName(node: SyntaxNode, childName: string): SyntaxNode[] {
+  const matches: SyntaxNode[] = [];
+  forEachChild(node, (child) => {
+    if (child.type.name === childName) {
+      matches.push(child);
+    }
+  });
+  return matches;
 }
 
 function allocateStatementIndex(state: StatementMappingState): number {
