@@ -374,34 +374,30 @@
   font-size: 0.95em;
 }
 
-.installButtons {
+.checkingStatus {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
   align-items: center;
-}
-
-.installNotice {
-  margin: 8px 0 4px;
-}
-
-.installCommandList {
-  margin: 0 0 8px;
-  padding-left: 20px;
-  text-align: left;
+  justify-content: center;
+  gap: 8px;
   color: var(--text-faint);
 }
 
-.installHint {
-  margin-top: 6px;
+.installButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  justify-content: center;
 }
 
 .installButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 1px solid var(--border-light);
   border-radius: 4px;
   background: var(--bg-input);
-  padding: 4px 14px;
+  padding: 5px 14px;
   font-size: calc(var(--app-ui-scale, 1) * 11px);
   color: var(--text);
   cursor: pointer;
@@ -412,21 +408,58 @@
 }
 
 .installButton:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: default;
+}
+
+.spinnerInline {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--border-light);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.installDetails {
+  margin-top: 10px;
+  text-align: left;
+}
+
+.installDetails summary {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.installCommandList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  text-align: left;
+  color: var(--text-faint);
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.installCommandList li {
+  margin: 3px 0;
+}
+
+.installHint {
+  margin-top: 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
 }
 
 .installError {
   color: var(--color-warning);
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
 }
 
-.installOutput {
-  color: var(--text-faint);
-  margin-top: 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
+.installSuccess {
+  color: var(--color-success, #4a9);
+  margin-top: 10px;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
 }
 

@@ -46,7 +46,7 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   const [expandedAttachmentId, setExpandedAttachmentId] = useState<string | null>(null);
   const [codexStatus, setCodexStatus] = useState<CodexStatus | null>(null);
   const [codexStatusChecked, setCodexStatusChecked] = useState(false);
-  const [installing, setInstalling] = useState(false);
+  const [installingMethod, setInstallingMethod] = useState<"npm" | "brew" | "wsl" | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
   const [installOutput, setInstallOutput] = useState<string | null>(null);
   const [codexStatusError, setCodexStatusError] = useState<string | null>(null);
@@ -156,64 +156,97 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     return <div className={css.empty}>Codex assistant is only available in the desktop app.</div>;
   }
 
-  if (codexStatusChecked && !codexStatus?.installed) {
+  if (!codexStatusChecked) {
+    return (
+      <div className={css.empty}>
+        <div className={css.checkingStatus}>
+          <div className={css.spinner} />
+          <span>Checking Codex CLI availability...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!codexStatus?.installed) {
     const detected = codexStatus ?? { installed: false, hasNpm: false, hasBrew: false, hasWsl: false };
     const methods: Array<{ method: "npm" | "brew" | "wsl"; label: string; command: string }> = [];
-    if (detected.hasNpm) methods.push({ method: "npm", label: "Install with npm", command: "npm install -g @openai/codex" });
-    if (detected.hasBrew) methods.push({ method: "brew", label: "Install with Homebrew", command: "brew install codex" });
-    if (detected.hasWsl) methods.push({ method: "wsl", label: "Install with WSL", command: "wsl npm install -g @openai/codex" });
+    if (detected.hasNpm) methods.push({ method: "npm", label: "npm", command: "npm install -g @openai/codex" });
+    if (detected.hasBrew) methods.push({ method: "brew", label: "Homebrew", command: "brew install codex" });
+    if (detected.hasWsl) methods.push({ method: "wsl", label: "WSL", command: "wsl npm install -g @openai/codex" });
+
+    const handleInstall = async (method: "npm" | "brew" | "wsl") => {
+      setInstallingMethod(method);
+      setInstallError(null);
+      setInstallOutput(null);
+      try {
+        const output = await assistantApi?.installCodex?.(method);
+        const status = await assistantApi?.checkCodexStatus?.();
+        if (status?.installed) {
+          setCodexStatus(status);
+          setInstallOutput("Codex CLI installed successfully.");
+        } else {
+          setInstallOutput(output?.trim() || "Install finished, but Codex was not detected. You may need to restart your terminal.");
+        }
+      } catch (e) {
+        setInstallError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setInstallingMethod(null);
+      }
+    };
+
     return (
       <div className={css.empty}>
         <p>Codex CLI is not installed.</p>
         {methods.length > 0 ? (
-          <>
-            <p className={css.installNotice}>Clicking an install button runs the matching command on your machine:</p>
-            <ul className={css.installCommandList}>
-              {methods.map(({ method, command }) => (
-                <li key={method}><code>{command}</code></li>
-              ))}
-            </ul>
-          </>
-        ) : null}
-        {detected.hasWsl ? (
-          <p className={css.installHint}>WSL install uses your default WSL distro. The assistant will run via WSL if native Windows Codex is unavailable.</p>
-        ) : null}
-        <p className={css.installHint}>No app restart is required; the app refreshes command lookup (including common npm/bin locations) after install.</p>
-        {methods.length > 0 ? (
           <div className={css.installButtons}>
-            {methods.map(({ method, label }) => (
+            {methods.length === 1 ? (
               <button
-                key={method}
                 className={css.installButton}
-                disabled={installing}
-                onClick={async () => {
-                  setInstalling(true);
-                  setInstallError(null);
-                  setInstallOutput(null);
-                  try {
-                    const output = await assistantApi?.installCodex?.(method);
-                    setInstallOutput(output?.trim() ? output : "Install command finished.");
-                    const status = await assistantApi?.checkCodexStatus?.();
-                    if (status) {
-                      setCodexStatus(status);
-                    }
-                  } catch (e) {
-                    setInstallError(e instanceof Error ? e.message : String(e));
-                  } finally {
-                    setInstalling(false);
-                  }
-                }}
+                disabled={installingMethod !== null}
+                onClick={() => void handleInstall(methods[0].method)}
               >
-                {installing ? "Installing..." : label}
+                {installingMethod === methods[0].method ? (
+                  <><div className={css.spinnerInline} /> Installing...</>
+                ) : (
+                  `Install via ${methods[0].label}`
+                )}
               </button>
-            ))}
+            ) : (
+              methods.map(({ method, label }) => (
+                <button
+                  key={method}
+                  className={css.installButton}
+                  disabled={installingMethod !== null}
+                  onClick={() => void handleInstall(method)}
+                >
+                  {installingMethod === method ? (
+                    <><div className={css.spinnerInline} /> Installing...</>
+                  ) : (
+                    label
+                  )}
+                </button>
+              ))
+            )}
           </div>
         ) : (
           <p>Install manually: <code>npm install -g @openai/codex</code></p>
         )}
-        {codexStatusError && <p className={css.installError}>Could not auto-detect Codex status: {codexStatusError}</p>}
+        {methods.length > 1 ? (
+          <details className={css.installDetails}>
+            <summary>Show install commands</summary>
+            <ul className={css.installCommandList}>
+              {methods.map(({ method, label, command }) => (
+                <li key={method}><strong>{label}:</strong> <code>{command}</code></li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {detected.hasWsl && methods.length > 1 ? (
+          <p className={css.installHint}>WSL uses your default distro.</p>
+        ) : null}
+        {codexStatusError && <p className={css.installError}>Could not detect Codex: {codexStatusError}</p>}
         {installError && <p className={css.installError}>{installError}</p>}
-        {installOutput && <p className={css.installOutput}>{installOutput}</p>}
+        {installOutput && <p className={css.installSuccess}>{installOutput}</p>}
       </div>
     );
   }
