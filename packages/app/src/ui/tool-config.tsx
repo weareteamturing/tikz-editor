@@ -48,7 +48,7 @@ export type ToolButtonDef = {
   autoOpenPopup?: boolean;
 };
 
-export type ToolPopupKind = "freehand-smoothing" | "bucket-color" | "shape-picker";
+export type ToolPopupKind = "bucket-color" | "shape-picker";
 
 export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 
@@ -63,8 +63,7 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
     label: "Freehand",
     title: "Draw a freehand curve (F). Press and drag to draw one stroke.",
     shortcut: "f",
-    icon: RiBrushLine,
-    popupKind: "freehand-smoothing"
+    icon: RiBrushLine
   },
   { mode: "addLine",    label: "Line",    title: "Draw a line (L)",                                  shortcut: "l", icon: RiSubtractLine },
   { mode: "addArrow",   label: "Arrow",   title: "Draw an arrow (A)",                                shortcut: "a", icon: RiArrowRightLine },
@@ -130,4 +129,35 @@ export function toolCreateSnapKind(mode: ToolCreateMode): SnapToolPointerKind {
 
 export function shouldConstrainToolCreateToSquare(mode: ToolCreateMode): boolean {
   return mode === "addGrid" || mode === "addRect" || mode === "addEllipse";
+}
+
+export const TOOL_HINTS: Partial<Record<ToolMode, string>> = {
+  addRect: "Hold Shift to constrain to a square",
+  addEllipse: "Hold Shift to constrain to a circle",
+  addGrid: "Hold Shift to constrain to a square",
+  addCircle: "Drag from center to edge",
+  addPath: "Click to add points, drag to bend. Click start to close, or press Enter/Esc to finish.",
+  addFreehand: "Press and drag to draw",
+  addBezier: "Two drags: endpoints then curve",
+  addLine: "Drag to set length and angle",
+  addArrow: "Drag to set length and angle",
+  addShape: "Drag to set size",
+  addNode: "Click to place text",
+};
+
+export function isCreationToolMode(mode: ToolMode): boolean {
+  return mode !== "select";
+}
+
+export function toolSupportsStroke(mode: ToolMode): boolean {
+  return mode !== "select" && mode !== "addBucket";
+}
+
+export function toolSupportsFill(mode: ToolMode): boolean {
+  return mode === "addRect" || mode === "addEllipse" || mode === "addCircle" || mode === "addShape";
+}
+
+export function getToolLabel(mode: ToolMode): string {
+  const def = TOOL_BUTTONS.find((b) => b.mode === mode);
+  return def?.label ?? mode;
 }

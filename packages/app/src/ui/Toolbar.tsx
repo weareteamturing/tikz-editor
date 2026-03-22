@@ -27,7 +27,6 @@ const SHAPE_POPUP_CHOICES = NODE_SHAPE_OPTIONS.map((option) => ({
 
 export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
-  const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
   const dispatch = useEditorStore((s) => s.dispatch);
@@ -55,28 +54,6 @@ export function Toolbar() {
   }, [toolMode]);
 
   const renderPopup = (popupKind: ToolPopupKind) => {
-    if (popupKind === "freehand-smoothing") {
-      return (
-        <ToolbarPopupSection title="Freehand">
-          <label className={css.popupLabel} htmlFor="toolbar-freehand-smoothing">
-            Smoothing <span className={css.popupValue}>{freehandSmoothingPx}px</span>
-          </label>
-          <input
-            id="toolbar-freehand-smoothing"
-            className={css.popupSlider}
-            type="range"
-            min={4}
-            max={32}
-            step={1}
-            value={freehandSmoothingPx}
-            data-testid="toolbar-freehand-smoothing-slider"
-            onChange={(event) => {
-              dispatch({ type: "SET_FREEHAND_SMOOTHING", value: Number(event.currentTarget.value) });
-            }}
-          />
-        </ToolbarPopupSection>
-      );
-    }
     if (popupKind === "bucket-color") {
       return (
         <ToolbarPopupSection title="Bucket">

@@ -12,10 +12,10 @@ describe("resolveToolbarToolMode", () => {
   it("deactivates non-select tool when reclicked", () => {
     expect(resolveToolbarToolMode("addRect", "addRect")).toBe("select");
     expect(resolveToolbarToolMode("addNode", "addNode")).toBe("select");
+    expect(resolveToolbarToolMode("addFreehand", "addFreehand")).toBe("select");
   });
 
   it("keeps popup-enabled tool active when reclicked", () => {
-    expect(resolveToolbarToolMode("addFreehand", "addFreehand")).toBe("addFreehand");
     expect(resolveToolbarToolMode("addShape", "addShape")).toBe("addShape");
   });
 
@@ -62,9 +62,9 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModeFromShortcut("G")).toBeNull();
   });
 
-  it("exposes popup metadata for freehand and no popup for rectangle", () => {
-    expect(toolModeHasPopup("addFreehand")).toBe(true);
-    expect(toolModePopupKind("addFreehand")).toBe("freehand-smoothing");
+  it("exposes popup metadata for shape picker but not freehand or rectangle", () => {
+    expect(toolModeHasPopup("addFreehand")).toBe(false);
+    expect(toolModePopupKind("addFreehand")).toBeNull();
     expect(toolModeHasPopup("addShape")).toBe(true);
     expect(toolModePopupKind("addShape")).toBe("shape-picker");
     expect(toolModeAutoOpensPopup("addShape")).toBe(true);

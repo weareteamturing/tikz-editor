@@ -33,6 +33,8 @@ const FREEHAND_SMOOTHING_MAX_PX = 32;
 const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
 const DEFAULT_BUCKET_FILL_COLOR = "yellow";
 const DEFAULT_ADD_SHAPE_PRESET = "rectangle";
+const DEFAULT_CREATION_STROKE_COLOR = "black";
+const DEFAULT_CREATION_FILL_COLOR = "none";
 
 export const DEFAULT_CANVAS_TRANSFORM: CanvasTransform = {
   translateX: 0,
@@ -115,6 +117,8 @@ function initialUiState(): WorkspaceEphemeralState {
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     bucketFillColor: DEFAULT_BUCKET_FILL_COLOR,
     selectedAddShape: DEFAULT_ADD_SHAPE_PRESET,
+    creationStrokeColor: DEFAULT_CREATION_STROKE_COLOR,
+    creationFillColor: DEFAULT_CREATION_FILL_COLOR,
     fitToContentRequestToken: 0,
     zoomRequestToken: 0,
     zoomRequestDirection: null,
@@ -249,6 +253,8 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     freehandSmoothingPx: ui.freehandSmoothingPx,
     bucketFillColor: ui.bucketFillColor,
     selectedAddShape: ui.selectedAddShape,
+    creationStrokeColor: ui.creationStrokeColor,
+    creationFillColor: ui.creationFillColor,
     fitToContentRequestToken: ui.fitToContentRequestToken,
     zoomRequestToken: ui.zoomRequestToken,
     zoomRequestDirection: ui.zoomRequestDirection,
@@ -1110,6 +1116,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (ui.selectedAddShape === action.value) return state;
       ui = { ...ui, selectedAddShape: action.value };
       break;
+
+    case "SET_CREATION_STROKE_COLOR": {
+      const nextValue = action.value.trim().toLowerCase();
+      if (nextValue.length === 0 || ui.creationStrokeColor === nextValue) return state;
+      ui = { ...ui, creationStrokeColor: nextValue };
+      break;
+    }
+
+    case "SET_CREATION_FILL_COLOR": {
+      const nextValue = action.value.trim().toLowerCase();
+      if (ui.creationFillColor === nextValue) return state;
+      ui = { ...ui, creationFillColor: nextValue };
+      break;
+    }
 
     case "SET_ACTIVE_SOURCE_SCRUB":
       if (ui.activeSourceScrubSourceId === action.sourceId) return state;

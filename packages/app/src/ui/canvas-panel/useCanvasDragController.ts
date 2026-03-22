@@ -103,6 +103,8 @@ export function useCanvasDragController(params: {
   setWarning: (warning: string | null) => void;
   setTextEditingSession: (session: TextEditingSession | null) => void;
   selectedAddShape: string;
+  creationStrokeColor: string;
+  creationFillColor: string;
   onSnapFeedback?: () => void;
   textIndexFromClient: (
     clientX: number,
@@ -149,6 +151,8 @@ export function useCanvasDragController(params: {
     setWarning,
     setTextEditingSession,
     selectedAddShape,
+    creationStrokeColor,
+    creationFillColor,
     onSnapFeedback,
     textIndexFromClient
   } = params;
@@ -896,7 +900,9 @@ export function useCanvasDragController(params: {
         }
 
         const rawTemplate = createTemplateForToolDrag(drag.toolMode, drag.startWorld, finalWorld, {
-          selectedAddShape
+          selectedAddShape,
+          strokeColor: creationStrokeColor,
+          fillColor: creationFillColor
         });
         const template =
           rawTemplate.kind === "line"

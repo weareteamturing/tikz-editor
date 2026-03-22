@@ -563,6 +563,8 @@ export function CanvasPanel() {
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
+  const creationStrokeColor = useEditorStore((s) => s.creationStrokeColor);
+  const creationFillColor = useEditorStore((s) => s.creationFillColor);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
   const handleSizePx = useSettingsStore((s) => s.settings.canvas.handleSizePx);
   const zoomSpeed = useSettingsStore((s) => s.settings.canvas.zoomSpeed);
@@ -2606,6 +2608,8 @@ export function CanvasPanel() {
     setWarning,
     setTextEditingSession,
     selectedAddShape,
+    creationStrokeColor,
+    creationFillColor,
     textIndexFromClient,
     onSnapFeedback: performSnapHapticFeedback
   });

@@ -58,6 +58,8 @@ export function createTemplateForToolDrag(
   endWorld: Point,
   options?: {
     selectedAddShape?: string;
+    strokeColor?: string;
+    fillColor?: string;
   }
 ): ElementTemplate {
   const dx = endWorld.x - startWorld.x;
@@ -67,22 +69,25 @@ export function createTemplateForToolDrag(
   const hasShapeDrag =
     Math.max(Math.abs(dx), Math.abs(dy)) >= MIN_SHAPE_DRAG_DIMENSION_PT;
 
+  const strokeColor = options?.strokeColor;
+  const fillColor = options?.fillColor;
+
   if (mode === "addPath") {
     return hasDrag
-      ? { kind: "line", hasArrow: false, to: endWorld }
-      : { kind: "line", hasArrow: false };
+      ? { kind: "line", hasArrow: false, to: endWorld, strokeColor }
+      : { kind: "line", hasArrow: false, strokeColor };
   }
 
   if (mode === "addLine") {
     return hasDrag
-      ? { kind: "line", hasArrow: false, to: endWorld }
-      : { kind: "line", hasArrow: false };
+      ? { kind: "line", hasArrow: false, to: endWorld, strokeColor }
+      : { kind: "line", hasArrow: false, strokeColor };
   }
 
   if (mode === "addArrow") {
     return hasDrag
-      ? { kind: "line", hasArrow: true, to: endWorld }
-      : { kind: "line", hasArrow: true };
+      ? { kind: "line", hasArrow: true, to: endWorld, strokeColor }
+      : { kind: "line", hasArrow: true, strokeColor };
   }
 
   if (mode === "addBezier") {
@@ -90,27 +95,29 @@ export function createTemplateForToolDrag(
       x: (startWorld.x + endWorld.x) / 2,
       y: (startWorld.y + endWorld.y) / 2
     };
-    return hasDrag
-      ? createBezierTemplateFromBend(startWorld, endWorld, bend)
-      : { kind: "bezier" };
+    if (hasDrag) {
+      const bezierTemplate = createBezierTemplateFromBend(startWorld, endWorld, bend);
+      return { ...bezierTemplate, strokeColor };
+    }
+    return { kind: "bezier", strokeColor };
   }
 
   if (mode === "addGrid") {
     return hasDrag
-      ? { kind: "grid", corner: endWorld }
-      : { kind: "grid" };
+      ? { kind: "grid", corner: endWorld, strokeColor }
+      : { kind: "grid", strokeColor };
   }
 
   if (mode === "addRect") {
     return hasDrag
-      ? { kind: "rectangle", corner: endWorld }
-      : { kind: "rectangle" };
+      ? { kind: "rectangle", corner: endWorld, strokeColor, fillColor }
+      : { kind: "rectangle", strokeColor, fillColor };
   }
 
   if (mode === "addEllipse") {
     return hasDrag
-      ? { kind: "ellipse", corner: endWorld }
-      : { kind: "ellipse" };
+      ? { kind: "ellipse", corner: endWorld, strokeColor, fillColor }
+      : { kind: "ellipse", strokeColor, fillColor };
   }
 
   if (mode === "addShape") {
@@ -125,18 +132,22 @@ export function createTemplateForToolDrag(
           shape: options?.selectedAddShape ?? "rectangle",
           text: "",
           minimumWidthPt: draft.minimumWidthPt,
-          minimumHeightPt: draft.minimumHeightPt
+          minimumHeightPt: draft.minimumHeightPt,
+          strokeColor,
+          fillColor
         }
       : {
           kind: "node",
           shape: options?.selectedAddShape ?? "rectangle",
-          text: ""
+          text: "",
+          strokeColor,
+          fillColor
         };
   }
 
   return hasDrag
-    ? { kind: "circle", edge: endWorld }
-    : { kind: "circle" };
+    ? { kind: "circle", edge: endWorld, strokeColor, fillColor }
+    : { kind: "circle", strokeColor, fillColor };
 }
 
 export function resolveBezierControlsFromBend(
@@ -186,7 +197,7 @@ export function createBezierTemplateFromBend(
   startWorld: Point,
   endWorld: Point,
   bendWorld: Point
-): ElementTemplate {
+): Extract<ElementTemplate, { kind: "bezier" }> {
   const controls = resolveBezierControlsFromBend(startWorld, endWorld, bendWorld);
   return {
     kind: "bezier",

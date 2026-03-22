@@ -151,6 +151,15 @@ import { useInspectorModel } from "./inspector-panel/useInspectorModel";
 import { useInspectorPreviewScrub } from "./inspector-panel/useInspectorPreviewScrub";
 import { useInspectorMutations, type ApplySetPropertyOptions } from "./inspector-panel/useInspectorMutations";
 import { SidePanel } from "./SidePanel";
+import {
+  getToolLabel,
+  isCreationToolMode,
+  TOOL_HINTS,
+  toolSupportsFill,
+  toolSupportsStroke
+} from "./tool-config";
+import { BASIC_PICKER_COLORS } from "../color-palette";
+import { useProjectNamedColorSwatches } from "../project-named-colors";
 import css from "./InspectorPanel.module.css";
 
 type NumberChangeOptions = {
@@ -170,6 +179,12 @@ type NumberLabelScrubBinding = {
 export function InspectorPanel() {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const toolMode = useEditorStore((s) => s.toolMode);
+  const creationStrokeColor = useEditorStore((s) => s.creationStrokeColor);
+  const creationFillColor = useEditorStore((s) => s.creationFillColor);
+  const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
+  const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
+  const toolProjectNamedColorSwatches = useProjectNamedColorSwatches();
 
   const {
     source,
@@ -1183,6 +1198,97 @@ export function InspectorPanel() {
     );
   }
 
+  function renderToolOptionsPanel() {
+    const toolLabel = getToolLabel(toolMode);
+    const hint = TOOL_HINTS[toolMode];
+    const showStroke = toolSupportsStroke(toolMode);
+    const showFill = toolSupportsFill(toolMode);
+    const isFreehand = toolMode === "addFreehand";
+
+    return (
+      <>
+        <SidePanel.Header>{toolLabel} Tool</SidePanel.Header>
+        <SidePanel.Content className={css.content}>
+          <div className={css.elementInfo}>
+            {hint ? (
+              <div className={css.toolHint}>{hint}</div>
+            ) : null}
+
+            {showStroke || showFill ? (
+              <SidePanel.Section>
+                <SidePanel.SectionHeader>
+                  <span>Defaults</span>
+                </SidePanel.SectionHeader>
+                <SidePanel.SectionBody>
+                  {showStroke ? (
+                    <div className={css.property}>
+                      <label className={css.propertyLabel}>Stroke</label>
+                      <ColorPickerField
+                        ariaLabel="Creation stroke color"
+                        value={creationStrokeColor}
+                        syntaxValue={creationStrokeColor}
+                        options={BASIC_PICKER_COLORS}
+                        namedColorSwatches={toolProjectNamedColorSwatches}
+                        onChange={(nextValue) => {
+                          dispatch({ type: "SET_CREATION_STROKE_COLOR", value: nextValue });
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  {showFill ? (
+                    <div className={css.property}>
+                      <label className={css.propertyLabel}>Fill</label>
+                      <ColorPickerField
+                        ariaLabel="Creation fill color"
+                        value={creationFillColor === "none" ? "" : creationFillColor}
+                        syntaxValue={creationFillColor}
+                        options={BASIC_PICKER_COLORS}
+                        namedColorSwatches={toolProjectNamedColorSwatches}
+                        onChange={(nextValue) => {
+                          dispatch({ type: "SET_CREATION_FILL_COLOR", value: nextValue || "none" });
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                </SidePanel.SectionBody>
+              </SidePanel.Section>
+            ) : null}
+
+            {isFreehand ? (
+              <SidePanel.Section>
+                <SidePanel.SectionHeader>
+                  <span>Freehand</span>
+                </SidePanel.SectionHeader>
+                <SidePanel.SectionBody>
+                  <div className={css.property}>
+                    <label className={css.propertyLabel} htmlFor="inspector-freehand-smoothing">
+                      Smoothing
+                    </label>
+                    <div className={css.toolSliderRow}>
+                      <input
+                        id="inspector-freehand-smoothing"
+                        className={css.rangeInput}
+                        type="range"
+                        min={4}
+                        max={32}
+                        step={1}
+                        value={freehandSmoothingPx}
+                        onChange={(event) => {
+                          dispatch({ type: "SET_FREEHAND_SMOOTHING", value: Number(event.currentTarget.value) });
+                        }}
+                      />
+                      <span className={css.toolSliderValue}>{freehandSmoothingPx}px</span>
+                    </div>
+                  </div>
+                </SidePanel.SectionBody>
+              </SidePanel.Section>
+            ) : null}
+          </div>
+        </SidePanel.Content>
+      </>
+    );
+  }
+
   function renderMultiArrangeQuickActions() {
     const alignHorizontalActions = MULTI_ARRANGE_ACTIONS.filter(
       (action) =>
@@ -1240,7 +1346,9 @@ export function InspectorPanel() {
 
   return (
     <SidePanel className={css.panel}>
-      {selectedSourceIds.length === 0 ? (
+      {isCreationToolMode(toolMode) ? (
+        renderToolOptionsPanel()
+      ) : selectedSourceIds.length === 0 ? (
         renderGlobalTransformPanel()
       ) : selectedSourceIds.length === 1 ? (
         !renderedDescriptor ? (

@@ -25,6 +25,31 @@
   margin-bottom: 8px;
 }
 
+.toolHint {
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
+  padding: 6px 8px;
+  background: var(--bg-subtle);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.toolSliderRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.toolSliderValue {
+  font-size: calc(var(--app-ui-scale, 1) * 11px);
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  min-width: 32px;
+  text-align: right;
+}
+
 .sectionLevel {
   font-family: var(--font-mono);
   font-size: calc(var(--app-ui-scale, 1) * 9px);

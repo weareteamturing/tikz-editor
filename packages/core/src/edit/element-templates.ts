@@ -7,13 +7,13 @@ export type AnchorReference = {
 };
 
 export type ElementTemplate =
-  | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number }
-  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference }
-  | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point }
-  | { kind: "grid"; corner?: Point }
-  | { kind: "rectangle"; corner?: Point }
-  | { kind: "ellipse"; corner?: Point }
-  | { kind: "circle"; edge?: Point }
+  | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number; strokeColor?: string; fillColor?: string }
+  | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference; strokeColor?: string }
+  | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point; strokeColor?: string }
+  | { kind: "grid"; corner?: Point; strokeColor?: string }
+  | { kind: "rectangle"; corner?: Point; strokeColor?: string; fillColor?: string }
+  | { kind: "ellipse"; corner?: Point; strokeColor?: string; fillColor?: string }
+  | { kind: "circle"; edge?: Point; strokeColor?: string; fillColor?: string }
   | { kind: "filledCircle"; edge?: Point };
 
 export type ComplexPathSegment =
@@ -58,15 +58,15 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
       const fromCoord = formatLineEndpoint(template.fromAnchor, atCoord);
       const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
       const toCoord = formatLineEndpoint(template.toAnchor, formatPointCm(to));
-      return template.hasArrow
-        ? `\\draw[->] ${fromCoord} -- ${toCoord};`
-        : `\\draw ${fromCoord} -- ${toCoord};`;
+      const lineOptions = buildDrawOptions(template.strokeColor, undefined, template.hasArrow ?? false);
+      return `\\draw${lineOptions} ${fromCoord} -- ${toCoord};`;
     }
 
     case "bezier": {
       const to = template.to ?? { x: at.x + DEFAULT_LINE_LENGTH_PT, y: at.y };
       const controls = resolveBezierControls(at, to, template.control1, template.control2);
-      return `\\draw ${atCoord} .. controls ${formatPointCm(controls.control1)} and ${formatPointCm(controls.control2)} .. ${formatPointCm(to)};`;
+      const bezierOptions = buildDrawOptions(template.strokeColor, undefined, false);
+      return `\\draw${bezierOptions} ${atCoord} .. controls ${formatPointCm(controls.control1)} and ${formatPointCm(controls.control2)} .. ${formatPointCm(to)};`;
     }
 
     case "grid": {
@@ -74,7 +74,8 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
         x: at.x + DEFAULT_RECT_WIDTH_PT,
         y: at.y + DEFAULT_RECT_HEIGHT_PT
       };
-      return `\\draw ${atCoord} grid ${formatPointCm(corner)};`;
+      const gridOptions = buildDrawOptions(template.strokeColor, undefined, false);
+      return `\\draw${gridOptions} ${atCoord} grid ${formatPointCm(corner)};`;
     }
 
     case "rectangle": {
@@ -82,19 +83,22 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
         x: at.x + DEFAULT_RECT_WIDTH_PT,
         y: at.y + DEFAULT_RECT_HEIGHT_PT
       };
-      return `\\draw ${atCoord} rectangle ${formatPointCm(corner)};`;
+      const rectOptions = buildDrawOptions(template.strokeColor, template.fillColor, false);
+      return `\\draw${rectOptions} ${atCoord} rectangle ${formatPointCm(corner)};`;
     }
 
     case "ellipse": {
       const { center, xRadiusPt, yRadiusPt } = ellipseFromCorner(at, template.corner);
       const xRadiusCm = formatNumber(xRadiusPt * CM_PER_PT);
       const yRadiusCm = formatNumber(yRadiusPt * CM_PER_PT);
-      return `\\draw ${formatPointCm(center)} ellipse [x radius=${xRadiusCm}cm, y radius=${yRadiusCm}cm];`;
+      const ellipseOptions = buildDrawOptions(template.strokeColor, template.fillColor, false);
+      return `\\draw${ellipseOptions} ${formatPointCm(center)} ellipse [x radius=${xRadiusCm}cm, y radius=${yRadiusCm}cm];`;
     }
 
     case "circle": {
       const radiusPt = circleRadiusPt(at, template.edge);
-      return `\\draw ${atCoord} circle (${formatNumber(radiusPt * CM_PER_PT)}cm);`;
+      const circleOptions = buildDrawOptions(template.strokeColor, template.fillColor, false);
+      return `\\draw${circleOptions} ${atCoord} circle (${formatNumber(radiusPt * CM_PER_PT)}cm);`;
     }
 
     case "filledCircle": {
@@ -359,4 +363,26 @@ function resolveBezierControls(
     control1: control1 ?? baseControl1,
     control2: control2 ?? baseControl2
   };
+}
+
+function buildDrawOptions(
+  strokeColor: string | undefined,
+  fillColor: string | undefined,
+  hasArrow: boolean
+): string {
+  const parts: string[] = [];
+
+  if (hasArrow) {
+    parts.push("->");
+  }
+
+  if (strokeColor && strokeColor !== "black") {
+    parts.push(`draw=${strokeColor}`);
+  }
+
+  if (fillColor && fillColor !== "none") {
+    parts.push(`fill=${fillColor}`);
+  }
+
+  return parts.length > 0 ? `[${parts.join(", ")}]` : "";
 }

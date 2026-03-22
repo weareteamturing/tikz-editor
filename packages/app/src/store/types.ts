@@ -127,6 +127,8 @@ export type WorkspaceEphemeralState = {
   freehandSmoothingPx: number;
   bucketFillColor: string;
   selectedAddShape: Exclude<NodeShapePresetId, "custom">;
+  creationStrokeColor: string;
+  creationFillColor: string;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
@@ -197,6 +199,8 @@ export type EditorState = {
   freehandSmoothingPx: number;
   bucketFillColor: string;
   selectedAddShape: Exclude<NodeShapePresetId, "custom">;
+  creationStrokeColor: string;
+  creationFillColor: string;
   /** Monotonic token used to request a fit-to-content operation from CanvasPanel. */
   fitToContentRequestToken: number;
   /** Monotonic token used to request zoom operations from CanvasPanel. */
@@ -281,6 +285,8 @@ export type EditorAction =
   | { type: "SET_FREEHAND_SMOOTHING"; value: number }
   | { type: "SET_BUCKET_FILL_COLOR"; value: string }
   | { type: "SET_ADD_SHAPE_PRESET"; value: Exclude<NodeShapePresetId, "custom"> }
+  | { type: "SET_CREATION_STROKE_COLOR"; value: string }
+  | { type: "SET_CREATION_FILL_COLOR"; value: string }
   | { type: "SET_ACTIVE_SOURCE_SCRUB"; sourceId: string | null }
   | { type: "TOGGLE_CANVAS_AID"; aid: CanvasAid }
   | { type: "TOGGLE_SNAP_MODE"; mode: SnapMode }
