@@ -99,7 +99,7 @@ export function expandForeachFigure(
   };
 
   const expandedBody = expandStatements(figure.body, [], {}, context, undefined);
-  reindexStatements(expandedBody);
+  reindexStatements(expandedBody, context.statementAttribution);
 
   return {
     figureBody: expandedBody,
@@ -888,80 +888,161 @@ function skipBracketGroup(source: string, start: number): number {
   return cursor;
 }
 
-function reindexStatements(statements: Statement[]): void {
-  const state = { nextStatementIndex: 0 };
-  reindexStatementsInPlace(statements, state);
+function reindexStatements(
+  statements: Statement[],
+  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>
+): void {
+  const state = { nextStatementIndex: findNextStatementIndexSeed(statements) };
+  reindexStatementsInPlace(statements, state, attributionByStatement);
 }
 
-function reindexStatementsInPlace(statements: Statement[], state: { nextStatementIndex: number }): void {
+function reindexStatementsInPlace(
+  statements: Statement[],
+  state: { nextStatementIndex: number },
+  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>
+): void {
   for (const statement of statements) {
-    const statementIndex = state.nextStatementIndex;
-    state.nextStatementIndex += 1;
+    const preserveExistingId = shouldPreserveStatementId(statement, attributionByStatement);
+    const statementIndex = preserveExistingId ? parseStatementIndex(statement.id) ?? state.nextStatementIndex : state.nextStatementIndex;
+    if (!preserveExistingId) {
+      state.nextStatementIndex += 1;
+    }
 
     if (statement.kind === "Path") {
-      statement.id = pathStatementId(statementIndex);
-      reindexPathItems(statement, statementIndex);
+      if (!preserveExistingId) {
+        statement.id = pathStatementId(statementIndex);
+        reindexPathItems(statement, statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "Scope") {
-      statement.id = scopeStatementId(statementIndex);
-      reindexStatementsInPlace(statement.body, state);
+      if (!preserveExistingId) {
+        statement.id = scopeStatementId(statementIndex);
+      }
+      reindexStatementsInPlace(statement.body, state, attributionByStatement);
       continue;
     }
 
     if (statement.kind === "Foreach") {
-      statement.id = foreachStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = foreachStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "MacroDefinition") {
-      statement.id = macroDefinitionStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = macroDefinitionStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "MacroAlias") {
-      statement.id = macroAliasStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = macroAliasStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "MacroCommandDefinition") {
-      statement.id = macroCommandDefinitionStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = macroCommandDefinitionStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "TikzSet") {
-      statement.id = tikzSetStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = tikzSetStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "TikzStyle") {
-      statement.id = tikzStyleStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = tikzStyleStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "Pgfkeys") {
-      statement.id = pgfkeysStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = pgfkeysStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "TikzLibrary") {
-      statement.id = tikzLibraryStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = tikzLibraryStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "Colorlet") {
-      statement.id = colorletStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = colorletStatementId(statementIndex);
+      }
       continue;
     }
 
     if (statement.kind === "DefineColor") {
-      statement.id = defineColorStatementId(statementIndex);
+      if (!preserveExistingId) {
+        statement.id = defineColorStatementId(statementIndex);
+      }
       continue;
     }
 
-    statement.id = unknownStatementId(statementIndex);
+    if (!preserveExistingId) {
+      statement.id = unknownStatementId(statementIndex);
+    }
   }
+}
+
+function findNextStatementIndexSeed(statements: Statement[]): number {
+  let maxIndex = -1;
+  const visit = (statement: Statement): void => {
+    const parsed = parseStatementIndex(statement.id);
+    if (parsed != null && parsed > maxIndex) {
+      maxIndex = parsed;
+    }
+    if (statement.kind === "Scope") {
+      for (const nested of statement.body) {
+        visit(nested);
+      }
+    }
+  };
+  for (const statement of statements) {
+    visit(statement);
+  }
+  return maxIndex + 1;
+}
+
+function parseStatementIndex(statementId: string): number | null {
+  const match = /:(\d+)$/.exec(statementId.trim());
+  if (!match?.[1]) {
+    return null;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function shouldPreserveStatementId(
+  statement: Statement,
+  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>
+): boolean {
+  const attribution = attributionByStatement.get(statement);
+  if (!attribution) {
+    return false;
+  }
+  if (attribution.foreachStack.length > 0) {
+    return false;
+  }
+  if (attribution.sourceId !== statement.id) {
+    return false;
+  }
+  return attribution.sourceSpan.from === statement.span.from && attribution.sourceSpan.to === statement.span.to;
 }
 
 function reindexPathItems(statement: PathStatement, statementIndex: number): void {

@@ -4,6 +4,7 @@ import { parseTikz } from "../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../packages/core/src/semantic/evaluate.js";
 import { parseLength } from "../packages/core/src/semantic/coords/parse-length.js";
 import { collectContextDefinitions } from "../packages/core/src/transform/cst-to-ast.js";
+import { resolvePropertyTarget } from "../packages/core/src/edit/property-target.js";
 
 describe("context definitions", () => {
   it("resolves macro scope across grouped figure environments", () => {
@@ -132,5 +133,35 @@ describe("context definitions", () => {
     expect(definitions.some((statement) => statement.kind === "TikzSet")).toBe(true);
     expect(definitions.some((statement) => statement.kind === "Pgfkeys")).toBe(true);
     expect(definitions.some((statement) => statement.kind === "TikzLibrary")).toBe(true);
+  });
+
+  it("keeps editable source ids aligned after context-definition reindexing", () => {
+    const source = String.raw`\def\foo{bar}
+\newcommand{\baz}{qux}
+\begin{tikzpicture}
+  \node (A) {A};
+\end{tikzpicture}`;
+
+    const inventory = parseTikz(source, { recover: true });
+    const activeFigureId = inventory.figures[0]?.id;
+    expect(activeFigureId).toBeDefined();
+    if (!activeFigureId) {
+      return;
+    }
+
+    const parsed = parseTikz(source, {
+      recover: true,
+      activeFigureId,
+      includeContextDefinitions: true
+    });
+    const evaluated = evaluateTikzFigure(parsed.figure, source);
+    const text = evaluated.scene.elements.find((element) => element.kind === "Text");
+    expect(text?.kind).toBe("Text");
+    if (!text || text.kind !== "Text") {
+      return;
+    }
+
+    const resolved = resolvePropertyTarget(source, text.sourceRef.sourceId, { activeFigureId });
+    expect(resolved.kind).toBe("found");
   });
 });
