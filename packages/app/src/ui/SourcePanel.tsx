@@ -1035,7 +1035,16 @@ export function SourcePanel() {
               <div
                 key={i}
                 className={`${css.diagnostic} ${d.severity === "error" ? css.error : css.warning}`}
-                onClick={() => {
+                onClick={(e) => {
+                  // Don't navigate if user is selecting text within this row
+                  const selection = window.getSelection();
+                  if (
+                    selection &&
+                    selection.toString().trim() &&
+                    e.currentTarget.contains(selection.anchorNode)
+                  ) {
+                    return;
+                  }
                   const view = viewRef.current;
                   if (!view) return;
                   const pos = Math.min(d.from, view.state.doc.length);
@@ -1047,7 +1056,7 @@ export function SourcePanel() {
                   view.focus();
                 }}
               >
-                <span className={css.diagnosticIcon}>{d.severity === "error" ? "\u2715" : "\u26A0"}</span>
+                <span className={css.diagnosticIcon}>{d.severity === "error" ? "\u2298" : "\u26A0"}</span>
                 <span className={css.diagnosticMessage}>{d.message}</span>
                 {line != null && <span className={css.diagnosticLocation}>Ln {line}</span>}
               </div>

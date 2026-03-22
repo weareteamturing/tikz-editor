@@ -715,14 +715,6 @@ export function App() {
 
   useEffect(() => {
     const unbind = getActiveEditorPlatform().menu?.bindCommandHandler?.((commandId) => {
-      if (
-        (commandId === APP_MENU_COMMAND_IDS.COPY ||
-          commandId === APP_MENU_COMMAND_IDS.CUT ||
-          commandId === APP_MENU_COMMAND_IDS.PASTE) &&
-        !isCanvasViewportFocused()
-      ) {
-        return;
-      }
       commandRuntime.runCommand(commandId, "platform");
     });
     return typeof unbind === "function" ? unbind : undefined;
@@ -966,26 +958,46 @@ export function App() {
         }
 
         if (!e.shiftKey && key === "c") {
-          if (!canvasShortcutContext || hasTextSelection) {
+          // If canvas is focused, let the native copy event fire there.
+          if (canvasShortcutContext) {
             return;
           }
-          // Allow native copy event on the focused canvas viewport.
+          // If there's a text selection anywhere, let native copy work for it.
+          if (hasTextSelection) {
+            return;
+          }
+          // Otherwise, if canvas elements are selected, copy them directly.
+          if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.COPY, "shortcut")) {
+            e.preventDefault();
+          }
           return;
         }
 
         if (!e.shiftKey && key === "x") {
-          if (!canvasShortcutContext || hasTextSelection) {
+          // If canvas is focused, let the native cut event fire there.
+          if (canvasShortcutContext) {
             return;
           }
-          // Allow native cut event on the focused canvas viewport.
+          // If there's a text selection anywhere, let native cut work for it.
+          if (hasTextSelection) {
+            return;
+          }
+          // Otherwise, if canvas elements are selected, cut them directly.
+          if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.CUT, "shortcut")) {
+            e.preventDefault();
+          }
           return;
         }
 
         if (!e.shiftKey && key === "v") {
-          if (!canvasShortcutContext) {
+          // If canvas is focused, let the native paste event fire there (supports DataTransfer).
+          if (canvasShortcutContext) {
             return;
           }
-          // Allow the native paste event to fire on the canvas viewport; CanvasPanel handles parsing.
+          // Otherwise, paste directly via async clipboard API.
+          if (commandRuntime.runCommand(APP_MENU_COMMAND_IDS.PASTE, "shortcut")) {
+            e.preventDefault();
+          }
           return;
         }
 

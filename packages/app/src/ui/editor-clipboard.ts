@@ -3,7 +3,6 @@ import { serializeSvgModel, serializeSvgModelAsync } from "tikz-editor/svg/index
 
 // Chromium custom clipboard formats require the "web " prefix.
 export const TIKZ_CLIPBOARD_MIME = "web application/x-tikz-editor+json";
-export const TIKZ_CLIPBOARD_MIME_LEGACY = "application/x-tikz-editor+json";
 export const PLAIN_TEXT_CLIPBOARD_MIME = "text/plain";
 export const SVG_CLIPBOARD_MIME = "image/svg+xml";
 
@@ -131,12 +130,8 @@ export function readClipboardPayloadFromDataTransfer(
     return { kind: "failure", reason: "empty" };
   }
 
-  const customMimeTypes = [TIKZ_CLIPBOARD_MIME, TIKZ_CLIPBOARD_MIME_LEGACY];
-  for (const mimeType of customMimeTypes) {
-    const customRaw = dataTransfer.getData(mimeType);
-    if (!customRaw) {
-      continue;
-    }
+  const customRaw = dataTransfer.getData(TIKZ_CLIPBOARD_MIME);
+  if (customRaw) {
     const customPayload = parseClipboardPayloadJson(customRaw);
     if (customPayload) {
       return { kind: "success", payload: customPayload };
@@ -165,11 +160,9 @@ export async function readClipboardPayloadFromSystemClipboard(): Promise<
   if (typeof navigator.clipboard.read === "function") {
     try {
       const items = await navigator.clipboard.read();
-      const customMimeTypes = [TIKZ_CLIPBOARD_MIME, TIKZ_CLIPBOARD_MIME_LEGACY];
       for (const item of items) {
-        const customMimeType = customMimeTypes.find((mimeType) => item.types.includes(mimeType));
-        if (customMimeType) {
-          const blob = await item.getType(customMimeType);
+        if (item.types.includes(TIKZ_CLIPBOARD_MIME)) {
+          const blob = await item.getType(TIKZ_CLIPBOARD_MIME);
           const raw = await blob.text();
           const payload = parseClipboardPayloadJson(raw);
           if (payload) {
@@ -261,7 +254,6 @@ export function writePayloadToDataTransfer(
   try {
     const customText = JSON.stringify(payload);
     dataTransfer.setData(TIKZ_CLIPBOARD_MIME, customText);
-    dataTransfer.setData(TIKZ_CLIPBOARD_MIME_LEGACY, customText);
     dataTransfer.setData(PLAIN_TEXT_CLIPBOARD_MIME, payload.plainText);
     if (typeof options.svgText === "string" && options.svgText.trim().length > 0) {
       dataTransfer.setData(SVG_CLIPBOARD_MIME, options.svgText);
