@@ -196,6 +196,9 @@ export type AssistantEvent =
   | { type: "approval-requested"; documentId: string; approval: AssistantPendingApproval }
   | { type: "approval-cleared"; documentId: string; requestId: string }
   | { type: "source-updated"; documentId: string; source: string; revisionToken: string }
+  | { type: "account-updated"; authMode: string | null }
+  | { type: "login-completed"; loginId: string | null; success: boolean; error?: string | null }
+  | { type: "rate-limits-updated"; rateLimits: unknown }
   | { type: "dynamic-tool-call"; documentId: string; requestId: string; itemId?: string; tool: string; arguments?: unknown }
   | { type: "error"; documentId?: string; message: string };
 
@@ -236,8 +239,14 @@ export type AssistantApi = {
   respondToApproval?: (params: { documentId: string; requestId: string; decision: "accept" | "acceptForSession" | "decline" | "cancel" | string }) => Promise<void>;
   respondToDynamicToolCall?: (params: { documentId: string; requestId: string; result: AssistantDynamicToolResult }) => Promise<void>;
   loadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  warmUp?: () => Promise<void>;
   listModels?: () => Promise<AssistantModelOption[]>;
   readAccountSnapshot?: () => Promise<AssistantAccountSnapshot | null>;
+  readAccount?: () => Promise<unknown>;
+  readRateLimits?: () => Promise<unknown>;
+  loginStart?: (params: { loginType: string; apiKey?: string }) => Promise<unknown>;
+  loginCancel?: (params: { loginId: string }) => Promise<void>;
+  logout?: () => Promise<void>;
   bindEvents?: (handler: (event: AssistantEvent) => void) => (() => void) | void;
 };
 

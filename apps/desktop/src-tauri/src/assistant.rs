@@ -817,6 +817,10 @@ impl AssistantState {
         Ok(turn_id)
     }
 
+    pub fn warm_up(&self) -> Result<(), String> {
+        self.ensure_process()
+    }
+
     pub fn list_models(&self) -> Result<Vec<AssistantModelOption>, String> {
         let result = self.request(
             "model/list",
@@ -854,6 +858,45 @@ impl AssistantState {
             account,
             rate_limits,
         })
+    }
+
+    pub fn read_account(&self) -> Result<Value, String> {
+        self.ensure_process()?;
+        Ok(self
+            .request("account/read", json!({ "refreshToken": false }))
+            .unwrap_or(Value::Null))
+    }
+
+    pub fn read_rate_limits(&self) -> Result<Value, String> {
+        self.ensure_process()?;
+        Ok(self
+            .request("account/rateLimits/read", json!({}))
+            .unwrap_or(Value::Null))
+    }
+
+    pub fn login_start(&self, login_type: &str, api_key: Option<&str>) -> Result<Value, String> {
+        self.ensure_process()?;
+        let params = if login_type == "apiKey" {
+            json!({
+                "type": "apiKey",
+                "apiKey": api_key.unwrap_or("")
+            })
+        } else {
+            json!({ "type": login_type })
+        };
+        self.request("account/login/start", params)
+    }
+
+    pub fn login_cancel(&self, login_id: &str) -> Result<(), String> {
+        self.ensure_process()?;
+        let _ = self.request("account/login/cancel", json!({ "loginId": login_id }))?;
+        Ok(())
+    }
+
+    pub fn logout(&self) -> Result<(), String> {
+        self.ensure_process()?;
+        let _ = self.request("account/logout", json!({}))?;
+        Ok(())
     }
 
     pub fn interrupt_turn(&self, document_id: String) -> Result<(), String> {
@@ -1342,6 +1385,24 @@ impl AssistantState {
                         .and_then(Value::as_str)
                         .unwrap_or("Codex App Server error.")
                     }),
+                });
+            }
+            "account/updated" => {
+                let _ = self.emit_event(AssistantEventPayload {
+                    kind: "account-updated".to_string(),
+                    data: params,
+                });
+            }
+            "account/login/completed" => {
+                let _ = self.emit_event(AssistantEventPayload {
+                    kind: "login-completed".to_string(),
+                    data: params,
+                });
+            }
+            "account/rateLimits/updated" => {
+                let _ = self.emit_event(AssistantEventPayload {
+                    kind: "rate-limits-updated".to_string(),
+                    data: params,
                 });
             }
             _ => {}

@@ -121,8 +121,14 @@ type DesktopBridge = {
     result: AssistantDynamicToolResult;
   }) => Promise<void>;
   assistantLoadThreadState?: (params: { documentId: string }) => Promise<AssistantThreadState | null>;
+  assistantWarmUp?: () => Promise<void>;
   assistantListModels?: () => Promise<AssistantModelOption[]>;
   assistantReadAccountSnapshot?: () => Promise<AssistantAccountSnapshot | null>;
+  assistantReadAccount?: () => Promise<unknown>;
+  assistantReadRateLimits?: () => Promise<unknown>;
+  assistantLoginStart?: (params: { loginType: string; apiKey?: string }) => Promise<unknown>;
+  assistantLoginCancel?: (params: { loginId: string }) => Promise<void>;
+  assistantLogout?: () => Promise<void>;
   onAssistantEvent?: (handler: (event: AssistantEvent) => void) => Promise<() => void>;
 };
 
@@ -722,6 +728,10 @@ function createDefaultBridge(): DesktopBridge {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantThreadState | null>("desktop_assistant_load_thread_state", { documentId });
     },
+    assistantWarmUp: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_warm_up");
+    },
     assistantListModels: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantModelOption[]>("desktop_assistant_list_models");
@@ -729,6 +739,26 @@ function createDefaultBridge(): DesktopBridge {
     assistantReadAccountSnapshot: async () => {
       const { invoke } = await import("@tauri-apps/api/core");
       return await invoke<AssistantAccountSnapshot | null>("desktop_assistant_read_account_snapshot");
+    },
+    assistantReadAccount: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<unknown>("desktop_assistant_read_account");
+    },
+    assistantReadRateLimits: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<unknown>("desktop_assistant_read_rate_limits");
+    },
+    assistantLoginStart: async ({ loginType, apiKey }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<unknown>("desktop_assistant_login_start", { loginType, apiKey });
+    },
+    assistantLoginCancel: async ({ loginId }) => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_login_cancel", { loginId });
+    },
+    assistantLogout: async () => {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("desktop_assistant_logout");
     },
     onAssistantEvent: async (handler) => {
       const { listen } = await import("@tauri-apps/api/event");
@@ -1073,8 +1103,14 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
         await getBridge().assistantRespondToDynamicToolCall?.(params);
       },
       loadThreadState: async (params) => await getBridge().assistantLoadThreadState?.(params) ?? null,
+      warmUp: async () => { await getBridge().assistantWarmUp?.(); },
       listModels: async () => await getBridge().assistantListModels?.() ?? [],
       readAccountSnapshot: async () => await getBridge().assistantReadAccountSnapshot?.() ?? null,
+      readAccount: async () => await getBridge().assistantReadAccount?.() ?? null,
+      readRateLimits: async () => await getBridge().assistantReadRateLimits?.() ?? null,
+      loginStart: async (params) => await getBridge().assistantLoginStart?.(params) ?? null,
+      loginCancel: async (params) => { await getBridge().assistantLoginCancel?.(params); },
+      logout: async () => { await getBridge().assistantLogout?.(); },
       bindEvents: (handler) => {
         let disposed = false;
         let unlisten: (() => void) | null = null;

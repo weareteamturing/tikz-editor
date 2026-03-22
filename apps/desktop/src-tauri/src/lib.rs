@@ -1480,6 +1480,13 @@ fn desktop_assistant_load_thread_state(
 }
 
 #[tauri::command]
+fn desktop_assistant_warm_up(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+    assistant.warm_up()
+}
+
+#[tauri::command]
 fn desktop_assistant_list_models(
     assistant: tauri::State<'_, AssistantState>,
 ) -> Result<Vec<AssistantModelOption>, String> {
@@ -1491,6 +1498,46 @@ fn desktop_assistant_read_account_snapshot(
     assistant: tauri::State<'_, AssistantState>,
 ) -> Result<AssistantAccountSnapshot, String> {
     assistant.read_account_snapshot()
+}
+
+#[tauri::command]
+fn desktop_assistant_read_account(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<serde_json::Value, String> {
+    assistant.read_account()
+}
+
+#[tauri::command]
+fn desktop_assistant_read_rate_limits(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<serde_json::Value, String> {
+    assistant.read_rate_limits()
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_login_start(
+    loginType: String,
+    apiKey: Option<String>,
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<serde_json::Value, String> {
+    assistant.login_start(&loginType, apiKey.as_deref())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+fn desktop_assistant_login_cancel(
+    loginId: String,
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+    assistant.login_cancel(&loginId)
+}
+
+#[tauri::command]
+fn desktop_assistant_logout(
+    assistant: tauri::State<'_, AssistantState>,
+) -> Result<(), String> {
+    assistant.logout()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1573,8 +1620,14 @@ pub fn run() {
             desktop_assistant_respond_to_approval,
             desktop_assistant_respond_to_dynamic_tool_call,
             desktop_assistant_load_thread_state,
+            desktop_assistant_warm_up,
             desktop_assistant_list_models,
-            desktop_assistant_read_account_snapshot
+            desktop_assistant_read_account_snapshot,
+            desktop_assistant_read_account,
+            desktop_assistant_read_rate_limits,
+            desktop_assistant_login_start,
+            desktop_assistant_login_cancel,
+            desktop_assistant_logout
         ])
         .setup(|app| {
             let handle = app.handle().clone();

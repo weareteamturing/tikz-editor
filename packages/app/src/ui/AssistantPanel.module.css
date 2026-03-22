@@ -305,6 +305,68 @@
   color: var(--text-faint);
 }
 
+.authButton {
+  display: block;
+  margin-top: 6px;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: var(--bg-input);
+  padding: 3px 8px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.authButton:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.authButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.authRequired {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.authRequiredContent {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-faint);
+}
+
+.authRequiredContent p {
+  margin: 0 0 12px;
+}
+
+.authButtonLarge {
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-input);
+  padding: 8px 16px;
+  font-size: calc(var(--app-ui-scale, 1) * 12px);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.authButtonLarge:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.authButtonLarge:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.authHint {
+  margin-top: 12px;
+  font-size: calc(var(--app-ui-scale, 1) * 10px);
+  color: var(--text-faint);
+}
+
 .dropdownLoading {
   display: flex;
   align-items: center;

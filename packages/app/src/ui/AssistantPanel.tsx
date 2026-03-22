@@ -50,6 +50,9 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   const [installError, setInstallError] = useState<string | null>(null);
   const [installOutput, setInstallOutput] = useState<string | null>(null);
   const [codexStatusError, setCodexStatusError] = useState<string | null>(null);
+  const [pendingLoginId, setPendingLoginId] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const nextAttachmentIdRef = useRef(0);
   const pendingImageAttachmentsRef = useRef<AssistantComposerImageAttachment[]>([]);
   const timelineRef = useRef<HTMLDivElement | null>(null);
@@ -69,9 +72,20 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
   ), [modelOptions]);
   const accountMeta = useMemo(() => summarizeAccountMeta(accountSnapshot), [accountSnapshot]);
   const rateMeta = useMemo(() => summarizeRateMeta(accountSnapshot), [accountSnapshot]);
+  const authState = useMemo(() => {
+    const accountResult = asRecord(accountSnapshot?.account);
+    const account = asRecord(accountResult?.account);
+    const requiresAuth = accountResult?.requiresOpenaiAuth;
+    const hasAccount = account?.email || account?.name || account?.type;
+    return {
+      requiresAuth: requiresAuth === true,
+      isLoggedIn: Boolean(hasAccount),
+      accountType: typeof account?.type === "string" ? account.type : null
+    };
+  }, [accountSnapshot]);
   const dropdownMetaLines = useMemo(() => {
-    return [accountMeta, rateMeta, metaError].filter((line): line is string => Boolean(line && line.trim()));
-  }, [accountMeta, metaError, rateMeta]);
+    return [accountMeta, rateMeta, metaError, loginError].filter((line): line is string => Boolean(line && line.trim()));
+  }, [accountMeta, metaError, rateMeta, loginError]);
 
   useEffect(() => {
     if (!metaRequested) {
@@ -81,25 +95,31 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     async function loadAssistantMeta(): Promise<void> {
       setMetaLoading(true);
       try {
+        // First, fetch models and account info (fast)
         const [models, account] = await Promise.all([
           assistantApi?.listModels?.() ?? Promise.resolve([]),
-          assistantApi?.readAccountSnapshot?.() ?? Promise.resolve(null)
+          assistantApi?.readAccount?.() ?? Promise.resolve(null)
         ]);
         if (disposed) {
           return;
         }
         setModelOptions(models);
-        setAccountSnapshot(account);
+        setAccountSnapshot({ account, rateLimits: null });
         setMetaError(null);
+        setMetaLoading(false);
+
+        // Then, fetch rate limits in the background (slow)
+        const rateLimits = await (assistantApi?.readRateLimits?.() ?? Promise.resolve(null));
+        if (disposed) {
+          return;
+        }
+        setAccountSnapshot((prev) => ({ ...prev, account: prev?.account ?? null, rateLimits }));
       } catch (error) {
         if (disposed) {
           return;
         }
         setMetaError(error instanceof Error ? error.message : String(error));
-      } finally {
-        if (!disposed) {
-          setMetaLoading(false);
-        }
+        setMetaLoading(false);
       }
     }
     void loadAssistantMeta();
@@ -151,6 +171,52 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
     });
     return () => { disposed = true; };
   }, [assistantAvailable, assistantApi]);
+
+  // Pre-warm the codex process and fetch account info once we know it's installed
+  useEffect(() => {
+    if (!codexStatusChecked || !codexStatus?.installed || !assistantApi?.warmUp) {
+      return;
+    }
+    let disposed = false;
+    void (async () => {
+      try {
+        await assistantApi.warmUp?.();
+        if (disposed) return;
+        const account = await assistantApi.readAccount?.();
+        if (disposed) return;
+        setAccountSnapshot((prev) => ({ ...prev, account, rateLimits: prev?.rateLimits ?? null }));
+      } catch {
+        // Ignore warmup/account errors - will be handled when user interacts
+      }
+    })();
+    return () => { disposed = true; };
+  }, [codexStatusChecked, codexStatus?.installed, assistantApi]);
+
+  // Listen for account and rate limit updates
+  useEffect(() => {
+    if (!assistantApi?.bindEvents) {
+      return;
+    }
+    return assistantApi.bindEvents((event) => {
+      if (event.type === "account-updated") {
+        // Re-fetch account info when auth state changes
+        void assistantApi.readAccount?.().then((account) => {
+          setAccountSnapshot((prev) => ({ ...prev, account, rateLimits: prev?.rateLimits ?? null }));
+        });
+      } else if (event.type === "login-completed") {
+        setPendingLoginId(null);
+        if (!event.success && event.error) {
+          setLoginError(event.error);
+        }
+      } else if (event.type === "rate-limits-updated") {
+        setAccountSnapshot((prev) => ({
+          ...prev,
+          account: prev?.account ?? null,
+          rateLimits: event.rateLimits
+        }));
+      }
+    });
+  }, [assistantApi]);
 
   if (!assistantAvailable) {
     return <div className={css.empty}>Codex assistant is only available in the desktop app.</div>;
@@ -257,6 +323,41 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
 
   const running = doc.assistantTurnStatus === "starting" || doc.assistantTurnStatus === "inProgress";
 
+  async function handleLogin(): Promise<void> {
+    if (pendingLoginId) {
+      return;
+    }
+    setLoginError(null);
+    try {
+      const result = await assistantApi?.loginStart?.({ loginType: "chatgpt" });
+      const resultRecord = asRecord(result);
+      if (resultRecord?.type === "chatgpt" && typeof resultRecord.authUrl === "string") {
+        setPendingLoginId(typeof resultRecord.loginId === "string" ? resultRecord.loginId : "pending");
+        // Open the auth URL in system browser
+        const openExternalUrl = getActiveEditorPlatform().window?.openExternalUrl;
+        if (typeof openExternalUrl === "function") {
+          void openExternalUrl(resultRecord.authUrl);
+        }
+      }
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function handleLogout(): Promise<void> {
+    if (loggingOut) {
+      return;
+    }
+    setLoggingOut(true);
+    try {
+      await assistantApi?.logout?.();
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
   async function submitPrompt(): Promise<void> {
     const nextPrompt = prompt.trim();
     if (!nextPrompt || submitting) {
@@ -291,6 +392,34 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
       requestId,
       decision
     });
+  }
+
+  // Show login prompt if auth is required but user is not logged in
+  if (authState.requiresAuth && !authState.isLoggedIn) {
+    return (
+      <SidePanel className={css.panel} data-testid="assistant-panel">
+        <SidePanel.Header className={css.header}>
+          <div className={css.title}>Assistant</div>
+        </SidePanel.Header>
+        <SidePanel.Content className={css.authRequired}>
+          <div className={css.authRequiredContent}>
+            <p>Sign in to use the assistant.</p>
+            <button
+              type="button"
+              className={css.authButtonLarge}
+              onClick={() => void handleLogin()}
+              disabled={pendingLoginId !== null}
+            >
+              {pendingLoginId ? "Waiting for browser..." : "Sign in with ChatGPT"}
+            </button>
+            {pendingLoginId ? (
+              <p className={css.authHint}>Complete sign-in in your browser, then return here.</p>
+            ) : null}
+            {loginError ? <p className={css.installError}>{loginError}</p> : null}
+          </div>
+        </SidePanel.Content>
+      </SidePanel>
+    );
   }
 
   return (
@@ -442,13 +571,32 @@ export function AssistantPanel({ onSubmitPrompt, onInterruptTurn }: AssistantPan
                     <div className={css.spinner} />
                     <span>Loading models...</span>
                   </div>
-                ) : dropdownMetaLines.length > 0 ? (
+                ) : (
                   <div className={css.dropdownMeta}>
                     {dropdownMetaLines.map((line, index) => (
                       <div key={`${index}:${line}`}>{line}</div>
                     ))}
+                    {authState.requiresAuth && !authState.isLoggedIn ? (
+                      <button
+                        type="button"
+                        className={css.authButton}
+                        onClick={(e) => { e.stopPropagation(); void handleLogin(); }}
+                        disabled={pendingLoginId !== null}
+                      >
+                        {pendingLoginId ? "Waiting for browser..." : "Sign in with ChatGPT"}
+                      </button>
+                    ) : authState.isLoggedIn ? (
+                      <button
+                        type="button"
+                        className={css.authButton}
+                        onClick={(e) => { e.stopPropagation(); void handleLogout(); }}
+                        disabled={loggingOut}
+                      >
+                        {loggingOut ? "Signing out..." : "Sign out"}
+                      </button>
+                    ) : null}
                   </div>
-                ) : null}
+                )}
                 triggerClassName={css.modelTrigger}
                 menuClassName={css.modelMenu}
                 optionClassName={css.modelOption}
