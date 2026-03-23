@@ -2,6 +2,10 @@ import type { Span, TikzFigure } from "../ast/types.js";
 import type { Diagnostic } from "../diagnostics/types.js";
 import {
   applyStatementEffectSummary,
+  listContextRequiredLibraries,
+  listContextSymbolDependencyEdges,
+  listContextUnresolvedSymbols,
+  requireContextLibrary,
   restoreSemanticContext,
   retargetEditHandlesSourceFingerprint,
   snapshotSemanticContext,
@@ -504,6 +508,10 @@ function assembleSelectiveSemanticResult(args: {
     elements,
     bounds: computeBounds(elements)
   };
+  for (const libraryName of scene.requiredTikzLibraries) {
+    requireContextLibrary(run.context, libraryName, null);
+  }
+  scene.requiredTikzLibraries = listContextRequiredLibraries(run.context);
 
   return {
     scene,
@@ -512,7 +520,9 @@ function assembleSelectiveSemanticResult(args: {
     editHandles,
     nodeAnchorTargets: collectNodeAnchorTargets(run.context),
     dependencies,
-    sourceStatementFirstIndexBySourceId: unmapSourceStatementFirstIndices(sourceStatementFirstIndexBySourceId)
+    sourceStatementFirstIndexBySourceId: unmapSourceStatementFirstIndices(sourceStatementFirstIndexBySourceId),
+    symbolDependencyEdges: listContextSymbolDependencyEdges(run.context),
+    unresolvedSymbols: listContextUnresolvedSymbols(run.context)
   };
 }
 

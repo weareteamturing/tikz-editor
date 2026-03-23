@@ -1,75 +1,43 @@
+import type { Statement } from "../ast/types.js";
+import { parseTikz } from "../parser/index.js";
+import { evaluateTikzFigure } from "../semantic/evaluate.js";
+
 export const STANDALONE_LATEX_EXPORT_MIME_TYPE = "application/x-tex;charset=utf-8";
 export const DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME = "tikz-export.tex";
+
+export type StandaloneExportDiagnostic = {
+  code: string;
+  message: string;
+  severity: "warning" | "error";
+  span?: { from: number; to: number };
+  symbolKind?: "macro" | "color" | "style" | "key" | "library";
+  symbolName?: string;
+};
 
 export type StandaloneLatexExportArtifact = {
   fileName: string;
   mimeType: "application/x-tex;charset=utf-8";
   text: string;
+  complete: boolean;
+  diagnostics: StandaloneExportDiagnostic[];
 };
 
 export type CreateStandaloneLatexExportArtifactOptions = {
   source: string;
-  requiredLibraries?: readonly string[];
+  activeFigureId: string | null;
   fileName?: string;
-};
-
-export type StandaloneLatexDocumentOptions = {
   documentClassOptions?: readonly string[];
 };
 
-function normalizeLibraryNames(libraries: readonly string[]): string[] {
+function normalizeDocumentClassOptions(options: readonly string[] = []): string[] {
   const unique = new Set<string>();
-  for (const library of libraries) {
-    const normalized = library.trim();
+  for (const option of options) {
+    const normalized = option.trim();
     if (normalized.length > 0) {
       unique.add(normalized);
     }
   }
-  return [...unique].sort((left, right) => left.localeCompare(right));
-}
-
-function extractLibrariesFromContent(content: string): string[] {
-  return content
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-}
-
-function extractExistingTikzLibraries(source: string): Set<string> {
-  const libraries = new Set<string>();
-  const pattern = /\\usetikzlibrary\s*\{([^}]*)\}/g;
-  for (const match of source.matchAll(pattern)) {
-    const content = match[1] ?? "";
-    for (const library of extractLibrariesFromContent(content)) {
-      libraries.add(library);
-    }
-  }
-  return libraries;
-}
-
-function findInjectionIndex(source: string): number {
-  const useTikzLibraryRegex = /\\usetikzlibrary\s*\{[^}]*\}/g;
-  const allMatches = [...source.matchAll(useTikzLibraryRegex)];
-  if (allMatches.length > 0) {
-    const last = allMatches[allMatches.length - 1];
-    return (last.index ?? 0) + last[0].length;
-  }
-
-  const usePackageTikzMatch = /\\usepackage(?:\[[^\]]*\])?\s*\{[^}]*\btikz\b[^}]*\}/.exec(source);
-  if (usePackageTikzMatch) {
-    return (usePackageTikzMatch.index ?? 0) + usePackageTikzMatch[0].length;
-  }
-
-  const beginDocumentMatch = /\\begin\s*\{\s*document\s*\}/.exec(source);
-  if (beginDocumentMatch) {
-    return beginDocumentMatch.index ?? 0;
-  }
-
-  return source.length;
-}
-
-function hasDocumentWrapper(source: string): boolean {
-  return /\\begin\s*\{\s*document\s*\}/.test(source) || /\\documentclass(?:\[[^\]]*\])?\s*\{[^}]+\}/.test(source);
+  return [...unique];
 }
 
 export function normalizeStandaloneLatexExportFileName(fileName?: string): string {
@@ -83,65 +51,250 @@ export function normalizeStandaloneLatexExportFileName(fileName?: string): strin
   return `${candidate}.tex`;
 }
 
-function normalizeDocumentClassOptions(options: readonly string[] = []): string[] {
-  const unique = new Set<string>();
-  for (const option of options) {
-    const normalized = option.trim();
-    if (normalized.length > 0) {
-      unique.add(normalized);
-    }
-  }
-  return [...unique];
+function isDefinitionStatement(statement: Statement): boolean {
+  return (
+    statement.kind === "MacroDefinition" ||
+    statement.kind === "MacroAlias" ||
+    statement.kind === "MacroCommandDefinition" ||
+    statement.kind === "Colorlet" ||
+    statement.kind === "DefineColor" ||
+    statement.kind === "TikzSet" ||
+    statement.kind === "TikzStyle" ||
+    statement.kind === "Pgfkeys" ||
+    statement.kind === "TikzLibrary"
+  );
 }
 
-export function buildStandaloneLatexDocument(
+function collectStatementById(statements: readonly Statement[]): Map<string, Statement> {
+  const byId = new Map<string, Statement>();
+  for (const statement of statements) {
+    byId.set(statement.id, statement);
+    if (statement.kind === "Scope") {
+      for (const nested of statement.body) {
+        byId.set(nested.id, nested);
+      }
+    }
+  }
+  return byId;
+}
+
+function collectUsedSourceIds(
+  semantic: ReturnType<typeof evaluateTikzFigure>
+): Set<string> {
+  const used = new Set<string>();
+  for (const element of semantic.scene.elements) {
+    used.add(element.sourceRef.sourceId);
+    if (element.origin?.macroStack) {
+      for (const macroOrigin of element.origin.macroStack) {
+        used.add(macroOrigin.definitionId);
+      }
+    }
+    for (const styleLayer of element.styleChain) {
+      if (styleLayer.sourceRef?.sourceId) {
+        used.add(styleLayer.sourceRef.sourceId);
+      }
+    }
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of semantic.symbolDependencyEdges) {
+      if (!used.has(edge.consumerStatementId)) {
+        continue;
+      }
+      if (used.has(edge.providerStatementId)) {
+        continue;
+      }
+      used.add(edge.providerStatementId);
+      changed = true;
+    }
+  }
+  return used;
+}
+
+function collectDefinitionSpans(
   source: string,
-  requiredLibraries: readonly string[] = [],
-  options: StandaloneLatexDocumentOptions = {}
+  statements: Map<string, Statement>,
+  usedIds: Set<string>
+): string[] {
+  const defs: Array<{ from: number; to: number }> = [];
+  for (const id of usedIds) {
+    const statement = statements.get(id);
+    if (!statement || !isDefinitionStatement(statement)) {
+      continue;
+    }
+    defs.push({ from: statement.span.from, to: statement.span.to });
+  }
+  defs.sort((left, right) => (left.from !== right.from ? left.from - right.from : left.to - right.to));
+  const chunks: string[] = [];
+  for (const span of defs) {
+    const raw = source.slice(span.from, span.to).trim();
+    if (raw.length === 0) {
+      continue;
+    }
+    chunks.push(raw);
+  }
+  return chunks;
+}
+
+function collectMacroDefinitionClosure(
+  figureSource: string,
+  statements: Map<string, Statement>
+): Set<string> {
+  const byName = new Map<string, Statement>();
+  for (const statement of statements.values()) {
+    if (statement.kind === "MacroDefinition" || statement.kind === "MacroAlias" || statement.kind === "MacroCommandDefinition") {
+      const name = statement.nameRaw.trim();
+      if (name.length > 0) {
+        byName.set(name, statement);
+      }
+    }
+  }
+
+  const ids = new Set<string>();
+  const queue: string[] = [];
+  const seenNames = new Set<string>();
+  const tokenRegex = /\\[A-Za-z@]+/g;
+  const enqueueFromText = (raw: string): void => {
+    tokenRegex.lastIndex = 0;
+    let match: RegExpExecArray | null = tokenRegex.exec(raw);
+    while (match) {
+      const token = match[0] ?? "";
+      if (token.length > 0) {
+        queue.push(token);
+      }
+      match = tokenRegex.exec(raw);
+    }
+  };
+  enqueueFromText(figureSource);
+
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (!name || seenNames.has(name)) {
+      continue;
+    }
+    seenNames.add(name);
+    const statement = byName.get(name);
+    if (!statement) {
+      continue;
+    }
+    ids.add(statement.id);
+    if (statement.kind === "MacroDefinition") {
+      enqueueFromText(statement.valueRaw);
+      continue;
+    }
+    if (statement.kind === "MacroAlias") {
+      enqueueFromText(statement.targetRaw);
+      continue;
+    }
+    enqueueFromText(statement.bodyRaw);
+    if (statement.optionalDefaultRaw) {
+      enqueueFromText(statement.optionalDefaultRaw);
+    }
+  }
+
+  return ids;
+}
+
+function pickActiveFigureSource(
+  source: string,
+  parseResult: ReturnType<typeof parseTikz>
 ): string {
-  const normalizedLibraries = normalizeLibraryNames(requiredLibraries);
-  if (hasDocumentWrapper(source)) {
-    if (normalizedLibraries.length === 0) {
-      return source;
-    }
-
-    const existing = extractExistingTikzLibraries(source);
-    const missing = normalizedLibraries.filter((library) => !existing.has(library));
-    if (missing.length === 0) {
-      return source;
-    }
-
-    const injectionIndex = findInjectionIndex(source);
-    const prefix = source.slice(0, injectionIndex);
-    const suffix = source.slice(injectionIndex);
-    const beforeNewline = prefix.endsWith("\n") ? "" : "\n";
-    const afterNewline = suffix.startsWith("\n") || suffix.length === 0 ? "" : "\n";
-    const injection = `${beforeNewline}\\usetikzlibrary{${missing.join(",")}}${afterNewline}`;
-    return `${prefix}${injection}${suffix}`;
+  if (!parseResult.activeFigureId) {
+    return source.trim();
   }
-
-  const classOptions = normalizeDocumentClassOptions(options.documentClassOptions);
-  const classOptionsText = classOptions.length > 0 ? `[${classOptions.join(",")}]` : "";
-  const lines = [
-    `\\documentclass${classOptionsText}{standalone}`,
-    "\\usepackage{tikz}"
-  ];
-  if (normalizedLibraries.length > 0) {
-    lines.push(`\\usetikzlibrary{${normalizedLibraries.join(",")}}`);
+  const entry = parseResult.figures.find((figure) => figure.id === parseResult.activeFigureId);
+  if (!entry) {
+    return source.trim();
   }
-  lines.push("\\begin{document}");
-  lines.push(source.trim());
-  lines.push("\\end{document}");
+  return source.slice(entry.span.from, entry.span.to).trim();
+}
+
+function renderDiagnosticsCommentBlock(diagnostics: readonly StandaloneExportDiagnostic[]): string {
+  if (diagnostics.length === 0) {
+    return "";
+  }
+  const lines = ["% tikz-editor standalone export diagnostics:"];
+  for (const diagnostic of diagnostics) {
+    const symbolSuffix =
+      diagnostic.symbolKind && diagnostic.symbolName
+        ? ` [${diagnostic.symbolKind}:${diagnostic.symbolName}]`
+        : "";
+    lines.push(`% - (${diagnostic.severity}) ${diagnostic.code}: ${diagnostic.message}${symbolSuffix}`);
+  }
   return `${lines.join("\n")}\n`;
 }
 
 export function createStandaloneLatexExportArtifact(
   options: CreateStandaloneLatexExportArtifactOptions
 ): StandaloneLatexExportArtifact {
-  const requiredLibraries = options.requiredLibraries ?? [];
+  const parseResult = parseTikz(options.source, {
+    recover: true,
+    activeFigureId: options.activeFigureId,
+    includeContextDefinitions: true
+  });
+  const semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source);
+
+  const diagnostics: StandaloneExportDiagnostic[] = [];
+  for (const diagnostic of parseResult.diagnostics) {
+    diagnostics.push({
+      code: diagnostic.code ?? "parse-diagnostic",
+      message: diagnostic.message,
+      severity: diagnostic.severity,
+      span: diagnostic.span
+    });
+  }
+  for (const diagnostic of semanticResult.diagnostics) {
+    diagnostics.push({
+      code: diagnostic.code ?? "semantic-diagnostic",
+      message: diagnostic.message,
+      severity: diagnostic.severity,
+      span: diagnostic.span
+    });
+  }
+  for (const unresolved of semanticResult.unresolvedSymbols) {
+    diagnostics.push({
+      code: "unresolved-symbol",
+      message: `Could not resolve ${unresolved.kind} '${unresolved.name}'.`,
+      severity: "error",
+      symbolKind: unresolved.kind,
+      symbolName: unresolved.name
+    });
+  }
+
+  const statementById = collectStatementById(parseResult.figure.body);
+  const usedIds = collectUsedSourceIds(semanticResult);
+  const figureSource = pickActiveFigureSource(options.source, parseResult);
+  const macroClosure = collectMacroDefinitionClosure(figureSource, statementById);
+  for (const id of macroClosure) {
+    usedIds.add(id);
+  }
+  const definitionChunks = collectDefinitionSpans(options.source, statementById, usedIds);
+  const classOptions = normalizeDocumentClassOptions(options.documentClassOptions);
+  const classOptionsText = classOptions.length > 0 ? `[${classOptions.join(",")}]` : "";
+  const requiredLibraries = semanticResult.scene.requiredTikzLibraries;
+
+  const lines: string[] = [];
+  lines.push(`\\documentclass${classOptionsText}{standalone}`);
+  lines.push("\\usepackage{tikz}");
+  if (requiredLibraries.length > 0) {
+    lines.push(`\\usetikzlibrary{${requiredLibraries.join(",")}}`);
+  }
+  lines.push("\\begin{document}");
+  if (definitionChunks.length > 0) {
+    lines.push(definitionChunks.join("\n"));
+  }
+  lines.push(figureSource);
+  lines.push("\\end{document}");
+  const diagnosticsComment = renderDiagnosticsCommentBlock(diagnostics);
+  const text = `${diagnosticsComment}${lines.join("\n")}\n`;
+
   return {
     fileName: normalizeStandaloneLatexExportFileName(options.fileName),
     mimeType: STANDALONE_LATEX_EXPORT_MIME_TYPE,
-    text: buildStandaloneLatexDocument(options.source, requiredLibraries)
+    text,
+    complete: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
+    diagnostics
   };
 }

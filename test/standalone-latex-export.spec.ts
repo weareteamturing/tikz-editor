@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildStandaloneLatexDocument,
   createStandaloneLatexExportArtifact,
   DEFAULT_STANDALONE_LATEX_EXPORT_FILE_NAME,
   normalizeStandaloneLatexExportFileName,
@@ -23,45 +22,48 @@ describe("standalone latex export helpers", () => {
     expect(normalizeStandaloneLatexExportFileName("diagram.TEX")).toBe("diagram.TEX");
   });
 
-  it("wraps bare source in a standalone latex document", () => {
+  it("exports a standalone document and infers required libraries", () => {
     const source = String.raw`\begin{tikzpicture}
-  \draw (0,0) -- (1,0);
+  \draw[->] (0,0) -- (1,0);
 \end{tikzpicture}`;
-    const document = buildStandaloneLatexDocument(source, ["patterns", "arrows.meta", "patterns"]);
+    const artifact = createStandaloneLatexExportArtifact({
+      source,
+      activeFigureId: "figure:0"
+    });
 
-    expect(document).toContain("\\documentclass{standalone}");
-    expect(document).toContain("\\usepackage{tikz}");
-    expect(document).toContain("\\usetikzlibrary{arrows.meta,patterns}");
-    expect(document).toContain("\\begin{document}");
-    expect(document).toContain("\\end{document}");
+    expect(artifact.mimeType).toBe(STANDALONE_LATEX_EXPORT_MIME_TYPE);
+    expect(artifact.text).toContain("\\documentclass{standalone}");
+    expect(artifact.text).toContain("\\usepackage{tikz}");
+    expect(artifact.text).toContain("\\usetikzlibrary{arrows.meta}");
+    expect(artifact.text).toContain("\\begin{tikzpicture}");
+    expect(artifact.text).toContain("\\end{document}");
   });
 
-  it("preserves document preamble and injects only missing libraries", () => {
-    const source = String.raw`\documentclass{standalone}
-\usepackage{tikz}
-\usetikzlibrary{patterns}
-\begin{document}
+  it("includes reachable macro definitions in the standalone output", () => {
+    const source = String.raw`\def\edgeend{(1,0)}
 \begin{tikzpicture}
-  \draw (0,0) -- (1,0);
-\end{tikzpicture}
-\end{document}
-`;
-    const document = buildStandaloneLatexDocument(source, ["patterns", "arrows.meta", "graphs"]);
+  \draw (0,0) -- \edgeend;
+\end{tikzpicture}`;
+    const artifact = createStandaloneLatexExportArtifact({
+      source,
+      activeFigureId: "figure:0"
+    });
 
-    const usetikzMatches = [...document.matchAll(/\\usetikzlibrary\{([^}]*)\}/g)].map((match) => match[1]);
-    expect(usetikzMatches).toEqual(["patterns", "arrows.meta,graphs"]);
-    expect(document).toContain("\\begin{document}");
+    expect(artifact.text).toContain(String.raw`\def\edgeend{(1,0)}`);
+    expect(artifact.text).toContain(String.raw`\draw (0,0) -- \edgeend;`);
   });
 
   it("creates a standalone latex artifact", () => {
     const artifact = createStandaloneLatexExportArtifact({
       source: String.raw`\begin{tikzpicture}\draw (0,0)--(1,0);\end{tikzpicture}`,
-      requiredLibraries: ["arrows.meta"],
+      activeFigureId: "figure:0",
       fileName: "preview"
     });
 
     expect(artifact.fileName).toBe("preview.tex");
     expect(artifact.mimeType).toBe(STANDALONE_LATEX_EXPORT_MIME_TYPE);
-    expect(artifact.text).toContain("\\usetikzlibrary{arrows.meta}");
+    expect(artifact.complete).toBe(true);
+    expect(artifact.diagnostics).toEqual([]);
   });
 });
+

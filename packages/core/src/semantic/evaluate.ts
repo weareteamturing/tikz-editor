@@ -32,12 +32,18 @@ import type {
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   beginStatementEffectTracking,
+  defineContextSymbol,
   createSemanticContext,
   currentFrame,
   endStatementEffectTracking,
+  listContextRequiredLibraries,
+  listContextSymbolDependencyEdges,
+  listContextUnresolvedSymbols,
   markDependencyOpaque,
   popFrame,
   pushFrame,
+  requireContextLibrary,
+  resolveContextSymbol,
   withDependencySource,
   type SemanticContext,
   type SemanticStatementEffectSummary,
@@ -73,6 +79,7 @@ import type {
   SceneFigure,
   ScenePathCommand
 } from "./types.js";
+import type { SemanticSymbolDependencyEdge, SemanticUnresolvedSymbol } from "./symbol-resolver.js";
 
 export type EvaluateTikzResult = {
   scene: SceneFigure;
@@ -82,6 +89,8 @@ export type EvaluateTikzResult = {
   nodeAnchorTargets: NodeAnchorTarget[];
   dependencies: SemanticDependencyGraph;
   sourceStatementFirstIndexBySourceId: Record<string, number>;
+  symbolDependencyEdges: SemanticSymbolDependencyEdge[];
+  unresolvedSymbols: SemanticUnresolvedSymbol[];
 };
 
 export type SemanticStatementEvaluationRecord = {
@@ -299,6 +308,12 @@ export function evaluateSemanticStatementByIndex(
     run.context.editHandles[handleStart + index] = editHandles[index];
   }
   const diagnostics = run.diagnostics.slice(diagnosticsStart);
+  const statementMacroStack = run.statementMacroAttribution.get(statement);
+  if (statementMacroStack && statementMacroStack.length > 0) {
+    for (const origin of statementMacroStack) {
+      resolveContextSymbol(run.context, "macro", origin.macroName, statement.id);
+    }
+  }
   const effectSummary = endStatementEffectTracking(run.context, {
     beforeCurrentPoint,
     beforePathStartPoint,
@@ -362,15 +377,20 @@ export function finalizeSemanticEvaluationRun(
   }
 
   markOpaqueDependencySources(elements, run.context);
+  const inferredRequiredLibraries = inferRequiredTikzLibraries({
+    featureUsage: run.featureUsage,
+    elements
+  });
+  for (const libraryName of inferredRequiredLibraries) {
+    requireContextLibrary(run.context, libraryName, null);
+  }
+  const requiredTikzLibraries = listContextRequiredLibraries(run.context);
 
   return {
     scene: {
       kind: "SceneFigure",
       span: run.figure.span,
-      requiredTikzLibraries: inferRequiredTikzLibraries({
-        featureUsage: run.featureUsage,
-        elements
-      }),
+      requiredTikzLibraries,
       elements,
       bounds: computeBounds(elements)
     },
@@ -379,7 +399,9 @@ export function finalizeSemanticEvaluationRun(
     editHandles: run.context.editHandles,
     nodeAnchorTargets: collectNodeAnchorTargets(run.context),
     dependencies: run.context.dependencyBuilder.build(),
-    sourceStatementFirstIndexBySourceId: buildSourceStatementFirstIndexBySourceId(run)
+    sourceStatementFirstIndexBySourceId: buildSourceStatementFirstIndexBySourceId(run),
+    symbolDependencyEdges: listContextSymbolDependencyEdges(run.context),
+    unresolvedSymbols: listContextUnresolvedSymbols(run.context)
   };
 }
 
@@ -964,7 +986,7 @@ function evaluateStatement(
   }
 
   if (statement.kind === "TikzLibrary") {
-    applyTikzLibraryStatement(statement, diagnostics);
+    applyTikzLibraryStatement(statement, context, diagnostics);
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -1058,10 +1080,32 @@ function applyTikzStyleStatement(
     sourceKind: "legacy-tikzstyle",
     label: styleName
   });
+  defineContextSymbol(context, {
+    kind: "style",
+    name: styleName,
+    statementId: statement.id,
+    span: statement.span
+  });
 }
 
-function applyTikzLibraryStatement(statement: TikzLibraryStatement, diagnostics: Diagnostic[]): void {
+function applyTikzLibraryStatement(
+  statement: TikzLibraryStatement,
+  context: ReturnType<typeof createSemanticContext>,
+  diagnostics: Diagnostic[]
+): void {
   if (statement.libraries.length > 0) {
+    for (const library of statement.libraries) {
+      const normalized = library.trim();
+      if (normalized.length === 0) {
+        continue;
+      }
+      defineContextSymbol(context, {
+        kind: "library",
+        name: normalized,
+        statementId: statement.id,
+        span: statement.span
+      });
+    }
     return;
   }
   diagnostics.push({
@@ -1104,6 +1148,12 @@ function applyColorletStatement(
     trace: context.macroTraceCollector ?? undefined
   });
   frame.colorAliases.set(name, expandedValue);
+  defineContextSymbol(context, {
+    kind: "color",
+    name,
+    statementId: statement.id,
+    span: statement.span
+  });
 
   const optionList = parseStyleValueAsOptionList(expandedValue);
   if (optionList) {
@@ -1164,6 +1214,12 @@ function applyDefineColorStatement(
   }
 
   frame.colorAliases.set(name, resolvedValue);
+  defineContextSymbol(context, {
+    kind: "color",
+    name,
+    statementId: statement.id,
+    span: statement.span
+  });
   const optionList = parseStyleValueAsOptionList(resolvedValue);
   if (optionList) {
     applyCustomStyleDefinition(frame.customStyles, name, "style", optionList, {
@@ -1287,6 +1343,12 @@ function applyMacroDefinitionStatement(
     value: statement.valueRaw,
     provenance: [buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw)]
   });
+  defineContextSymbol(context, {
+    kind: "macro",
+    name,
+    statementId: statement.id,
+    span: statement.span
+  });
 }
 
 function applyMacroAliasStatement(statement: MacroAliasStatement, context: ReturnType<typeof createSemanticContext>): void {
@@ -1304,6 +1366,7 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
   const aliasOrigin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
   let binding: MacroBinding | null = null;
   if (isControlSequenceToken(targetRaw)) {
+    resolveContextSymbol(context, "macro", targetRaw, statement.id);
     const targetBinding = frame.macroBindings.get(targetRaw);
     if (targetBinding) {
       binding = cloneMacroBinding(targetBinding);
@@ -1327,6 +1390,12 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
 
   if (binding) {
     frame.macroBindings.set(name, binding);
+    defineContextSymbol(context, {
+      kind: "macro",
+      name,
+      statementId: statement.id,
+      span: statement.span
+    });
   }
 }
 
@@ -1359,6 +1428,12 @@ function applyMacroCommandDefinitionStatement(
           provenance: [origin]
         };
   frame.macroBindings.set(name, binding);
+  defineContextSymbol(context, {
+    kind: "macro",
+    name,
+    statementId: statement.id,
+    span: statement.span
+  });
 }
 
 function clampMacroParameterCount(arity: number, diagnostics: Diagnostic[], statement: MacroCommandDefinitionStatement): number {

@@ -242,7 +242,7 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     if (!snapshot.semanticResult) {
       return;
     }
-    void import("./export-commands").then((mod) => mod.exportStandaloneLatexDownload(source, snapshot.semanticResult!.scene.requiredTikzLibraries, {
+    void import("./export-commands").then((mod) => mod.exportStandaloneLatexDownload(source, activeFigureId, {
       fileName: "tikz-export.tex"
     }));
   };

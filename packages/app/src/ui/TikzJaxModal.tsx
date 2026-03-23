@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "./Modal";
 import type { PlatformLatex } from "../platform/types";
-import { buildStandaloneLatexDocument } from "tikz-editor/export/index";
+import { createStandaloneLatexExportArtifact } from "tikz-editor/export/index";
 import css from "./TikzJaxModal.module.css";
 
 const TIKZJAX_FONTS_CSS = "https://cdn.jsdelivr.net/npm/@drgrice1/tikzjax@1.0.0-beta24/dist/fonts.css";
@@ -53,7 +53,7 @@ type Phase =
 
 type TikzJaxModalProps = {
   source: string;
-  requiredLibraries?: readonly string[];
+  activeFigureId: string | null;
   onClose: () => void;
   latex?: PlatformLatex;
   showOpenInNewTab?: boolean;
@@ -62,7 +62,7 @@ type TikzJaxModalProps = {
 
 export function TikzJaxModal({
   source,
-  requiredLibraries = [],
+  activeFigureId,
   onClose,
   latex,
   showOpenInNewTab = true,
@@ -113,9 +113,11 @@ export function TikzJaxModal({
       const prefix = `${details}\n\nStarting compilation...`;
       setNativeLog(prefix);
       setPhase("compiling-native");
-      const latexDocument = buildStandaloneLatexDocument(source, requiredLibraries, {
+      const latexDocument = createStandaloneLatexExportArtifact({
+        source,
+        activeFigureId,
         documentClassOptions: ["dvisvgm", "border=2pt"]
-      });
+      }).text;
       const readLastCompileLog = latex.readLastCompileLog;
       if (typeof readLastCompileLog === "function") {
         pollId = window.setInterval(() => {
@@ -164,7 +166,7 @@ export function TikzJaxModal({
         window.clearInterval(pollId);
       }
     };
-  }, [latex, requiredLibraries, source]);
+  }, [activeFigureId, latex, source]);
 
   // TikZJax fallback path
   useEffect(() => {

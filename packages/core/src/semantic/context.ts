@@ -14,6 +14,22 @@ import {
   type SemanticDependencyOpaqueReason,
   type SemanticDependencyResourceKind
 } from "./dependencies.js";
+import {
+  createSemanticSymbolResolver,
+  defineSemanticSymbol,
+  exportSemanticSymbolResolverState,
+  requireSemanticLibrary,
+  resolveSemanticSymbol,
+  importSemanticSymbolResolverState,
+  popSemanticSymbolScope,
+  pushSemanticSymbolScope,
+  type SemanticSymbolDefinition,
+  type SemanticSymbolDependencyEdge,
+  type SemanticSymbolKind,
+  type SemanticSymbolResolver,
+  type SemanticUnresolvedSymbol,
+  type SemanticSymbolResolverState
+} from "./symbol-resolver.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -157,6 +173,7 @@ export type SemanticContext = {
   dependencyBuilder: SemanticDependencyGraphBuilder;
   dependencyActiveSourceId: string | null;
   statementEffectTracker: SemanticStatementEffectTracker | null;
+  symbolResolver: SemanticSymbolResolver;
 };
 
 export type SemanticStatementConsumedResource = {
@@ -198,6 +215,7 @@ export type SemanticContextSnapshot = {
   editHandlesLength: number;
   dependencyBuilderState: SemanticDependencyGraphBuilderState;
   dependencyActiveSourceId: string | null;
+  symbolResolverState: SemanticSymbolResolverState;
 };
 
 export type SnapshotSemanticContextOptions = {
@@ -316,7 +334,8 @@ export function createSemanticContext(
     editHandles: [],
     dependencyBuilder: new SemanticDependencyGraphBuilder(),
     dependencyActiveSourceId: null,
-    statementEffectTracker: null
+    statementEffectTracker: null,
+    symbolResolver: createSemanticSymbolResolver()
   };
 }
 
@@ -326,11 +345,13 @@ export function currentFrame(context: SemanticContext): SemanticContextFrame {
 
 export function pushFrame(context: SemanticContext, frame: SemanticContextFrame): void {
   context.stack.push(frame);
+  pushSemanticSymbolScope(context.symbolResolver);
 }
 
 export function popFrame(context: SemanticContext): void {
   if (context.stack.length > 1) {
     context.stack.pop();
+    popSemanticSymbolScope(context.symbolResolver);
   }
 }
 
@@ -352,7 +373,8 @@ export function snapshotSemanticContext(
       editHandlesMode === "clone" ? structuredClone(context.editHandles) : null,
     editHandlesLength: context.editHandles.length,
     dependencyBuilderState: context.dependencyBuilder.exportState(),
-    dependencyActiveSourceId: context.dependencyActiveSourceId
+    dependencyActiveSourceId: context.dependencyActiveSourceId,
+    symbolResolverState: exportSemanticSymbolResolverState(context.symbolResolver)
   };
 }
 
@@ -380,6 +402,7 @@ export function restoreSemanticContext(
   }
   context.dependencyBuilder.importState(snapshot.dependencyBuilderState);
   context.dependencyActiveSourceId = snapshot.dependencyActiveSourceId;
+  importSemanticSymbolResolverState(context.symbolResolver, snapshot.symbolResolverState);
   context.statementEffectTracker = null;
 }
 
@@ -415,6 +438,63 @@ export function withDependencySource<T>(
   } finally {
     context.dependencyActiveSourceId = previous;
   }
+}
+
+export function defineContextSymbol(
+  context: SemanticContext,
+  definition: SemanticSymbolDefinition
+): void {
+  defineSemanticSymbol(context.symbolResolver, definition);
+}
+
+export function resolveContextSymbol(
+  context: SemanticContext,
+  kind: SemanticSymbolKind,
+  name: string,
+  explicitConsumerStatementId?: string | null
+): SemanticSymbolDefinition | null {
+  const consumerStatementId = explicitConsumerStatementId ?? context.dependencyActiveSourceId ?? null;
+  return resolveSemanticSymbol(context.symbolResolver, kind, name, consumerStatementId);
+}
+
+export function requireContextLibrary(
+  context: SemanticContext,
+  libraryName: string,
+  explicitConsumerStatementId?: string | null
+): void {
+  const consumerStatementId = explicitConsumerStatementId ?? context.dependencyActiveSourceId ?? null;
+  requireSemanticLibrary(context.symbolResolver, libraryName, consumerStatementId);
+}
+
+export function listContextSymbolDependencyEdges(context: SemanticContext): SemanticSymbolDependencyEdge[] {
+  return [...context.symbolResolver.dependencyEdges.values()].sort((left, right) => {
+    if (left.consumerStatementId !== right.consumerStatementId) {
+      return left.consumerStatementId.localeCompare(right.consumerStatementId);
+    }
+    if (left.providerStatementId !== right.providerStatementId) {
+      return left.providerStatementId.localeCompare(right.providerStatementId);
+    }
+    if (left.kind !== right.kind) {
+      return left.kind.localeCompare(right.kind);
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+export function listContextUnresolvedSymbols(context: SemanticContext): SemanticUnresolvedSymbol[] {
+  return [...context.symbolResolver.unresolvedSymbols.values()].sort((left, right) => {
+    if (left.consumerStatementId !== right.consumerStatementId) {
+      return left.consumerStatementId.localeCompare(right.consumerStatementId);
+    }
+    if (left.kind !== right.kind) {
+      return left.kind.localeCompare(right.kind);
+    }
+    return left.name.localeCompare(right.name);
+  });
+}
+
+export function listContextRequiredLibraries(context: SemanticContext): string[] {
+  return [...context.symbolResolver.requiredLibraries].sort((left, right) => left.localeCompare(right));
 }
 
 export function recordDependencyProducer(

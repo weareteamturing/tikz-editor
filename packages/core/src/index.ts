@@ -28,7 +28,6 @@ export {
   normalizeSvgExportFileName,
   SVG_EXPORT_MIME_TYPE,
   DEFAULT_SVG_EXPORT_FILE_NAME,
-  buildStandaloneLatexDocument,
   createStandaloneLatexExportArtifact,
   normalizeStandaloneLatexExportFileName,
   STANDALONE_LATEX_EXPORT_MIME_TYPE,

@@ -26,7 +26,6 @@ export {
 export type { SvgExportArtifact, CreateSvgExportArtifactOptions } from "./svg.js";
 
 export {
-  buildStandaloneLatexDocument,
   createStandaloneLatexExportArtifact,
   normalizeStandaloneLatexExportFileName,
   STANDALONE_LATEX_EXPORT_MIME_TYPE,
@@ -34,6 +33,7 @@ export {
 } from "./standalone-latex.js";
 
 export type {
+  StandaloneExportDiagnostic,
   StandaloneLatexExportArtifact,
   CreateStandaloneLatexExportArtifactOptions
 } from "./standalone-latex.js";

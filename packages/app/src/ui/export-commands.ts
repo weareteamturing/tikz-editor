@@ -37,14 +37,17 @@ let svgOptimizerPromise: Promise<SvgOptimizer> | null = null;
 
 export async function exportStandaloneLatexDownload(
   source: string,
-  requiredLibraries: readonly string[],
+  activeFigureId: string | null,
   options: { fileName?: string } = {}
 ): Promise<boolean> {
   const artifact = createStandaloneLatexExportArtifact({
     source,
-    requiredLibraries,
+    activeFigureId,
     fileName: options.fileName
   });
+  if (!artifact.complete) {
+    console.warn("[tikz-editor] Standalone LaTeX export emitted with unresolved diagnostics.", artifact.diagnostics);
+  }
   const platformExportResult = await getActiveEditorPlatform().files?.exportFile?.(
     [artifact.text],
     { fileName: artifact.fileName, mimeType: artifact.mimeType }

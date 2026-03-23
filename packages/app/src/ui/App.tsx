@@ -160,7 +160,7 @@ export function App() {
   const [insertEquationDraft, setInsertEquationDraft] = useState("");
   const [compiledPictureSource, setCompiledPictureSource] = useState<{
     source: string;
-    requiredLibraries: readonly string[];
+    activeFigureId: string | null;
   } | null>(null);
   const [svgExportSvgResult, setSvgExportSvgResult] = useState<EmitSvgResult | null>(null);
   const [pngExportSvgResult, setPngExportSvgResult] = useState<EmitSvgResult | null>(null);
@@ -222,7 +222,7 @@ export function App() {
     onShowCompiledPicture: () => {
       setCompiledPictureSource({
         source,
-        requiredLibraries: snapshot.semanticResult?.scene.requiredTikzLibraries ?? []
+        activeFigureId
       });
     },
     onOpenSettings: () => {
@@ -1181,7 +1181,7 @@ export function App() {
         <Suspense fallback={null}>
           <TikzJaxModal
             source={compiledPictureSource.source}
-            requiredLibraries={compiledPictureSource.requiredLibraries}
+            activeFigureId={compiledPictureSource.activeFigureId}
             onClose={() => setCompiledPictureSource(null)}
             latex={platform.latex}
             showOpenInNewTab={!platform.id.startsWith("desktop")}
