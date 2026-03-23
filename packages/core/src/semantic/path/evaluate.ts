@@ -15,6 +15,7 @@ import { parseTikz } from "../../parser/index.js";
 import { expandForeachList } from "../../foreach/list.js";
 import {
   readNamedCoordinate,
+  resolveContextColorAliasValue,
   withDependencySource,
   writeNamedCoordinate,
   type SemanticContext
@@ -288,6 +289,8 @@ export function evaluatePathStatement(
           }
 
           const entries = buildPlotExpressionEntries({
+            context,
+            consumerStatementId: statement.id,
             expressionRaw,
             settings: localPlotSettings,
             macroBindings: treeFrameState.macroBindings
@@ -544,7 +547,7 @@ export function evaluatePathStatement(
               frame.customStyles,
               (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
               statementStyleChain,
-              frame.colorAliases
+              (raw) => resolveContextColorAliasValue(context, raw)
             )
           );
           for (const code of resolvedEdgeStyle.diagnostics) {
@@ -673,7 +676,7 @@ export function evaluatePathStatement(
             optionCustomStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
             treeFrameState.styleChain,
-            treeFrameState.colorAliases
+            (raw) => resolveContextColorAliasValue(context, raw)
           );
           for (const code of optionResolved.diagnostics) {
             pushDiagnostic(code, `Path option issue: ${code}`, item.span.from, item.span.to);
@@ -854,7 +857,7 @@ export function evaluatePathStatement(
                 frame.customStyles,
                 (raw) => evaluateRawCoordinate(raw, context).world,
                 statementStyleChain,
-                frame.colorAliases
+                (raw) => resolveContextColorAliasValue(context, raw)
               );
               for (const code of resolvedPinEdgeStyle.diagnostics) {
                 pushDiagnostic(code, `Pin edge option issue: ${code}`, spec.span.from, spec.span.to);
@@ -1006,7 +1009,7 @@ export function evaluatePathStatement(
             frame.customStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
             statementStyleChain,
-            frame.colorAliases
+            (raw) => resolveContextColorAliasValue(context, raw)
           );
           operationStyle = {
             ...resolvedDecorateOptions.style,
@@ -1212,7 +1215,7 @@ export function evaluatePathStatement(
           frame.customStyles,
           (raw) => evaluateRawCoordinate(raw, context).world,
           statementStyleChain,
-          frame.colorAliases
+          (raw) => resolveContextColorAliasValue(context, raw)
         );
         for (const code of resolvedEdgeStyle.diagnostics) {
           if (code === "unsupported-option-flag:every edge") {
@@ -1284,7 +1287,7 @@ export function evaluatePathStatement(
             optionCustomStyles,
             (rawCoordinate) => evaluateRawCoordinate(rawCoordinate, context).world,
             statementStyleChain,
-            treeFrameState.colorAliases
+            (raw) => resolveContextColorAliasValue(context, raw)
           );
           operationTransform = optionResolved.transform;
           for (const code of optionResolved.diagnostics) {

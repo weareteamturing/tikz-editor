@@ -32,6 +32,8 @@ import type {
 import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   beginStatementEffectTracking,
+  readContextMacroBinding,
+  resolveContextColorAliasValue,
   defineContextSymbol,
   createSemanticContext,
   currentFrame,
@@ -45,6 +47,8 @@ import {
   requireContextLibrary,
   resolveContextSymbol,
   withDependencySource,
+  writeContextColorAlias,
+  writeContextMacroBinding,
   type SemanticContext,
   type SemanticStatementEffectSummary,
   type SemanticStatementSuffixSkipKind,
@@ -183,7 +187,7 @@ export function createSemanticEvaluationRun(
       rootCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
       parent.styleChain,
-      parent.colorAliases
+      (raw) => resolveContextColorAliasValue(context, raw)
     );
     const rootMeta = resolveFrameMeta(parent, rootDelta.expandedOptionLists, figureSourceRef);
     pushFrame(context, {
@@ -683,7 +687,7 @@ function evaluateStatement(
       scopedCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
       baseChain,
-      parent.colorAliases
+      (raw) => resolveContextColorAliasValue(context, raw)
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, commandSourceRef);
 
@@ -867,7 +871,7 @@ function evaluateStatement(
       scopedCustomStyles,
       (raw) => evaluateRawCoordinate(raw, context).world,
       parent.styleChain,
-      parent.colorAliases
+      (raw) => resolveContextColorAliasValue(context, raw)
     );
     const frameMeta = resolveFrameMeta(parent, resolved.expandedOptionLists, scopeSourceRef);
     pushFrame(context, {
@@ -1147,10 +1151,7 @@ function applyColorletStatement(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
-  frame.colorAliases.set(name, expandedValue);
-  defineContextSymbol(context, {
-    kind: "color",
-    name,
+  writeContextColorAlias(context, name, expandedValue, {
     statementId: statement.id,
     span: statement.span
   });
@@ -1213,10 +1214,7 @@ function applyDefineColorStatement(
     return;
   }
 
-  frame.colorAliases.set(name, resolvedValue);
-  defineContextSymbol(context, {
-    kind: "color",
-    name,
+  writeContextColorAlias(context, name, resolvedValue, {
     statementId: statement.id,
     span: statement.span
   });
@@ -1259,7 +1257,7 @@ function applyOptionListsToCurrentFrame(
     frame.customStyles,
     (raw) => evaluateRawCoordinate(raw, context).world,
     frame.styleChain,
-    frame.colorAliases
+    (raw) => resolveContextColorAliasValue(context, raw)
   );
   frame.style = resolved.style;
   frame.styleChain = resolved.chain;
@@ -1338,14 +1336,11 @@ function applyMacroDefinitionStatement(
   }
 
   const frame = currentFrame(context);
-  frame.macroBindings.set(name, {
+  writeContextMacroBinding(context, name, {
     kind: "text",
     value: statement.valueRaw,
     provenance: [buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw)]
-  });
-  defineContextSymbol(context, {
-    kind: "macro",
-    name,
+  }, {
     statementId: statement.id,
     span: statement.span
   });
@@ -1366,8 +1361,7 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
   const aliasOrigin = buildMacroOriginFrame(name, statement.id, statement.span, statement.commandRaw);
   let binding: MacroBinding | null = null;
   if (isControlSequenceToken(targetRaw)) {
-    resolveContextSymbol(context, "macro", targetRaw, statement.id);
-    const targetBinding = frame.macroBindings.get(targetRaw);
+    const targetBinding = readContextMacroBinding(context, targetRaw, statement.id);
     if (targetBinding) {
       binding = cloneMacroBinding(targetBinding);
       binding.provenance.push(aliasOrigin);
@@ -1389,10 +1383,7 @@ function applyMacroAliasStatement(statement: MacroAliasStatement, context: Retur
   }
 
   if (binding) {
-    frame.macroBindings.set(name, binding);
-    defineContextSymbol(context, {
-      kind: "macro",
-      name,
+    writeContextMacroBinding(context, name, binding, {
       statementId: statement.id,
       span: statement.span
     });
@@ -1427,10 +1418,7 @@ function applyMacroCommandDefinitionStatement(
           body: statement.bodyRaw,
           provenance: [origin]
         };
-  frame.macroBindings.set(name, binding);
-  defineContextSymbol(context, {
-    kind: "macro",
-    name,
+  writeContextMacroBinding(context, name, binding, {
     statementId: statement.id,
     span: statement.span
   });

@@ -3,9 +3,9 @@ import type { Span } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
 import {
   appendNamedPathElements,
-  currentFrame,
   readNamedPath,
   type SemanticContext,
+  writeContextMacroBinding,
   writeNamedCoordinate
 } from "../context.js";
 import { applyNameScope } from "../nodes/named-coordinates.js";
@@ -672,9 +672,7 @@ function writeIntersectionTotalMacro(rawName: string, total: number, context: Se
   if (!normalized) {
     return;
   }
-
-  const frame = currentFrame(context);
-  frame.macroBindings.set(normalized, {
+  writeContextMacroBinding(context, normalized, {
     kind: "text",
     value: String(total),
     provenance: []

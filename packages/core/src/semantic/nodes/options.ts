@@ -1,6 +1,6 @@
 import type { PathOptionItem } from "../../ast/types.js";
 import type { OptionListAst } from "../../options/types.js";
-import type { ProvenanceOptionList, SemanticContext } from "../context.js";
+import { resolveContextColorAliasValue, type ProvenanceOptionList, type SemanticContext } from "../context.js";
 import { currentAnchorForDirection, parseDirectionalKey } from "../path/node-positioning.js";
 import { resolveContextDelta } from "../style/resolve.js";
 import { cloneCustomStyleRegistry } from "../style/custom-styles.js";
@@ -91,7 +91,7 @@ export function resolveNodeStyle(
       cloneCustomStyleRegistry(frame.customStyles),
       undefined,
       [],
-      frame.colorAliases
+      (raw) => resolveContextColorAliasValue(context, raw)
     );
     resolvedStyle = resolved.style;
   }
@@ -141,7 +141,7 @@ export function resolveNodeOptionScale(
     cloneCustomStyleRegistry(frame.customStyles),
     undefined,
     [],
-    frame.colorAliases
+    (raw) => resolveContextColorAliasValue(context, raw)
   );
   return computeRelativeTransformScale(frame.transform, resolved.transform);
 }
@@ -179,7 +179,7 @@ export function resolveNodeOptionTransform(
     cloneCustomStyleRegistry(frame.customStyles),
     undefined,
     [],
-    frame.colorAliases
+    (raw) => resolveContextColorAliasValue(context, raw)
   );
 
   return computeRelativeTransformMatrix(frame.transform, resolved.transform);

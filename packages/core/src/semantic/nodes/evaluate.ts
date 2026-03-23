@@ -1,7 +1,12 @@
 import type { NodeItem, PathStatement } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { OptionEntry, OptionListAst } from "../../options/types.js";
-import { readNamedNodeGeometry, type ProvenanceOptionList, type SemanticContext } from "../context.js";
+import {
+  readNamedNodeGeometry,
+  resolveContextColorAliasValue,
+  type ProvenanceOptionList,
+  type SemanticContext
+} from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { applyDecorationToPath } from "../decorations/index.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "../path/elements.js";
@@ -224,7 +229,7 @@ export function measureNodeAnchorExtents(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
-  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
+  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, context, statement.id));
   const baseNodeLayout = resolveNodeLayout(
     resolvedNodeText,
     expandedNodeOptions,
@@ -382,7 +387,7 @@ export function evaluateNodeItem(
     maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
     trace: context.macroTraceCollector ?? undefined
   });
-  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, frame.colorAliases));
+  const resolvedNodeText = normalizeEscapedTextSpaces(resolveTextColorAliases(expandedNodeText, context, statement.id));
 
   const matrixMode = resolveMatrixMode(effectiveNodeOptions);
   if (matrixMode.enabled) {
@@ -1050,7 +1055,7 @@ function resolveNodeStyleTrace(params: {
     cloneCustomStyleRegistry(frame.customStyles),
     (raw) => evaluateRawCoordinate(raw, params.context).world,
     params.baseStyleChain,
-    frame.colorAliases
+    (raw) => resolveContextColorAliasValue(params.context, raw)
   );
 
   const scaledStyle = applyNodeTransformScale(resolved.style, params.transformScale);
@@ -1475,62 +1480,31 @@ function directionToAnchor(direction: Point): string {
   return "south west";
 }
 
-function resolveTextColorAliases(text: string, colorAliases: Map<string, string>): string {
-  if (colorAliases.size === 0 || text.length === 0) {
+function resolveTextColorAliases(text: string, context: SemanticContext, consumerStatementId: string): string {
+  if (text.length === 0) {
     return text;
   }
 
-  let resolved = replaceColorCommandAliases(text, "\\textcolor", colorAliases);
-  resolved = replaceColorCommandAliases(resolved, "\\color", colorAliases);
+  let resolved = replaceColorCommandAliases(text, "\\textcolor", context, consumerStatementId);
+  resolved = replaceColorCommandAliases(resolved, "\\color", context, consumerStatementId);
   return resolved;
 }
 
-function replaceColorCommandAliases(text: string, command: "\\textcolor" | "\\color", colorAliases: Map<string, string>): string {
+function replaceColorCommandAliases(
+  text: string,
+  command: "\\textcolor" | "\\color",
+  context: SemanticContext,
+  consumerStatementId: string
+): string {
   const escapedCommand = command.replace("\\", "\\\\");
   const pattern = new RegExp(`${escapedCommand}(\\s*\\[[^\\]]*\\])?\\s*\\{([^{}]+)\\}`, "g");
   return text.replace(pattern, (fullMatch: string, modelPart = "", rawColorName = "") => {
-    const resolved = resolveColorAlias(rawColorName, colorAliases);
+    const resolved = resolveContextColorAliasValue(context, rawColorName, consumerStatementId);
     if (!resolved) {
       return fullMatch;
     }
     return `${command}${modelPart}{${resolved}}`;
   });
-}
-
-function resolveColorAlias(rawColorName: string, colorAliases: Map<string, string>): string | null {
-  const initialKey = normalizeColorAliasKey(rawColorName);
-  if (!initialKey) {
-    return null;
-  }
-
-  let resolved = colorAliases.get(initialKey);
-  if (!resolved) {
-    return null;
-  }
-
-  const seen = new Set<string>([initialKey]);
-  while (true) {
-    const nextKey = normalizeColorAliasKey(resolved);
-    if (!nextKey || seen.has(nextKey)) {
-      break;
-    }
-    const nextResolved = colorAliases.get(nextKey);
-    if (!nextResolved) {
-      break;
-    }
-    seen.add(nextKey);
-    resolved = nextResolved;
-  }
-
-  return resolved;
-}
-
-function normalizeColorAliasKey(raw: string): string | null {
-  const trimmed = raw.trim().toLowerCase();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  return trimmed;
 }
 
 function resolveNodeElementTransform(center: Point, nodeTransform: Matrix2D): Matrix2D | undefined {

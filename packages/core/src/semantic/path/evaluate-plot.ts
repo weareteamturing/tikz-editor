@@ -1,6 +1,8 @@
 import type { PlotOperationItem } from "../../ast/types.js";
 import { DEFAULT_MACRO_EXPANSION_MAX_DEPTH, expandMacroBindings } from "../../macros/index.js";
 import type { MacroBinding } from "../../macros/index.js";
+import type { SemanticContext } from "../context.js";
+import { deleteContextMacroBinding, readContextMacroBinding, writeContextMacroBinding } from "../context.js";
 import { evaluateRawCoordinate } from "../coords/evaluate.js";
 import { parseLength } from "../coords/parse-length.js";
 import type { Point, ResolvedStyle, SceneElement, ScenePath } from "../types.js";
@@ -543,11 +545,13 @@ export function emitPlotPath(params: {
 }
 
 export function buildPlotExpressionEntries(params: {
+  context: SemanticContext;
+  consumerStatementId: string;
   expressionRaw: string;
   settings: PlotSettings;
   macroBindings: Map<string, MacroBinding>;
 }): Array<{ raw: string }> {
-  const { expressionRaw, settings, macroBindings } = params;
+  const { context, consumerStatementId, expressionRaw, settings, macroBindings } = params;
   const variableName = settings.variable;
   const sampleValues = resolvePlotSampleValues(settings);
   return sampleValues.map((sampleValue) => {
@@ -556,15 +560,15 @@ export function buildPlotExpressionEntries(params: {
       value: formatPlotSampleValue(sampleValue),
       provenance: []
     };
-    const previousBinding = macroBindings.get(variableName);
-    macroBindings.set(variableName, sampleBinding);
+    const previousBinding = readContextMacroBinding(context, variableName, consumerStatementId);
+    writeContextMacroBinding(context, variableName, sampleBinding);
     const expandedExpression = expandMacroBindings(expressionRaw, macroBindings, {
       maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH
     });
     if (previousBinding) {
-      macroBindings.set(variableName, previousBinding);
+      writeContextMacroBinding(context, variableName, previousBinding);
     } else {
-      macroBindings.delete(variableName);
+      deleteContextMacroBinding(context, variableName);
     }
     return { raw: expandedExpression };
   });

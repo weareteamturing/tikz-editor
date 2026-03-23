@@ -23,7 +23,7 @@ import {
 } from "./custom-styles.js";
 import { commandDefaultStyle, defaultStyle, DEFAULT_TEXT_FONT_SIZE } from "./defaults.js";
 import { extractCircleRadius } from "./extract-circle-radius.js";
-import { normalizeOptionValue, parseStyleValueAsOptionList } from "./option-utils.js";
+import { parseStyleValueAsOptionList } from "./option-utils.js";
 
 export type ResolvedContextDelta = ResolvedStyleTrace;
 
@@ -36,14 +36,14 @@ export function resolveContextDelta(
   customStyles: CustomStyleRegistry = new Map(),
   resolveCoordinate?: CoordinateResolver,
   baseChain: StyleChainEntry[] = [],
-  colorAliases?: ReadonlyMap<string, string>
+  resolveColorAliasValue?: ColorAliasResolver
 ): ResolvedContextDelta {
   const diagnostics: string[] = [];
   let style = cloneResolvedStyle(baseStyle);
   let transform = baseTransform;
   const chain = cloneStyleChain(baseChain);
   const expandedEntries: OptionEntry[] = [];
-  const resolveColorAlias = createColorAliasResolver(colorAliases);
+  const resolveColorAlias = resolveColorAliasValue;
 
   const topLevelLayers = optionLayers;
   const topLevelOptionLists = topLevelLayers.flatMap((layer) => layer.rawOptions);
@@ -241,48 +241,6 @@ function applyOptionEntry(
   }
 
   return applyKvEntry(entry.key, entry.valueRaw, style, transform, applyOptionEntry, resolveCoordinate, resolveColorAlias);
-}
-
-function createColorAliasResolver(colorAliases?: ReadonlyMap<string, string>): ColorAliasResolver | undefined {
-  if (!colorAliases || colorAliases.size === 0) {
-    return undefined;
-  }
-
-  return (rawColorName: string): string | null => {
-    const initialKey = normalizeColorAliasKey(rawColorName);
-    if (!initialKey) {
-      return null;
-    }
-
-    let resolved = colorAliases.get(initialKey);
-    if (!resolved) {
-      return null;
-    }
-
-    const seen = new Set<string>([initialKey]);
-    while (true) {
-      const nextKey = normalizeColorAliasKey(resolved);
-      if (!nextKey || seen.has(nextKey)) {
-        break;
-      }
-      const nextResolved = colorAliases.get(nextKey);
-      if (!nextResolved) {
-        break;
-      }
-      seen.add(nextKey);
-      resolved = nextResolved;
-    }
-
-    return resolved;
-  };
-}
-
-function normalizeColorAliasKey(raw: string): string | null {
-  const trimmed = normalizeOptionValue(raw).toLowerCase();
-  if (trimmed.length === 0) {
-    return null;
-  }
-  return trimmed;
 }
 
 function buildExpandedOptionLists(optionLists: OptionListAst[], entries: OptionEntry[]): OptionListAst[] {

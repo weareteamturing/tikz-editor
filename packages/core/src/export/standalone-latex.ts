@@ -188,6 +188,9 @@ function collectMacroDefinitionClosure(
       enqueueFromText(statement.targetRaw);
       continue;
     }
+    if (statement.kind !== "MacroCommandDefinition") {
+      continue;
+    }
     enqueueFromText(statement.bodyRaw);
     if (statement.optionalDefaultRaw) {
       enqueueFromText(statement.optionalDefaultRaw);

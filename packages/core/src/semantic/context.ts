@@ -497,6 +497,109 @@ export function listContextRequiredLibraries(context: SemanticContext): string[]
   return [...context.symbolResolver.requiredLibraries].sort((left, right) => left.localeCompare(right));
 }
 
+export function writeContextMacroBinding(
+  context: SemanticContext,
+  name: string,
+  binding: MacroBinding,
+  definition?: { statementId: string; span: { from: number; to: number } }
+): void {
+  const frame = currentFrame(context);
+  frame.macroBindings.set(name, binding);
+  if (definition) {
+    defineContextSymbol(context, {
+      kind: "macro",
+      name,
+      statementId: definition.statementId,
+      span: definition.span
+    });
+  }
+}
+
+export function readContextMacroBinding(
+  context: SemanticContext,
+  name: string,
+  explicitConsumerStatementId?: string | null
+): MacroBinding | undefined {
+  void resolveContextSymbol(context, "macro", name, explicitConsumerStatementId);
+  const frame = currentFrame(context);
+  return frame.macroBindings.get(name);
+}
+
+export function deleteContextMacroBinding(context: SemanticContext, name: string): void {
+  const frame = currentFrame(context);
+  frame.macroBindings.delete(name);
+}
+
+export function writeContextColorAlias(
+  context: SemanticContext,
+  name: string,
+  value: string,
+  definition?: { statementId: string; span: { from: number; to: number } }
+): void {
+  const normalized = normalizeColorAliasKey(name);
+  if (!normalized) {
+    return;
+  }
+  const frame = currentFrame(context);
+  frame.colorAliases.set(normalized, value);
+  if (definition) {
+    defineContextSymbol(context, {
+      kind: "color",
+      name: normalized,
+      statementId: definition.statementId,
+      span: definition.span
+    });
+  }
+}
+
+export function resolveContextColorAliasValue(
+  context: SemanticContext,
+  rawColorName: string,
+  explicitConsumerStatementId?: string | null
+): string | null {
+  const initialKey = normalizeColorAliasKey(rawColorName);
+  if (!initialKey) {
+    return null;
+  }
+  const consumerStatementId = explicitConsumerStatementId ?? context.dependencyActiveSourceId ?? null;
+  const frame = currentFrame(context);
+  if (!frame.colorAliases.has(initialKey)) {
+    return null;
+  }
+  void resolveContextSymbol(context, "color", initialKey, consumerStatementId);
+  let resolved = frame.colorAliases.get(initialKey);
+  if (!resolved) {
+    return null;
+  }
+
+  const seen = new Set<string>([initialKey]);
+  while (true) {
+    const nextKey = normalizeColorAliasKey(resolved);
+    if (!nextKey || seen.has(nextKey)) {
+      break;
+    }
+    if (!frame.colorAliases.has(nextKey)) {
+      break;
+    }
+    void resolveContextSymbol(context, "color", nextKey, consumerStatementId);
+    const nextResolved = frame.colorAliases.get(nextKey);
+    if (!nextResolved) {
+      break;
+    }
+    seen.add(nextKey);
+    resolved = nextResolved;
+  }
+  return resolved;
+}
+
+function normalizeColorAliasKey(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  return trimmed;
+}
+
 export function recordDependencyProducer(
   context: SemanticContext,
   resourceKind: SemanticDependencyResourceKind,

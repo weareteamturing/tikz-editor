@@ -1,5 +1,11 @@
 import type { EdgeOperationItem, PathStatement } from "../../ast/types.js";
-import { readNamedCoordinate, withDependencySource, writeNamedCoordinate, type SemanticContext } from "../context.js";
+import {
+  readNamedCoordinate,
+  resolveContextColorAliasValue,
+  withDependencySource,
+  writeNamedCoordinate,
+  type SemanticContext
+} from "../context.js";
 import type { Point, ResolvedStyle, SceneElement, TreeChildInfo } from "../types.js";
 import type { StyleTraceLayerInput } from "../style-chain.js";
 import { pointAtPlacementSegment, resolveNodePositionFraction } from "../nodes/placement.js";
@@ -182,7 +188,7 @@ export function handleChildOperationCluster(params: {
       childCustomStyles,
       evaluateRawCoordinateWorld,
       parentFrame.styleChain,
-      parentFrame.colorAliases
+      (raw) => resolveContextColorAliasValue(context, raw)
     );
     for (const code of resolvedChildStyle.diagnostics) {
       pushDiagnostic(code, `Tree child option issue: ${code}`, child.span.from, child.span.to);
@@ -472,7 +478,7 @@ export function handleChildOperationCluster(params: {
         activeTreeFrame.customStyles,
         evaluateRawCoordinateWorld,
         activeTreeFrame.styleChain,
-        activeTreeFrame.colorAliases
+        (raw) => resolveContextColorAliasValue(context, raw)
       );
       for (const code of resolvedTreeEdgeStyle.diagnostics) {
         if (code === "unsupported-option-flag:edge from parent") {
