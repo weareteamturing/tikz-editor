@@ -1,4 +1,4 @@
-import type { EmitSvgResult } from "tikz-editor/svg/index";
+import type { EmitSvgResult, SvgRenderModel, SvgRenderPart } from "tikz-editor/svg/index";
 import type { SessionSnapshot } from "../compute";
 import type { Diagnostic } from "tikz-editor/diagnostics/types";
 
@@ -283,7 +283,12 @@ export function applyPreviewEnhancements(
     }
   }
 
-  return { ...svgResult, svg, viewBox };
+  return {
+    ...svgResult,
+    svg,
+    viewBox,
+    model: applyEnhancementsToModel(svgResult.model, viewBox, gridMarkup)
+  };
 }
 
 function roundStep(value: number, step: number): number {
@@ -293,6 +298,46 @@ function roundStep(value: number, step: number): number {
 function formatTick(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function applyEnhancementsToModel(
+  model: SvgRenderModel,
+  viewBox: EmitSvgResult["viewBox"],
+  gridMarkup: string
+): SvgRenderModel {
+  const updatedParts = [...model.parts];
+
+  if (gridMarkup) {
+    const partId = nextAssistantGridPartId(updatedParts);
+    const gridPart: SvgRenderPart = {
+      partId,
+      sourceId: "__assistant_tool__",
+      elementId: null,
+      order: updatedParts.length,
+      markup: gridMarkup,
+      fingerprint: gridMarkup
+    };
+    updatedParts.push(gridPart);
+  }
+
+  return {
+    ...model,
+    viewBox,
+    parts: updatedParts
+  };
+}
+
+function nextAssistantGridPartId(parts: readonly SvgRenderPart[]): string {
+  const base = "assistant-grid";
+  const existing = new Set(parts.map((part) => part.partId));
+  if (!existing.has(base)) {
+    return base;
+  }
+  let index = 2;
+  while (existing.has(`${base}#${index}`)) {
+    index += 1;
+  }
+  return `${base}#${index}`;
 }
 
 // ─── Enhanced preview: overlay code ───────────────────────────────────────────
