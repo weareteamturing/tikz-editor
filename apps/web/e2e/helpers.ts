@@ -111,11 +111,32 @@ export async function expectMenuCommandEnabled(page: Page, section: MenuSection,
 }
 
 export async function setSource(page: Page, source: string): Promise<void> {
-  const editor = page.locator(".cm-content").first();
-  await editor.click();
-  await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.press("Backspace");
-  await page.keyboard.type(source);
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const api = (globalThis as unknown as {
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          setSource?: (source: string) => void;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      return typeof api?.setSource === "function";
+    });
+  }, {
+    timeout: 15_000,
+    intervals: [100, 200, 400, 800]
+  }).toBe(true);
+
+  await page.evaluate((nextSource) => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        setSource?: (source: string) => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    if (typeof api?.setSource !== "function") {
+      throw new Error("App test API setSource is unavailable.");
+    }
+    api.setSource(nextSource);
+  }, source);
+
   await expect.poll(async () => {
     return await page.evaluate((expectedSource) => {
       const api = (globalThis as unknown as {
@@ -141,6 +162,18 @@ export async function setSource(page: Page, source: string): Promise<void> {
 }
 
 export async function readSource(page: Page): Promise<string> {
+  const sourceFromStore = await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getSource?: () => string;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getSource?.() ?? null;
+  });
+  if (typeof sourceFromStore === "string") {
+    return sourceFromStore;
+  }
+
   const text = await page.locator(".cm-content").first().textContent();
   return text ?? "";
 }
@@ -212,6 +245,11 @@ export async function clickHitRegion(
       const rect = element.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
     };
+
+    const pointerEvents = getComputedStyle(element).pointerEvents;
+    if (pointerEvents === "fill") {
+      return fallback();
+    }
 
     if (element instanceof SVGGeometryElement && typeof element.getTotalLength === "function") {
       try {

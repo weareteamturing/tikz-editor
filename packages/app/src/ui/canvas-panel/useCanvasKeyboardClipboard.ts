@@ -334,14 +334,6 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           }
         }
 
-        const result = await pasteSelectionFromClipboardData(
-          pasteContext,
-          event.clipboardData
-        );
-        if (result.kind === "success") {
-          return;
-        }
-
         const readCustomBytes = platform.clipboard?.readCustomBytes;
         if (typeof readCustomBytes === "function") {
           try {
@@ -380,6 +372,14 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
           } catch {
             // Fall through to existing warning behavior.
           }
+        }
+
+        const result = await pasteSelectionFromClipboardData(
+          pasteContext,
+          event.clipboardData
+        );
+        if (result.kind === "success") {
+          return;
         }
 
         if (typeof readCustomText === "function") {

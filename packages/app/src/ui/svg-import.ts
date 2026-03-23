@@ -210,7 +210,15 @@ export async function convertPowerPointClipboardToScopeSnippet(
       throw new Error("GVML clipboard payload did not contain a slide.");
     }
     const converted = convertSlideToTikZ(slide, parsed.size, { xcolorRgbConvert: true });
-    return toScopeSnippetResult(converted.body);
+    const tikzSource = typeof converted.body === "string"
+      ? converted.body
+      : typeof converted.tex === "string"
+      ? converted.tex
+      : "";
+    if (tikzSource.length === 0) {
+      throw new Error("PowerPoint converter did not return TikZ source.");
+    }
+    return toScopeSnippetResult(tikzSource);
   } catch (error) {
     return {
       kind: "failure",

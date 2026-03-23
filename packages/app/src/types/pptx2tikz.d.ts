@@ -15,7 +15,7 @@ declare module "pptx2tikz" {
       includeLayoutElements?: boolean;
       xcolorRgbConvert?: boolean;
     }
-  ): { body: string; images: unknown[] };
+  ): { body?: string; tex?: string; images: unknown[] };
   export function convertSlidesToTikZ(
     slides: unknown[],
     size: { width: number; height: number },
