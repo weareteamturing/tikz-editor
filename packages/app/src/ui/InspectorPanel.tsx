@@ -1267,6 +1267,7 @@ export function InspectorPanel() {
                     <div className={css.toolSliderRow}>
                       <input
                         id="inspector-freehand-smoothing"
+                        data-testid="inspector-freehand-smoothing-slider"
                         className={css.rangeInput}
                         type="range"
                         min={4}

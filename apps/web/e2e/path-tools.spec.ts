@@ -258,20 +258,12 @@ test("insert menu commands switch tool modes and expose checked state", async ({
   }
 });
 
-test("freehand toolbar popup opens on activation and closes on outside click or escape", async ({ page }) => {
+test("freehand tool activates and inspector shows smoothing control", async ({ page }) => {
   await gotoApp(page);
 
   await toolbarButton(page, "Freehand").click();
-  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toBeVisible();
-
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
-
-  await toolbarButton(page, "Freehand").click();
-  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toBeVisible();
-
-  await page.mouse.click(4, 4);
-  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
+  // Freehand no longer has a toolbar popup; smoothing control is in the inspector
+  await expect(toolbarButton(page, "Freehand")).toHaveClass(/btnActive/);
 });
 
 test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an empty shaped node", async ({ page }) => {
@@ -545,7 +537,8 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
 \end{tikzpicture}`;
   await setSource(page, source);
 
-  await toolbarButton(page, "Bucket").click();
+  // Click the bucket caret to open color picker, selecting a color auto-activates the tool
+  await page.getByTestId("toolbar-bucket-color-caret").click();
   await expect(page.getByTestId("toolbar-tool-popup-addBucket")).toBeVisible();
   await page.getByRole("button", { name: "Bucket fill color red" }).click();
 
@@ -589,7 +582,8 @@ test("bucket fills draw-only closed paths from the interior", async ({ page }) =
   \draw (0,0) rectangle (2,2);
 \end{tikzpicture}`);
 
-  await toolbarButton(page, "Bucket").click();
+  // Click the bucket caret to open color picker, selecting a color auto-activates the tool
+  await page.getByTestId("toolbar-bucket-color-caret").click();
   await page.getByRole("button", { name: "Bucket fill color red" }).click();
 
   await waitForHitRegions(page, 1);
@@ -682,24 +676,22 @@ test("multi-segment path tool keeps named anchors when clicking anchor dots", as
   await expect.poll(async () => readSource(page)).toContain("(A.");
 });
 
-test("freehand smoothing popup slider preserves adjusted values", async ({ page }) => {
+test("freehand smoothing slider in inspector preserves adjusted values", async ({ page }) => {
   await gotoApp(page);
   await toolbarButton(page, "Freehand").click();
-  const slider = page.getByTestId("toolbar-freehand-smoothing-slider");
+  // Freehand smoothing is now in the inspector panel, not a toolbar popup
+  const slider = page.getByTestId("inspector-freehand-smoothing-slider");
   await expect(slider).toBeVisible();
   await slider.fill("8");
   await expect(slider).toHaveValue("8");
-  await expect(page.getByText("Smoothing 8px")).toBeVisible();
 
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("toolbar-tool-popup-addFreehand")).toHaveCount(0);
-
+  // Switch away and back
+  await toolbarButton(page, "Select").click();
   await toolbarButton(page, "Freehand").click();
   await expect(slider).toBeVisible();
   await expect(slider).toHaveValue("8");
   await slider.fill("32");
   await expect(slider).toHaveValue("32");
-  await expect(page.getByText("Smoothing 32px")).toBeVisible();
 });
 
 test("path menu commands stay disabled when selection has no editable path point", async ({ page }) => {

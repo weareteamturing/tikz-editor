@@ -9,7 +9,7 @@ import type { ToolMode } from "../store/types";
 function SelectIcon({ size = 20 }: { size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 3L4 15L7.5 11.5L10 17L12 16L9.5 10.5L14 10L4 3Z" fill="currentColor" stroke="none" />
+      <path d="M5 2L5 14L8.5 10.5L11 16L13 15L10.5 9.5L15 9L5 2Z" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -17,17 +17,20 @@ function SelectIcon({ size = 20 }: { size?: number }) {
 function NodeIcon({ size = 20 }: { size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <text x="10" y="14" fontSize="12" fontWeight="500" textAnchor="middle" fill="currentColor" stroke="none">T</text>
+      <rect x="2" y="3" width="16" height="14" stroke="#666" strokeDasharray="2 2" />
+      <text x="10" y="13.5" fontSize="11" fontWeight="600" textAnchor="middle" fill="currentColor" stroke="none">A</text>
     </svg>
   );
 }
 
 function ShapeIcon({ size = 20 }: { size?: number }) {
+  // Two overlapping shapes: star in back (lighter), thick arrow in front (darker)
   return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="8" height="6" fill="currentColor" stroke="none" />
-      <polygon points="14,3 18,8 14,13 10,8" fill="currentColor" stroke="none" />
-      <circle cx="15" cy="15" r="2.5" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 20 20" width={size} height={size}>
+      {/* 5-point star in back, lighter gray, stretched right */}
+      <polygon fill="#777" points="7,0 9,5 14,5 10,8.5 12,14 7,11 2,14 3.5,8.5 0,5 5,5" />
+      {/* Thick right arrow in front, darker gray */}
+      <polygon fill="#444" points="7,10 14,10 14,7 19,13 14,19 14,16 7,16" />
     </svg>
   );
 }
@@ -114,11 +117,10 @@ function CircleIcon({ size = 20 }: { size?: number }) {
 }
 
 function BucketIcon({ size = 20 }: { size?: number }) {
+  // Paint bucket icon from Remix Design (RiPaintFill) in gray
   return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M6 9L3 15C3 16.5 4.5 17 6 17H14C15.5 17 17 16.5 17 15L14 9" />
-      <path d="M6 9C6 6 8 3 10 3C12 3 14 6 14 9" />
-      <ellipse cx="10" cy="9" rx="4" ry="1.5" />
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="#666">
+      <path d="M19.2277 18.7323L20.9955 16.9645L22.7632 18.7323C23.7395 19.7086 23.7395 21.2915 22.7632 22.2678C21.7869 23.2441 20.204 23.2441 19.2277 22.2678C18.2514 21.2915 18.2514 19.7086 19.2277 18.7323ZM8.87861 1.07971L20.1923 12.3934C20.5828 12.7839 20.5828 13.4171 20.1923 13.8076L11.707 22.2929C11.3165 22.6834 10.6833 22.6834 10.2928 22.2929L1.80754 13.8076C1.41702 13.4171 1.41702 12.7839 1.80754 12.3934L9.58572 4.61525L7.4644 2.49393L8.87861 1.07971ZM10.9999 6.02946L3.92886 13.1005H18.071L10.9999 6.02946Z" />
     </svg>
   );
 }

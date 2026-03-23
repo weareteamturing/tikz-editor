@@ -38,9 +38,9 @@ export function Toolbar() {
     /(mac|iphone|ipad)/i.test(navigator.platform);
   const showAppTitle = !isDesktop;
 
-  // Close popup when tool mode changes (unless it's the shape popup being used to select)
+  // Close popup when tool mode changes (unless it's a popup that can be used independently)
   useEffect(() => {
-    if (openPopupMode && openPopupMode !== "addShape" && openPopupMode !== toolMode) {
+    if (openPopupMode && openPopupMode !== "addShape" && openPopupMode !== "addBucket" && openPopupMode !== toolMode) {
       setOpenPopupMode(null);
     }
   }, [openPopupMode, toolMode]);
@@ -57,6 +57,9 @@ export function Toolbar() {
             namedColorSwatches={projectNamedColorSwatches}
             onChange={(nextValue) => {
               dispatch({ type: "SET_BUCKET_FILL_COLOR", value: nextValue });
+              // Auto-activate bucket tool after selecting a color
+              dispatch({ type: "SET_TOOL_MODE", mode: "addBucket" });
+              setOpenPopupMode(null);
             }}
           />
         </ToolbarPopupSection>
@@ -126,6 +129,7 @@ export function Toolbar() {
               aria-haspopup="dialog"
               aria-expanded={openPopupMode === mode}
               disabled={unsupported}
+              data-testid="toolbar-bucket-color-caret"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenPopupMode((current) => (current === mode ? null : mode));
