@@ -725,6 +725,7 @@ export function App() {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;
         getSource: () => string;
+        getSnapshotSource: () => string;
         selectFirstFigure: () => void;
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
@@ -741,6 +742,9 @@ export function App() {
       },
       getSource: () => {
         return useEditorStore.getState().source;
+      },
+      getSnapshotSource: () => {
+        return snapshotRef.current.source;
       },
       selectFirstFigure: () => {
         const firstFigureId = snapshotRef.current.figures[0]?.id ?? null;

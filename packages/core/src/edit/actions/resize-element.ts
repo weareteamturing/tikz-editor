@@ -8,12 +8,13 @@ import type {
   ScenePath,
   ScenePathShapeHint
 } from "../../semantic/types.js";
-import type { CoordinateItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
+import type { CoordinateItem, NodeItem, PathItem, PathOptionItem, Statement, Span } from "../../ast/types.js";
 import type { PropertyTarget } from "../property-target.js";
 import { resolvePropertyTarget } from "../property-target.js";
 import { evaluateTikzFigure } from "../../semantic/evaluate.js";
 import { parseCircleRadiusFromCoordinateRaw, parseEllipseRadiiFromCoordinateRaw } from "../../semantic/path/parsers.js";
 import { parseLength } from "../../semantic/coords/parse-length.js";
+import { resolveNodeShape } from "../../semantic/nodes/options.js";
 import { applyMatrix, inverseMatrix } from "../../semantic/transform.js";
 import { collectSourceWorldBounds } from "../snapping/index.js";
 import { worldToLocal } from "../coords.js";
@@ -120,6 +121,7 @@ export function applyResizeElementAction(
   }
 
   const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
+  const isDiamondNodeShape = isDiamondNodeShapeInPathStatement(parsed.figure.body, elementId);
   const currentBounds = action.referenceBounds ?? resolveNodeResizeBounds(semantic.scene.elements, elementId);
   if (!currentBounds) {
     return { kind: "unsupported", reason: "No geometry bounds were found for the selected node." };
@@ -166,6 +168,32 @@ export function applyResizeElementAction(
     : { width: intrinsicWorldWidth, height: intrinsicWorldHeight };
   const intrinsicWidth = intrinsicLocal.width;
   const intrinsicHeight = intrinsicLocal.height;
+  const liveBounds = resolveNodeResizeBounds(semantic.scene.elements, elementId) ?? currentBounds;
+  const liveWorldWidth = liveBounds.maxX - liveBounds.minX;
+  const liveWorldHeight = liveBounds.maxY - liveBounds.minY;
+  const liveLocalSize = nodeLinearTransform
+    ? worldSizeToLocalSize({ width: liveWorldWidth, height: liveWorldHeight }, nodeLinearTransform)
+    : { width: liveWorldWidth, height: liveWorldHeight };
+
+  if (isDiamondNodeShape && isSideResizeRole(action.role)) {
+    const rewritten = rewriteDiamondSideResize({
+      source,
+      resizeTarget,
+      role: action.role,
+      requestedWidth,
+      requestedHeight,
+      currentWidth: liveLocalSize.width,
+      currentHeight: liveLocalSize.height
+    });
+    if (rewritten) {
+      return {
+        kind: "success",
+        newSource: rewritten.source,
+        patches: [rewritten.patch]
+      };
+    }
+  }
+
   const preserveExplicitWidthFloor = targetHasOptionKey(resizeTarget, "minimum width");
   const preserveExplicitHeightFloor = targetHasOptionKey(resizeTarget, "minimum height");
 
@@ -1453,6 +1481,214 @@ function targetHasOptionKey(target: PropertyTarget, key: string): boolean {
   return false;
 }
 
+function isSideResizeRole(role: ResizeRole): role is Extract<ResizeRole, "left" | "right" | "top" | "bottom"> {
+  return role === "left" || role === "right" || role === "top" || role === "bottom";
+}
+
+function rewriteDiamondSideResize(args: {
+  source: string;
+  resizeTarget: PropertyTarget;
+  role: Extract<ResizeRole, "left" | "right" | "top" | "bottom">;
+  requestedWidth: number;
+  requestedHeight: number;
+  currentWidth: number;
+  currentHeight: number;
+}): OptionMutationApplyResult | null {
+  const { source, resizeTarget, role, requestedWidth, requestedHeight, currentWidth, currentHeight } = args;
+  const dimensions = resolveTargetMinimumDimensions(resizeTarget);
+  if (dimensions.hasMinimumSize) {
+    return null;
+  }
+  const aspect = resolveDiamondAspectRatio(resizeTarget);
+
+  const affectsWidth = role === "left" || role === "right";
+  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
+  const mutations = new Map<string, OptionMutation>();
+
+  if (dimensions.hasExplicitMinimumWidth && dimensions.hasExplicitMinimumHeight) {
+    const currentPrimary = affectsWidth ? currentWidth : currentHeight;
+    const requestedPrimary = affectsWidth ? requestedWidth : requestedHeight;
+    if (!Number.isFinite(currentPrimary) || !Number.isFinite(requestedPrimary) || currentPrimary <= RESIZE_EPSILON) {
+      return null;
+    }
+    const scale = Math.max(0, requestedPrimary / currentPrimary);
+    if (!Number.isFinite(scale)) {
+      return null;
+    }
+    const nextMinimumWidth = Math.max(0, dimensions.minimumWidth * scale);
+    const nextMinimumHeight = Math.max(0, dimensions.minimumHeight * scale);
+    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
+    mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight)}pt` });
+    return applyOptionMutationsToTarget(source, resizeTarget, mutations);
+  }
+
+  if (affectsWidth) {
+    const companionHeight = inferDiamondCompanionHeight({
+      dimensions,
+      currentWidth,
+      currentHeight,
+      aspect: safeAspect
+    });
+    const nextMinimumWidth = Math.max(0, requestedWidth - safeAspect * companionHeight);
+    mutations.set("minimum width", { kind: "set", value: `${formatNumber(nextMinimumWidth)}pt` });
+    if (!dimensions.hasExplicitMinimumHeight) {
+      mutations.set("minimum height", { kind: "remove" });
+    }
+    return applyOptionMutationsToTarget(source, resizeTarget, mutations);
+  }
+
+  const companionWidth = inferDiamondCompanionWidth({
+    dimensions,
+    currentWidth,
+    currentHeight,
+    aspect: safeAspect
+  });
+  const nextMinimumHeight = Math.max(0, requestedHeight - companionWidth / safeAspect);
+  mutations.set("minimum height", { kind: "set", value: `${formatNumber(nextMinimumHeight)}pt` });
+  if (!dimensions.hasExplicitMinimumWidth) {
+    mutations.set("minimum width", { kind: "remove" });
+  }
+  return applyOptionMutationsToTarget(source, resizeTarget, mutations);
+}
+
+function resolveDiamondAspectRatio(target: PropertyTarget): number {
+  for (const entry of target.options?.entries ?? []) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (normalizeOptionKey(entry.key) !== "aspect") {
+      continue;
+    }
+    const parsed = Number(entry.valueRaw.trim().replace(/^\{/, "").replace(/\}$/, ""));
+    if (Number.isFinite(parsed) && parsed > RESIZE_EPSILON) {
+      return parsed;
+    }
+  }
+  return 1;
+}
+
+function inferDiamondCompanionHeight(args: {
+  dimensions: {
+    minimumWidth: number;
+    minimumHeight: number;
+    hasExplicitMinimumWidth: boolean;
+    hasExplicitMinimumHeight: boolean;
+  };
+  currentWidth: number;
+  currentHeight: number;
+  aspect: number;
+}): number {
+  const { dimensions, currentWidth, currentHeight, aspect } = args;
+  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
+  const currentW = Math.max(currentWidth, 0);
+  const currentH = Math.max(currentHeight, 0);
+
+  if (dimensions.hasExplicitMinimumHeight) {
+    return Math.max(dimensions.minimumHeight, 0);
+  }
+  if (dimensions.hasExplicitMinimumWidth) {
+    const width = Math.max(dimensions.minimumWidth, RESIZE_EPSILON);
+    const fromWidth = (currentW - width) / safeAspect;
+    const fromHeight = currentH - width / safeAspect;
+    const derived = Number.isFinite(fromWidth) && Number.isFinite(fromHeight)
+      ? (fromWidth + fromHeight) / 2
+      : Number.isFinite(fromWidth)
+        ? fromWidth
+        : fromHeight;
+    return Math.max(derived, 0);
+  }
+
+  return Math.max(currentW / (2 * safeAspect), 0);
+}
+
+function inferDiamondCompanionWidth(args: {
+  dimensions: {
+    minimumWidth: number;
+    minimumHeight: number;
+    hasExplicitMinimumWidth: boolean;
+    hasExplicitMinimumHeight: boolean;
+  };
+  currentWidth: number;
+  currentHeight: number;
+  aspect: number;
+}): number {
+  const { dimensions, currentWidth, currentHeight, aspect } = args;
+  const safeAspect = Number.isFinite(aspect) && aspect > RESIZE_EPSILON ? aspect : 1;
+  const currentW = Math.max(currentWidth, 0);
+  const currentH = Math.max(currentHeight, 0);
+
+  if (dimensions.hasExplicitMinimumWidth) {
+    return Math.max(dimensions.minimumWidth, 0);
+  }
+  if (dimensions.hasExplicitMinimumHeight) {
+    const height = Math.max(dimensions.minimumHeight, RESIZE_EPSILON);
+    const fromWidth = currentW - safeAspect * height;
+    const fromHeight = safeAspect * (currentH - height);
+    const derived = Number.isFinite(fromWidth) && Number.isFinite(fromHeight)
+      ? (fromWidth + fromHeight) / 2
+      : Number.isFinite(fromWidth)
+        ? fromWidth
+        : fromHeight;
+    return Math.max(derived, 0);
+  }
+  return Math.max(currentW / 2, 0);
+}
+
+function resolveTargetMinimumDimensions(target: PropertyTarget): {
+  minimumWidth: number;
+  minimumHeight: number;
+  hasMinimumSize: boolean;
+  hasExplicitMinimumWidth: boolean;
+  hasExplicitMinimumHeight: boolean;
+} {
+  let minimumWidth = parseLength("1pt", "pt") ?? 1;
+  let minimumHeight = parseLength("1pt", "pt") ?? 1;
+  let minimumSize: number | null = null;
+  let hasExplicitMinimumWidth = false;
+  let hasExplicitMinimumHeight = false;
+  for (const entry of target.options?.entries ?? []) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    const key = normalizeOptionKey(entry.key);
+    if (key === "minimum width") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumWidth = Math.max(0, parsed);
+        hasExplicitMinimumWidth = true;
+      }
+      continue;
+    }
+    if (key === "minimum height") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumHeight = Math.max(0, parsed);
+        hasExplicitMinimumHeight = true;
+      }
+      continue;
+    }
+    if (key === "minimum size") {
+      const parsed = parseLength(entry.valueRaw, "pt");
+      if (parsed != null) {
+        minimumSize = Math.max(0, parsed);
+      }
+      continue;
+    }
+  }
+
+  if (minimumSize != null) {
+    minimumWidth = Math.max(minimumWidth, minimumSize);
+    minimumHeight = Math.max(minimumHeight, minimumSize);
+  }
+  return {
+    minimumWidth,
+    minimumHeight,
+    hasMinimumSize: minimumSize != null,
+    hasExplicitMinimumWidth,
+    hasExplicitMinimumHeight
+  };
+}
+
 function worldVectorToLocal(
   vector: Point,
   linearTransform: { a: number; b: number; c: number; d: number }
@@ -1594,4 +1830,37 @@ function collectPathNodeIds(items: readonly PathItem[]): string[] {
   }
 
   return [...new Set(ids)];
+}
+
+function isDiamondNodeShapeInPathStatement(statements: readonly Statement[], elementId: string): boolean {
+  const pathStatement = findPathStatementById(statements, elementId);
+  if (!pathStatement) {
+    return false;
+  }
+  const nodes = collectPathNodeItems(pathStatement.items);
+  if (nodes.length !== 1) {
+    return false;
+  }
+  return resolveNodeShape(nodes[0]?.options) === "diamond";
+}
+
+function collectPathNodeItems(items: readonly PathItem[]): NodeItem[] {
+  const nodes: NodeItem[] = [];
+  for (const item of items) {
+    if (item.kind === "Node") {
+      nodes.push(item);
+      continue;
+    }
+    if (
+      (item.kind === "ToOperation" || item.kind === "EdgeOperation" || item.kind === "EdgeFromParentOperation") &&
+      item.nodes
+    ) {
+      nodes.push(...item.nodes);
+      continue;
+    }
+    if (item.kind === "ChildOperation") {
+      nodes.push(...collectPathNodeItems(item.body));
+    }
+  }
+  return nodes;
 }

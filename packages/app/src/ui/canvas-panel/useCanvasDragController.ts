@@ -493,7 +493,7 @@ export function useCanvasDragController(params: {
         return;
       }
 
-      if (!svgResult || snapshotSource !== source) {
+      if (!svgResult || (snapshotSource !== source && drag.kind !== "resize")) {
         setNodeAnchorOverlay(null);
         setSnapLines([]);
         maybeTriggerSnapFeedback(false);
@@ -531,7 +531,7 @@ export function useCanvasDragController(params: {
         });
         logSnapDebug({
           phase: "drag-resize-move",
-          snapshotMatchesSource: true,
+          snapshotMatchesSource: snapshotSource === source,
           dragKind: "resize",
           rawPoint: world,
           lines: []

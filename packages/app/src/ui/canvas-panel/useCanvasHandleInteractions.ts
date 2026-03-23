@@ -5,7 +5,7 @@ import type { ResizeRole } from "tikz-editor/edit/actions";
 import type { EditHandle, Point, ScenePath } from "tikz-editor/semantic/types";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { clientToWorldPoint } from "./geometry";
-import { resolveResizeFrameForSource } from "./resize-frames";
+import { resolveResizeFrameForSource, type ResizeFrame } from "./resize-frames";
 import { angleDeg } from "./rotate-handle";
 import {
   ellipseAspectRatioForSource,
@@ -21,6 +21,37 @@ import {
 export type UseCanvasHandleInteractionsArgs = {
   [key: string]: any;
 };
+
+function isCornerResizeRole(role: ResizeRole): role is Extract<ResizeRole, "top-left" | "top-right" | "bottom-left" | "bottom-right"> {
+  return role === "top-left" || role === "top-right" || role === "bottom-left" || role === "bottom-right";
+}
+
+function normalizeResizeRoleForNodeShapeFrame(role: ResizeRole, frame: ResizeFrame, enabled: boolean): ResizeRole {
+  if (!enabled || !isCornerResizeRole(role)) {
+    return role;
+  }
+  const corner = frame.cornersByRole[role].world;
+  const vector = {
+    x: corner.x - frame.centerWorld.x,
+    y: corner.y - frame.centerWorld.y
+  };
+  const absX = Math.abs(vector.x);
+  const absY = Math.abs(vector.y);
+  const major = Math.max(absX, absY);
+  const minor = Math.min(absX, absY);
+  if (major <= 1e-6) {
+    return role;
+  }
+
+  // Shapes like diamonds expose N/E/S/W points through corner roles; route them as axis-resize roles.
+  if (minor > major * 0.1) {
+    return role;
+  }
+  if (absX >= absY) {
+    return vector.x >= 0 ? "right" : "left";
+  }
+  return vector.y >= 0 ? "top" : "bottom";
+}
 
 export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArgs) {
   const {
@@ -216,20 +247,25 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
         setWarning("Resize tooltip needs a resolvable resize frame.");
         return;
       }
+      const normalizedRole = normalizeResizeRoleForNodeShapeFrame(
+        role,
+        initialFrame,
+        pathElement != null && pathShapeHint == null
+      );
 
       setSnapLines([]);
       setDragState({
         kind: "resize",
         pointerId: event.pointerId,
         elementId: sourceId,
-        role,
-        cursor: cursor || resizeCursorForRole(role),
+        role: normalizedRole,
+        cursor: cursor || resizeCursorForRole(normalizedRole),
         preserveAspectRatio: isCircleResizeSource ? 1 : ellipseAspectRatioForSource(snapshot.scene?.elements ?? [], sourceId),
         initialFrame,
         initialScopeTransform,
         measurementMode: pathShapeHint === "rectangle" || sourceId.startsWith("scope:") ? "opposite-corner" : "center",
         preserveAspectDuringResize: isCircleResizeSource,
-        historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${role}`, event.pointerId)
+        historyMergeKey: makeMergeKey("drag-resize", `${sourceId}:${normalizedRole}`, event.pointerId)
       });
       logSnapDebug({
         phase: "drag-start-resize",

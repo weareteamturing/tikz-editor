@@ -116,6 +116,28 @@ export async function setSource(page: Page, source: string): Promise<void> {
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
   await page.keyboard.type(source);
+  await expect.poll(async () => {
+    return await page.evaluate((expectedSource) => {
+      const api = (globalThis as unknown as {
+        __TIKZ_EDITOR_APP_TEST_API__?: {
+          getSource?: () => string;
+          getSnapshotSource?: () => string;
+        };
+      }).__TIKZ_EDITOR_APP_TEST_API__;
+      const currentSource = api?.getSource?.();
+      const snapshotSource = api?.getSnapshotSource?.();
+      if (currentSource !== expectedSource) {
+        return false;
+      }
+      if (snapshotSource == null) {
+        return true;
+      }
+      return snapshotSource === expectedSource;
+    }, source);
+  }, {
+    timeout: 15_000,
+    intervals: [100, 200, 400, 800]
+  }).toBe(true);
 }
 
 export async function readSource(page: Page): Promise<string> {

@@ -24,6 +24,54 @@ function normalizeSourceWhitespace(source: string): string {
   return source.replace(/\s+/g, "");
 }
 
+async function readRightmostResizeHandleCenter(page: import("@playwright/test").Page): Promise<{ x: number; y: number }> {
+  const center = await page.evaluate(() => {
+    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    if (handles.length === 0) {
+      return null;
+    }
+    let best: { x: number; y: number } | null = null;
+    for (const handle of handles) {
+      const rect = handle.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      if (!best || x > best.x) {
+        best = { x, y };
+      }
+    }
+    return best;
+  });
+  if (!center) {
+    throw new Error("No resize handles were found.");
+  }
+  return center;
+}
+
+async function readCursorDistanceToRightmostResizeHandle(
+  page: import("@playwright/test").Page,
+  cursor: { x: number; y: number }
+): Promise<number> {
+  return await page.evaluate((target) => {
+    const handles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    if (handles.length === 0) {
+      return Number.POSITIVE_INFINITY;
+    }
+    let best: { x: number; y: number } | null = null;
+    for (const handle of handles) {
+      const rect = handle.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      if (!best || x > best.x) {
+        best = { x, y };
+      }
+    }
+    if (!best) {
+      return Number.POSITIVE_INFINITY;
+    }
+    return Math.hypot(best.x - target.x, best.y - target.y);
+  }, cursor);
+}
+
 async function doubleClickHitRegion(
   page: import("@playwright/test").Page,
   index: number
@@ -285,6 +333,176 @@ test("diamond shapes show drag-size preview and can be resized with handles", as
   expect(after).toContain("minimum width=");
   expect(after).toContain("minimum height=");
   expect(after).not.toBe(before);
+});
+
+test("diamond east-handle drag does not collapse to tiny size", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: 120, y: 90 }, { x: 300, y: 290 });
+  await page.mouse.up();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+
+  const handles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => handles.count()).toBeGreaterThanOrEqual(4);
+  const eastIndex = await handles.evaluateAll((elements) => {
+    let bestIndex = 0;
+    let bestX = Number.NEGATIVE_INFINITY;
+    for (let index = 0; index < elements.length; index += 1) {
+      const rect = elements[index]!.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      if (centerX > bestX) {
+        bestX = centerX;
+        bestIndex = index;
+      }
+    }
+    return bestIndex;
+  });
+  const eastHandle = handles.nth(eastIndex);
+  await expect(eastHandle).toBeVisible();
+
+  const baseline = await page.evaluate(() => {
+    const resizeHandles = Array.from(document.querySelectorAll('[data-handle-kind="resize-element"]')) as HTMLElement[];
+    if (resizeHandles.length < 4) {
+      return null;
+    }
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const handle of resizeHandles) {
+      const rect = handle.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      minX = Math.min(minX, centerX);
+      maxX = Math.max(maxX, centerX);
+      minY = Math.min(minY, centerY);
+      maxY = Math.max(maxY, centerY);
+    }
+    const svgs = Array.from(document.querySelectorAll("[data-canvas-viewport='true'] svg")) as SVGSVGElement[];
+    const svg = svgs[svgs.length - 1];
+    if (!svg) {
+      return null;
+    }
+    const rect = svg.getBoundingClientRect();
+    const viewBox = svg.viewBox.baseVal;
+    if (rect.width <= 0 || rect.height <= 0 || viewBox.width <= 0 || viewBox.height <= 0) {
+      return null;
+    }
+    const ptPerPxX = viewBox.width / rect.width;
+    const ptPerPxY = viewBox.height / rect.height;
+    return {
+      widthPt: (maxX - minX) * ptPerPxX,
+      heightPt: (maxY - minY) * ptPerPxY
+    };
+  });
+  if (!baseline) {
+    throw new Error("Could not resolve baseline diamond dimensions from resize handles.");
+  }
+
+  await dragLocatorBy(page, eastHandle, -8, 0);
+  const tooltip = page.getByTestId("canvas-drag-tooltip");
+  await expect(tooltip).toBeVisible();
+  const tooltipText = (await tooltip.textContent()) ?? "";
+  const widthPt = Number((/Width:\s*([0-9.]+)pt/.exec(tooltipText) ?? [])[1] ?? "0");
+  const heightPt = Number((/Height:\s*([0-9.]+)pt/.exec(tooltipText) ?? [])[1] ?? "0");
+  expect(widthPt).toBeLessThan(baseline.widthPt + 0.75);
+  expect(heightPt).toBeLessThan(baseline.heightPt + 0.75);
+  expect(widthPt).toBeGreaterThan(30);
+  expect(heightPt).toBeGreaterThan(30);
+
+  await page.mouse.up();
+  const after = await readSource(page);
+  expect(after).toContain("shape=diamond");
+  expect(after).not.toContain("minimum height=13.65pt");
+});
+
+test("diamond east-handle stays under cursor while dragging inward", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: 120, y: 90 }, { x: 320, y: 300 });
+  await page.mouse.up();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const handles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => handles.count()).toBeGreaterThanOrEqual(4);
+
+  const start = await readRightmostResizeHandleCenter(page);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+
+  for (const deltaX of [-4, -8, -12, -16]) {
+    const cursor = { x: start.x + deltaX, y: start.y };
+    await page.mouse.move(cursor.x, cursor.y);
+    await expect.poll(
+      async () => readCursorDistanceToRightmostResizeHandle(page, cursor),
+      { timeout: 2_000, intervals: [40, 80, 120, 200] }
+    ).toBeLessThan(4.5);
+  }
+
+  await page.mouse.up();
+});
+
+test("diamond east-handle stays under cursor while dragging outward", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Shape").click();
+  await page.getByTestId("toolbar-shape-choice-diamond").click();
+
+  const layer = interactionLayer(page);
+  const box = await layer.boundingBox();
+  if (!box) {
+    throw new Error("Canvas interaction layer bounds missing.");
+  }
+
+  await dragBetweenPoints(page, layer, { x: 120, y: 90 }, { x: 300, y: 290 });
+  await page.mouse.up();
+
+  await waitForHitRegions(page, 1);
+  await clickHitRegion(page, 0);
+  const handles = page.locator('[data-handle-kind="resize-element"]');
+  await expect.poll(async () => handles.count()).toBeGreaterThanOrEqual(4);
+
+  const start = await readRightmostResizeHandleCenter(page);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+
+  for (const deltaX of [4, 8, 12, 16]) {
+    const cursor = { x: start.x + deltaX, y: start.y };
+    await page.mouse.move(cursor.x, cursor.y);
+    await expect.poll(
+      async () => readCursorDistanceToRightmostResizeHandle(page, cursor),
+      { timeout: 2_000, intervals: [40, 80, 120, 200] }
+    ).toBeLessThan(4.5);
+  }
+
+  await page.mouse.up();
 });
 
 test("circle shapes can be resized with handles", async ({ page }) => {
