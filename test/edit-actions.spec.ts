@@ -2043,7 +2043,7 @@ describe("applyEditAction – resizeElement", () => {
     expect(result.newSource).toContain("minimum height=");
   });
 
-  it("removes minimum width/height when shrinking below the intrinsic floor", () => {
+  it("clamps minimum width/height to the intrinsic floor when shrinking below it", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[draw,minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -2056,8 +2056,10 @@ describe("applyEditAction – resizeElement", () => {
     });
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).not.toContain("minimum width");
-    expect(result.newSource).not.toContain("minimum height");
+    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum width=100pt");
+    expect(result.newSource).not.toContain("minimum height=80pt");
   });
 
   it("updates only the axis targeted by the resize role", () => {
@@ -2135,7 +2137,7 @@ describe("applyEditAction – resizeElement", () => {
     expect(width).toBeGreaterThan(200);
   });
 
-  it("removes the full option list when resize drops the last minimum constraints", () => {
+  it("keeps minimum constraints at intrinsic floor for unstyled nodes", () => {
     const source = String.raw`\begin{tikzpicture}
   \node[minimum width=100pt,minimum height=80pt] at (0,0) {A};
 \end{tikzpicture}`;
@@ -2149,9 +2151,10 @@ describe("applyEditAction – resizeElement", () => {
 
     expect(result.kind).toBe("success");
     if (result.kind !== "success") return;
-    expect(result.newSource).not.toContain("minimum width");
-    expect(result.newSource).not.toContain("minimum height");
-    expect(result.newSource).not.toContain("[]");
+    expect(result.newSource).toContain("minimum width=");
+    expect(result.newSource).toContain("minimum height=");
+    expect(result.newSource).not.toContain("minimum width=100pt");
+    expect(result.newSource).not.toContain("minimum height=80pt");
   });
 
   it("uses the provided text engine when computing intrinsic resize floors", () => {

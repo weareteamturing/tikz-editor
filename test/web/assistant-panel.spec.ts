@@ -50,7 +50,15 @@ describe("AssistantPanel image paste", () => {
       assistant: {
         startTurn: async () => ({ turnId: "turn-1" }),
         listModels: async () => [],
-        readAccountSnapshot: async () => null
+        readAccount: async () => null,
+        readRateLimits: async () => null,
+        checkCodexStatus: async () => ({
+          installed: true,
+          hasNpm: true,
+          hasBrew: false,
+          hasWsl: false
+        }),
+        warmUp: async () => undefined
       }
     });
 

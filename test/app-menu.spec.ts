@@ -163,7 +163,7 @@ describe("app menu definition", () => {
     ) {
       throw new Error("Expected file.import-powerpoint and file.import-svg commands in File > Import.");
     }
-    expect(powerpointItem.label).toBe("PowerPoint (.pptx)");
+    expect(powerpointItem.label).toBe("PowerPoint (.pptx)...");
     expect(svgItem.label).toBe("SVG...");
   });
 
@@ -219,10 +219,10 @@ describe("app menu definition", () => {
     ) {
       throw new Error("Expected SVG, Standalone LaTeX, PDF, and PNG export commands in File > Export.");
     }
-    expect(svgItem.label).toBe("SVG");
+    expect(svgItem.label).toBe("SVG...");
     expect(standaloneLatexItem.label).toBe("Standalone LaTeX");
-    expect(pdfItem.label).toBe("PDF");
-    expect(pngItem.label).toBe("PNG");
+    expect(pdfItem.label).toBe("PDF...");
+    expect(pngItem.label).toBe("PNG...");
   });
 
   it("exposes Copy SVG in the File menu", () => {

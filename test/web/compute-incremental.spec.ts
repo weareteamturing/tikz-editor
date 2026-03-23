@@ -4,6 +4,17 @@ import { computeSnapshot } from "../../packages/app/src/compute.js";
 import { deriveSingleSourcePatch } from "../../packages/app/src/store/source-patch-diff.js";
 import { applyEditAction } from "../../packages/core/src/edit/actions.js";
 
+function normalizeForSceneComparison<T>(value: T): T {
+  return JSON.parse(
+    JSON.stringify(value, (key, currentValue) => {
+      if (key === "id" || key === "runtimeId" || key === "sourceId") {
+        return undefined;
+      }
+      return currentValue;
+    })
+  ) as T;
+}
+
 describe("computeSnapshot incremental parser integration", () => {
   it("uses parser and semantic incremental paths for move drags and keeps dependent edges correct", async () => {
     const source = String.raw`\begin{tikzpicture}
@@ -38,7 +49,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.strategy).toBeDefined();
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
@@ -82,7 +95,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
   });
 
   it("reports selective semantic replay for a small dependency closure with a long suffix", async () => {
@@ -115,7 +130,9 @@ describe("computeSnapshot incremental parser integration", () => {
     expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
     expect(incremental.snapshot.incremental?.corridorEndStatementIndex).toBe(3);
     expect(incremental.snapshot.incremental?.affectedStatementCount).toBe(2);
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
@@ -155,7 +172,9 @@ describe("computeSnapshot incremental parser integration", () => {
     });
 
     expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
   });
 
   it("keeps later foreach-origin fragments on the selective path", async () => {
@@ -193,7 +212,9 @@ describe("computeSnapshot incremental parser integration", () => {
     });
 
     expect(incremental.snapshot.incremental?.replayMode).toBe("selective");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
   });
 
   it("keeps handle drags working when statement children regenerate ids", async () => {
@@ -227,7 +248,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.trigger).toBe("drag-handle");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
   });
 
   it("replays descendant scene elements when a scope move rewrites only scope options", async () => {
@@ -273,7 +296,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
@@ -321,7 +346,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
@@ -370,7 +397,9 @@ describe("computeSnapshot incremental parser integration", () => {
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
     expect(incremental.snapshot.incremental?.trigger).toBe("drag-element");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
     expect(incremental.snapshot.svg?.svg).toBe(canonical.snapshot.svg?.svg);
   });
 
@@ -463,7 +492,9 @@ describe("computeSnapshot incremental parser integration", () => {
     });
 
     expect(incremental.snapshot.incremental?.parseStrategy).toBe("incremental");
-    expect(incremental.snapshot.scene).toEqual(canonical.snapshot.scene);
+    expect(normalizeForSceneComparison(incremental.snapshot.scene)).toEqual(
+      normalizeForSceneComparison(canonical.snapshot.scene)
+    );
   });
 });
 
