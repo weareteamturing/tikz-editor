@@ -10,8 +10,7 @@ import {
   resolveToolbarToolMode,
   TOOL_BUTTONS,
   TOOL_COLOR_OPTIONS,
-  toolModeAutoOpensPopup,
-  toolModePopupKind,
+  CaretDownIcon,
   type ToolPopupKind
 } from "./tool-config";
 import { GENERATED_NODE_SHAPE_PREVIEWS } from "./generated-node-shape-previews";
@@ -32,7 +31,6 @@ export function Toolbar() {
   const dispatch = useEditorStore((s) => s.dispatch);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
   const [openPopupMode, setOpenPopupMode] = useState<ToolMode | null>(null);
-  const previousToolModeRef = useRef<ToolMode>(toolMode);
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
   const isMacDesktop =
     isDesktop &&
@@ -40,23 +38,17 @@ export function Toolbar() {
     /(mac|iphone|ipad)/i.test(navigator.platform);
   const showAppTitle = !isDesktop;
 
+  // Close popup when tool mode changes (unless it's the shape popup being used to select)
   useEffect(() => {
-    if (openPopupMode && openPopupMode !== toolMode) {
+    if (openPopupMode && openPopupMode !== "addShape" && openPopupMode !== toolMode) {
       setOpenPopupMode(null);
     }
   }, [openPopupMode, toolMode]);
 
-  useEffect(() => {
-    if (previousToolModeRef.current !== toolMode && toolModeAutoOpensPopup(toolMode)) {
-      setOpenPopupMode(toolMode);
-    }
-    previousToolModeRef.current = toolMode;
-  }, [toolMode]);
-
   const renderPopup = (popupKind: ToolPopupKind) => {
     if (popupKind === "bucket-color") {
       return (
-        <ToolbarPopupSection title="Bucket">
+        <ToolbarPopupSection title="Bucket Color">
           <ColorPicker
             ariaLabel="Bucket fill color"
             value={bucketFillColor}
@@ -78,6 +70,8 @@ export function Toolbar() {
             selectedId={selectedAddShape}
             onSelect={(id) => {
               dispatch({ type: "SET_ADD_SHAPE_PRESET", value: id as typeof selectedAddShape });
+              // Activate the shape tool and close popup
+              dispatch({ type: "SET_TOOL_MODE", mode: "addShape" });
               setOpenPopupMode(null);
             }}
             testIdPrefix="toolbar-shape-choice"
@@ -86,6 +80,129 @@ export function Toolbar() {
       );
     }
     return null;
+  };
+
+  const renderBucketButton = () => {
+    const mode = "addBucket" as const;
+    const toolDef = TOOL_BUTTONS.find((b) => b.mode === mode)!;
+    const capability = getToolCapabilityStatus(mode);
+    const unsupported = capability.status === "unsupported";
+    const buttonTitle = unsupported
+      ? `${toolDef.title}\n${capability.reason}`
+      : toolDef.title;
+    const Icon = toolDef.icon;
+    const isActive = toolMode === mode;
+
+    return (
+      <ToolbarToolPopup
+        key={mode}
+        open={openPopupMode === mode}
+        onClose={() => setOpenPopupMode(null)}
+        popup={renderPopup("bucket-color")}
+        popupTestId="toolbar-tool-popup-addBucket"
+      >
+        <div className={css.splitButton}>
+          <RenderedTooltip content={buttonTitle}>
+            <button
+              className={[css.btn, css.splitButtonMain, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
+              aria-label={toolDef.label}
+              disabled={unsupported}
+              onClick={() => {
+                dispatch({ type: "SET_TOOL_MODE", mode });
+                setOpenPopupMode(null);
+              }}
+            >
+              <Icon size={18} />
+              <div
+                className={css.bucketColorIndicator}
+                style={{ backgroundColor: bucketFillColor }}
+              />
+            </button>
+          </RenderedTooltip>
+          <RenderedTooltip content="Choose bucket color">
+            <button
+              className={[css.btn, css.splitButtonCaret, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
+              aria-label="Choose bucket color"
+              aria-haspopup="dialog"
+              aria-expanded={openPopupMode === mode}
+              disabled={unsupported}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenPopupMode((current) => (current === mode ? null : mode));
+              }}
+            >
+              <CaretDownIcon size={8} />
+            </button>
+          </RenderedTooltip>
+        </div>
+      </ToolbarToolPopup>
+    );
+  };
+
+  const renderShapeButton = () => {
+    const mode = "addShape" as const;
+    const toolDef = TOOL_BUTTONS.find((b) => b.mode === mode)!;
+    const capability = getToolCapabilityStatus(mode);
+    const unsupported = capability.status === "unsupported";
+    const buttonTitle = unsupported
+      ? `${toolDef.title}\n${capability.reason}`
+      : toolDef.title;
+    const Icon = toolDef.icon;
+    const isActive = toolMode === mode;
+
+    return (
+      <ToolbarToolPopup
+        key={mode}
+        open={openPopupMode === mode}
+        onClose={() => setOpenPopupMode(null)}
+        popup={renderPopup("shape-picker")}
+        popupTestId="toolbar-tool-popup-addShape"
+      >
+        <RenderedTooltip content={buttonTitle}>
+          <button
+            className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
+            aria-label={toolDef.label}
+            aria-haspopup="dialog"
+            aria-expanded={openPopupMode === mode}
+            disabled={unsupported}
+            onClick={() => {
+              // Just open the popup, don't activate the tool
+              setOpenPopupMode((current) => (current === mode ? null : mode));
+            }}
+          >
+            <Icon size={18} />
+          </button>
+        </RenderedTooltip>
+      </ToolbarToolPopup>
+    );
+  };
+
+  const renderStandardButton = (toolDef: (typeof TOOL_BUTTONS)[number]) => {
+    const { mode, label, title, icon: Icon } = toolDef;
+    const capability = getToolCapabilityStatus(mode);
+    const unsupported = capability.status === "unsupported";
+    const partial = capability.status === "partial";
+    const buttonTitle = partial || unsupported
+      ? `${title}\n${capability.reason}`
+      : title;
+    const nextMode = resolveToolbarToolMode(toolMode, mode);
+    const isActive = toolMode === mode;
+
+    return (
+      <RenderedTooltip key={mode} content={buttonTitle}>
+        <button
+          className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
+          aria-label={label}
+          disabled={unsupported}
+          onClick={() => {
+            dispatch({ type: "SET_TOOL_MODE", mode: nextMode });
+            setOpenPopupMode(null);
+          }}
+        >
+          <Icon size={18} />
+        </button>
+      </RenderedTooltip>
+    );
   };
 
   return (
@@ -97,81 +214,16 @@ export function Toolbar() {
         </>
       ) : null}
 
-      {/* Tool mode buttons */}
       <div className={css.group}>
-        {TOOL_BUTTONS.map(({ mode, label, title, icon: Icon }) => {
-          const capability = getToolCapabilityStatus(mode);
-          const unsupported = capability.status === "unsupported";
-          const partial = capability.status === "partial";
-          const popupKind = toolModePopupKind(mode);
-          const hasPopup = popupKind != null;
-          const buttonTitle = partial || unsupported
-            ? `${title}\n${capability.reason}`
-            : title;
-          const nextMode = resolveToolbarToolMode(toolMode, mode);
-          const button = (
-            <RenderedTooltip content={buttonTitle}>
-              <button
-                className={[
-                  css.btn,
-                  toolMode === mode ? css.btnActive : ""
-                ].filter(Boolean).join(" ")}
-                aria-label={label}
-                aria-haspopup={hasPopup ? "dialog" : undefined}
-                aria-expanded={hasPopup && openPopupMode === mode && toolMode === mode ? true : undefined}
-                disabled={unsupported}
-                onClick={() => {
-                  dispatch({
-                    type: "SET_TOOL_MODE",
-                    mode: nextMode
-                  });
-                  if (hasPopup && nextMode === mode) {
-                    setOpenPopupMode(mode);
-                  } else {
-                    setOpenPopupMode(null);
-                  }
-                }}
-              >
-                <Icon size={14} />
-              </button>
-            </RenderedTooltip>
-          );
-
-          if (!hasPopup || !popupKind) {
-            return (
-              <RenderedTooltip key={mode} content={buttonTitle}>
-                <button
-                  className={[
-                    css.btn,
-                    toolMode === mode ? css.btnActive : ""
-                  ].filter(Boolean).join(" ")}
-                  aria-label={label}
-                  disabled={unsupported}
-                  onClick={() => {
-                    dispatch({
-                      type: "SET_TOOL_MODE",
-                      mode: nextMode
-                    });
-                    setOpenPopupMode(null);
-                  }}
-                >
-                  <Icon size={14} />
-                </button>
-              </RenderedTooltip>
-            );
+        {TOOL_BUTTONS.map((toolDef) => {
+          // Special handling for bucket and shape buttons
+          if (toolDef.mode === "addBucket") {
+            return renderBucketButton();
           }
-
-          return (
-            <ToolbarToolPopup
-              key={mode}
-              open={openPopupMode === mode && toolMode === mode}
-              onClose={() => setOpenPopupMode((current) => (current === mode ? null : current))}
-              popup={renderPopup(popupKind)}
-              popupTestId={`toolbar-tool-popup-${mode}`}
-            >
-              {button}
-            </ToolbarToolPopup>
-          );
+          if (toolDef.mode === "addShape") {
+            return renderShapeButton();
+          }
+          return renderStandardButton(toolDef);
         })}
       </div>
     </div>

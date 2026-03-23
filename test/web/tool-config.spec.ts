@@ -67,7 +67,8 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModePopupKind("addFreehand")).toBeNull();
     expect(toolModeHasPopup("addShape")).toBe(true);
     expect(toolModePopupKind("addShape")).toBe("shape-picker");
-    expect(toolModeAutoOpensPopup("addShape")).toBe(true);
+    // Shape tool no longer auto-opens; it opens on click but only activates when a shape is selected
+    expect(toolModeAutoOpensPopup("addShape")).toBe(false);
     expect(toolModeHasPopup("addRect")).toBe(false);
     expect(toolModePopupKind("addRect")).toBeNull();
   });
