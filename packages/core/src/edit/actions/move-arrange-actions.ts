@@ -50,7 +50,9 @@ export function applyMoveElementsAction(
     return { kind: "unsupported", reason: "No element ids were provided for moveElements" };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const matrixElementIds = normalizedIds.filter((elementId) => {
     const statement = findPathStatementById(parsed.figure.body, elementId);
     return statement != null && isMatrixPathStatement(statement);
@@ -206,7 +208,9 @@ export function applyAlignElementsAction(
     return { kind: "unsupported", reason: "Align requires at least 2 selected elements." };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const plan = planAlignDeltas(boundsBySource, normalizedIds, action.mode);
@@ -227,7 +231,9 @@ export function applyDistributeElementsAction(
     return { kind: "unsupported", reason: "Distribute requires at least 3 selected elements." };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const semantic = evaluateTikzFigure(parsed.figure, source);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const plan = planDistributeDeltas(boundsBySource, normalizedIds, action.axis);
@@ -733,7 +739,9 @@ function rewriteSingleMatrixPlacement(
   placementHandle: EditHandle | undefined,
   parseOptions: EditParseOptions
 ): MatrixPlacementRewriteResult {
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const statement = findPathStatementById(parsed.figure.body, elementId);
   if (!statement) {
     return { kind: "unsupported", reason: `Matrix statement ${elementId} was not found` };
@@ -834,7 +842,9 @@ function rewriteSingleTreeRootPlacement(
   delta: Point,
   parseOptions: EditParseOptions
 ): MatrixPlacementRewriteResult {
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const statement = findPathStatementById(parsed.figure.body, elementId);
   if (!statement) {
     return { kind: "unsupported", reason: `Tree root statement ${elementId} was not found` };

@@ -6,6 +6,7 @@ import {
   clearSelection,
   resolvePaperTarget,
   resolveVisibleSamplePointForSelector,
+  PAPER_PATH,
   seedWorkspace,
   startCDPProfile,
   stopCDPProfile,
@@ -392,7 +393,7 @@ test("profile paper inspector color change for the magenta axis", async ({ page 
   }
 
   await seedWorkspace(page, target, "doc-profile-paper-color");
-  await gotoApp(page, "/edit/");
+  await gotoApp(page, "/editor/");
   await installProbe(page, target.targetSourceId);
   await waitForTargetFigureReady(page, target);
 
@@ -407,9 +408,7 @@ test("profile paper inspector color change for the magenta axis", async ({ page 
     await performColorChange(page);
     await page.waitForTimeout(1200);
     const snapshot = await readProbe(page);
-    summaries.push(
-      summarizeSnapshot(label, await stopCDPProfile(client, filename), snapshot)
-    );
+    summaries.push(summarizeSnapshot(label, await stopCDPProfile(client, filename), snapshot));
     if (VERBOSE_PROFILE_LOGS) {
       console.log(`[paper-color] ${label}-snapshot=${JSON.stringify({
         targetStroke: snapshot.targetStroke,

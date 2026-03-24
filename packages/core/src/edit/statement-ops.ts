@@ -91,7 +91,9 @@ export function parseStatementSnapshot(source: string, parseOptions: EditParseOp
   ) {
     return parseOptions.analysisView.statementSnapshot;
   }
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   return buildStatementSnapshotFromStatements(source, parsed.figure.body);
 }
 

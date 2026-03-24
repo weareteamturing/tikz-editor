@@ -93,6 +93,7 @@ export type EvaluateTikzResult = {
   nodeAnchorTargets: NodeAnchorTarget[];
   dependencies: SemanticDependencyGraph;
   sourceStatementFirstIndexBySourceId: Record<string, number>;
+  colorAliases: ReadonlyMap<string, string>;
   symbolDependencyEdges: SemanticSymbolDependencyEdge[];
   unresolvedSymbols: SemanticUnresolvedSymbol[];
 };
@@ -353,6 +354,8 @@ export function finalizeSemanticEvaluationRun(
     elements.push(...statementElements);
   }
 
+  const colorAliases = new Map(currentFrame(run.context).colorAliases);
+
   if (run.rootFramePushed) {
     popFrame(run.context);
   }
@@ -404,6 +407,7 @@ export function finalizeSemanticEvaluationRun(
     nodeAnchorTargets: collectNodeAnchorTargets(run.context),
     dependencies: run.context.dependencyBuilder.build(),
     sourceStatementFirstIndexBySourceId: buildSourceStatementFirstIndexBySourceId(run),
+    colorAliases,
     symbolDependencyEdges: listContextSymbolDependencyEdges(run.context),
     unresolvedSymbols: listContextUnresolvedSymbols(run.context)
   };

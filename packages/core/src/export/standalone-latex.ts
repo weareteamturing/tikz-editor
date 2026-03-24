@@ -235,7 +235,7 @@ export function createStandaloneLatexExportArtifact(
   const parseResult = parseTikz(options.source, {
     recover: true,
     activeFigureId: options.activeFigureId,
-    includeContextDefinitions: true
+    includeContextDefinitions: true,
   });
   const semanticResult = evaluateTikzFigure(parseResult.figure, parseResult.source);
 

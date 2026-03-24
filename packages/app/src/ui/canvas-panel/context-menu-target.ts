@@ -1,6 +1,6 @@
 import type { CanvasContextMenuTarget } from "../../context-menu";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
-import { parseTikzForEdit } from "tikz-editor/edit/parse-options";
+import { parseTikzForEdit, type EditParseOptions } from "tikz-editor/edit/parse-options";
 import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { ToolMode } from "../../store/types";
 
@@ -14,6 +14,7 @@ export type ResolveCanvasContextMenuTargetInput = {
   toolMode: ToolMode;
   clickedSourceId: string | null;
   selectedElementIds: ReadonlySet<string>;
+  parseOptions?: EditParseOptions;
 };
 
 export type ResolveCanvasContextMenuTargetResult = {
@@ -24,7 +25,7 @@ export type ResolveCanvasContextMenuTargetResult = {
 export function resolveCanvasContextMenuTarget(
   input: ResolveCanvasContextMenuTargetInput
 ): ResolveCanvasContextMenuTargetResult {
-  const { clickedSourceId, selectedElementIds, source } = input;
+  const { clickedSourceId, selectedElementIds, source, parseOptions } = input;
 
   if (!clickedSourceId) {
     return {
@@ -34,8 +35,8 @@ export function resolveCanvasContextMenuTarget(
   }
 
   if (selectedElementIds.has(clickedSourceId)) {
-    const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId);
-    const treeTarget = isTreeContextTarget(source, clickedSourceId);
+    const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId, parseOptions);
+    const treeTarget = isTreeContextTarget(source, clickedSourceId, parseOptions);
     return {
       target:
         selectedElementIds.size > 1
@@ -44,29 +45,29 @@ export function resolveCanvasContextMenuTarget(
             ? "selection-single-matrix"
             : matrixContextKind === "matrix-cell"
               ? "selection-single-matrix-cell"
-          : isNodeContextTarget(source, clickedSourceId)
+          : isNodeContextTarget(source, clickedSourceId, parseOptions)
             ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
             : (treeTarget ? "selection-single-tree" : "selection-single"),
       selectionAction: { kind: "preserve" }
     };
   }
 
-  const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId);
-  const treeTarget = isTreeContextTarget(source, clickedSourceId);
+  const matrixContextKind = resolveMatrixContextKind(source, clickedSourceId, parseOptions);
+  const treeTarget = isTreeContextTarget(source, clickedSourceId, parseOptions);
   return {
     target: matrixContextKind === "matrix-statement"
       ? "selection-single-matrix"
       : matrixContextKind === "matrix-cell"
         ? "selection-single-matrix-cell"
-      : isNodeContextTarget(source, clickedSourceId)
+      : isNodeContextTarget(source, clickedSourceId, parseOptions)
       ? (treeTarget ? "selection-single-node-tree" : "selection-single-node")
       : (treeTarget ? "selection-single-tree" : "selection-single"),
     selectionAction: { kind: "select-only", sourceId: clickedSourceId }
   };
 }
 
-function isNodeContextTarget(source: string, targetId: string): boolean {
-  const resolved = resolvePropertyTarget(source, targetId);
+function isNodeContextTarget(source: string, targetId: string, parseOptions: EditParseOptions | undefined): boolean {
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found") {
     return false;
   }
@@ -76,8 +77,8 @@ function isNodeContextTarget(source: string, targetId: string): boolean {
   );
 }
 
-function isTreeContextTarget(source: string, targetId: string): boolean {
-  const resolved = resolvePropertyTarget(source, targetId);
+function isTreeContextTarget(source: string, targetId: string, parseOptions: EditParseOptions | undefined): boolean {
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found") {
     return false;
   }
@@ -87,7 +88,9 @@ function isTreeContextTarget(source: string, targetId: string): boolean {
   if (resolved.target.kind !== "path-statement") {
     return false;
   }
-  const parsed = parseTikzForEdit(source);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const statement = findPathStatementById(parsed.figure.body, targetId);
   if (!statement) {
     return false;
@@ -97,9 +100,10 @@ function isTreeContextTarget(source: string, targetId: string): boolean {
 
 function resolveMatrixContextKind(
   source: string,
-  targetId: string
+  targetId: string,
+  parseOptions: EditParseOptions | undefined
 ): "matrix-statement" | "matrix-cell" | null {
-  const resolved = resolvePropertyTarget(source, targetId);
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found") {
     return null;
   }

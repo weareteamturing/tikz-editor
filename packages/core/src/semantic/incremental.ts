@@ -5,6 +5,7 @@ import {
   listContextRequiredLibraries,
   listContextSymbolDependencyEdges,
   listContextUnresolvedSymbols,
+  currentFrame,
   requireContextLibrary,
   restoreSemanticContext,
   retargetEditHandlesSourceFingerprint,
@@ -498,6 +499,7 @@ function assembleSelectiveSemanticResult(args: {
   }
 
   const finalFeatureUsage = cloneFeatureUsage(featureUsage);
+  const colorAliases = new Map(currentFrame(run.context).colorAliases);
   const scene: SceneFigure = {
     kind: "SceneFigure",
     span: run.figure.span,
@@ -521,6 +523,7 @@ function assembleSelectiveSemanticResult(args: {
     nodeAnchorTargets: collectNodeAnchorTargets(run.context),
     dependencies,
     sourceStatementFirstIndexBySourceId: unmapSourceStatementFirstIndices(sourceStatementFirstIndexBySourceId),
+    colorAliases,
     symbolDependencyEdges: listContextSymbolDependencyEdges(run.context),
     unresolvedSymbols: listContextUnresolvedSymbols(run.context)
   };

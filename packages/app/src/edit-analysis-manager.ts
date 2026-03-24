@@ -35,7 +35,6 @@ export function getSharedEditAnalysisView(params: {
   if (
     !cachedEntry ||
     cachedEntry.key.documentId !== key.documentId ||
-    cachedEntry.key.sourceRevision !== key.sourceRevision ||
     cachedEntry.key.activeFigureId !== key.activeFigureId
   ) {
     cachedEntry = {
@@ -43,6 +42,8 @@ export function getSharedEditAnalysisView(params: {
       session: createEditAnalysisSession(),
       primedSnapshotRevision: null
     };
+  } else {
+    cachedEntry.key = key;
   }
 
   const session = cachedEntry.session;
@@ -61,6 +62,10 @@ export function getSharedEditAnalysisView(params: {
   return session.ensure(params.source, {
     activeFigureId: params.activeFigureId
   });
+}
+
+export function getSharedEditAnalysisSession(): EditAnalysisSession | null {
+  return cachedEntry?.session ?? null;
 }
 
 export function resetSharedEditAnalysisManager(): void {

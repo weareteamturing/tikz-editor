@@ -15,7 +15,7 @@ import {
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
 import { buildStylesCascadeModel } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
-import { getSharedEditAnalysisView } from "../../edit-analysis-manager";
+import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../../project-named-colors";
 import { useEditorStore } from "../../store/store";
 import { actionAvailability } from "../editor-commands";
@@ -171,6 +171,14 @@ export function useInspectorModel(args: {
       const k = s.activeCanvasDragKind;
       if (k === "element" || k === "resize" || k === "rotate" || k === "handle") return;
       if (s.source !== prev.source || s.snapshot !== prev.snapshot) {
+        // When the source has changed but the snapshot hasn't caught up yet
+        // (snapshot.source !== source), skip the update. The expensive inspector
+        // useMemo hooks (descriptors, provenance) would use mismatched sources,
+        // causing cache misses and redundant full parses. Wait for SNAPSHOT_READY
+        // to bring both into sync, then update in one shot.
+        if (s.source !== s.snapshot.source) {
+          return;
+        }
         setSourceSnapshot({ source: s.source, snapshot: s.snapshot });
       }
     });
@@ -194,9 +202,11 @@ export function useInspectorModel(args: {
   const parseOptions = useMemo(
     () => ({
       activeFigureId,
-      analysisView: editAnalysisView
+      analysisView: editAnalysisView,
+      analysisSession: getSharedEditAnalysisSession(),
+      colorAliases: snapshot.semanticResult?.colorAliases ?? null
     }),
-    [activeFigureId, editAnalysisView]
+    [activeFigureId, editAnalysisView, snapshot.semanticResult]
   );
   const globalTransformValues = useMemo(
     () => resolveTransformInspectorValues(source, TIKZPICTURE_GLOBAL_TARGET_ID, parseOptions),

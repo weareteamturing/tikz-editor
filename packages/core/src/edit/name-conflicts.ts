@@ -49,7 +49,9 @@ export function renameSnippetDeclaredNames(
 }
 
 function collectDeclaredNamesFromSource(source: string, parseOptions: EditParseOptions): Set<string> {
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const names = new Set<string>();
   collectDeclaredNamesFromStatements(parsed.figure.body, names);
   return names;

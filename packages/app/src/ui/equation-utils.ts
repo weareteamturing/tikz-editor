@@ -28,7 +28,9 @@ export function resolveEquationNodeTargetFromSelection(
   if (!sourceId) {
     return null;
   }
-  return resolveEquationNodeTarget(source, sourceId, parseOptions);
+  return resolveEquationNodeTarget(source, sourceId, {
+    ...parseOptions,
+  });
 }
 
 export function resolveEquationNodeTarget(
@@ -36,7 +38,9 @@ export function resolveEquationNodeTarget(
   sourceId: string,
   parseOptions: EditParseOptions = {}
 ): EquationNodeTarget | null {
-  const resolvedTextTarget = resolveNodeTextTarget(source, sourceId, parseOptions);
+  const resolvedTextTarget = resolveNodeTextTarget(source, sourceId, {
+    ...parseOptions,
+  });
   if (!resolvedTextTarget) {
     return null;
   }
@@ -109,7 +113,9 @@ function resolveNodeTextTarget(
     return null;
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const stack: Statement[] = [...parsed.figure.body];
   while (stack.length > 0) {
     const statement = stack.shift();

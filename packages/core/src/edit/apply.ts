@@ -9,6 +9,7 @@ import { computeSourceFingerprint } from "../utils/source-fingerprint.js";
 import { formatNumber } from "./format.js";
 import { resolvePropertyTarget } from "./property-target.js";
 import { applyOptionMutationsToTarget, normalizeOptionKey, type OptionMutation } from "./option-mutations.js";
+import type { EditParseOptions } from "./parse-options.js";
 
 export function applyEdit(parseResult: ParseTikzResult, edit: TikzEdit): ApplyEditResult {
   const target = findPathItem(parseResult.figure.body, edit.targetId);
@@ -68,10 +69,11 @@ function findPathItem(statements: Statement[], targetId: string): PathItem | nul
 export function applyEditIntent(
   source: string,
   editHandles: EditHandle[],
-  intent: EditIntent
+  intent: EditIntent,
+  parseOptions: EditParseOptions = {}
 ): EditIntentResult {
   if (intent.kind === "move") {
-    return applyMoveIntent(source, editHandles, intent);
+    return applyMoveIntent(source, editHandles, intent, parseOptions);
   }
 
   return { kind: "error", message: `Unknown intent kind: ${(intent as { kind: string }).kind}` };
@@ -80,7 +82,8 @@ export function applyEditIntent(
 function applyMoveIntent(
   source: string,
   editHandles: EditHandle[],
-  intent: Extract<EditIntent, { kind: "move" }>
+  intent: Extract<EditIntent, { kind: "move" }>,
+  parseOptions: EditParseOptions = {}
 ): EditIntentResult {
   const handle = editHandles.find((entry) => entry.id === intent.handleId);
   if (!handle) {
@@ -93,7 +96,7 @@ function applyMoveIntent(
   }
 
   if (handle.curveEdit) {
-    return applyCurveEditMoveIntent(source, handle, intent.newWorld);
+    return applyCurveEditMoveIntent(source, handle, intent.newWorld, parseOptions);
   }
 
   const rewriteHandle = resolveRewriteHandle(handle, editHandles);
@@ -164,13 +167,18 @@ function applyMoveIntent(
   };
 }
 
-function applyCurveEditMoveIntent(source: string, handle: EditHandle, newWorld: Point): EditIntentResult {
+function applyCurveEditMoveIntent(
+  source: string,
+  handle: EditHandle,
+  newWorld: Point,
+  parseOptions: EditParseOptions = {}
+): EditIntentResult {
   const curveEdit = handle.curveEdit;
   if (!curveEdit) {
     return { kind: "error", message: "Curve edit metadata is missing for this handle." };
   }
 
-  const resolved = resolvePropertyTarget(source, curveEdit.operationItemId);
+  const resolved = resolvePropertyTarget(source, curveEdit.operationItemId, parseOptions);
   if (resolved.kind !== "found") {
     return {
       kind: "unsupported",

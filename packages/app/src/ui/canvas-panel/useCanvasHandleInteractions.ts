@@ -74,7 +74,8 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
     viewportWorldBounds,
     resizeFramesBySource,
     setDragState,
-    interactionSvgRef
+    interactionSvgRef,
+    parseOptions
   } = args;
 
   const onHandlePointerDown = useCallback(
@@ -319,7 +320,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
         if (!targetId) {
           continue;
         }
-        const resolvedTarget = resolvePropertyTarget(source, targetId);
+        const resolvedTarget = resolvePropertyTarget(source, targetId, parseOptions);
         if (resolvedTarget.kind !== "found") {
           continue;
         }
@@ -333,7 +334,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       }
       return fallbackTargetId ?? sourceId;
     },
-    [snapshot.parseResult, snapshot.scene, source]
+    [parseOptions, snapshot.parseResult, snapshot.scene, source]
   );
 
   const onRotateHandlePointerDown = useCallback(
@@ -370,7 +371,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       }
 
       const rotateTargetId = resolveRotateWriteTargetIdInternal(sourceId);
-      const resolvedRotateTarget = resolvePropertyTarget(source, rotateTargetId);
+      const resolvedRotateTarget = resolvePropertyTarget(source, rotateTargetId, parseOptions);
       const baseRotateDeg =
         resolvedRotateTarget.kind === "found"
           ? resolveRotateDegreesFromOptions(resolvedRotateTarget.target.options)
@@ -400,6 +401,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       dispatch,
       interactionSvgRef,
       logSnapDebug,
+      parseOptions,
       resolveRotateWriteTargetIdInternal,
       selectedElementIds,
       setDragState,

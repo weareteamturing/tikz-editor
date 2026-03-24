@@ -144,10 +144,15 @@ export function buildStylesCascadeModel(
   const addTemplates = buildAddPropertyTemplates(descriptor, element, snapshot.source, snapshot);
   const sections: StylesCascadeSection[] = [];
   const orderedEntries = [...element.styleChain].reverse();
+  const writeTargetCache = new Map<string, PropertyTargetResolution>();
 
   for (let index = 0; index < orderedEntries.length; index += 1) {
     const entry = orderedEntries[index]!;
-    const sectionTarget = resolveSectionWriteTarget(snapshot.source, entry, snapshot.parseOptions);
+    const targetId = entry.sourceRef ? sourceTargetIdForEntry(entry, entry.sourceRef) : null;
+    const sectionTarget =
+      targetId != null
+        ? resolveSectionWriteTarget(snapshot.source, entry, targetId, snapshot.parseOptions, writeTargetCache)
+        : resolveSectionWriteTarget(snapshot.source, entry, null, snapshot.parseOptions, writeTargetCache);
     const declarationDrafts = buildSectionDeclarations(entry, propertyMap, sectionTarget.writeTarget);
     if (declarationDrafts.length === 0) {
       continue;
@@ -562,7 +567,9 @@ function buildAddPropertyTemplates(
 function resolveSectionWriteTarget(
   source: string,
   entry: StyleChainEntry,
-  parseOptions: InspectorSnapshot["parseOptions"] = {}
+  targetId: string | null,
+  parseOptions: InspectorSnapshot["parseOptions"] = {},
+  writeTargetCache: Map<string, PropertyTargetResolution>
 ): StylesSectionWriteTarget {
   const sourceRef = entry.sourceRef;
   if (!sourceRef) {
@@ -584,8 +591,17 @@ function resolveSectionWriteTarget(
     };
   }
 
-  const targetId = sourceTargetIdForEntry(entry, sourceRef);
-  const resolution: PropertyTargetResolution = resolvePropertyTarget(source, targetId, parseOptions);
+  if (targetId == null) {
+    return {
+      writeTarget: { mode: "setProperty", elementId: "", level: mapStyleLevel(entry), key: "", writable: false, reason: "No editable source information is available for this style layer." },
+      readOnly: true,
+      readOnlyReason: "No editable source information is available for this style layer."
+    };
+  }
+
+  const resolution =
+    writeTargetCache.get(targetId) ?? resolvePropertyTarget(source, targetId, parseOptions);
+  writeTargetCache.set(targetId, resolution);
   if (resolution.kind === "not-found") {
     return {
       writeTarget: { mode: "setProperty", elementId: targetId, level: mapStyleLevel(entry), key: "", writable: false, reason: resolution.reason },

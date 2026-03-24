@@ -24,7 +24,7 @@ import {
   type StylesEditablePropertyCatalogEntry
 } from "tikz-editor/edit/styles-cascade";
 import type { SceneElement } from "tikz-editor/semantic/types";
-import { getSharedEditAnalysisView } from "../edit-analysis-manager";
+import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getInspectorPropertyCapabilityStatus } from "./capabilities";
@@ -71,7 +71,8 @@ export function StylesPanel() {
   const parseOptions = useMemo(
     () => ({
       activeFigureId,
-      analysisView: editAnalysisView
+      analysisView: editAnalysisView,
+      analysisSession: getSharedEditAnalysisSession()
     }),
     [activeFigureId, editAnalysisView]
   );

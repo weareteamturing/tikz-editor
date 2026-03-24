@@ -53,7 +53,8 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     scopeOverlay,
     focusedScopeId,
     applyActionWithFeedback,
-    activeFigureId
+    activeFigureId,
+    parseOptions
   } = args;
 
   const pendingScopeDrillRef = useRef<{
@@ -404,13 +405,16 @@ export function useCanvasElementInteractions(args: UseCanvasElementInteractionsA
     (event: ReactMouseEvent<SVGElement>, sourceId: string): boolean => {
       if (!svgResult || snapshot.source !== source) return false;
 
-      const parseOptions = {
-        activeFigureId:
-          activeFigureId == null
-            ? (snapshot.figures.length > 1 ? null : undefined)
-            : activeFigureId
-      };
-      const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
+      const resolved = resolveEligibleExplicitPath(
+        source,
+        sourceId,
+        parseOptions ?? {
+          activeFigureId:
+            activeFigureId == null
+              ? (snapshot.figures.length > 1 ? null : undefined)
+              : activeFigureId
+        }
+      );
       if (resolved.kind !== "eligible") return false;
       const analysis = resolved.analysis;
 

@@ -87,7 +87,9 @@ export function applyResizeElementAction(
     return { kind: "unsupported", reason: resolved.reason };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const semantic = evaluateTikzFigure(parsed.figure, source, evaluateOptions);
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const scopeBoundsById = buildScopeBoundsById(parsed.figure.body, boundsBySource);
@@ -120,7 +122,13 @@ export function applyResizeElementAction(
     );
   }
 
-  const resizeTarget = resolveResizePropertyTarget(source, parsed.figure.body, elementId, resolved.target);
+  const resizeTarget = resolveResizePropertyTarget(
+    source,
+    parsed.figure.body,
+    elementId,
+    resolved.target,
+    parseOptions
+  );
   const isDiamondNodeShape = isDiamondNodeShapeInPathStatement(parsed.figure.body, elementId);
   const currentBounds = action.referenceBounds ?? resolveNodeResizeBounds(semantic.scene.elements, elementId);
   if (!currentBounds) {
@@ -139,7 +147,9 @@ export function applyResizeElementAction(
   ]);
   const floorRewrite = applyOptionMutationsToTarget(source, resizeTarget, floorMutations);
   const floorSource = floorRewrite ? floorRewrite.source : source;
-  const floorParsed = parseTikzForEdit(floorSource, parseOptions);
+  const floorParsed = parseTikzForEdit(floorSource, {
+    ...parseOptions,
+  });
   const floorSemantic = evaluateTikzFigure(floorParsed.figure, floorSource, evaluateOptions);
   const floorBounds = resolveNodeResizeBounds(floorSemantic.scene.elements, elementId);
   if (!floorBounds) {
@@ -371,7 +381,9 @@ function chooseBestNodeResizeMutationCandidate(args: {
   for (const candidate of candidates) {
     const rewritten = applyOptionMutationsToTarget(source, resizeTarget, candidate.mutations);
     const candidateSource = rewritten ? rewritten.source : source;
-    const parsed = parseTikzForEdit(candidateSource, parseOptions);
+    const parsed = parseTikzForEdit(candidateSource, {
+      ...parseOptions,
+    });
     const semantic = evaluateTikzFigure(parsed.figure, candidateSource, evaluateOptions);
     const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
     const bounds = boundsBySource.get(elementId);
@@ -1766,7 +1778,8 @@ function resolveResizePropertyTarget(
   source: string,
   statements: readonly Statement[],
   elementId: string,
-  defaultTarget: PropertyTarget
+  defaultTarget: PropertyTarget,
+  parseOptions: EditParseOptions = {}
 ): PropertyTarget {
   if (defaultTarget.kind !== "path-statement") {
     return defaultTarget;
@@ -1782,7 +1795,7 @@ function resolveResizePropertyTarget(
     return defaultTarget;
   }
 
-  const nodeTarget = resolvePropertyTarget(source, nodeIds[0]!);
+  const nodeTarget = resolvePropertyTarget(source, nodeIds[0]!, parseOptions);
   if (nodeTarget.kind === "found") {
     return nodeTarget.target;
   }

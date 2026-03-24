@@ -51,6 +51,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
+import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform } from "../store/types";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -542,6 +543,8 @@ export function CanvasPanel() {
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
+  const sourceRevision = useEditorStore((s) => s.sourceRevision);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
@@ -652,9 +655,17 @@ export function CanvasPanel() {
       activeFigureId:
         activeFigureId == null
           ? (snapshot.figures.length > 1 ? null : undefined)
-          : activeFigureId
+          : activeFigureId,
+      analysisView: getSharedEditAnalysisView({
+        documentId: activeDocumentId,
+        sourceRevision,
+        source,
+        activeFigureId,
+        snapshot
+      }),
+      analysisSession: getSharedEditAnalysisSession()
     }),
-    [activeFigureId, snapshot.figures.length]
+    [activeDocumentId, activeFigureId, snapshot, source, sourceRevision]
   );
 
   const commandRuntime = useEditorCommandRuntime({
@@ -667,7 +678,8 @@ export function CanvasPanel() {
         sceneElements: snapshot.scene?.elements ?? [],
         viewBox: svgResult?.viewBox ?? null,
         adornmentKind: kind,
-        text: kind === "pin" ? "Pin" : "Label"
+        text: kind === "pin" ? "Pin" : "Label",
+        parseOptions: editParseOptions
       });
       if (result.kind !== "ready") {
         return;
@@ -834,7 +846,8 @@ export function CanvasPanel() {
       source,
       toolMode,
       clickedSourceId: pendingNativeContextMenuRequest.clickedSourceId,
-      selectedElementIds
+      selectedElementIds,
+      parseOptions: editParseOptions
     });
 
     contextMenuContextRef.current = {
@@ -1147,29 +1160,22 @@ export function CanvasPanel() {
 
   const densePathSourceIds = useMemo(() => {
     const dense = new Set<string>();
-    const candidateSourceIds = new Set<string>();
     for (const element of snapshot.scene?.elements ?? []) {
-      if (element.kind === "Path") {
-        candidateSourceIds.add(element.sourceRef.sourceId);
-      }
-    }
-    const parseOptions = {
-      activeFigureId:
-        activeFigureId == null
-          ? (snapshot.figures.length > 1 ? null : undefined)
-          : activeFigureId
-    };
-    for (const sourceId of candidateSourceIds) {
-      const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
-      if (resolved.kind !== "eligible") {
+      if (element.kind !== "Path" || element.shapeHint != null) {
         continue;
       }
-      if (resolved.analysis.segments.length >= DENSE_PATH_SEGMENT_THRESHOLD) {
-        dense.add(sourceId);
+      let segmentCount = 0;
+      for (const command of element.commands) {
+        if (command.kind === "L" || command.kind === "C" || command.kind === "A") {
+          segmentCount += 1;
+        }
+      }
+      if (segmentCount >= DENSE_PATH_SEGMENT_THRESHOLD) {
+        dense.add(element.sourceRef.sourceId);
       }
     }
     return dense;
-  }, [snapshot.scene, snapshot.figures.length, activeFigureId, source]);
+  }, [snapshot.scene]);
 
   const collapsedDensePathSourceIds = useMemo(() => {
     const collapsed = new Set<string>();
@@ -1192,17 +1198,11 @@ export function CanvasPanel() {
     // dense paths that are expanded are also eligible for add-point hint
     const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
     if (!element || element.kind !== "Path") return null;
-    const parseOptions = {
-      activeFigureId:
-        activeFigureId == null
-          ? (snapshot.figures.length > 1 ? null : undefined)
-          : activeFigureId
-    };
-    const resolved = resolveEligibleExplicitPath(source, sourceId, parseOptions);
+    const resolved = resolveEligibleExplicitPath(source, sourceId, editParseOptions);
     if (resolved.kind !== "eligible") return null;
     if (resolved.analysis.segments.length === 0) return null;
     return "Double-click path to add a point.";
-  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.scene, snapshot.figures.length, activeFigureId, source]);
+  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.scene, editParseOptions, source]);
 
   const {
     nodeAnchorTargets,
@@ -1903,7 +1903,8 @@ export function CanvasPanel() {
     scopeOverlay,
     focusedScopeId,
     applyActionWithFeedback,
-    activeFigureId
+    activeFigureId,
+    parseOptions: editParseOptions
   });
 
   const {
@@ -2015,7 +2016,8 @@ export function CanvasPanel() {
         source,
         toolMode,
         clickedSourceId,
-        selectedElementIds
+        selectedElementIds,
+        parseOptions: editParseOptions
       });
 
       if (resolution.selectionAction.kind === "clear") {
@@ -2193,7 +2195,8 @@ export function CanvasPanel() {
     dragRef,
     toolDraft,
     bezierBendDraft,
-    freehandDraft
+    freehandDraft,
+    parseOptions: editParseOptions
   });
 
   const {

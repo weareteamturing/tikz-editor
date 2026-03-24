@@ -1,5 +1,4 @@
-import { resolvePropertyTarget } from "../property-target.js";
-import type { EditParseOptions } from "../parse-options.js";
+import type { PropertyTargetResolution } from "../property-target.js";
 import { normalizeOptionKey } from "../option-key.js";
 import type { OptionListAst } from "../../options/types.js";
 import type { StyleChainEntry } from "../../semantic/style-chain.js";
@@ -63,13 +62,11 @@ export function normalizeInspectorColorValue(value: string | null): string | nul
 }
 
 export function resolveColorSyntaxValue(
-  source: string,
-  targetId: string | null,
+  resolvedTarget: PropertyTargetResolution | null,
   keys: readonly string[],
   currentValue: string | null,
   colorAliases: ReadonlyMap<string, string>,
-  styleChain: readonly StyleChainEntry[] = [],
-  parseOptions: EditParseOptions = {}
+  styleChain: readonly StyleChainEntry[] = []
 ): string | null {
   const normalizedKeys = new Set(keys.map((key) => normalizeOptionKey(key)));
   if (normalizedKeys.size === 0) {
@@ -78,18 +75,15 @@ export function resolveColorSyntaxValue(
 
   const normalizedCurrentValue = normalizeInspectorColorValue(currentValue);
 
-  if (targetId) {
-    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
-    if (resolved.kind !== "not-found" && resolved.target.options) {
-      const directMatch = resolveColorSyntaxFromOptionLists(
-        [resolved.target.options],
-        normalizedKeys,
-        normalizedCurrentValue,
-        colorAliases
-      );
-      if (directMatch != null) {
-        return directMatch;
-      }
+  if (resolvedTarget?.kind === "found" && resolvedTarget.target.options) {
+    const directMatch = resolveColorSyntaxFromOptionLists(
+      [resolvedTarget.target.options],
+      normalizedKeys,
+      normalizedCurrentValue,
+      colorAliases
+    );
+    if (directMatch != null) {
+      return directMatch;
     }
   }
 

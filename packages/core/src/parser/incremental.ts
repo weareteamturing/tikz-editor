@@ -140,7 +140,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       const parse = parseTikz(input.source, {
         recover: true,
         activeFigureId,
-        includeContextDefinitions
+        includeContextDefinitions,
       });
       cached = buildCache(parse, {
         activeFigureId: activeFigureId ?? parse.activeFigureId,
@@ -162,7 +162,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
       const parse = parseTikz(input.source, {
         recover: true,
         activeFigureId,
-        includeContextDefinitions
+        includeContextDefinitions,
       });
       cached = buildCache(parse, {
         activeFigureId: activeFigureId ?? parse.activeFigureId,
@@ -295,7 +295,7 @@ export function createIncrementalParseSession(): IncrementalParseSession {
     const parse = parseTikz(source, {
       recover: true,
       activeFigureId,
-      includeContextDefinitions
+      includeContextDefinitions,
     });
     cached = buildCache(parse, {
       activeFigureId: activeFigureId ?? parse.activeFigureId,

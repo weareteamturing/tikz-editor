@@ -181,7 +181,9 @@ describe("shared edit analysis manager", () => {
       snapshot: snapshot1
     });
 
-    expect(second).not.toBe(first);
+    // Same source + activeFigureId → session reuses cached view (optimization).
+    expect(second).toBe(first);
+    // Different activeFigureId → different view.
     expect(third).not.toBe(second);
   });
 });

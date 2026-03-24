@@ -958,7 +958,9 @@ export function evaluatePathStatement(
 
         const raw = item.subpathRaw.trim();
         const subpathBody = raw.startsWith("{") && raw.endsWith("}") ? raw.slice(1, -1) : raw;
-        const parseResult = parseTikz(`\\begin{tikzpicture}\\path ${subpathBody};\\end{tikzpicture}`, { recover: true });
+        const parseResult = parseTikz(`\\begin{tikzpicture}\\path ${subpathBody};\\end{tikzpicture}`, {
+          recover: true,
+        });
         for (const diagnostic of parseResult.diagnostics) {
           if (diagnostic.severity !== "error") {
             continue;

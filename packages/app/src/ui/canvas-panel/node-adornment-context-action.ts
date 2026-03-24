@@ -1,4 +1,4 @@
-import { parseTikz } from "tikz-editor/parser/index";
+import { parseTikzForEdit, type EditParseOptions } from "tikz-editor/edit/parse-options";
 import type { PathStatement, Statement } from "tikz-editor/ast/types";
 import type { EditAction } from "tikz-editor/edit/actions";
 import { resolvePropertyTarget } from "tikz-editor/edit/property-target";
@@ -17,6 +17,7 @@ export type ResolveNodeAdornmentContextActionInput = {
   viewBox: SvgViewBox | null;
   adornmentKind: "label" | "pin";
   text: string;
+  parseOptions?: EditParseOptions;
 };
 
 export type ResolveNodeAdornmentContextActionResult =
@@ -38,12 +39,12 @@ export function resolveNodeAdornmentContextAction(
     return { kind: "unsupported", reason: "No node target is selected." };
   }
 
-  const nodeId = resolveNodeAdornmentOwnerTargetId(input.source, baseTargetId);
+  const nodeId = resolveNodeAdornmentOwnerTargetId(input.source, baseTargetId, input.parseOptions);
   if (!nodeId) {
     return { kind: "unsupported", reason: "The context menu target is not a node." };
   }
 
-  const target = resolvePropertyTarget(input.source, nodeId);
+  const target = resolvePropertyTarget(input.source, nodeId, input.parseOptions);
   if (target.kind !== "found") {
     return { kind: "unsupported", reason: target.reason };
   }
@@ -67,8 +68,12 @@ export function resolveNodeAdornmentContextAction(
   };
 }
 
-export function resolveNodeAdornmentOwnerTargetId(source: string, targetId: string): string | null {
-  const resolved = resolvePropertyTarget(source, targetId);
+export function resolveNodeAdornmentOwnerTargetId(
+  source: string,
+  targetId: string,
+  parseOptions: EditParseOptions = {}
+): string | null {
+  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
   if (resolved.kind === "not-found") {
     return null;
   }
@@ -79,7 +84,9 @@ export function resolveNodeAdornmentOwnerTargetId(source: string, targetId: stri
     return null;
   }
 
-  const statements = parseTikz(source, { recover: true }).figure.body;
+  const statements = parseTikzForEdit(source, {
+    ...parseOptions,
+  }).figure.body;
   const statement = findPathStatementById(statements, targetId);
   const inlineNode = statement?.items.find((item: PathStatement["items"][number]) => item.kind === "Node");
   return inlineNode?.kind === "Node" ? inlineNode.id : null;

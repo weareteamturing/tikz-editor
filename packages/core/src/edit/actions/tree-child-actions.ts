@@ -59,7 +59,9 @@ export function applyAddTreeChildAction(
     return { kind: "unsupported", reason: "Tree child insertion requires selecting a tree root or tree child." };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const rootStatement = findPathStatementById(parsed.figure.body, parentSourceId);
   if (!rootStatement) {
     return { kind: "unsupported", reason: `Tree root statement ${parentSourceId} was not found.` };

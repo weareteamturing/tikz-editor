@@ -105,7 +105,9 @@ export function resolvePropertyTarget(source: string, elementId: string, parseOp
     return resolveStyleSourceTarget(source, normalizedId);
   }
 
-  const parseResult = parseTikzForEdit(source, parseOptions);
+  const parseResult = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (matrixCellTarget) {
     return { kind: "found", target: matrixCellTarget };
@@ -157,7 +159,9 @@ export function resolvePropertyTargetFromParseResult(
 }
 
 function resolveFigurePropertyTarget(source: string, parseOptions: EditParseOptions): PropertyTargetResolution {
-  const parseResult = parseTikzForEdit(source, parseOptions);
+  const parseResult = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   return resolveFigurePropertyTargetFromParseResult(source, parseResult);
 }
 

@@ -1,6 +1,6 @@
 import type { StyleLevel } from "./actions.js";
 import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
-import { resolvePropertyTarget } from "./property-target.js";
+import { resolvePropertyTarget, type PropertyTargetResolution } from "./property-target.js";
 import type { EditParseOptions } from "./parse-options.js";
 import {
   collectInspectorColorAliases,
@@ -184,6 +184,24 @@ export {
   SHADOW_PRESET_DEFAULTS,
   SHADOW_PRESET_OPTIONS
 } from "./inspector/presets.js";
+
+type InspectorTargetResolver = (targetId: string) => PropertyTargetResolution;
+
+function createInspectorTargetResolver(
+  source: string,
+  parseOptions: EditParseOptions = {}
+): InspectorTargetResolver {
+  const cache = new Map<string, PropertyTargetResolution>();
+  return (targetId: string) => {
+    const cached = cache.get(targetId);
+    if (cached) {
+      return cached;
+    }
+    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+    cache.set(targetId, resolved);
+    return resolved;
+  };
+}
 
 export type ArrowTipWriteContext = {
   startRaw: string;
@@ -1403,7 +1421,8 @@ export function buildNodeFontSetPropertyMutation(
 export function resolveTransformInspectorMutationContext(
   source: string,
   targetId: string | null,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): TransformInspectorMutationContext {
   const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
   const presence = createEmptyTransformInspectorPresence();
@@ -1411,7 +1430,7 @@ export function resolveTransformInspectorMutationContext(
     return { values, presence };
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return { values, presence };
   }
@@ -1493,9 +1512,10 @@ export function resolveTransformInspectorMutationContext(
 export function resolveTransformInspectorValues(
   source: string,
   targetId: string | null,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): TransformInspectorValues {
-  return resolveTransformInspectorMutationContext(source, targetId, parseOptions).values;
+  return resolveTransformInspectorMutationContext(source, targetId, parseOptions, resolveTarget).values;
 }
 
 export function buildTransformSetPropertyMutations(
@@ -1721,16 +1741,17 @@ function resolveTreeGrowOption(options: OptionListAst | undefined): string {
 export function buildMatrixInspectorDescriptor(
   source: string,
   matrixId: string,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): InspectorDescriptor | null {
-  const resolved = resolvePropertyTarget(source, matrixId, parseOptions);
+  const resolved = resolveTarget(matrixId);
   if (resolved.kind === "not-found" || resolved.target.kind !== "matrix-statement") {
     return null;
   }
 
   const writable = true;
   const readOnlyReason = undefined;
-  const transformContext = resolveTransformInspectorMutationContext(source, matrixId, parseOptions);
+  const transformContext = resolveTransformInspectorMutationContext(source, matrixId, parseOptions, resolveTarget);
   const transformValues = transformContext.values;
   const rowSepPt = resolveMatrixSpacingPt(resolved.target.options, "row sep");
   const columnSepPt = resolveMatrixSpacingPt(resolved.target.options, "column sep");
@@ -1911,15 +1932,20 @@ export function buildTreeInspectorDescriptor(
   source: string,
   sourceId: string,
   element: SceneElement | null,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): InspectorDescriptor | null {
-  const resolvedRootTarget = resolvePropertyTarget(source, sourceId, parseOptions);
+  const resolvedRootTarget = resolveTarget(sourceId);
   if (resolvedRootTarget.kind === "not-found" || resolvedRootTarget.target.kind !== "path-statement") {
     return null;
   }
 
-  const parsed = parseTikz(source, { recover: true, activeFigureId: parseOptions.activeFigureId });
-  const rootStatement = findPathStatementById(parsed.figure.body, sourceId);
+  const rootStatement =
+    parseOptions.analysisView &&
+    parseOptions.analysisView.source === source &&
+    parseOptions.analysisView.activeFigureId === parseOptions.activeFigureId
+      ? parseOptions.analysisView.findPathStatement(sourceId)
+      : findPathStatementInSource(source, sourceId, parseOptions);
   if (!rootStatement) {
     return null;
   }
@@ -1946,7 +1972,7 @@ export function buildTreeInspectorDescriptor(
     ? getInspectorDescriptor(rootNodeElement, {
         source,
         parseOptions
-      })
+      }, resolveTarget)
     : null;
   const nodeSections = rootNodeDescriptor
     ? rootNodeDescriptor.sections.filter((section) => section.id !== "transform")
@@ -1954,7 +1980,7 @@ export function buildTreeInspectorDescriptor(
 
   const writable = true;
   const readOnlyReason = undefined;
-  const transformContext = resolveTransformInspectorMutationContext(source, sourceId, parseOptions);
+  const transformContext = resolveTransformInspectorMutationContext(source, sourceId, parseOptions, resolveTarget);
   const transformValues = transformContext.values;
 
   const resolveRootLayoutWriteTargetId = (key: string): string => {
@@ -2157,55 +2183,62 @@ export function buildTreeInspectorDescriptor(
   };
 }
 
-export function getInspectorDescriptor(element: SceneElement, snapshot: InspectorSnapshot): InspectorDescriptor {
-  const inlineTarget = resolveInlineWriteTarget(element, snapshot.source, snapshot.parseOptions);
-  const colorAliases = collectInspectorColorAliases(snapshot.source);
+export function getInspectorDescriptor(
+  element: SceneElement,
+  snapshot: InspectorSnapshot,
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(snapshot.source, snapshot.parseOptions)
+): InspectorDescriptor {
+  const inlineTarget = resolveInlineWriteTarget(element, snapshot.source, snapshot.parseOptions, resolveTarget);
+  const resolvedInlineTarget =
+    inlineTarget.targetId != null
+      ? resolveTarget(inlineTarget.targetId)
+      : null;
+  const colorAliases = snapshot.parseOptions?.colorAliases ?? collectInspectorColorAliases(snapshot.source);
   const transformContext = resolveTransformInspectorMutationContext(
     snapshot.source,
     inlineTarget.targetId,
-    snapshot.parseOptions
+    snapshot.parseOptions,
+    resolveTarget
   );
   const transformValues = transformContext.values;
   const strokeColor = normalizeInspectorColorValue(element.style.stroke);
   const strokeColorSyntax = resolveColorSyntaxValue(
-    snapshot.source,
-    inlineTarget.targetId,
+    resolvedInlineTarget,
     ["draw", "color"],
     strokeColor,
     colorAliases,
-    element.styleChain,
-    snapshot.parseOptions
+    element.styleChain
   );
   const fillColor = normalizeInspectorColorValue(element.style.fill);
   const fillColorSyntax = resolveColorSyntaxValue(
-    snapshot.source,
-    inlineTarget.targetId,
+    resolvedInlineTarget,
     ["fill", "color"],
     fillColor,
     colorAliases,
-    element.styleChain,
-    snapshot.parseOptions
+    element.styleChain
   );
   const patternColor = normalizeInspectorColorValue(element.style.patternColor);
   const patternColorSyntax = resolveColorSyntaxValue(
-    snapshot.source,
-    inlineTarget.targetId,
+    resolvedInlineTarget,
     ["pattern color"],
     patternColor,
     colorAliases,
-    element.styleChain,
-    snapshot.parseOptions
+    element.styleChain
   );
-  const fillPaintState = resolveFillPaintState(snapshot.source, inlineTarget.targetId, element.style, snapshot.parseOptions);
-  const textColor = normalizeInspectorColorValue(element.style.textColor);
-  const textColorSyntax = resolveColorSyntaxValue(
+  const fillPaintState = resolveFillPaintState(
     snapshot.source,
     inlineTarget.targetId,
+    element.style,
+    snapshot.parseOptions,
+    resolveTarget
+  );
+  const textColor = normalizeInspectorColorValue(element.style.textColor);
+  const textColorSyntax = resolveColorSyntaxValue(
+    resolvedInlineTarget,
     ["text", "color"],
     textColor,
     colorAliases,
-    element.styleChain,
-    snapshot.parseOptions
+    element.styleChain
   );
   const pathStrokeVisibility =
     element.kind === "Path"
@@ -2214,11 +2247,17 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   const pathFillVisibility = element.kind === "Path" ? pathSupportsFillEditing(element.commands) : true;
   const nodeInspectorState =
     inlineTarget.targetKind === "node-item" || inlineTarget.targetKind === "matrix-cell" || inlineTarget.targetKind === "tree-child"
-      ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions)
+      ? resolveNodeInspectorState(snapshot.source, inlineTarget.targetId, element.style, element.kind, snapshot.parseOptions, resolveTarget)
       : null;
 
   if (inlineTarget.targetKind === "node-adornment" && inlineTarget.targetId) {
-    const adornmentState = resolveAdornmentInspectorState(snapshot.source, inlineTarget.targetId, element.style, snapshot.parseOptions);
+    const adornmentState = resolveAdornmentInspectorState(
+      snapshot.source,
+      inlineTarget.targetId,
+      element.style,
+      snapshot.parseOptions,
+      resolveTarget
+    );
     if (adornmentState) {
       const sections: InspectorSection[] = [
         {
@@ -2582,8 +2621,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       if (fillPaintState.shading === "axis") {
         const topColor = normalizeInspectorColorValue(element.style.axisTopColor);
         const topColorSyntax = resolveColorSyntaxValue(
-          snapshot.source,
-          inlineTarget.targetId,
+          resolvedInlineTarget,
           ["top color", "left color"],
           topColor,
           colorAliases,
@@ -2591,8 +2629,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
         );
         const bottomColor = normalizeInspectorColorValue(element.style.axisBottomColor);
         const bottomColorSyntax = resolveColorSyntaxValue(
-          snapshot.source,
-          inlineTarget.targetId,
+          resolvedInlineTarget,
           ["bottom color", "right color"],
           bottomColor,
           colorAliases,
@@ -2628,8 +2665,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       } else if (fillPaintState.shading === "radial") {
         const innerColor = normalizeInspectorColorValue(element.style.radialInnerColor);
         const innerColorSyntax = resolveColorSyntaxValue(
-          snapshot.source,
-          inlineTarget.targetId,
+          resolvedInlineTarget,
           ["inner color"],
           innerColor,
           colorAliases,
@@ -2637,8 +2673,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
         );
         const outerColor = normalizeInspectorColorValue(element.style.radialOuterColor);
         const outerColorSyntax = resolveColorSyntaxValue(
-          snapshot.source,
-          inlineTarget.targetId,
+          resolvedInlineTarget,
           ["outer color"],
           outerColor,
           colorAliases,
@@ -2665,8 +2700,7 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       } else if (fillPaintState.shading === "ball") {
         const ballColor = normalizeInspectorColorValue(element.style.ballColor);
         const ballColorSyntax = resolveColorSyntaxValue(
-          snapshot.source,
-          inlineTarget.targetId,
+          resolvedInlineTarget,
           ["ball color"],
           ballColor,
           colorAliases,
@@ -2868,7 +2902,8 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
       snapshot.source,
       inlineTarget.targetId,
       element.style.decoration,
-      snapshot.parseOptions
+      snapshot.parseOptions,
+      resolveTarget
     );
     const pathMorphingSuboptions = resolvePathMorphingDecorationSuboptionProperties(
       pathMorphingPreset,
@@ -3006,11 +3041,17 @@ export function getInspectorDescriptor(element: SceneElement, snapshot: Inspecto
   // Shadow section
   {
     const shadowLayer = element.style.shadowLayers[0] ?? null;
-    const shadowPreset = resolveShadowPreset(snapshot.source, inlineTarget.targetId, snapshot.parseOptions);
+    const shadowPreset = resolveShadowPreset(
+      snapshot.source,
+      inlineTarget.targetId,
+      snapshot.parseOptions,
+      resolveTarget
+    );
     const shadowOverrides = resolveShadowOptionOverrides(
       snapshot.source,
       inlineTarget.targetId,
-      snapshot.parseOptions
+      snapshot.parseOptions,
+      resolveTarget
     );
     const defaults = SHADOW_PRESET_DEFAULTS[shadowPreset !== "none" ? shadowPreset : "drop-shadow"];
     const shadowColor =
@@ -3175,11 +3216,12 @@ function makeArrowTipWriteTarget(
   inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
   element: Extract<SceneElement, { kind: "Path" }>,
   source: string,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): ArrowTipWriteTarget {
   return {
     ...makeSetPropertyWriteTarget(inlineTarget, ARROW_OPTION_KEY),
-    arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element, parseOptions)
+    arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element, parseOptions, resolveTarget)
   };
 }
 
@@ -3187,7 +3229,8 @@ function resolveArrowWriteContext(
   source: string,
   targetId: string | null,
   element: Extract<SceneElement, { kind: "Path" }>,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): ArrowTipWriteContext {
   const clearKeySet = new Set<string>(ARROW_DEFAULT_CLEAR_KEYS);
   let startRaw = arrowMarkerFallbackRaw(element.style.markerStart, "start");
@@ -3201,7 +3244,7 @@ function resolveArrowWriteContext(
     };
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return {
       startRaw,
@@ -3270,7 +3313,8 @@ function resolveFillPaintState(
     shading: string;
     fillPattern: ResolvedPattern | null;
   },
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): { mode: FillModePresetId; shading: FillShadingPresetId; pattern: FillPatternPresetId } {
   const fallbackShading = style.shadeEnabled ? fillShadingPresetFromStyleName(style.shading) : "axis";
   const fallbackPattern = fillPatternPresetFromResolvedPattern(style.fillPattern);
@@ -3283,7 +3327,7 @@ function resolveFillPaintState(
   let sawShadingOption = false;
 
   if (targetId) {
-    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+    const resolved = resolveTarget(targetId);
     if (resolved.kind !== "not-found" && resolved.target.options) {
       for (const entry of resolved.target.options.entries) {
         if (entry.kind === "flag") {
@@ -3724,13 +3768,14 @@ function resolvePathMorphingDecorationSuboptionValue(
 function resolveShadowPreset(
   source: string,
   targetId: string | null,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): ShadowPresetId {
   if (!targetId) {
     return "none";
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return "none";
   }
@@ -3754,13 +3799,14 @@ function resolveShadowPreset(
 function resolveShadowOptionOverrides(
   source: string,
   targetId: string | null,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): Partial<Omit<ShadowMutationContext, "preset">> {
   if (!targetId) {
     return {};
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return {};
   }
@@ -3891,14 +3937,15 @@ function resolvePathMorphingDecorationPreset(
   source: string,
   targetId: string | null,
   styleDecoration: { enabled: boolean; name: string | null },
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): PathMorphingDecorationPresetId {
   const fallback = pathMorphingDecorationPresetFromStyle(styleDecoration);
   if (!targetId) {
     return fallback;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return fallback;
   }
@@ -4202,7 +4249,10 @@ function findPathStatementInSource(source: string, sourceId: string, parseOption
   ) {
     return parseOptions.analysisView.findPathStatement(sourceId);
   }
-  const parsed = parseTikz(source, { recover: true, activeFigureId: parseOptions.activeFigureId });
+  const parsed = parseTikz(source, {
+    recover: true,
+    activeFigureId: parseOptions.activeFigureId,
+  });
   return findPathStatementById(parsed.figure.body, sourceId);
 }
 
@@ -4358,7 +4408,8 @@ function resolveNodeInspectorState(
   targetId: string | null,
   style: Pick<ResolvedStyle, "fontFamily" | "fontWeight" | "fontStyle" | "fontSize">,
   elementKind: SceneElement["kind"],
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): {
   shape: NodeShapePresetId;
   shapeNote?: string;
@@ -4426,7 +4477,7 @@ function resolveNodeInspectorState(
     return state;
   }
 
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
     return state;
   }
@@ -4604,7 +4655,8 @@ function nodeFontSizePresetFromFontSize(fontSize: number): NodeFontSizePresetId 
 function resolveInlineWriteTarget(
   element: SceneElement,
   source: string,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string } {
   if (element.origin?.foreachStack && element.origin.foreachStack.length > 0) {
     return {
@@ -4636,7 +4688,7 @@ function resolveInlineWriteTarget(
   ].filter((candidate, index, all): candidate is string => Boolean(candidate) && all.indexOf(candidate) === index);
 
   for (const targetId of candidateTargetIds) {
-    const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+    const resolved = resolveTarget(targetId);
     if (resolved.kind === "found") {
       if (resolved.target.kind === "matrix-cell") {
         if (!resolved.target.matrixOfNodes) {
@@ -4725,7 +4777,8 @@ function resolveAdornmentInspectorState(
   source: string,
   targetId: string,
   style: ResolvedStyle,
-  parseOptions: EditParseOptions = {}
+  parseOptions: EditParseOptions = {},
+  resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): {
   kind: "label" | "pin";
   text: string;
@@ -4738,7 +4791,7 @@ function resolveAdornmentInspectorState(
     dashStyle: DashStylePresetId;
   };
 } | null {
-  const resolved = resolvePropertyTarget(source, targetId, parseOptions);
+  const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || resolved.target.kind !== "node-adornment") {
     return null;
   }

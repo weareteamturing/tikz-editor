@@ -5,6 +5,7 @@ export type EditParseOptions = {
   activeFigureId?: string | null;
   analysisSession?: EditAnalysisSession | null;
   analysisView?: EditAnalysisView | null;
+  colorAliases?: ReadonlyMap<string, string> | null;
   indentSize?: 2 | 4;
 };
 

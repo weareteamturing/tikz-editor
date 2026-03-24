@@ -23,7 +23,9 @@ export function applyDeleteElementsAction(
     return { kind: "unsupported", reason: "No element ids were provided for deleteElements" };
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const targets: DeleteTarget[] = [];
   for (const elementId of normalizedIds) {
     const target = resolveDeleteTarget(parsed.figure.body, elementId);

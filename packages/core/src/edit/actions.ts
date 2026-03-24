@@ -213,7 +213,7 @@ export function applyEditAction(
   const rawResult = (() : EditActionResult => {
     switch (action.kind) {
       case "moveHandle":
-        return applyMoveHandle(source, editHandles, action.handleId, action.newWorld);
+        return applyMoveHandle(source, editHandles, action.handleId, action.newWorld, parseOptions);
       case "connectHandle":
         return applyConnectHandle(source, editHandles, action.handleId, action.nodeName, action.anchor, parseOptions);
       case "splitPath":
@@ -311,9 +311,10 @@ function applyMoveHandle(
   source: string,
   editHandles: EditHandle[],
   handleId: string,
-  newWorld: Point
+  newWorld: Point,
+  parseOptions: EditParseOptions
 ): EditActionResult {
-  const result = applyEditIntent(source, editHandles, { kind: "move", handleId, newWorld });
+  const result = applyEditIntent(source, editHandles, { kind: "move", handleId, newWorld }, parseOptions);
   if (result.kind === "success") {
     return {
       kind: "success",
@@ -702,7 +703,7 @@ function inferChangedSourceIds(
     case "transposeMatrix":
       return normalizeElementIds([action.matrixSourceId]);
     case "setProperty":
-      return [];
+      return normalizeElementIds([action.elementId]);
     case "updateNodeText":
       return normalizeElementIds([action.elementId]);
     case "resizeElement":
@@ -738,7 +739,9 @@ function resolveNodeTextSpanForElementId(
     }
   }
 
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const stack: Statement[] = [...parsed.figure.body];
   while (stack.length > 0) {
     const statement = stack.shift();

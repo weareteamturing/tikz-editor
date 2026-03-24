@@ -289,7 +289,9 @@ function collectSiblingDependencyConstraints(
     return [];
   }
   const siblingIdSet = new Set(siblingIds);
-  const parsed = parseTikzForEdit(source, parseOptions);
+  const parsed = parseTikzForEdit(source, {
+    ...parseOptions,
+  });
   const semantic = evaluateTikzFigure(parsed.figure, source);
   return collectConstraintsFromDependencyGraph(semantic.dependencies, siblingIdSet);
 }

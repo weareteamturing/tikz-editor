@@ -39,7 +39,9 @@ export function resolvePathEndpointSnap(input: {
   }
 
   // Parse once to find path statements
-  const parsed = parseTikzForEdit(input.source, input.parseOptions ?? {});
+  const parsed = parseTikzForEdit(input.source, {
+    ...input.parseOptions,
+  });
 
   let bestSnap: PathEndpointSnap | null = null;
   let bestDistSq = snapRadiusSq;

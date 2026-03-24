@@ -56,7 +56,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     dragRef,
     toolDraft,
     bezierBendDraft,
-    freehandDraft
+    freehandDraft,
+    parseOptions
   } = args;
 
   const finalizePendingTouchViewportTap = useCallback(
@@ -270,7 +271,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
                   pointerWorld: resolvedStart,
                   zoom: canvasTransform.scale,
                   editHandles: snapshot.editHandles,
-                  source
+                  source,
+                  parseOptions
                 })
               : null;
             const appendTarget = endpointSnap
@@ -627,7 +629,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
               pointerWorld: snapped.snappedPoint ?? world,
               zoom: canvasTransform.scale,
               editHandles: snapshot.editHandles,
-              source
+              source,
+              parseOptions
             })
           : null;
       const combinedOverlay = mergePathEndpointIntoOverlay(hoverEndpointAnchorOverlay, hoverPathEndpoint);
@@ -684,7 +687,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       interactionSvgRef,
       dragRef,
       setSnapLines,
-      setToolCursorWorld
+      setToolCursorWorld,
+      parseOptions
     ]
   );
 
@@ -779,7 +783,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
               pointerWorld: snapped.snappedPoint ?? world,
               zoom: canvasTransform.scale,
               editHandles: snapshot.editHandles,
-              source
+              source,
+              parseOptions
             })
           : null;
       const combinedOverlayEnter = mergePathEndpointIntoOverlay(hoverEndpointAnchorOverlay, hoverPathEndpointEnter);
@@ -836,7 +841,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       interactionSvgRef,
       dragRef,
       setSnapLines,
-      setToolCursorWorld
+      setToolCursorWorld,
+      parseOptions
     ]
   );
 

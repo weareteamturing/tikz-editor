@@ -47,38 +47,59 @@ export type EditAnalysisSession = {
 
 export function createEditAnalysisSession(): EditAnalysisSession {
   let cached: EditAnalysisCache | null = null;
+  // Keep the previous entry so that callers with a slightly stale source
+  // (e.g. snapshot.source that hasn't caught up to the latest edit) still
+  // get a cache hit instead of triggering a redundant full parse.
+  let previous: EditAnalysisCache | null = null;
+
+  const lookup = (source: string, activeFigureId: string | null | undefined): EditAnalysisCache | null => {
+    if (cached && cached.source === source && cached.activeFigureId === activeFigureId) {
+      return cached;
+    }
+    if (previous && previous.source === source && previous.activeFigureId === activeFigureId) {
+      return previous;
+    }
+    return null;
+  };
+
+  const store = (entry: EditAnalysisCache): void => {
+    if (cached && cached !== entry) {
+      previous = cached;
+    }
+    cached = entry;
+  };
 
   const ensure = (source: string, options: EditAnalysisOptions = {}): EditAnalysisView => {
     const activeFigureId = options.activeFigureId;
-    if (cached && cached.source === source && cached.activeFigureId === activeFigureId) {
-      return cached.view;
+    const hit = lookup(source, activeFigureId);
+    if (hit) {
+      return hit.view;
     }
     const parseResult = parseTikz(source, {
       recover: true,
       activeFigureId,
       includeContextDefinitions: true
     });
-    cached = createCache(source, parseResult, activeFigureId);
-    return cached.view;
+    const entry = createCache(source, parseResult, activeFigureId);
+    store(entry);
+    return entry.view;
   };
 
   return {
     primeFromParse(parse, source, options = {}) {
       const activeFigureId = options.activeFigureId ?? parse.activeFigureId;
-      if (
-        cached &&
-        cached.source === source &&
-        cached.activeFigureId === activeFigureId &&
-        cached.parseResult === parse
-      ) {
-        return cached.view;
+      const hit = lookup(source, activeFigureId);
+      if (hit && hit.parseResult === parse) {
+        return hit.view;
       }
-      cached = createCache(source, parse, activeFigureId);
-      return cached.view;
+      const entry = createCache(source, parse, activeFigureId);
+      store(entry);
+      return entry.view;
     },
     ensure,
     reset() {
       cached = null;
+      previous = null;
     }
   };
 }

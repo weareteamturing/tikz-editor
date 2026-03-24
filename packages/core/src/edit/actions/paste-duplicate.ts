@@ -268,7 +268,9 @@ function offsetSnippetsByDelta(
     return { snippets: normalized, skippedHandles: [] };
   }
 
-  const parsed = parseTikzForEdit(wrappedSource, parseOptions);
+  const parsed = parseTikzForEdit(wrappedSource, {
+    ...parseOptions,
+  });
   const semantic = evaluateTikzFigure(parsed.figure, wrappedSource);
   const moved = deps.applyMoveElements(wrappedSource, semantic.editHandles, rootIds, delta, parseOptions);
 

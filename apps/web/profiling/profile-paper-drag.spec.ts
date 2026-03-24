@@ -477,7 +477,7 @@ test("profile paper drag for the magenta axis endpoint", async ({ page }) => {
     );
   }
   await seedWorkspace(page, target, "doc-profile-paper-drag");
-  await gotoApp(page, "/edit/");
+  await gotoApp(page, "/editor/");
   await installProbe(page, target.targetSourceId);
 
   printDebug("after-app-load", await readDebugState(page, target));
