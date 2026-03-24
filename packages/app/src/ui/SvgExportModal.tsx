@@ -161,19 +161,25 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
   };
 
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="svg-export-title">
+    <Modal
+      onClose={onClose}
+      className={css.dialog}
+      labelledBy="svg-export-title"
+      dataTestId="svg-export-modal"
+    >
         <div className={css.header}>
           <div>
             <h2 id="svg-export-title" className={css.title}>Export SVG</h2>
             <p className={css.subtitle}>Review the generated SVG, make edits, then beautify, compress, copy, or download it.</p>
           </div>
           <div className={css.actions}>
-            <button type="button" className={css.secondaryButton} onClick={onClose}>
+            <button type="button" className={css.secondaryButton} data-testid="svg-export-cancel" onClick={onClose}>
               Cancel
             </button>
             <button
               type="button"
               className={css.secondaryButton}
+              data-testid="svg-export-copy"
               disabled={isBusy || !canExportMarkup}
               onClick={() => {
                 void handleCopy();
@@ -184,6 +190,7 @@ export function SvgExportModal({ svgResult, onClose }: SvgExportModalProps) {
             <button
               type="button"
               className={css.primaryButton}
+              data-testid="svg-export-download"
               disabled={isBusy || !canExportMarkup}
               onClick={() => {
                 void handleDownload();

@@ -145,6 +145,8 @@ async function installDeterministicBridge(browserInstance) {
   await browserInstance.execute(() => {
     const writes = [];
     const exports = [];
+    const unsavedDecisions = [];
+    const unsavedPrompts = [];
     const bridge = {
       openText: async (path) => {
         const resolvedPath = path ?? "/tmp/opened-from-e2e.tex";
@@ -181,6 +183,10 @@ async function installDeterministicBridge(browserInstance) {
       closeWindow: async () => {
         window.__DESKTOP_E2E_CLOSED__ = true;
       },
+      confirmUnsavedChanges: async (message) => {
+        unsavedPrompts.push(message);
+        return unsavedDecisions.shift() ?? "cancel";
+      },
       onMenuCommand: async () => () => undefined,
       onOpenRecent: async () => () => undefined,
       onWindowCloseRequest: async () => () => undefined,
@@ -188,6 +194,8 @@ async function installDeterministicBridge(browserInstance) {
     };
     window.__DESKTOP_E2E_WRITES__ = writes;
     window.__DESKTOP_E2E_EXPORTS__ = exports;
+    window.__DESKTOP_E2E_UNSAVED_DECISIONS__ = unsavedDecisions;
+    window.__DESKTOP_E2E_UNSAVED_PROMPTS__ = unsavedPrompts;
     window.__DESKTOP_E2E_CLOSED__ = false;
     window.__TIKZ_EDITOR_DESKTOP_TEST_API__.setBridgeOverride(bridge);
   });
@@ -233,10 +241,12 @@ async function scenarioOpenSaveSaveAs(browserInstance) {
 
 async function scenarioExportSmoke(browserInstance) {
   await dispatchCommand(browserInstance, "file.export-svg-download");
-  await browserInstance.$("button=Cancel").click();
+  await browserInstance.$("[data-testid='svg-export-modal']").waitForExist();
+  await browserInstance.$("[data-testid='svg-export-cancel']").click();
 
   await dispatchCommand(browserInstance, "file.export-png-download");
-  await browserInstance.$("button=Cancel").click();
+  await browserInstance.$("[data-testid='png-export-modal']").waitForExist();
+  await browserInstance.$("[data-testid='png-export-cancel']").click();
 
   await dispatchCommand(browserInstance, "file.export-pdf-download");
   await dispatchCommand(browserInstance, "file.export-standalone-latex-download");
@@ -249,22 +259,34 @@ async function scenarioExportSmoke(browserInstance) {
 async function scenarioUnsavedGuard(browserInstance) {
   await setSource(browserInstance, "\\draw (5,5)--(6,6); % dirty-close");
   const initialTabs = await count(browserInstance, "[data-testid^='tab-switch-']");
+  let promptCount = await getUnsavedPromptCount(browserInstance);
 
+  await queueUnsavedDecision(browserInstance, "cancel");
   await dispatchCommand(browserInstance, "file.close-document");
-  await browserInstance.$("[data-testid='unsaved-changes-modal']").waitForExist();
-  await browserInstance.$("[data-testid='unsaved-cancel']").click();
+  await expectUnsavedPromptCount(browserInstance, promptCount + 1);
   await expectCount(browserInstance, "[data-testid^='tab-switch-']", initialTabs);
 
+  promptCount += 1;
+  const writesBeforeSave = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__.length);
+  await queueUnsavedDecision(browserInstance, "save");
   await dispatchCommand(browserInstance, "file.close-document");
-  await browserInstance.$("[data-testid='unsaved-save']").click();
+  await expectUnsavedPromptCount(browserInstance, promptCount + 1);
+  await browserInstance.waitUntil(async () => {
+    const writes = await browserInstance.execute(() => window.__DESKTOP_E2E_WRITES__.length);
+    return writes > writesBeforeSave;
+  }, {
+    timeout: 10_000,
+    timeoutMsg: "Expected save-on-close to write the document"
+  });
   await expectCount(browserInstance, "[data-testid^='tab-switch-']", Math.max(1, initialTabs - 1));
 
   await setSource(browserInstance, "\\draw (7,7)--(8,8); % dirty-window-close");
+  promptCount += 1;
+  await queueUnsavedDecision(browserInstance, "discard");
   await browserInstance.execute(() => {
     window.__TIKZ_EDITOR_DESKTOP_TEST_API__.triggerWindowCloseRequest();
   });
-  await browserInstance.$("[data-testid='unsaved-changes-modal']").waitForExist();
-  await browserInstance.$("[data-testid='unsaved-discard']").click();
+  await expectUnsavedPromptCount(browserInstance, promptCount + 1);
   const closed = await browserInstance.execute(() => window.__DESKTOP_E2E_CLOSED__);
   assert.equal(closed, true, "window close should be confirmed after discard");
 }
@@ -284,6 +306,27 @@ async function setSource(browserInstance, value) {
   await browserInstance.execute((nextSource) => {
     window.__TIKZ_EDITOR_APP_TEST_API__.setSource(nextSource);
   }, value);
+}
+
+async function queueUnsavedDecision(browserInstance, decision) {
+  await browserInstance.execute((nextDecision) => {
+    window.__DESKTOP_E2E_UNSAVED_DECISIONS__.push(nextDecision);
+  }, decision);
+}
+
+async function getUnsavedPromptCount(browserInstance) {
+  return await browserInstance.execute(() => window.__DESKTOP_E2E_UNSAVED_PROMPTS__.length);
+}
+
+async function expectUnsavedPromptCount(browserInstance, expectedCount) {
+  let lastObserved = -1;
+  await browserInstance.waitUntil(async () => {
+    lastObserved = await getUnsavedPromptCount(browserInstance);
+    return lastObserved === expectedCount;
+  }, {
+    timeout: 10_000,
+    timeoutMsg: `Expected unsaved prompt count to become ${expectedCount}; last observed ${lastObserved}`
+  });
 }
 
 async function expectCount(browserInstance, selector, expectedCount) {

@@ -175,19 +175,25 @@ export function PngExportModal({ svgResult, onClose }: PngExportModalProps) {
         : null;
 
   return (
-    <Modal onClose={onClose} className={css.dialog} labelledBy="png-export-title">
+    <Modal
+      onClose={onClose}
+      className={css.dialog}
+      labelledBy="png-export-title"
+      dataTestId="png-export-modal"
+    >
         <div className={css.header}>
           <div>
             <h2 id="png-export-title" className={css.title}>Export PNG</h2>
             <p className={css.subtitle}>Adjust the raster resolution before saving the current SVG render as a PNG.</p>
           </div>
           <div className={css.actions}>
-            <button type="button" className={css.secondaryButton} onClick={onClose}>
+            <button type="button" className={css.secondaryButton} data-testid="png-export-cancel" onClick={onClose}>
               Cancel
             </button>
             <button
               type="button"
               className={css.primaryButton}
+              data-testid="png-export-download"
               disabled={downloadPending || previewDisplay == null}
               onClick={() => {
                 void handleExport();
