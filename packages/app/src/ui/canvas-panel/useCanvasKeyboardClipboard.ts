@@ -479,8 +479,9 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       if (!hasFile) {
         return;
       }
-      event.preventDefault();
       if (findSvgFileInDataTransfer(event.dataTransfer)) {
+        event.preventDefault();
+        event.stopPropagation();
         event.dataTransfer.dropEffect = "copy";
       }
     },
@@ -493,11 +494,12 @@ export function useCanvasKeyboardClipboard(args: UseCanvasKeyboardClipboardArgs)
       if (!hasFile) {
         return;
       }
-      event.preventDefault();
       const svgFile = findSvgFileInDataTransfer(event.dataTransfer);
       if (!svgFile) {
         return;
       }
+      event.preventDefault();
+      event.stopPropagation();
       void svgFile.text().then(async (svgSource) => {
         const converted = await convertSvgToScopeSnippet(svgSource);
         if (converted.kind === "failure") {

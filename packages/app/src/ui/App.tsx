@@ -26,7 +26,7 @@ import { collectDirtyDocumentIdsForIntent, type CloseIntent } from "./close-guar
 import { OPEN_EXAMPLE_CATALOG, type TikzOpenExample } from "./examples/open-example-catalog";
 import type { EmitSvgResult } from "tikz-editor/svg/index";
 import type { AssistantEvent } from "../platform/types";
-import { resolveOpenedFileForDocument } from "./svg-import";
+import { resolveOpenedFileForDocument, dataTransferHasFilePayload } from "./svg-import";
 import type { AssistantComposerImageAttachment } from "./assistant-image-attachments";
 import { formatEquationText, type EquationNodeTarget } from "./equation-utils";
 
@@ -152,6 +152,8 @@ export function App() {
   const menuDefinition = useMemo(() => filterAppMenuDefinitionForTarget(APP_MENU_DEFINITION, menuTarget), [menuTarget]);
   const [showOpenExampleModal, setShowOpenExampleModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const isDesktop = platform.id.startsWith("desktop");
   const [equationModalState, setEquationModalState] = useState<
     | { mode: "insert" }
     | { mode: "edit"; target: EquationNodeTarget }
@@ -1126,8 +1128,55 @@ export function App() {
     executeCloseIntent(closeCtx.intent);
   }
 
+  function isDroppableFile(file: File): boolean {
+    const name = file.name.toLowerCase();
+    return name.endsWith(".tex") || name.endsWith(".tikz") || name.endsWith(".svg");
+  }
+
+  function onAppDragOver(e: React.DragEvent<HTMLDivElement>) {
+    if (!dataTransferHasFilePayload(e.dataTransfer)) {
+      return;
+    }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (!isDesktop) {
+      setIsDragOver(true);
+    }
+  }
+
+  function onAppDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    // Only clear when leaving the app root entirely
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      return;
+    }
+    setIsDragOver(false);
+  }
+
+  async function onAppDrop(e: React.DragEvent<HTMLDivElement>) {
+    setIsDragOver(false);
+    const file = Array.from(e.dataTransfer.files).find(isDroppableFile);
+    if (!file) {
+      return;
+    }
+    e.preventDefault();
+    const source = await file.text();
+    const opened = { source, fileRef: { kind: "virtual" as const, name: file.name } };
+    const resolved = await resolveOpenedFileForDocument(opened);
+    if (resolved.kind === "failure") {
+      return;
+    }
+    dispatch({ type: "NEW_DOCUMENT", source: resolved.source, title: resolved.title });
+    dispatch({ type: "MARK_DOCUMENT_SAVED", fileRef: resolved.fileRef });
+  }
+
   return (
-    <div className={css.app} style={appStyle}>
+    <div
+      className={css.app}
+      style={appStyle}
+      onDragOver={onAppDragOver}
+      onDragLeave={onAppDragLeave}
+      onDrop={(e) => { void onAppDrop(e); }}
+    >
       {platform.menu?.usesNativeMenuBar ? null : (
         <AppMenuBar
           definition={menuDefinition}
@@ -1262,6 +1311,9 @@ export function App() {
             }}
           />
         </Suspense>
+      ) : null}
+      {isDragOver ? (
+        <div className={css.dropOverlay}>Drop to open</div>
       ) : null}
     </div>
   );
