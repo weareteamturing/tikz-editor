@@ -438,10 +438,43 @@ export function App() {
         });
       };
 
+      // ── Resolve snapshot for figure_index (if provided) ─────────────
+      // figure_index is 1-indexed; omit or 0 to use the active figure.
+      const figureIndexArg = typeof args.figure_index === "number" ? args.figure_index : 0;
+      let targetSnapshot = snapshotForDoc;
+      let targetFigureId = snapshotForDoc.activeFigureId;
+      if (figureIndexArg > 0 && snapshotForDoc.figures.length > 1) {
+        const idx = figureIndexArg - 1;
+        if (idx < 0 || idx >= snapshotForDoc.figures.length) {
+          await respond(false, `Invalid figure_index ${figureIndexArg}. Document has ${snapshotForDoc.figures.length} figure(s).`);
+          return;
+        }
+        const requestedFigId = snapshotForDoc.figures[idx]!.id;
+        if (requestedFigId !== snapshotForDoc.activeFigureId) {
+          try {
+            const result = await computeSnapshot({
+              id: crypto.randomUUID(),
+              documentId: event.documentId,
+              kind: "render",
+              source: sourceForDoc,
+              activeFigureId: requestedFigId,
+              changedSourceIds: null,
+              patches: null,
+              trigger: "other"
+            });
+            targetSnapshot = result.snapshot;
+            targetFigureId = requestedFigId;
+          } catch {
+            await respond(false, `Failed to compute snapshot for figure ${figureIndexArg}.`);
+            return;
+          }
+        }
+      }
+
       // ── get_diagnostics ───────────────────────────────────────────────
       if (event.tool === "get_diagnostics") {
         const { buildDiagnosticsText: buildDiag } = await import("./assistant-tool-handlers");
-        const text = buildDiag(sourceForDoc, snapshotForDoc);
+        const text = buildDiag(sourceForDoc, targetSnapshot);
         await respond(true, text || "No diagnostics — source parses cleanly.");
         return;
       }
@@ -449,7 +482,7 @@ export function App() {
       // ── get_element_list ──────────────────────────────────────────────
       if (event.tool === "get_element_list") {
         const { buildElementList } = await import("./assistant-tool-handlers");
-        await respond(true, buildElementList(sourceForDoc, snapshotForDoc));
+        await respond(true, buildElementList(sourceForDoc, targetSnapshot));
         return;
       }
 
@@ -457,14 +490,14 @@ export function App() {
       if (event.tool === "get_node_anchors") {
         const { buildNodeAnchors } = await import("./assistant-tool-handlers");
         const nodeName = typeof args.node_name === "string" ? args.node_name : "";
-        await respond(true, buildNodeAnchors(snapshotForDoc, nodeName));
+        await respond(true, buildNodeAnchors(targetSnapshot, nodeName));
         return;
       }
 
       // ── get_bounds ────────────────────────────────────────────────────
       if (event.tool === "get_bounds") {
         const { buildBoundsText } = await import("./assistant-tool-handlers");
-        await respond(true, buildBoundsText(snapshotForDoc));
+        await respond(true, buildBoundsText(targetSnapshot));
         return;
       }
 
@@ -473,22 +506,21 @@ export function App() {
       const hasGrid = args.show_grid != null;
       const hasZoom = args.zoom_region != null;
 
-      let svgToRender = snapshotForDoc.svg;
-      let sourceMatches = snapshotForDoc.source === sourceForDoc;
+      let svgToRender = targetSnapshot.svg;
+      let sourceMatches = targetSnapshot.source === sourceForDoc;
 
       // If overlay_code is requested, re-render with modified source
       if (hasOverlayCode && sourceMatches) {
         try {
           const { injectOverlayCode } = await import("./assistant-tool-handlers");
-          const activeFigId = snapshotForDoc.activeFigureId;
-          const activeFig = snapshotForDoc.figures.find((f) => f.id === activeFigId);
-          const modifiedSource = injectOverlayCode(sourceForDoc, args.overlay_code as string, activeFig?.span);
+          const targetFig = targetSnapshot.figures.find((f) => f.id === targetFigureId);
+          const modifiedSource = injectOverlayCode(sourceForDoc, args.overlay_code as string, targetFig?.span);
           const result = await computeSnapshot({
             id: crypto.randomUUID(),
             documentId: event.documentId,
             kind: "render",
             source: modifiedSource,
-            activeFigureId: activeFigId,
+            activeFigureId: targetFigureId,
             changedSourceIds: null,
             patches: null,
             trigger: "other"

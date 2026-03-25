@@ -58,7 +58,15 @@ export function buildFigureContext(
     .split("\n")
     .map((line, i) => `${linesBeforeFigure + i}: ${line}`)
     .join("\n");
-  return `This document contains ${figures.length} figures. The user is currently editing figure ${activeIndex + 1} of ${figures.length} (lines ${figure.startLine + 1}–${figure.endLine + 1}).\n\nActive figure source (with line numbers from the full document):\n\`\`\`tex\n${numberedLines}\n\`\`\`\n\nThe full document source is in the file you will edit. Only modify the active figure unless the user asks otherwise.`;
+  // Build a listing of all figures with their indices and line ranges
+  const figureListing = figures
+    .map((f, i) => {
+      const marker = i === activeIndex ? " (active)" : "";
+      return `  Figure ${i + 1}: lines ${f.startLine + 1}–${f.endLine + 1}${marker}`;
+    })
+    .join("\n");
+
+  return `This document contains ${figures.length} figures:\n${figureListing}\n\nThe user is currently editing figure ${activeIndex + 1}.\n\nActive figure source (with line numbers from the full document):\n\`\`\`tex\n${numberedLines}\n\`\`\`\n\nThe full document source is in the file you will edit. Only modify the active figure unless the user asks otherwise. All tools accept a \`figure_index\` parameter (1-indexed) to query any figure; omit it to use the active figure.`;
 }
 
 // ─── Element list ─────────────────────────────────────────────────────────────

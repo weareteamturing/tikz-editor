@@ -652,6 +652,10 @@ impl AssistantState {
                     },
                     "required": ["min_x", "min_y", "max_x", "max_y"],
                     "additionalProperties": false
+                  },
+                  "figure_index": {
+                    "type": "integer",
+                    "description": "1-indexed figure number for multi-figure documents. Omit to use the active figure."
                   }
                 },
                 "additionalProperties": false
@@ -662,7 +666,12 @@ impl AssistantState {
               "description": "Get current parse errors and warnings for the TikZ source. Returns diagnostics with severity, line number, code, and message.",
               "inputSchema": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                  "figure_index": {
+                    "type": "integer",
+                    "description": "1-indexed figure number for multi-figure documents. Omit to use the active figure."
+                  }
+                },
                 "additionalProperties": false
               }
             },
@@ -671,7 +680,12 @@ impl AssistantState {
               "description": "Get a compact list of all rendered elements with their sourceId, kind, bounding box, source line range, draw/fill colors, and for nodes: name and center position.",
               "inputSchema": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                  "figure_index": {
+                    "type": "integer",
+                    "description": "1-indexed figure number for multi-figure documents. Omit to use the active figure."
+                  }
+                },
                 "additionalProperties": false
               }
             },
@@ -681,7 +695,11 @@ impl AssistantState {
               "inputSchema": {
                 "type": "object",
                 "properties": {
-                  "node_name": { "type": "string", "description": "The name of the node (e.g. 'A', 'mynode')" }
+                  "node_name": { "type": "string", "description": "The name of the node (e.g. 'A', 'mynode')" },
+                  "figure_index": {
+                    "type": "integer",
+                    "description": "1-indexed figure number for multi-figure documents. Omit to use the active figure."
+                  }
                 },
                 "required": ["node_name"],
                 "additionalProperties": false
@@ -692,7 +710,12 @@ impl AssistantState {
               "description": "Get the bounding box of the entire scene in TikZ coordinates (cm).",
               "inputSchema": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                  "figure_index": {
+                    "type": "integer",
+                    "description": "1-indexed figure number for multi-figure documents. Omit to use the active figure."
+                  }
+                },
                 "additionalProperties": false
               }
             }
@@ -1625,9 +1648,11 @@ fn build_turn_input(
             "You are assisting a user inside a WYSIWYG TikZ editor. The user edits the figure visually and sees the current TikZ source directly in the interface.\n\
         Apply requested changes to `{figure_path}` as needed, but do not mention local filenames or paths in your user-facing response.\n\
         After making edits, call the `get_latest_preview_png` tool to verify the rendered output before finalizing your response.\n\
-        The preview tool supports `overlay_code` (temporary TikZ code for guides/prototyping), `show_grid` (coordinate grid with numbered ticks), and `zoom_region` (zoom into TikZ coordinates).\n\
+        The preview tool supports `overlay_code` (temporary TikZ code for guides/prototyping, injected before \\end{{tikzpicture}} without modifying the file), `show_grid` (coordinate grid with numbered ticks), and `zoom_region` (zoom into TikZ coordinates).\n\
         You can call `get_diagnostics` to check for parse errors, `get_element_list` for a compact element inventory, `get_node_anchors` for resolved node positions, and `get_bounds` for the scene bounding box.\n\
-        Explain figure-level edits clearly and keep the response focused on what changed in the picture.\n\n\
+        The editor uses its own TikZ renderer which supports most common features but not every TikZ package or advanced construct. The rendering is accurate — trust what the preview shows. If something doesn't render, try simpler TikZ constructs.\n\
+        The user sees source changes live, so keep your response brief: list what you changed and why, don't repeat the code.\n\n\
+        The image attached below is the current rendered preview of the figure.\n\n\
         {source_section}{diagnostics_section}\n\n\
         User request: {prompt}"
           )
