@@ -388,18 +388,30 @@ function collectSvgReuseAffectedSourceIds(
     query: { changedSourceIds: readonly string[] }
   ) => { affectedSourceIds: string[]; reachedOpaque: boolean }
 ): string[] | null {
-  const invalidation = collectGeometryInvalidation(semanticResult.dependencies, {
+  const matrixDescendantSourceIds = collectMatrixDescendantSourceIdsForChangedSources(
+    semanticResult.scene.elements,
     changedSourceIds
+  );
+  const changedSourceIdsForInvalidation =
+    matrixDescendantSourceIds.length > 0
+      ? [...new Set([...changedSourceIds, ...matrixDescendantSourceIds])]
+      : changedSourceIds;
+  const invalidation = collectGeometryInvalidation(semanticResult.dependencies, {
+    changedSourceIds: changedSourceIdsForInvalidation
   });
   if (invalidation.reachedOpaque) {
     return null;
   }
-  if (invalidation.affectedSourceIds.length === 0) {
+  const dependencyAffectedSourceIds = mergeSourceIds(
+    invalidation.affectedSourceIds,
+    matrixDescendantSourceIds
+  );
+  if (!dependencyAffectedSourceIds || dependencyAffectedSourceIds.length === 0) {
     return null;
   }
 
   const scopeDescendantSourceIds = collectNestedScopeSourceIds(parseResult.figure.body, changedSourceIds);
-  return mergeSourceIds(invalidation.affectedSourceIds, scopeDescendantSourceIds);
+  return mergeSourceIds(dependencyAffectedSourceIds, scopeDescendantSourceIds);
 }
 
 function collectNestedScopeSourceIds(
@@ -444,6 +456,29 @@ function collectNestedScopeSourceIds(
     return null;
   }
   return [...nestedSourceIds].sort();
+}
+
+function collectMatrixDescendantSourceIdsForChangedSources(
+  elements: readonly EvaluateTikzResult["scene"]["elements"][number][],
+  changedSourceIds: readonly string[]
+): string[] {
+  if (elements.length === 0 || changedSourceIds.length === 0) {
+    return [];
+  }
+  const changed = new Set(changedSourceIds);
+  const descendants = new Set<string>();
+  for (const element of elements) {
+    const matrixSourceId = element.matrixCell?.matrixSourceId?.trim();
+    if (!matrixSourceId || !changed.has(matrixSourceId)) {
+      continue;
+    }
+    descendants.add(element.sourceRef.sourceId);
+    const cellSourceId = element.matrixCell?.cellSourceId?.trim();
+    if (cellSourceId) {
+      descendants.add(cellSourceId);
+    }
+  }
+  return [...descendants];
 }
 
 function buildSvgReuseHints(

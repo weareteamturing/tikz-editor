@@ -186,8 +186,13 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
   const onResizeHandlePointerDown = useCallback(
     (event: ReactPointerEvent<SVGElement>, sourceId: string, role: ResizeRole, cursor: string) => {
       if (!svgResult || toolMode !== "select" || event.button !== 0) return;
-      if (sourceId.includes(":tree-child:") || sourceId.includes(":matrix-cell:")) {
-        // Tree descendants and matrix cells intentionally show corner handles for visual consistency,
+      const propertyTarget = resolvePropertyTarget(source, sourceId, parseOptions);
+      if (
+        sourceId.includes(":tree-child:")
+        || sourceId.includes(":matrix-cell:")
+        || (propertyTarget.kind !== "not-found" && propertyTarget.target.kind === "matrix-statement")
+      ) {
+        // Tree descendants, matrix cells, and matrix statements intentionally show corner handles for visual consistency,
         // but resize drag is not enabled yet.
         return;
       }

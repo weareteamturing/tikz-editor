@@ -2494,20 +2494,33 @@ export function CanvasPanel() {
       return;
     }
 
-    const invalidation = collectGeometryInvalidation(dependencies, {
+    const matrixDescendantSourceIds = collectMatrixDescendantSourceIdsForChangedSources(
+      snapshot.scene?.elements ?? [],
       changedSourceIds
+    );
+    const changedSourceIdsForInvalidation =
+      matrixDescendantSourceIds.length > 0
+        ? [...new Set([...changedSourceIds, ...matrixDescendantSourceIds])]
+        : changedSourceIds;
+    const invalidation = collectGeometryInvalidation(dependencies, {
+      changedSourceIds: changedSourceIdsForInvalidation
     });
     if (invalidation.reachedOpaque) {
       setDragPatchMode("full");
       setDragAffectedSourceIds(null);
       return;
     }
-    setDragAffectedSourceIds(invalidation.affectedSourceIds.length > 0 ? invalidation.affectedSourceIds : null);
+    const affectedSourceIds = mergeSourceIdLists(
+      invalidation.affectedSourceIds,
+      matrixDescendantSourceIds
+    );
+    setDragAffectedSourceIds(affectedSourceIds.length > 0 ? affectedSourceIds : null);
   }, [
     activeCanvasDragKind,
     dragPatchMode,
     lastEditChangeToken,
     lastEditChangedSourceIds,
+    snapshot.scene,
     snapshot.semanticResult
   ]);
 
@@ -2939,4 +2952,37 @@ export function CanvasPanel() {
       ) : null}
     </>
   );
+}
+
+function collectMatrixDescendantSourceIdsForChangedSources(
+  elements: readonly SceneElement[],
+  changedSourceIds: readonly string[]
+): string[] {
+  if (elements.length === 0 || changedSourceIds.length === 0) {
+    return [];
+  }
+  const changed = new Set(changedSourceIds);
+  const descendantSourceIds = new Set<string>();
+  for (const element of elements) {
+    const matrixSourceId = element.matrixCell?.matrixSourceId?.trim();
+    if (!matrixSourceId || !changed.has(matrixSourceId)) {
+      continue;
+    }
+    descendantSourceIds.add(element.sourceRef.sourceId);
+    const cellSourceId = element.matrixCell?.cellSourceId?.trim();
+    if (cellSourceId) {
+      descendantSourceIds.add(cellSourceId);
+    }
+  }
+  return [...descendantSourceIds];
+}
+
+function mergeSourceIdLists(left: readonly string[], right: readonly string[]): string[] {
+  if (left.length === 0) {
+    return [...right];
+  }
+  if (right.length === 0) {
+    return [...left];
+  }
+  return [...new Set([...left, ...right])];
 }

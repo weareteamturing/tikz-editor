@@ -331,6 +331,11 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       sourceIds.add(sourceId);
     }
     for (const sourceId of selectedElementIds) {
+      if (matrixSourceIds.has(sourceId)) {
+        sourceIds.add(sourceId);
+      }
+    }
+    for (const sourceId of selectedElementIds) {
       if (matrixCellSourceIds.has(sourceId)) {
         sourceIds.add(sourceId);
       }
@@ -344,7 +349,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       sourceIds.add(sourceId);
     }
     return sourceIds;
-  }, [matrixCellSourceIds, nodeResizeSourceIds, resizablePathShapeSourceIds, scopeResizeSourceIds, selectedElementIds, treeChildSourceIds]);
+  }, [matrixCellSourceIds, matrixSourceIds, nodeResizeSourceIds, resizablePathShapeSourceIds, scopeResizeSourceIds, selectedElementIds, treeChildSourceIds]);
 
   const matrixSelectionSourceIds = useMemo(() => {
     const ids = new Set<string>();
@@ -598,6 +603,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       toolMode === "select" &&
       singleSelectedSourceId &&
       resizeHandleSourceIds.has(singleSelectedSourceId) &&
+      !matrixSourceIds.has(singleSelectedSourceId) &&
       !matrixCellSourceIds.has(singleSelectedSourceId) &&
       !scopeResizeSourceIds.has(singleSelectedSourceId)
         ? singleSelectedSourceId
@@ -670,7 +676,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
             x: corner.svg.x,
             y: corner.svg.y,
             cursor:
-              treeChildSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId)
+              treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId)
                 ? "not-allowed"
                 : (
                     vectorLengthSquared(resizeVector) > 1e-12
@@ -716,7 +722,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
           key: `node-handle:${sourceId}:top-left`,
           x: bounds.minX,
           y: bounds.minY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
+          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "top-left",
@@ -726,7 +732,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
           key: `node-handle:${sourceId}:top-right`,
           x: bounds.maxX,
           y: bounds.minY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
+          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "top-right",
@@ -736,7 +742,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
           key: `node-handle:${sourceId}:bottom-left`,
           x: bounds.minX,
           y: bounds.maxY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
+          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nesw-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "bottom-left",
@@ -746,7 +752,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
           key: `node-handle:${sourceId}:bottom-right`,
           x: bounds.maxX,
           y: bounds.maxY,
-          cursor: treeChildSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
+          cursor: treeChildSourceIds.has(sourceId) || matrixSourceIds.has(sourceId) || matrixCellSourceIds.has(sourceId) ? "not-allowed" : "nwse-resize",
           kind: "resize-element",
           elementId: sourceId,
           role: "bottom-right",
@@ -778,7 +784,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     }
 
     return displays;
-  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, matrixCellSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
+  }, [ROTATE_HANDLE_OFFSET_PX, canvasTransform.scale, collapsedDensePathEndpointsBySource, collapsedDensePathSourceIds, dragCapability.draggableHandleIds, draggableSourceIds, matrixCellSourceIds, matrixSourceIds, resizablePathShapeSourceIds, resizeFrameSourceIds, resizeFramesBySource, scopeResizeSourceIds, selectedElementIds, selectedHandles, selectionBoundsBySource, snapshot.editHandles, snapshot.scene, svgResult, toolMode, treeChildSourceIds]);
 
   const hitRegions = useMemo(() => {
     if (!snapshot.scene || !svgResult) return [];
