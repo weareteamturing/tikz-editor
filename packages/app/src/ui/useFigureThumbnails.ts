@@ -6,6 +6,7 @@ import type { ThumbnailRenderRequest } from "./workers/thumbnail-worker-types";
 type FigureEntry = ParseTikzResult["figures"][number];
 
 type UseFigureThumbnailsOptions = {
+  documentKey?: string;
   priorityFigureIds?: readonly string[];
   maxToRender?: number;
   refreshDelayMs?: number;
@@ -34,20 +35,35 @@ export function useFigureThumbnails(
   figures: readonly FigureEntry[],
   options: UseFigureThumbnailsOptions = {}
 ): ReadonlyMap<string, string> {
-  const { priorityFigureIds = [], maxToRender = 8, refreshDelayMs = 350 } = options;
-  const [stableInput, setStableInput] = useState<{ source: string; figures: readonly FigureEntry[] }>({
+  const { documentKey = "__default__", priorityFigureIds = [], maxToRender = 8, refreshDelayMs = 350 } = options;
+  const [stableInput, setStableInput] = useState<{
+    source: string;
+    figures: readonly FigureEntry[];
+    documentKey: string;
+  }>({
     source,
-    figures
+    figures,
+    documentKey
   });
-  const lastThumbnailByFigureIdRef = useRef(new Map<string, string>());
+  const lastThumbnailByDocumentKeyRef = useRef(new Map<string, Map<string, string>>());
   const requestTokenByFigureRef = useRef(new Map<string, number>());
   const stableSource = stableInput.source;
   const stableFigures = stableInput.figures;
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setStableInput({ source, figures }), refreshDelayMs);
+    setStableInput({ source, figures, documentKey });
+    if (!lastThumbnailByDocumentKeyRef.current.has(documentKey)) {
+      lastThumbnailByDocumentKeyRef.current.set(documentKey, new Map<string, string>());
+    }
+  }, [documentKey]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(
+      () => setStableInput((current) => ({ ...current, source, figures })),
+      refreshDelayMs
+    );
     return () => window.clearTimeout(timer);
-  }, [figures, refreshDelayMs, source]);
+  }, [documentKey, figures, refreshDelayMs, source]);
 
   const figureSignatures = useMemo(() => {
     const map = new Map<string, string>();
@@ -62,6 +78,13 @@ export function useFigureThumbnails(
   );
   const priorityKey = useMemo(() => priorityFigureIds.join("|"), [priorityFigureIds]);
   const [tick, setTick] = useState(0);
+  const lastThumbnailByFigureId =
+    lastThumbnailByDocumentKeyRef.current.get(documentKey) ??
+    (() => {
+      const next = new Map<string, string>();
+      lastThumbnailByDocumentKeyRef.current.set(documentKey, next);
+      return next;
+    })();
 
   const thumbnails = useMemo(() => {
     const next = new Map<string, string>();
@@ -70,18 +93,18 @@ export function useFigureThumbnails(
       if (signature) {
         const cached = thumbnailCache.get(makeCacheKey(figure.id, signature));
         if (cached) {
-          lastThumbnailByFigureIdRef.current.set(figure.id, cached);
+          lastThumbnailByFigureId.set(figure.id, cached);
           next.set(figure.id, cached);
           continue;
         }
       }
-      const last = lastThumbnailByFigureIdRef.current.get(figure.id);
+      const last = lastThumbnailByFigureId.get(figure.id);
       if (last) {
         next.set(figure.id, last);
       }
     }
     return next;
-  }, [figureSignatures, figures, tick]);
+  }, [figureSignatures, figures, lastThumbnailByFigureId, tick]);
 
   useEffect(() => {
     if (stableFigures.length === 0 || maxToRender <= 0) {
@@ -127,8 +150,9 @@ export function useFigureThumbnails(
             continue;
           }
           const requestId = `figure-thumb-${(thumbnailRequestCounter += 1).toString(36)}`;
-          const nextToken = (requestTokenByFigureRef.current.get(figureId) ?? 0) + 1;
-          requestTokenByFigureRef.current.set(figureId, nextToken);
+          const tokenKey = `${documentKey}|${figureId}`;
+          const nextToken = (requestTokenByFigureRef.current.get(tokenKey) ?? 0) + 1;
+          requestTokenByFigureRef.current.set(tokenKey, nextToken);
           const request: ThumbnailRenderRequest = {
             type: "render",
             requestId,
@@ -148,7 +172,7 @@ export function useFigureThumbnails(
               if (!result.ok || cancelled) {
                 return null;
               }
-              const activeToken = requestTokenByFigureRef.current.get(figureId);
+              const activeToken = requestTokenByFigureRef.current.get(tokenKey);
               if (activeToken !== nextToken) {
                 return null;
               }
@@ -195,7 +219,7 @@ export function useFigureThumbnails(
         window.clearTimeout(timer.id);
       }
     };
-  }, [figureKey, figureSignatures, maxToRender, priorityFigureIds, priorityKey, stableFigures, stableSource]);
+  }, [documentKey, figureKey, figureSignatures, maxToRender, priorityFigureIds, priorityKey, stableFigures, stableSource]);
 
   return thumbnails;
 }

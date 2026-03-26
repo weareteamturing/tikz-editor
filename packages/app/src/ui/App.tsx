@@ -768,6 +768,8 @@ export function App() {
         getActiveFigureId: () => string | null;
         getFigureCount: () => number;
         getActiveCanvasDragKind: () => string | null;
+        getCanvasTransform: () => { translateX: number; translateY: number; scale: number };
+        setCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
       };
     };
     globalLike.__TIKZ_EDITOR_APP_TEST_API__ = {
@@ -809,6 +811,17 @@ export function App() {
       },
       getActiveCanvasDragKind: () => {
         return useEditorStore.getState().activeCanvasDragKind;
+      },
+      getCanvasTransform: () => {
+        const transform = useEditorStore.getState().canvasTransform;
+        return {
+          translateX: transform.translateX,
+          translateY: transform.translateY,
+          scale: transform.scale
+        };
+      },
+      setCanvasTransform: (transform) => {
+        dispatch({ type: "SET_CANVAS_TRANSFORM", transform });
       }
     };
     return () => {

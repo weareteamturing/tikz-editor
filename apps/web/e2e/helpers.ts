@@ -189,6 +189,34 @@ export async function readStoreSource(page: Page): Promise<string> {
   });
 }
 
+export async function readCanvasTransform(page: Page): Promise<{ translateX: number; translateY: number; scale: number }> {
+  return await page.evaluate(() => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        getCanvasTransform?: () => { translateX: number; translateY: number; scale: number };
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    return api?.getCanvasTransform?.() ?? { translateX: 0, translateY: 0, scale: 1 };
+  });
+}
+
+export async function setCanvasTransform(
+  page: Page,
+  transform: { translateX: number; translateY: number; scale: number }
+): Promise<void> {
+  await page.evaluate((nextTransform) => {
+    const api = (globalThis as unknown as {
+      __TIKZ_EDITOR_APP_TEST_API__?: {
+        setCanvasTransform?: (transform: { translateX: number; translateY: number; scale: number }) => void;
+      };
+    }).__TIKZ_EDITOR_APP_TEST_API__;
+    if (typeof api?.setCanvasTransform !== "function") {
+      throw new Error("App test API setCanvasTransform is unavailable.");
+    }
+    api.setCanvasTransform(nextTransform);
+  }, transform);
+}
+
 export async function readPersistedWorkspaceDocumentCount(page: Page): Promise<number> {
   return await page.evaluate(() => {
     const raw = localStorage.getItem("tikz-editor:workspace");

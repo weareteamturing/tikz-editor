@@ -8,9 +8,11 @@ export function FigureNavigator() {
   const source = snapshot.source;
   const figures = snapshot.figures;
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
+  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const dispatch = useEditorStore((s) => s.dispatch);
   const stripRef = useRef<HTMLDivElement | null>(null);
   const thumbRefByFigureId = useRef(new Map<string, HTMLButtonElement>());
+  const stripScrollByDocumentIdRef = useRef(new Map<string, number>());
   const [visibleFigureIds, setVisibleFigureIds] = useState<string[]>([]);
 
   const activeIndex = useMemo(
@@ -27,6 +29,7 @@ export function FigureNavigator() {
     let raf = 0;
     const updateVisible = () => {
       raf = 0;
+      stripScrollByDocumentIdRef.current.set(activeDocumentId, strip.scrollLeft);
       const overscanPx = 220;
       const visibleMinX = strip.scrollLeft - overscanPx;
       const visibleMaxX = strip.scrollLeft + strip.clientWidth + overscanPx;
@@ -64,7 +67,19 @@ export function FigureNavigator() {
         window.cancelAnimationFrame(raf);
       }
     };
-  }, [figures]);
+  }, [activeDocumentId, figures]);
+
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) {
+      return;
+    }
+    const targetScrollLeft = stripScrollByDocumentIdRef.current.get(activeDocumentId) ?? 0;
+    const raf = window.requestAnimationFrame(() => {
+      strip.scrollLeft = targetScrollLeft;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [activeDocumentId, figures.length]);
 
   const priorityFigureIds = useMemo(() => {
     const ids: string[] = [...visibleFigureIds];
@@ -86,6 +101,7 @@ export function FigureNavigator() {
   }, [activeIndex, figures, visibleFigureIds]);
   const maxToRender = useMemo(() => Math.max(8, visibleFigureIds.length + 4), [visibleFigureIds.length]);
   const thumbnails = useFigureThumbnails(source, figures, {
+    documentKey: activeDocumentId,
     priorityFigureIds,
     maxToRender,
     refreshDelayMs: 600
@@ -117,7 +133,7 @@ export function FigureNavigator() {
       >
         {"<"}
       </button>
-      <div className={css.strip} ref={stripRef}>
+      <div className={css.strip} ref={stripRef} data-testid="figure-navigator-strip">
         {figures.map((figure, index) => {
           const thumbnail = thumbnails.get(figure.id);
           const isActive = figure.id === activeFigureId;

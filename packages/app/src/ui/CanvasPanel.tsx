@@ -449,6 +449,15 @@ const DESKTOP_TIKZ_CLIPBOARD_FORMATS = [
 const DENSE_PATH_SEGMENT_THRESHOLD = 7;
 const DOCUMENT_BOUNDS_OFF_MIN_PADDING_WORLD = 200;
 
+type FigureViewportState = {
+  transform: CanvasTransform;
+  fitToContentModeActive: boolean;
+};
+
+function makeFigureViewportKey(documentId: string, figureId: string | null): string {
+  return `${documentId}::${figureId ?? "__none__"}`;
+}
+
 function expandSvgViewBox(
   viewBox: SvgViewBox,
   viewportSize: { width: number; height: number },
@@ -544,6 +553,7 @@ export function CanvasPanel() {
   const source = useEditorStore((s) => s.source);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
+  const tabOrder = useEditorStore((s) => s.tabOrder);
   const sourceRevision = useEditorStore((s) => s.sourceRevision);
   const snapshot = useEditorStore((s) => s.snapshot);
   const toolMode = useEditorStore((s) => s.toolMode);
@@ -935,6 +945,9 @@ export function CanvasPanel() {
   const textEngineRef = useRef<NodeTextEngine | null>(null);
   const prefixTableCacheRef = useRef(new Map<string, readonly number[]>());
   const pendingTouchViewportRef = useRef<PendingTouchViewport | null>(null);
+  const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
+  const visitedFigureKeysRef = useRef(new Set<string>());
+  const previousFigureViewportKeyRef = useRef<string | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1321,6 +1334,56 @@ export function CanvasPanel() {
 
     dispatchCanvasTransform({ translateX, translateY, scale });
   }, [baseSvgResult, dispatchCanvasTransform, svgResult]);
+
+  const activeFigureViewportKey = useMemo(
+    () => makeFigureViewportKey(activeDocumentId, activeFigureId),
+    [activeDocumentId, activeFigureId]
+  );
+
+  useEffect(() => {
+    const openDocuments = new Set(tabOrder);
+    for (const key of viewportStateByFigureKeyRef.current.keys()) {
+      const delimiter = key.indexOf("::");
+      const documentId = delimiter >= 0 ? key.slice(0, delimiter) : key;
+      if (!openDocuments.has(documentId)) {
+        viewportStateByFigureKeyRef.current.delete(key);
+        visitedFigureKeysRef.current.delete(key);
+      }
+    }
+  }, [tabOrder]);
+
+  useEffect(() => {
+    const previousKey = previousFigureViewportKeyRef.current;
+    if (previousKey && previousKey !== activeFigureViewportKey) {
+      const previousTransform = canvasTransformRef.current;
+      viewportStateByFigureKeyRef.current.set(previousKey, {
+        transform: {
+          translateX: previousTransform.translateX,
+          translateY: previousTransform.translateY,
+          scale: previousTransform.scale
+        },
+        fitToContentModeActive: fitToContentModeActiveRef.current
+      });
+      visitedFigureKeysRef.current.add(previousKey);
+    }
+
+    const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
+    if (savedState) {
+      setFitToContentModeActive(savedState.fitToContentModeActive);
+      dispatchCanvasTransform(savedState.transform);
+      previousFigureViewportKeyRef.current = activeFigureViewportKey;
+      return;
+    }
+
+    const hasVisited = visitedFigureKeysRef.current.has(activeFigureViewportKey);
+    if (!hasVisited) {
+      visitedFigureKeysRef.current.add(activeFigureViewportKey);
+      setFitToContentModeActive(true);
+      fitToContent();
+    }
+
+    previousFigureViewportKeyRef.current = activeFigureViewportKey;
+  }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent]);
 
   const handledFitRequestRef = useRef(0);
   useEffect(() => {
