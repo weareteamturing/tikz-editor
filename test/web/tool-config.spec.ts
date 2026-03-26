@@ -17,6 +17,7 @@ describe("resolveToolbarToolMode", () => {
 
   it("keeps popup-enabled tool active when reclicked", () => {
     expect(resolveToolbarToolMode("addShape", "addShape")).toBe("addShape");
+    expect(resolveToolbarToolMode("addMatrix", "addMatrix")).toBe("addMatrix");
   });
 
   it("keeps select active when reclicking select", () => {
@@ -62,11 +63,13 @@ describe("resolveToolbarToolMode", () => {
     expect(toolModeFromShortcut("G")).toBeNull();
   });
 
-  it("exposes popup metadata for shape picker but not freehand or rectangle", () => {
+  it("exposes popup metadata for shape/matrix pickers but not freehand or rectangle", () => {
     expect(toolModeHasPopup("addFreehand")).toBe(false);
     expect(toolModePopupKind("addFreehand")).toBeNull();
     expect(toolModeHasPopup("addShape")).toBe(true);
     expect(toolModePopupKind("addShape")).toBe("shape-picker");
+    expect(toolModeHasPopup("addMatrix")).toBe(true);
+    expect(toolModePopupKind("addMatrix")).toBe("matrix-picker");
     // Shape tool no longer auto-opens; it opens on click but only activates when a shape is selected
     expect(toolModeAutoOpensPopup("addShape")).toBe(false);
     expect(toolModeHasPopup("addRect")).toBe(false);

@@ -33,6 +33,9 @@ const TOOL_CHECKS: Record<ToolMode, readonly CapabilityCheck[]> = {
     { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
     { feature: "svg_text", layers: ["semantic", "svg"], label: "text node rendering" }
   ],
+  addMatrix: [
+    { feature: "matrix_node", layers: ["parser", "semantic", "svg", "edit"], label: "matrix of nodes pipeline" }
+  ],
   addShape: [
     { feature: "path_statement", layers: ["parser", "semantic", "svg"], label: "node statement pipeline" },
     { feature: "shape_rectangle", layers: ["parser", "semantic", "svg"], label: "rectangle shape rendering" },

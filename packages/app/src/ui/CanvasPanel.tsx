@@ -576,6 +576,8 @@ export function CanvasPanel() {
   const freehandSmoothingPx = useEditorStore((s) => s.freehandSmoothingPx);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
+  const selectedAddMatrixRows = useEditorStore((s) => s.selectedAddMatrixRows);
+  const selectedAddMatrixColumns = useEditorStore((s) => s.selectedAddMatrixColumns);
   const creationStrokeColor = useEditorStore((s) => s.creationStrokeColor);
   const creationFillColor = useEditorStore((s) => s.creationFillColor);
   const gridSize = useSettingsStore((s) => s.settings.canvas.gridSize);
@@ -1509,12 +1511,12 @@ export function CanvasPanel() {
   );
 
   const queueSelectionForAddedElement = useCallback(
-    (preferredWorld: Point) => {
+    (preferredWorld: Point, preferredSourceId?: string) => {
       const beforeIds = new Set<string>();
       for (const element of snapshot.scene?.elements ?? []) {
         beforeIds.add(element.sourceRef.sourceId);
       }
-      pendingAddedSelectionRef.current = { beforeIds, preferredWorld };
+      pendingAddedSelectionRef.current = { beforeIds, preferredWorld, preferredSourceId };
     },
     [snapshot.scene]
   );
@@ -2257,6 +2259,8 @@ export function CanvasPanel() {
     dispatch,
     dispatchCanvasTransform,
     selectedAddShape,
+    selectedAddMatrixRows,
+    selectedAddMatrixColumns,
     pathDraft,
     pathSegmentDraft,
     dragRef,
@@ -2602,10 +2606,29 @@ export function CanvasPanel() {
       return;
     }
 
-    const selectedId =
-      newSourceIds.length === 1
-        ? newSourceIds[0]!
-        : pickClosestSourceId(sceneElements, newSourceIds, pending.preferredWorld);
+    let inferredMatrixSourceId: string | null = null;
+    for (const sourceId of newSourceIds) {
+      const marker = ":matrix-cell:";
+      const markerIndex = sourceId.indexOf(marker);
+      if (markerIndex <= 0) {
+        continue;
+      }
+      const parentId = sourceId.slice(0, markerIndex);
+      if (newSourceIds.includes(parentId)) {
+        inferredMatrixSourceId = parentId;
+        break;
+      }
+    }
+
+    const selectedId = pending.preferredSourceId && newSourceIds.includes(pending.preferredSourceId)
+      ? pending.preferredSourceId
+      : inferredMatrixSourceId
+        ? inferredMatrixSourceId
+      : (
+          newSourceIds.length === 1
+            ? newSourceIds[0]!
+            : pickClosestSourceId(sceneElements, newSourceIds, pending.preferredWorld)
+        );
 
     dispatch({ type: "SELECT", id: selectedId, additive: false });
   }, [dispatch, snapshot.scene, snapshot.source, source]);

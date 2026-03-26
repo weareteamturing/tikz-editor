@@ -33,6 +33,8 @@ const FREEHAND_SMOOTHING_MAX_PX = 32;
 const DEFAULT_FREEHAND_SMOOTHING_PX = 16;
 const DEFAULT_BUCKET_FILL_COLOR = "blue!60";
 const DEFAULT_ADD_SHAPE_PRESET = "rectangle";
+const DEFAULT_ADD_MATRIX_ROWS = 2;
+const DEFAULT_ADD_MATRIX_COLUMNS = 2;
 const DEFAULT_CREATION_STROKE_COLOR = "black";
 const DEFAULT_CREATION_FILL_COLOR = "none";
 
@@ -117,6 +119,8 @@ function initialUiState(): WorkspaceEphemeralState {
     freehandSmoothingPx: DEFAULT_FREEHAND_SMOOTHING_PX,
     bucketFillColor: DEFAULT_BUCKET_FILL_COLOR,
     selectedAddShape: DEFAULT_ADD_SHAPE_PRESET,
+    selectedAddMatrixRows: DEFAULT_ADD_MATRIX_ROWS,
+    selectedAddMatrixColumns: DEFAULT_ADD_MATRIX_COLUMNS,
     creationStrokeColor: DEFAULT_CREATION_STROKE_COLOR,
     creationFillColor: DEFAULT_CREATION_FILL_COLOR,
     fitToContentRequestToken: 0,
@@ -253,6 +257,8 @@ function projectState(workspace: WorkspacePersistedState, ui: WorkspaceEphemeral
     freehandSmoothingPx: ui.freehandSmoothingPx,
     bucketFillColor: ui.bucketFillColor,
     selectedAddShape: ui.selectedAddShape,
+    selectedAddMatrixRows: ui.selectedAddMatrixRows,
+    selectedAddMatrixColumns: ui.selectedAddMatrixColumns,
     creationStrokeColor: ui.creationStrokeColor,
     creationFillColor: ui.creationFillColor,
     fitToContentRequestToken: ui.fitToContentRequestToken,
@@ -1116,6 +1122,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (ui.selectedAddShape === action.value) return state;
       ui = { ...ui, selectedAddShape: action.value };
       break;
+
+    case "SET_ADD_MATRIX_PRESET": {
+      const rows = Math.max(1, Math.floor(action.rows));
+      const columns = Math.max(1, Math.floor(action.columns));
+      if (ui.selectedAddMatrixRows === rows && ui.selectedAddMatrixColumns === columns) {
+        return state;
+      }
+      ui = {
+        ...ui,
+        selectedAddMatrixRows: rows,
+        selectedAddMatrixColumns: columns
+      };
+      break;
+    }
 
     case "SET_CREATION_STROKE_COLOR": {
       const nextValue = action.value.trim().toLowerCase();

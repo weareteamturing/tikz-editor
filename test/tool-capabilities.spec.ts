@@ -9,6 +9,7 @@ describe("tool capability status", () => {
   it("reports select/addNode as supported", () => {
     expect(getToolCapabilityStatus("select").status).toBe("supported");
     expect(getToolCapabilityStatus("addNode").status).toBe("supported");
+    expect(getToolCapabilityStatus("addMatrix").status).toBe("partial");
     expect(getToolCapabilityStatus("addShape").status).toBe("supported");
   });
 

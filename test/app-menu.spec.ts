@@ -60,6 +60,10 @@ describe("app menu definition", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_FREEHAND).toBe("insert.freehand");
   });
 
+  it("defines a matrix insert command id", () => {
+    expect(APP_MENU_COMMAND_IDS.INSERT_MATRIX).toBe("insert.matrix");
+  });
+
   it("defines a grid insert command id", () => {
     expect(APP_MENU_COMMAND_IDS.INSERT_GRID).toBe("insert.grid");
   });
@@ -356,6 +360,21 @@ describe("app menu definition", () => {
       throw new Error("Expected insert.grid command item in Insert menu.");
     }
     expect(commandItem.label).toBe("Grid");
+    expect((commandItem as any).accelerator).toBeUndefined();
+  });
+
+  it("exposes Matrix in the Insert menu without an accelerator", () => {
+    const insertSection = APP_MENU_DEFINITION.find((section) => section.id === "insert");
+    expect(insertSection).toBeDefined();
+    const items = insertSection?.items ?? [];
+    const commandItem = items.find(
+      (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.INSERT_MATRIX
+    );
+    expect(commandItem).toBeDefined();
+    if (!commandItem || commandItem.kind !== "command") {
+      throw new Error("Expected insert.matrix command item in Insert menu.");
+    }
+    expect(commandItem.label).toBe("Matrix");
     expect((commandItem as any).accelerator).toBeUndefined();
   });
 

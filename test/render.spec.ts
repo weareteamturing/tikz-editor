@@ -150,6 +150,19 @@ describe("render pipeline", () => {
     expect(result.semantic.scene.elements.length).toBeGreaterThan(0);
   });
 
+  it("does not report invalid-node-tex for matrix bodies containing ampersands", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] at (0,0) {
+    A & B \\
+    C & D \\
+  };
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
   it("uses measured parbox heights for text width wrapping in async mode", async () => {
     const narrow = await renderTikzToSvgAsync(String.raw`\begin{tikzpicture}
   \node[draw,text width=1cm] at (0,0) {alpha beta gamma delta epsilon};

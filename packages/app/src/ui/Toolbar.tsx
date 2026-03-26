@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
@@ -29,6 +29,8 @@ export function Toolbar() {
   const toolMode = useEditorStore((s) => s.toolMode);
   const bucketFillColor = useEditorStore((s) => s.bucketFillColor);
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
+  const selectedAddMatrixRows = useEditorStore((s) => s.selectedAddMatrixRows);
+  const selectedAddMatrixColumns = useEditorStore((s) => s.selectedAddMatrixColumns);
   const dispatch = useEditorStore((s) => s.dispatch);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
   const namedColorLookup = useMemo(
@@ -37,6 +39,9 @@ export function Toolbar() {
   );
   const [openPopupMode, setOpenPopupMode] = useState<ToolMode | null>(null);
   const [bucketPopupClosePending, setBucketPopupClosePending] = useState(false);
+  const [matrixHoverSize, setMatrixHoverSize] = useState<{ rows: number; columns: number } | null>(null);
+  const matrixPreviewRows = matrixHoverSize?.rows ?? selectedAddMatrixRows;
+  const matrixPreviewColumns = matrixHoverSize?.columns ?? selectedAddMatrixColumns;
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
   const isMacDesktop =
     isDesktop &&
@@ -46,7 +51,7 @@ export function Toolbar() {
 
   // Close popup when tool mode changes (unless it's a popup that can be used independently)
   useEffect(() => {
-    if (openPopupMode && openPopupMode !== "addShape" && openPopupMode !== "addBucket" && openPopupMode !== toolMode) {
+    if (openPopupMode && openPopupMode !== "addShape" && openPopupMode !== "addBucket" && openPopupMode !== "addMatrix" && openPopupMode !== toolMode) {
       setOpenPopupMode(null);
     }
   }, [openPopupMode, toolMode]);
@@ -110,6 +115,47 @@ export function Toolbar() {
             }}
             testIdPrefix="toolbar-shape-choice"
           />
+        </ToolbarPopupSection>
+      );
+    }
+    if (popupKind === "matrix-picker") {
+      const maxColumns = 10;
+      const maxRows = 8;
+      const isSelected = (row: number, column: number): boolean =>
+        row <= matrixPreviewRows && column <= matrixPreviewColumns;
+      return (
+        <ToolbarPopupSection title={`Insert Matrix (${matrixPreviewColumns} x ${matrixPreviewRows})`}>
+          <div
+            className={popupCss.matrixPicker}
+            data-testid="toolbar-matrix-picker-grid"
+            onMouseLeave={() => setMatrixHoverSize(null)}
+          >
+            {Array.from({ length: maxRows }, (_, rowIndex) => rowIndex + 1).map((row) => (
+              <div key={row} className={popupCss.matrixPickerRow}>
+                {Array.from({ length: maxColumns }, (_, columnIndex) => columnIndex + 1).map((column) => (
+                  <button
+                    key={`${row}-${column}`}
+                    type="button"
+                    className={[
+                      popupCss.matrixPickerCell,
+                      isSelected(row, column) ? popupCss.matrixPickerCellSelected : ""
+                    ].filter(Boolean).join(" ")}
+                    onMouseEnter={() => setMatrixHoverSize({ rows: row, columns: column })}
+                    onFocus={() => setMatrixHoverSize({ rows: row, columns: column })}
+                    onClick={() => {
+                      dispatch({ type: "SET_ADD_MATRIX_PRESET", rows: row, columns: column });
+                      dispatch({ type: "SET_TOOL_MODE", mode: "addMatrix" });
+                      setMatrixHoverSize(null);
+                      setOpenPopupMode(null);
+                    }}
+                    data-testid={`toolbar-matrix-picker-cell-${row}-${column}`}
+                    aria-label={`${row} rows by ${column} columns`}
+                    aria-selected={isSelected(row, column)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
         </ToolbarPopupSection>
       );
     }
@@ -215,6 +261,47 @@ export function Toolbar() {
     );
   };
 
+  const renderMatrixButton = () => {
+    const mode = "addMatrix" as const;
+    const toolDef = TOOL_BUTTONS.find((b) => b.mode === mode)!;
+    const capability = getToolCapabilityStatus(mode);
+    const unsupported = capability.status === "unsupported";
+    const buttonTitle = unsupported
+      ? `${toolDef.title}\n${capability.reason}`
+      : toolDef.title;
+    const Icon = toolDef.icon;
+    const isActive = toolMode === mode;
+
+    return (
+      <ToolbarToolPopup
+        key={mode}
+        open={openPopupMode === mode}
+        onClose={() => {
+          setOpenPopupMode(null);
+          setMatrixHoverSize(null);
+        }}
+        popup={renderPopup("matrix-picker")}
+        popupTestId="toolbar-tool-popup-addMatrix"
+      >
+        <RenderedTooltip content={buttonTitle}>
+          <button
+            className={[css.btn, isActive ? css.btnActive : ""].filter(Boolean).join(" ")}
+            aria-label={toolDef.label}
+            aria-haspopup="dialog"
+            aria-expanded={openPopupMode === mode}
+            disabled={unsupported}
+            onClick={() => {
+              setMatrixHoverSize(null);
+              setOpenPopupMode((current) => (current === mode ? null : mode));
+            }}
+          >
+            <Icon size={18} />
+          </button>
+        </RenderedTooltip>
+      </ToolbarToolPopup>
+    );
+  };
+
   const renderStandardButton = (toolDef: (typeof TOOL_BUTTONS)[number]) => {
     const { mode, label, title, icon: Icon } = toolDef;
     const capability = getToolCapabilityStatus(mode);
@@ -257,6 +344,9 @@ export function Toolbar() {
           // Special handling for bucket and shape buttons
           if (toolDef.mode === "addBucket") {
             return renderBucketButton();
+          }
+          if (toolDef.mode === "addMatrix") {
+            return renderMatrixButton();
           }
           if (toolDef.mode === "addShape") {
             return renderShapeButton();

@@ -23,6 +23,19 @@ function NodeIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+function MatrixIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 3.5H3.2V16.5H5" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M15 3.5H16.8V16.5H15" stroke="currentColor" strokeWidth="1.2" />
+      <text x="7.4" y="8.7" fontSize="4.1" textAnchor="middle" fill="currentColor" stroke="none">a</text>
+      <text x="12.6" y="8.7" fontSize="4.1" textAnchor="middle" fill="currentColor" stroke="none">b</text>
+      <text x="7.4" y="13.5" fontSize="4.1" textAnchor="middle" fill="currentColor" stroke="none">c</text>
+      <text x="12.6" y="13.5" fontSize="4.1" textAnchor="middle" fill="currentColor" stroke="none">d</text>
+    </svg>
+  );
+}
+
 function ShapeIcon({ size = 20 }: { size?: number }) {
   // Two overlapping shapes: star in back (lighter), thick arrow in front (darker)
   return (
@@ -147,7 +160,7 @@ export type ToolButtonDef = {
   autoOpenPopup?: boolean;
 };
 
-export type ToolPopupKind = "bucket-color" | "shape-picker";
+export type ToolPopupKind = "bucket-color" | "shape-picker" | "matrix-picker";
 
 export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 
@@ -156,11 +169,12 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",   title: "Select and move elements (V)",                     shortcut: "v", icon: SelectIcon },
   { mode: "addNode",    label: "Node",     title: "Place a text node (N)",                            shortcut: "n", icon: NodeIcon },
   { mode: "addShape",   label: "Shape",    title: "Place a shaped node (S).",                         shortcut: "s", icon: ShapeIcon, popupKind: "shape-picker" },
-  { mode: "addPath",    label: "Path",     title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: PathIcon },
-  { mode: "addFreehand", label: "Freehand", title: "Draw a freehand curve (F). Press and drag to draw one stroke.", shortcut: "f", icon: FreehandIcon },
+  { mode: "addMatrix",  label: "Matrix",   title: "Place a matrix of nodes.",                                           icon: MatrixIcon, popupKind: "matrix-picker" },
   { mode: "addLine",    label: "Line",     title: "Draw a line (L)",                                  shortcut: "l", icon: LineIcon },
   { mode: "addArrow",   label: "Arrow",    title: "Draw an arrow (A)",                                shortcut: "a", icon: ArrowIcon },
   { mode: "addBezier",  label: "Bezier",   title: "Draw a cubic Bezier curve (B) with two drags",    shortcut: "b", icon: BezierIcon },
+  { mode: "addPath",    label: "Path",     title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: PathIcon },
+  { mode: "addFreehand", label: "Freehand", title: "Draw a freehand curve (F). Press and drag to draw one stroke.", shortcut: "f", icon: FreehandIcon },
   { mode: "addGrid",    label: "Grid",     title: "Draw a grid. Hold Shift to constrain to a square.",                icon: GridIcon },
   { mode: "addRect",    label: "Rect",     title: "Draw a rectangle (R). Hold Shift to constrain to a square.", shortcut: "r", icon: RectIcon },
   { mode: "addEllipse", label: "Ellipse",  title: "Draw an ellipse (E). Hold Shift to constrain to a circle.", shortcut: "e", icon: EllipseIcon },
@@ -234,6 +248,7 @@ export const TOOL_HINTS: Partial<Record<ToolMode, string>> = {
   addLine: "Drag to set length and angle",
   addArrow: "Drag to set length and angle",
   addShape: "Drag to set size",
+  addMatrix: "Pick rows/columns, then click to place",
   addNode: "Click to place text",
 };
 
@@ -242,7 +257,7 @@ export function isCreationToolMode(mode: ToolMode): boolean {
 }
 
 export function toolSupportsStroke(mode: ToolMode): boolean {
-  return mode !== "select" && mode !== "addBucket";
+  return mode !== "select" && mode !== "addBucket" && mode !== "addMatrix";
 }
 
 export function toolSupportsFill(mode: ToolMode): boolean {

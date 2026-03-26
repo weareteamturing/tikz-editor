@@ -236,6 +236,7 @@ test("insert menu commands switch tool modes and expose checked state", async ({
   await gotoApp(page);
   const insertCommands = [
     "insert.node",
+    "insert.matrix",
     "insert.path",
     "insert.freehand",
     "insert.line",
@@ -292,6 +293,40 @@ test("shape toolbar popup auto-opens, remembers the chosen shape, and inserts an
   await toolbarButton(page, "Shape").click();
   await expect(page.getByTestId("toolbar-tool-popup-addShape")).toBeVisible();
   await expect(page.getByTestId("toolbar-shape-choice-diamond")).toHaveAttribute("aria-selected", "true");
+});
+
+test("matrix toolbar popup supports size picker, remembers selection, and inserts at click position", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
+
+  await toolbarButton(page, "Matrix").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addMatrix")).toBeVisible();
+  await expect(page.getByText("Insert Matrix (2 x 2)")).toBeVisible();
+
+  await page.getByTestId("toolbar-matrix-picker-cell-3-4").hover();
+  await expect(page.getByText("Insert Matrix (4 x 3)")).toBeVisible();
+
+  await page.getByTestId("toolbar-matrix-picker-cell-2-3").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addMatrix")).toHaveCount(0);
+
+  const layer = interactionLayer(page);
+  await dragBetweenPoints(page, layer, { x: 180, y: 170 }, { x: 180, y: 170 });
+  await page.mouse.up();
+
+  await expect.poll(async () => readSource(page)).toContain("\\matrix [matrix of nodes] at (");
+  await expect.poll(async () => readSource(page)).toContain("A & B & C \\\\");
+  await expect.poll(async () => readSource(page)).toContain("D & E & F");
+  await expect.poll(async () => {
+    const ids = await readSelectedSourceIds(page);
+    return ids.length === 1 && ids[0] != null && !ids[0].includes(":matrix-cell:");
+  }).toBe(true);
+  await expect(toolbarButton(page, "Select")).toHaveClass(/btnActive/);
+
+  await toolbarButton(page, "Matrix").click();
+  await expect(page.getByTestId("toolbar-tool-popup-addMatrix")).toBeVisible();
+  await expect(page.getByTestId("toolbar-matrix-picker-cell-2-3")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("toolbar-matrix-picker-cell-3-3")).toHaveAttribute("aria-selected", "false");
 });
 
 test("diamond shapes show drag-size preview and can be resized with handles", async ({ page }) => {

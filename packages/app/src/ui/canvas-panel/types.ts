@@ -189,6 +189,7 @@ export type DragState =
 export type PendingAddedSelection = {
   beforeIds: Set<string>;
   preferredWorld: Point;
+  preferredSourceId?: string;
 };
 
 export type PendingBezier = {

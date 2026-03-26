@@ -770,6 +770,28 @@ describe("editorReducer – SET_ADD_SHAPE_PRESET", () => {
   });
 });
 
+describe("editorReducer – SET_ADD_MATRIX_PRESET", () => {
+  it("updates selected matrix rows/columns", () => {
+    const state = applyActions([{ type: "SET_ADD_MATRIX_PRESET", rows: 3, columns: 4 }]);
+    expect(state.selectedAddMatrixRows).toBe(3);
+    expect(state.selectedAddMatrixColumns).toBe(4);
+  });
+
+  it("clamps rows/columns to minimum 1", () => {
+    const state = applyActions([{ type: "SET_ADD_MATRIX_PRESET", rows: 0, columns: -1 }]);
+    expect(state.selectedAddMatrixRows).toBe(1);
+    expect(state.selectedAddMatrixColumns).toBe(1);
+  });
+
+  it("is a no-op when preset is unchanged", () => {
+    const initial = makeInitialState();
+    expect(initial.selectedAddMatrixRows).toBe(2);
+    expect(initial.selectedAddMatrixColumns).toBe(2);
+    const after = editorReducer(initial, { type: "SET_ADD_MATRIX_PRESET", rows: 2, columns: 2 });
+    expect(after).toBe(initial);
+  });
+});
+
 // ── SET_CANVAS_TRANSFORM ───────────────────────────────────────────────────────
 
 describe("editorReducer – SET_CANVAS_TRANSFORM", () => {

@@ -22,6 +22,40 @@
   box-sizing: border-box;
 }
 
+.matrixPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.matrixPickerRow {
+  display: flex;
+  gap: 4px;
+}
+
+.matrixPickerCell {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--bg-pane) 82%, var(--bg-app));
+  cursor: pointer;
+  padding: 0;
+}
+
+.matrixPickerCell:hover,
+.matrixPickerCell:focus-visible {
+  border-color: var(--accent-btn-border);
+  background: color-mix(in srgb, var(--accent-btn-bg) 70%, var(--bg-pane));
+  outline: none;
+}
+
+.matrixPickerCellSelected {
+  border-color: var(--accent-btn-border);
+  background: var(--accent-btn-bg);
+}
+
 .section {
   display: flex;
   flex-direction: column;

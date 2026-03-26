@@ -2767,6 +2767,32 @@ describe("applyEditAction – addElement", () => {
       expect(result.patches).toHaveLength(1);
     }
   });
+
+  it("inserts a matrix snippet without delimiter options by default", () => {
+    const source = String.raw`\begin{tikzpicture}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "addElement",
+      template: {
+        kind: "matrix",
+        rows: 2,
+        columns: 3,
+        matrixKind: "nodes"
+      },
+      at: { x: cm(1), y: cm(2) }
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind === "success") {
+      expect(result.newSource).toContain("\\matrix [matrix of nodes] at (1,2) {");
+      expect(result.newSource).toContain("A & B & C \\\\");
+      expect(result.newSource).toContain("D & E & F \\\\");
+      expect(result.newSource).not.toContain("left delimiter");
+      expect(result.newSource).not.toContain("right delimiter");
+      expect(result.patches).toHaveLength(1);
+    }
+  });
 });
 
 describe("applyEditAction – deleteElement", () => {

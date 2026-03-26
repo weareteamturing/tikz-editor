@@ -71,7 +71,7 @@ export function useCanvasDerivedState(args: UseCanvasDerivedStateArgs) {
       return null;
     }
 
-    if (toolMode === "addNode" || (toolMode === "addShape" && !toolDraft)) {
+    if (toolMode === "addNode" || toolMode === "addMatrix" || (toolMode === "addShape" && !toolDraft)) {
       const liveWorld = toolDraft?.currentWorld ?? toolCursorWorld;
       if (!liveWorld) {
         return null;

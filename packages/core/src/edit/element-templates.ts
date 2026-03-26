@@ -8,6 +8,7 @@ export type AnchorReference = {
 
 export type ElementTemplate =
   | { kind: "node"; text?: string; shape?: string; minimumWidthPt?: number; minimumHeightPt?: number; strokeColor?: string; fillColor?: string }
+  | { kind: "matrix"; rows?: number; columns?: number; matrixKind?: "plain" | "nodes" | "math-nodes"; cells?: string[][] }
   | { kind: "line"; hasArrow?: boolean; to?: Point; fromAnchor?: AnchorReference; toAnchor?: AnchorReference; strokeColor?: string }
   | { kind: "bezier"; to?: Point; control1?: Point; control2?: Point; strokeColor?: string }
   | { kind: "grid"; corner?: Point; strokeColor?: string }
@@ -52,6 +53,29 @@ export function generateElementSource(template: ElementTemplate, at: Point): str
         return `\\node[${optionParts.join(", ")}] at ${atCoord} {${text}};`;
       }
       return `\\node at ${atCoord} {${text}};`;
+    }
+
+    case "matrix": {
+      const rows = Math.max(1, Math.floor(template.rows ?? 2));
+      const columns = Math.max(1, Math.floor(template.columns ?? 2));
+      const matrixKind = template.matrixKind ?? "nodes";
+      const matrixOption = matrixKind === "math-nodes"
+        ? "matrix of math nodes"
+        : matrixKind === "plain"
+          ? "matrix"
+          : "matrix of nodes";
+      const bodyRows: string[] = [];
+      for (let row = 0; row < rows; row += 1) {
+        const cells: string[] = [];
+        for (let column = 0; column < columns; column += 1) {
+          const flatIndex = row * columns + column;
+          const explicit = template.cells?.[row]?.[column];
+          cells.push(sanitizeMatrixCellText(explicit ?? spreadsheetLabel(flatIndex)));
+        }
+        const rowBody = cells.join(" & ");
+        bodyRows.push(`${rowBody} \\\\`);
+      }
+      return `\\matrix [${matrixOption}] at ${atCoord} {\n  ${bodyRows.join("\n  ")}\n};`;
     }
 
     case "line": {
@@ -335,6 +359,21 @@ function sanitizeNodeText(raw: string): string {
   const inner = trimmed.slice(1, -1).trim();
   // If users pass `{...}` explicitly, avoid generating `{{...}}` while preserving inner TeX braces.
   return inner;
+}
+
+function sanitizeMatrixCellText(raw: string): string {
+  return raw.trim();
+}
+
+function spreadsheetLabel(index: number): string {
+  let value = Math.max(0, Math.floor(index));
+  let label = "";
+  do {
+    const remainder = value % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor(value / 26) - 1;
+  } while (value >= 0);
+  return label;
 }
 
 function resolveBezierControls(

@@ -51,6 +51,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     pendingAddedSelectionRef,
     dispatch,
     selectedAddShape,
+    selectedAddMatrixRows,
+    selectedAddMatrixColumns,
     pathDraft,
     pathSegmentDraft,
     dragRef,
@@ -391,7 +393,9 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
           return;
         }
 
-        if (toolMode === "addNode") {
+        if (toolMode === "addNode" || toolMode === "addMatrix") {
+          event.preventDefault();
+          event.stopPropagation();
           const snapResult = toolSnapContext
               ? snapToolPointer({
                   context: toolSnapContext,
@@ -412,18 +416,28 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
             offset: snapResult.offset,
             lines: snapResult.lines
           });
-          queueSelectionForAddedElement(nodeAt);
+          if (toolMode !== "addMatrix") {
+            queueSelectionForAddedElement(nodeAt);
+          }
           const ok = applyActionWithFeedback({
             kind: "addElement",
             template: toolMode === "addShape"
               ? { kind: "node", shape: selectedAddShape, text: "" }
-              : { kind: "node" },
+              : toolMode === "addMatrix"
+                ? {
+                    kind: "matrix",
+                    rows: selectedAddMatrixRows,
+                    columns: selectedAddMatrixColumns,
+                    matrixKind: "nodes"
+                  }
+                : { kind: "node" },
             at: nodeAt
           });
           if (!ok.sourceChanged) {
             pendingAddedSelectionRef.current = null;
           }
           if (ok.sourceChanged) {
+            suppressNextBackgroundClickRef.current = true;
             dispatch({ type: "SET_TOOL_MODE", mode: "select" });
             setToolDraft(null);
             setToolCursorWorld(null);
@@ -516,6 +530,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setDragState,
       setNodeAnchorOverlay,
       selectedAddShape,
+      selectedAddMatrixRows,
+      selectedAddMatrixColumns,
       snapshot.scene,
       snapshot.source,
       source,
@@ -542,6 +558,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       setWarning,
       viewportRef,
       pendingAddedSelectionRef,
+      suppressNextBackgroundClickRef,
       pendingTouchViewportRef
     ]
   );

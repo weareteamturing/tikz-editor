@@ -70,7 +70,7 @@ export function useCanvasDragController(params: {
   dispatch: (action: any) => void;
   dispatchCanvasTransform: (transform: { translateX: number; translateY: number; scale: number }) => void;
   logSnapDebug: (input: SnapDebugLogInput) => void;
-  queueSelectionForAddedElement: (preferredWorld: Point) => void;
+  queueSelectionForAddedElement: (preferredWorld: Point, preferredSourceId?: string) => void;
   snapshotSource: string;
   snapshotScene: { elements: SceneElement[] } | null;
   snapshotEditHandles: EditHandle[];

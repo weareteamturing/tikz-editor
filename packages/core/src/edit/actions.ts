@@ -974,6 +974,7 @@ function applyAddElement(
   template: ElementTemplate,
   at: Point
 ): EditActionResult {
+  const beforeStatements = parseStatementSnapshot(source);
   const snippet = generateElementSource(template, at);
   if (snippet.trim().length === 0) {
     return { kind: "error", message: "Failed to generate source for the requested element template." };
@@ -984,10 +985,14 @@ function applyAddElement(
     return { kind: "unsupported", reason: "The source insertion point could not be resolved." };
   }
 
+  const afterStatements = parseStatementSnapshot(newSource);
+  const insertedStatementId = afterStatements.all.find((ref) => !beforeStatements.byId.has(ref.id))?.id;
+
   return {
     kind: "success",
     newSource,
-    patches: [computeReplacementPatch(source, newSource)]
+    patches: [computeReplacementPatch(source, newSource)],
+    selectedSourceIds: insertedStatementId ? [insertedStatementId] : undefined
   };
 }
 

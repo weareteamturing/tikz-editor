@@ -42,6 +42,22 @@ describe("element templates", () => {
     expect(snippet).toBe("\\node[draw, shape=diamond, minimum width=3cm, minimum height=2cm] at (2,3) {};");
   });
 
+  it("generates a matrix-of-nodes snippet with default labels", () => {
+    const snippet = generateElementSource(
+      { kind: "matrix", rows: 2, columns: 2 },
+      { x: cm(1), y: cm(2) }
+    );
+    expect(snippet).toBe("\\matrix [matrix of nodes] at (1,2) {\n  A & B \\\\\n  C & D \\\\\n};");
+  });
+
+  it("generates matrix labels beyond Z", () => {
+    const snippet = generateElementSource(
+      { kind: "matrix", rows: 3, columns: 10 },
+      { x: cm(0), y: cm(0) }
+    );
+    expect(snippet).toContain("Y & Z & AA & AB & AC & AD");
+  });
+
   it("omits minimum height when a shaped drag draft only resolves width", () => {
     const snippet = generateElementSource(
       {

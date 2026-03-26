@@ -60,6 +60,7 @@ export const APP_MENU_COMMAND_IDS = {
   MATRIX_REMOVE_ROW: "matrix.remove-row",
   MATRIX_REMOVE_COLUMN: "matrix.remove-column",
   INSERT_NODE: "insert.node",
+  INSERT_MATRIX: "insert.matrix",
   INSERT_SHAPE: "insert.shape",
   INSERT_PATH: "insert.path",
   INSERT_FREEHAND: "insert.freehand",
