@@ -576,6 +576,21 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
   await expect(toolbarButton(page, "Bucket")).toHaveClass(/btnActive/);
 });
 
+test("bucket main button returns to select when bucket is already active", async ({ page }) => {
+  await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+  \filldraw[fill=blue!20] (0,0) rectangle (2,2);
+\end{tikzpicture}`);
+
+  await page.getByTestId("toolbar-bucket-color-caret").click();
+  await page.getByRole("button", { name: "Bucket fill color red" }).click();
+  await expect(toolbarButton(page, "Bucket")).toHaveClass(/btnActive/);
+
+  await toolbarButton(page, "Bucket").click();
+  await expect(toolbarButton(page, "Select")).toHaveClass(/btnActive/);
+  await expect(toolbarButton(page, "Bucket")).not.toHaveClass(/btnActive/);
+});
+
 test("bucket fills draw-only closed paths from the interior", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}

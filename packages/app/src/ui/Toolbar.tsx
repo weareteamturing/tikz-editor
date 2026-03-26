@@ -145,7 +145,7 @@ export function Toolbar() {
               aria-label={toolDef.label}
               disabled={unsupported}
               onClick={() => {
-                dispatch({ type: "SET_TOOL_MODE", mode });
+                dispatch({ type: "SET_TOOL_MODE", mode: isActive ? "select" : mode });
                 closeBucketPopup();
               }}
             >

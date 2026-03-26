@@ -8,8 +8,8 @@ const tikzHighlighting = styleTags({
   // Environment delimiters
   "BeginTikz EndTikz BeginScope EndScope": t.keyword,
 
-  // Path commands (\draw, \fill, etc.)
-  "DrawCmd PathCmd FillDrawCmd FillCmd PatternCmd ClipCmd ShadeCmd ShadeDrawCmd UseAsBoundingBoxCmd MatrixCmd ColorletCmd DefineColorCmd":
+  // Path commands and definition-style commands
+  "DrawCmd PathCmd FillDrawCmd FillCmd PatternCmd ClipCmd ShadeCmd ShadeDrawCmd UseAsBoundingBoxCmd MatrixCmd ColorletCmd DefineColorCmd DefCmd LetDefCmd NewCommandCmd RenewCommandCmd TikzSetCmd TikzStyleCmd PgfkeysCmd":
     t.keyword,
 
   // \node and \coordinate commands
@@ -41,6 +41,8 @@ const tikzHighlighting = styleTags({
   // Identifiers in option lists — labelName (#219, blue)
   "OptionPart/*/Identifier": t.labelName,
   "OptionPart/NodeKw StylePayloadPart/NodeKw": t.labelName,
+  "StylePayloadPart/IdentifierLike/Identifier": t.labelName,
+  "StylePayloadPart/OptionPunct": t.punctuation,
 
   // Node text content — string color (#a11)
   // NodeItem/Group covers inline `node {text}`, PathItem/Group covers `\node ... {text}`
