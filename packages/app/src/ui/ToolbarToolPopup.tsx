@@ -6,13 +6,15 @@ export function ToolbarToolPopup({
   onClose,
   popup,
   children,
-  popupTestId
+  popupTestId,
+  popupClassName
 }: {
   open: boolean;
   onClose: () => void;
   popup: ReactNode;
   children: ReactNode;
   popupTestId?: string;
+  popupClassName?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,7 +56,12 @@ export function ToolbarToolPopup({
     <div className={css.root} ref={rootRef}>
       {children}
       {open ? (
-        <div className={css.popup} role="dialog" aria-label="Tool options" data-testid={popupTestId}>
+        <div
+          className={[css.popup, popupClassName ?? ""].filter(Boolean).join(" ")}
+          role="dialog"
+          aria-label="Tool options"
+          data-testid={popupTestId}
+        >
           {popup}
         </div>
       ) : null}

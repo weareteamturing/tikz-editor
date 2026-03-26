@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
 import { useEditorStore } from "../store/store";
 import { getActiveEditorPlatform } from "../platform/current";
 import { NODE_SHAPE_OPTIONS } from "tikz-editor/edit/inspector";
-import { ColorPicker } from "./ColorPicker";
+import { ColorPicker, cssColorForToken } from "./ColorPicker";
 import { getToolCapabilityStatus } from "./capabilities";
 import { RenderedTooltip } from "./RenderedTooltip";
 import {
@@ -15,6 +15,7 @@ import {
 } from "./tool-config";
 import { GENERATED_NODE_SHAPE_PREVIEWS } from "./generated-node-shape-previews";
 import { ToolbarToolPopup, ToolbarPopupSection, ToolbarPopupVisualChoiceGrid } from "./ToolbarToolPopup";
+import popupCss from "./ToolbarToolPopup.module.css";
 import type { ToolMode } from "../store/types";
 import css from "./Toolbar.module.css";
 
@@ -30,7 +31,12 @@ export function Toolbar() {
   const selectedAddShape = useEditorStore((s) => s.selectedAddShape);
   const dispatch = useEditorStore((s) => s.dispatch);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
+  const namedColorLookup = useMemo(
+    () => new Map(projectNamedColorSwatches.map((swatch) => [swatch.token, swatch.cssColor] as const)),
+    [projectNamedColorSwatches]
+  );
   const [openPopupMode, setOpenPopupMode] = useState<ToolMode | null>(null);
+  const [bucketPopupClosePending, setBucketPopupClosePending] = useState(false);
   const isDesktop = getActiveEditorPlatform().id.startsWith("desktop");
   const isMacDesktop =
     isDesktop &&
@@ -44,6 +50,31 @@ export function Toolbar() {
       setOpenPopupMode(null);
     }
   }, [openPopupMode, toolMode]);
+
+  useEffect(() => {
+    if (openPopupMode !== "addBucket" && bucketPopupClosePending) {
+      setBucketPopupClosePending(false);
+    }
+  }, [bucketPopupClosePending, openPopupMode]);
+
+  useEffect(() => {
+    if (openPopupMode !== "addBucket" || !bucketPopupClosePending) {
+      return;
+    }
+
+    function onPointerUp(): void {
+      setBucketPopupClosePending(false);
+      setOpenPopupMode(null);
+    }
+
+    window.addEventListener("pointerup", onPointerUp);
+    return () => window.removeEventListener("pointerup", onPointerUp);
+  }, [bucketPopupClosePending, openPopupMode]);
+
+  const closeBucketPopup = () => {
+    setBucketPopupClosePending(false);
+    setOpenPopupMode(null);
+  };
 
   const renderPopup = (popupKind: ToolPopupKind) => {
     if (popupKind === "bucket-color") {
@@ -59,7 +90,7 @@ export function Toolbar() {
               dispatch({ type: "SET_BUCKET_FILL_COLOR", value: nextValue });
               // Auto-activate bucket tool after selecting a color
               dispatch({ type: "SET_TOOL_MODE", mode: "addBucket" });
-              setOpenPopupMode(null);
+              setBucketPopupClosePending(true);
             }}
           />
         </ToolbarPopupSection>
@@ -96,13 +127,16 @@ export function Toolbar() {
     const Icon = toolDef.icon;
     const isActive = toolMode === mode;
 
+    const bucketFillColorCss = cssColorForToken(bucketFillColor, namedColorLookup) ?? "transparent";
+
     return (
       <ToolbarToolPopup
         key={mode}
         open={openPopupMode === mode}
-        onClose={() => setOpenPopupMode(null)}
+        onClose={closeBucketPopup}
         popup={renderPopup("bucket-color")}
         popupTestId="toolbar-tool-popup-addBucket"
+        popupClassName={popupCss.bucketColorPopup}
       >
         <div className={css.splitButton}>
           <RenderedTooltip content={buttonTitle}>
@@ -112,13 +146,13 @@ export function Toolbar() {
               disabled={unsupported}
               onClick={() => {
                 dispatch({ type: "SET_TOOL_MODE", mode });
-                setOpenPopupMode(null);
+                closeBucketPopup();
               }}
             >
               <Icon size={18} />
               <div
                 className={css.bucketColorIndicator}
-                style={{ backgroundColor: bucketFillColor }}
+                style={{ backgroundColor: bucketFillColorCss }}
               />
             </button>
           </RenderedTooltip>

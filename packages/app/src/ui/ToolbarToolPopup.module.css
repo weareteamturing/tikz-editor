@@ -16,6 +16,12 @@
   box-shadow: 0 6px 16px color-mix(in srgb, black 24%, transparent);
 }
 
+.bucketColorPopup {
+  width: 274px;
+  max-width: min(274px, calc(100vw - 24px));
+  box-sizing: border-box;
+}
+
 .section {
   display: flex;
   flex-direction: column;

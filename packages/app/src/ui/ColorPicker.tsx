@@ -1268,7 +1268,7 @@ function isToneBaseColor(color: string): boolean {
   return !NO_TONE_COLORS.has(color);
 }
 
-function cssColorForToken(token: string, namedColorLookup: ReadonlyMap<string, string> | null = null): string | null {
+export function cssColorForToken(token: string, namedColorLookup: ReadonlyMap<string, string> | null = null): string | null {
   const normalizedToken = normalizeColorToken(token);
   if (!normalizedToken || normalizedToken === "none") {
     return null;
