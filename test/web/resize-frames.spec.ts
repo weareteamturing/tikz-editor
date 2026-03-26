@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SceneText } from "../../packages/core/src/semantic/types.js";
 import { parseTikz } from "../../packages/core/src/parser/index.js";
 import { evaluateTikzFigure } from "../../packages/core/src/semantic/evaluate.js";
 import { PT_PER_CM } from "../../packages/core/src/edit/format.js";
@@ -184,5 +185,33 @@ describe("resize frame geometry", () => {
     );
 
     expect(frame).toBeNull();
+  });
+
+  it("uses node visual dimensions for text-only nodes so inner sep is included", () => {
+    const source = String.raw`\tikz \node[inner sep=10pt] {A};`;
+    const parsed = parseTikz(source, { recover: true });
+    const evaluated = evaluateTikzFigure(parsed.figure, source);
+    const text = evaluated.scene.elements.find(
+      (element): element is SceneText => element.kind === "Text"
+    );
+    expect(text?.kind).toBe("Text");
+    if (!text || text.kind !== "Text") {
+      return;
+    }
+
+    const frame = resolveResizeFrameForSource(
+      evaluated.scene.elements,
+      evaluated.editHandles,
+      "path:0",
+      TEST_VIEW_BOX
+    );
+    expect(frame).not.toBeNull();
+    if (!frame) {
+      return;
+    }
+
+    const width = frame.boundsSvg.maxX - frame.boundsSvg.minX;
+    expect(text.nodeVisualWidth).toBeDefined();
+    expect(width).toBeCloseTo(text.nodeVisualWidth ?? 0, 3);
   });
 });

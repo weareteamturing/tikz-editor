@@ -78,6 +78,12 @@ export function buildHitRegions(
 ): HitRegion[] {
   const regions: HitRegion[] = [];
   const strokeWidth = HIT_STROKE_PX / Math.max(scale, 1e-3);
+  const sourceHasNonAdornmentNonText = new Set<string>();
+  for (const element of elements) {
+    if (!element.adornment && element.kind !== "Text") {
+      sourceHasNonAdornmentNonText.add(element.sourceRef.sourceId);
+    }
+  }
 
   for (const element of elements) {
     const sourceId = element.sourceRef.sourceId;
@@ -156,6 +162,41 @@ export function buildHitRegions(
         contentWidth: textGeometry.width,
         contentHeight: textGeometry.height
       });
+    }
+    const hasNodeVisualBounds =
+      Number.isFinite(element.nodeVisualWidth) &&
+      Number.isFinite(element.nodeVisualHeight) &&
+      (element.nodeVisualWidth ?? 0) > 0 &&
+      (element.nodeVisualHeight ?? 0) > 0;
+    const isTextOnlyNodeSource =
+      !element.adornment &&
+      !element.matrixCell &&
+      !sourceHasNonAdornmentNonText.has(sourceId);
+    if (isTextOnlyNodeSource && hasNodeVisualBounds) {
+      const nodeWidth = element.nodeVisualWidth!;
+      const nodeHeight = element.nodeVisualHeight!;
+      const hasExtraNodeArea =
+        nodeWidth > textGeometry.width + 1e-6 ||
+        nodeHeight > textGeometry.height + 1e-6;
+      if (hasExtraNodeArea) {
+        regions.push({
+          shape: "rect",
+          key: `${sceneTextKey}:node-area`,
+          sourceId,
+          targetId: sourceId,
+          x: textGeometry.cx - nodeWidth / 2,
+          y: textGeometry.cy - nodeHeight / 2,
+          width: nodeWidth,
+          height: nodeHeight,
+          cx: textGeometry.cx,
+          cy: textGeometry.cy,
+          rotation: textGeometry.rotation,
+          interactionMode: "move",
+          sceneTextKey,
+          contentWidth: textGeometry.width,
+          contentHeight: textGeometry.height
+        });
+      }
     }
     regions.push({
       shape: "rect",

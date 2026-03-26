@@ -940,6 +940,8 @@ export function evaluateNodeItem(
         normalizedText,
         nodeLayout.textBlockWidth,
         nodeLayout.textBlockHeight,
+        nodeLayout.visualWidth,
+        nodeLayout.visualHeight,
         nodeLayout.textRenderInfo,
         undefined,
         undefined,

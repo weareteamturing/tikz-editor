@@ -60,6 +60,8 @@ export function makeTextElement(
   text: string,
   textBlockWidth?: number,
   textBlockHeight?: number,
+  nodeVisualWidth?: number,
+  nodeVisualHeight?: number,
   textRenderInfo?: NodeTextRenderInfo,
   rotation?: number,
   styleChain: StyleChainEntry[] = [],
@@ -81,6 +83,8 @@ export function makeTextElement(
     text,
     textBlockWidth,
     textBlockHeight,
+    nodeVisualWidth,
+    nodeVisualHeight,
     textRenderInfo,
     rotation
   };

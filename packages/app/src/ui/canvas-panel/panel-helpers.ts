@@ -1023,6 +1023,12 @@ export function preferredNodeBoundsForSource(
   }
 
   const nonText = sourceElements.filter((element) => element.kind !== "Text");
+  if (nonText.length === 0) {
+    const textOnlyBounds = collectTextOnlyNodeVisualBoundsInSvg(sourceElements, viewBox);
+    if (textOnlyBounds) {
+      return textOnlyBounds;
+    }
+  }
   const nodeBoxPaths = nonText.filter(
     (element): element is ScenePath =>
       element.kind === "Path" && element.id.startsWith("scene-node-box:")
@@ -1041,6 +1047,46 @@ export function preferredNodeBoundsForSource(
   }
 
   return bounds ?? fallback;
+}
+
+export function isTextOnlyNodeSource(elements: SceneElement[], sourceId: string): boolean {
+  const sourceElements = elements.filter((element) => element.sourceRef.sourceId === sourceId && !element.adornment);
+  if (sourceElements.length === 0) {
+    return false;
+  }
+  return sourceElements.some(isTextNodeWithVisualBounds) && sourceElements.every((element) => element.kind === "Text");
+}
+
+function collectTextOnlyNodeVisualBoundsInSvg(
+  sourceElements: SceneElement[],
+  viewBox: SvgViewBox
+): Bounds | null {
+  let bounds: Bounds | null = null;
+  for (const element of sourceElements) {
+    if (!isTextNodeWithVisualBounds(element)) {
+      continue;
+    }
+    const center = worldToSvgPoint(element.position, viewBox);
+    const next = computeRotatedRectBounds(
+      center.x,
+      center.y,
+      element.nodeVisualWidth,
+      element.nodeVisualHeight,
+      element.rotation ?? 0
+    );
+    bounds = bounds ? mergeBounds(bounds, next) : next;
+  }
+  return bounds;
+}
+
+function isTextNodeWithVisualBounds(element: SceneElement): element is SceneText & { nodeVisualWidth: number; nodeVisualHeight: number } {
+  return (
+    element.kind === "Text"
+    && Number.isFinite(element.nodeVisualWidth)
+    && Number.isFinite(element.nodeVisualHeight)
+    && (element.nodeVisualWidth ?? 0) > 0
+    && (element.nodeVisualHeight ?? 0) > 0
+  );
 }
 
 export function getHandleCursor(

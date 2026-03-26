@@ -1194,6 +1194,10 @@ export function CanvasPanel() {
     if (warning || toolMode !== "select") return null;
     if (selectedElementIds.size !== 1) return null;
     const sourceId = [...selectedElementIds][0]!;
+    const isNodeSource = snapshot.editHandles.some(
+      (handle) => handle.sourceRef.sourceId === sourceId && handle.kind === "node-position"
+    );
+    if (isNodeSource) return null;
     if (collapsedDensePathSourceIds.has(sourceId)) return "Double-click path to edit points.";
     // dense paths that are expanded are also eligible for add-point hint
     const element = snapshot.scene?.elements.find((e) => e.sourceRef.sourceId === sourceId);
@@ -1202,7 +1206,7 @@ export function CanvasPanel() {
     if (resolved.kind !== "eligible") return null;
     if (resolved.analysis.segments.length === 0) return null;
     return "Double-click path to add a point.";
-  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.scene, editParseOptions, source]);
+  }, [warning, toolMode, collapsedDensePathSourceIds, selectedElementIds, densePathSourceIds, snapshot.editHandles, snapshot.scene, editParseOptions, source]);
 
   const {
     nodeAnchorTargets,

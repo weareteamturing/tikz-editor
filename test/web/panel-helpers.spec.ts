@@ -222,6 +222,47 @@ describe("rectHitRegionsForTargetId", () => {
     expect(scopeRegion.strokeWidth).toBeCloseTo(9, 6);
   });
 
+  it("adds a move hit region for text-only node visual area outside text", () => {
+    const source = String.raw`\tikz \node[inner sep=10pt] {A};`;
+    const rendered = renderTikzToSvg(source);
+    const regions = buildHitRegions(rendered.semantic.scene.elements, rendered.svg.viewBox, 1);
+    const textRegion = regions.find(
+      (region): region is Extract<HitRegion, { shape: "rect" }> =>
+        region.shape === "rect" && region.interactionMode === "text"
+    );
+    const moveRegion = regions.find(
+      (region): region is Extract<HitRegion, { shape: "rect" }> =>
+        region.shape === "rect" && region.interactionMode === "move" && region.key.endsWith(":node-area")
+    );
+
+    expect(textRegion).toBeDefined();
+    expect(moveRegion).toBeDefined();
+    if (!textRegion || !moveRegion) {
+      return;
+    }
+
+    expect(moveRegion.width).toBeGreaterThan(textRegion.width);
+    expect(moveRegion.height).toBeGreaterThan(textRegion.height);
+    expect(moveRegion.contentWidth).toBeCloseTo(textRegion.width, 6);
+    expect(moveRegion.contentHeight).toBeCloseTo(textRegion.height, 6);
+  });
+
+  it("does not add text-only node-area move regions for matrix cells", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \matrix[matrix of nodes] {
+    A & B \\
+  };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const regions = buildHitRegions(rendered.semantic.scene.elements, rendered.svg.viewBox, 1);
+    const nodeAreaRegions = regions.filter(
+      (region): region is Extract<HitRegion, { shape: "rect" }> =>
+        region.shape === "rect" && region.key.endsWith(":node-area")
+    );
+
+    expect(nodeAreaRegions).toHaveLength(0);
+  });
+
   it("uses only pin label text bounds for pin adornment selection boxes", () => {
     const pinText: SceneText = {
       kind: "Text",
@@ -326,6 +367,34 @@ describe("rectHitRegionsForTargetId", () => {
 
     expect(rootPreferred).toEqual(boundsFromNodeBoxesOnly.get(rootId));
     expect(branchPreferred).toEqual(boundsFromNodeBoxesOnly.get(branchId));
+  });
+
+  it("uses node visual bounds for text-only nodes so selection can include inner sep", () => {
+    const source = String.raw`\tikz \node[inner sep=10pt] {A};`;
+    const rendered = renderTikzToSvg(source);
+    const sourceId = rendered.semantic.scene.elements[0]?.sourceRef.sourceId;
+    expect(sourceId).toBeDefined();
+    if (!sourceId) {
+      return;
+    }
+
+    const fallback = collectSourceBounds(rendered.semantic.scene.elements, rendered.svg.viewBox).get(sourceId) ?? null;
+    const preferred = preferredNodeBoundsForSource(
+      rendered.semantic.scene.elements,
+      sourceId,
+      rendered.svg.viewBox,
+      fallback
+    );
+
+    expect(fallback).toBeDefined();
+    expect(preferred).toBeDefined();
+    if (!fallback || !preferred) {
+      return;
+    }
+
+    const fallbackWidth = fallback.maxX - fallback.minX;
+    const preferredWidth = preferred.maxX - preferred.minX;
+    expect(preferredWidth).toBeGreaterThan(fallbackWidth + 15);
   });
 });
 

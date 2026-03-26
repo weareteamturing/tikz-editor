@@ -428,9 +428,9 @@ function resolveTextResizeFrame(
   text: SceneText,
   viewBox: SvgViewBox
 ): ResizeFrame | null {
-  const width = text.textBlockWidth ?? estimateTextBlockWidth(text.text, text.style.fontSize);
+  const width = text.nodeVisualWidth ?? text.textBlockWidth ?? estimateTextBlockWidth(text.text, text.style.fontSize);
   const lineCount = Math.max(1, text.text.split("\n").length);
-  const height = text.textBlockHeight ?? lineCount * text.style.fontSize * 1.15;
+  const height = text.nodeVisualHeight ?? text.textBlockHeight ?? lineCount * text.style.fontSize * 1.15;
   if (!(width > EPSILON) || !(height > EPSILON)) {
     return null;
   }

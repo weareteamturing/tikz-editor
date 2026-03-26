@@ -25,6 +25,7 @@ import {
   collectSourceBounds,
   getHandleCursor,
   preferredNodeBoundsForSource,
+  isTextOnlyNodeSource,
   resolveAdornmentOwnerBoundaryPoint,
   resolveBoundsEdgePointToward,
   resolveScenePathShapeHint,
@@ -53,6 +54,15 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     () => snapshot.editHandles.filter((handle: any) => selectedElementIds.has(handle.sourceRef.sourceId)),
     [snapshot.editHandles, selectedElementIds]
   );
+  const selectedNodeSourceIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const handle of selectedHandles as any[]) {
+      if (handle.kind === "node-position") {
+        ids.add(handle.sourceRef.sourceId);
+      }
+    }
+    return ids;
+  }, [selectedHandles]);
   const nodeAnchorTargets = useMemo<readonly NodeAnchorTarget[]>(
     () => snapshot.semanticResult?.nodeAnchorTargets ?? [],
     [snapshot.semanticResult]
@@ -216,7 +226,11 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
     for (const sourceId of selectedElementIds) {
       const fallbackBounds = sourceBoundsSvg.get(sourceId) ?? scopeOverlay.boundsByScopeId.get(sourceId);
       const bounds =
-        snapshot.scene && svgResult && (treeChildSourceIds.has(sourceId) || treeRootSourceIds.has(sourceId))
+        snapshot.scene && svgResult && (
+          selectedNodeSourceIds.has(sourceId)
+          || treeChildSourceIds.has(sourceId)
+          || treeRootSourceIds.has(sourceId)
+        )
           ? preferredNodeBoundsForSource(snapshot.scene.elements, sourceId, svgResult.viewBox, fallbackBounds ?? null)
           : fallbackBounds;
       if (!bounds) {
@@ -225,7 +239,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       selected.push({ sourceId, bounds });
     }
     return selected;
-  }, [scopeOverlay.boundsByScopeId, selectedElementIds, snapshot.scene, sourceBoundsSvg, svgResult, treeChildSourceIds, treeRootSourceIds]);
+  }, [scopeOverlay.boundsByScopeId, selectedElementIds, selectedNodeSourceIds, snapshot.scene, sourceBoundsSvg, svgResult, treeChildSourceIds, treeRootSourceIds]);
 
   const selectedScopeHitBounds = useMemo(() => {
     return selectionBounds
@@ -400,6 +414,15 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
   }, [resizeFrameSourceIds, scopeOverlay.boundsByScopeId, scopeResizeSourceIds, snapshot.editHandles, snapshot.parseResult, snapshot.scene, svgResult]);
 
   const selectionBoxes = useMemo(() => {
+    const textOnlyNodeSelectionSourceIds = new Set<string>();
+    if (snapshot.scene) {
+      for (const sourceId of selectedNodeSourceIds) {
+        if (isTextOnlyNodeSource(snapshot.scene.elements, sourceId)) {
+          textOnlyNodeSelectionSourceIds.add(sourceId);
+        }
+      }
+    }
+
     const boxes = [...selectionBoxSourceIds]
       .map((sourceId) => {
         const resizeFrame = resizeFramesBySource.get(sourceId) ?? null;
@@ -408,6 +431,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
             key: `selection-box:${sourceId}`,
             sourceId,
             isAdornment: sourceId.startsWith("node-adornment:"),
+            dashed: textOnlyNodeSelectionSourceIds.has(sourceId),
             kind: "polygon" as const,
             points: resizeFrame.polygonSvg
           };
@@ -418,6 +442,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
               key: `selection-box:${sourceId}`,
               sourceId,
               isAdornment: sourceId.startsWith("node-adornment:"),
+              dashed: textOnlyNodeSelectionSourceIds.has(sourceId),
               kind: "axis-aligned" as const,
               ...bounds
             }
@@ -425,7 +450,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       })
       .filter((bounds): bounds is NonNullable<typeof bounds> => bounds != null);
     return boxes;
-  }, [resizeFramesBySource, selectionBoundsBySource, selectionBoxSourceIds]);
+  }, [resizeFramesBySource, selectedNodeSourceIds, selectionBoundsBySource, selectionBoxSourceIds, snapshot.scene]);
 
   const selectedAdornmentConnectors = useMemo(() => {
     if (!snapshot.scene || !svgResult) {

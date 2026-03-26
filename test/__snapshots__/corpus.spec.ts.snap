@@ -13,9 +13,9 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   },
   "parse": {
     "failedHard": 0,
-    "parsedClean": 1430,
-    "parsedWithRecovery": 757,
-    "recoverableRate": 0.3461,
+    "parsedClean": 1431,
+    "parsedWithRecovery": 756,
+    "recoverableRate": 0.3457,
   },
   "sampleHardFailures": [],
   "semantic": {
@@ -82,7 +82,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
   "topDiagnosticCodes": [
     {
       "code": "parse-error",
-      "count": 1231,
+      "count": 1223,
     },
     {
       "code": "missing-semicolon",
@@ -90,7 +90,7 @@ exports[`pgf-docs corpus regression > extracts snippets and tracks parse+semanti
     },
     {
       "code": "malformed-coordinate",
-      "count": 35,
+      "count": 32,
     },
     {
       "code": "missing-option-close",

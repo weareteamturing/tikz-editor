@@ -212,6 +212,8 @@ export type SceneText = {
   text: string;
   textBlockWidth?: number;
   textBlockHeight?: number;
+  nodeVisualWidth?: number;
+  nodeVisualHeight?: number;
   textRenderInfo?: NodeTextRenderInfo;
   rotation?: number;
   transform?: Matrix2D;

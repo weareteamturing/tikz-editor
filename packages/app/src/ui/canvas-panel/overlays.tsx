@@ -88,6 +88,7 @@ type SelectionBoxDisplay =
       key: string;
       sourceId: string;
       isAdornment: boolean;
+      dashed?: boolean;
       kind: "axis-aligned";
       minX: number;
       minY: number;
@@ -98,6 +99,7 @@ type SelectionBoxDisplay =
       key: string;
       sourceId: string;
       isAdornment: boolean;
+      dashed?: boolean;
       kind: "polygon";
       points: ReadonlyArray<{ x: number; y: number }>;
     };
@@ -781,7 +783,11 @@ export function SelectionOverlay({
           bounds.kind === "polygon" ? (
             <polygon
               key={bounds.key}
-              className={bounds.isAdornment ? css.adornmentSelectionRect : css.selectionRect}
+              className={
+                bounds.isAdornment
+                  ? css.adornmentSelectionRect
+                  : [css.selectionRect, bounds.dashed ? css.selectionRectDashed : ""].filter(Boolean).join(" ")
+              }
               points={bounds.points.map((point) => `${fmt(point.x)},${fmt(point.y)}`).join(" ")}
               strokeWidth={selectionStrokeWidth}
               data-selection-overlay-box-source-id={bounds.sourceId}
@@ -789,7 +795,11 @@ export function SelectionOverlay({
           ) : (
             <rect
               key={bounds.key}
-              className={bounds.isAdornment ? css.adornmentSelectionRect : css.selectionRect}
+              className={
+                bounds.isAdornment
+                  ? css.adornmentSelectionRect
+                  : [css.selectionRect, bounds.dashed ? css.selectionRectDashed : ""].filter(Boolean).join(" ")
+              }
               x={bounds.minX}
               y={bounds.minY}
               width={Math.max(0.001, bounds.maxX - bounds.minX)}
