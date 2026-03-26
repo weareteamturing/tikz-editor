@@ -579,7 +579,8 @@ Coordinate {
   "|" |
   "&" |
   "^" |
-  "_"
+  "_" |
+  "#"
 }
 
 IdentifierLike {
