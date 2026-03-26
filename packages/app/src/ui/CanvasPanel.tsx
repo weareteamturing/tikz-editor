@@ -1355,6 +1355,10 @@ export function CanvasPanel() {
   }, [tabOrder]);
 
   useEffect(() => {
+    if (previousFigureViewportKeyRef.current === activeFigureViewportKey) {
+      return;
+    }
+
     const previousKey = previousFigureViewportKeyRef.current;
     if (previousKey && previousKey !== activeFigureViewportKey) {
       const previousTransform = canvasTransformRef.current;
@@ -1371,7 +1375,9 @@ export function CanvasPanel() {
 
     const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
     if (savedState) {
-      setFitToContentModeActive(savedState.fitToContentModeActive);
+      if (fitToContentModeActiveRef.current !== savedState.fitToContentModeActive) {
+        setFitToContentModeActive(savedState.fitToContentModeActive);
+      }
       dispatchCanvasTransform(savedState.transform);
       previousFigureViewportKeyRef.current = activeFigureViewportKey;
       return;
@@ -1380,7 +1386,9 @@ export function CanvasPanel() {
     const hasVisited = visitedFigureKeysRef.current.has(activeFigureViewportKey);
     if (!hasVisited) {
       visitedFigureKeysRef.current.add(activeFigureViewportKey);
-      setFitToContentModeActive(true);
+      if (!fitToContentModeActiveRef.current) {
+        setFitToContentModeActive(true);
+      }
       fitToContent();
     }
 
@@ -1396,7 +1404,9 @@ export function CanvasPanel() {
       return;
     }
     handledFitRequestRef.current = fitToContentRequestToken;
-    setFitToContentModeActive(true);
+    if (!fitToContentModeActiveRef.current) {
+      setFitToContentModeActive(true);
+    }
     fitToContent();
   }, [fitToContent, fitToContentRequestToken]);
 

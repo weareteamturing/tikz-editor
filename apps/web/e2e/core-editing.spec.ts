@@ -106,6 +106,37 @@ test("cmd/ctrl+a selects all canvas elements for delete", async ({ page }) => {
   await expect.poll(async () => readSource(page)).not.toContain("\\draw (3,0) rectangle (4,1);");
 });
 
+test("clearing source editor does not trigger maximum update depth crash", async ({ page }) => {
+  await gotoApp(page);
+
+  const reactDepthErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    const message = String(error?.message ?? "");
+    if (message.includes("Maximum update depth exceeded")) {
+      reactDepthErrors.push(message);
+    }
+  });
+  page.on("console", (msg) => {
+    if (msg.type() !== "error") {
+      return;
+    }
+    const text = msg.text();
+    if (text.includes("Maximum update depth exceeded")) {
+      reactDepthErrors.push(text);
+    }
+  });
+
+  const sourceEditor = page.locator(".cm-content").first();
+  await expect(sourceEditor).toBeVisible();
+  await sourceEditor.click();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+
+  await expect.poll(async () => readStoreSource(page)).toBe("");
+  await expect(page.getByTestId("tab-strip")).toBeVisible();
+  expect(reactDepthErrors).toEqual([]);
+});
+
 test("canvas supports two-finger pinch zoom on touch devices", async ({ page }) => {
   await gotoApp(page);
   await setSource(page, String.raw`\begin{tikzpicture}
