@@ -33,7 +33,7 @@
   width: 1px;
   height: 20px;
   background: var(--border);
-  margin: 0 6px;
+  margin: 0 3px;
   flex-shrink: 0;
 }
 
@@ -103,7 +103,7 @@
 .splitButtonMain {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-  padding: 4px 6px;
+  padding: 4px 2px 4px 6px;
   min-width: 28px;
   flex-direction: column;
   gap: 2px;
@@ -112,14 +112,8 @@
 .splitButtonCaret {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
-  padding: 4px 4px;
-  min-width: 16px;
-  border-left: 1px solid var(--border);
-}
-
-.splitButtonMain:hover + .splitButtonCaret,
-.splitButtonCaret:hover {
-  border-left-color: transparent;
+  padding: 4px 3px 4px 1px;
+  min-width: 10px;
 }
 
 /* Bucket color indicator bar */

@@ -163,6 +163,7 @@ export type ToolButtonDef = {
   icon: ToolIconType;
   popupKind?: ToolPopupKind;
   autoOpenPopup?: boolean;
+  separatorBefore?: true;
 };
 
 export type ToolPopupKind = "bucket-color" | "shape-picker" | "matrix-picker";
@@ -173,19 +174,19 @@ export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",   title: "Select and move elements (V)",                     shortcut: "v", icon: SelectIcon },
   { mode: "magnify",    label: "Magnify",  title: "Magnify the canvas while dragging (M)",            shortcut: "m", icon: MagnifyIcon },
-  { mode: "addNode",    label: "Node",     title: "Place a text node (N)",                            shortcut: "n", icon: NodeIcon },
-  { mode: "addShape",   label: "Shape",    title: "Place a shaped node (S).",                         shortcut: "s", icon: ShapeIcon, popupKind: "shape-picker" },
-  { mode: "addMatrix",  label: "Matrix",   title: "Place a matrix of nodes.",                                           icon: MatrixIcon, popupKind: "matrix-picker" },
-  { mode: "addLine",    label: "Line",     title: "Draw a line (L)",                                  shortcut: "l", icon: LineIcon },
+  { mode: "addNode",    label: "Node",     title: "Place a text node (N)",                            shortcut: "n", icon: NodeIcon,     separatorBefore: true },
+  { mode: "addShape",   label: "Shape",    title: "Place a shaped node (S).",                         shortcut: "s", icon: ShapeIcon,    popupKind: "shape-picker" },
+  { mode: "addMatrix",  label: "Matrix",   title: "Place a matrix of nodes.",                                         icon: MatrixIcon,   popupKind: "matrix-picker" },
+  { mode: "addLine",    label: "Line",     title: "Draw a line (L)",                                  shortcut: "l", icon: LineIcon,     separatorBefore: true },
   { mode: "addArrow",   label: "Arrow",    title: "Draw an arrow (A)",                                shortcut: "a", icon: ArrowIcon },
   { mode: "addBezier",  label: "Bezier",   title: "Draw a cubic Bezier curve (B) with two drags",    shortcut: "b", icon: BezierIcon },
   { mode: "addPath",    label: "Path",     title: "Draw a multi-segment path (P). Click to add points, drag to bend, click start to close.", shortcut: "p", icon: PathIcon },
   { mode: "addFreehand", label: "Freehand", title: "Draw a freehand curve (F). Press and drag to draw one stroke.", shortcut: "f", icon: FreehandIcon },
-  { mode: "addGrid",    label: "Grid",     title: "Draw a grid. Hold Shift to constrain to a square.",                icon: GridIcon },
+  { mode: "addGrid",    label: "Grid",     title: "Draw a grid. Hold Shift to constrain to a square.",               icon: GridIcon,     separatorBefore: true },
   { mode: "addRect",    label: "Rect",     title: "Draw a rectangle (R). Hold Shift to constrain to a square.", shortcut: "r", icon: RectIcon },
   { mode: "addEllipse", label: "Ellipse",  title: "Draw an ellipse (E). Hold Shift to constrain to a circle.", shortcut: "e", icon: EllipseIcon },
   { mode: "addCircle",  label: "Circle",   title: "Draw a circle from center (C)",                   shortcut: "c", icon: CircleIcon },
-  { mode: "addBucket",  label: "Bucket",   title: "Fill a shape with the selected color.",                           icon: BucketIcon, popupKind: "bucket-color" },
+  { mode: "addBucket",  label: "Bucket",   title: "Fill a shape with the selected color.",                           icon: BucketIcon,   popupKind: "bucket-color", separatorBefore: true },
 ];
 
 export const TOOL_CREATE_MODES = ["addPath", "addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle", "addShape"] as const;

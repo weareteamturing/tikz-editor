@@ -340,18 +340,20 @@ export function Toolbar() {
       ) : null}
 
       <div className={css.group}>
-        {TOOL_BUTTONS.map((toolDef) => {
+        {TOOL_BUTTONS.flatMap((toolDef) => {
+          const separator = toolDef.separatorBefore ? <div key={`sep-${toolDef.mode}`} className={css.separator} /> : null;
           // Special handling for bucket and shape buttons
+          let button;
           if (toolDef.mode === "addBucket") {
-            return renderBucketButton();
+            button = renderBucketButton();
+          } else if (toolDef.mode === "addMatrix") {
+            button = renderMatrixButton();
+          } else if (toolDef.mode === "addShape") {
+            button = renderShapeButton();
+          } else {
+            button = renderStandardButton(toolDef);
           }
-          if (toolDef.mode === "addMatrix") {
-            return renderMatrixButton();
-          }
-          if (toolDef.mode === "addShape") {
-            return renderShapeButton();
-          }
-          return renderStandardButton(toolDef);
+          return separator ? [separator, button] : [button];
         })}
       </div>
     </div>

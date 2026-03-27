@@ -356,27 +356,16 @@ export const APP_MENU_DEFINITION = [
       },
       {
         kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.INSERT_MATRIX,
-        label: "Matrix"
-      },
-      {
-        kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_SHAPE,
         label: "Shape",
         accelerator: "S"
       },
       {
         kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.INSERT_PATH,
-        label: "Path",
-        accelerator: "P"
+        commandId: APP_MENU_COMMAND_IDS.INSERT_MATRIX,
+        label: "Matrix"
       },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.INSERT_FREEHAND,
-        label: "Freehand",
-        accelerator: "F"
-      },
+      { kind: "separator" },
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_LINE,
@@ -395,6 +384,19 @@ export const APP_MENU_DEFINITION = [
         label: "Bezier",
         accelerator: "B"
       },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_PATH,
+        label: "Path",
+        accelerator: "P"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.INSERT_FREEHAND,
+        label: "Freehand",
+        accelerator: "F"
+      },
+      { kind: "separator" },
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_GRID,
@@ -418,6 +420,7 @@ export const APP_MENU_DEFINITION = [
         label: "Circle",
         accelerator: "C"
       },
+      { kind: "separator" },
       {
         kind: "command",
         commandId: APP_MENU_COMMAND_IDS.INSERT_EQUATION,
