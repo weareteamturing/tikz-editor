@@ -980,6 +980,10 @@ export function createDesktopPlatformAdapter(env: DesktopPlatformEnvironment = {
       },
       openExternalUrl: async (url) => {
         return await getBridge().openExternalUrl(url);
+      },
+      setTheme: async (theme) => {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        await getCurrentWindow().setTheme(theme);
       }
     },
     haptics: {

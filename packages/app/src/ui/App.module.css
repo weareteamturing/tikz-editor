@@ -12,6 +12,10 @@
   color: var(--text);
 }
 
+:global(html[data-desktop-os="macos"]) .app {
+  background: transparent;
+}
+
 .body {
   display: flex;
   flex: 1;

@@ -1669,6 +1669,17 @@ pub fn run() {
             process_associated_open_requests(&app.handle(), &startup_args, startup_cwd.as_deref());
 
             app.manage(AssistantState::new(app.handle().clone()));
+
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_effects(tauri::utils::config::WindowEffectsConfig {
+                    effects: vec![tauri::utils::WindowEffect::Sidebar],
+                    state: None,
+                    radius: None,
+                    color: None,
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -17,6 +17,10 @@
   background: var(--bg-pane);
 }
 
+:global(html[data-desktop-os="macos"]) .paneRight {
+  background: transparent;
+}
+
 .splitter {
   flex: 0 0 4px;
   width: 4px;

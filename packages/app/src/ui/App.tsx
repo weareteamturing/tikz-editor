@@ -258,6 +258,7 @@ export function App() {
       } else {
         delete document.documentElement.dataset.canvasInvert;
       }
+      void platform.window?.setTheme?.(colorScheme === "system" ? null : dark ? "dark" : "light");
     };
     if (colorScheme === "system") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");

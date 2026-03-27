@@ -17,6 +17,18 @@
   flex-shrink: 0;
 }
 
+:global(html[data-desktop-os="macos"]) .tabs {
+  background: transparent;
+}
+
+:global(html[data-desktop-os="macos"][data-color-scheme="light"]) .sidebar {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+:global(html[data-desktop-os="macos"][data-color-scheme="dark"]) .sidebar {
+  background: rgba(0, 0, 0, 0.7);
+}
+
 .tab {
   display: inline-flex;
   align-items: center;

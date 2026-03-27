@@ -86,6 +86,7 @@ export type PlatformWindowApi = {
   close?: () => Promise<void> | void;
   confirmUnsavedChanges?: (message: string) => Promise<"save" | "discard" | "cancel">;
   openExternalUrl?: (url: string) => Promise<boolean> | boolean;
+  setTheme?: (theme: "light" | "dark" | null) => Promise<void>;
 };
 
 export type PlatformHaptics = {

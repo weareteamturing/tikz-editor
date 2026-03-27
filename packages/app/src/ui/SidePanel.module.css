@@ -66,3 +66,10 @@
   border-top: 1px solid var(--border);
   background: var(--bg-pane);
 }
+
+:global(html[data-desktop-os="macos"]) .panel,
+:global(html[data-desktop-os="macos"]) .header,
+:global(html[data-desktop-os="macos"]) .sectionHeader,
+:global(html[data-desktop-os="macos"]) .footer {
+  background: transparent;
+}

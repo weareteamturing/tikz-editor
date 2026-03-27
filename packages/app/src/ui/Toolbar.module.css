@@ -11,6 +11,10 @@
   flex-shrink: 0;
 }
 
+:global(html[data-desktop-os="macos"]) .toolbar {
+  background: transparent;
+}
+
 .toolbarDesktop {
   padding-left: 90px;
   min-height: 46px;
