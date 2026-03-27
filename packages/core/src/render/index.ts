@@ -140,7 +140,7 @@ function describeMathJaxFailure(error: unknown): string {
 }
 
 function containsUserMacroDefinitions(source: string): boolean {
-  return /\\(?:def|let|newcommand|renewcommand)\b/.test(source);
+  return /\\(?:def|let|newcommand|renewcommand|pgfmathparse|pgfmathsetmacro)\b/.test(source);
 }
 
 function isMatrixNode(node: NodeItem): boolean {

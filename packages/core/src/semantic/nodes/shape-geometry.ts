@@ -208,7 +208,10 @@ const DEFAULT_STAR_RATIO = 1.5;
 const DEFAULT_STAR_POINT_HEIGHT_PT = parseLength(".5cm", "pt") ?? 14.2264;
 const EPSILON = 1e-9;
 
-export function resolveNodeShapeGeometryParams(options: OptionListAst | undefined): ShapeGeometryParams {
+export function resolveNodeShapeGeometryParams(
+  options: OptionListAst | undefined,
+  randomSeedProvider: () => number = defaultRandomSeedProvider
+): ShapeGeometryParams {
   let diamondAspect = DEFAULT_DIAMOND_ASPECT;
   let isoscelesTriangleApexAngle = DEFAULT_ISOSCELES_TRIANGLE_APEX_ANGLE;
   let isoscelesTriangleStretches = false;
@@ -318,7 +321,7 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
       } else if (entry.key === "cloud ignores aspect") {
         cloudIgnoresAspect = true;
       } else if (entry.key === "random starburst") {
-        randomStarburstSeed = Math.floor(Math.random() * 0x7fffffff) + 1;
+        randomStarburstSeed = randomSeedProvider();
       }
       continue;
     }
@@ -442,7 +445,7 @@ export function resolveNodeShapeGeometryParams(options: OptionListAst | undefine
     }
 
     if (entry.key === "random starburst") {
-      const parsed = parseRandomStarburstOption(entry.valueRaw);
+      const parsed = parseRandomStarburstOption(entry.valueRaw, randomSeedProvider);
       if (parsed != null) {
         randomStarburstSeed = parsed;
       }
@@ -1643,14 +1646,14 @@ function parseKiteVertexAngles(raw: string): { upper: number; lower: number } | 
   return { upper: single, lower: single };
 }
 
-function parseRandomStarburstOption(raw: string): number | null {
+function parseRandomStarburstOption(raw: string, randomSeedProvider: () => number): number | null {
   const normalized = normalizeOptionValue(raw).trim().toLowerCase();
   if (normalized.length === 0) {
     return null;
   }
   const boolish = parseBooleanishNormalized(normalized, { allowOnOff: true });
   if (boolish === true) {
-    return Math.floor(Math.random() * 0x7fffffff) + 1;
+    return randomSeedProvider();
   }
   if (boolish === false) {
     return 0;
@@ -1660,6 +1663,10 @@ function parseRandomStarburstOption(raw: string): number | null {
     return null;
   }
   return Math.abs(Math.round(numeric));
+}
+
+function defaultRandomSeedProvider(): number {
+  return Math.floor(Math.random() * 0x7fffffff) + 1;
 }
 
 function parseSignalDirectionSpec(raw: string): SignalDirection[] {

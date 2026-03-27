@@ -30,6 +30,7 @@ import {
   type SemanticUnresolvedSymbol,
   type SemanticSymbolResolverState
 } from "./symbol-resolver.js";
+import { createPgfRandom, type PgfRandom } from "./pgfmath/rng.js";
 
 export type NodeLayerMode = "front" | "behind";
 export type NodeDistanceValue =
@@ -174,6 +175,7 @@ export type SemanticContext = {
   dependencyActiveSourceId: string | null;
   statementEffectTracker: SemanticStatementEffectTracker | null;
   symbolResolver: SemanticSymbolResolver;
+  mathRandom: PgfRandom;
 };
 
 export type SemanticStatementConsumedResource = {
@@ -216,6 +218,7 @@ export type SemanticContextSnapshot = {
   dependencyBuilderState: SemanticDependencyGraphBuilderState;
   dependencyActiveSourceId: string | null;
   symbolResolverState: SemanticSymbolResolverState;
+  mathRandomSeed: number;
 };
 
 export type SnapshotSemanticContextOptions = {
@@ -335,7 +338,8 @@ export function createSemanticContext(
     dependencyBuilder: new SemanticDependencyGraphBuilder(),
     dependencyActiveSourceId: null,
     statementEffectTracker: null,
-    symbolResolver: createSemanticSymbolResolver()
+    symbolResolver: createSemanticSymbolResolver(),
+    mathRandom: createPgfRandom(1)
   };
 }
 
@@ -374,7 +378,8 @@ export function snapshotSemanticContext(
     editHandlesLength: context.editHandles.length,
     dependencyBuilderState: context.dependencyBuilder.exportState(),
     dependencyActiveSourceId: context.dependencyActiveSourceId,
-    symbolResolverState: exportSemanticSymbolResolverState(context.symbolResolver)
+    symbolResolverState: exportSemanticSymbolResolverState(context.symbolResolver),
+    mathRandomSeed: context.mathRandom.getSeed()
   };
 }
 
@@ -403,6 +408,7 @@ export function restoreSemanticContext(
   context.dependencyBuilder.importState(snapshot.dependencyBuilderState);
   context.dependencyActiveSourceId = snapshot.dependencyActiveSourceId;
   importSemanticSymbolResolverState(context.symbolResolver, snapshot.symbolResolverState);
+  context.mathRandom.setSeed(snapshot.mathRandomSeed);
   context.statementEffectTracker = null;
 }
 

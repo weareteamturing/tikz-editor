@@ -44,6 +44,27 @@ export const capabilityMatrix: CapabilityMatrix = {
     edit: "none",
     fixtures: ["unknown_statement"]
   },
+  pgfmath_expression: {
+    parser: "none",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["pgfmath_expression"]
+  },
+  pgfmath_seed_commands: {
+    parser: "none",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["pgfmath_seed_commands"]
+  },
+  pgfmath_random_functions: {
+    parser: "none",
+    semantic: "stable",
+    svg: "stable",
+    edit: "none",
+    fixtures: ["pgfmath_random_functions"]
+  },
   options_structured: {
     parser: "stable",
     semantic: "stable",

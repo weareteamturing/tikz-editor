@@ -26,6 +26,20 @@ export const capabilityFixtures: Record<string, string> = {
   unknown_statement: String.raw`\begin{tikzpicture}
   \foo bar;
 \end{tikzpicture}`,
+  pgfmath_expression: String.raw`\begin{tikzpicture}
+  \foreach \x [evaluate=\x as \y using (\x<2 ? \x+1 : \x*2)] in {1,2}
+    \node at (\x,0) {\y};
+\end{tikzpicture}`,
+  pgfmath_seed_commands: String.raw`\begin{tikzpicture}
+  \pgfmathsetseed{7};
+  \pgfmathsetmacro{\n}{random(1,9)};
+  \node at (0,0) {\n};
+\end{tikzpicture}`,
+  pgfmath_random_functions: String.raw`\begin{tikzpicture}
+  \pgfmathsetseed{5};
+  \foreach \x [evaluate=\x as \r using random(1,5)] in {1,2}
+    \node at (\x,0) {\r};
+\end{tikzpicture}`,
   option_styles: String.raw`\begin{tikzpicture}
   \draw[red,fill=blue,line width=1pt] (0,0) -- (1,0);
 \end{tikzpicture}`,

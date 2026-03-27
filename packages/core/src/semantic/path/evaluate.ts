@@ -2216,20 +2216,28 @@ export function evaluatePathStatement(
   for (const preAction of style.decorationPreActions) {
     markFeature("decorate_option", "supported");
     preActionElements.push(
-      ...decoratePathElements(geometryElements, preAction, "collect", statement.id, markFeature, pushDiagnostic)
+      ...decoratePathElements(geometryElements, preAction, "collect", statement.id, context.mathRandom, markFeature, pushDiagnostic)
     );
   }
   for (const postAction of style.decorationPostActions) {
     markFeature("decorate_option", "supported");
     postActionElements.push(
-      ...decoratePathElements(geometryElements, postAction, "collect", statement.id, markFeature, pushDiagnostic)
+      ...decoratePathElements(geometryElements, postAction, "collect", statement.id, context.mathRandom, markFeature, pushDiagnostic)
     );
   }
 
   let mainGeometry = geometryElements;
   if (style.decoration.enabled) {
     markFeature("decorate_option", "supported");
-    mainGeometry = decoratePathElements(geometryElements, style.decoration, "replace", statement.id, markFeature, pushDiagnostic);
+    mainGeometry = decoratePathElements(
+      geometryElements,
+      style.decoration,
+      "replace",
+      statement.id,
+      context.mathRandom,
+      markFeature,
+      pushDiagnostic
+    );
   }
 
   return [...preActionElements, ...behindNodeElements, ...mainGeometry, ...frontNodeElements, ...postActionElements];

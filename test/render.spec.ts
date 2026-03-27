@@ -228,6 +228,16 @@ describe("render pipeline", () => {
     }
   });
 
+  it("skips node TeX validation when pgfmath parsing commands define runtime macros", async () => {
+    const source = String.raw`\begin{tikzpicture}
+  \pgfmathparse{2+3};
+  \node at (0,0) {\pgfmathresult};
+\end{tikzpicture}`;
+
+    const result = await renderTikzToSvgAsync(source);
+    expect(result.parse.diagnostics.some((diagnostic) => diagnostic.code === "invalid-node-tex")).toBe(false);
+  });
+
   it("resolves definecolor aliases for fill key values before SVG emission", () => {
     const source = String.raw`\begin{tikzpicture}
   \definecolor{mypink}{rgb}{0.858, 0.188, 0.478}

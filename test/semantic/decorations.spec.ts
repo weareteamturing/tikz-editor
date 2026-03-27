@@ -205,4 +205,21 @@ describe("semantic evaluator / decorations", () => {
       const textElements = result.scene.elements.filter((element) => element.kind === "Text");
       expect(textElements).toHaveLength(2);
     });
+
+    it("keeps random-steps decoration reproducible with pgfmath seed", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \pgfmathsetseed{23};
+    \draw[decorate,decoration={random steps,segment length=8pt,amplitude=3pt}] (0,0) -- (3,0);
+  \end{tikzpicture}`;
+      const first = evaluateSemantic(source);
+      const second = evaluateSemantic(source);
+
+      const firstPath = first.scene.elements.find((element) => element.kind === "Path");
+      const secondPath = second.scene.elements.find((element) => element.kind === "Path");
+      expect(firstPath?.kind).toBe("Path");
+      expect(secondPath?.kind).toBe("Path");
+      if (firstPath?.kind === "Path" && secondPath?.kind === "Path") {
+        expect(firstPath.commands).toEqual(secondPath.commands);
+      }
+    });
 });

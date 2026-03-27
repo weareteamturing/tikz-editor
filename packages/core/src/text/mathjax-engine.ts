@@ -1027,13 +1027,21 @@ function parseViewBox(raw: string | null): NodeTextRenderPayload["viewBox"] | nu
 function sanitizeErrorMessage(error: unknown): string {
   let message = error instanceof Error ? error.message : String(error);
   if (message === "[object Object]" && isRecord(error)) {
-    try {
-      const serialized = JSON.stringify(error);
-      if (typeof serialized === "string" && serialized !== "{}") {
-        message = serialized;
+    if (typeof error.message === "string" && error.message.trim().length > 0) {
+      message = error.message;
+    } else if (typeof error.msg === "string" && error.msg.trim().length > 0) {
+      message = error.msg;
+    } else if (typeof error.reason === "string" && error.reason.trim().length > 0) {
+      message = error.reason;
+    } else {
+      try {
+        const serialized = JSON.stringify(error);
+        if (typeof serialized === "string" && serialized !== "{}") {
+          message = serialized;
+        }
+      } catch {
+        // Keep the fallback message.
       }
-    } catch {
-      // Keep the fallback message.
     }
   }
   return message.replace(/\s+/g, " ").trim() || "Invalid TeX in node text.";

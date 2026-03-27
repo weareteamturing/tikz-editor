@@ -232,7 +232,7 @@ export function evaluateMatrixNodeItem(params: EvaluateMatrixNodeParams): Matrix
 
   const matrixLayout = makeMatrixLayout(contentWidth, contentHeight);
   const matrixAnchor = params.matrixMode.matrixAnchor ?? params.fallbackAnchor;
-  const shapeGeometry = resolveNodeShapeGeometryParams(params.effectiveNodeOptions);
+  const shapeGeometry = resolveNodeShapeGeometryParams(params.effectiveNodeOptions, () => params.context.mathRandom.nextRaw());
   const matrixCenter = placeNodeCenter(
     params.resolvedPositioning.anchorPoint,
     params.nodeShape,

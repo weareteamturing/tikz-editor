@@ -72,6 +72,8 @@ import { cloneResolvedStyle, cloneStyleChain, diffResolvedStyle, type StyleSourc
 import { inferRequiredTikzLibraries } from "./required-tikz-libraries.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { stripWrappingBraces } from "../utils/braces.js";
+import { evaluatePgfMathExpression, formatPgfMathNumber } from "./pgfmath/evaluator.js";
+import { withPgfMathRuntime } from "./pgfmath/runtime.js";
 import type {
   Bounds,
   EditHandle,
@@ -145,7 +147,11 @@ export function createSemanticEvaluationRun(
   const diagnostics: Diagnostic[] = [];
   const featureUsage = initializeFeatureUsage();
   markForeachFeaturesFromFigure(figure, featureUsage);
-  const expanded = expandForeachFigure(figure, source, opts.maxForeachExpansions ?? 10_000);
+  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null, source);
+  const expanded = withPgfMathRuntime(
+    { rng: context.mathRandom },
+    () => expandForeachFigure(figure, source, opts.maxForeachExpansions ?? 10_000)
+  );
   for (const diagnostic of expanded.diagnostics) {
     diagnostics.push({
       severity: diagnostic.severity,
@@ -154,8 +160,6 @@ export function createSemanticEvaluationRun(
       span: diagnostic.span
     });
   }
-  const context = createSemanticContext(defaultStyle(), identityMatrix(), opts.textEngine ?? null, source);
-
   const rootFramePushed = figure.options != null;
   if (figure.options) {
     markFeature(featureUsage, "options_structured", "supported");
@@ -290,7 +294,10 @@ export function evaluateSemanticStatementByIndex(
   const beforePathStartPoint = run.context.pathStartPoint ? { ...run.context.pathStartPoint } : null;
   beginStatementEffectTracking(run.context);
   const statementElements = withDependencySource(run.context, statement.id, () =>
-    evaluateStatement(statement, run.context, run.diagnostics, run.featureUsage, run.statementMacroAttribution)
+    withPgfMathRuntime(
+      { rng: run.context.mathRandom },
+      () => evaluateStatement(statement, run.context, run.diagnostics, run.featureUsage, run.statementMacroAttribution)
+    )
   );
   const sourceId = run.statementAttribution.get(statement)?.sourceId ?? statement.id;
   const sourceSpan = run.sourceStatementSpanById.get(sourceId) ?? statement.span;
@@ -1011,7 +1018,10 @@ function evaluateStatement(
     return [];
   }
 
-  if (statement.kind === "UnknownStatement" && applyStandaloneCommandStatement(statement.raw, context, diagnostics, statement.span)) {
+  if (
+    statement.kind === "UnknownStatement"
+    && applyStandaloneCommandStatement(statement.raw, context, diagnostics, statement.span, featureUsage)
+  ) {
     markFeature(featureUsage, "unknown_statement", "supported");
     return [];
   }
@@ -1030,8 +1040,103 @@ function applyStandaloneCommandStatement(
   raw: string,
   context: ReturnType<typeof createSemanticContext>,
   diagnostics: Diagnostic[],
-  span: { from: number; to: number }
+  span: { from: number; to: number },
+  featureUsage: FeatureUsage
 ): boolean {
+  const invocation = parseStandaloneCommandInvocation(raw);
+  if (invocation) {
+    if (invocation.command === "\\pgfmathsetseed" && invocation.args.length === 1) {
+      markFeature(featureUsage, "pgfmath_expression", "supported");
+      markFeature(featureUsage, "pgfmath_seed_commands", "supported");
+      const frame = currentFrame(context);
+      const expanded = expandMacroBindings(invocation.args[0], frame.macroBindings, {
+        maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+        trace: context.macroTraceCollector ?? undefined
+      });
+      if (containsPgfMathRandomToken(expanded)) {
+        markFeature(featureUsage, "pgfmath_random_functions", "supported");
+      }
+      const evaluated = evaluatePgfMathExpression(expanded, { rng: context.mathRandom });
+      if (evaluated.ok === false) {
+        diagnostics.push({
+          severity: "warning",
+          code: `invalid-pgfmathsetseed:${evaluated.code}`,
+          message: `\\pgfmathsetseed failed: ${evaluated.message}`,
+          span
+        });
+      } else {
+        context.mathRandom.setSeed(Math.trunc(evaluated.quantity.value));
+      }
+      return true;
+    }
+
+    if (invocation.command === "\\pgfmathparse" && invocation.args.length === 1) {
+      markFeature(featureUsage, "pgfmath_expression", "supported");
+      const frame = currentFrame(context);
+      const expanded = expandMacroBindings(invocation.args[0], frame.macroBindings, {
+        maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+        trace: context.macroTraceCollector ?? undefined
+      });
+      if (containsPgfMathRandomToken(expanded)) {
+        markFeature(featureUsage, "pgfmath_random_functions", "supported");
+      }
+      const evaluated = evaluatePgfMathExpression(expanded, { rng: context.mathRandom });
+      if (evaluated.ok === false) {
+        diagnostics.push({
+          severity: "warning",
+          code: `invalid-pgfmathparse:${evaluated.code}`,
+          message: `\\pgfmathparse failed: ${evaluated.message}`,
+          span
+        });
+      } else {
+        writeContextMacroBinding(context, "\\pgfmathresult", {
+          kind: "text",
+          value: formatPgfMathNumber(evaluated.quantity.value),
+          provenance: []
+        });
+      }
+      return true;
+    }
+
+    if (invocation.command === "\\pgfmathsetmacro" && invocation.args.length === 2) {
+      markFeature(featureUsage, "pgfmath_expression", "supported");
+      const target = normalizeMacroName(invocation.args[0]);
+      if (target == null) {
+        diagnostics.push({
+          severity: "warning",
+          code: "invalid-pgfmathsetmacro-target",
+          message: "\\pgfmathsetmacro requires a control-sequence macro target.",
+          span
+        });
+        return true;
+      }
+      const frame = currentFrame(context);
+      const expanded = expandMacroBindings(invocation.args[1], frame.macroBindings, {
+        maxDepth: DEFAULT_MACRO_EXPANSION_MAX_DEPTH,
+        trace: context.macroTraceCollector ?? undefined
+      });
+      if (containsPgfMathRandomToken(expanded)) {
+        markFeature(featureUsage, "pgfmath_random_functions", "supported");
+      }
+      const evaluated = evaluatePgfMathExpression(expanded, { rng: context.mathRandom });
+      if (evaluated.ok === false) {
+        diagnostics.push({
+          severity: "warning",
+          code: `invalid-pgfmathsetmacro:${evaluated.code}`,
+          message: `\\pgfmathsetmacro failed: ${evaluated.message}`,
+          span
+        });
+      } else {
+        writeContextMacroBinding(context, target, {
+          kind: "text",
+          value: formatPgfMathNumber(evaluated.quantity.value),
+          provenance: []
+        });
+      }
+      return true;
+    }
+  }
+
   const command = parseStandaloneCommandName(raw);
   if (command) {
     const fontFactor = FONT_SIZE_COMMAND_FACTORS[command];
@@ -1553,6 +1658,62 @@ function parseStandaloneCommandName(raw: string): string | null {
   return stripped;
 }
 
+function parseStandaloneCommandInvocation(raw: string): { command: string; args: string[] } | null {
+  const stripped = stripOptionalTrailingSemicolon(raw.trim());
+  const commandMatch = stripped.match(/^(\\[A-Za-z@]+)/);
+  if (!commandMatch) {
+    return null;
+  }
+  const command = commandMatch[1];
+  let cursor = command.length;
+  const args: string[] = [];
+
+  while (cursor < stripped.length) {
+    while (cursor < stripped.length && /\s/.test(stripped[cursor])) {
+      cursor += 1;
+    }
+    if (cursor >= stripped.length) {
+      break;
+    }
+    const parsed = readSingleBracedArgument(stripped, cursor);
+    if (!parsed) {
+      return null;
+    }
+    args.push(parsed.value);
+    cursor = parsed.next;
+  }
+
+  return { command, args };
+}
+
+function readSingleBracedArgument(source: string, from: number): { value: string; next: number } | null {
+  if (source[from] !== "{") {
+    return null;
+  }
+  let depth = 0;
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return { value: source.slice(from + 1, index), next: index + 1 };
+      }
+      if (depth < 0) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 function normalizePgfkeysOptionList(list: OptionListAst): OptionListAst {
   let inTikzDirectory = false;
   const entries: OptionListAst["entries"] = [];
@@ -1917,12 +2078,43 @@ function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: Feature
   const walkStatement = (statement: Statement): void => {
     if (statement.kind === "Foreach") {
       markFeature(featureUsage, "foreach_statement", "supported");
+      markPgfMathFeaturesFromOptionList(statement.options, featureUsage);
+      if (containsPgfMathRandomToken(statement.headerRaw ?? "")) {
+        markFeature(featureUsage, "pgfmath_random_functions", "supported");
+      }
+      if (statement.options?.entries.some((entry) => entry.kind === "kv" && entry.key === "evaluate")) {
+        markFeature(featureUsage, "pgfmath_expression", "supported");
+      }
       return;
     }
 
     if (statement.kind === "Scope") {
       for (const nested of statement.body) {
         walkStatement(nested);
+      }
+      return;
+    }
+
+    if (statement.kind === "UnknownStatement") {
+      const invocation = parseStandaloneCommandInvocation(statement.raw);
+      if (!invocation) {
+        return;
+      }
+      if (
+        invocation.command === "\\pgfmathsetseed"
+        || invocation.command === "\\pgfmathparse"
+        || invocation.command === "\\pgfmathsetmacro"
+      ) {
+        markFeature(featureUsage, "pgfmath_expression", "supported");
+      }
+      if (invocation.command === "\\pgfmathsetseed") {
+        markFeature(featureUsage, "pgfmath_seed_commands", "supported");
+      }
+      for (const arg of invocation.args) {
+        if (containsPgfMathRandomToken(arg)) {
+          markFeature(featureUsage, "pgfmath_random_functions", "supported");
+          break;
+        }
       }
       return;
     }
@@ -1937,6 +2129,30 @@ function markForeachFeaturesFromFigure(figure: TikzFigure, featureUsage: Feature
   for (const statement of figure.body) {
     walkStatement(statement);
   }
+}
+
+function markPgfMathFeaturesFromOptionList(optionList: OptionListAst | undefined, featureUsage: FeatureUsage): void {
+  if (!optionList) {
+    return;
+  }
+
+  for (const entry of optionList.entries) {
+    if (entry.kind !== "kv") {
+      continue;
+    }
+    if (entry.key !== "evaluate") {
+      continue;
+    }
+    markFeature(featureUsage, "pgfmath_expression", "supported");
+    if (containsPgfMathRandomToken(entry.valueRaw)) {
+      markFeature(featureUsage, "pgfmath_random_functions", "supported");
+    }
+  }
+}
+
+function containsPgfMathRandomToken(input: string): boolean {
+  const normalized = input.toLowerCase();
+  return /\b(?:rnd|rand|random)\b/.test(normalized);
 }
 
 function applyForeachAttributionToElements(

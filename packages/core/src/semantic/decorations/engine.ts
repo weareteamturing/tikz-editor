@@ -13,6 +13,7 @@ import {
   type PathSegment,
   sliceSegment
 } from "../../geometry/path-sampler.js";
+import type { PgfRandom } from "../pgfmath/rng.js";
 
 type SampleFrame = {
   point: Point;
@@ -67,7 +68,12 @@ export type DecorationApplyResult =
       elements: SceneElement[];
     };
 
-export function applyDecorationToPath(path: ScenePath, decoration: DecorationStyle, seedRaw: string): DecorationApplyResult {
+export function applyDecorationToPath(
+  path: ScenePath,
+  decoration: DecorationStyle,
+  seedRaw: string,
+  rng?: PgfRandom
+): DecorationApplyResult {
   const name = canonicalDecorationName(decoration.name);
   if (!name || name === "none") {
     return {
@@ -101,7 +107,7 @@ export function applyDecorationToPath(path: ScenePath, decoration: DecorationSty
     };
   }
 
-  const decoratedCommands = decorateCommands(path.commands, decoration, seedRaw, name);
+  const decoratedCommands = decorateCommands(path.commands, decoration, seedRaw, name, rng);
   const decoratedPath = clonePath(path);
   decoratedPath.id = `${path.id}:decorated:${sanitizeDecorationName(name)}`;
   decoratedPath.undecoratedCommands = path.commands.map((command) => cloneCommand(command));
@@ -168,7 +174,13 @@ function cloneCommand(command: ScenePathCommand): ScenePathCommand {
   return { kind: "Z" };
 }
 
-function decorateCommands(commands: ScenePathCommand[], decoration: DecorationStyle, seedRaw: string, mainName: string): ScenePathCommand[] {
+function decorateCommands(
+  commands: ScenePathCommand[],
+  decoration: DecorationStyle,
+  seedRaw: string,
+  mainName: string,
+  rng?: PgfRandom
+): ScenePathCommand[] {
   const transformSpec = parseDecorationTransform(decoration.transformRaw);
   const subpaths = splitPathIntoSubpaths(commands).filter(hasDrawablePathCommands);
   const allCommands: ScenePathCommand[] = [];
@@ -204,7 +216,7 @@ function decorateCommands(commands: ScenePathCommand[], decoration: DecorationSt
       }
 
       const seed = `${seedRaw}:${subpathIndex}:${pieceIndex}:${piece.name}`;
-      const polylines = decorateSegments(pieceSegments, piece.name, decoration, transformSpec, seed);
+      const polylines = decorateSegments(pieceSegments, piece.name, decoration, transformSpec, seed, rng);
       for (const polyline of polylines) {
         if (polyline.length === 0) {
           continue;
@@ -502,7 +514,8 @@ function decorateSegments(
   name: string,
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
-  seedRaw: string
+  seedRaw: string,
+  rng?: PgfRandom
 ): Point[][] {
   const canonical = canonicalDecorationName(name) ?? "lineto";
 
@@ -517,7 +530,7 @@ function decorateSegments(
     case "straight zigzag":
       return [decorateStraightZigzag(segments, decoration, transformSpec)];
     case "random steps":
-      return [decorateRandomSteps(segments, decoration, transformSpec, seedRaw)];
+      return [decorateRandomSteps(segments, decoration, transformSpec, seedRaw, rng)];
     case "saw":
       return [decorateSaw(segments, decoration, transformSpec)];
     case "bent":
@@ -622,14 +635,19 @@ function decorateRandomSteps(
   segments: PathSegment[],
   decoration: DecorationStyle,
   transformSpec: DecorationTransformSpec,
-  seedRaw: string
+  seedRaw: string,
+  rng?: PgfRandom
 ): Point[] {
-  const random = makeDeterministicRandom(seedRaw);
+  const random = rng ? () => rng.rand() : makeDeterministicRandom(seedRaw);
   const polylines: Point[][] = [];
 
   for (let index = 0; index < segments.length; index += 1) {
     const segmentSeed = `${seedRaw}:segment:${index}`;
-    const segmentRandom = index === 0 ? random : makeDeterministicRandom(segmentSeed);
+    const segmentRandom = rng
+      ? random
+      : index === 0
+        ? random
+        : makeDeterministicRandom(segmentSeed);
     const segmentPoints = decorateRandomStepsOnSegment(segments[index], decoration, transformSpec, segmentRandom);
     if (segmentPoints.length > 0) {
       polylines.push(segmentPoints);

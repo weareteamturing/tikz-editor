@@ -1,4 +1,5 @@
 import { applyDecorationToPath } from "../decorations/index.js";
+import type { PgfRandom } from "../pgfmath/rng.js";
 import type { ResolvedStyle, SceneElement, ScenePath } from "../types.js";
 import { appendCircleSubpath, appendEllipseSubpath } from "./elements.js";
 import type { DiagnosticPushFn, FeatureMarkFn } from "./types.js";
@@ -8,6 +9,7 @@ export function decoratePathElements(
   decoration: ResolvedStyle["decoration"],
   mode: "replace" | "collect",
   statementId: string,
+  rng: PgfRandom,
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn
 ): SceneElement[] {
@@ -26,7 +28,7 @@ export function decoratePathElements(
       continue;
     }
 
-    const outcome = applyDecorationToPath(path, decoration, `${statementId}:${element.id}`);
+    const outcome = applyDecorationToPath(path, decoration, `${statementId}:${element.id}`, rng);
     if (outcome.kind === "unsupported") {
       markDecorationFeature(outcome.name, "unsupported", markFeature);
       pushDiagnostic(

@@ -76,6 +76,7 @@ import { resolveNodeTargetPoint } from "./placement.js";
 import { normalizeEscapedTextSpaces } from "./normalize-text.js";
 import { normalizeOptionValue } from "./utils.js";
 import { applyMatrixToVector, identityMatrix, multiplyMatrix, rotationMatrix } from "../transform.js";
+import type { PgfRandom } from "../pgfmath/rng.js";
 
 const CONTINUOUS_POSITIONING_DIRECTIONS: PositioningDirection[] = [
   "above",
@@ -435,7 +436,7 @@ export function evaluateNodeItem(
     placementOptions.textMode ?? "text"
   );
   const nodeLayout = adjustNodeLayoutForShape(baseNodeLayout, nodeShape);
-  const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions);
+  const shapeGeometry = resolveNodeShapeGeometryParams(expandedNodeOptions, () => context.mathRandom.nextRaw());
   const slopedRotation = resolveSlopedNodeRotation(expandedNodeOptions, segment);
   const inheritedNodeTransform: Matrix2D = frame.transformShape
     ? { a: frame.transform.a, b: frame.transform.b, c: frame.transform.c, d: frame.transform.d, e: 0, f: 0 }
@@ -956,6 +957,7 @@ export function evaluateNodeItem(
     nodeElements,
     nodeLocalStyle.decoration,
     `${statement.id}:${item.id}`,
+    context.mathRandom,
     markFeature,
     pushDiagnostic
   );
@@ -1622,6 +1624,7 @@ function applyNodeDecorations(
   elements: SceneElement[],
   decoration: ResolvedStyle["decoration"],
   seedPrefix: string,
+  rng: PgfRandom,
   markFeature: FeatureMarkFn,
   pushDiagnostic: DiagnosticPushFn
 ): SceneElement[] {
@@ -1645,7 +1648,7 @@ function applyNodeDecorations(
       continue;
     }
 
-    const outcome = applyDecorationToPath(path, decoration, `${seedPrefix}:${element.id}`);
+    const outcome = applyDecorationToPath(path, decoration, `${seedPrefix}:${element.id}`, rng);
     if (outcome.kind === "unsupported") {
       markNodeDecorationFeature(outcome.name, "unsupported", markFeature);
       pushDiagnostic(

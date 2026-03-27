@@ -1,7 +1,7 @@
 import { splitAllAtTopLevel } from "../domains/coordinates/parse.js";
 import type { Span } from "../ast/types.js";
 import type { OptionEntry, OptionListAst } from "../options/types.js";
-import { parseQuantityExpression } from "../semantic/coords/parse-length.js";
+import { evaluatePgfMathExpression, formatPgfMathNumber } from "../semantic/pgfmath/evaluator.js";
 import { parseBooleanishNormalized } from "../utils/booleanish.js";
 import { expandForeachList } from "./list.js";
 import { substituteForeachBindings } from "./substitute.js";
@@ -215,21 +215,21 @@ export function buildForeachIterations(params: {
 
     for (const evaluateRule of optionsConfig.evaluateRules) {
       const substitutedExpression = substituteForeachBindings(evaluateRule.expression, bindingScope);
-      const parsed = parseQuantityExpression(substitutedExpression);
-      if (!parsed) {
+      const evaluated = evaluatePgfMathExpression(substitutedExpression);
+      if (evaluated.ok === false) {
         diagnostics.push({
           severity: "warning",
-          code: "foreach-evaluate-failed",
-          message: `Could not evaluate foreach expression: ${substitutedExpression}`,
+          code: `foreach-evaluate-failed:${evaluated.code}`,
+          message: `Could not evaluate foreach expression: ${substitutedExpression} (${evaluated.message})`,
           span: evaluateRule.span
         });
         bindingScope[evaluateRule.target] = substitutedExpression;
         continue;
       }
 
-      bindingScope[evaluateRule.target] = formatNumber(parsed.value);
+      bindingScope[evaluateRule.target] = formatPgfMathNumber(evaluated.quantity.value);
       if (evaluateRule.target === evaluateRule.variable) {
-        bindingScope[evaluateRule.variable] = formatNumber(parsed.value);
+        bindingScope[evaluateRule.variable] = formatPgfMathNumber(evaluated.quantity.value);
       }
     }
 
@@ -324,19 +324,6 @@ function pushUnsupportedOptionDiagnostic(config: ForeachOptionsConfig, entry: Op
 
 function parseBoolean(raw: string, fallback: boolean): boolean {
   return parseBooleanishNormalized(raw, { allowOnOff: true }) ?? fallback;
-}
-
-function formatNumber(value: number): string {
-  if (Math.abs(value) <= 1e-12) {
-    return "0";
-  }
-  if (Math.abs(value - Math.round(value)) <= 1e-9) {
-    return String(Math.round(value));
-  }
-  return value
-    .toFixed(12)
-    .replace(/\.?0+$/, "")
-    .replace(/^-0$/, "0");
 }
 
 function normalizeListEntryForSplit(raw: string): string {

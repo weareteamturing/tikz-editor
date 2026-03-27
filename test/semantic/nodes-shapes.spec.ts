@@ -1223,6 +1223,41 @@ describe("semantic evaluator / nodes and shapes", () => {
       }
     });
 
+    it("keeps random starburst deterministic with explicit seed", () => {
+      const source = String.raw`\begin{tikzpicture}
+    \pgfmathsetseed{17};
+    \node[starburst,starburst points=13,starburst point height=5pt,random starburst,draw] at (0,0) {S};
+  \end{tikzpicture}`;
+      const first = evaluateSemantic(source);
+      const second = evaluateSemantic(source);
+
+      const firstPath = first.scene.elements.find((element) => element.kind === "Path");
+      const secondPath = second.scene.elements.find((element) => element.kind === "Path");
+      expect(firstPath?.kind).toBe("Path");
+      expect(secondPath?.kind).toBe("Path");
+      if (firstPath?.kind === "Path" && secondPath?.kind === "Path") {
+        expect(firstPath.commands).toEqual(secondPath.commands);
+      }
+    });
+
+    it("keeps random starburst=0 geometry deterministic and seed-independent", () => {
+      const seeded = evaluateSemantic(String.raw`\begin{tikzpicture}
+    \pgfmathsetseed{99};
+    \node[starburst,starburst points=9,starburst point height=4pt,random starburst=0,draw] at (0,0) {S};
+  \end{tikzpicture}`);
+      const unseeded = evaluateSemantic(String.raw`\begin{tikzpicture}
+    \node[starburst,starburst points=9,starburst point height=4pt,random starburst=0,draw] at (0,0) {S};
+  \end{tikzpicture}`);
+
+      const seededPath = seeded.scene.elements.find((element) => element.kind === "Path");
+      const unseededPath = unseeded.scene.elements.find((element) => element.kind === "Path");
+      expect(seededPath?.kind).toBe("Path");
+      expect(unseededPath?.kind).toBe("Path");
+      if (seededPath?.kind === "Path" && unseededPath?.kind === "Path") {
+        expect(seededPath.commands).toEqual(unseededPath.commands);
+      }
+    });
+
     it("supports signal and tape symbol shapes", () => {
       const source = String.raw`\begin{tikzpicture}
     \node[signal,signal to=east and west,signal from=north and south,signal pointer angle=60,draw,name=g] at (0,0) {G};
