@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { renderTikzToSvg } from "../packages/core/src/render/index.js";
+import type { EditAction } from "../packages/core/src/edit/actions.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
+import { buildFillModeSetPropertyMutations } from "../packages/core/src/edit/inspector.js";
+import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import {
   buildSharedStylesCascadeModel,
   buildStylesCascadeModel,
-  planStylesRenamePropertyActions
+  planStylesRemovePropertyActions,
+  planStylesRenamePropertyActions,
+  planStylesSetPropertyActions
 } from "../packages/core/src/edit/styles-cascade.js";
 
 function firstPath(source: string) {
@@ -14,6 +18,19 @@ function firstPath(source: string) {
     throw new Error("Expected a path element");
   }
   return { rendered, element };
+}
+
+function applyActionsToSource(source: string, actions: EditAction[]): string {
+  let current = source;
+  for (const action of actions) {
+    const result = applyEditAction(current, [], action);
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") {
+      throw new Error(`Expected success, got ${result.kind}`);
+    }
+    current = result.newSource;
+  }
+  return current;
 }
 
 describe("styles cascade model", () => {
@@ -116,5 +133,142 @@ describe("styles cascade model", () => {
       key: "dotted",
       value: "true"
     });
+  });
+});
+
+describe("styles cascade integration edits", () => {
+  it("renames a flag option from dashed to dotted", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[dashed,draw=red] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const declaration = model.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.trim() === "dashed");
+    expect(declaration).toBeDefined();
+
+    const updated = applyActionsToSource(
+      source,
+      planStylesRenamePropertyActions(declaration!.writeTargets, "dashed", "dotted", "")
+    );
+
+    expect(updated).toContain("dotted");
+    expect(updated).toContain("draw=red");
+    expect(updated).not.toContain("dashed");
+  });
+
+  it("renames key-value draw=red to fill=red while preserving value", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=red,line width=1pt] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const declaration = model.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.includes("draw=red"));
+    expect(declaration).toBeDefined();
+
+    const updated = applyActionsToSource(
+      source,
+      planStylesRenamePropertyActions(declaration!.writeTargets, "draw", "fill", "red")
+    );
+
+    expect(updated).toContain("fill=red");
+    expect(updated).not.toContain("draw=red");
+    expect(updated).toContain("line width=1pt");
+  });
+
+  it("removes draw=red without disturbing other options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[draw=red,line width=1pt,dashed] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const declaration = model.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.includes("draw=red"));
+    expect(declaration).toBeDefined();
+
+    const updated = applyActionsToSource(source, planStylesRemovePropertyActions(declaration!.writeTargets, "draw"));
+
+    expect(updated).not.toContain("draw=red");
+    expect(updated).toContain("line width=1pt");
+    expect(updated).toContain("dashed");
+  });
+
+  it("renames unsupported raw options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[foo=bar,draw=red] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const rawDecl = model.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.includes("foo=bar"));
+    expect(rawDecl).toBeDefined();
+
+    const updated = applyActionsToSource(
+      source,
+      planStylesRenamePropertyActions(rawDecl!.writeTargets, "foo", "baz", "bar")
+    );
+
+    expect(updated).toContain("baz=bar");
+    expect(updated).not.toContain("foo=bar");
+  });
+
+  it("deletes unsupported raw options", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[foo=bar,draw=red] (0,0) -- (1,0);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const rawDecl = model.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.includes("foo=bar"));
+    expect(rawDecl).toBeDefined();
+
+    const updated = applyActionsToSource(source, planStylesRemovePropertyActions(rawDecl!.writeTargets, "foo"));
+
+    expect(updated).not.toContain("foo=bar");
+    expect(updated).toContain("draw=red");
+  });
+
+  it("applies fill-mode transitions with clear keys", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[fill=blue,pattern=north east lines] (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+    const { rendered, element } = firstPath(source);
+    const model = buildStylesCascadeModel(element, { source, editHandles: rendered.semantic.editHandles });
+    const commandSection = model.sections.find((s) => s.kind === "command");
+    expect(commandSection).toBeDefined();
+
+    const mutations = buildFillModeSetPropertyMutations("gradient", {});
+    const actions = mutations.flatMap((mutation) =>
+      planStylesSetPropertyActions(commandSection!.writeTargets, mutation)
+    );
+
+    const updated = applyActionsToSource(source, actions);
+
+    expect(updated).toContain("shade");
+    expect(updated).toContain("shading=");
+    expect(updated).not.toContain("pattern=north east lines");
+  });
+
+  it("applies shared-cascade edits to all selected elements", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw[dashed,draw=red] (0,0) -- (1,0);
+  \draw[dashed,draw=red] (0,1) -- (1,1);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const paths = rendered.semantic.scene.elements.filter((entry) => entry.kind === "Path");
+    expect(paths).toHaveLength(2);
+    const models = paths.map((entry) =>
+      buildStylesCascadeModel(entry, { source, editHandles: rendered.semantic.editHandles })
+    );
+    const shared = buildSharedStylesCascadeModel(models);
+    expect(shared).not.toBeNull();
+
+    const dashedDecl = shared!.sections.flatMap((s) => s.declarations).find((d) => d.sourceText.trim() === "dashed");
+    expect(dashedDecl).toBeDefined();
+    expect(dashedDecl!.writeTargets).toHaveLength(2);
+
+    const updated = applyActionsToSource(
+      source,
+      planStylesRenamePropertyActions(dashedDecl!.writeTargets, "dashed", "dotted", "")
+    );
+
+    expect(updated).not.toContain("dashed");
+    expect((updated.match(/dotted/g) ?? []).length).toBe(2);
   });
 });
