@@ -371,10 +371,9 @@ function buildUnsupportedDeclaration(
     cssValue: raw.includes("=") ? raw.slice(raw.indexOf("=") + 1).trim() : "",
     property: null,
     sourceText: raw,
-    writeTarget: { ...writeTarget, writable: false },
+    writeTarget,
     priorityKey: `unsupported:${raw}`,
-    defaultLike: styleEntry.sourceRef?.sourceKind === "command-default" || styleEntry.sourceRef?.sourceKind === "builtin-style",
-    readOnlyReason: "This declaration is not editable in the Styles panel yet."
+    defaultLike: styleEntry.sourceRef?.sourceKind === "command-default" || styleEntry.sourceRef?.sourceKind === "builtin-style"
   };
 }
 
@@ -383,7 +382,7 @@ function applyDeclarationStatuses(sections: StylesCascadeSection[]): void {
   for (const section of sections) {
     section.declarations = section.declarations.map((declaration) => {
       if (declaration.propertyId == null) {
-        return { ...declaration, status: "unsupported" };
+        return { ...declaration, status: declaration.writeTargets.length > 0 ? "active" : "unsupported" };
       }
       if (!seen.has(declaration.propertyId)) {
         seen.add(declaration.propertyId);
@@ -1012,4 +1011,24 @@ function formatCssValue(property: InspectorProperty | null): string {
 
 function colorPropertyValue(property: InspectorProperty | undefined): string | null {
   return property?.kind === "color" ? property.syntaxValue ?? property.value : null;
+}
+
+export function planStylesRemovePropertyActions(
+  writeTargets: readonly SetPropertyWriteTarget[],
+  key: string
+): EditAction[] {
+  return planStylesSetPropertyActions(writeTargets, { key, value: "" });
+}
+
+export function planStylesRenamePropertyActions(
+  writeTargets: readonly SetPropertyWriteTarget[],
+  oldKey: string,
+  newKey: string,
+  currentValue: string
+): EditAction[] {
+  if (oldKey === newKey) return [];
+  const nextValue = currentValue.trim().length > 0 ? currentValue : "true";
+  const removeActions = planStylesSetPropertyActions(writeTargets, { key: oldKey, value: "" });
+  const addActions = planStylesSetPropertyActions(writeTargets, { key: newKey, value: nextValue });
+  return [...removeActions, ...addActions];
 }

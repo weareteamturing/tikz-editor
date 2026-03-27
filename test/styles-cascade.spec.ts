@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { renderTikzToSvg } from "../packages/core/src/render/index.js";
 import { applyEditAction } from "../packages/core/src/edit/actions.js";
-import { buildSharedStylesCascadeModel, buildStylesCascadeModel } from "../packages/core/src/edit/styles-cascade.js";
+import {
+  buildSharedStylesCascadeModel,
+  buildStylesCascadeModel,
+  planStylesRenamePropertyActions
+} from "../packages/core/src/edit/styles-cascade.js";
 
 function firstPath(source: string) {
   const rendered = renderTikzToSvg(source);
@@ -89,5 +93,28 @@ describe("styles cascade model", () => {
       throw new Error("Expected success");
     }
     expect(result.newSource).toContain("accent/.style={draw=blue}");
+  });
+
+  it("renaming a flag-style key preserves it as a flag", () => {
+    const writeTarget = {
+      mode: "setProperty" as const,
+      elementId: "source-1",
+      level: "command" as const,
+      key: "",
+      writable: true
+    };
+
+    const actions = planStylesRenamePropertyActions([writeTarget], "dashed", "dotted", "");
+    expect(actions).toHaveLength(2);
+    expect(actions[0]).toMatchObject({
+      kind: "setProperty",
+      key: "dashed",
+      value: ""
+    });
+    expect(actions[1]).toMatchObject({
+      kind: "setProperty",
+      key: "dotted",
+      value: "true"
+    });
   });
 });
