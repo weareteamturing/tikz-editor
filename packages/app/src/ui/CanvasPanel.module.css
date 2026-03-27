@@ -115,6 +115,12 @@
   cursor: crosshair;
 }
 
+.viewportMagnify {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M10.4 10.4L14 14' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    8 8,
+    zoom-in;
+}
+
 .lockOverlay {
   position: absolute;
   inset: 10px auto auto 10px;
@@ -189,6 +195,32 @@
 
 .interactionLayerTool {
   cursor: crosshair;
+}
+
+.interactionLayerMagnify {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M10.4 10.4L14 14' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E")
+    8 8,
+    zoom-in;
+}
+
+.magnifierOverlay {
+  position: absolute;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 1px solid rgba(30, 30, 30, 0.24);
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.22),
+    0 2px 5px rgba(0, 0, 0, 0.14);
+  background: #fff;
+}
+
+.magnifierContent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
 }
 
 .gridOverlay {

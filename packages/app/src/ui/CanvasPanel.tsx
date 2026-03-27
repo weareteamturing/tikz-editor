@@ -634,6 +634,7 @@ export function CanvasPanel() {
     };
   }, [baseSvgModel, svgResult]);
   const [toolCursorWorld, setToolCursorWorld] = useState<Point | null>(null);
+  const [magnifierState, setMagnifierState] = useState<{ pointerId: number; x: number; y: number } | null>(null);
   const [pathDraft, setPathDraft] = useState<PathToolDraft | null>(null);
   const [freehandDraft, setFreehandDraft] = useState<FreehandToolDraft | null>(null);
   const [pathSegmentDraft, setPathSegmentDraft] = useState<Extract<DragState, { kind: "tool-path-segment" }> | null>(null);
@@ -2228,6 +2229,7 @@ export function CanvasPanel() {
     onViewportPointerUp,
     onInteractionPointerDown,
     onInteractionPointerUp,
+    onInteractionLostPointerCapture,
     onInteractionPointerMove,
     onInteractionPointerLeave,
     onInteractionPointerEnter
@@ -2261,6 +2263,8 @@ export function CanvasPanel() {
     setPendingBezier,
     setNodeAnchorOverlay,
     setFreehandDraft,
+    setMagnifierState,
+    setDragCursorLock,
     pathDraftRef,
     finalizePathDraft,
     queueSelectionForAddedElement,
@@ -2277,7 +2281,8 @@ export function CanvasPanel() {
     toolDraft,
     bezierBendDraft,
     freehandDraft,
-    parseOptions: editParseOptions
+    parseOptions: editParseOptions,
+    magnifierState
   });
 
   const {
@@ -2433,6 +2438,18 @@ export function CanvasPanel() {
     const timer = window.setTimeout(() => setWarning(null), 3200);
     return () => window.clearTimeout(timer);
   }, [warning]);
+
+  useEffect(() => {
+    if (toolMode === "magnify") {
+      return;
+    }
+    if (magnifierState != null) {
+      setMagnifierState(null);
+    }
+    if (dragCursorLock === "none") {
+      setDragCursorLock(null);
+    }
+  }, [dragCursorLock, magnifierState, setDragCursorLock, setMagnifierState, toolMode]);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -2833,81 +2850,82 @@ export function CanvasPanel() {
     <>
       <CanvasPanelView
         showRulers={showRulers}
-      viewportSize={viewportSize}
-      topRulerRef={topRulerRef}
-      leftRulerRef={leftRulerRef}
-      onTopRulerPointerDown={onTopRulerPointerDown}
-      onLeftRulerPointerDown={onLeftRulerPointerDown}
-      onCanvasContextMenu={onCanvasContextMenu}
-      rulers={rulers}
-      LEFT_RULER_DRAG_SOURCE_WIDTH_PX={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
-      toolMode={toolMode}
-      viewportRef={viewportRef}
-      onViewportKeyDown={onViewportKeyDown}
-      onViewportCopy={onViewportCopy}
-      onViewportCut={onViewportCut}
-      onViewportPaste={onViewportPaste}
-      onViewportDragOver={onViewportDragOver}
-      onViewportDrop={onViewportDrop}
-      onBackgroundClick={onBackgroundClick}
-      onViewportPointerDown={onViewportPointerDown}
-      onViewportPointerUp={onViewportPointerUp}
-      svgResult={svgResult}
-      noActiveFigure={snapshot.figures.length > 0 && snapshot.activeFigureId == null}
-      assistantLockReason={assistantLockReason}
-      snapshot={snapshot}
-      svgModel={svgModel}
-      canvasTransform={canvasTransform}
-      showTransparencyGrid={showTransparencyGrid}
-      showDocumentBounds={showDocumentBounds}
-      svgDiffHints={svgDiffHints}
-      forceSvgReplaceAll={forceSvgReplaceAll}
-      onSvgPatchFallback={onSvgPatchFallback}
-      interactionSvgRef={interactionSvgRef}
-      onInteractionPointerDown={onInteractionPointerDown}
-      onInteractionPointerUp={onInteractionPointerUp}
-      onInteractionPointerMove={onInteractionPointerMove}
-      onInteractionPointerEnter={onInteractionPointerEnter}
-      onInteractionPointerLeave={onInteractionPointerLeave}
-      gridLines={gridLines}
-      gridMinorStrokeWidth={gridMinorStrokeWidth}
-      gridMajorStrokeWidth={gridMajorStrokeWidth}
-      visibleRanges={visibleRanges}
-      showGuides={showGuides}
-      renderedGuides={renderedGuides}
-      guideStrokeWidth={guideStrokeWidth}
-      guideHitStrokeWidth={guideHitStrokeWidth}
-      onGuidePointerDown={onGuidePointerDown}
-      snapLines={snapLines}
-      snapStrokeWidth={snapStrokeWidth}
-      snapCrossSize={snapCrossSize}
-      toolPreview={toolPreview}
-      handleStrokeWidth={handleStrokeWidth}
-      previewArrowPoints={previewArrowPoints}
-      hitRegions={hitRegions}
-      hoveredElementId={hoveredElementId}
-      editableTextRegionKeys={editableTextRegionKeys}
-      draggableSourceIds={draggableSourceIds}
-      onElementPointerDown={onElementPointerDown}
-      onElementContextMenu={onElementContextMenu}
-      onElementDoubleClick={onElementDoubleClick}
-      onHoverChange={(id: string | null) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
-      marqueeBounds={marqueeBounds}
-      selectionBoxes={selectionBoxes}
-      adornmentHighlightBoxes={adornmentHighlightBoxes}
-      selectedAdornmentConnectors={selectedAdornmentConnectors}
-      selectionStrokeWidth={selectionStrokeWidth}
-      textSelectionVisual={textSelectionVisual}
-      selectionDragStrokeWidth={selectionDragStrokeWidth}
-      matrixSelectionSourceIds={matrixSelectionSourceIds}
-      curveControlLines={curveControlLines}
-      curveControlStrokeWidth={curveControlStrokeWidth}
-      nodeAnchorOverlay={nodeAnchorOverlay}
-      handleHalfSize={handleHalfSize}
-      handleDisplays={handleDisplays}
-      onHandlePointerDown={onHandlePointerDown}
-      onResizeHandlePointerDown={onResizeHandlePointerDown}
-      onRotateHandlePointerDown={onRotateHandlePointerDown}
+        viewportSize={viewportSize}
+        topRulerRef={topRulerRef}
+        leftRulerRef={leftRulerRef}
+        onTopRulerPointerDown={onTopRulerPointerDown}
+        onLeftRulerPointerDown={onLeftRulerPointerDown}
+        onCanvasContextMenu={onCanvasContextMenu}
+        rulers={rulers}
+        LEFT_RULER_DRAG_SOURCE_WIDTH_PX={LEFT_RULER_DRAG_SOURCE_WIDTH_PX}
+        toolMode={toolMode}
+        viewportRef={viewportRef}
+        onViewportKeyDown={onViewportKeyDown}
+        onViewportCopy={onViewportCopy}
+        onViewportCut={onViewportCut}
+        onViewportPaste={onViewportPaste}
+        onViewportDragOver={onViewportDragOver}
+        onViewportDrop={onViewportDrop}
+        onBackgroundClick={onBackgroundClick}
+        onViewportPointerDown={onViewportPointerDown}
+        onViewportPointerUp={onViewportPointerUp}
+        svgResult={svgResult}
+        noActiveFigure={snapshot.figures.length > 0 && snapshot.activeFigureId == null}
+        assistantLockReason={assistantLockReason}
+        snapshot={snapshot}
+        svgModel={svgModel}
+        canvasTransform={canvasTransform}
+        showTransparencyGrid={showTransparencyGrid}
+        showDocumentBounds={showDocumentBounds}
+        svgDiffHints={svgDiffHints}
+        forceSvgReplaceAll={forceSvgReplaceAll}
+        onSvgPatchFallback={onSvgPatchFallback}
+        interactionSvgRef={interactionSvgRef}
+        onInteractionPointerDown={onInteractionPointerDown}
+        onInteractionPointerUp={onInteractionPointerUp}
+        onInteractionLostPointerCapture={onInteractionLostPointerCapture}
+        onInteractionPointerMove={onInteractionPointerMove}
+        onInteractionPointerEnter={onInteractionPointerEnter}
+        onInteractionPointerLeave={onInteractionPointerLeave}
+        gridLines={gridLines}
+        gridMinorStrokeWidth={gridMinorStrokeWidth}
+        gridMajorStrokeWidth={gridMajorStrokeWidth}
+        visibleRanges={visibleRanges}
+        showGuides={showGuides}
+        renderedGuides={renderedGuides}
+        guideStrokeWidth={guideStrokeWidth}
+        guideHitStrokeWidth={guideHitStrokeWidth}
+        onGuidePointerDown={onGuidePointerDown}
+        snapLines={snapLines}
+        snapStrokeWidth={snapStrokeWidth}
+        snapCrossSize={snapCrossSize}
+        toolPreview={toolPreview}
+        handleStrokeWidth={handleStrokeWidth}
+        previewArrowPoints={previewArrowPoints}
+        hitRegions={hitRegions}
+        hoveredElementId={hoveredElementId}
+        editableTextRegionKeys={editableTextRegionKeys}
+        draggableSourceIds={draggableSourceIds}
+        onElementPointerDown={onElementPointerDown}
+        onElementContextMenu={onElementContextMenu}
+        onElementDoubleClick={onElementDoubleClick}
+        onHoverChange={(id: string | null) => dispatch({ type: "SET_HOVERED_ELEMENT", id })}
+        marqueeBounds={marqueeBounds}
+        selectionBoxes={selectionBoxes}
+        adornmentHighlightBoxes={adornmentHighlightBoxes}
+        selectedAdornmentConnectors={selectedAdornmentConnectors}
+        selectionStrokeWidth={selectionStrokeWidth}
+        textSelectionVisual={textSelectionVisual}
+        selectionDragStrokeWidth={selectionDragStrokeWidth}
+        matrixSelectionSourceIds={matrixSelectionSourceIds}
+        curveControlLines={curveControlLines}
+        curveControlStrokeWidth={curveControlStrokeWidth}
+        nodeAnchorOverlay={nodeAnchorOverlay}
+        handleHalfSize={handleHalfSize}
+        handleDisplays={handleDisplays}
+        onHandlePointerDown={onHandlePointerDown}
+        onResizeHandlePointerDown={onResizeHandlePointerDown}
+        onRotateHandlePointerDown={onRotateHandlePointerDown}
         platform={platform}
         contextMenuState={contextMenuState}
         commandRuntimeBindings={commandRuntime.bindings}
@@ -2917,17 +2935,18 @@ export function CanvasPanel() {
           commandRuntime.runCommand(commandId, origin);
           setContextMenuState(null);
         }}
-      dragTooltip={dragTooltip}
-      dragTooltipBoundary={dragTooltipBoundaryRef.current}
-      warning={warning}
-      copyWarningToClipboard={copyWarningToClipboard}
-      onWarningBarKeyDown={onWarningBarKeyDown}
-      selectionHint={pathSelectionHint}
-      showDevPanel={showDevPanel}
-      snapDebugRect={snapDebugRect}
-      onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}
-      snapDebug={snapDebug}
-      onSnapDebugResizePointerDown={onSnapDebugResizePointerDown}
+        dragTooltip={dragTooltip}
+        dragTooltipBoundary={dragTooltipBoundaryRef.current}
+        warning={warning}
+        copyWarningToClipboard={copyWarningToClipboard}
+        onWarningBarKeyDown={onWarningBarKeyDown}
+        selectionHint={pathSelectionHint}
+        showDevPanel={showDevPanel}
+        snapDebugRect={snapDebugRect}
+        onSnapDebugMovePointerDown={onSnapDebugMovePointerDown}
+        snapDebug={snapDebug}
+        onSnapDebugResizePointerDown={onSnapDebugResizePointerDown}
+        magnifierState={magnifierState}
         RULER_SIZE={RULER_SIZE}
       />
       {equationModalTarget ? (

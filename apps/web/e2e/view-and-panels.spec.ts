@@ -138,3 +138,40 @@ test("view menu toggles transparency grid and infinite canvas, then marquee star
   expect(dragKindAfterMove).toBe("marquee");
   await page.mouse.up();
 });
+
+test("magnify tool shows a temporary lens while the pointer is held down", async ({ page }) => {
+  await gotoApp(page);
+
+  await page.locator('[data-tauri-drag-region] button[aria-label="Magnify"]').click();
+  await expect(page.locator('[data-tauri-drag-region] button[aria-label="Magnify"]')).toHaveClass(/btnActive/);
+
+  const interactionLayer = page.getByTestId("canvas-interaction-layer");
+  await expect(interactionLayer).toBeVisible();
+  const viewportBox = await interactionLayer.boundingBox();
+  if (!viewportBox) {
+    throw new Error("Missing canvas bounds for magnify test.");
+  }
+
+  const startX = viewportBox.x + viewportBox.width * 0.5;
+  const startY = viewportBox.y + viewportBox.height * 0.5;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  const magnifier = page.getByTestId("canvas-magnifier-shell");
+  await expect(magnifier).toBeVisible();
+  const shellBoxBefore = await magnifier.boundingBox();
+  if (!shellBoxBefore) {
+    throw new Error("Missing magnifier bounds before drag.");
+  }
+
+  await page.mouse.move(startX + 40, startY + 30);
+  await expect(magnifier).toBeVisible();
+  const shellBoxAfter = await magnifier.boundingBox();
+  if (!shellBoxAfter) {
+    throw new Error("Missing magnifier bounds after drag.");
+  }
+  expect(Math.abs(shellBoxAfter.x - shellBoxBefore.x)).toBeGreaterThan(5);
+  expect(Math.abs(shellBoxAfter.y - shellBoxBefore.y)).toBeGreaterThan(5);
+
+  await page.mouse.up();
+  await expect(magnifier).toHaveCount(0);
+});

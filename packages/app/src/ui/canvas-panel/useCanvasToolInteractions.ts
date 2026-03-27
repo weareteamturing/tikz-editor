@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { buildSnapContext, snapToolPointer, type SnapLine } from "tikz-editor/edit/snapping";
 import { type NodeAnchorTarget, type Point } from "tikz-editor/semantic/types";
 import { resolveEndpointAnchorSnap } from "./endpoint-anchor-snap";
@@ -44,6 +44,9 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     setPendingBezier,
     setNodeAnchorOverlay,
     setFreehandDraft,
+    setMagnifierState,
+    setDragCursorLock,
+    magnifierState,
     pathDraftRef,
     finalizePathDraft,
     queueSelectionForAddedElement,
@@ -61,7 +64,6 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     freehandDraft,
     parseOptions
   } = args;
-
   const finalizePendingTouchViewportTap = useCallback(
     (pointerId: number) => {
       const pending = pendingTouchViewportRef.current;
@@ -153,6 +155,30 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
 
       if (!svgResult) return;
+
+      if (toolMode === "magnify" && event.button === 0) {
+        setNodeAnchorOverlay(null);
+        setToolCursorWorld(null);
+        setSnapLines([]);
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        } catch {
+          // Ignore capture failures; magnifier still works while the pointer remains over the canvas.
+        }
+        const viewport = viewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        const rect = viewport.getBoundingClientRect();
+        setMagnifierState({
+          pointerId: event.pointerId,
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top
+        });
+        setDragCursorLock("none");
+        event.preventDefault();
+        return;
+      }
 
       const canPan = event.button === 1 || (event.button === 0 && event.altKey);
       if (canPan) {
@@ -548,6 +574,8 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       pathDraftRef,
       setBezierBendDraft,
       setFreehandDraft,
+      setMagnifierState,
+      setDragCursorLock,
       setPathDraft,
       setPathSegmentDraft,
       setPendingBezier,
@@ -567,6 +595,27 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (toolMode === "magnify") {
+        const magnifier = magnifierState;
+        if (!magnifier || magnifier.pointerId !== event.pointerId) {
+          setNodeAnchorOverlay(null);
+          setToolCursorWorld(null);
+          setSnapLines([]);
+          return;
+        }
+        const viewport = viewportRef.current;
+        if (!viewport) {
+          return;
+        }
+        const rect = viewport.getBoundingClientRect();
+        setMagnifierState({
+          pointerId: magnifier.pointerId,
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top
+        });
+        event.preventDefault();
         return;
       }
       if (toolMode === "addBucket") {
@@ -705,23 +754,42 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       dragRef,
       setSnapLines,
       setToolCursorWorld,
-      parseOptions
+      parseOptions,
+      magnifierState,
+      setMagnifierState,
+      viewportRef
     ]
   );
 
   const onInteractionPointerLeave = useCallback(() => {
+    if (toolMode === "magnify") {
+      if (!magnifierState) {
+        setNodeAnchorOverlay(null);
+        setToolCursorWorld(null);
+        setSnapLines([]);
+      }
+      return;
+    }
     if (toolMode === "select" || toolDraft || bezierBendDraft || pathSegmentDraft || freehandDraft) {
       return;
     }
     setNodeAnchorOverlay(null);
     setToolCursorWorld(null);
     setSnapLines([]);
-  }, [bezierBendDraft, freehandDraft, pathSegmentDraft, setNodeAnchorOverlay, setSnapLines, setToolCursorWorld, toolDraft, toolMode]);
+  }, [bezierBendDraft, freehandDraft, magnifierState, pathSegmentDraft, setNodeAnchorOverlay, setSnapLines, setToolCursorWorld, toolDraft, toolMode]);
 
   const onInteractionPointerEnter = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
       if (!svgResult || toolMode === "select") {
         setNodeAnchorOverlay(null);
+        return;
+      }
+      if (toolMode === "magnify") {
+        if (!magnifierState || magnifierState.pointerId !== event.pointerId) {
+          setNodeAnchorOverlay(null);
+          setToolCursorWorld(null);
+          setSnapLines([]);
+        }
         return;
       }
       if (toolMode === "addBucket") {
@@ -859,18 +927,60 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
       dragRef,
       setSnapLines,
       setToolCursorWorld,
-      parseOptions
+      parseOptions,
+      magnifierState,
+      toolMode
     ]
   );
 
   const onInteractionPointerUp = useCallback(
     (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (toolMode === "magnify") {
+        const magnifier = magnifierState;
+        if (magnifier && magnifier.pointerId === event.pointerId) {
+          setNodeAnchorOverlay(null);
+          setToolCursorWorld(null);
+          setSnapLines([]);
+          setMagnifierState(null);
+          setDragCursorLock(null);
+        }
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      }
       if (event.pointerType !== "touch") {
         return;
       }
       finalizePendingTouchViewportTap(event.pointerId);
     },
-    [finalizePendingTouchViewportTap]
+    [
+      finalizePendingTouchViewportTap,
+      magnifierState,
+      setDragCursorLock,
+      setMagnifierState,
+      setNodeAnchorOverlay,
+      setSnapLines,
+      setToolCursorWorld,
+      toolMode
+    ]
+  );
+
+  const onInteractionLostPointerCapture = useCallback(
+    (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (toolMode !== "magnify") {
+        return;
+      }
+      const magnifier = magnifierState;
+      if (!magnifier || magnifier.pointerId !== event.pointerId) {
+        return;
+      }
+      setNodeAnchorOverlay(null);
+      setToolCursorWorld(null);
+      setSnapLines([]);
+      setMagnifierState(null);
+      setDragCursorLock(null);
+    },
+    [magnifierState, setDragCursorLock, setMagnifierState, setNodeAnchorOverlay, setSnapLines, setToolCursorWorld, toolMode]
   );
 
   const onViewportPointerUp = useCallback(
@@ -889,6 +999,7 @@ export function useCanvasToolInteractions(args: UseCanvasToolInteractionsArgs) {
     onViewportPointerUp,
     onInteractionPointerDown,
     onInteractionPointerUp,
+    onInteractionLostPointerCapture,
     onInteractionPointerMove,
     onInteractionPointerLeave,
     onInteractionPointerEnter

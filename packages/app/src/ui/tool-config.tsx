@@ -14,10 +14,19 @@ function SelectIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+function MagnifyIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="8" r="4.8" />
+      <path d="M11.4 11.4L16 16" />
+    </svg>
+  );
+}
+
 function NodeIcon({ size = 20 }: { size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="3" width="16" height="14" stroke="#666" strokeDasharray="2 2" />
+      <rect x="2" y="3" width="16" height="14" stroke="currentColor" strokeOpacity="0.62" strokeDasharray="2 2" />
       <text x="10" y="13.5" fontSize="11" fontWeight="600" textAnchor="middle" fill="currentColor" stroke="none">A</text>
     </svg>
   );
@@ -37,13 +46,10 @@ function MatrixIcon({ size = 20 }: { size?: number }) {
 }
 
 function ShapeIcon({ size = 20 }: { size?: number }) {
-  // Two overlapping shapes: star in back (lighter), thick arrow in front (darker)
   return (
-    <svg viewBox="0 0 20 20" width={size} height={size}>
-      {/* 5-point star in back, lighter gray, stretched right */}
-      <polygon fill="#777" points="7,0 9,5 14,5 10,8.5 12,14 7,11 2,14 3.5,8.5 0,5 5,5" />
-      {/* Thick right arrow in front, darker gray */}
-      <polygon fill="#444" points="7,10 14,10 14,7 19,13 14,19 14,16 7,16" />
+    <svg viewBox="0 0 20 20" width={size} height={size} fill="none">
+      <polygon fill="currentColor" fillOpacity="0.55" points="7,0 9,5 14,5 10,8.5 12,14 7,11 2,14 3.5,8.5 0,5 5,5" />
+      <polygon fill="currentColor" fillOpacity="0.9" points="7,10 14,10 14,7 19,13 14,19 14,16 7,16" />
     </svg>
   );
 }
@@ -130,9 +136,8 @@ function CircleIcon({ size = 20 }: { size?: number }) {
 }
 
 function BucketIcon({ size = 20 }: { size?: number }) {
-  // Paint bucket icon from Remix Design (RiPaintFill) in gray
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="#666">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor">
       <path d="M19.2277 18.7323L20.9955 16.9645L22.7632 18.7323C23.7395 19.7086 23.7395 21.2915 22.7632 22.2678C21.7869 23.2441 20.204 23.2441 19.2277 22.2678C18.2514 21.2915 18.2514 19.7086 19.2277 18.7323ZM8.87861 1.07971L20.1923 12.3934C20.5828 12.7839 20.5828 13.4171 20.1923 13.8076L11.707 22.2929C11.3165 22.6834 10.6833 22.6834 10.2928 22.2929L1.80754 13.8076C1.41702 13.4171 1.41702 12.7839 1.80754 12.3934L9.58572 4.61525L7.4644 2.49393L8.87861 1.07971ZM10.9999 6.02946L3.92886 13.1005H18.071L10.9999 6.02946Z" />
     </svg>
   );
@@ -167,6 +172,7 @@ export const TOOL_COLOR_OPTIONS = BASIC_PICKER_COLORS;
 // Tool buttons in display order (bucket moved to end)
 export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "select",     label: "Select",   title: "Select and move elements (V)",                     shortcut: "v", icon: SelectIcon },
+  { mode: "magnify",    label: "Magnify",  title: "Magnify the canvas while dragging (M)",            shortcut: "m", icon: MagnifyIcon },
   { mode: "addNode",    label: "Node",     title: "Place a text node (N)",                            shortcut: "n", icon: NodeIcon },
   { mode: "addShape",   label: "Shape",    title: "Place a shaped node (S).",                         shortcut: "s", icon: ShapeIcon, popupKind: "shape-picker" },
   { mode: "addMatrix",  label: "Matrix",   title: "Place a matrix of nodes.",                                           icon: MatrixIcon, popupKind: "matrix-picker" },
@@ -238,6 +244,7 @@ export function shouldConstrainToolCreateToSquare(mode: ToolCreateMode): boolean
 }
 
 export const TOOL_HINTS: Partial<Record<ToolMode, string>> = {
+  magnify: "Hold and drag to magnify the canvas",
   addRect: "Hold Shift to constrain to a square",
   addEllipse: "Hold Shift to constrain to a circle",
   addGrid: "Hold Shift to constrain to a square",
@@ -253,11 +260,11 @@ export const TOOL_HINTS: Partial<Record<ToolMode, string>> = {
 };
 
 export function isCreationToolMode(mode: ToolMode): boolean {
-  return mode !== "select";
+  return TOOL_CREATE_MODE_SET.has(mode as ToolCreateMode);
 }
 
 export function toolSupportsStroke(mode: ToolMode): boolean {
-  return mode !== "select" && mode !== "addBucket" && mode !== "addMatrix";
+  return mode !== "select" && mode !== "magnify" && mode !== "addBucket" && mode !== "addMatrix";
 }
 
 export function toolSupportsFill(mode: ToolMode): boolean {

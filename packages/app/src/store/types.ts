@@ -10,6 +10,7 @@ import type {
 
 export type ToolMode =
   | "select"
+  | "magnify"
   | "addBucket"
   | "addNode"
   | "addMatrix"

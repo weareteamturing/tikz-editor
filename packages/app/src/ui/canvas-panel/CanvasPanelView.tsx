@@ -14,6 +14,9 @@ import { CanvasContextMenu } from "../CanvasContextMenu";
 import { RenderedTooltip } from "../RenderedTooltip";
 import css from "../CanvasPanel.module.css";
 
+const MAGNIFIER_DIAMETER_PX = 300;
+const MAGNIFIER_SCALE = 2.25;
+
 type CanvasPanelViewProps = {
   [key: string]: any;
 };
@@ -54,6 +57,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     interactionSvgRef,
     onInteractionPointerDown,
     onInteractionPointerUp,
+    onInteractionLostPointerCapture,
     onInteractionPointerMove,
     onInteractionPointerEnter,
     onInteractionPointerLeave,
@@ -113,8 +117,20 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     onSnapDebugMovePointerDown,
     snapDebug,
     onSnapDebugResizePointerDown,
-    RULER_SIZE
+    RULER_SIZE,
+    magnifierState
   } = props;
+
+  const viewportCursorClass = toolMode === "magnify" ? css.viewportMagnify : toolMode === "select" ? "" : css.viewportTool;
+  const interactionCursorClass = toolMode === "magnify" ? css.interactionLayerMagnify : toolMode === "select" ? "" : css.interactionLayerTool;
+  const magnifierRadius = MAGNIFIER_DIAMETER_PX / 2;
+  const magnifierVisible = toolMode === "magnify" && magnifierState != null && svgResult != null && viewportSize.width > 0 && viewportSize.height > 0;
+  const magnifierLeft = magnifierVisible
+    ? Math.max(0, Math.min(viewportSize.width - MAGNIFIER_DIAMETER_PX, magnifierState.x - magnifierRadius))
+    : 0;
+  const magnifierTop = magnifierVisible
+    ? Math.max(0, Math.min(viewportSize.height - MAGNIFIER_DIAMETER_PX, magnifierState.y - magnifierRadius))
+    : 0;
 
   return (
     <div className={css.panel}>
@@ -192,7 +208,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
         ) : null}
 
         <div
-          className={[css.viewport, toolMode === "select" ? "" : css.viewportTool].filter(Boolean).join(" ")}
+          className={[css.viewport, viewportCursorClass].filter(Boolean).join(" ")}
           ref={viewportRef}
           data-canvas-viewport="true"
           data-testid="canvas-viewport"
@@ -242,11 +258,14 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
 
               <svg
                 ref={interactionSvgRef}
-                className={[css.interactionLayer, toolMode === "select" ? "" : css.interactionLayerTool].filter(Boolean).join(" ")}
+                className={[css.interactionLayer, interactionCursorClass].filter(Boolean).join(" ")}
+                data-testid="canvas-interaction-layer"
                 viewBox={`${svgResult.viewBox.x} ${svgResult.viewBox.y} ${svgResult.viewBox.width} ${svgResult.viewBox.height}`}
                 onClick={onBackgroundClick}
                 onPointerDown={onInteractionPointerDown}
                 onPointerUp={onInteractionPointerUp}
+                onPointerCancel={onInteractionPointerUp}
+                onLostPointerCapture={onInteractionLostPointerCapture}
                 onPointerMove={onInteractionPointerMove}
                 onPointerEnter={onInteractionPointerEnter}
                 onPointerLeave={onInteractionPointerLeave}
@@ -424,6 +443,46 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
               </svg>
             </div>
           )}
+
+          {magnifierVisible ? (
+            <div
+              className={css.magnifierOverlay}
+              data-testid="canvas-magnifier-shell"
+              style={{
+                left: magnifierLeft,
+                top: magnifierTop,
+                width: MAGNIFIER_DIAMETER_PX,
+                height: MAGNIFIER_DIAMETER_PX
+              }}
+            >
+              <div
+                className={css.magnifierContent}
+                style={{
+                  width: viewportSize.width,
+                  height: viewportSize.height,
+                  transform: `translate(${magnifierRadius - magnifierState.x * MAGNIFIER_SCALE}px, ${magnifierRadius - magnifierState.y * MAGNIFIER_SCALE}px) scale(${MAGNIFIER_SCALE})`
+                }}
+              >
+                <div
+                  className={css.worldStage}
+                  style={{
+                    width: svgResult!.viewBox.width * canvasTransform.scale,
+                    height: svgResult!.viewBox.height * canvasTransform.scale,
+                    transform: `translate(${canvasTransform.translateX}px, ${canvasTransform.translateY}px)`
+                  }}
+                >
+                  <CanvasSVGLayer
+                    model={svgModel}
+                    diffHints={svgDiffHints}
+                    forceReplaceAll={forceSvgReplaceAll}
+                    showTransparencyGrid={showTransparencyGrid}
+                    showDocumentBounds={showDocumentBounds}
+                    onFallback={onSvgPatchFallback}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {platform.menu?.usesNativeContextMenus ? null : (
             <CanvasContextMenu
