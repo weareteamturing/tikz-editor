@@ -1,19 +1,39 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const pdfSvgMock = vi.hoisted(() => vi.fn(async () => undefined));
+const pdfOutputMock = vi.hoisted(() => vi.fn(() => new Blob([new Uint8Array([80, 68, 70])], { type: "application/pdf" })));
+const jsPdfMock = vi.hoisted(() => vi.fn(() => ({
+  svg: pdfSvgMock,
+  output: pdfOutputMock,
+  save: vi.fn()
+})));
+
+vi.mock("jspdf", () => ({ jsPDF: jsPdfMock }));
+vi.mock("svg2pdf.js", () => ({}));
+
 import { renderTikzToSvg } from "../../packages/core/src/render/index.js";
 import {
   canExportSvg,
   copySvgMarkup,
   copySvgText,
+  exportPdfDownload,
   exportSvgDownload,
   validateSvgMarkup
 } from "../../packages/app/src/ui/export-commands.js";
+import { getActiveEditorPlatform, setActiveEditorPlatform } from "../../packages/app/src/platform/current.js";
 
 const SOURCE = String.raw`\begin{tikzpicture}
   \draw (0,0) -- (1,0);
 \end{tikzpicture}`;
 
 describe("export commands", () => {
+  let previousPlatform: ReturnType<typeof getActiveEditorPlatform>;
+
+  beforeEach(() => {
+    previousPlatform = getActiveEditorPlatform();
+  });
+
   afterEach(() => {
+    setActiveEditorPlatform(previousPlatform);
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -65,6 +85,48 @@ describe("export commands", () => {
     expect(click).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:tikz-export");
+  });
+
+  it("routes pdf export through the platform file api before browser download", async () => {
+    const rendered = renderTikzToSvg(SOURCE);
+    const exportFile = vi.fn(async () => true);
+    setActiveEditorPlatform({
+      ...previousPlatform,
+      files: {
+        ...previousPlatform.files,
+        exportFile
+      }
+    });
+
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", {
+      body: { appendChild: vi.fn() },
+      createElement: vi.fn()
+    });
+    vi.stubGlobal("DOMParser", class {
+      parseFromString() {
+        return {
+          documentElement: {
+            nodeName: "svg",
+            setAttribute: vi.fn()
+          }
+        };
+      }
+    });
+
+    const exported = await exportPdfDownload(rendered.svg, { fileName: "figure" });
+
+    expect(exported).toBe(true);
+    expect(jsPdfMock).toHaveBeenCalledTimes(1);
+    expect(pdfSvgMock).toHaveBeenCalledTimes(1);
+    expect(exportFile).toHaveBeenCalledTimes(1);
+    const [content, options] = exportFile.mock.calls[0] ?? [];
+    expect(options).toEqual({ fileName: "figure.pdf", mimeType: "application/pdf" });
+    expect(Array.isArray(content)).toBe(true);
+    expect(content).toHaveLength(1);
+    expect(content[0]).toBeInstanceOf(Blob);
+    const bytes = new Uint8Array(await content[0].arrayBuffer());
+    expect(Array.from(bytes)).toEqual([80, 68, 70]);
   });
 
   it("copies svg markup to the clipboard", async () => {

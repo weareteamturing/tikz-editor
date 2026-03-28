@@ -147,6 +147,21 @@ async function installDeterministicBridge(browserInstance) {
     const exports = [];
     const unsavedDecisions = [];
     const unsavedPrompts = [];
+    const warnings = [];
+    const errors = [];
+    if (!window.__DESKTOP_E2E_CONSOLE_CAPTURE_INSTALLED__) {
+      const originalWarn = console.warn.bind(console);
+      const originalError = console.error.bind(console);
+      console.warn = (...args) => {
+        window.__DESKTOP_E2E_WARNINGS__.push(args.map((value) => String(value)).join(" "));
+        originalWarn(...args);
+      };
+      console.error = (...args) => {
+        window.__DESKTOP_E2E_ERRORS__.push(args.map((value) => String(value)).join(" "));
+        originalError(...args);
+      };
+      window.__DESKTOP_E2E_CONSOLE_CAPTURE_INSTALLED__ = true;
+    }
     const bridge = {
       openText: async (path) => {
         const resolvedPath = path ?? "/tmp/opened-from-e2e.tex";
@@ -196,6 +211,8 @@ async function installDeterministicBridge(browserInstance) {
     window.__DESKTOP_E2E_EXPORTS__ = exports;
     window.__DESKTOP_E2E_UNSAVED_DECISIONS__ = unsavedDecisions;
     window.__DESKTOP_E2E_UNSAVED_PROMPTS__ = unsavedPrompts;
+    window.__DESKTOP_E2E_WARNINGS__ = warnings;
+    window.__DESKTOP_E2E_ERRORS__ = errors;
     window.__DESKTOP_E2E_CLOSED__ = false;
     window.__TIKZ_EDITOR_DESKTOP_TEST_API__.setBridgeOverride(bridge);
   });
@@ -240,19 +257,30 @@ async function scenarioOpenSaveSaveAs(browserInstance) {
 }
 
 async function scenarioExportSmoke(browserInstance) {
-  await dispatchCommand(browserInstance, "file.export-svg-download");
-  await browserInstance.$("[data-testid='svg-export-modal']").waitForExist();
+  await openModalForCommand(browserInstance, "file.export-svg-download", "[data-testid='svg-export-modal']");
   await browserInstance.$("[data-testid='svg-export-cancel']").click();
+  await waitForModalToClose(browserInstance, "[data-testid='svg-export-modal']");
 
-  await dispatchCommand(browserInstance, "file.export-png-download");
-  await browserInstance.$("[data-testid='png-export-modal']").waitForExist();
+  await openModalForCommand(browserInstance, "file.export-png-download", "[data-testid='png-export-modal']");
   await browserInstance.$("[data-testid='png-export-cancel']").click();
+  await waitForModalToClose(browserInstance, "[data-testid='png-export-modal']");
 
   await dispatchCommand(browserInstance, "file.export-pdf-download");
-  await dispatchCommand(browserInstance, "file.export-standalone-latex-download");
+  await browserInstance.waitUntil(async () => {
+    const exports = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORTS__);
+    return exports.includes("tikz-export.pdf");
+  }, {
+    timeout: 30_000,
+    interval: 250,
+    timeoutMsg: await describePdfExportFailure(browserInstance)
+  });
+  await waitForCommandEffect(browserInstance, "file.export-standalone-latex-download", async () => {
+    const exports = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORTS__);
+    return exports.includes("tikz-export.tex");
+  }, "Expected LaTeX export to run");
 
   const exports = await browserInstance.execute(() => window.__DESKTOP_E2E_EXPORTS__);
-  // PDF export is handled by jsPDF's browser-side save flow and does not use the desktop export bridge.
+  assert.ok(exports.includes("tikz-export.pdf"), "expected PDF export to run");
   assert.ok(exports.includes("tikz-export.tex"), "expected LaTeX export to run");
 }
 
@@ -294,12 +322,52 @@ async function scenarioUnsavedGuard(browserInstance) {
 async function dispatchCommand(browserInstance, commandId) {
   await browserInstance.waitUntil(async () => {
     return await browserInstance.execute((id) => {
-      return window.__TIKZ_EDITOR_DESKTOP_TEST_API__.dispatchCommand(id);
+      return window.__TIKZ_EDITOR_APP_TEST_API__.runCommand(id);
     }, commandId);
   }, {
     timeout: 10_000,
-    timeoutMsg: `Command handler did not become ready for ${commandId}`
+    timeoutMsg: `Command did not become enabled for ${commandId}`
   });
+}
+
+async function openModalForCommand(browserInstance, commandId, modalSelector) {
+  await waitForCommandEffect(browserInstance, commandId, async () => {
+    return await browserInstance.$(modalSelector).isExisting();
+  }, `Expected ${modalSelector} to appear after ${commandId}`);
+}
+
+async function waitForModalToClose(browserInstance, modalSelector) {
+  await browserInstance.waitUntil(async () => {
+    return !(await browserInstance.$(modalSelector).isExisting());
+  }, {
+    timeout: 10_000,
+    interval: 100,
+    timeoutMsg: `Expected ${modalSelector} to close`
+  });
+}
+
+async function waitForCommandEffect(browserInstance, commandId, checkEffect, timeoutMsg) {
+  await browserInstance.waitUntil(async () => {
+    if (await checkEffect()) {
+      return true;
+    }
+    await dispatchCommand(browserInstance, commandId);
+    await delay(150);
+    return await checkEffect();
+  }, {
+    timeout: 15_000,
+    interval: 250,
+    timeoutMsg
+  });
+}
+
+async function describePdfExportFailure(browserInstance) {
+  const diagnostics = await browserInstance.execute(() => ({
+    exports: window.__DESKTOP_E2E_EXPORTS__,
+    warnings: window.__DESKTOP_E2E_WARNINGS__,
+    errors: window.__DESKTOP_E2E_ERRORS__
+  }));
+  return `Expected PDF export to run. exports=${JSON.stringify(diagnostics.exports)} warnings=${JSON.stringify(diagnostics.warnings)} errors=${JSON.stringify(diagnostics.errors)}`;
 }
 
 async function setSource(browserInstance, value) {
