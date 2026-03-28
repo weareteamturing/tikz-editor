@@ -225,8 +225,36 @@ export async function exportPdfDownload(
 
     const artifact = createPdfExportArtifact({ fileName: options.fileName });
     const exportPdf = await loadPdfExporter();
-    await exportPdf(svgElement, svgResult.viewBox.width, svgResult.viewBox.height, artifact.fileName);
-    return true;
+    const blob = await exportPdf(svgElement, svgResult.viewBox.width, svgResult.viewBox.height);
+    const platformExportResult = await getActiveEditorPlatform().files?.exportFile?.(
+      [blob],
+      { fileName: artifact.fileName, mimeType: artifact.mimeType }
+    );
+    if (platformExportResult) {
+      return true;
+    }
+    if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function" || typeof URL.revokeObjectURL !== "function") {
+      console.warn("[tikz-editor] PDF export download requires URL.createObjectURL support.");
+      return false;
+    }
+    if (!document.body) {
+      console.warn("[tikz-editor] PDF export download requires document.body.");
+      return false;
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = artifact.fileName;
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      return true;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   } catch (error) {
     console.warn("[tikz-editor] Failed to export PDF.", error);
     return false;
@@ -388,28 +416,27 @@ function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string): Promise<Blob
 type PdfExporter = (
   svgElement: SVGSVGElement,
   width: number,
-  height: number,
-  fileName: string
-) => Promise<void>;
+  height: number
+) => Promise<Blob>;
 
 function loadPdfExporter(): Promise<PdfExporter> {
   if (!pdfExporterPromise) {
     pdfExporterPromise = import("jspdf").then(async ({ jsPDF }) => {
       await import("svg2pdf.js");
-      return async (svgElement: SVGSVGElement, width: number, height: number, fileName: string) => {
+      return async (svgElement: SVGSVGElement, width: number, height: number) => {
         const orientation = width > height ? "landscape" : "portrait";
-        const document = new jsPDF({
+        const pdfDocument = new jsPDF({
           orientation,
           unit: "pt",
           format: [width, height]
         });
-        await document.svg(svgElement, {
+        await pdfDocument.svg(svgElement, {
           x: 0,
           y: 0,
           width,
           height
         });
-        document.save(fileName);
+        return pdfDocument.output("blob");
       };
     });
   }

@@ -874,6 +874,7 @@ export function App() {
         setSource: (nextSource: string) => void;
         getSource: () => string;
         getSnapshotSource: () => string;
+        runCommand: (commandId: string) => boolean;
         selectFirstFigure: () => void;
         selectAllElements: () => void;
         selectSourceIds: (sourceIds: string[]) => void;
@@ -895,6 +896,9 @@ export function App() {
       },
       getSnapshotSource: () => {
         return snapshotRef.current.source;
+      },
+      runCommand: (commandId) => {
+        return commandRuntime.runCommand(commandId as keyof typeof commandRuntime.bindings, "platform");
       },
       selectFirstFigure: () => {
         const firstFigureId = snapshotRef.current.figures[0]?.id ?? null;
@@ -941,7 +945,7 @@ export function App() {
     return () => {
       delete globalLike.__TIKZ_EDITOR_APP_TEST_API__;
     };
-  }, [dispatch]);
+  }, [commandRuntime, dispatch]);
 
   useEffect(() => {
     const unbind = getActiveEditorPlatform().files?.bindOpenRequest?.(async (opened) => {
