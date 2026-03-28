@@ -264,9 +264,7 @@ const SINGLE_NODE_TOP_ACTIONS: readonly AppMenuItem[] = [
   }
 ];
 
-const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
-  ...SINGLE_NODE_TOP_ACTIONS,
-  { kind: "separator" },
+const SELECTION_COMMAND_ITEMS: readonly AppMenuItem[] = [
   {
     kind: "command",
     commandId: APP_MENU_COMMAND_IDS.UNDO,
@@ -330,11 +328,9 @@ const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
     label: "Repeat..."
   },
   { kind: "separator" },
-  {
-    kind: "submenu",
-    label: "Transform",
-    items: TRANSFORM_ITEMS
-  },
+];
+
+const PATH_REORDER_TAIL_ITEMS: readonly AppMenuItem[] = [
   { kind: "separator" },
   {
     kind: "submenu",
@@ -343,28 +339,104 @@ const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
   }
 ];
 
-function withTreeItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
+const SINGLE_SELECTION_SUBMENU_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "submenu",
+    label: "Transform",
+    items: TRANSFORM_ITEMS
+  },
+  { kind: "separator" },
+  {
+    kind: "submenu",
+    label: "Path",
+    items: PATH_ITEMS
+  },
+  { kind: "separator" },
+  ...PATH_REORDER_TAIL_ITEMS
+];
+
+const PATH_POINT_SELECTION_SUBMENU_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "submenu",
+    label: "Path",
+    items: PATH_ITEMS
+  },
+  ...PATH_REORDER_TAIL_ITEMS
+];
+
+const PATH_POINT_SELECTION_ITEMS: readonly AppMenuItem[] = [
+  ...PATH_POINT_ITEMS,
+  { kind: "separator" },
+  ...SELECTION_COMMAND_ITEMS,
+  ...PATH_POINT_SELECTION_SUBMENU_ITEMS
+];
+
+const SINGLE_SELECTION_ITEMS: readonly AppMenuItem[] = [
+  ...SELECTION_COMMAND_ITEMS,
+  ...SINGLE_SELECTION_SUBMENU_ITEMS
+];
+
+const SINGLE_MATRIX_ITEMS: readonly AppMenuItem[] = SINGLE_SELECTION_ITEMS;
+
+const MULTI_SELECTION_SUBMENU_ITEMS: readonly AppMenuItem[] = [
+  {
+    kind: "submenu",
+    label: "Align",
+    items: ALIGN_ITEMS
+  },
+  {
+    kind: "submenu",
+    label: "Transform",
+    items: TRANSFORM_ITEMS
+  },
+  {
+    kind: "submenu",
+    label: "Distribute",
+    items: DISTRIBUTE_ITEMS
+  },
+  {
+    kind: "submenu",
+    label: "Reorder",
+    items: REORDER_ITEMS
+  }
+];
+
+const MULTI_SELECTION_ITEMS: readonly AppMenuItem[] = [
+  ...SELECTION_COMMAND_ITEMS,
+  ...MULTI_SELECTION_SUBMENU_ITEMS
+];
+
+function buildSelectionSingleNodeItems(includeEditEquationForSingleNode: boolean): readonly AppMenuItem[] {
+  const topItems = includeEditEquationForSingleNode
+    ? [EDIT_EQUATION_ITEM, ...SINGLE_NODE_TOP_ACTIONS]
+    : SINGLE_NODE_TOP_ACTIONS;
+
   return [
-    ...TREE_ITEMS,
+    ...topItems,
+    { kind: "separator" },
+    ...SELECTION_COMMAND_ITEMS,
+    ...SINGLE_SELECTION_SUBMENU_ITEMS
+  ];
+}
+
+function withPrependedItems(items: readonly AppMenuItem[], prefixItems: readonly AppMenuItem[]): readonly AppMenuItem[] {
+  return [
+    ...prefixItems,
     { kind: "separator" },
     ...items
   ];
+}
+
+function withTreeItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
+  return withPrependedItems(items, TREE_ITEMS);
 }
 
 function withMatrixStatementItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
-  return [
-    ...MATRIX_STATEMENT_ITEMS,
-    { kind: "separator" },
-    ...items
-  ];
+  return withPrependedItems(items, MATRIX_STATEMENT_ITEMS);
 }
 
 function withMatrixCellItems(items: readonly AppMenuItem[]): readonly AppMenuItem[] {
-  return [
-    ...MATRIX_CELL_ITEMS,
-    { kind: "separator" },
-    ...items
-  ];
+  return withPrependedItems(items, MATRIX_CELL_ITEMS);
 }
 
 export function buildCanvasContextMenuDefinition(
@@ -378,98 +450,8 @@ export function buildCanvasContextMenuDefinition(
     includeMatrixMultiInsertColumnRight?: boolean;
   } = {}
 ) {
-  const selectionSingleNodeItems = options.includeEditEquationForSingleNode
-    ? [
-        EDIT_EQUATION_ITEM,
-        ...SINGLE_NODE_TOP_ACTIONS,
-        ...BASE_SELECTION_SINGLE_NODE_ITEMS.slice(2)
-      ]
-    : BASE_SELECTION_SINGLE_NODE_ITEMS;
-  const selectionMultiItems = withMatrixMultiItems([
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNDO,
-      label: "Undo",
-      accelerator: "CmdOrCtrl+Z"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REDO,
-      label: "Redo",
-      accelerator: "CmdOrCtrl+Shift+Z"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.CUT,
-      label: "Cut",
-      accelerator: "CmdOrCtrl+X"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.COPY,
-      label: "Copy",
-      accelerator: "CmdOrCtrl+C"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.PASTE,
-      label: "Paste",
-      accelerator: "CmdOrCtrl+V"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DELETE,
-      label: "Delete",
-      accelerator: "Delete"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-      label: "Duplicate",
-      accelerator: "CmdOrCtrl+D"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.GROUP,
-      label: "Group",
-      accelerator: "CmdOrCtrl+G"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-      label: "Ungroup",
-      accelerator: "CmdOrCtrl+Shift+G"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REPEAT,
-      label: "Repeat..."
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Align",
-      items: ALIGN_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Transform",
-      items: TRANSFORM_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Distribute",
-      items: DISTRIBUTE_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Reorder",
-      items: REORDER_ITEMS
-    }
-  ], options);
+  const selectionSingleNodeItems = buildSelectionSingleNodeItems(options.includeEditEquationForSingleNode === true);
+  const selectionMultiItems = withMatrixMultiItems(MULTI_SELECTION_ITEMS, options);
 
   return {
   "canvas-empty": [
@@ -521,298 +503,14 @@ export function buildCanvasContextMenuDefinition(
     }
   ],
   "selection-single": [
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNDO,
-      label: "Undo",
-      accelerator: "CmdOrCtrl+Z"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REDO,
-      label: "Redo",
-      accelerator: "CmdOrCtrl+Shift+Z"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.CUT,
-      label: "Cut",
-      accelerator: "CmdOrCtrl+X"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.COPY,
-      label: "Copy",
-      accelerator: "CmdOrCtrl+C"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.PASTE,
-      label: "Paste",
-      accelerator: "CmdOrCtrl+V"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DELETE,
-      label: "Delete",
-      accelerator: "Delete"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-      label: "Duplicate",
-      accelerator: "CmdOrCtrl+D"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.GROUP,
-      label: "Group",
-      accelerator: "CmdOrCtrl+G"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-      label: "Ungroup",
-      accelerator: "CmdOrCtrl+Shift+G"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REPEAT,
-      label: "Repeat..."
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Transform",
-      items: TRANSFORM_ITEMS
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Path",
-      items: PATH_ITEMS
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Reorder",
-      items: REORDER_ITEMS
-    }
+    ...SINGLE_SELECTION_ITEMS
   ],
   "selection-single-tree": [
-    ...withTreeItems([
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.UNDO,
-        label: "Undo",
-        accelerator: "CmdOrCtrl+Z"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REDO,
-        label: "Redo",
-        accelerator: "CmdOrCtrl+Shift+Z"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.CUT,
-        label: "Cut",
-        accelerator: "CmdOrCtrl+X"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.COPY,
-        label: "Copy",
-        accelerator: "CmdOrCtrl+C"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.PASTE,
-        label: "Paste",
-        accelerator: "CmdOrCtrl+V"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DELETE,
-        label: "Delete",
-        accelerator: "Delete"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-        label: "Duplicate",
-        accelerator: "CmdOrCtrl+D"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.GROUP,
-        label: "Group",
-        accelerator: "CmdOrCtrl+G"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-        label: "Ungroup",
-        accelerator: "CmdOrCtrl+Shift+G"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REPEAT,
-        label: "Repeat..."
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Transform",
-        items: TRANSFORM_ITEMS
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Path",
-        items: PATH_ITEMS
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Reorder",
-        items: REORDER_ITEMS
-      }
-    ])
+    ...withTreeItems(SINGLE_SELECTION_ITEMS)
   ],
-  "selection-single-path-point": [
-    ...PATH_POINT_ITEMS,
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.UNDO,
-      label: "Undo",
-      accelerator: "CmdOrCtrl+Z"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REDO,
-      label: "Redo",
-      accelerator: "CmdOrCtrl+Shift+Z"
-    },
-    { kind: "separator" },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.CUT,
-      label: "Cut",
-      accelerator: "CmdOrCtrl+X"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.COPY,
-      label: "Copy",
-      accelerator: "CmdOrCtrl+C"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.PASTE,
-      label: "Paste",
-      accelerator: "CmdOrCtrl+V"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DELETE,
-      label: "Delete",
-      accelerator: "Delete"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-      label: "Duplicate",
-      accelerator: "CmdOrCtrl+D"
-    },
-    {
-      kind: "command",
-      commandId: APP_MENU_COMMAND_IDS.REPEAT,
-      label: "Repeat..."
-    },
-    { kind: "separator" },
-    {
-      kind: "submenu",
-      label: "Path",
-      items: PATH_ITEMS
-    },
-    {
-      kind: "submenu",
-      label: "Reorder",
-      items: REORDER_ITEMS
-    }
-  ],
+  "selection-single-path-point": [...PATH_POINT_SELECTION_ITEMS],
   "selection-single-path-point-tree": [
-    ...withTreeItems([
-      ...PATH_POINT_ITEMS,
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.UNDO,
-        label: "Undo",
-        accelerator: "CmdOrCtrl+Z"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REDO,
-        label: "Redo",
-        accelerator: "CmdOrCtrl+Shift+Z"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.CUT,
-        label: "Cut",
-        accelerator: "CmdOrCtrl+X"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.COPY,
-        label: "Copy",
-        accelerator: "CmdOrCtrl+C"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.PASTE,
-        label: "Paste",
-        accelerator: "CmdOrCtrl+V"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DELETE,
-        label: "Delete",
-        accelerator: "Delete"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-        label: "Duplicate",
-        accelerator: "CmdOrCtrl+D"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REPEAT,
-        label: "Repeat..."
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Path",
-        items: PATH_ITEMS
-      },
-      {
-        kind: "submenu",
-        label: "Reorder",
-        items: REORDER_ITEMS
-      }
-    ])
+    ...withTreeItems(PATH_POINT_SELECTION_ITEMS)
   ],
   "selection-single-node": [
     ...selectionSingleNodeItems
@@ -821,88 +519,7 @@ export function buildCanvasContextMenuDefinition(
     ...withTreeItems(selectionSingleNodeItems)
   ],
   "selection-single-matrix": [
-    ...withMatrixStatementItems([
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.UNDO,
-        label: "Undo",
-        accelerator: "CmdOrCtrl+Z"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REDO,
-        label: "Redo",
-        accelerator: "CmdOrCtrl+Shift+Z"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.CUT,
-        label: "Cut",
-        accelerator: "CmdOrCtrl+X"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.COPY,
-        label: "Copy",
-        accelerator: "CmdOrCtrl+C"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.PASTE,
-        label: "Paste",
-        accelerator: "CmdOrCtrl+V"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DELETE,
-        label: "Delete",
-        accelerator: "Delete"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
-        label: "Duplicate",
-        accelerator: "CmdOrCtrl+D"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.GROUP,
-        label: "Group",
-        accelerator: "CmdOrCtrl+G"
-      },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.UNGROUP,
-        label: "Ungroup",
-        accelerator: "CmdOrCtrl+Shift+G"
-      },
-      { kind: "separator" },
-      {
-        kind: "command",
-        commandId: APP_MENU_COMMAND_IDS.REPEAT,
-        label: "Repeat..."
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Transform",
-        items: TRANSFORM_ITEMS
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Path",
-        items: PATH_ITEMS
-      },
-      { kind: "separator" },
-      {
-        kind: "submenu",
-        label: "Reorder",
-        items: REORDER_ITEMS
-      }
-    ])
+    ...withMatrixStatementItems(SINGLE_MATRIX_ITEMS)
   ],
   "selection-single-matrix-cell": [
     ...withMatrixCellItems(selectionSingleNodeItems)
