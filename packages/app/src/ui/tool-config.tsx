@@ -189,7 +189,18 @@ export const TOOL_BUTTONS: readonly ToolButtonDef[] = [
   { mode: "addBucket",  label: "Bucket",   title: "Fill a shape with the selected color.",                           icon: BucketIcon,   popupKind: "bucket-color", separatorBefore: true },
 ];
 
-export const TOOL_CREATE_MODES = ["addPath", "addLine", "addArrow", "addBezier", "addGrid", "addRect", "addEllipse", "addCircle", "addShape"] as const;
+export const TOOL_CREATE_MODES = [
+  "addPath",
+  "addLine",
+  "addArrow",
+  "addBezier",
+  "addFreehand",
+  "addGrid",
+  "addRect",
+  "addEllipse",
+  "addCircle",
+  "addShape"
+] as const;
 
 export type ToolCreateMode = (typeof TOOL_CREATE_MODES)[number];
 

@@ -11,11 +11,19 @@ type UseFigureThumbnailsOptions = {
   maxToRender?: number;
   refreshDelayMs?: number;
 };
+const EMPTY_PRIORITY_FIGURE_IDS: readonly string[] = [];
 
 const thumbnailCache = new Map<string, string>();
 const thumbnailInFlight = new Map<string, Promise<string | null>>();
 let thumbnailGroupCounter = 0;
 let thumbnailRequestCounter = 0;
+
+export function resetFigureThumbnailStateForTests(): void {
+  thumbnailCache.clear();
+  thumbnailInFlight.clear();
+  thumbnailGroupCounter = 0;
+  thumbnailRequestCounter = 0;
+}
 
 function makeFigureSignature(source: string, figure: FigureEntry): string {
   const from = Math.max(0, Math.min(source.length, figure.span.from));
@@ -35,7 +43,12 @@ export function useFigureThumbnails(
   figures: readonly FigureEntry[],
   options: UseFigureThumbnailsOptions = {}
 ): ReadonlyMap<string, string> {
-  const { documentKey = "__default__", priorityFigureIds = [], maxToRender = 8, refreshDelayMs = 350 } = options;
+  const {
+    documentKey = "__default__",
+    priorityFigureIds = EMPTY_PRIORITY_FIGURE_IDS,
+    maxToRender = 8,
+    refreshDelayMs = 350
+  } = options;
   const [stableInput, setStableInput] = useState<{
     source: string;
     figures: readonly FigureEntry[];
@@ -219,7 +232,7 @@ export function useFigureThumbnails(
         window.clearTimeout(timer.id);
       }
     };
-  }, [documentKey, figureKey, figureSignatures, maxToRender, priorityFigureIds, priorityKey, stableFigures, stableSource]);
+  }, [documentKey, figureKey, figureSignatures, maxToRender, priorityKey, stableFigures, stableSource]);
 
   return thumbnails;
 }

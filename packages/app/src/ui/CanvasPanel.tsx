@@ -956,6 +956,7 @@ export function CanvasPanel({
   const viewportStateByFigureKeyRef = useRef(new Map<string, FigureViewportState>());
   const visitedFigureKeysRef = useRef(new Set<string>());
   const previousFigureViewportKeyRef = useRef<string | null>(null);
+  const pendingFirstVisitAutoFitKeyRef = useRef<string | null>(null);
 
   // Cache viewport boundary once on drag-start, clear on drag-end (avoids getBoundingClientRect per frame)
   if (dragTooltip && !dragTooltipBoundaryRef.current && viewportRef.current) {
@@ -1312,9 +1313,9 @@ export function CanvasPanel({
     canvasTransform
   });
 
-  const fitToContent = useCallback(() => {
+  const fitToContent = useCallback((): boolean => {
     const fitViewBox = baseSvgResult?.viewBox ?? svgResult?.viewBox;
-    if (!fitViewBox || !viewportRef.current) return;
+    if (!fitViewBox || !viewportRef.current) return false;
 
     const viewportWidth = viewportRef.current.clientWidth;
     const viewportHeight = viewportRef.current.clientHeight;
@@ -1325,7 +1326,7 @@ export function CanvasPanel({
       fitViewBox.width <= 0 ||
       fitViewBox.height <= 0
     ) {
-      return;
+      return false;
     }
 
     const availableWidth = Math.max(1, viewportWidth - FIT_PADDING * 2);
@@ -1341,6 +1342,7 @@ export function CanvasPanel({
     const translateY = (viewportHeight - fitViewBox.height * scale) / 2;
 
     dispatchCanvasTransform({ translateX, translateY, scale });
+    return true;
   }, [baseSvgResult, dispatchCanvasTransform, svgResult]);
 
   const activeFigureViewportKey = useMemo(
@@ -1356,12 +1358,16 @@ export function CanvasPanel({
       if (!openDocuments.has(documentId)) {
         viewportStateByFigureKeyRef.current.delete(key);
         visitedFigureKeysRef.current.delete(key);
+        if (pendingFirstVisitAutoFitKeyRef.current === key) {
+          pendingFirstVisitAutoFitKeyRef.current = null;
+        }
       }
     }
   }, [tabOrder]);
 
   useEffect(() => {
-    if (previousFigureViewportKeyRef.current === activeFigureViewportKey) {
+    const pendingAutoFit = pendingFirstVisitAutoFitKeyRef.current === activeFigureViewportKey;
+    if (previousFigureViewportKeyRef.current === activeFigureViewportKey && !pendingAutoFit) {
       return;
     }
 
@@ -1381,6 +1387,7 @@ export function CanvasPanel({
 
     const savedState = viewportStateByFigureKeyRef.current.get(activeFigureViewportKey);
     if (savedState) {
+      pendingFirstVisitAutoFitKeyRef.current = null;
       if (fitToContentModeActiveRef.current !== savedState.fitToContentModeActive) {
         setFitToContentModeActive(savedState.fitToContentModeActive);
       }
@@ -1390,14 +1397,22 @@ export function CanvasPanel({
     }
 
     const hasVisited = visitedFigureKeysRef.current.has(activeFigureViewportKey);
-    if (!hasVisited) {
+    if (!hasVisited || pendingAutoFit) {
       visitedFigureKeysRef.current.add(activeFigureViewportKey);
       if (!fitToContentModeActiveRef.current) {
         setFitToContentModeActive(true);
       }
-      fitToContent();
+      const didFit = fitToContent();
+      previousFigureViewportKeyRef.current = activeFigureViewportKey;
+      if (didFit) {
+        pendingFirstVisitAutoFitKeyRef.current = null;
+      } else {
+        pendingFirstVisitAutoFitKeyRef.current = activeFigureViewportKey;
+      }
+      return;
     }
 
+    pendingFirstVisitAutoFitKeyRef.current = null;
     previousFigureViewportKeyRef.current = activeFigureViewportKey;
   }, [activeFigureViewportKey, dispatchCanvasTransform, fitToContent]);
 

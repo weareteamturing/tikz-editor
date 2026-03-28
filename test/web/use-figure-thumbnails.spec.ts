@@ -4,7 +4,7 @@ import React, { createElement, useEffect } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useFigureThumbnails } from "../../packages/app/src/ui/useFigureThumbnails";
+import { resetFigureThumbnailStateForTests, useFigureThumbnails } from "../../packages/app/src/ui/useFigureThumbnails";
 
 vi.mock("../../packages/app/src/ui/workers/thumbnail-worker-client", () => ({
   requestThumbnail: vi.fn(),
@@ -58,6 +58,7 @@ describe("useFigureThumbnails", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    resetFigureThumbnailStateForTests();
     (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -169,19 +170,21 @@ describe("useFigureThumbnails", () => {
       await flushMicrotasks();
     });
 
-    pendingFirst.resolve({
-      type: "result",
-      ok: true,
-      requestId: "first",
-      groupId: "grp-1",
-      figureId: "figure:0",
-      figureSignature: "sig-1",
-      svg: "<svg>first</svg>"
-    });
+    await waitForCondition(() => vi.mocked(requestThumbnail).mock.calls.length >= 1);
+
     await act(async () => {
+      pendingFirst.resolve({
+        type: "result",
+        ok: true,
+        requestId: "first",
+        groupId: "grp-1",
+        figureId: "figure:0",
+        figureSignature: "sig-1",
+        svg: "<svg>first</svg>"
+      });
+      await flushMicrotasks();
       await flushMicrotasks();
       vi.runOnlyPendingTimers();
-      await flushMicrotasks();
     });
     await waitForCondition(() => latest.get("figure:0") != null);
     const firstUrl = latest.get("figure:0");
@@ -201,19 +204,19 @@ describe("useFigureThumbnails", () => {
     expect(requestThumbnail).toHaveBeenCalledTimes(2);
     expect(latest.get("figure:0")).toBe(firstUrl);
 
-    pendingSecond.resolve({
-      type: "result",
-      ok: true,
-      requestId: "second",
-      groupId: "grp-2",
-      figureId: "figure:0",
-      figureSignature: "sig-2",
-      svg: "<svg>second</svg>"
-    });
     await act(async () => {
+      pendingSecond.resolve({
+        type: "result",
+        ok: true,
+        requestId: "second",
+        groupId: "grp-2",
+        figureId: "figure:0",
+        figureSignature: "sig-2",
+        svg: "<svg>second</svg>"
+      });
+      await flushMicrotasks();
       await flushMicrotasks();
       vi.runOnlyPendingTimers();
-      await flushMicrotasks();
     });
 
     expect(latest.get("figure:0")).toContain("%3Csvg%3Esecond%3C%2Fsvg%3E");

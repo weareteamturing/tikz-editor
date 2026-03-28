@@ -14,6 +14,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function disableFitModeByZoom(page: Page): Promise<void> {
+  await expect(page.getByTestId("canvas-viewport")).toBeVisible();
+  const before = await readCanvasTransform(page);
   await page.evaluate(() => {
     const viewport = document.querySelector("[data-testid='canvas-viewport']");
     if (!(viewport instanceof HTMLElement)) {
@@ -29,6 +31,13 @@ async function disableFitModeByZoom(page: Page): Promise<void> {
       clientY: rect.top + rect.height / 2
     }));
   });
+  await expect.poll(async () => {
+    const after = await readCanvasTransform(page);
+    return Math.abs(after.scale - before.scale) > 0.0001;
+  }, {
+    timeout: 2_000,
+    intervals: [50, 100, 200]
+  }).toBe(true);
 }
 
 function figuresSource(count: number, label: string): string {
@@ -86,6 +95,9 @@ test("viewport is remembered per figure and first visit auto-fits", async ({ pag
       Math.abs(transform.translateY - figure2Transform.translateY) < 0.05 &&
       Math.abs(transform.scale - figure2Transform.scale) < 0.005
     );
+  }, {
+    timeout: 4_000,
+    intervals: [50, 100, 200, 400]
   }).toBe(true);
 });
 

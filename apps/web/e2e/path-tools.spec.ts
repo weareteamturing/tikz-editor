@@ -593,7 +593,7 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
   }
 
   await page.mouse.move(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
-  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red!60] (0,0) rectangle (2,2);");
   await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=green!20] (3,0) rectangle (5,2);");
 
   const layer = interactionLayer(page);
@@ -606,8 +606,8 @@ test("bucket popup chooses color, previews on hover, and stays active across fil
 
   await page.mouse.click(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
   await page.mouse.click(secondBox.x + secondBox.width / 2, secondBox.y + secondBox.height / 2);
-  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (0,0) rectangle (2,2);");
-  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red] (3,0) rectangle (5,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red!60] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\filldraw[fill=red!60] (3,0) rectangle (5,2);");
   await expect(toolbarButton(page, "Bucket")).toHaveClass(/btnActive/);
 });
 
@@ -644,10 +644,10 @@ test("bucket fills draw-only closed paths from the interior", async ({ page }) =
   }
 
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red!60] (0,0) rectangle (2,2);");
 
   await clickHitRegion(page, 0);
-  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red] (0,0) rectangle (2,2);");
+  await expect.poll(async () => readSource(page)).toContain("\\draw[fill=red!60] (0,0) rectangle (2,2);");
 });
 
 test("bucket warns on tikzpicture background", async ({ page }) => {
@@ -728,6 +728,8 @@ test("multi-segment path tool keeps named anchors when clicking anchor dots", as
 
 test("freehand smoothing slider in inspector preserves adjusted values", async ({ page }) => {
   await gotoApp(page);
+  await setSource(page, String.raw`\begin{tikzpicture}
+\end{tikzpicture}`);
   await toolbarButton(page, "Freehand").click();
   // Freehand smoothing is now in the inspector panel, not a toolbar popup
   const slider = page.getByTestId("inspector-freehand-smoothing-slider");

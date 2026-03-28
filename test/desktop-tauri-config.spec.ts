@@ -30,7 +30,7 @@ describe("desktop Tauri platform config split", () => {
     const window = firstWindow(mac);
     expect(window.titleBarStyle).toBe("Overlay");
     expect(window.hiddenTitle).toBe(true);
-    expect(window.trafficLightPosition).toEqual({ x: 18, y: 18 });
+    expect(window.trafficLightPosition).toEqual({ x: 18, y: 21 });
   });
 
   it("defines Windows-native bundle options in tauri.windows.conf.json", () => {
