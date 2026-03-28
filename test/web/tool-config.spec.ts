@@ -53,7 +53,7 @@ describe("resolveToolbarToolMode", () => {
     expect(isToolCreateMode("addBezier")).toBe(true);
     expect(isToolCreateMode("addPath")).toBe(true);
     expect(isToolCreateMode("addShape")).toBe(true);
-    expect(isToolCreateMode("addFreehand")).toBe(false);
+    expect(isToolCreateMode("addFreehand")).toBe(true);
     expect(isToolCreateMode("select")).toBe(false);
   });
 
