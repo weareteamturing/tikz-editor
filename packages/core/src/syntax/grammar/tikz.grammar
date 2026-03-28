@@ -442,6 +442,7 @@ StylePayload {
 
 GroupPart {
   Comment |
+  ScopeStatement |
   Group |
   Coordinate |
   OptionList |
@@ -727,7 +728,7 @@ StrayToken {
   Comment { "%" ![\n\r]* }
 
   BeginTikz { "\\begin{tikzpicture}" | "\\begin{tikzpicture*}" }
-  InlineTikzCmd { "\\tikz" }
+  InlineTikzCmd { "\\tikz" ![A-Za-z@] }
   EndTikz { "\\end{tikzpicture}" | "\\end{tikzpicture*}" }
 
   DrawCmd { "\\draw" }

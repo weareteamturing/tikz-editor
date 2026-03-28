@@ -8,6 +8,10 @@
   padding: 20px;
 }
 
+.backdropClear {
+  background: transparent;
+}
+
 .panel {
   width: min(960px, calc(100vw - 40px));
   max-height: calc(100vh - 40px);

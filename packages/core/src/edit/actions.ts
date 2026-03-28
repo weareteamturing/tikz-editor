@@ -84,6 +84,7 @@ import { applyReorderElementsAction, buildParentReorderReplacement } from "./act
 import { applyResizeElementAction } from "./actions/resize-element.js";
 import { applySetPropertyAction } from "./actions/set-property.js";
 import { applyGroupElementsAction, applyUngroupElementsAction } from "./actions/group-ungroup-actions.js";
+import { applyRepeatElementsAction } from "./actions/repeat.js";
 import {
   applyAddTreeChildAction,
   applyAddTreeSiblingAction,
@@ -150,6 +151,14 @@ export type EditAction =
   | { kind: "reorderElements"; elementIds: string[]; direction: ReorderDirection }
   | { kind: "groupElements"; elementIds: string[] }
   | { kind: "ungroupElements"; elementIds: string[] }
+  | {
+      kind: "repeatElements";
+      elementIds: string[];
+      columns: number;
+      rows: number;
+      horizontalStep: number;
+      verticalStep: number;
+    }
   | { kind: "addTreeChild"; parentSourceId: string; afterChildIndex?: number }
   | { kind: "removeTreeChild"; childSourceId: string }
   | { kind: "addTreeSibling"; siblingSourceId: string; position: "before" | "after" }
@@ -268,6 +277,8 @@ export function applyEditAction(
         return applyGroupElements(source, action, parseOptions);
       case "ungroupElements":
         return applyUngroupElements(source, action, parseOptions);
+      case "repeatElements":
+        return applyRepeatElementsAction(source, action, parseOptions);
       case "addTreeChild":
         return applyAddTreeChildAction(source, action, parseOptions);
       case "removeTreeChild":
@@ -686,6 +697,8 @@ function inferChangedSourceIds(
       return [];
     case "ungroupElements":
       return [];
+    case "repeatElements":
+      return normalizeElementIds(action.elementIds);
     case "addTreeChild":
       return normalizeElementIds([action.parentSourceId]);
     case "removeTreeChild":

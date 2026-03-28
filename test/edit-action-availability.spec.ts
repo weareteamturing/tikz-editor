@@ -261,6 +261,54 @@ describe("getEditActionAvailability", () => {
     expect(mixedParents.group.reason).toContain("same parent");
   });
 
+  it("enables repeat for authored contiguous blocks and rejects non-contiguous blocks", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const contiguous = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["path:0", "path:1"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(contiguous.repeat.enabled).toBe(true);
+
+    const nonContiguous = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["path:0", "path:2"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+    expect(nonContiguous.repeat.enabled).toBe(false);
+    expect(nonContiguous.repeat.reason).toContain("contiguous");
+  });
+
+  it("rejects repeat for foreach-origin selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,...,1} {
+    \draw (\x,0) -- ++(1,0);
+  }
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+
+    const availability = getEditActionAvailability({
+      source,
+      snapshotSource: source,
+      selectedSourceIds: ["foreach:0"],
+      scene: rendered.semantic.scene,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(availability.repeat.enabled).toBe(false);
+    expect(availability.repeat.reason).toContain("foreach");
+  });
+
   it("enables ungroup only for ungroupable scopes", () => {
     const ungroupableSource = String.raw`\begin{tikzpicture}
   \begin{scope}[name=mygroup]

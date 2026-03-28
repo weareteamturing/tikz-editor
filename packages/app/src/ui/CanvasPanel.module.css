@@ -193,6 +193,17 @@
   overflow: visible;
 }
 
+.repeatPreviewLayer {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.repeatPreviewContent {
+  opacity: 0.38;
+}
+
 .interactionLayerTool {
   cursor: crosshair;
 }

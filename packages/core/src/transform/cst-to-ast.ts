@@ -63,7 +63,9 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
         figure: {
           kind: "Figure",
           span: { from: inlineNode.from, to: inlineNode.to },
-          options: optionsNode ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from) : undefined,
+          options: optionsNode
+            ? parseOptionListRaw(source.slice(optionsNode.from, optionsNode.to), optionsNode.from)
+            : recoverInlineTikzOptions(inlineNode, source),
           body: inlineBody
         },
         figures: [],
@@ -135,6 +137,48 @@ export function fromCst(tree: Tree, source: string, opts: CstToAstOptions = {}):
     activeFigureId: activeFigureEntry.id,
     diagnostics
   };
+}
+
+function recoverInlineTikzOptions(node: import("@lezer/common").SyntaxNode, source: string) {
+  const commandNode = findFirstChildByName(node, "InlineTikzCmd");
+  if (!commandNode) {
+    return undefined;
+  }
+
+  const commandRaw = source.slice(commandNode.from, commandNode.to);
+  if (!commandRaw.endsWith("[")) {
+    return undefined;
+  }
+
+  const optionStart = commandNode.to - 1;
+  const optionEnd = findMatchingInlineOptionBracket(source, optionStart);
+  if (optionEnd < 0) {
+    return undefined;
+  }
+
+  return parseOptionListRaw(source.slice(optionStart, optionEnd + 1), optionStart);
+}
+
+function findMatchingInlineOptionBracket(source: string, from: number): number {
+  let depth = 0;
+  for (let index = from; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "\\") {
+      index += 1;
+      continue;
+    }
+    if (char === "[") {
+      depth += 1;
+      continue;
+    }
+    if (char === "]") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return -1;
 }
 
 function collectFigureNodes(tree: Tree, source: string): FigureNodeEntry[] {

@@ -300,10 +300,11 @@ describe("canvas context menu definition", () => {
     expect(items[7]).toEqual({ kind: "separator" });
   });
 
-  it("separates Group/Ungroup from clipboard actions with a divider under Duplicate", () => {
+  it("places Repeat below Ungroup with singleton separators", () => {
     const targets: Array<keyof typeof CANVAS_CONTEXT_MENU_DEFINITION> = [
       "selection-single",
       "selection-single-node",
+      "selection-single-matrix",
       "selection-multi"
     ];
 
@@ -312,8 +313,22 @@ describe("canvas context menu definition", () => {
       const duplicateIndex = items.findIndex(
         (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.DUPLICATE
       );
+      const repeatIndex = items.findIndex(
+        (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.REPEAT
+      );
+      const groupIndex = items.findIndex(
+        (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.GROUP
+      );
+      const ungroupIndex = items.findIndex(
+        (item) => item.kind === "command" && item.commandId === APP_MENU_COMMAND_IDS.UNGROUP
+      );
       expect(duplicateIndex).toBeGreaterThanOrEqual(0);
       expect(items[duplicateIndex + 1]).toEqual({ kind: "separator" });
+      expect(groupIndex).toBe(duplicateIndex + 2);
+      expect(ungroupIndex).toBe(groupIndex + 1);
+      expect(items[ungroupIndex + 1]).toEqual({ kind: "separator" });
+      expect(repeatIndex).toBe(ungroupIndex + 2);
+      expect(items[repeatIndex + 1]).toEqual({ kind: "separator" });
     }
   });
 

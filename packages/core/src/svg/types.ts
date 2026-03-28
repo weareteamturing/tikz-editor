@@ -59,6 +59,7 @@ export type EmitSvgOptions = {
   padding?: number;
   includeXmlns?: boolean;
   textEngine?: NodeTextEngine | null;
+  viewBox?: SvgViewBox;
   /**
    * Optional render-model reuse hints for exact incremental SVG emission.
    * If invariants do not hold, emitter falls back to full model emission.

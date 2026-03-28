@@ -87,7 +87,7 @@ export function emitSvg(scene: SceneFigure, opts: EmitSvgOptions = {}): EmitSvgR
 
 export function emitSvgModel(scene: SceneFigure, opts: EmitSvgOptions = {}): SvgRenderModel {
   const padding = opts.padding ?? 12;
-  const viewBox = computeViewBox(scene, padding);
+  const viewBox = opts.viewBox ?? computeViewBox(scene, padding);
 
   const diagnostics: EmitSvgResult["diagnostics"] = [];
   const modelBuilder = createSvgModelBuilder();

@@ -1417,6 +1417,21 @@ describe("parseTikz", () => {
     }
   });
 
+  it("treats control sequences starting with \\tikz as ordinary foreach variables when longer", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \tikzfoo in {0,1}
+    \node at (\tikzfoo,0) {\tikzfoo};
+\end{tikzpicture}`;
+    const result = parseTikz(source);
+
+    expect(result.diagnostics.some((diagnostic) => diagnostic.code === "parse-error")).toBe(false);
+    const foreach = result.figure.body.find((statement) => statement.kind === "Foreach");
+    expect(foreach?.kind).toBe("Foreach");
+    if (foreach?.kind === "Foreach") {
+      expect(foreach.variablesRaw).toBe(String.raw`\tikzfoo`);
+    }
+  });
+
   it("emits a specific parse diagnostic when foreach ranges use `..` instead of `...`", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {0,..,10} \node at (\x,0) {\x};

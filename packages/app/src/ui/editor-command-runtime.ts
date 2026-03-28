@@ -24,6 +24,7 @@ import {
   canCutSelection,
   canDeleteSelection,
   canDuplicateSelection,
+  canRepeatSelection,
   canInsertMatrixColumnLeft,
   canInsertMatrixColumnRight,
   canInsertMatrixRowAbove,
@@ -42,6 +43,7 @@ import {
   deleteSelection,
   distributeSelection,
   duplicateSelection,
+  openRepeatSelection,
   groupSelection,
   joinSelectedPaths,
   pasteSelectionFromSystemClipboard,
@@ -118,6 +120,7 @@ type RuntimeInput = {
   onInterruptAssistant?: () => void;
   onOpenInsertEquation?: () => void;
   onOpenEditEquation?: (target: EquationNodeTarget) => void;
+  onOpenRepeat?: () => void;
 };
 
 export type EditorCommandRuntime = {
@@ -167,7 +170,8 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
     onFocusAssistant,
     onInterruptAssistant,
     onOpenInsertEquation,
-    onOpenEditEquation
+    onOpenEditEquation,
+    onOpenRepeat
   } = input;
   const parseOptions = {
     activeFigureId,
@@ -556,6 +560,12 @@ export function createEditorCommandRuntime(input: RuntimeInput): EditorCommandRu
         duplicateSelection(commandContext);
       }
     },
+    [APP_MENU_COMMAND_IDS.REPEAT]: {
+      enabled: canRepeatSelection(commandContext),
+      run: () => {
+        openRepeatSelection(commandContext, onOpenRepeat);
+      }
+    },
     [APP_MENU_COMMAND_IDS.GROUP]: {
       enabled: availability.group.enabled,
       run: () => {
@@ -874,6 +884,7 @@ export function useEditorCommandRuntime(
     onInterruptAssistant?: () => void;
     onOpenInsertEquation?: () => void;
     onOpenEditEquation?: (target: EquationNodeTarget) => void;
+    onOpenRepeat?: () => void;
     activeHandleIdOverride?: string | null;
   } = {}
 ): EditorCommandRuntime {
@@ -988,12 +999,13 @@ export function useEditorCommandRuntime(
         onRequestCloseAllDocuments: options.onRequestCloseAllDocuments,
         onAddNodeAdornment: options.onAddNodeAdornment,
         onShowCompiledPicture: options.onShowCompiledPicture,
-      onOpenSettings: options.onOpenSettings,
-      onFocusAssistant: options.onFocusAssistant,
-      onInterruptAssistant: options.onInterruptAssistant,
-      onOpenInsertEquation: options.onOpenInsertEquation,
-      onOpenEditEquation: options.onOpenEditEquation
-    }),
+        onOpenSettings: options.onOpenSettings,
+        onFocusAssistant: options.onFocusAssistant,
+        onInterruptAssistant: options.onInterruptAssistant,
+        onOpenInsertEquation: options.onOpenInsertEquation,
+        onOpenEditEquation: options.onOpenEditEquation,
+        onOpenRepeat: options.onOpenRepeat
+      }),
     [
       editAnalysisView,
       effectiveCommandInputs,
@@ -1030,7 +1042,10 @@ export function useEditorCommandRuntime(
       options.onShowCompiledPicture,
       options.onOpenSettings,
       options.onFocusAssistant,
-      options.onInterruptAssistant
+      options.onInterruptAssistant,
+      options.onOpenInsertEquation,
+      options.onOpenEditEquation,
+      options.onOpenRepeat
     ]
   );
 }

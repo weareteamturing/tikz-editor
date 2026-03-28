@@ -51,6 +51,7 @@ import type {
 } from "tikz-editor/semantic/types";
 import { renderTikzToSvg } from "tikz-editor/render/index";
 import { type SvgDiffHints, type SvgViewBox } from "tikz-editor/svg/index";
+import type { SvgRenderModel } from "tikz-editor/svg";
 import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
 import { useEditorStore } from "../store/store";
 import type { CanvasDragKind, CanvasTransform } from "../store/types";
@@ -547,7 +548,11 @@ function computeAutoScaleForImportedTikz(
   return formatScopeScale(clampedScale);
 }
 
-export function CanvasPanel() {
+export function CanvasPanel({
+  repeatPreviewModel = null
+}: {
+  repeatPreviewModel?: SvgRenderModel | null;
+}) {
   const platform = getActiveEditorPlatform();
   const assistantLockReason = useEditorStore((s) => s.documents[s.activeDocumentId]?.assistantLockReason ?? null);
   const source = useEditorStore((s) => s.source);
@@ -2880,6 +2885,7 @@ export function CanvasPanel() {
         svgDiffHints={svgDiffHints}
         forceSvgReplaceAll={forceSvgReplaceAll}
         onSvgPatchFallback={onSvgPatchFallback}
+        repeatPreviewModel={repeatPreviewModel}
         interactionSvgRef={interactionSvgRef}
         onInteractionPointerDown={onInteractionPointerDown}
         onInteractionPointerUp={onInteractionPointerUp}

@@ -139,6 +139,25 @@ describe("editor-command-runtime", () => {
     }));
   });
 
+  it("opens the repeat dialog from the repeat command", () => {
+    const dispatch = vi.fn<(action: EditorAction) => void>();
+    const onOpenRepeat = vi.fn();
+    const rendered = renderTikzToSvg(SOURCE);
+    const runtime = createEditorCommandRuntime(
+      makeInput({
+        dispatch,
+        snapshot: makeSnapshot(rendered),
+        selectedElementIds: new Set(["path:0"]),
+        onOpenRepeat
+      })
+    );
+
+    expect(runtime.bindings[APP_MENU_COMMAND_IDS.REPEAT].enabled).toBe(true);
+    expect(runtime.runCommand(APP_MENU_COMMAND_IDS.REPEAT, "menu")).toBe(true);
+    expect(onOpenRepeat).toHaveBeenCalledTimes(1);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
   it("runs commands through one shared entrypoint for menu and shortcut origins", () => {
     const dispatch = vi.fn<(action: EditorAction) => void>();
     const rendered = renderTikzToSvg(SOURCE);
@@ -1044,7 +1063,8 @@ function makeInput({
   onOpenPngExport,
   onOpenSettings,
   onOpenInsertEquation,
-  onOpenEditEquation
+  onOpenEditEquation,
+  onOpenRepeat
 }: {
   dispatch: (action: EditorAction) => void;
   source?: string;
@@ -1075,6 +1095,7 @@ function makeInput({
   onOpenSettings?: () => void;
   onOpenInsertEquation?: () => void;
   onOpenEditEquation?: (target: any) => void;
+  onOpenRepeat?: () => void;
 }) {
   const activeFigureId = snapshot.parseResult?.activeFigureId ?? null;
 
@@ -1112,6 +1133,7 @@ function makeInput({
     onOpenPngExport,
     onOpenSettings,
     onOpenInsertEquation,
-    onOpenEditEquation
+    onOpenEditEquation,
+    onOpenRepeat
   };
 }

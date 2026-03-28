@@ -7,6 +7,12 @@ import {
 } from "../app-menu";
 import { useEditorStore } from "../store/store";
 import { computeSnapshot, makeEmptySnapshot, setMathJaxFont, type ComputeRequest, type ComputeResponse } from "../compute";
+import { applyEditAction } from "tikz-editor/edit/actions";
+import { getRepeatSelectionEligibility } from "tikz-editor/edit/actions/repeat";
+import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
+import { PT_PER_CM } from "tikz-editor/edit/format";
+import { emitSvgModel, type SvgRenderModel } from "tikz-editor/svg";
+import type { SceneFigure } from "tikz-editor/semantic/types";
 import { AppMenuBar } from "./AppMenuBar";
 import { Toolbar } from "./Toolbar";
 import { ResizableLayout } from "./ResizableLayout";
@@ -16,6 +22,7 @@ import { useEditorCommandRuntime } from "./editor-command-runtime";
 import { toolModeFromShortcut } from "./tool-config";
 import { createSingleFlightScheduler } from "./compute-scheduler";
 import { computeTrigger } from "./compute-trigger";
+import { buildRepeatPreviewScene } from "./repeat-preview";
 import { useSettingsStore } from "../settings/useSettingsStore";
 import { getActiveEditorPlatform } from "../platform/current";
 import css from "./App.module.css";
@@ -90,6 +97,11 @@ const EquationModal = lazy(async () => {
   return { default: mod.EquationModal };
 });
 
+const RepeatModal = lazy(async () => {
+  const mod = await import("./RepeatModal");
+  return { default: mod.RepeatModal };
+});
+
 function menuTargetFromPlatformId(platformId: string): AppMenuPlatformTarget {
   if (platformId.startsWith("desktop")) {
     if (typeof navigator !== "undefined") {
@@ -128,10 +140,24 @@ function isCanvasViewportFocused(): boolean {
   );
 }
 
+type RepeatModalState = {
+  documentId: string;
+  source: string;
+  activeFigureId: string | null;
+  selectedSourceIds: string[];
+  selectionWidthPt: number;
+  selectionHeightPt: number;
+  columns: number;
+  rows: number;
+  horizontalStepPt: number;
+  verticalStepPt: number;
+};
+
 export function App() {
   const source = useEditorStore((s) => s.source);
   const snapshot = useEditorStore((s) => s.snapshot);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
+  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const pendingRequestId = useEditorStore((s) => s.pendingRequestId);
   const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
   const documents = useEditorStore((s) => s.documents);
@@ -159,6 +185,8 @@ export function App() {
     | { mode: "edit"; target: EquationNodeTarget }
     | null
   >(null);
+  const [repeatModalState, setRepeatModalState] = useState<RepeatModalState | null>(null);
+  const [repeatPreviewModel, setRepeatPreviewModel] = useState<SvgRenderModel | null>(null);
   const [insertEquationDraft, setInsertEquationDraft] = useState("");
   const [compiledPictureSource, setCompiledPictureSource] = useState<{
     source: string;
@@ -236,6 +264,18 @@ export function App() {
     onOpenEditEquation: (target) => {
       setEquationModalState({ mode: "edit", target });
     },
+    onOpenRepeat: () => {
+      const nextState = resolveRepeatModalState({
+        source,
+        activeFigureId,
+        selectedElementIds,
+        scene: snapshot.scene,
+        documentId: activeDocumentId
+      });
+      if (nextState) {
+        setRepeatModalState(nextState);
+      }
+    },
     onFocusAssistant: () => {
       dispatch({ type: "SET_RIGHT_SIDEBAR_TAB", tab: "assistant" });
     },
@@ -286,6 +326,79 @@ export function App() {
     activeDocumentIdRef.current = activeDocumentId;
     documentsRef.current = documents;
   }, [activeDocumentId, documents, snapshot, source]);
+
+  useEffect(() => {
+    if (!repeatModalState) {
+      setRepeatPreviewModel(null);
+      return;
+    }
+    if (repeatModalState.documentId !== activeDocumentId || repeatModalState.source !== source) {
+      setRepeatModalState(null);
+      setRepeatPreviewModel(null);
+    }
+  }, [activeDocumentId, repeatModalState, source]);
+
+  useEffect(() => {
+    if (!repeatModalState) {
+      setRepeatPreviewModel(null);
+      return;
+    }
+    if (!snapshot.svg?.viewBox) {
+      setRepeatPreviewModel(null);
+      return;
+    }
+
+    const action = {
+      kind: "repeatElements" as const,
+      elementIds: repeatModalState.selectedSourceIds,
+      columns: repeatModalState.columns,
+      rows: repeatModalState.rows,
+      horizontalStep: repeatModalState.horizontalStepPt,
+      verticalStep: repeatModalState.verticalStepPt
+    };
+    const result = applyEditAction(repeatModalState.source, [], action, {
+      parseOptions: repeatModalState.activeFigureId == null ? {} : { activeFigureId: repeatModalState.activeFigureId }
+    });
+    if (result.kind !== "success" && result.kind !== "partial") {
+      setRepeatPreviewModel(null);
+      return;
+    }
+    const previewGroupSpan = result.patches[0]?.newSpan;
+    if (!previewGroupSpan) {
+      setRepeatPreviewModel(null);
+      return;
+    }
+
+    let cancelled = false;
+    void computeSnapshot({
+      id: crypto.randomUUID(),
+      source: result.newSource,
+      activeFigureId: repeatModalState.activeFigureId
+    }).then((response) => {
+      if (cancelled) {
+        return;
+      }
+      const previewScene = buildRepeatPreviewScene(response.snapshot.scene, previewGroupSpan);
+      if (!previewScene || previewScene.elements.length === 0) {
+        setRepeatPreviewModel(null);
+        return;
+      }
+      setRepeatPreviewModel(
+        emitSvgModel(previewScene, {
+          padding: 18,
+          viewBox: snapshot.svg!.viewBox
+        })
+      );
+    }).catch(() => {
+      if (!cancelled) {
+        setRepeatPreviewModel(null);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [repeatModalState, snapshot.svg]);
 
   const activeAssistantDoc = documents[activeDocumentId];
 
@@ -1245,7 +1358,7 @@ export function App() {
           center={(
             <div className={css.centerColumn}>
               <Suspense fallback={<div className={css.panelLoading}>Loading canvas…</div>}>
-                <CanvasPanel />
+                <CanvasPanel repeatPreviewModel={repeatPreviewModel} />
               </Suspense>
               <Suspense fallback={null}>
                 <FigureNavigator />
@@ -1332,6 +1445,71 @@ export function App() {
           />
         </Suspense>
       ) : null}
+      {repeatModalState ? (
+        <Suspense fallback={null}>
+          <RepeatModal
+            columns={repeatModalState.columns}
+            rows={repeatModalState.rows}
+            horizontalStepCm={repeatModalState.horizontalStepPt / PT_PER_CM}
+            verticalStepCm={repeatModalState.verticalStepPt / PT_PER_CM}
+            horizontalGapCm={(repeatModalState.horizontalStepPt - repeatModalState.selectionWidthPt) / PT_PER_CM}
+            verticalGapCm={(repeatModalState.verticalStepPt - repeatModalState.selectionHeightPt) / PT_PER_CM}
+            selectionWidthCm={repeatModalState.selectionWidthPt / PT_PER_CM}
+            selectionHeightCm={repeatModalState.selectionHeightPt / PT_PER_CM}
+            onColumnsChange={(columns) => {
+              setRepeatModalState((current) => current == null ? current : {
+                ...current,
+                columns: clampRepeatCount(columns)
+              });
+            }}
+            onRowsChange={(rows) => {
+              setRepeatModalState((current) => current == null ? current : {
+                ...current,
+                rows: clampRepeatCount(rows)
+              });
+            }}
+            onHorizontalStepChange={(horizontalStepCm) => {
+              setRepeatModalState((current) => current == null ? current : {
+                ...current,
+                horizontalStepPt: numericInputToPt(horizontalStepCm)
+              });
+            }}
+            onVerticalStepChange={(verticalStepCm) => {
+              setRepeatModalState((current) => current == null ? current : {
+                ...current,
+                verticalStepPt: numericInputToPt(verticalStepCm)
+              });
+            }}
+            onClose={() => {
+              setRepeatModalState(null);
+              setRepeatPreviewModel(null);
+            }}
+            onConfirm={() => {
+              const action = {
+                kind: "repeatElements" as const,
+                elementIds: repeatModalState.selectedSourceIds,
+                columns: repeatModalState.columns,
+                rows: repeatModalState.rows,
+                horizontalStep: repeatModalState.horizontalStepPt,
+                verticalStep: repeatModalState.verticalStepPt
+              };
+              const precomputedResult = applyEditAction(repeatModalState.source, [], action, {
+                parseOptions: repeatModalState.activeFigureId == null ? {} : { activeFigureId: repeatModalState.activeFigureId }
+              });
+              if (precomputedResult.kind !== "success" && precomputedResult.kind !== "partial") {
+                return;
+              }
+              dispatch({
+                type: "APPLY_EDIT_ACTION",
+                action,
+                precomputedResult
+              });
+              setRepeatModalState(null);
+              setRepeatPreviewModel(null);
+            }}
+          />
+        </Suspense>
+      ) : null}
       {svgExportSvgResult ? (
         <Suspense fallback={null}>
           <SvgExportModal
@@ -1363,6 +1541,76 @@ export function App() {
       ) : null}
     </div>
   );
+}
+
+function resolveRepeatModalState(input: {
+  source: string;
+  activeFigureId: string | null;
+  selectedElementIds: ReadonlySet<string>;
+  scene: SceneFigure | null;
+  documentId: string;
+}): RepeatModalState | null {
+  if (!input.scene) {
+    return null;
+  }
+  const selectedSourceIds = [...input.selectedElementIds];
+  const eligibility = getRepeatSelectionEligibility(
+    input.source,
+    selectedSourceIds,
+    input.activeFigureId == null ? {} : { activeFigureId: input.activeFigureId }
+  );
+  if (eligibility.kind !== "eligible") {
+    return null;
+  }
+
+  const boundsBySource = collectSourceWorldBounds(input.scene.elements);
+  let selectionBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  for (const ref of eligibility.refs) {
+    const bounds = boundsBySource.get(ref.id);
+    if (!bounds) {
+      continue;
+    }
+    selectionBounds = selectionBounds == null
+      ? { ...bounds }
+      : {
+          minX: Math.min(selectionBounds.minX, bounds.minX),
+          minY: Math.min(selectionBounds.minY, bounds.minY),
+          maxX: Math.max(selectionBounds.maxX, bounds.maxX),
+          maxY: Math.max(selectionBounds.maxY, bounds.maxY)
+        };
+  }
+  if (!selectionBounds) {
+    return null;
+  }
+
+  const selectionWidthPt = Math.max(0, selectionBounds.maxX - selectionBounds.minX);
+  const selectionHeightPt = Math.max(0, selectionBounds.maxY - selectionBounds.minY);
+  return {
+    documentId: input.documentId,
+    source: input.source,
+    activeFigureId: input.activeFigureId,
+    selectedSourceIds: eligibility.refs.map((ref) => ref.id),
+    selectionWidthPt,
+    selectionHeightPt,
+    columns: 2,
+    rows: 1,
+    horizontalStepPt: selectionWidthPt,
+    verticalStepPt: selectionHeightPt
+  };
+}
+
+function clampRepeatCount(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
+  return Math.max(1, Math.floor(value));
+}
+
+function numericInputToPt(valueCm: number): number {
+  if (!Number.isFinite(valueCm)) {
+    return 0;
+  }
+  return valueCm * PT_PER_CM;
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {

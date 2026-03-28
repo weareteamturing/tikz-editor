@@ -54,6 +54,7 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
     svgDiffHints,
     forceSvgReplaceAll,
     onSvgPatchFallback,
+    repeatPreviewModel,
     interactionSvgRef,
     onInteractionPointerDown,
     onInteractionPointerUp,
@@ -255,6 +256,21 @@ export function CanvasPanelView(props: CanvasPanelViewProps) {
                 showDocumentBounds={showDocumentBounds}
                 onFallback={onSvgPatchFallback}
               />
+
+              {repeatPreviewModel ? (
+                <svg
+                  className={css.repeatPreviewLayer}
+                  data-testid="canvas-repeat-preview-layer"
+                  viewBox={`${repeatPreviewModel.viewBox.x} ${repeatPreviewModel.viewBox.y} ${repeatPreviewModel.viewBox.width} ${repeatPreviewModel.viewBox.height}`}
+                  aria-hidden="true"
+                >
+                  <defs dangerouslySetInnerHTML={{ __html: repeatPreviewModel.defs.join("") }} />
+                  <g
+                    className={css.repeatPreviewContent}
+                    dangerouslySetInnerHTML={{ __html: repeatPreviewModel.parts.map((part: any) => part.markup).join("") }}
+                  />
+                </svg>
+              ) : null}
 
               <svg
                 ref={interactionSvgRef}

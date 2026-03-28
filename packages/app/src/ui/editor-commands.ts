@@ -339,6 +339,17 @@ export function duplicateSelection(context: SelectionCommandContext): boolean {
   return true;
 }
 
+export function openRepeatSelection(
+  context: SelectionCommandContext,
+  onOpenRepeat?: () => void
+): boolean {
+  if (!canRepeatSelection(context) || !onOpenRepeat) {
+    return false;
+  }
+  onOpenRepeat();
+  return true;
+}
+
 export function groupSelection(context: SelectionCommandContext): boolean {
   if (!canGroupSelection(context)) {
     return false;
@@ -479,6 +490,13 @@ export function canDuplicateSelection(context: SelectionCommandContext): boolean
     return false;
   }
   return availabilityFor(context).duplicate.enabled;
+}
+
+export function canRepeatSelection(context: SelectionCommandContext): boolean {
+  if (classifyMatrixCellSelection(context).hasAnyMatrixCellSelection) {
+    return false;
+  }
+  return availabilityFor(context).repeat.enabled;
 }
 
 export function canCutSelection(context: SelectionCommandContext): boolean {

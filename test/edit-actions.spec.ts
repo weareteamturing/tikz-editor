@@ -3269,6 +3269,258 @@ describe("applyEditAction – duplicateElements", () => {
   });
 });
 
+describe("applyEditAction – repeatElements", () => {
+  it("repeats a single draw statement by rewriting path coordinates", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 3,
+      rows: 1,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 2} {`);
+    expect(result.newSource).toContain(String.raw`\draw (\i*2cm,0) -- (1cm+\i*2cm,0);`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a node with at-placement by rewriting the at coordinate", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(3),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\node[draw] at (\i*3cm,1.5) {C};`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a named node with at-placement by rewriting the at coordinate", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] (C) at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 3,
+      rows: 2,
+      horizontalStep: cm(3),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\node[draw] (C) at (\i*3cm,1.5cm-\j*2cm) {C};`);
+    expect(result.newSource).not.toContain(String.raw`\begin{scope}[shift=`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a node in two dimensions without falling back to a shifted scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \node[draw] at (0, 1.5) {C};
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 3,
+      rows: 2,
+      horizontalStep: cm(3),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 2} {`);
+    expect(result.newSource).toContain(String.raw`\node[draw] at (\i*3cm,1.5cm-\j*2cm) {C};`);
+    expect(result.newSource).not.toContain(String.raw`\begin{scope}[shift=`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a rectangle path in two dimensions by rewriting both corners", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) rectangle (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 3,
+      rows: 2,
+      horizontalStep: cm(3),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 2} {`);
+    expect(result.newSource).toContain(String.raw`\draw (\i*3cm,-\j*2cm) rectangle (1cm+\i*3cm,1cm-\j*2cm);`);
+    expect(result.newSource).not.toContain(String.raw`\begin{scope}[shift=`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a line path in two dimensions without introducing a shifted scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0"],
+      columns: 3,
+      rows: 2,
+      horizontalStep: cm(3),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 2} {`);
+    expect(result.newSource).toContain(String.raw`\draw (\i*3cm,-\j*2cm) -- (1cm+\i*3cm,-\j*2cm);`);
+    expect(result.newSource).not.toContain(String.raw`\begin{scope}[shift=`);
+    expect(result.newSource).not.toContain("shift=");
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("repeats a single scope without inserting an extra inner scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["scope:0"],
+      columns: 1,
+      rows: 2,
+      horizontalStep: cm(1),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect((result.newSource.match(/\\begin\{scope\}/g) ?? []).length).toBe(1);
+    expect(result.newSource).toContain(String.raw`\begin{scope}[shift={(0,-\j*2cm)}]`);
+  });
+
+  it("repeats a scope in two dimensions without wrapping it in an extra shifted scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \begin{scope}
+    \draw (0,0) -- (1,0);
+  \end{scope}
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["scope:0"],
+      columns: 3,
+      rows: 2,
+      horizontalStep: cm(3),
+      verticalStep: cm(2)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 2} {`);
+    expect(result.newSource).toContain(String.raw`\begin{scope}[shift={(\i*3cm,-\j*2cm)}]`);
+    expect((result.newSource.match(/\\begin\{scope\}/g) ?? []).length).toBe(1);
+  });
+
+  it("wraps multi-statement repeats in an inner shifted scope", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0", "path:1"],
+      columns: 2,
+      rows: 2,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("success");
+    if (result.kind !== "success") return;
+    expect(result.newSource).toContain(String.raw`\foreach \j in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\foreach \i in {0, ..., 1} {`);
+    expect(result.newSource).toContain(String.raw`\begin{scope}[shift={(\i*2cm,-\j*1cm)}]`);
+    expect(parseTikz(result.newSource, { recover: true }).diagnostics.some((diagnostic) => diagnostic.severity === "error")).toBe(false);
+  });
+
+  it("rejects non-contiguous repeat selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) -- (1,0);
+  \draw (0,1) -- (1,1);
+  \draw (0,2) -- (1,2);
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["path:0", "path:2"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("contiguous");
+  });
+
+  it("rejects foreach-origin repeat selections", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {0,...,1} {
+    \draw (\x,0) -- ++(1,0);
+  }
+\end{tikzpicture}`;
+
+    const result = applyEditAction(source, [], {
+      kind: "repeatElements",
+      elementIds: ["foreach:0"],
+      columns: 2,
+      rows: 1,
+      horizontalStep: cm(2),
+      verticalStep: cm(1)
+    });
+
+    expect(result.kind).toBe("unsupported");
+    if (result.kind !== "unsupported") return;
+    expect(result.reason).toContain("foreach");
+  });
+});
+
 describe("applyEditAction – pasteStatements", () => {
   it("pastes snippets after anchor and returns selected source ids", () => {
     const source = String.raw`\begin{tikzpicture}

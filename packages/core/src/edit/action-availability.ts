@@ -17,12 +17,14 @@ import {
   type PathEditEligibility,
   type PathHandleResolution
 } from "./path-editing.js";
+import { getRepeatSelectionEligibility } from "./actions/repeat.js";
 
 export const EDIT_ACTION_IDS = [
   "cut",
   "copy",
   "paste",
   "duplicate",
+  "repeat",
   "delete",
   "group",
   "ungroup",
@@ -114,6 +116,7 @@ const RULES: Record<EditActionId, AvailabilityRule> = {
     facts.selectedSourceIds.length > 0
       ? null
       : "Select at least one element to duplicate.",
+  repeat: makeRepeatRule(),
   delete: (facts) =>
     facts.selectedSourceIds.length > 0
       ? null
@@ -482,6 +485,29 @@ function makeGroupRule(): AvailabilityRule {
       return "Grouping currently requires statements from the same parent scope.";
     }
     return null;
+  };
+}
+
+function makeRepeatRule(): AvailabilityRule {
+  return (facts) => {
+    if (facts.hasAdornmentSelection) {
+      return "Adornment selections cannot be repeated.";
+    }
+    if (!facts.snapshotMatchesSource) {
+      return "Wait for recompute to finish before repeating the selection.";
+    }
+    if (facts.selectedSourceIds.length === 1) {
+      const selectedId = facts.selectedSourceIds[0]!;
+      if (!selectedId.startsWith("foreach:")) {
+        return null;
+      }
+    }
+    const eligibility = getRepeatSelectionEligibility(
+      facts.source,
+      facts.selectedSourceIds,
+      facts.parseOptions
+    );
+    return eligibility.kind === "eligible" ? null : eligibility.reason;
   };
 }
 

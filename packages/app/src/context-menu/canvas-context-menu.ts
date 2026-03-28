@@ -325,6 +325,12 @@ const BASE_SELECTION_SINGLE_NODE_ITEMS: readonly AppMenuItem[] = [
   },
   { kind: "separator" },
   {
+    kind: "command",
+    commandId: APP_MENU_COMMAND_IDS.REPEAT,
+    label: "Repeat..."
+  },
+  { kind: "separator" },
+  {
     kind: "submenu",
     label: "Transform",
     items: TRANSFORM_ITEMS
@@ -435,6 +441,12 @@ export function buildCanvasContextMenuDefinition(
       commandId: APP_MENU_COMMAND_IDS.UNGROUP,
       label: "Ungroup",
       accelerator: "CmdOrCtrl+Shift+G"
+    },
+    { kind: "separator" },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REPEAT,
+      label: "Repeat..."
     },
     { kind: "separator" },
     {
@@ -567,6 +579,12 @@ export function buildCanvasContextMenuDefinition(
     },
     { kind: "separator" },
     {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REPEAT,
+      label: "Repeat..."
+    },
+    { kind: "separator" },
+    {
       kind: "submenu",
       label: "Transform",
       items: TRANSFORM_ITEMS
@@ -644,6 +662,12 @@ export function buildCanvasContextMenuDefinition(
       },
       { kind: "separator" },
       {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REPEAT,
+        label: "Repeat..."
+      },
+      { kind: "separator" },
+      {
         kind: "submenu",
         label: "Transform",
         items: TRANSFORM_ITEMS
@@ -708,6 +732,11 @@ export function buildCanvasContextMenuDefinition(
       label: "Duplicate",
       accelerator: "CmdOrCtrl+D"
     },
+    {
+      kind: "command",
+      commandId: APP_MENU_COMMAND_IDS.REPEAT,
+      label: "Repeat..."
+    },
     { kind: "separator" },
     {
       kind: "submenu",
@@ -766,6 +795,11 @@ export function buildCanvasContextMenuDefinition(
         commandId: APP_MENU_COMMAND_IDS.DUPLICATE,
         label: "Duplicate",
         accelerator: "CmdOrCtrl+D"
+      },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REPEAT,
+        label: "Repeat..."
       },
       { kind: "separator" },
       {
@@ -843,6 +877,12 @@ export function buildCanvasContextMenuDefinition(
         commandId: APP_MENU_COMMAND_IDS.UNGROUP,
         label: "Ungroup",
         accelerator: "CmdOrCtrl+Shift+G"
+      },
+      { kind: "separator" },
+      {
+        kind: "command",
+        commandId: APP_MENU_COMMAND_IDS.REPEAT,
+        label: "Repeat..."
       },
       { kind: "separator" },
       {
