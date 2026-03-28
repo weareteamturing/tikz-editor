@@ -34,10 +34,11 @@ import {
 import { normalizeOptionKey } from "./option-mutations.js";
 import { formatNumber } from "./format.js";
 import { parseLength } from "../semantic/coords/parse-length.js";
-import { stripEnclosingBraces } from "../semantic/style/option-utils.js";
+import { readBalancedBlock, stripEnclosingBraces } from "../semantic/style/option-utils.js";
 import { parseCustomStyleDefinition } from "../semantic/style/custom-styles.js";
+import { parseOptionListRaw } from "../options/parse.js";
 
-export type StylesCascadeDeclarationStatus = "active" | "overridden" | "inactive-default" | "unsupported";
+export type StylesCascadeDeclarationStatus = "active" | "overridden" | "inactive-default" | "unsupported" | "disabled";
 
 export type StylesEditablePropertyCatalogEntry = {
   propertyId: string;
@@ -90,6 +91,7 @@ type StylesDeclarationDraft = Omit<StylesCascadeDeclaration, "status" | "writeTa
   writeTarget: SetPropertyWriteTarget;
   priorityKey: string;
   defaultLike: boolean;
+  status?: StylesCascadeDeclarationStatus;
 };
 
 const SUPPORTED_ADD_PROPERTY_IDS = new Set([
@@ -153,7 +155,7 @@ export function buildStylesCascadeModel(
       targetId != null
         ? resolveSectionWriteTarget(snapshot.source, entry, targetId, snapshot.parseOptions, writeTargetCache)
         : resolveSectionWriteTarget(snapshot.source, entry, null, snapshot.parseOptions, writeTargetCache);
-    const declarationDrafts = buildSectionDeclarations(entry, propertyMap, sectionTarget.writeTarget);
+    const declarationDrafts = buildSectionDeclarations(entry, propertyMap, sectionTarget.writeTarget, snapshot.source);
     if (declarationDrafts.length === 0) {
       continue;
     }
@@ -170,7 +172,7 @@ export function buildStylesCascadeModel(
       readOnlyReason: sectionTarget.readOnlyReason,
       declarations: declarationDrafts.map((draft) => ({
         ...draft,
-        status: "unsupported",
+        status: draft.status ?? "unsupported",
         writeTargets: draft.writeTarget.writable ? [draft.writeTarget] : []
       })),
       addableProperties: Object.values(addTemplates).map((property) => ({ propertyId: property.id, label: property.label, kind: property.kind })),
@@ -253,29 +255,163 @@ export function planStylesSetPropertyActions(
   return [...unique.values()];
 }
 
+export function planStylesTogglePropertyActions(
+  writeTargets: readonly SetPropertyWriteTarget[],
+  mutation: { key: string; mode: "disable" | "enable"; sourceText: string }
+): EditAction[] {
+  const unique = new Map<string, EditAction>();
+  for (const target of writeTargets) {
+    if (!target.writable || target.elementId.trim().length === 0) {
+      continue;
+    }
+    const action: EditAction = {
+      kind: "setProperty",
+      elementId: target.elementId,
+      level: target.level,
+      key: mutation.key,
+      value: "",
+      commentMode: mutation.mode,
+      commentSourceText: mutation.sourceText
+    };
+    unique.set(`${target.elementId}:${mutation.key}:${mutation.mode}:${mutation.sourceText}`, action);
+  }
+  return [...unique.values()];
+}
+
 function buildSectionDeclarations(
   entry: StyleChainEntry,
   propertyMap: Map<string, InspectorProperty>,
-  writeTarget: SetPropertyWriteTarget
+  writeTarget: SetPropertyWriteTarget,
+  source: string
 ): StylesDeclarationDraft[] {
   const declarations: StylesDeclarationDraft[] = [];
   const seen = new Set<string>();
+  const appendCandidate = (candidate: {
+    entry: OptionEntry;
+    disabled: boolean;
+    absoluteFrom: number;
+    sourceText: string;
+  }, candidateWriteTarget: SetPropertyWriteTarget = writeTarget) => {
+    if (isStyleDefinitionEntry(candidate.entry)) {
+      return;
+    }
+    const matched = mapEntryToDeclaration(candidate.entry, propertyMap, candidateWriteTarget);
+    if (!matched) {
+      const unsupported = buildUnsupportedDeclaration(candidate.entry, candidateWriteTarget, entry);
+      if (candidate.disabled) {
+        declarations.push({
+          ...unsupported,
+          id: `disabled:unsupported:${candidate.absoluteFrom}`,
+          sourceText: candidate.sourceText,
+          priorityKey: `disabled:unsupported:${candidate.absoluteFrom}`,
+          status: "disabled"
+        });
+      } else {
+        declarations.push(unsupported);
+      }
+      return;
+    }
 
-  for (const optionList of entry.rawOptions) {
-    for (const optionEntry of optionList.entries) {
-      if (isStyleDefinitionEntry(optionEntry)) {
-        continue;
-      }
-      const matched = mapEntryToDeclaration(optionEntry, propertyMap, writeTarget);
-      if (!matched) {
-        declarations.push(buildUnsupportedDeclaration(optionEntry, writeTarget, entry));
-        continue;
-      }
+    if (!candidate.disabled) {
       if (seen.has(matched.priorityKey)) {
-        continue;
+        return;
       }
       seen.add(matched.priorityKey);
       declarations.push(matched);
+      return;
+    }
+
+    declarations.push({
+      ...matched,
+      id: `disabled:${matched.propertyId ?? "unknown"}:${candidate.absoluteFrom}`,
+      sourceText: candidate.sourceText,
+      priorityKey: `disabled:${matched.propertyId ?? matched.priorityKey}:${candidate.absoluteFrom}`,
+      status: "disabled"
+    });
+  };
+
+  for (const optionList of entry.rawOptions) {
+    const nestedStyleValueSpans = optionList.entries
+      .flatMap((optionEntry) => {
+        if (optionEntry.kind !== "kv" || !isStyleDefinitionEntry(optionEntry)) {
+          return [];
+        }
+        const span = resolveStyleDefinitionValueSpan(source, optionEntry);
+        return span ? [span] : [];
+      });
+    const candidates: Array<{
+      entry: OptionEntry;
+      disabled: boolean;
+      absoluteFrom: number;
+      sourceText: string;
+    }> = [
+      ...optionList.entries.map((optionEntry) => ({
+        entry: optionEntry,
+        disabled: false,
+        absoluteFrom: optionEntry.span.from,
+        sourceText: optionEntry.raw.trim()
+      })),
+      ...extractDisabledOptionDeclarations(source, optionList)
+        .filter((candidate) =>
+          !nestedStyleValueSpans.some((span) => candidate.absoluteFrom >= span.from && candidate.absoluteFrom < span.to)
+        )
+        .map((candidate) => ({
+          entry: candidate.entry,
+          disabled: true,
+          absoluteFrom: candidate.absoluteFrom,
+          sourceText: candidate.sourceText
+        }))
+    ].sort((left, right) => left.absoluteFrom - right.absoluteFrom);
+
+    for (const candidate of candidates) {
+      if (isStyleDefinitionEntry(candidate.entry)) {
+        if (candidate.entry.kind === "kv" && !candidate.disabled) {
+          const styleTargetId = makeStyleSourceTargetId(candidate.entry.span);
+          const styleTarget = resolvePropertyTarget(source, styleTargetId);
+          const styleWriteTarget: SetPropertyWriteTarget =
+            styleTarget.kind === "found"
+              ? { ...writeTarget, elementId: styleTargetId, writable: true, reason: undefined }
+              : { ...writeTarget, elementId: styleTargetId, writable: false, reason: styleTarget.reason };
+          const styleOptionsSpan =
+            styleTarget.kind === "found" && styleTarget.target.optionsSpan && styleTarget.target.optionsSpan.to > styleTarget.target.optionsSpan.from
+              ? styleTarget.target.optionsSpan
+              : resolveStyleDefinitionValueSpan(source, candidate.entry);
+          if (styleOptionsSpan) {
+            const nestedDisabledCandidates = extractDisabledOptionDeclarations(source, {
+              span: styleOptionsSpan
+            });
+            for (const nested of nestedDisabledCandidates) {
+              appendCandidate(
+                {
+                  entry: nested.entry,
+                  disabled: true,
+                  absoluteFrom: nested.absoluteFrom,
+                  sourceText: nested.sourceText
+                },
+                styleWriteTarget
+              );
+            }
+          }
+        }
+        continue;
+      }
+      appendCandidate(candidate);
+    }
+  }
+
+  if (
+    entry.rawOptions.length === 0
+    && entry.sourceRef?.sourceSpan
+    && (/\boptions\b/u.test(entry.sourceRef.sourceKind) || /style/u.test(entry.sourceRef.sourceKind))
+  ) {
+    const disabledCandidates = extractDisabledOptionDeclarations(source, { span: entry.sourceRef.sourceSpan });
+    for (const candidate of disabledCandidates) {
+      appendCandidate({
+        entry: candidate.entry,
+        disabled: true,
+        absoluteFrom: candidate.absoluteFrom,
+        sourceText: candidate.sourceText
+      });
     }
   }
 
@@ -293,6 +429,110 @@ function buildSectionDeclarations(
   }
 
   return declarations;
+}
+
+function resolveStyleDefinitionValueSpan(
+  source: string,
+  entry: Extract<OptionEntry, { kind: "kv" }>
+): { from: number; to: number } | null {
+  const raw = source.slice(entry.span.from, entry.span.to);
+  const equalIndex = raw.indexOf("=");
+  if (equalIndex < 0) {
+    return null;
+  }
+
+  let valueStart = equalIndex + 1;
+  while (valueStart < raw.length && /\s/u.test(raw[valueStart] ?? "")) {
+    valueStart += 1;
+  }
+  if (valueStart >= raw.length) {
+    return null;
+  }
+
+  let valueEnd = raw.length;
+  while (valueEnd > valueStart && /\s/u.test(raw[valueEnd - 1] ?? "")) {
+    valueEnd -= 1;
+  }
+  if (valueEnd <= valueStart) {
+    return null;
+  }
+
+  const opener = raw[valueStart];
+  if (opener === "{" || opener === "[") {
+    const closer = opener === "{" ? "}" : "]";
+    const block = readBalancedBlock(raw, valueStart, opener, closer);
+    if (block) {
+      const contentFrom = entry.span.from + valueStart + 1;
+      const contentTo = entry.span.from + block.nextIndex - 1;
+      if (contentTo >= contentFrom) {
+        return { from: contentFrom, to: contentTo };
+      }
+    }
+  }
+
+  return {
+    from: entry.span.from + valueStart,
+    to: entry.span.from + valueEnd
+  };
+}
+
+type DisabledOptionDeclarationCandidate = {
+  entry: OptionEntry;
+  sourceText: string;
+  absoluteFrom: number;
+};
+
+function extractDisabledOptionDeclarations(source: string, optionList: { span: { from: number; to: number } }): DisabledOptionDeclarationCandidate[] {
+  if (optionList.span.to <= optionList.span.from) {
+    return [];
+  }
+  const raw = source.slice(optionList.span.from, optionList.span.to);
+  if (raw.length === 0) {
+    return [];
+  }
+
+  const candidates: DisabledOptionDeclarationCandidate[] = [];
+  let lineStart = 0;
+  while (lineStart <= raw.length) {
+    let lineEnd = lineStart;
+    while (lineEnd < raw.length) {
+      const char = raw[lineEnd];
+      if (char === "\n" || char === "\r") {
+        break;
+      }
+      lineEnd += 1;
+    }
+    const line = raw.slice(lineStart, lineEnd);
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith("%")) {
+      const body = trimmed.slice(1).trim();
+      if (body.endsWith(",")) {
+        const sourceText = body.slice(0, -1).trim();
+        if (sourceText.length > 0) {
+          const parsed = parseOptionListRaw(`[${sourceText}]`);
+          const parsedEntry = parsed.entries[0];
+          if (parsedEntry) {
+            candidates.push({
+              entry: parsedEntry,
+              sourceText,
+              absoluteFrom: optionList.span.from + lineStart
+            });
+          }
+        }
+      }
+    }
+
+    if (lineEnd >= raw.length) {
+      break;
+    }
+    if (raw[lineEnd] === "\r" && raw[lineEnd + 1] === "\n") {
+      lineStart = lineEnd + 2;
+    } else {
+      lineStart = lineEnd + 1;
+    }
+  }
+
+  return candidates;
 }
 
 function mapEntryToDeclaration(
@@ -381,6 +621,9 @@ function applyDeclarationStatuses(sections: StylesCascadeSection[]): void {
   const seen = new Set<string>();
   for (const section of sections) {
     section.declarations = section.declarations.map((declaration) => {
+      if (declaration.status === "disabled") {
+        return declaration;
+      }
       if (declaration.propertyId == null) {
         return { ...declaration, status: declaration.writeTargets.length > 0 ? "active" : "unsupported" };
       }

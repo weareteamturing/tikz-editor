@@ -20,6 +20,7 @@ import {
   planStylesRemovePropertyActions,
   planStylesRenamePropertyActions,
   planStylesSetPropertyActions,
+  planStylesTogglePropertyActions,
   type StylesCascadeDeclaration,
   type StylesCascadeModel,
   type StylesCascadeSection
@@ -28,6 +29,7 @@ import { NON_STYLE_OPTION_FLAGS, NON_STYLE_OPTION_KEYS } from "tikz-editor/seman
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { getSharedEditAnalysisView, getSharedEditAnalysisSession } from "../edit-analysis-manager";
 import { useProjectNamedColorSwatches } from "../project-named-colors";
+import { useSettingsStore } from "../settings/useSettingsStore";
 import { useEditorStore } from "../store/store";
 import { ColorPickerField } from "./ColorPicker";
 import { CustomDropdown, type CustomDropdownItem } from "./CustomDropdown";
@@ -74,6 +76,7 @@ export function StylesPanel() {
   const source = useEditorStore((s) => s.source);
   const sourceRevision = useEditorStore((s) => s.sourceRevision);
   const dispatch = useEditorStore((s) => s.dispatch);
+  const editorIndentSize = useSettingsStore((s) => s.settings.editor.indentSize);
   const [addingInSection, setAddingInSection] = useState<string | null>(null);
 
   const selectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
@@ -136,10 +139,15 @@ export function StylesPanel() {
     (actions: ReturnType<typeof planStylesSetPropertyActions>) => {
       const mergeKey = `styles:${Date.now().toString(36)}`;
       for (const action of actions) {
-        dispatch({ type: "APPLY_EDIT_ACTION", historyMergeKey: mergeKey, action });
+        dispatch({
+          type: "APPLY_EDIT_ACTION",
+          historyMergeKey: mergeKey,
+          parseOptions: { indentSize: editorIndentSize },
+          action
+        });
       }
     },
-    [dispatch]
+    [dispatch, editorIndentSize]
   );
 
   const applySimpleMutation = useCallback(
@@ -335,6 +343,31 @@ export function StylesPanel() {
     [applyPropertyChange, dispatchActions]
   );
 
+  const handleToggleProperty = useCallback(
+    (declaration: StylesCascadeDeclaration, enabled: boolean) => {
+      if (!declaration.writeTargets.some((target) => target.writable)) {
+        return;
+      }
+      const currentlyEnabled = declaration.status !== "disabled";
+      if (currentlyEnabled === enabled) {
+        return;
+      }
+
+      const key = toPropertyKey(declaration);
+      if (key.length === 0) {
+        return;
+      }
+      dispatchActions(
+        planStylesTogglePropertyActions(declaration.writeTargets, {
+          key,
+          mode: enabled ? "enable" : "disable",
+          sourceText: declaration.sourceText
+        })
+      );
+    },
+    [dispatchActions]
+  );
+
   if (selectedSourceIds.length === 0) {
     return (
       <SidePanel className={css.panel}>
@@ -388,6 +421,7 @@ export function StylesPanel() {
                   namedColorSwatches={projectNamedColorSwatches}
                   onPropertyChange={applyPropertyChange}
                   onDelete={handleDeleteProperty}
+                  onToggle={handleToggleProperty}
                   onRenameKey={handleRenameKey}
                   onRawValueCommit={handleRawValueCommit}
                 />
@@ -424,6 +458,7 @@ function DeclarationRow({
   namedColorSwatches,
   onPropertyChange,
   onDelete,
+  onToggle,
   onRenameKey,
   onRawValueCommit
 }: {
@@ -431,13 +466,17 @@ function DeclarationRow({
   namedColorSwatches: ReturnType<typeof useProjectNamedColorSwatches>;
   onPropertyChange: (declaration: StylesCascadeDeclaration, property: InspectorProperty, nextValue: string | number | boolean) => void;
   onDelete: (declaration: StylesCascadeDeclaration) => void;
+  onToggle: (declaration: StylesCascadeDeclaration, enabled: boolean) => void;
   onRenameKey: (declaration: StylesCascadeDeclaration, newKey: string) => void;
   onRawValueCommit: (declaration: StylesCascadeDeclaration, rawValue: string) => void;
 }): JSX.Element {
   const property = declaration.property;
-  const writable = declaration.writeTargets.some((target) => target.writable);
+  const toggleWritable = declaration.writeTargets.some((target) => target.writable);
+  const enabled = declaration.status !== "disabled";
+  const writable = toggleWritable && enabled;
   const className = [
     css.declaration,
+    declaration.status === "disabled" ? css.declarationDisabled : "",
     declaration.status === "overridden" ? css.declarationOverridden : "",
     declaration.status === "inactive-default" ? css.declarationInactive : "",
     declaration.status === "unsupported" ? css.declarationUnsupported : ""
@@ -447,6 +486,15 @@ function DeclarationRow({
 
   return (
     <div className={className}>
+      <div className={css.checkboxCell}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!toggleWritable}
+          aria-label={`Toggle ${keySlug}`}
+          onChange={(event) => onToggle(declaration, event.currentTarget.checked)}
+        />
+      </div>
       <div className={css.keyCell}>
         {writable ? (
           <CustomDropdown

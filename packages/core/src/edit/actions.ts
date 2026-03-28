@@ -137,6 +137,8 @@ export type EditAction =
       key: string;
       value: string;
       clearKeys?: string[];
+      commentMode?: "disable" | "enable";
+      commentSourceText?: string;
     }
   | { kind: "updateNodeText"; elementId: string; text: string }
   | { kind: "addElement"; template: ElementTemplate; at: Point }

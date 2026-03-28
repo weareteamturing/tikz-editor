@@ -794,7 +794,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
               activeFigureId:
                 activeDoc.activeFigureId == null
                   ? (activeDoc.snapshot.figures.length > 1 ? null : undefined)
-                  : activeDoc.activeFigureId
+                  : activeDoc.activeFigureId,
+              indentSize: action.parseOptions?.indentSize
             }
           }
         );

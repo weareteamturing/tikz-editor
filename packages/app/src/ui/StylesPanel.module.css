@@ -45,15 +45,21 @@
   gap: 0;
 }
 
-/* ── Declaration row (3-column grid: key | value | delete) ─────────────── */
+/* ── Declaration row (4-column grid: toggle | key | value | delete) ─────── */
 
 .declaration {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(100px, 140px) 14px;
+  grid-template-columns: 14px minmax(0, 1fr) minmax(100px, 140px) 14px;
   gap: 3px;
   align-items: center;
   padding: 1px 0;
   font-size: calc(var(--app-ui-scale, 1) * 10px);
+}
+
+.declarationDisabled {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  color: var(--text-muted);
 }
 
 .declarationOverridden {
@@ -68,6 +74,12 @@
 
 .keyCell {
   min-width: 0;
+}
+
+.checkboxCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .valueCell {

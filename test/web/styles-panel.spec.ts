@@ -88,6 +88,7 @@ function makeDeclaration(input: {
   sourceText: string;
   cssValue?: string;
   writable: boolean;
+  status?: StylesCascadeDeclaration["status"];
 }): StylesCascadeDeclaration {
   const rawLabel = input.sourceText.split("=")[0]?.trim();
   return {
@@ -95,7 +96,7 @@ function makeDeclaration(input: {
     propertyId: null,
     label: rawLabel && rawLabel.length > 0 ? rawLabel : input.id,
     cssValue: input.cssValue ?? "",
-    status: "active",
+    status: input.status ?? "active",
     property: null,
     writeTargets: [makeWriteTarget(input.writable)],
     sourceText: input.sourceText
@@ -214,6 +215,79 @@ describe("StylesPanel", () => {
 
     const dispatched = mocks.dispatch.mock.calls.map(([action]) => action.action);
     expect(dispatched).toContainEqual(expect.objectContaining({ kind: "setProperty", key: "draw", value: "" }));
+  });
+
+  it("renders toggle checkbox state for active and disabled declarations", async () => {
+    const activeDecl = makeDeclaration({ id: "decl-active", sourceText: "draw=red", cssValue: "red", writable: true });
+    const disabledDecl = makeDeclaration({
+      id: "decl-disabled",
+      sourceText: "fill=blue",
+      cssValue: "blue",
+      writable: true,
+      status: "disabled"
+    });
+    const model = makeModel(activeDecl, true);
+    model.sections[0]!.declarations = [activeDecl, disabledDecl];
+    mocks.buildStylesCascadeModel.mockReturnValue(model);
+
+    await act(async () => {
+      root.render(React.createElement(StylesPanel));
+    });
+
+    const activeToggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    expect(activeToggle).not.toBeNull();
+    expect(activeToggle?.checked).toBe(true);
+
+    const disabledToggle = container.querySelector('input[aria-label="Toggle fill"]') as HTMLInputElement | null;
+    expect(disabledToggle).not.toBeNull();
+    expect(disabledToggle?.checked).toBe(false);
+  });
+
+  it("dispatches comment-toggle metadata when disabling via checkbox", async () => {
+    mocks.buildStylesCascadeModel.mockReturnValue(
+      makeModel(makeDeclaration({ id: "decl", sourceText: "draw=red", cssValue: "red", writable: true }), true)
+    );
+
+    await act(async () => {
+      root.render(React.createElement(StylesPanel));
+    });
+
+    const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    expect(toggle).not.toBeNull();
+
+    await act(async () => {
+      toggle!.click();
+    });
+
+    const dispatched = mocks.dispatch.mock.calls.map(([action]) => action.action);
+    expect(dispatched).toContainEqual(
+      expect.objectContaining({
+        kind: "setProperty",
+        key: "draw",
+        commentMode: "disable",
+        commentSourceText: "draw=red"
+      })
+    );
+  });
+
+  it("keeps disabled declarations read-only while allowing re-enable checkbox", async () => {
+    mocks.buildStylesCascadeModel.mockReturnValue(
+      makeModel(makeDeclaration({ id: "decl-disabled", sourceText: "draw=red", cssValue: "red", writable: true, status: "disabled" }), true)
+    );
+
+    await act(async () => {
+      root.render(React.createElement(StylesPanel));
+    });
+
+    expect(container.querySelector('input[aria-label="Property name"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Delete draw"]')).toBeNull();
+    const valueButton = container.querySelector("button") as HTMLButtonElement | null;
+    expect(valueButton).not.toBeNull();
+    expect(valueButton?.disabled).toBe(true);
+
+    const toggle = container.querySelector('input[aria-label="Toggle draw"]') as HTMLInputElement | null;
+    expect(toggle).not.toBeNull();
+    expect(toggle?.disabled).toBe(false);
   });
 
   it("keeps raw value displays in sync after external value updates", async () => {

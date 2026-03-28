@@ -237,6 +237,9 @@ export type EditorAction =
       type: "APPLY_EDIT_ACTION";
       action: EditAction;
       historyMergeKey?: string;
+      parseOptions?: {
+        indentSize?: 2 | 4;
+      };
       /** False for transient UI previews that should not affect undo/redo history. */
       recordInHistory?: boolean;
       precomputedResult?: Extract<EditActionResult, { kind: "success" | "partial" }>;

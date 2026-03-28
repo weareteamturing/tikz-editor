@@ -89,7 +89,7 @@ describe("export commands", () => {
 
   it("routes pdf export through the platform file api before browser download", async () => {
     const rendered = renderTikzToSvg(SOURCE);
-    const exportFile = vi.fn(async () => true);
+    const exportFile = vi.fn(async (..._args: [BlobPart[], { fileName: string; mimeType: string }]) => true);
     setActiveEditorPlatform({
       ...previousPlatform,
       files: {
@@ -120,12 +120,17 @@ describe("export commands", () => {
     expect(jsPdfMock).toHaveBeenCalledTimes(1);
     expect(pdfSvgMock).toHaveBeenCalledTimes(1);
     expect(exportFile).toHaveBeenCalledTimes(1);
-    const [content, options] = exportFile.mock.calls[0] ?? [];
+    const firstCall = exportFile.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (!firstCall) {
+      throw new Error("Expected exportFile to be called.");
+    }
+    const [content, options] = firstCall;
     expect(options).toEqual({ fileName: "figure.pdf", mimeType: "application/pdf" });
     expect(Array.isArray(content)).toBe(true);
     expect(content).toHaveLength(1);
     expect(content[0]).toBeInstanceOf(Blob);
-    const bytes = new Uint8Array(await content[0].arrayBuffer());
+    const bytes = new Uint8Array(await (content[0] as Blob).arrayBuffer());
     expect(Array.from(bytes)).toEqual([80, 68, 70]);
   });
 
