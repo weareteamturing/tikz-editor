@@ -452,7 +452,7 @@ describe("getInspectorDescriptor", () => {
     expect(descriptor.sections.some((section) => section.id === "grid")).toBe(false);
   });
 
-  it("marks foreach-expanded elements as read-only", () => {
+  it("edits top-level foreach-generated elements through the loop template", () => {
     const source = String.raw`\begin{tikzpicture}
   \foreach \x in {0,1} {
     \draw (\x,0) -- (\x,1);
@@ -470,16 +470,148 @@ describe("getInspectorDescriptor", () => {
       editHandles: rendered.semantic.editHandles
     });
 
-    expect(descriptor.readOnlyReason?.toLowerCase()).toContain("foreach");
+    expect(descriptor.readOnlyReason).toBeUndefined();
+    expect(descriptor.infoNote).toContain("foreach template");
 
-    const firstSetPropertyControl = descriptor.sections
+    const lineWidth = descriptor.sections
       .flatMap((section) => section.properties)
-      .find((property) => property.kind !== "number");
-    expect(firstSetPropertyControl).toBeDefined();
-    if (!firstSetPropertyControl) {
-      throw new Error("Expected a setProperty-driven control");
+      .find((property) => property.kind === "lineWidth");
+    expect(lineWidth).toBeDefined();
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected a writable line-width control");
     }
-    expect((firstSetPropertyControl as any).write.writable).toBe(false);
+    expect(lineWidth.write.writable).toBe(true);
+    expect(lineWidth.write.elementId.startsWith("__foreach_template__:foreach:")).toBe(true);
+
+    const updated = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: lineWidth.write.elementId,
+      level: lineWidth.write.level,
+      key: lineWidth.write.key,
+      value: "2pt"
+    });
+    expect(updated.kind).toBe("success");
+    if (updated.kind !== "success") {
+      throw new Error("Expected foreach template edit to succeed");
+    }
+    expect(updated.newSource).toContain(String.raw`\draw[line width=2pt] (\x,0) -- (\x,1);`);
+
+    const rerendered = renderTikzToSvg(updated.newSource);
+    const paths = rerendered.semantic.scene.elements.filter((entry) => entry.kind === "Path");
+    expect(paths).toHaveLength(2);
+    for (const path of paths) {
+      expect(path.style.lineWidth).toBeCloseTo(2, 6);
+    }
+  });
+
+  it("keeps foreach-variable-backed properties read-only while allowing constant ones", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \c in {red,blue} {
+    \draw[draw=\c,line width=1pt] (0,0) -- (0,1);
+  }
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    const strokeColor = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "color" && property.id === "stroke-color");
+    const lineWidth = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "lineWidth");
+    if (!strokeColor || strokeColor.kind !== "color") {
+      throw new Error("Expected a stroke color control");
+    }
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected a line width control");
+    }
+
+    expect(strokeColor.write.writable).toBe(false);
+    expect(strokeColor.write.reason).toContain("iteration variables");
+    expect(lineWidth.write.writable).toBe(true);
+  });
+
+  it("edits nested statement foreach-generated elements through the innermost loop template", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \foreach \x in {3,4,5} {
+    \foreach \y in {0,1,2} {
+      \draw (\x,\y) rectangle (\x+1,\y+1);
+    }
+  }
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.readOnlyReason).toBeUndefined();
+    expect(descriptor.infoNote).toContain("foreach template");
+
+    const lineWidth = descriptor.sections
+      .flatMap((section) => section.properties)
+      .find((property) => property.kind === "lineWidth");
+    expect(lineWidth).toBeDefined();
+    if (!lineWidth || lineWidth.kind !== "lineWidth") {
+      throw new Error("Expected a writable line-width control");
+    }
+    expect(lineWidth.write.writable).toBe(true);
+    expect(lineWidth.write.elementId.startsWith("__foreach_template__:foreach:")).toBe(true);
+    expect(lineWidth.write.elementId).toContain("/foreach:");
+
+    const updated = applyEditAction(source, [], {
+      kind: "setProperty",
+      elementId: lineWidth.write.elementId,
+      level: lineWidth.write.level,
+      key: lineWidth.write.key,
+      value: "2pt"
+    });
+    expect(updated.kind).toBe("success");
+    if (updated.kind !== "success") {
+      throw new Error("Expected nested foreach template edit to succeed");
+    }
+    expect(updated.newSource).toContain(String.raw`\draw[line width=2pt] (\x,\y) rectangle (\x+1,\y+1);`);
+
+    const rerendered = renderTikzToSvg(updated.newSource);
+    const paths = rerendered.semantic.scene.elements.filter((entry) => entry.kind === "Path");
+    expect(paths).toHaveLength(9);
+    for (const path of paths) {
+      expect(path.style.lineWidth).toBeCloseTo(2, 6);
+    }
+  });
+
+  it("keeps path-foreach-generated elements read-only in inspector", () => {
+    const source = String.raw`\begin{tikzpicture}
+  \draw (0,0) foreach \x in {1,2} { -- (\x,0) };
+\end{tikzpicture}`;
+    const rendered = renderTikzToSvg(source);
+    const element = rendered.semantic.scene.elements.find((entry) => entry.kind === "Path");
+    expect(element).toBeDefined();
+    if (!element) {
+      throw new Error("Expected a path element");
+    }
+
+    const descriptor = getInspectorDescriptor(element, {
+      source,
+      editHandles: rendered.semantic.editHandles
+    });
+
+    expect(descriptor.readOnlyReason?.toLowerCase()).toContain("foreach");
   });
 
   it("keeps statements after foreach editable in inspector", () => {

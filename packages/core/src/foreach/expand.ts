@@ -70,6 +70,7 @@ type ExpandContext = {
   macroBindings: Map<string, MacroBinding>;
   breakforeachWarned: Set<string>;
   source: string;
+  templateLocalIdByExpandedId: Map<string, string>;
 };
 
 type TemplateSource = {
@@ -95,18 +96,20 @@ export function expandForeachFigure(
     statementMacroAttribution: new WeakMap<Statement, MacroOriginFrameType[]>(),
     macroBindings,
     breakforeachWarned: new Set<string>(),
-    source: _source
+    source: _source,
+    templateLocalIdByExpandedId: new Map<string, string>()
   };
 
   const expandedBody = expandStatements(figure.body, [], {}, context, undefined);
-  reindexStatements(expandedBody, context.statementAttribution);
+  reindexStatements(expandedBody, context.statementAttribution, context.templateLocalIdByExpandedId);
 
   return {
     figureBody: expandedBody,
     diagnostics: context.diagnostics,
     statementAttribution: context.statementAttribution,
     pathItemForeachStack: context.pathItemForeachStack,
-    statementMacroAttribution: context.statementMacroAttribution
+    statementMacroAttribution: context.statementMacroAttribution,
+    templateLocalIdByExpandedId: context.templateLocalIdByExpandedId
   };
 }
 
@@ -890,16 +893,18 @@ function skipBracketGroup(source: string, start: number): number {
 
 function reindexStatements(
   statements: Statement[],
-  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>
+  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>,
+  templateLocalIdByExpandedId: Map<string, string>
 ): void {
   const state = { nextStatementIndex: findNextStatementIndexSeed(statements) };
-  reindexStatementsInPlace(statements, state, attributionByStatement);
+  reindexStatementsInPlace(statements, state, attributionByStatement, templateLocalIdByExpandedId);
 }
 
 function reindexStatementsInPlace(
   statements: Statement[],
   state: { nextStatementIndex: number },
-  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>
+  attributionByStatement: WeakMap<Statement, ForeachStatementAttribution>,
+  templateLocalIdByExpandedId: Map<string, string>
 ): void {
   for (const statement of statements) {
     const preserveExistingId = shouldPreserveStatementId(statement, attributionByStatement);
@@ -907,11 +912,13 @@ function reindexStatementsInPlace(
     if (!preserveExistingId) {
       state.nextStatementIndex += 1;
     }
+    const previousId = statement.id;
 
     if (statement.kind === "Path") {
       if (!preserveExistingId) {
         statement.id = pathStatementId(statementIndex);
-        reindexPathItems(statement, statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
+        reindexPathItems(statement, statementIndex, templateLocalIdByExpandedId);
       }
       continue;
     }
@@ -919,14 +926,16 @@ function reindexStatementsInPlace(
     if (statement.kind === "Scope") {
       if (!preserveExistingId) {
         statement.id = scopeStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
-      reindexStatementsInPlace(statement.body, state, attributionByStatement);
+      reindexStatementsInPlace(statement.body, state, attributionByStatement, templateLocalIdByExpandedId);
       continue;
     }
 
     if (statement.kind === "Foreach") {
       if (!preserveExistingId) {
         statement.id = foreachStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -934,6 +943,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "MacroDefinition") {
       if (!preserveExistingId) {
         statement.id = macroDefinitionStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -941,6 +951,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "MacroAlias") {
       if (!preserveExistingId) {
         statement.id = macroAliasStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -948,6 +959,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "MacroCommandDefinition") {
       if (!preserveExistingId) {
         statement.id = macroCommandDefinitionStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -955,6 +967,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "TikzSet") {
       if (!preserveExistingId) {
         statement.id = tikzSetStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -962,6 +975,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "TikzStyle") {
       if (!preserveExistingId) {
         statement.id = tikzStyleStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -969,6 +983,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "Pgfkeys") {
       if (!preserveExistingId) {
         statement.id = pgfkeysStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -976,6 +991,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "TikzLibrary") {
       if (!preserveExistingId) {
         statement.id = tikzLibraryStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -983,6 +999,7 @@ function reindexStatementsInPlace(
     if (statement.kind === "Colorlet") {
       if (!preserveExistingId) {
         statement.id = colorletStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
@@ -990,12 +1007,14 @@ function reindexStatementsInPlace(
     if (statement.kind === "DefineColor") {
       if (!preserveExistingId) {
         statement.id = defineColorStatementId(statementIndex);
+        templateLocalIdByExpandedId.set(statement.id, previousId);
       }
       continue;
     }
 
     if (!preserveExistingId) {
       statement.id = unknownStatementId(statementIndex);
+      templateLocalIdByExpandedId.set(statement.id, previousId);
     }
   }
 }
@@ -1045,43 +1064,56 @@ function shouldPreserveStatementId(
   return attribution.sourceSpan.from === statement.span.from && attribution.sourceSpan.to === statement.span.to;
 }
 
-function reindexPathItems(statement: PathStatement, statementIndex: number): void {
+function reindexPathItems(
+  statement: PathStatement,
+  statementIndex: number,
+  templateLocalIdByExpandedId: Map<string, string>
+): void {
   for (let itemIndex = 0; itemIndex < statement.items.length; itemIndex += 1) {
     const item = statement.items[itemIndex];
+    const previousId = item.id;
     if (item.kind === "Coordinate") {
       item.id = coordinateItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "Node") {
-      reindexTopLevelNodeItem(item, statementIndex, itemIndex);
+      reindexTopLevelNodeItem(item, statementIndex, itemIndex, templateLocalIdByExpandedId);
       continue;
     }
     if (item.kind === "PathForeach") {
       item.id = pathForeachItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathComment") {
       item.id = pathCommentItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathOption") {
       item.id = pathOptionItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathKeyword") {
       item.id = pathKeywordItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PlotOperation") {
       item.id = plotOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "ToOperation") {
       item.id = toOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "EdgeOperation") {
       item.id = edgeOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
         const node = item.nodes?.[nodeIndex];
         if (!node) {
@@ -1093,16 +1125,18 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
     }
     if (item.kind === "ChildOperation") {
       item.id = childOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       if (item.foreachClauses) {
         for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
           item.foreachClauses[clauseIndex].id = childForeachClauseId(statementIndex, itemIndex, clauseIndex);
         }
       }
-      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`);
+      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`, templateLocalIdByExpandedId);
       continue;
     }
     if (item.kind === "EdgeFromParentOperation") {
       item.id = edgeFromParentOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
         const node = item.nodes?.[nodeIndex];
         if (!node) {
@@ -1114,26 +1148,38 @@ function reindexPathItems(statement: PathStatement, statementIndex: number): voi
     }
     if (item.kind === "SvgOperation") {
       item.id = svgOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "LetOperation") {
       item.id = letOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "CoordinateOperation") {
       item.id = coordinateOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "DecorateOperation") {
       item.id = decorateOperationItemId(statementIndex, itemIndex);
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     item.id = unknownPathItemId(statementIndex, itemIndex);
+    templateLocalIdByExpandedId.set(item.id, previousId);
   }
 }
 
-function reindexTopLevelNodeItem(item: NodeItem, statementIndex: number, itemIndex: number): void {
+function reindexTopLevelNodeItem(
+  item: NodeItem,
+  statementIndex: number,
+  itemIndex: number,
+  templateLocalIdByExpandedId: Map<string, string>
+): void {
+  const previousId = item.id;
   item.id = nodeItemId(statementIndex, itemIndex);
+  templateLocalIdByExpandedId.set(item.id, previousId);
   if (item.foreachClauses) {
     for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
       item.foreachClauses[clauseIndex].id = nodeForeachClauseId(statementIndex, itemIndex, clauseIndex);
@@ -1141,17 +1187,25 @@ function reindexTopLevelNodeItem(item: NodeItem, statementIndex: number, itemInd
   }
 }
 
-function reindexNestedPathItems(items: PathItem[], statementIndex: number, parentPrefix: string): void {
+function reindexNestedPathItems(
+  items: PathItem[],
+  statementIndex: number,
+  parentPrefix: string,
+  templateLocalIdByExpandedId: Map<string, string>
+): void {
   for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
     const item = items[itemIndex];
     const nestedPrefix = `${parentPrefix}:${itemIndex}`;
+    const previousId = item.id;
 
     if (item.kind === "Coordinate") {
       item.id = `coordinate:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "Node") {
       item.id = `node:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       if (item.foreachClauses) {
         for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
           item.foreachClauses[clauseIndex].id = `${item.id}:foreach:${clauseIndex}`;
@@ -1161,26 +1215,32 @@ function reindexNestedPathItems(items: PathItem[], statementIndex: number, paren
     }
     if (item.kind === "PathForeach") {
       item.id = `path-foreach:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathComment") {
       item.id = `path-comment:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathOption") {
       item.id = `path-option:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PathKeyword") {
       item.id = `path-keyword:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "PlotOperation") {
       item.id = `plot-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "ToOperation") {
       item.id = `to-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
         const node = item.nodes?.[nodeIndex];
         if (node) {
@@ -1191,6 +1251,7 @@ function reindexNestedPathItems(items: PathItem[], statementIndex: number, paren
     }
     if (item.kind === "EdgeOperation") {
       item.id = `edge-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
         const node = item.nodes?.[nodeIndex];
         if (node) {
@@ -1201,16 +1262,18 @@ function reindexNestedPathItems(items: PathItem[], statementIndex: number, paren
     }
     if (item.kind === "ChildOperation") {
       item.id = `child-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       if (item.foreachClauses) {
         for (let clauseIndex = 0; clauseIndex < item.foreachClauses.length; clauseIndex += 1) {
           item.foreachClauses[clauseIndex].id = `${item.id}:foreach:${clauseIndex}`;
         }
       }
-      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`);
+      reindexNestedPathItems(item.body, statementIndex, `${item.id}:body`, templateLocalIdByExpandedId);
       continue;
     }
     if (item.kind === "EdgeFromParentOperation") {
       item.id = `edge-from-parent-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       for (let nodeIndex = 0; nodeIndex < (item.nodes?.length ?? 0); nodeIndex += 1) {
         const node = item.nodes?.[nodeIndex];
         if (node) {
@@ -1221,21 +1284,26 @@ function reindexNestedPathItems(items: PathItem[], statementIndex: number, paren
     }
     if (item.kind === "SvgOperation") {
       item.id = `svg-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "LetOperation") {
       item.id = `let-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "CoordinateOperation") {
       item.id = `coordinate-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
     if (item.kind === "DecorateOperation") {
       item.id = `decorate-operation:${statementIndex}:${nestedPrefix}`;
+      templateLocalIdByExpandedId.set(item.id, previousId);
       continue;
     }
 
     item.id = `unknown-path-item:${statementIndex}:${nestedPrefix}`;
+    templateLocalIdByExpandedId.set(item.id, previousId);
   }
 }

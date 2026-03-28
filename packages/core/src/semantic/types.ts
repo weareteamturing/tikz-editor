@@ -228,6 +228,7 @@ export type ForeachOriginFrame = {
 
 export type SceneElementOrigin = {
   foreachStack: ForeachOriginFrame[];
+  foreachTemplateLocalTargetId?: string;
   macroStack?: MacroOriginFrame[];
 };
 

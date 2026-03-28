@@ -1,5 +1,6 @@
 import type { Span, Statement, PathStatement, PathItem, NodeItem, ChildOperationItem } from "../ast/types.js";
 import type { ParseTikzResult } from "../parser/index.js";
+import { parseStatementsFromBodyWithMapping } from "../foreach/snippet-parse.js";
 import { parseTikzForEdit, type EditParseOptions } from "./parse-options.js";
 import { normalizeOptionKey } from "./option-key.js";
 import type { OptionListAst } from "../options/types.js";
@@ -22,6 +23,7 @@ export type PropertyTargetKind =
   | "node-item"
   | "matrix-cell"
   | "tree-child"
+  | "foreach-template"
   | "node-adornment"
   | "to-operation"
   | "edge-operation"
@@ -30,6 +32,7 @@ export type PropertyTargetKind =
 
 export const TIKZPICTURE_GLOBAL_TARGET_ID = "__tikzpicture__";
 export const STYLE_SOURCE_TARGET_PREFIX = "__style_source__:";
+export const FOREACH_TEMPLATE_TARGET_PREFIX = "__foreach_template__:";
 
 export type PropertyTargetOptionsFormat = "bracketed" | "bare" | "braced";
 
@@ -78,6 +81,8 @@ export type PropertyTarget = {
   treeNodeInsertOffset?: number;
   treeChildForeach?: boolean;
   treeChildNodeSpanFallbackUsed?: boolean;
+  foreachLoopId?: string;
+  foreachLocalTargetId?: string;
 };
 
 export type PropertyTargetResolution =
@@ -108,6 +113,10 @@ export function resolvePropertyTarget(source: string, elementId: string, parseOp
   const parseResult = parseTikzForEdit(source, {
     ...parseOptions,
   });
+  const foreachTemplateTarget = resolveForeachTemplateTargetFromParseResult(parseResult, normalizedId);
+  if (foreachTemplateTarget) {
+    return { kind: "found", target: foreachTemplateTarget };
+  }
   const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
   if (matrixCellTarget) {
     return { kind: "found", target: matrixCellTarget };
@@ -140,6 +149,11 @@ export function resolvePropertyTargetFromParseResult(
 
   if (normalizedId.startsWith(STYLE_SOURCE_TARGET_PREFIX)) {
     return resolveStyleSourceTarget(source, normalizedId);
+  }
+
+  const foreachTemplateTarget = resolveForeachTemplateTargetFromParseResult(parseResult, normalizedId);
+  if (foreachTemplateTarget) {
+    return { kind: "found", target: foreachTemplateTarget };
   }
 
   const matrixCellTarget = resolveMatrixCellTargetInStatements(parseResult.figure.body, source, normalizedId);
@@ -434,6 +448,114 @@ function parseStyleSourceTargetId(targetId: string): { from: number; to: number 
 
 export function makeStyleSourceTargetId(span: Span): string {
   return `${STYLE_SOURCE_TARGET_PREFIX}${span.from}:${span.to}`;
+}
+
+export function makeForeachTemplateTargetId(
+  loopId: string,
+  localTargetId: string,
+  nestedLoopLocalIds: readonly string[] = []
+): string {
+  const loopPath = [loopId, ...nestedLoopLocalIds].join("/");
+  return `${FOREACH_TEMPLATE_TARGET_PREFIX}${loopPath}::${localTargetId}`;
+}
+
+function parseForeachTemplateTargetId(
+  targetId: string
+): { loopId: string; nestedLoopLocalIds: string[]; localTargetId: string } | null {
+  if (!targetId.startsWith(FOREACH_TEMPLATE_TARGET_PREFIX)) {
+    return null;
+  }
+  const payload = targetId.slice(FOREACH_TEMPLATE_TARGET_PREFIX.length);
+  const separator = payload.indexOf("::");
+  if (separator <= 0 || separator >= payload.length - 2) {
+    return null;
+  }
+  const loopPathRaw = payload.slice(0, separator).trim();
+  const localTargetId = payload.slice(separator + 2).trim();
+  if (loopPathRaw.length === 0 || localTargetId.length === 0) {
+    return null;
+  }
+  const loopPath = loopPathRaw
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  if (loopPath.length === 0) {
+    return null;
+  }
+  const [loopId, ...nestedLoopLocalIds] = loopPath;
+  return { loopId, nestedLoopLocalIds, localTargetId };
+}
+
+function resolveForeachTemplateTargetFromParseResult(
+  parseResult: ParseTikzResult,
+  targetId: string
+): PropertyTarget | null {
+  const parsed = parseForeachTemplateTargetId(targetId);
+  if (!parsed) {
+    return null;
+  }
+  const loop = findForeachStatementById(parseResult.figure.body, parsed.loopId);
+  if (!loop?.bodySpan) {
+    return null;
+  }
+
+  const loopBody = resolveNestedForeachBody(loop, parsed.nestedLoopLocalIds);
+  if (!loopBody) {
+    return null;
+  }
+
+  const reparsedBody = parseStatementsFromBodyWithMapping(loopBody.bodyRaw, loopBody.bodySpan);
+  const resolved = resolvePropertyTargetFromParseResult(
+    reparsedBody.parseResult.source,
+    reparsedBody.parseResult,
+    parsed.localTargetId
+  );
+  if (resolved.kind !== "found") {
+    return null;
+  }
+
+  const remapped = remapPropertyTargetToOriginalSource(resolved.target, reparsedBody.sourceMapper);
+  if (!remapped) {
+    return null;
+  }
+
+  return {
+    ...remapped,
+    id: targetId,
+    kind: "foreach-template",
+    foreachLoopId: parsed.loopId,
+    foreachLocalTargetId: parsed.localTargetId
+  };
+}
+
+function resolveNestedForeachBody(
+  loop: Extract<Statement, { kind: "Foreach" }>,
+  nestedLoopLocalIds: readonly string[]
+): { bodyRaw: string; bodySpan: Span } | null {
+  let currentLoop = loop;
+  let currentBodySpan = loop.bodySpan;
+  if (!currentBodySpan) {
+    return null;
+  }
+
+  for (const nestedLoopLocalId of nestedLoopLocalIds) {
+    const reparsedBody = parseStatementsFromBodyWithMapping(currentLoop.bodyRaw, currentBodySpan);
+    const nestedLoop = findForeachStatementById(reparsedBody.parseResult.figure.body, nestedLoopLocalId);
+    if (!nestedLoop?.bodySpan) {
+      return null;
+    }
+    const mappedBodySpan = reparsedBody.sourceMapper.mapSpan(nestedLoop.bodySpan);
+    if (!mappedBodySpan) {
+      return null;
+    }
+    currentLoop = nestedLoop;
+    currentBodySpan = mappedBodySpan;
+  }
+
+  return {
+    bodyRaw: currentLoop.bodyRaw,
+    bodySpan: currentBodySpan
+  };
 }
 
 function findTargetInStatements(statements: Statement[], source: string, elementId: string): PropertyTarget | null {
@@ -733,6 +855,86 @@ function findPathStatementById(
     }
   }
   return null;
+}
+
+function findForeachStatementById(
+  statements: Statement[],
+  statementId: string
+): Extract<Statement, { kind: "Foreach" }> | null {
+  for (const statement of statements) {
+    if (statement.kind === "Scope") {
+      const nested = findForeachStatementById(statement.body, statementId);
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+    if (statement.kind === "Foreach" && statement.id === statementId) {
+      return statement;
+    }
+  }
+  return null;
+}
+
+function remapPropertyTargetToOriginalSource(
+  target: PropertyTarget,
+  mapper: { mapSpan: (span: Span) => Span | null; mapOffset: (offset: number) => number | null }
+): PropertyTarget | null {
+  const span = mapper.mapSpan(target.span);
+  const insertOffset = mapper.mapOffset(target.insertOffset);
+  if (!span || insertOffset == null) {
+    return null;
+  }
+
+  const remapped: PropertyTarget = {
+    ...target,
+    span,
+    insertOffset
+  };
+
+  const spanKeys: Array<keyof PropertyTarget> = [
+    "optionsSpan",
+    "optionSpan",
+    "valueSpan",
+    "textSpan",
+    "angleSpan",
+    "matrixTextSpan",
+    "cellSpan",
+    "treeChildOptionsSpan",
+    "treeChildBodySpan",
+    "treeNodeTextSpan",
+    "treeNodeOptionsSpan"
+  ];
+  for (const key of spanKeys) {
+    const value = remapped[key];
+    if (!value || typeof value !== "object" || !("from" in value) || !("to" in value)) {
+      continue;
+    }
+    const mapped = mapper.mapSpan(value as Span);
+    if (!mapped) {
+      return null;
+    }
+    (remapped as Record<string, unknown>)[key] = mapped;
+  }
+
+  const offsetKeys: Array<keyof PropertyTarget> = [
+    "matrixBodyOpenOffset",
+    "treeChildInsertOffset",
+    "treeNodeInsertOffset"
+  ];
+  for (const key of offsetKeys) {
+    const value = remapped[key];
+    if (typeof value !== "number") {
+      continue;
+    }
+    const mapped = mapper.mapOffset(value);
+    if (mapped == null) {
+      return null;
+    }
+    (remapped as Record<string, unknown>)[key] = mapped;
+  }
+
+  return remapped;
 }
 
 function resolveMatrixBodyOpenOffset(source: string, textSpan: Span): number | undefined {

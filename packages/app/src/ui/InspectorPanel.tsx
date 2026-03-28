@@ -1364,6 +1364,9 @@ export function InspectorPanel() {
                 {renderedDescriptor.readOnlyReason ? (
                   <div className={css.globalNote}>{renderedDescriptor.readOnlyReason}</div>
                 ) : null}
+                {renderedDescriptor.infoNote ? (
+                  <div className={css.globalNote}>{renderedDescriptor.infoNote}</div>
+                ) : null}
 
                 {renderedDescriptor.sections.map((section) => (
                   <InspectorSingleSection

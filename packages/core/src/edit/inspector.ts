@@ -1,6 +1,10 @@
 import type { StyleLevel } from "./actions.js";
 import { TREE_CHILD_NODE_READONLY_KEYS, TREE_ROOT_LAYOUT_KEYS } from "./tree-editing.js";
-import { resolvePropertyTarget, type PropertyTargetResolution } from "./property-target.js";
+import {
+  makeForeachTemplateTargetId,
+  resolvePropertyTarget,
+  type PropertyTargetResolution
+} from "./property-target.js";
 import type { EditParseOptions } from "./parse-options.js";
 import {
   collectInspectorColorAliases,
@@ -606,6 +610,7 @@ export type InspectorDescriptor = {
   elementId: string;
   writeTargetId: string | null;
   readOnlyReason?: string;
+  infoNote?: string;
   sections: InspectorSection[];
 };
 
@@ -624,6 +629,8 @@ const GRID_DEFAULT_STEP_CM = 1;
 const GRID_STEP_CLEAR_KEYS = ["xstep", "x step", "ystep", "y step"] as const;
 const GRID_XSTEP_CLEAR_KEYS = ["x step"] as const;
 const GRID_YSTEP_CLEAR_KEYS = ["y step"] as const;
+const FOREACH_TEMPLATE_INFO_NOTE = "Editing the foreach template. Changes apply to all iterations.";
+const FOREACH_VARIABLE_READONLY_REASON = "This property depends on foreach iteration variables and is read-only.";
 const TRANSFORM_KEY_ALIAS_CLEAR_KEYS: Record<TransformInspectorKey, readonly string[]> = {
   xshift: ["/tikz/xshift"],
   yshift: ["/tikz/yshift"],
@@ -2354,7 +2361,8 @@ export function getInspectorDescriptor(
         elementId: element.sourceRef.sourceId,
         writeTargetId: inlineTarget.targetId,
         readOnlyReason: inlineTarget.reason,
-        sections
+        infoNote: inlineTarget.infoNote,
+        sections: applyForeachVariableReadOnlyToSections(sections, inlineTarget, resolveTarget)
       };
     }
   }
@@ -3162,19 +3170,20 @@ export function getInspectorDescriptor(
     elementId: element.sourceRef.sourceId,
     writeTargetId: inlineTarget.targetId,
     readOnlyReason: inlineTarget.reason,
-    sections
+    infoNote: inlineTarget.infoNote,
+    sections: applyForeachVariableReadOnlyToSections(sections, inlineTarget, resolveTarget)
   };
 }
 
 function makeSetPropertyWriteTarget(
-  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
+  inlineTarget: InlineWriteTarget,
   key: string
 ): SetPropertyWriteTarget {
   return makeSetPropertyWriteTargetForElementId(inlineTarget, inlineTarget.targetId, key);
 }
 
 function makeSetPropertyWriteTargetForElementId(
-  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
+  inlineTarget: InlineWriteTarget,
   elementId: string | null,
   key: string
 ): SetPropertyWriteTarget {
@@ -3198,7 +3207,7 @@ function makeSetPropertyWriteTargetForElementId(
 }
 
 function makeTransformSetPropertyWriteTarget(
-  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
+  inlineTarget: InlineWriteTarget,
   key: TransformInspectorKey,
   context: TransformInspectorMutationContext
 ): SetPropertyWriteTarget {
@@ -3213,7 +3222,7 @@ function makeTransformSetPropertyWriteTarget(
 }
 
 function makeArrowTipWriteTarget(
-  inlineTarget: { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string },
+  inlineTarget: InlineWriteTarget,
   element: Extract<SceneElement, { kind: "Path" }>,
   source: string,
   parseOptions: EditParseOptions = {},
@@ -3223,6 +3232,157 @@ function makeArrowTipWriteTarget(
     ...makeSetPropertyWriteTarget(inlineTarget, ARROW_OPTION_KEY),
     arrowContext: resolveArrowWriteContext(source, inlineTarget.targetId, element, parseOptions, resolveTarget)
   };
+}
+
+function collectForeachVariableNames(
+  foreachStack: ReadonlyArray<{ bindings: Record<string, string> }>
+): string[] {
+  const names = new Set<string>();
+  for (const frame of foreachStack) {
+    for (const name of Object.keys(frame.bindings)) {
+      const normalized = name.trim();
+      if (normalized.length > 0) {
+        names.add(normalized);
+      }
+    }
+  }
+  return [...names];
+}
+
+function applyForeachVariableReadOnlyToSections(
+  sections: InspectorSection[],
+  inlineTarget: InlineWriteTarget,
+  resolveTarget: InspectorTargetResolver
+): InspectorSection[] {
+  if (
+    inlineTarget.targetKind !== "foreach-template"
+    || !inlineTarget.targetId
+    || (inlineTarget.foreachVariableNames?.length ?? 0) === 0
+  ) {
+    return sections;
+  }
+
+  const resolved = resolveTarget(inlineTarget.targetId);
+  const options = resolved.kind === "found" ? resolved.target.options : undefined;
+  if (!options || options.entries.length === 0) {
+    return sections;
+  }
+
+  return sections.map((section) => ({
+    ...section,
+    properties: section.properties.map((property) =>
+      inspectorPropertyDependsOnForeachVariables(property, options, inlineTarget.foreachVariableNames ?? [])
+        ? makeInspectorPropertyForeachReadOnly(property)
+        : property
+    )
+  }));
+}
+
+function makeInspectorPropertyForeachReadOnly(property: InspectorProperty): InspectorProperty {
+  return {
+    ...(property as InspectorProperty & { readOnlyReason?: string }),
+    write: {
+      ...property.write,
+      writable: false,
+      reason: FOREACH_VARIABLE_READONLY_REASON
+    },
+    readOnlyReason: FOREACH_VARIABLE_READONLY_REASON
+  } as InspectorProperty;
+}
+
+function inspectorPropertyDependsOnForeachVariables(
+  property: InspectorProperty,
+  options: OptionListAst,
+  foreachVariableNames: readonly string[]
+): boolean {
+  const candidateKeys = inspectorPropertyCandidateKeys(property);
+  if (candidateKeys.length === 0 || foreachVariableNames.length === 0) {
+    return false;
+  }
+  const normalizedKeys = new Set(
+    candidateKeys
+      .map((key) => normalizeOptionKey(key))
+      .filter((key) => key.length > 0)
+  );
+  if (normalizedKeys.size === 0) {
+    return false;
+  }
+  const foreachVariableSet = new Set(foreachVariableNames);
+  return options.entries.some((entry) => {
+    if (entry.kind !== "flag" && entry.kind !== "kv") {
+      return false;
+    }
+    if (!normalizedKeys.has(normalizeOptionKey(entry.key))) {
+      return false;
+    }
+    return optionEntryContainsForeachVariable(entry.raw, foreachVariableSet);
+  });
+}
+
+function inspectorPropertyCandidateKeys(property: InspectorProperty): string[] {
+  switch (property.kind) {
+    case "dashStyle":
+      return [...DASH_STYLE_PRESET_CLEAR_KEYS];
+    case "lineCap":
+    case "lineJoin":
+      return [property.write.key];
+    case "pathMorphingDecoration":
+      return [...PATH_MORPHING_DECORATION_CLEAR_KEYS];
+    case "fillMode":
+      return uniqueStrings(["fill", ...FILL_PATTERN_CLEAR_KEYS, ...FILL_SHADING_CLEAR_KEYS]);
+    case "fillShading":
+      return uniqueStrings([
+        "shade",
+        "shading",
+        ...AXIS_SHADING_CONFLICT_CLEAR_KEYS,
+        ...RADIAL_SHADING_CONFLICT_CLEAR_KEYS,
+        ...BALL_SHADING_CONFLICT_CLEAR_KEYS
+      ]);
+    case "fillPattern":
+    case "fillPatternOption":
+      return ["pattern"];
+    case "roundedCorners":
+      return [...ROUNDED_CORNERS_CLEAR_KEYS];
+    case "nodeShape":
+      return [...NODE_SHAPE_KNOWN_KEYS];
+    case "nodeFont":
+      return uniqueStrings([property.context.key, ...property.context.clearKeys]);
+    case "arrowTip":
+      return uniqueStrings([...ARROW_DEFAULT_CLEAR_KEYS, ...property.write.arrowContext.clearKeys]);
+    case "shadowPreset":
+      return [...SHADOW_ALL_KEYS];
+    case "number": {
+      const write = property.write as SetPropertyWriteTarget;
+      if (write.transformContext) {
+        return transformPropertyCandidateKeys(write.transformContext.key);
+      }
+      return uniqueStrings([write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
+    }
+    case "length":
+    case "boolean":
+      return uniqueStrings([property.write.key, ...("clearKeys" in property && property.clearKeys ? property.clearKeys : [])]);
+    case "text":
+    case "enum":
+    case "color":
+    case "lineWidth":
+      return [property.write.key];
+  }
+  return [];
+}
+
+function transformPropertyCandidateKeys(key: TransformInspectorKey): string[] {
+  if (key === "xshift" || key === "yshift") {
+    return uniqueStrings([key, ...SHIFT_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[key]]);
+  }
+  if (key === "xscale" || key === "yscale") {
+    return uniqueStrings([key, ...SCALE_CLEAR_KEYS, ...TRANSFORM_KEY_ALIAS_CLEAR_KEYS[key]]);
+  }
+  return uniqueStrings([key, ...ROTATE_CLEAR_KEYS]);
+}
+
+function optionEntryContainsForeachVariable(raw: string, foreachVariableSet: ReadonlySet<string>): boolean {
+  const controlSequences = raw.match(/\\(?:[A-Za-z@]+|.)/gu) ?? [];
+  return controlSequences.some((token) => foreachVariableSet.has(token));
 }
 
 function resolveArrowWriteContext(
@@ -4635,6 +4795,15 @@ function nodeShapeFallbackFromElementKind(kind: SceneElement["kind"]): Exclude<N
   return "rectangle";
 }
 
+type InlineWriteTarget = {
+  targetId: string | null;
+  targetKind: string | null;
+  writable: boolean;
+  reason?: string;
+  infoNote?: string;
+  foreachVariableNames?: string[];
+};
+
 function normalizeShapeRawValue(raw: string): string {
   return stripEnclosingBraces(raw).trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -4657,22 +4826,52 @@ function resolveInlineWriteTarget(
   source: string,
   parseOptions: EditParseOptions = {},
   resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
-): { targetId: string | null; targetKind: string | null; writable: boolean; reason?: string } {
-  if (element.origin?.foreachStack && element.origin.foreachStack.length > 0) {
-    return {
-      targetId: null,
-      targetKind: null,
-      writable: false,
-      reason: "This element comes from a \\foreach expansion and is read-only in the Phase 2 inspector."
-    };
-  }
-
+): InlineWriteTarget {
   if (element.origin?.macroStack && element.origin.macroStack.length > 0) {
     return {
       targetId: null,
       targetKind: null,
       writable: false,
       reason: "This element comes from a macro expansion and is read-only in the Phase 2 inspector."
+    };
+  }
+
+  const foreachStack = element.origin?.foreachStack ?? [];
+  const foreachVariableNames = collectForeachVariableNames(foreachStack);
+  if (foreachStack.length > 0) {
+    if (element.adornment) {
+      return {
+        targetId: null,
+        targetKind: null,
+        writable: false,
+        reason: "Adornment selections from \\foreach expansions are read-only in the Phase 2 inspector.",
+        foreachVariableNames
+      };
+    }
+
+    const templateLocalTargetId = element.origin?.foreachTemplateLocalTargetId;
+    const loopId = element.sourceRef.sourceId.startsWith("foreach:") ? element.sourceRef.sourceId : null;
+    if (templateLocalTargetId && loopId) {
+      const nestedLoopLocalIds = foreachStack.slice(1).map((frame) => frame.loopId);
+      const targetId = makeForeachTemplateTargetId(loopId, templateLocalTargetId, nestedLoopLocalIds);
+      const resolved = resolveTarget(targetId);
+      if (resolved.kind === "found") {
+        return {
+          targetId,
+          targetKind: resolved.target.kind,
+          writable: true,
+          infoNote: FOREACH_TEMPLATE_INFO_NOTE,
+          foreachVariableNames
+        };
+      }
+    }
+
+    return {
+      targetId: null,
+      targetKind: null,
+      writable: false,
+      reason: "This element comes from a \\foreach expansion and is read-only in the Phase 2 inspector.",
+      foreachVariableNames
     };
   }
 

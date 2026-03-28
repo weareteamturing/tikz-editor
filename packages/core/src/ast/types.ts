@@ -103,6 +103,7 @@ export type ForeachStatement = {
   listRaw?: string;
   prefixRaw: string;
   bodyRaw: string;
+  bodySpan?: Span;
 };
 
 export type MacroDefinitionStatement = {

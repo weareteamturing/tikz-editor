@@ -125,6 +125,7 @@ export type SemanticEvaluationRun = {
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
+  templateLocalIdByExpandedId: Map<string, string>;
   rootFramePushed: boolean;
   baseDiagnosticsCount: number;
 };
@@ -275,6 +276,7 @@ export function createSemanticEvaluationRun(
     statementAttribution: expanded.statementAttribution,
     pathItemForeachStack: expanded.pathItemForeachStack,
     statementMacroAttribution: expanded.statementMacroAttribution,
+    templateLocalIdByExpandedId: expanded.templateLocalIdByExpandedId,
     rootFramePushed,
     baseDiagnosticsCount: diagnostics.length
   };
@@ -307,7 +309,8 @@ export function evaluateSemanticStatementByIndex(
       statementElements,
       run.statementAttribution,
       run.pathItemForeachStack,
-      run.statementMacroAttribution
+      run.statementMacroAttribution,
+      run.templateLocalIdByExpandedId
     ),
     run.context.sourceFingerprint
   );
@@ -2160,7 +2163,8 @@ function applyForeachAttributionToElements(
   elements: SceneElement[],
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>,
   pathItemForeachStack: WeakMap<PathItem, ExpansionForeachOriginFrame[]>,
-  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>
+  statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>,
+  templateLocalIdByExpandedId: ReadonlyMap<string, string>
 ): SceneElement[] {
   if (elements.length === 0) {
     return elements;
@@ -2198,10 +2202,15 @@ function applyForeachAttributionToElements(
         : element.origin?.macroStack
           ? cloneMacroOriginStack(element.origin.macroStack)
           : undefined;
+    const foreachTemplateLocalTargetId =
+      attribution != null && attribution.sourceId !== statement.id
+        ? templateLocalIdByExpandedId.get(element.sourceRef.sourceId) ?? element.sourceRef.sourceId
+        : element.origin?.foreachTemplateLocalTargetId;
     const nextOrigin =
-      foreachStack.length > 0 || (macroStack != null && macroStack.length > 0)
+      foreachStack.length > 0 || foreachTemplateLocalTargetId != null || (macroStack != null && macroStack.length > 0)
         ? {
             foreachStack,
+            foreachTemplateLocalTargetId,
             macroStack
           }
         : undefined;

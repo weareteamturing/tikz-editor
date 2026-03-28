@@ -38,4 +38,5 @@ export type ForeachExpansionResult = {
   statementAttribution: WeakMap<Statement, ForeachStatementAttribution>;
   pathItemForeachStack: WeakMap<PathItem, ForeachOriginFrame[]>;
   statementMacroAttribution: WeakMap<Statement, MacroOriginFrame[]>;
+  templateLocalIdByExpandedId: Map<string, string>;
 };

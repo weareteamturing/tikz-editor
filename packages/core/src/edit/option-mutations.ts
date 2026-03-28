@@ -187,7 +187,7 @@ function normalizeOptionEntryRaw(entry: OptionEntry): string {
 }
 
 function resolveOptionSerializationContext(target: PropertyTarget): OptionSerializationContext {
-  if (target.kind !== "path-statement") {
+  if (!target.pathCommand) {
     return DEFAULT_OPTION_SERIALIZATION_CONTEXT;
   }
 

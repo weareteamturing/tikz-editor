@@ -140,6 +140,7 @@ function mapForeachStatement(node: SyntaxNode, source: string, state: StatementM
   const headerStartOffset = prefixSlice.indexOf(parsedHeader.headerRaw);
   const headerFrom = headerStartOffset >= 0 ? prefixFrom + headerStartOffset : prefixFrom;
   const bodyRaw = foreachBodyNode ? source.slice(foreachBodyNode.from, foreachBodyNode.to) : "";
+  const bodySpan = foreachBodyNode ? { from: foreachBodyNode.from, to: foreachBodyNode.to } : undefined;
 
   const options =
     parsedHeader.optionsRaw && parsedHeader.optionsSpan
@@ -171,7 +172,8 @@ function mapForeachStatement(node: SyntaxNode, source: string, state: StatementM
     variablesRaw: parsedHeader.variablesRaw,
     listRaw: parsedHeader.listRaw,
     prefixRaw: parsedHeader.headerRaw,
-    bodyRaw
+    bodyRaw,
+    bodySpan
   };
 }
 
