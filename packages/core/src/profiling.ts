@@ -27,10 +27,20 @@ export type TikzEditorProfilingSvgPatchTiming = {
   fallbackReason?: string | null;
 };
 
+export type TikzEditorProfilingSourcePanelSyncTiming = {
+  kind: "externalSyncDispatch";
+  durationMs: number;
+  mode: "patch" | "replace";
+  coalescedToAnimationFrame: boolean;
+  patchCount: number;
+  docLength: number;
+};
+
 export type TikzEditorProfilingRecorder = {
   incrementCounter: (counter: TikzEditorProfilingCounter, amount?: number) => void;
   recordComputeTiming: (timing: TikzEditorProfilingComputeTiming) => void;
   recordSvgPatchTiming: (timing: TikzEditorProfilingSvgPatchTiming) => void;
+  recordSourcePanelSyncTiming: (timing: TikzEditorProfilingSourcePanelSyncTiming) => void;
 };
 
 declare global {
@@ -52,4 +62,8 @@ export function recordProfilingComputeTiming(timing: TikzEditorProfilingComputeT
 
 export function recordProfilingSvgPatchTiming(timing: TikzEditorProfilingSvgPatchTiming): void {
   getRecorder()?.recordSvgPatchTiming(timing);
+}
+
+export function recordProfilingSourcePanelSyncTiming(timing: TikzEditorProfilingSourcePanelSyncTiming): void {
+  getRecorder()?.recordSourcePanelSyncTiming(timing);
 }

@@ -105,6 +105,10 @@ export function ObjectsPanel() {
     () => ({
       source,
       activeFigureId,
+      parseOptions: {
+        activeFigureId,
+        analysisView
+      },
       figureCount: snapshot.figures.length,
       snapshotSource: snapshot.source,
       scene: snapshot.scene,
@@ -115,6 +119,7 @@ export function ObjectsPanel() {
     }),
     [
       activeFigureId,
+      analysisView,
       activeHandleId,
       dispatch,
       selectedIds,

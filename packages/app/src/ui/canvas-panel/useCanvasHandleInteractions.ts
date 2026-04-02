@@ -238,7 +238,7 @@ export function useCanvasHandleInteractions(args: UseCanvasHandleInteractionsArg
       const isCircleResizeSource =
         pathShapeHint === "circle" || sourceElements.some((element: any) => element.kind === "Circle");
       const initialScopeTransform = sourceId.startsWith("scope:")
-        ? resolveTransformInspectorMutationContext(source, sourceId).values
+        ? resolveTransformInspectorMutationContext(source, sourceId, parseOptions).values
         : null;
       const initialFrame =
         resizeFramesBySource?.get(sourceId) ??

@@ -7,7 +7,7 @@ import { localToSourceUnits, worldToLocal } from "../coords.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
 import {
   buildTransformSetPropertyMutations,
-  resolveTransformInspectorMutationContext
+  resolveTransformInspectorMutationContextFromOptionEntries
 } from "../inspector.js";
 import { replaceSpan } from "../patch.js";
 import { resolvePropertyTarget, type PropertyTarget } from "../property-target.js";
@@ -444,22 +444,13 @@ function rewriteSingleScopeTransform(
 
   const normalizedDelta = resolveDeltaUsingFullLinear(targetOptionsEntries(resolved.target), delta) ?? delta;
 
-  const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+  const context = resolveTransformInspectorMutationContextFromOptionEntries(targetOptionsEntries(resolved.target));
   const mutations = [
     ...buildTransformSetPropertyMutations(context, "xshift", context.values.xshift + normalizedDelta.x),
     ...buildTransformSetPropertyMutations(context, "yshift", context.values.yshift + normalizedDelta.y)
   ];
-
-  let currentSource = source;
-  const patches: SourcePatch[] = [];
-
+  const optionMutations = new Map<string, OptionMutation>();
   for (const mutation of mutations) {
-    const currentTarget = resolvePropertyTarget(currentSource, resolved.target.id, parseOptions);
-    if (currentTarget.kind !== "found") {
-      return { kind: "unsupported", reason: `Scope ${elementId} target became unavailable during rewrite` };
-    }
-
-    const optionMutations = new Map<string, OptionMutation>();
     for (const clearKey of mutation.clearKeys) {
       optionMutations.set(clearKey, { kind: "remove" });
     }
@@ -469,23 +460,16 @@ function rewriteSingleScopeTransform(
         ? { kind: "remove" }
         : { kind: "set", value: mutation.value }
     );
-
-    const rewritten = applyOptionMutationsToTarget(currentSource, currentTarget.target, optionMutations);
-    if (!rewritten) {
-      continue;
-    }
-    currentSource = rewritten.source;
-    patches.push(rewritten.patch);
   }
-
-  if (patches.length === 0) {
+  const rewritten = applyOptionMutationsToTarget(source, resolved.target, optionMutations);
+  if (!rewritten) {
     return { kind: "unsupported", reason: `Scope ${elementId} already matches the requested position` };
   }
 
   return {
     kind: "success",
-    source: currentSource,
-    patches
+    source: rewritten.source,
+    patches: [rewritten.patch]
   };
 }
 
@@ -535,7 +519,7 @@ function rewriteSingleScopeShiftInPlace(
       return null;
     }
 
-    const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+    const context = resolveTransformInspectorMutationContextFromOptionEntries(entries);
     const nextShiftX = context.values.xshift + localDelta.x;
     const nextShiftY = context.values.yshift + localDelta.y;
     const hasXShiftEntry = xyTranslationEntries.some((candidate) => {
@@ -579,7 +563,7 @@ function rewriteSingleScopeShiftInPlace(
     return null;
   }
 
-  const context = resolveTransformInspectorMutationContext(source, elementId, parseOptions);
+  const context = resolveTransformInspectorMutationContextFromOptionEntries(entries);
   const nextShiftX = context.values.xshift + localDelta.x;
   const nextShiftY = context.values.yshift + localDelta.y;
   const optionMutations = new Map<string, OptionMutation>([

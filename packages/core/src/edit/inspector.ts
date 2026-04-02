@@ -21,7 +21,7 @@ import {
 } from "./inspector/rounded-corners.js";
 import { parseTikz } from "../parser/index.js";
 import type { PathItem, PathStatement, Statement } from "../ast/types.js";
-import type { OptionListAst } from "../options/types.js";
+import type { OptionEntry, OptionListAst } from "../options/types.js";
 import {
   findTopLevelCharacter,
   parseFontStyle,
@@ -1431,18 +1431,25 @@ export function resolveTransformInspectorMutationContext(
   parseOptions: EditParseOptions = {},
   resolveTarget: InspectorTargetResolver = createInspectorTargetResolver(source, parseOptions)
 ): TransformInspectorMutationContext {
-  const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
-  const presence = createEmptyTransformInspectorPresence();
   if (!targetId) {
-    return { values, presence };
+    return resolveTransformInspectorMutationContextFromOptionEntries(null);
   }
 
   const resolved = resolveTarget(targetId);
   if (resolved.kind === "not-found" || !resolved.target.options) {
-    return { values, presence };
+    return resolveTransformInspectorMutationContextFromOptionEntries(null);
   }
 
-  for (const entry of resolved.target.options.entries) {
+  return resolveTransformInspectorMutationContextFromOptionEntries(resolved.target.options.entries);
+}
+
+export function resolveTransformInspectorMutationContextFromOptionEntries(
+  entries: readonly OptionEntry[] | null | undefined
+): TransformInspectorMutationContext {
+  const values = cloneTransformInspectorValues(DEFAULT_TRANSFORM_INSPECTOR_VALUES);
+  const presence = createEmptyTransformInspectorPresence();
+
+  for (const entry of entries ?? []) {
     if (entry.kind !== "kv") {
       continue;
     }

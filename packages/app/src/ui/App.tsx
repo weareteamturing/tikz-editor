@@ -850,7 +850,9 @@ export function App() {
   }, [commandRuntime]);
 
   useEffect(() => {
-    installAppProfilingRecorder();
+    if (import.meta.env.DEV) {
+      installAppProfilingRecorder();
+    }
     const globalLike = globalThis as typeof globalThis & {
       __TIKZ_EDITOR_APP_TEST_API__?: {
         setSource: (nextSource: string) => void;

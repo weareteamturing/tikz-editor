@@ -31,6 +31,19 @@ describe("project named colors", () => {
     expect(spy.mock.calls.length).toBeLessThanOrEqual(1);
   });
 
+  it("reuses the previous swatch computation when non-declaration edits do not invalidate colors", () => {
+    const updatedSource = String.raw`\begin{tikzpicture}
+\definecolor{myred}{RGB}{255,0,0}
+\colorlet{accent}{myred}
+\draw[draw=accent] (2,3) -- (4,5);
+\end{tikzpicture}`;
+
+    const first = resolveProjectNamedColorSwatches(SOURCE, TREE);
+    const second = resolveProjectNamedColorSwatches(updatedSource, parser.parse(updatedSource));
+
+    expect(second).toBe(first);
+  });
+
   it("still exposes the uncached collector for direct use", () => {
     const declaredColors = sourceColorDetection.collectDeclaredColors(SOURCE, TREE);
     const swatches = collectProjectNamedColorSwatches(declaredColors);

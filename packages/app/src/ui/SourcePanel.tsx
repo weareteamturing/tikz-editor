@@ -3,6 +3,7 @@ import { useSettingsStore } from "../settings/useSettingsStore";
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirror/autocomplete";
 import {
   Compartment,
+  Annotation,
   EditorSelection,
   EditorState as CMState,
   Prec,
@@ -45,12 +46,15 @@ import {
   keymap,
   lineNumbers,
   rectangularSelection,
-  tooltips
+  tooltips,
+  ViewPlugin,
+  type ViewUpdate
 } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
 import type { PathItem, Span, Statement } from "tikz-editor/ast/types";
 import { collectSymbols, type DocumentSymbols } from "tikz-editor/completion/index";
 import { resolveDocHoverTarget } from "tikz-editor/completion/doc-hover";
+import { recordProfilingSourcePanelSyncTiming } from "tikz-editor/profiling";
 import type { SceneElement } from "tikz-editor/semantic/types";
 import { NAMED_COLORS } from "tikz-editor/semantic/style/constants";
 import { patchesMatchSourceTransition } from "tikz-editor/edit/source-patches";
@@ -107,6 +111,13 @@ function buildHighlightExtension(dark: boolean) {
 const setHighlight = StateEffect.define<[number, number] | null>();
 const setDiagnostics = StateEffect.define<DiagnosticInput[]>();
 const setFigureOverlay = StateEffect.define<DecorationSet>();
+const sourcePanelExternalSyncAnnotation = Annotation.define<{ nextSource: string }>();
+
+type PendingExternalSourceSync = {
+  nextSource: string;
+  lastEditPatches: readonly SourceSyncPatch[] | null;
+  coalescedToAnimationFrame: boolean;
+};
 
 type DiagnosticSeverity = "error" | "warning";
 
@@ -120,6 +131,11 @@ type DiagnosticInput = {
 };
 
 type Diagnostic = DiagnosticInput;
+type SourceSyncPatch = {
+  oldSpan: { from: number; to: number };
+  newSpan: { from: number; to: number };
+  replacement: string;
+};
 
 type SourceSpan = {
   from: number;
@@ -248,6 +264,133 @@ const figureOverlayField = StateField.define<DecorationSet>({
   },
   provide: (f) => EditorView.decorations.from(f)
 });
+
+function findExternalSourceSyncAnnotation(
+  transactions: readonly Transaction[]
+): { nextSource: string } | null {
+  for (const transaction of transactions) {
+    const annotation = transaction.annotation(sourcePanelExternalSyncAnnotation);
+    if (annotation) {
+      return annotation;
+    }
+  }
+  return null;
+}
+
+function buildExternalSourceSyncChanges(
+  currentSource: string,
+  nextSource: string,
+  lastEditPatches: readonly SourceSyncPatch[] | null
+): { from: number; to: number; insert: string } | Array<{ from: number; to: number; insert: string }> {
+  if (
+    lastEditPatches &&
+    lastEditPatches.length > 0 &&
+    patchesMatchSourceTransition(currentSource, nextSource, lastEditPatches)
+  ) {
+    return lastEditPatches.map((patch) => ({
+      from: patch.oldSpan.from,
+      to: patch.oldSpan.to,
+      insert: patch.replacement
+    }));
+  }
+  return { from: 0, to: currentSource.length, insert: nextSource };
+}
+
+class ExternalSourceSyncManager {
+  private lastKnownSource: string;
+  private pending: PendingExternalSourceSync | null = null;
+  private rafId: number | null = null;
+
+  constructor(private readonly view: EditorView) {
+    this.lastKnownSource = view.state.doc.toString();
+  }
+
+  update(update: ViewUpdate): void {
+    if (!update.docChanged) {
+      return;
+    }
+    const annotation = findExternalSourceSyncAnnotation(update.transactions);
+    if (annotation) {
+      this.lastKnownSource = annotation.nextSource;
+      return;
+    }
+    this.lastKnownSource = update.state.doc.toString();
+  }
+
+  destroy(): void {
+    this.cancelPending();
+  }
+
+  schedule(nextSource: string, lastEditPatches: readonly SourceSyncPatch[] | null, coalesceToAnimationFrame: boolean): void {
+    if (nextSource === this.lastKnownSource && !this.pending) {
+      return;
+    }
+
+    const request = { nextSource, lastEditPatches, coalescedToAnimationFrame: coalesceToAnimationFrame };
+    if (!coalesceToAnimationFrame) {
+      this.cancelPending();
+      this.apply(request);
+      return;
+    }
+
+    this.pending = request;
+    if (this.rafId != null) {
+      return;
+    }
+    this.rafId = window.requestAnimationFrame(() => {
+      this.rafId = null;
+      const pending = this.pending;
+      this.pending = null;
+      if (!pending) {
+        return;
+      }
+      this.apply(pending);
+    });
+  }
+
+  private apply(request: PendingExternalSourceSync): void {
+    if (request.nextSource === this.lastKnownSource) {
+      return;
+    }
+
+    const changes = buildExternalSourceSyncChanges(
+      this.lastKnownSource,
+      request.nextSource,
+      request.lastEditPatches
+    );
+    const patchCount = Array.isArray(changes) ? changes.length : 1;
+    const mode = Array.isArray(changes) ? "patch" : "replace";
+    const startedAt = performance.now();
+    dispatchSelectionWithStableHorizontalScroll(this.view, {
+      changes,
+      annotations: [
+        Transaction.addToHistory.of(false),
+        isolateHistory.of("before"),
+        isolateHistory.of("after"),
+        sourcePanelExternalSyncAnnotation.of({ nextSource: request.nextSource })
+      ]
+    });
+    recordProfilingSourcePanelSyncTiming({
+      kind: "externalSyncDispatch",
+      durationMs: performance.now() - startedAt,
+      mode,
+      coalescedToAnimationFrame: request.coalescedToAnimationFrame,
+      patchCount,
+      docLength: request.nextSource.length
+    });
+    this.lastKnownSource = request.nextSource;
+  }
+
+  private cancelPending(): void {
+    if (this.rafId != null) {
+      window.cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.pending = null;
+  }
+}
+
+const externalSourceSyncPlugin = ViewPlugin.fromClass(ExternalSourceSyncManager);
 
 const diagnosticTooltip = hoverTooltip((view, pos) => {
   const field = view.state.field(diagnosticsField, false);
@@ -389,6 +532,7 @@ export function SourcePanel() {
   const lastEditPatches = useEditorStore((s) => s.lastEditPatches);
   const activeFigureId = useEditorStore((s) => s.activeFigureId);
   const snapshot = useEditorStore((s) => s.snapshot);
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const figures = snapshot.figures;
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const hoveredElementId = useEditorStore((s) => s.hoveredElementId);
@@ -405,7 +549,6 @@ export function SourcePanel() {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const colorPickerRef = useRef<HTMLDivElement | null>(null);
-  const ignoreNextDocUpdateRef = useRef(false);
   const ignoreNextSelectionSyncRef = useRef(false);
   const suppressStoreSelectionSyncRef = useRef(false);
   const suppressElementScrollOnFigureSwitchRef = useRef(false);
@@ -418,6 +561,13 @@ export function SourcePanel() {
   const activeFigureIdRef = useRef(activeFigureId);
   const [activeColorPicker, setActiveColorPicker] = useState<ActiveColorPickerSession | null>(null);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
+  const figureOverlaySignature = useMemo(
+    () =>
+      figures.length < 2
+        ? `${activeFigureId ?? ""}:single:${source.length}`
+        : `${activeFigureId ?? ""}:${source.length}:${figures.map((figure) => `${figure.id}:${figure.span.from}:${figure.span.to}`).join("|")}`,
+    [activeFigureId, figures, source.length]
+  );
 
   useEffect(() => {
     selectedElementIdsRef.current = selectedElementIds;
@@ -470,9 +620,7 @@ export function SourcePanel() {
           };
         });
 
-        if (ignoreNextDocUpdateRef.current) {
-          ignoreNextDocUpdateRef.current = false;
-        } else {
+        if (!findExternalSourceSyncAnnotation(update.transactions)) {
           const nextSource = update.state.doc.toString();
           dispatch({ type: "CODE_EDITED", source: nextSource });
         }
@@ -610,6 +758,7 @@ export function SourcePanel() {
         diagnosticTooltip,
         docsTooltip,
         sourceHoverBridge,
+        externalSourceSyncPlugin,
         updateListener
       ]
     });
@@ -733,42 +882,12 @@ export function SourcePanel() {
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    const current = view.state.doc.toString();
-    if (current === source) return;
-
-    // When patches are available (from WYSIWYG edit actions), use them for
-    // surgical CodeMirror updates instead of replacing the entire document.
-    // This is much cheaper for large documents where only coordinates change.
-    let changes: { from: number; to: number; insert: string } | Array<{ from: number; to: number; insert: string }>;
-    // Guardrail: patch updates are only safe when all old spans target the
-    // current pre-edit document and replay exactly to the desired next source.
-    if (
-      lastEditPatches &&
-      lastEditPatches.length > 0 &&
-      patchesMatchSourceTransition(current, source, lastEditPatches)
-    ) {
-      changes = lastEditPatches.map((p) => ({
-        from: p.oldSpan.from,
-        to: p.oldSpan.to,
-        insert: p.replacement
-      }));
-    } else {
-      changes = { from: 0, to: current.length, insert: source };
-    }
-
-    ignoreNextDocUpdateRef.current = true;
-    dispatchSelectionWithStableHorizontalScroll(view, {
-      changes,
-      annotations: [
-        Transaction.addToHistory.of(false),
-        isolateHistory.of("before")
-      ]
-    });
-
-    dispatchSelectionWithStableHorizontalScroll(view, {
-      annotations: [isolateHistory.of("after")]
-    });
-  }, [source]);
+    view.plugin(externalSourceSyncPlugin)?.schedule(
+      source,
+      lastEditPatches as readonly SourceSyncPatch[] | null,
+      activeCanvasDragKind != null
+    );
+  }, [activeCanvasDragKind, lastEditPatches, source]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -781,7 +900,7 @@ export function SourcePanel() {
       activeFigureId
     });
     view.dispatch({ effects: setFigureOverlay.of(decorations) });
-  }, [activeFigureId, figures, source]);
+  }, [figureOverlaySignature]);
 
   const prevActiveFigureIdRef = useRef(activeFigureId);
   useEffect(() => {
@@ -1462,15 +1581,13 @@ function dispatchSelectionWithStableHorizontalScroll(
 ): void {
   const previousScrollLeft = view.scrollDOM.scrollLeft;
   view.dispatch(spec);
-  // When word-wrap is on there is no horizontal overflow, so nothing to
-  // restore – skip the forced-reflow work entirely.
-  if (view.scrollDOM.scrollWidth <= view.scrollDOM.clientWidth) {
+  if (previousScrollLeft === 0) {
     return;
   }
-  restoreHorizontalScroll(view, previousScrollLeft);
-  window.requestAnimationFrame(() => {
-    restoreHorizontalScroll(view, previousScrollLeft);
-  });
+  if (view.scrollDOM.scrollLeft === previousScrollLeft) {
+    return;
+  }
+  scheduleHorizontalScrollRestore(view, previousScrollLeft);
 }
 
 function restoreHorizontalScroll(view: EditorView, scrollLeft: number): void {
@@ -1481,6 +1598,31 @@ function restoreHorizontalScroll(view: EditorView, scrollLeft: number): void {
     return;
   }
   view.scrollDOM.scrollLeft = scrollLeft;
+}
+
+function scheduleHorizontalScrollRestore(view: EditorView, scrollLeft: number): void {
+  view.requestMeasure({
+    read(measuredView) {
+      return {
+        hasOverflow: measuredView.scrollDOM.scrollWidth > measuredView.scrollDOM.clientWidth,
+        currentScrollLeft: measuredView.scrollDOM.scrollLeft
+      };
+    },
+    write(measure, measuredView) {
+      if (!measure.hasOverflow || measure.currentScrollLeft === scrollLeft) {
+        return;
+      }
+      restoreHorizontalScroll(measuredView, scrollLeft);
+      measuredView.requestMeasure({
+        read() {
+          return null;
+        },
+        write(_ignored, followupView) {
+          restoreHorizontalScroll(followupView, scrollLeft);
+        }
+      });
+    }
+  });
 }
 
 function shouldAutoRevealSourceSelection(): boolean {

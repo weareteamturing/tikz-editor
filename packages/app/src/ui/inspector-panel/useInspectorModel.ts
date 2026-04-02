@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildMatrixInspectorDescriptor,
   buildTreeInspectorDescriptor,
-  resolveTransformInspectorMutationContext,
+  resolveTransformInspectorMutationContextFromOptionEntries,
   resolveTransformInspectorValues,
   TIKZPICTURE_GLOBAL_TARGET_ID,
   type InspectorDescriptor,
@@ -79,7 +79,9 @@ function buildScopeInspectorDescriptor(
   const resolved = resolvePropertyTarget(source, scopeId, parseOptions ?? {});
   const writable = resolved.kind === "found";
   const readOnlyReason = resolved.kind === "not-found" ? resolved.reason : undefined;
-  const transformContext = resolveTransformInspectorMutationContext(source, scopeId, parseOptions);
+  const transformContext = resolveTransformInspectorMutationContextFromOptionEntries(
+    resolved.kind === "found" ? resolved.target.options?.entries : null
+  );
   const transformValues = transformContext.values;
   const sections: InspectorSection[] = [
     {
@@ -151,19 +153,30 @@ export type FrozenInspectorView = {
   multiPropertyProvenance: InspectorPropertyProvenanceMap;
 };
 
+type FrozenPropertyProvenanceView = {
+  selectedSourceIds: string[];
+  perElementPropertyProvenance: InspectorPropertyProvenanceMap[];
+  singlePropertyProvenance: InspectorPropertyProvenanceMap;
+  multiPropertyProvenance: InspectorPropertyProvenanceMap;
+};
+
 export function useInspectorModel(args: {
   selectedIds: ReadonlySet<string>;
   dispatch: (action: any) => void;
   getInspectorDescriptor: (element: SceneElement, context: InspectorSnapshot) => InspectorDescriptor;
 }) {
   const { selectedIds, dispatch, getInspectorDescriptor } = args;
-  const activeDocumentId = useEditorStore((s) => s.activeDocumentId);
-  const activeFigureId = useEditorStore((s) => s.activeFigureId);
-  const sourceRevision = useEditorStore((s) => s.sourceRevision);
-
   const [{ source, snapshot }, setSourceSnapshot] = useState(() => {
     const s = useEditorStore.getState();
     return { source: s.source, snapshot: s.snapshot };
+  });
+  const [{ activeDocumentId, activeFigureId, sourceRevision }, setAnalysisInputs] = useState(() => {
+    const s = useEditorStore.getState();
+    return {
+      activeDocumentId: s.activeDocumentId,
+      activeFigureId: s.activeFigureId,
+      sourceRevision: s.sourceRevision
+    };
   });
 
   useEffect(() => {
@@ -184,10 +197,40 @@ export function useInspectorModel(args: {
     });
   }, []);
 
+  useEffect(() => {
+    return useEditorStore.subscribe((s) => {
+      const k = s.activeCanvasDragKind;
+      if (k === "element" || k === "resize" || k === "rotate" || k === "handle") {
+        return;
+      }
+      setAnalysisInputs((current) => {
+        if (
+          current.activeDocumentId === s.activeDocumentId &&
+          current.activeFigureId === s.activeFigureId &&
+          current.sourceRevision === s.sourceRevision
+        ) {
+          return current;
+        }
+        return {
+          activeDocumentId: s.activeDocumentId,
+          activeFigureId: s.activeFigureId,
+          sourceRevision: s.sourceRevision
+        };
+      });
+    });
+  }, []);
+
   const rawSelectedSourceIds = useMemo(() => [...selectedIds], [selectedIds]);
   const selectedSourceIds = rawSelectedSourceIds;
   const selectedSourceIdSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
+  const activeCanvasDragKind = useEditorStore((s) => s.activeCanvasDragKind);
   const projectNamedColorSwatches = useProjectNamedColorSwatches();
+  const freezePropertyProvenance =
+    activeCanvasDragKind === "element" ||
+    activeCanvasDragKind === "resize" ||
+    activeCanvasDragKind === "rotate" ||
+    activeCanvasDragKind === "handle";
+  const frozenPropertyProvenanceRef = useRef<FrozenPropertyProvenanceView | null>(null);
   const editAnalysisView = useMemo(
     () =>
       getSharedEditAnalysisView({
@@ -282,7 +325,15 @@ export function useInspectorModel(args: {
     return buildMultiInspectorModel(descriptors, selectedSourceIds.length);
   }, [descriptors, selectedSourceIds.length]);
 
+  const canReuseFrozenPropertyProvenance =
+    freezePropertyProvenance &&
+    frozenPropertyProvenanceRef.current != null &&
+    sameOrderedStringArrays(frozenPropertyProvenanceRef.current.selectedSourceIds, selectedSourceIds);
+
   const perElementPropertyProvenance = useMemo<InspectorPropertyProvenanceMap[]>(() => {
+    if (canReuseFrozenPropertyProvenance) {
+      return frozenPropertyProvenanceRef.current?.perElementPropertyProvenance ?? [];
+    }
     return selectedSourceIds.map((sourceId, index) => {
       const element = selectedElementBySourceId.get(sourceId);
       const elementDescriptor = descriptorEntries[index];
@@ -300,7 +351,15 @@ export function useInspectorModel(args: {
       );
       return buildInspectorPropertyProvenanceMap(cascadeModel);
     });
-  }, [descriptorEntries, parseOptions, selectedElementBySourceId, selectedSourceIds, snapshot.editHandles, snapshot.source]);
+  }, [
+    canReuseFrozenPropertyProvenance,
+    descriptorEntries,
+    parseOptions,
+    selectedElementBySourceId,
+    selectedSourceIds,
+    snapshot.editHandles,
+    snapshot.source
+  ]);
 
   const singlePropertyProvenance = useMemo<InspectorPropertyProvenanceMap>(() => {
     if (selectedSourceIds.length !== 1) {
@@ -318,6 +377,34 @@ export function useInspectorModel(args: {
   }, [multiModel, perElementPropertyProvenance, selectedSourceIds.length]);
 
   const [frozenInspectorView, setFrozenInspectorView] = useState<FrozenInspectorView | null>(null);
+
+  useEffect(() => {
+    if (freezePropertyProvenance) {
+      return;
+    }
+    const current = frozenPropertyProvenanceRef.current;
+    if (
+      current &&
+      sameOrderedStringArrays(current.selectedSourceIds, selectedSourceIds) &&
+      current.perElementPropertyProvenance === perElementPropertyProvenance &&
+      current.singlePropertyProvenance === singlePropertyProvenance &&
+      current.multiPropertyProvenance === multiPropertyProvenance
+    ) {
+      return;
+    }
+    frozenPropertyProvenanceRef.current = {
+      selectedSourceIds: [...selectedSourceIds],
+      perElementPropertyProvenance,
+      singlePropertyProvenance,
+      multiPropertyProvenance
+    };
+  }, [
+    freezePropertyProvenance,
+    multiPropertyProvenance,
+    perElementPropertyProvenance,
+    selectedSourceIds,
+    singlePropertyProvenance
+  ]);
 
   const usingFrozenInspectorView =
     frozenInspectorView != null &&

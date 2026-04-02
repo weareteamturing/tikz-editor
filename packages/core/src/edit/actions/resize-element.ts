@@ -22,7 +22,7 @@ import { replaceSpan } from "../patch.js";
 import { rewriteCoordinate } from "../rewrite.js";
 import { CM_PER_PT, formatNumber } from "../format.js";
 import { applyTextReplacements } from "../statement-ops.js";
-import { resolveTransformInspectorMutationContext } from "../inspector.js";
+import { resolveTransformInspectorMutationContextFromOptionEntries } from "../inspector.js";
 import {
   applyOptionMutationsToTarget,
   normalizeOptionKey,
@@ -94,7 +94,7 @@ export function applyResizeElementAction(
   const boundsBySource = collectSourceWorldBounds(semantic.scene.elements);
   const scopeBoundsById = buildScopeBoundsById(parsed.figure.body, boundsBySource);
   if (findScopeStatementById(parsed.figure.body, elementId)) {
-    return applyResizeScope(source, action, scopeBoundsById, parseOptions, parsed.figure.body);
+    return applyResizeScope(source, action, resolved.target, scopeBoundsById, parsed.figure.body);
   }
   const hasNodePositionHandle = semantic.editHandles.some(
     (handle) => handle.sourceRef.sourceId === elementId && handle.kind === "node-position"
@@ -410,8 +410,8 @@ function chooseBestNodeResizeMutationCandidate(args: {
 function applyResizeScope(
   source: string,
   action: ResizeElementAction,
+  target: PropertyTarget,
   scopeBoundsById: ReadonlyMap<string, { minX: number; minY: number; maxX: number; maxY: number }>,
-  parseOptions: EditParseOptions,
   statements: readonly Statement[]
 ): EditActionResultLike {
   const bounds = action.referenceBounds ?? scopeBoundsById.get(action.elementId);
@@ -431,7 +431,7 @@ function applyResizeScope(
     return { kind: "unsupported", reason: `Unsupported resize role: ${action.role}` };
   }
 
-  const currentContext = resolveTransformInspectorMutationContext(source, action.elementId, parseOptions);
+  const currentContext = resolveTransformInspectorMutationContextFromOptionEntries(target.options?.entries);
   if (Math.abs(currentContext.values.rotate) > 1e-6) {
     return { kind: "unsupported", reason: "Scope resize currently supports only non-rotated scopes." };
   }
@@ -472,7 +472,7 @@ function applyResizeScope(
     return { kind: "unsupported", reason: "Scope resize produced a non-finite transform." };
   }
 
-  const rewritten = applyScopeTransformRewrite(source, action.elementId, nextValues, parseOptions);
+  const rewritten = applyScopeTransformRewrite(source, target, nextValues);
   if (!rewritten) {
     return { kind: "unsupported", reason: "Resize would not change node constraints." };
   }
@@ -487,15 +487,9 @@ function applyResizeScope(
 
 function applyScopeTransformRewrite(
   source: string,
-  scopeId: string,
+  target: PropertyTarget,
   values: { xscale: number; yscale: number; xshift: number; yshift: number },
-  parseOptions: EditParseOptions
 ): OptionMutationApplyResult | null {
-  const resolved = resolvePropertyTarget(source, scopeId, parseOptions);
-  if (resolved.kind !== "found") {
-    return null;
-  }
-
   const orderedSetMutations = new Map<string, OptionMutation>();
   if (Math.abs(values.xshift) > RESIZE_EPSILON) {
     orderedSetMutations.set("xshift", { kind: "set", value: `${formatNumber(values.xshift)}pt` });
@@ -510,10 +504,10 @@ function applyScopeTransformRewrite(
     orderedSetMutations.set("yscale", { kind: "set", value: formatNumber(values.yscale) });
   }
 
-  if (resolved.target.options && resolved.target.optionsSpan) {
+  if (target.options && target.optionsSpan) {
     const filteredOptions = {
-      ...resolved.target.options,
-      entries: resolved.target.options.entries.filter((entry) => {
+      ...target.options,
+      entries: target.options.entries.filter((entry) => {
         if (entry.kind !== "kv" && entry.kind !== "flag") {
           return true;
         }
@@ -525,9 +519,9 @@ function applyScopeTransformRewrite(
       filteredOptions,
       orderedSetMutations,
       undefined,
-      resolved.target.optionsFormat ?? "bracketed"
+      target.optionsFormat ?? "bracketed"
     );
-    const oldSpan = resolved.target.optionsSpan;
+    const oldSpan = target.optionsSpan;
     const previous = source.slice(oldSpan.from, oldSpan.to);
     if (previous === replacement) {
       return null;
@@ -543,7 +537,7 @@ function applyScopeTransformRewrite(
     };
   }
 
-  return applyOptionMutationsToTarget(source, resolved.target, orderedSetMutations);
+  return applyOptionMutationsToTarget(source, target, orderedSetMutations);
 }
 
 const SCOPE_TRANSFORM_OPTION_KEYS = new Set([

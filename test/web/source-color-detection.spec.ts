@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parser } from "tikz-editor/syntax/parse";
-import { collectDeclaredColors, collectDetectedColors } from "../../packages/app/src/source-color-detection";
+import {
+  collectDeclaredColors,
+  collectDetectedColors,
+  resolveDeclaredColorAnalysis,
+  resolveDeclaredColors
+} from "../../packages/app/src/source-color-detection";
 
 function detect(source: string) {
   const tree = parser.parse(source);
@@ -130,6 +135,40 @@ describe("source color detection", () => {
     const source = "\\draw[->, line width=2pt] (0,0) -- (1,1);";
     const { occurrences } = detect(source);
     expect(occurrences).toHaveLength(0);
+  });
+
+  it("reuses declared color resolution across non-declaration edits", () => {
+    const before = "\\colorlet{brand}{blue!60!black}\n\\path[draw=brand] (0,0) -- (1,1);";
+    const after = "\\colorlet{brand}{blue!60!black}\n\\path[draw=brand] (2,3) -- (4,5);";
+
+    const first = resolveDeclaredColors(before, parser.parse(before));
+    const second = resolveDeclaredColors(after, parser.parse(after));
+
+    expect(second).toBe(first);
+    expect(second.get("brand")).toBe("#000099");
+  });
+
+  it("invalidates declared color resolution when declarations change", () => {
+    const before = "\\colorlet{brand}{blue!60!black}\n\\path[draw=brand] (0,0) -- (1,1);";
+    const after = "\\colorlet{brand}{red!60!black}\n\\path[draw=brand] (0,0) -- (1,1);";
+
+    const first = resolveDeclaredColors(before, parser.parse(before));
+    const second = resolveDeclaredColors(after, parser.parse(after));
+
+    expect(second).not.toBe(first);
+    expect(second.get("brand")).toBe("#990000");
+  });
+
+  it("refreshes declaration ranges when signature stays the same but offsets move", () => {
+    const before = "\\colorlet{brand}{blue!60!black}\n\\path[draw=brand] (0,0) -- (1,1);";
+    const after = " % moved by prefix\n\\colorlet{brand}{blue!60!black}\n\\path[draw=brand] (0,0) -- (1,1);";
+
+    const first = resolveDeclaredColorAnalysis(before, parser.parse(before));
+    const second = resolveDeclaredColorAnalysis(after, parser.parse(after));
+
+    expect(second.colors).toBe(first.colors);
+    expect(second.ranges).not.toEqual(first.ranges);
+    expect(second.ranges[0]?.from).toBeGreaterThan(first.ranges[0]?.from ?? 0);
   });
 
   it("keeps duplicate color occurrences as independent spans", () => {

@@ -2,6 +2,7 @@ import type {
   TikzEditorProfilingComputeTiming,
   TikzEditorProfilingCounter,
   TikzEditorProfilingRecorder,
+  TikzEditorProfilingSourcePanelSyncTiming,
   TikzEditorProfilingSvgPatchTiming
 } from "tikz-editor/profiling";
 
@@ -11,6 +12,7 @@ export type AppProfilingSnapshot = {
   counters: Record<TikzEditorProfilingCounter, number>;
   computeTimings: TikzEditorProfilingComputeTiming[];
   svgPatchTimings: TikzEditorProfilingSvgPatchTiming[];
+  sourcePanelSyncTimings: TikzEditorProfilingSourcePanelSyncTiming[];
 };
 
 type ProfilingState = AppProfilingSnapshot;
@@ -32,7 +34,8 @@ const state: ProfilingState = {
   startedAtIso: null,
   counters: cloneCounters(),
   computeTimings: [],
-  svgPatchTimings: []
+  svgPatchTimings: [],
+  sourcePanelSyncTimings: []
 };
 
 function recorder(): TikzEditorProfilingRecorder {
@@ -45,6 +48,9 @@ function recorder(): TikzEditorProfilingRecorder {
     },
     recordSvgPatchTiming(timing) {
       state.svgPatchTimings.push({ ...timing });
+    },
+    recordSourcePanelSyncTiming(timing) {
+      state.sourcePanelSyncTimings.push({ ...timing });
     }
   };
 }
@@ -66,6 +72,7 @@ export function resetAppProfilingSession(label: string | null = null): void {
   state.counters = cloneCounters();
   state.computeTimings = [];
   state.svgPatchTimings = [];
+  state.sourcePanelSyncTimings = [];
 }
 
 export function readAppProfilingSnapshot(): AppProfilingSnapshot {
@@ -75,6 +82,7 @@ export function readAppProfilingSnapshot(): AppProfilingSnapshot {
     startedAtIso: state.startedAtIso,
     counters: { ...state.counters },
     computeTimings: state.computeTimings.map((entry) => ({ ...entry })),
-    svgPatchTimings: state.svgPatchTimings.map((entry) => ({ ...entry }))
+    svgPatchTimings: state.svgPatchTimings.map((entry) => ({ ...entry })),
+    sourcePanelSyncTimings: state.sourcePanelSyncTimings.map((entry) => ({ ...entry }))
   };
 }

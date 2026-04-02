@@ -39,6 +39,12 @@ type ColorResolution = {
   cssColor: string | null;
 };
 
+export type DeclaredColorAnalysis = {
+  signature: string;
+  colors: ReadonlyMap<string, string>;
+  ranges: readonly SourceRange[];
+};
+
 type ColorResolveContext = {
   declaredColors: ReadonlyMap<string, string>;
   currentColor?: string | null;
@@ -72,20 +78,53 @@ export function collectDeclaredColors(source: string, tree: Tree): ReadonlyMap<s
   return collectDeclaredColorsFromStatements(collectContextDefinitions(source));
 }
 
-let _cachedDeclaredSource = "";
-let _cachedDeclaredColors: ReadonlyMap<string, string> = new Map();
+let _cachedDeclaredSignature = "__declared-colors:uninitialized__";
+let _cachedDeclaredSource = "__declared-colors:uninitialized__";
+let _cachedDeclaredTree: Tree | null = null;
+let _cachedDeclaredAnalysis: DeclaredColorAnalysis = {
+  signature: _cachedDeclaredSignature,
+  colors: new Map(),
+  ranges: []
+};
 
 /**
- * Cached wrapper around collectDeclaredColors — returns the same Map
- * for the same source string, avoiding redundant tree walks.
+ * Cached wrapper around collectDeclaredColors. Cache invalidation is based on
+ * the parsed \colorlet/\definecolor statement content rather than the full
+ * source string so unrelated edits can reuse the same declaration map.
  */
-export function resolveDeclaredColors(source: string, tree: Tree): ReadonlyMap<string, string> {
-  if (source === _cachedDeclaredSource) {
-    return _cachedDeclaredColors;
+export function resolveDeclaredColorAnalysis(source: string, tree: Tree): DeclaredColorAnalysis {
+  if (source === _cachedDeclaredSource && tree === _cachedDeclaredTree) {
+    return _cachedDeclaredAnalysis;
   }
+  const declarations = collectDeclaredColorStatements(source, tree);
+  const ranges = declarations.map((declaration) => ({
+    from: declaration.from,
+    to: declaration.to
+  }));
+  const signature = buildDeclaredColorSignature(declarations);
+  if (signature === _cachedDeclaredSignature) {
+    _cachedDeclaredSource = source;
+    _cachedDeclaredTree = tree;
+    _cachedDeclaredAnalysis = {
+      signature,
+      colors: _cachedDeclaredAnalysis.colors,
+      ranges
+    };
+    return _cachedDeclaredAnalysis;
+  }
+  _cachedDeclaredSignature = signature;
   _cachedDeclaredSource = source;
-  _cachedDeclaredColors = collectDeclaredColors(source, tree);
-  return _cachedDeclaredColors;
+  _cachedDeclaredTree = tree;
+  _cachedDeclaredAnalysis = {
+    signature,
+    colors: collectDeclaredColors(source, tree),
+    ranges
+  };
+  return _cachedDeclaredAnalysis;
+}
+
+export function resolveDeclaredColors(source: string, tree: Tree): ReadonlyMap<string, string> {
+  return resolveDeclaredColorAnalysis(source, tree).colors;
 }
 
 export function collectDetectedColors(
@@ -494,6 +533,38 @@ function readStatementBraceGroups(source: string, statementFrom: number, stateme
 
 function isStylePayloadCarrierKey(key: string): boolean {
   return /\/\.(append style|prefix style|style(?:\s+\d+\s+args|\s+args)?|estyle)$/.test(key);
+}
+
+type DeclaredColorStatement = {
+  kind: "ColorletStatement" | "DefineColorStatement";
+  from: number;
+  to: number;
+  raw: string;
+};
+
+function collectDeclaredColorStatements(source: string, tree: Tree): DeclaredColorStatement[] {
+  const declarations: DeclaredColorStatement[] = [];
+
+  walkTree(tree, (name, from, to) => {
+    if (name !== "ColorletStatement" && name !== "DefineColorStatement") {
+      return;
+    }
+    declarations.push({
+      kind: name,
+      from,
+      to,
+      raw: source.slice(from, to)
+    });
+  });
+
+  return declarations;
+}
+
+function buildDeclaredColorSignature(declarations: readonly DeclaredColorStatement[]): string {
+  if (declarations.length === 0) {
+    return "";
+  }
+  return declarations.map((declaration) => `${declaration.kind}:${declaration.raw}`).join("\u0000");
 }
 
 function normalizeOptionKey(rawKey: string): string {

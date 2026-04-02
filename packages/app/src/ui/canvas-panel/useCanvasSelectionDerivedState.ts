@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { resolvePropertyTargetFromParseResult } from "tikz-editor/edit/property-target";
-import { resolveTransformInspectorMutationContext } from "tikz-editor/edit/inspector";
+import { resolveTransformInspectorMutationContextFromOptionEntries } from "tikz-editor/edit/inspector";
 import { collectSourceWorldBounds } from "tikz-editor/edit/snapping";
 import type { NodeAnchorTarget, SceneElement, ScenePath, SceneText } from "tikz-editor/semantic/types";
 import {
@@ -307,7 +307,13 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       if (!movableScopeSourceIds.has(sourceId)) {
         continue;
       }
-      const transformContext = resolveTransformInspectorMutationContext(snapshot.source, sourceId);
+      const resolvedTarget = snapshot.parseResult
+        ? resolvePropertyTargetFromParseResult(snapshot.source, snapshot.parseResult, sourceId)
+        : { kind: "not-found" as const };
+      const transformContext =
+        resolvedTarget.kind === "found"
+          ? resolveTransformInspectorMutationContextFromOptionEntries(resolvedTarget.target.options?.entries)
+          : resolveTransformInspectorMutationContextFromOptionEntries(null);
       if (Math.abs(transformContext.values.rotate) > 1e-6) {
         continue;
       }
@@ -323,7 +329,7 @@ export function useCanvasSelectionDerivedState(args: UseCanvasSelectionDerivedSt
       sourceIds.add(sourceId);
     }
     return sourceIds;
-  }, [movableScopeSourceIds, scopeOverlay.boundsByScopeId, selectedElementIds, snapshot.source]);
+  }, [movableScopeSourceIds, scopeOverlay.boundsByScopeId, selectedElementIds, snapshot.parseResult, snapshot.source]);
 
   const resizeFrameSourceIds = useMemo(() => {
     const sourceIds = new Set<string>(resizablePathShapeSourceIds);

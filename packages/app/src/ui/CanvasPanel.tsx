@@ -1498,12 +1498,7 @@ export function CanvasPanel({
     (action: EditAction, historyMergeKey?: string): ApplyActionFeedback => {
       const result = applyEditAction(source, snapshot.editHandles, action, {
         evaluateOptions: { textEngine: textEngineRef.current },
-        parseOptions: {
-          activeFigureId:
-            activeFigureId == null
-              ? (snapshot.figures.length > 1 ? null : undefined)
-              : activeFigureId
-        }
+        parseOptions: editParseOptions
       });
 
       if (result.kind === "success" || result.kind === "partial") {
@@ -1538,7 +1533,7 @@ export function CanvasPanel({
 
       return { sourceChanged: false };
     },
-    [activeFigureId, dispatch, source, snapshot.editHandles]
+    [dispatch, editParseOptions, source, snapshot.editHandles]
   );
 
   const queueSelectionForAddedElement = useCallback(

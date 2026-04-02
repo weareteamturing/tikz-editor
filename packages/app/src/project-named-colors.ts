@@ -1,7 +1,7 @@
 import type { Tree } from "@lezer/common";
 import { useEffect, useMemo, useState } from "react";
 import { BASIC_PICKER_COLOR_SET } from "./color-palette";
-import { resolveDeclaredColors } from "./source-color-detection";
+import { resolveDeclaredColorAnalysis } from "./source-color-detection";
 import { useEditorStore } from "./store/store";
 
 export type NamedColorSwatch = {
@@ -9,7 +9,7 @@ export type NamedColorSwatch = {
   cssColor: string;
 };
 
-let lastSource = "__project-named-colors:uninitialized__";
+let lastDeclaredColorSignature = "__project-named-colors:uninitialized__";
 let lastSwatches: NamedColorSwatch[] = [];
 
 export function collectProjectNamedColorSwatches(
@@ -41,12 +41,12 @@ export function resolveProjectNamedColorSwatches(
   source: string,
   tree: Tree
 ): NamedColorSwatch[] {
-  if (source === lastSource) {
+  const analysis = resolveDeclaredColorAnalysis(source, tree);
+  if (analysis.signature === lastDeclaredColorSignature) {
     return lastSwatches;
   }
-  lastSource = source;
-  const declaredColors = resolveDeclaredColors(source, tree);
-  lastSwatches = collectProjectNamedColorSwatches(declaredColors);
+  lastDeclaredColorSignature = analysis.signature;
+  lastSwatches = collectProjectNamedColorSwatches(analysis.colors);
   return lastSwatches;
 }
 
